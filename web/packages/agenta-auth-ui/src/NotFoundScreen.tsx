@@ -22,9 +22,11 @@ export interface NotFoundScreenProps {
     onBack?: () => void
     /** The address that failed, printed small at the bottom beside the code. */
     path?: string
+    /** Where the wordmark links. Omitted, the wordmark is not a link. */
+    homeHref?: string
 }
 
-export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
+export const NotFoundScreen = ({onBack, path, homeHref}: NotFoundScreenProps) => {
     const t = useT(notFoundCatalog)
     // Next prerenders /404 with `asPath` as the literal "/404", so the real address is
     // client-only or it hydrates against different text.
@@ -35,7 +37,17 @@ export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
         <main className="auth-redesign relative flex min-h-dvh w-full flex-col bg-background text-foreground">
             <div className="px-9 pt-7">
                 {/* 104x23 keeps the SVG's 361:80 ratio at the sign-in page's brand height. */}
-                <AgentaWordmark width={104} height={23} markClassName="fill-current" />
+                {homeHref ? (
+                    <a
+                        href={homeHref}
+                        aria-label={t("auth.notFound.homeLink")}
+                        className="inline-flex text-inherit"
+                    >
+                        <AgentaWordmark width={104} height={23} markClassName="fill-current" />
+                    </a>
+                ) : (
+                    <AgentaWordmark width={104} height={23} markClassName="fill-current" />
+                )}
             </div>
 
             <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">

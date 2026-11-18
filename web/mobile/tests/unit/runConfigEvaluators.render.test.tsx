@@ -123,7 +123,7 @@ describe("evaluators section", () => {
         const cards = [...host.querySelectorAll('[data-testid="evaluator-card"]')]
         expect(cards).toHaveLength(2)
         expect(cards[0].textContent).toContain("Exact match")
-        expect(cards[0].textContent).toContain("V4")
+        expect(cards[0].textContent).toContain("v4")
         expect(cards[0].textContent).toContain("Compares the answer with the expected one")
         // The open card lists its settings; the closed one keeps only its header.
         expect(cards[0].textContent).toContain("correct_answer_key")

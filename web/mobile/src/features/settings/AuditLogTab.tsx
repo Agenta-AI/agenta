@@ -1,6 +1,7 @@
 import {useProfile} from "@agenta/entities/profile"
 import {AuditLogPage, useEntitlements} from "@agenta/settings-ui"
 
+import {SeePlansButton} from "./SeePlansButton"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
 import {useSettingsOrg} from "./useSettingsOrg"
@@ -17,6 +18,7 @@ export const AuditLogTab = ({workspaceId, projectId}: SettingsTabProps) => {
             entitlementsLoading={entitlements.isLoading}
             members={org.data?.default_workspace?.members}
             currentUserId={user?.id}
+            upgradeAction={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
         />
     )
 }

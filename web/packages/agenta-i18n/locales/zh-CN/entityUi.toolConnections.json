@@ -26,5 +26,6 @@
     "created": "创建时间",
     "actions": "操作",
     "testConnection": "测试连接",
-    "refreshConnection": "刷新连接"
+    "refreshConnection": "刷新连接",
+    "apiKeyNeverVerified": "它的 API 密钥从未通过验证，因此智能体还不能使用其工具。请删除后使用有效密钥重新连接。"
 }

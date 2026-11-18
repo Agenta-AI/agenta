@@ -85,10 +85,11 @@ export function ConfigSelect({
                             // The item text has to grow for the description to sit at the row's edge.
                             className="[&>span]:min-w-0 [&>span]:flex-1"
                         >
+                            {/* The label keeps its width; a long description wraps instead. */}
                             <span className="flex items-center justify-between gap-3">
-                                <span className="truncate">{option.label}</span>
+                                <span className="shrink-0">{option.label}</span>
                                 {option.description ? (
-                                    <span className="text-colorTextDescription [[data-slot=select-value]_&]:hidden">
+                                    <span className="min-w-0 text-right text-colorTextDescription [[data-slot=select-value]_&]:hidden">
                                         {option.description}
                                     </span>
                                 ) : null}

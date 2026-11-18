@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import type {RunHeader, RunQueryConfig, RunReferences} from "@agenta/entities/evaluationRun"
 
 import {MetricCardsSection} from "./MetricCardsSection"
-import {RunRadarCard} from "./RunRadarCard"
+import {RunRadarCard, showsRadar, useRunRadar} from "./RunRadarCard"
 import {buildRunSummaryRows} from "./runSummaryRows"
 import {RunSummaryTable} from "./RunSummaryTable"
 import type {OverviewMetric, OverviewNames} from "./useRunOverview"
@@ -23,7 +23,7 @@ export interface RunOverviewViewProps {
     onRetryMetrics?: () => void
 }
 
-/** The Overview tab's layout: the run summary with its radar, then one card per evaluator metric. */
+/** The Overview tab: the run summary (with a radar when there are three metrics or more), then one card per evaluator metric. */
 export const RunOverviewView = ({
     runId,
     header,
@@ -46,6 +46,8 @@ export const RunOverviewView = ({
         () => [{id: runId, name: header.name, metrics}],
         [runId, header.name, metrics],
     )
+    const radar = useRunRadar(radarRuns)
+    const withRadar = showsRadar(radar.axes.length, metricsPending)
 
     return (
         <div className="flex flex-col gap-6">
@@ -58,21 +60,22 @@ export const RunOverviewView = ({
                         id="run-overview-title"
                         className="m-0 text-base font-semibold text-foreground"
                     >
-                        Evaluator Scores Overview
+                        Run summary
                     </h2>
                     <p className="m-0 text-sm text-muted-foreground">
-                        Average evaluator score across evaluations
+                        What this run tested and its average results
                     </p>
                 </header>
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className={`grid grid-cols-1 gap-6 ${withRadar ? "lg:grid-cols-2" : ""}`}>
                     <RunSummaryTable rows={rows} />
-                    <RunRadarCard runs={radarRuns} pending={metricsPending} />
+                    {withRadar ? <RunRadarCard runs={radarRuns} radar={radar} /> : null}
                 </div>
             </section>
             <MetricCardsSection
                 runId={runId}
                 runName={header.name}
                 online={header.kind === "online"}
+                human={header.kind === "human"}
                 metrics={metrics}
                 hasEvaluators={(references?.evaluators.length ?? 0) > 0}
                 pending={metricsPending}

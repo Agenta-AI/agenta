@@ -220,9 +220,9 @@ describe("starting an auto evaluation", () => {
         const result = await startWith(filled("auto"))
 
         expect(result).toEqual({status: "started", kind: "auto"})
-        const evaluation = (revisionId: string) => ({
+        const evaluation = (revisionId: string, name: string) => ({
             evaluation: {
-                name: "Weekly check",
+                name,
                 data: {
                     testset_steps: {[ID.testsetRevision]: "auto"},
                     application_steps: {[revisionId]: "auto"},
@@ -232,9 +232,10 @@ describe("starting an auto evaluation", () => {
                 flags: {is_live: false, is_active: true, is_closed: false},
             },
         })
+        // Each revision's run carries its variant and version, so the runs can be told apart.
         expect(requests("/simple/evaluations/")).toEqual([
-            evaluation(ID.revisionA),
-            evaluation(ID.revisionB),
+            evaluation(ID.revisionA, "Weekly check-default-v3"),
+            evaluation(ID.revisionB, "Weekly check-concise-v1"),
         ])
         expect(http.post).toHaveBeenCalledWith(
             `${API}/simple/evaluations/`,
@@ -333,10 +334,11 @@ describe("starting an auto evaluation", () => {
         })
     })
 
-    it("An invalid draft shows the first problem and opens its section", async () => {
+    it("An invalid draft returns the first problem for the form to show inline", async () => {
         const result = await startWith({...filled("auto"), name: ""})
-        expect(result).toMatchObject({status: "invalid"})
-        expect(toast.message.error).toHaveBeenCalledWith("Please enter evaluation name")
+        expect(result).toMatchObject({status: "invalid", message: "Enter an evaluation name"})
+        // The form shows the problem next to its field, so no toast.
+        expect(toast.message.error).not.toHaveBeenCalled()
         expect(http.post).not.toHaveBeenCalled()
     })
 

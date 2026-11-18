@@ -31,9 +31,12 @@ export const ScenarioFocusSheet = ({
     runId,
     header,
     poll,
+    compareSlot = null,
 }: {
     runId: string
     header: RunHeader
+    /** While runs are compared: the run's slot, so the drawer names the run in its color. */
+    compareSlot?: number | null
     /** False while the Scenarios or Annotate tab is open: it already reads the live rows again. */
     poll: boolean
 }) => {
@@ -107,6 +110,9 @@ export const ScenarioFocusSheet = ({
                     <>
                         <ScenarioFocusHeader
                             kind={header.kind}
+                            compareRun={
+                                compareSlot === null ? null : {slot: compareSlot, name: header.name}
+                            }
                             rows={rows}
                             current={current}
                             nextLoading={isFetchingMore}

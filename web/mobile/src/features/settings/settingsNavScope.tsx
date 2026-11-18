@@ -52,9 +52,12 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
             selectedKey: activeTab,
             onSelect: (key) => {
                 if (!isSettingsTabKey(key)) return
-                void router.replace({query: {...router.query, tab: key}}, undefined, {
-                    shallow: true,
-                })
+                // The route pattern takes the path params, so they stay out of the query string.
+                void router.replace(
+                    {pathname: router.pathname, query: {...router.query, tab: key}},
+                    undefined,
+                    {shallow: true},
+                )
             },
         }
     }

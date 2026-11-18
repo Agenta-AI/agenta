@@ -24,6 +24,16 @@ describe("selectedKeyOverrideFor", () => {
         expect(selectedKeyOverrideFor(`${P}/apps/[app_id]/overview`, null, false)).toBeUndefined()
     })
 
+    it("never selects Home on the archived prompts page", () => {
+        expect(selectedKeyOverrideFor(`${P}/apps/archived`, null, true)).toBe(
+            "developer-view-prompts",
+        )
+        // Pinned to a row the rail does not draw, so nothing lights up.
+        expect(selectedKeyOverrideFor(`${P}/apps/archived`, null, false)).toBe(
+            "developer-view-prompts",
+        )
+    })
+
     it("pins an open session first", () => {
         expect(selectedKeyOverrideFor(`${P}/sessions/[session_id]`, "s1", true)).toMatch(/s1$/)
     })

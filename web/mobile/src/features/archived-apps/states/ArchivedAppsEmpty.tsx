@@ -7,7 +7,7 @@ export const ArchivedAppsEmpty = ({term, onClear}: {term?: string; onClear?: () 
         <EmptyHeader>
             <EmptyMedia variant="icon">{term ? <Search /> : <Archive />}</EmptyMedia>
             <EmptyTitle>
-                {term ? `No archived apps match “${term}”` : "No archived apps"}
+                {term ? `No archived prompts match “${term}”` : "No archived prompts"}
             </EmptyTitle>
         </EmptyHeader>
         {term && onClear ? (

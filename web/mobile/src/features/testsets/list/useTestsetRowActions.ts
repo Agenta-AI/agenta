@@ -109,7 +109,7 @@ export function useTestsetRowActions({
                         fileType: format,
                         filename: exportFileName(row.name, format),
                     })
-                    message.success(`Testset exported as ${format.toUpperCase()}`)
+                    message.success(`Test set exported as ${format.toUpperCase()}`)
                 } catch {
                     message.error("Failed to export")
                 } finally {
@@ -150,7 +150,7 @@ export function useTestsetRowActions({
                     if (cause instanceof TestsetInUseError) throw cause
                     throw new Error(single ? ARCHIVE_FAILED : ARCHIVE_MANY_FAILED)
                 }
-                message.success(single ? "Testset archived" : `${ids.length} test sets archived`)
+                message.success(single ? "Test set archived" : `${ids.length} test sets archived`)
                 await queryClient.invalidateQueries({queryKey: ["testsets"]})
                 return true
             })

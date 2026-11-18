@@ -46,5 +46,9 @@
     "callId": "Identifiant de l’appel",
     "promptRefined": "Prompt affiné avec succès.",
     "leaveWarning": "Vous avez des révisions en brouillon locales ou des modifications non enregistrées qui seront perdues si vous quittez. Voulez-vous vraiment continuer ?",
-    "rerunning": "Nouvelle exécution..."
+    "rerunning": "Nouvelle exécution...",
+    "averageTokens": "Tokens moyens",
+    "newAgent": "Nouvel agent",
+    "newPrompt": "Nouveau prompt",
+    "revisionOpen": "Ouverte"
 }

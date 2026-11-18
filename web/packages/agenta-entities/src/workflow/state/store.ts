@@ -226,6 +226,15 @@ export function primeCommittedRevisionRefLists(
         if (variantId) seed(["workflows", "revisions", variantId, projectId])
         const workflowId = workflow.workflow_id
         if (workflowId) seed(["workflows", "revisionsByWorkflow", workflowId, projectId])
+        // The app's latest revision moves to the new one, so "Last modified" needs no reload.
+        if (workflowId && Number(workflow.version ?? 0) > 0) {
+            const qc = store.get(queryClientAtom)
+            const latestKey = ["workflows", "latestRevision", workflowId, projectId]
+            if (isLaterWorkflowRevision(workflow, qc.getQueryData<Workflow>(latestKey))) {
+                qc.setQueryData(latestKey, workflow)
+                void catalogPersister.persistQueryByKey(latestKey, qc).catch(() => undefined)
+            }
+        }
     } catch {
         // queryClientAtom may not be initialized yet (rare)
     }
@@ -956,12 +965,18 @@ export const appWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((ge
     }
 })
 
+const recencyOf = (workflow: Workflow) =>
+    Date.parse(workflow.updated_at ?? workflow.created_at ?? "") || 0
+
+/** Newest edit first, so a capped list (the sidebar's five) shows the recent prompts. */
+export const byMostRecentlyUpdated = (a: Workflow, b: Workflow) => recencyOf(b) - recencyOf(a)
+
 export const promptWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
     const agentFlagsQuery = get(appWorkflowsAgentFlagsQueryAtom)
-    const data = get(appWorkflowsWithAgentFlagsAtom).filter(
-        (workflow) => !workflow.deleted_at && !workflow.flags?.is_agent,
-    )
+    const data = get(appWorkflowsWithAgentFlagsAtom)
+        .filter((workflow) => !workflow.deleted_at && !workflow.flags?.is_agent)
+        .sort(byMostRecentlyUpdated)
     return {
         data,
         isPending: (appQuery.isPending || agentFlagsQuery.isPending) ?? false,

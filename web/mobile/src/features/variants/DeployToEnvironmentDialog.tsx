@@ -96,30 +96,38 @@ export const DeployToEnvironmentDialog = ({
                     <DialogDescription>
                         {pickedRow
                             ? `This will deploy the following revision to ${environment.name}.`
-                            : `Select a revision from the table to deploy to ${environment.name}.`}
+                            : `Select a revision from the list to deploy to ${environment.name}.`}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid min-h-0 grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex min-w-0 flex-col gap-3">
-                        {pickedRow ? (
-                            <div className="flex flex-col gap-1 text-sm">
-                                <span>
-                                    {environment.deployedLabel ?? "No deployment"} →{" "}
-                                    {pickedRow.variantName} v{pickedRow.version}
+                        {/* Always on screen, so a pick does not move the message box. */}
+                        <div className="flex min-h-[60px] flex-col gap-1 text-sm">
+                            {pickedRow ? (
+                                <>
+                                    <span>
+                                        {environment.deployedLabel ?? "No deployment"} →{" "}
+                                        {pickedRow.variantName} v{pickedRow.version}
+                                    </span>
+                                    {pickedRow.model ? (
+                                        <span className="text-muted-foreground">
+                                            Model: {pickedRow.model}
+                                        </span>
+                                    ) : null}
+                                    {alreadyDeployed ? (
+                                        <span className="text-colorWarningText">
+                                            This revision is already deployed to {environment.name}.
+                                        </span>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <span className="text-muted-foreground">
+                                    {environment.deployedLabel ?? "No deployment"} → no revision
+                                    selected
                                 </span>
-                                {pickedRow.model ? (
-                                    <span className="text-muted-foreground">
-                                        Model: {pickedRow.model}
-                                    </span>
-                                ) : null}
-                                {alreadyDeployed ? (
-                                    <span className="text-colorWarningText">
-                                        This revision is already deployed to {environment.name}.
-                                    </span>
-                                ) : null}
-                            </div>
-                        ) : null}
+                            )}
+                        </div>
                         <CommitMessageInput
                             value={note}
                             onChange={setNote}

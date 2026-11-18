@@ -15,7 +15,10 @@ import {ChartLineIcon, WarningCircleIcon} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
 const CHART_HEIGHT = 160
-const EMPTY = "-"
+const EMPTY = "—"
+
+/** Counts are whole numbers: a tick between two of them (0.3, 0.8) has no label. */
+const formatCount = (value: number) => (Number.isInteger(value) ? formatCompactNumber(value) : "")
 
 interface Bucket {
     timestamp: number | string
@@ -97,6 +100,9 @@ export const AppUsageSection = ({appId}: {appId: string}) => {
     ) => {
         if (!data && busy) return <Skeleton className="h-[160px] w-full rounded-md" />
         if (!hasData) return <EmptyChart failed={failed} />
+        // A metric no trace reported (no tokens, no cost) is no data, not a flat line at 0.
+        if (!buckets.some((bucket) => series.some((s) => valueOf(bucket, s.key) !== 0)))
+            return <EmptyChart failed={false} />
         // The buckets carry a ready tick label, not a time: plot by position, label by bucket.
         const points: LinePoint[] = buckets.map((bucket, index) => ({
             x: index,
@@ -156,11 +162,15 @@ export const AppUsageSection = ({appId}: {appId: string}) => {
                         failureRate > 0
                             ? [
                                   {key: "success_count", name: "Successful"},
-                                  {key: "failure_count", name: "Failed"},
+                                  {
+                                      key: "failure_count",
+                                      name: "Failed",
+                                      color: "var(--destructive)",
+                                  },
                               ]
                             : [{key: "success_count", name: "Requests"}],
                         field,
-                        formatCompactNumber,
+                        formatCount,
                     )}
                 </UsageCard>
                 <UsageCard
@@ -222,12 +232,7 @@ export const AppUsageSection = ({appId}: {appId: string}) => {
                         </>
                     }
                 >
-                    {chart(
-                        "Tokens",
-                        [{key: "total_tokens", name: "Tokens"}],
-                        field,
-                        formatCompactNumber,
-                    )}
+                    {chart("Tokens", [{key: "total_tokens", name: "Tokens"}], field, formatCount)}
                 </UsageCard>
             </div>
         </section>

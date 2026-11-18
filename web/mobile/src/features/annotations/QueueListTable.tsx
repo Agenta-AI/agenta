@@ -40,7 +40,7 @@ const WIDE_COLUMNS: ListTableColumn[] = [
 ]
 
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 1100
+const WIDE_MIN_WIDTH = 960
 const NARROW_MIN_WIDTH = 0
 
 /**

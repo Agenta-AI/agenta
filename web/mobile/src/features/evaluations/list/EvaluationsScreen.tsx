@@ -69,8 +69,16 @@ export const EvaluationsScreen = ({
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const filters = useEvaluationRunsFilters()
-    const {kind, appId, search, panel} = filters
-    const list = useEvaluationRunsList({projectId, kind, appId, search, panel})
+    const {kind, appId, evaluatorId, scopePending, search, panel} = filters
+    const list = useEvaluationRunsList({
+        projectId,
+        kind,
+        appId,
+        evaluatorId,
+        scopePending,
+        search,
+        panel,
+    })
     const [panelOpen, setPanelOpen] = useState(false)
     // The choices load when the panel opens, or when a chip needs the names of its ids.
     const filterOptions = useRunFilterOptions({
@@ -245,21 +253,7 @@ export const EvaluationsScreen = ({
                                         ) : filtered ? (
                                             <EvaluationsNoMatch onClear={filters.clearFilters} />
                                         ) : (
-                                            <EvaluationsEmpty
-                                                kind={kind}
-                                                onCreate={canCreate ? onCreate : undefined}
-                                                createKinds={createKinds}
-                                                createMenu={
-                                                    canCreate && onCreate ? (
-                                                        <CreateEvaluationMenu
-                                                            tab="all"
-                                                            onCreate={onCreate}
-                                                            kinds={createKinds}
-                                                            label="Start evaluation"
-                                                        />
-                                                    ) : null
-                                                }
-                                            />
+                                            <EvaluationsEmpty kind={kind} />
                                         )
                                     }
                                 />

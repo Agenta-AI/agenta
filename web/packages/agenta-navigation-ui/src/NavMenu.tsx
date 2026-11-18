@@ -606,7 +606,8 @@ const NavMenuImpl = ({
                     <DropdownMenuContent
                         side="right"
                         align="start"
-                        className="max-h-[min(70vh,560px)] overflow-y-auto"
+                        // A set width, so truncated release titles do not shrink the menu.
+                        className="max-h-[min(70vh,560px)] w-72 max-w-[calc(100vw-16px)] overflow-y-auto"
                     >
                         <FlyoutChildren
                             items={item.submenu ?? []}

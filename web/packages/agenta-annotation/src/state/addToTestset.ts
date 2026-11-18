@@ -9,21 +9,22 @@ export function getAddToTestsetDisabledReason({
     isSubmitting: boolean
     hasPendingChanges: boolean
 }): string | null {
-    if (!scenarioId) return "Select a scenario before adding it to a testset."
-    if (hasPendingChanges && !isCompleted) return "Save annotations before adding to a testset."
+    if (!scenarioId) return "Select an item before adding it to a test set."
+    if (hasPendingChanges && !isCompleted)
+        return "Mark this item completed before adding it to a test set."
     if (isSubmitting) return "Saving annotations"
     return null
 }
 
 /** The commit modes the add-to-testset modal offers. */
 export const ADD_TO_TESTSET_COMMIT_MODES = [
-    {id: "existing", label: "Existing testset"},
-    {id: "new", label: "New testset"},
+    {id: "existing", label: "Existing test set"},
+    {id: "new", label: "New test set"},
 ]
 
 /** The name field the add-to-testset modal shows when it creates a testset. */
 export const CREATE_TESTSET_FIELDS = {
     modes: ["new"],
-    nameLabel: "Testset name",
+    nameLabel: "Test set name",
     defaultName: ({entity}: {entity: {name?: string} | null}) => entity?.name ?? "",
 }

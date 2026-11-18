@@ -28,7 +28,7 @@ export const QueuesFirstRun = ({onCreate}: {onCreate?: () => void}) => (
             {onCreate ? (
                 <Button size="sm" onClick={onCreate}>
                     <Plus aria-hidden />
-                    New Queue
+                    New queue
                 </Button>
             ) : null}
             <Button size="sm" variant="outline" asChild>

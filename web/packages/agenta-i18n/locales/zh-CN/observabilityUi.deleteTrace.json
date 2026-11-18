@@ -6,5 +6,10 @@
     "confirmMany": "确定要删除 {{count}} 条追踪吗？",
     "notReversible": "此操作无法撤销。",
     "cancel": "取消",
-    "delete": "删除"
+    "delete": "删除",
+    "descriptionOne": "此追踪及其所有 span 将被永久删除，且无法撤销。",
+    "descriptionMany": "这些追踪及其所有 span 将被永久删除，且无法撤销。",
+    "deleting": "正在删除…",
+    "deletedOne": "已删除追踪",
+    "deletedMany": "已删除 {{count}} 条追踪"
 }

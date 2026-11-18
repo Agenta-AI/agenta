@@ -46,7 +46,7 @@ export const QueueSessionScreen = ({
     const title = queueName || "Untitled Queue"
     return (
         <>
-            <PageTitle title={queueQuery.data ? title : "Annotation Queues"} />
+            <PageTitle title={queueQuery.data ? title : "Annotation queues"} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill

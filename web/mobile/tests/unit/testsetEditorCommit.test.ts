@@ -37,14 +37,11 @@ const jsonInput = vi.hoisted(() => ({
     text: "",
     type: null as null | ((text: string) => void),
 }))
-vi.mock("@agenta/ui/drill-in", async (original) => ({
+vi.mock("@agenta/ui/shared-editor", async (original) => ({
     ...(await original<object>()),
-    JsonEditorWithLocalState: (props: {
-        initialValue: string
-        onValidChange: (text: string) => void
-    }) => {
+    SharedEditor: (props: {initialValue: string; handleChange?: (text: string) => void}) => {
         jsonInput.text = props.initialValue
-        jsonInput.type = props.onValidChange
+        jsonInput.type = props.handleChange ?? null
         return null
     },
 }))
@@ -346,6 +343,8 @@ describe("useTestsetEditor commit over the real package state", () => {
 
     /** Opens the drawer on a row in the JSON view, as the page does. */
     const openDrawerJson = async (testcaseId: string) => {
+        jsonInput.text = ""
+        jsonInput.type = null
         await mount()
         act(() =>
             root.render(
@@ -365,6 +364,9 @@ describe("useTestsetEditor commit over the real package state", () => {
                 ),
             ),
         )
+        await flush()
+        // The editor can mount a little later on a busy run; wait for it.
+        await vi.waitFor(() => expect(jsonInput.text).not.toBe(""))
         await flush()
     }
 

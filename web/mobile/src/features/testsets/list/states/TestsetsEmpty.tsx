@@ -24,7 +24,7 @@ export const TestsetsEmpty = ({onCreate}: {onCreate?: () => void}) => (
         {onCreate ? (
             <EmptyContent>
                 <Button size="sm" onClick={onCreate}>
-                    Create new testset
+                    Create test set
                 </Button>
             </EmptyContent>
         ) : null}

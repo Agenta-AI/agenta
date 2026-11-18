@@ -200,7 +200,7 @@ describe("Testset header", () => {
         expect(main()?.textContent).toBe("Copied!")
 
         await press(byLabel("More copy options"))
-        await act(async () => item("Copy Revision Slug")?.click())
+        await act(async () => item("Copy revision slug")?.click())
         expect(copied.texts).toEqual(["rev-2", "rev-slug-2"])
         expect(window.localStorage.getItem(LAST_COPY_KEY)).toBe("slug")
 
@@ -213,7 +213,7 @@ describe("Testset header", () => {
     it("The slug item is off while the revision has no slug", async () => {
         await mount(<TestsetCopyControl revisionId="rev-2" revisionSlug={undefined} />)
         await press(byLabel("More copy options"))
-        expect(item("Copy Revision Slug")?.getAttribute("aria-disabled")).toBe("true")
+        expect(item("Copy revision slug")?.getAttribute("aria-disabled")).toBe("true")
     })
 
     it("Archive revision is disabled when only one saved revision exists", async () => {

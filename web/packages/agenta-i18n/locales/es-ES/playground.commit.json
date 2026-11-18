@@ -13,5 +13,7 @@
     "failedToCreateWorkflow": "No se pudo crear el workflow",
     "variantNameRequired": "El nombre de la variante es obligatorio",
     "failedToCreateVariant": "No se pudo crear una variante nueva",
-    "failedToCommit": "No se pudo confirmar la revisión"
+    "failedToCommit": "No se pudo confirmar la revisión",
+    "agentName": "Nombre del agente",
+    "promptName": "Nombre del prompt"
 }

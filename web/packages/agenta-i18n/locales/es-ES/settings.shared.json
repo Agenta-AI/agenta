@@ -3,6 +3,7 @@
     "reload": "Recargar",
     "renameFailed": "No hemos podido renombrarlo",
     "rowActions": "Acciones de la fila",
+    "seePlans": "Ver planes",
     "usedBy": "Lo usa {{names}}",
     "yours": "Tuyo",
     "yoursEmptyBody": "Las cuentas que añadas aquí se usan en todos tus proyectos, cuando un agente usa la cuenta de cada persona.",

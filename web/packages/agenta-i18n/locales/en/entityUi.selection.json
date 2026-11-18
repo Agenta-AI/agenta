@@ -57,7 +57,7 @@
     "updatedOn": "Updated {{date}}",
     "createdOn": "Created {{date}}",
     "tagHuman": "Human",
-    "tagCustomCode": "Custom Code",
+    "tagCustomCode": "Custom code",
     "categoryClassifiers": "Classifiers",
     "categorySimilarity": "Similarity",
     "categoryCustom": "Custom"

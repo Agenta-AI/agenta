@@ -31,5 +31,7 @@
     "resetToDefault": "デフォルトに戻す",
     "tabModel": "モデル",
     "tabFallback": "フォールバック",
-    "tabRetry": "再試行"
+    "tabRetry": "再試行",
+    "noConfiguration": "設定なし",
+    "revisionNoConfig": "このリビジョンにはまだプロンプトも設定もありません。"
 }

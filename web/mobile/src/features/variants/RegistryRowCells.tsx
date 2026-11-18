@@ -104,7 +104,7 @@ export const RegistryRowCells = ({
                     className="block truncate text-[13px] text-muted-foreground"
                     title={revision.message ?? undefined}
                 >
-                    {revision.message || ""}
+                    {revision.message || "—"}
                 </span>
             )}
             <span className="flex justify-end" {...stop}>

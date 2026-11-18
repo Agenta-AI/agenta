@@ -23,5 +23,6 @@
     "saveFailed": "Die Annotationen konnten nicht aktualisiert werden",
     "saveSuccess": "Annotationen erfolgreich aktualisiert",
     "savePending": "Annotationen gespeichert. Es kann einen Moment dauern, bis sie angezeigt werden.",
-    "required": "Erforderlich"
+    "required": "Erforderlich",
+    "noAnnotationsHint": "Wählen Sie einen Evaluator, um diesen Trace zu bewerten."
 }

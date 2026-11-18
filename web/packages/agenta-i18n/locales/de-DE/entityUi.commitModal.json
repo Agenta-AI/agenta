@@ -38,7 +38,7 @@
     "newVersion": "Neue Version",
     "newVariant": "Neue Variante",
     "variantNote": "Erstellt eine separate Variante. <name>{{name}}</name> bleibt auf v{{version}}.",
-    "versionNote": "Wird als <version>Version {{version}}</version> gespeichert. Alle, die {{name}} verwenden, erhalten Ihre Änderungen.",
+    "versionNote": "Wird als <version>v{{version}}</version> von {{name}} gespeichert. Bereitgestellte Umgebungen behalten ihre Version, bis Sie diese bereitstellen.",
     "createsVariantFrom": "Dadurch wird eine neue Variante aus <name>{{name}}</name> erstellt.",
     "createsRevisionOf": "Dadurch wird eine neue Revision von <name>{{name}}</name> erstellt.",
     "newVariantFallback": "neue Variante",

@@ -13,13 +13,13 @@
     "timestamp": "Timestamp",
     "status": "Status",
     "editColumns": "Edit columns",
-    "sessionId": "Session id",
+    "sessionId": "Session ID",
     "traces": "Traces",
     "firstInput": "First input",
     "lastOutput": "Last output",
     "startTime": "Start time",
     "endTime": "End time",
-    "totalLatency": "Total Latency",
-    "totalUsage": "Total Usage",
-    "totalCost": "Total Cost"
+    "totalLatency": "Total latency",
+    "totalUsage": "Total usage",
+    "totalCost": "Total cost"
 }

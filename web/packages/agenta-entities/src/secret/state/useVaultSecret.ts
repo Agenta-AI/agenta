@@ -124,6 +124,8 @@ export const useVaultSecret = () => {
 
     return {
         loading,
+        /** The list read failed and there is nothing cached to show. */
+        loadFailed: vaultQuery.isError && !vaultQuery.data,
         secrets: standardSecrets,
         customRowSecrets: customSecrets,
         namedSecrets,

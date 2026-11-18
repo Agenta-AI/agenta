@@ -3,5 +3,6 @@
     "discardFailed": "下書きの変更を破棄できませんでした",
     "noDeployment": "デプロイなし",
     "discardDraft": "下書きの変更を破棄",
-    "lastModified": "最終更新"
+    "lastModified": "最終更新",
+    "deployedTo": "{{name}} にデプロイ済み"
 }

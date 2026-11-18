@@ -568,6 +568,7 @@ export const createWorkflowFromEphemeralAtom = atom(
             const workflowSlug = slug || generateSlug(workflowName)
 
             // 3. Create workflow via API
+            const folderId = (entity.meta as {folderId?: unknown} | null | undefined)?.folderId
             const newWorkflow = await createWorkflowApi(projectId, {
                 slug: workflowSlug,
                 name: workflowName,
@@ -575,6 +576,7 @@ export const createWorkflowFromEphemeralAtom = atom(
                 message: commitMessage || undefined,
                 data,
                 visibility,
+                ...(typeof folderId === "string" && folderId ? {folderId} : {}),
             })
 
             const newRevisionId = newWorkflow.id

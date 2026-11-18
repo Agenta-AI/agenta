@@ -130,7 +130,6 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         label: "Search sessions, agents and pages",
         modifiers: ["mod"],
         key: "K",
-        when: "in the mobile app",
     },
 
     // Side panels — ShowConfigPanelButton.tsx, OpenFilesPaneButton.tsx

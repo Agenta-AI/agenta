@@ -1,20 +1,18 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n"
+import {formatLocale, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsMembersCatalog from "@agenta/i18n/catalogs/settings.members"
 import {getSettingsSidebarIcon} from "@agenta/settings"
-import {formatDay, parseDate} from "@agenta/shared/utils/dateTime"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
-import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {formatListDateTime, ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
 import {InlineName} from "../shared/InlineName"
-import {localDate} from "../shared/localDate"
 import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
@@ -190,18 +188,7 @@ export const MembersPage = ({
                             )}
                             {shows("created_at") ? (
                                 <span className="truncate text-muted-foreground">
-                                    {record.user.created_at
-                                        ? localDate(
-                                              parseDate({date: record.user.created_at}).toDate(),
-                                              {
-                                                  day: "2-digit",
-                                                  month: "short",
-                                                  year: "numeric",
-                                                  timeZone: "UTC",
-                                              },
-                                              () => formatDay({date: record.user.created_at}),
-                                          )
-                                        : "-"}
+                                    {formatListDateTime(record.user.created_at, formatLocale())}
                                 </span>
                             ) : null}
                             <SettingsRowMenu

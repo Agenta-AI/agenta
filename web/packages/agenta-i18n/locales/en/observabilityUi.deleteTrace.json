@@ -2,9 +2,14 @@
     "noProject": "Cannot delete: no project is selected.",
     "failedMany": "Failed to delete traces.",
     "failedOne": "Failed to delete the trace.",
-    "confirmOne": "Are you sure you want to delete?",
-    "confirmMany": "Are you sure you want to delete {{count}} traces?",
+    "confirmOne": "Delete this trace?",
+    "confirmMany": "Delete {{count}} traces?",
     "notReversible": "This action is not reversible.",
     "cancel": "Cancel",
-    "delete": "Delete"
+    "delete": "Delete",
+    "descriptionOne": "This trace and all its spans are deleted permanently. You cannot undo this.",
+    "descriptionMany": "These traces and all their spans are deleted permanently. You cannot undo this.",
+    "deleting": "Deleting…",
+    "deletedOne": "Deleted the trace",
+    "deletedMany": "Deleted {{count}} traces"
 }

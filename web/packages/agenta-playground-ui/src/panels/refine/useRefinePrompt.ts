@@ -18,6 +18,12 @@ export interface RefineRound {
 
 const tNow = createT(refineCatalog)
 
+/** The failure in words. The server turns the refine tool off with a 503; any other cause stays in the log. */
+const failureText = (error: unknown) =>
+    (error as {response?: {status?: number}})?.response?.status === 503
+        ? tNow("playground.refine.refineAiDisabled")
+        : tNow("playground.refine.refineFailed")
+
 /**
  * The refine conversation for one prompt of one revision. The state lives in the dialog, so it
  * is gone when the dialog closes. Each round refines the result of the round before; `refine`
@@ -52,10 +58,8 @@ export function useRefinePrompt(revisionId: string, promptKey: string) {
                 return true
             } catch (error) {
                 console.error("Failed to refine prompt:", error)
-                setRounds((current) => [
-                    ...current,
-                    {...round, reply: tNow("playground.refine.refineFailed"), failed: true},
-                ])
+                const reply = failureText(error)
+                setRounds((current) => [...current, {...round, reply, failed: true}])
                 return false
             } finally {
                 running.current = false

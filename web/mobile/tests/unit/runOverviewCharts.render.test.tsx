@@ -6,7 +6,11 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {MetricCard} from "@/features/evaluation-run/overview/MetricCard"
 import {MetricCardsSection} from "@/features/evaluation-run/overview/MetricCardsSection"
-import {RunRadarCard} from "@/features/evaluation-run/overview/RunRadarCard"
+import {
+    RunRadarCard,
+    showsRadar,
+    useRunRadar,
+} from "@/features/evaluation-run/overview/RunRadarCard"
 
 import {
     BOOLEAN,
@@ -101,38 +105,29 @@ describe("overview charts", () => {
         expect(bar.series[0].name).toBe("score")
     })
 
-    it("Fewer than three radar axes shows the insufficient metrics empty state, not a loader", () => {
-        render(
-            createElement(RunRadarCard, {
-                runs: [
-                    {
-                        id: RUN_ID,
-                        name: "Capitals check",
-                        metrics: [invocationMetric("duration", {mean: 1, max: 2})],
-                    },
-                ],
-                pending: false,
-            }),
-        )
-        expect(host.textContent).toContain("Insufficient metrics for spider chart")
-        expect(host.querySelector('[role="status"]')).toBeNull()
+    it("The overview shows a radar only with three axes or more, or while metrics load", () => {
+        // Fewer axes: the summary takes the card's width and the metric cards carry the scores.
+        expect(showsRadar(1, false)).toBe(false)
+        expect(showsRadar(2, true)).toBe(false)
+        expect(showsRadar(0, false)).toBe(false)
+        expect(showsRadar(0, true)).toBe(true)
+        expect(showsRadar(3, false)).toBe(true)
+    })
 
-        render(
-            createElement(RunRadarCard, {
-                runs: [
-                    {
-                        id: RUN_ID,
-                        name: "Capitals check",
-                        metrics: [
-                            evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
-                            invocationMetric("duration", {mean: 1, max: 2}),
-                            invocationMetric("cost", {mean: 0.001, max: 0.002}),
-                        ],
-                    },
+    it("Three radar axes draw the run's radar", () => {
+        const runs = [
+            {
+                id: RUN_ID,
+                name: "Capitals check",
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
+                    invocationMetric("duration", {mean: 1, max: 2}),
+                    invocationMetric("cost", {mean: 0.001, max: 0.002}),
                 ],
-                pending: false,
-            }),
-        )
+            },
+        ]
+        const Probe = () => createElement(RunRadarCard, {runs, radar: useRunRadar(runs)})
+        render(createElement(Probe))
         expect(host.querySelector("svg")?.getAttribute("aria-label")).toContain("Capitals check")
     })
 

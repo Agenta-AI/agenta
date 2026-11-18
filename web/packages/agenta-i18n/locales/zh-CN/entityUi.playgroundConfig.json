@@ -31,5 +31,7 @@
     "resetToDefault": "恢复默认",
     "tabModel": "模型",
     "tabFallback": "备用",
-    "tabRetry": "重试"
+    "tabRetry": "重试",
+    "noConfiguration": "无配置",
+    "revisionNoConfig": "此修订版本还没有提示词或设置。"
 }

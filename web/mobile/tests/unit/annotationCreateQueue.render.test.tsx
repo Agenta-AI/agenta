@@ -331,6 +331,22 @@ describe("CreateQueueSheet", () => {
         ).toBe("Triage")
     })
 
+    it("Escape inside the sheet keeps a form with input open", async () => {
+        await mount()
+        await type('input[placeholder="Enter name"]', "Triage")
+        const name = document.querySelector('input[placeholder="Enter name"]') as HTMLInputElement
+        name.focus()
+        await act(async () => {
+            name.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Escape", bubbles: true, cancelable: true}),
+            )
+        })
+        expect(store.get(createQueueDrawerOpenAtom)).toBe(true)
+        expect(
+            (document.querySelector('input[placeholder="Enter name"]') as HTMLInputElement).value,
+        ).toBe("Triage")
+    })
+
     it("Escape inside the sheet still closes it", async () => {
         await mount()
         const name = document.querySelector('input[placeholder="Enter name"]') as HTMLInputElement

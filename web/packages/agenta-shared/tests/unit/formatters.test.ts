@@ -75,6 +75,15 @@ describe("formatLatency", () => {
         expect(formatLatency(1)).toBe("1s")
     })
 
+    it("formats exactly 1 millisecond as 1ms, not 1000μs", () => {
+        expect(formatLatency(0.001)).toBe("1ms")
+    })
+
+    it("moves to the next unit when rounding reaches 1000", () => {
+        expect(formatLatency(0.0009996)).toBe("1ms")
+        expect(formatLatency(0.9996)).toBe("1s")
+    })
+
     it("returns '-' for null", () => expect(formatLatency(null)).toBe("-"))
     it("returns '-' for undefined", () => expect(formatLatency(undefined)).toBe("-"))
 })

@@ -59,7 +59,7 @@ export const TestsetToolbar = ({
     onImport?: () => void
     onRowAdded?: (rowId: string) => void
     /**
-     * The saved test cases "Add annotation queue" sends: the selected ones, or every one the
+     * The saved test cases "Add to queue" sends: the selected ones, or every one the
      * grid shows. Empty turns the button off.
      */
     queueItemIds?: string[]
@@ -139,7 +139,7 @@ export const TestsetToolbar = ({
                         Add row
                     </Button>
                     <TestcaseQueueButton
-                        label="Add annotation queue"
+                        label="Add to queue"
                         itemIds={queueItemIds}
                         disabled={isNew || isSaving}
                     />

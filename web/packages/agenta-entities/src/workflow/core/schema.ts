@@ -670,6 +670,7 @@ const WORKFLOW_TYPE_PRESET_MAP = {
     human: "green",
     feedback: "green",
     rag: "lime",
+    agent: "geekblue",
 } as const satisfies Record<string, PresetColorName>
 
 export const WORKFLOW_TYPE_COLOR_MAP: Record<
@@ -717,6 +718,7 @@ const WORKFLOW_TYPE_LABEL_MAP: Record<keyof typeof WORKFLOW_TYPE_PRESET_MAP, str
     human: "Human",
     feedback: "Human",
     rag: "RAG",
+    agent: "Agent",
 }
 
 export function normalizeWorkflowTypeKey(typeKey: string | null | undefined): string | null {

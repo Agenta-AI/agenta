@@ -33,6 +33,7 @@ export const EvaluatorRowCells = ({
     canEdit,
     expanded,
     loadingOlder,
+    expandSlot = true,
     onToggleExpand,
     onOpen,
     onArchive,
@@ -45,6 +46,8 @@ export const EvaluatorRowCells = ({
     canEdit: boolean
     expanded: boolean
     loadingOlder: boolean
+    /** Reserve the expand button's space, so names line up; off when no row can expand. */
+    expandSlot?: boolean
     onToggleExpand: () => void
     onOpen: () => void
     /** Absent without `edit_evaluators`, and on an older revision. */
@@ -81,9 +84,9 @@ export const EvaluatorRowCells = ({
                             />
                         )}
                     </button>
-                ) : (
+                ) : expandSlot ? (
                     <span className="size-6 shrink-0" aria-hidden />
-                )}
+                ) : null}
                 <span
                     className={cn(
                         "truncate text-[14px] leading-[18px]",

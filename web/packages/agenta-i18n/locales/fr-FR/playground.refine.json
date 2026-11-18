@@ -14,5 +14,6 @@
     "toggleDiff": "Basculer la vue des différences",
     "cancel": "Annuler",
     "useRefined": "Utiliser le prompt affiné",
-    "refineFailed": "Impossible d’affiner le prompt. Réessayez."
+    "refineFailed": "Impossible d’affiner le prompt. Réessayez.",
+    "refineAiDisabled": "Impossible d'affiner le prompt : les services d'IA sont désactivés sur ce déploiement."
 }

@@ -39,6 +39,8 @@ export const selectedKeyOverrideFor = (
     promptsRowShown: boolean,
 ): string | undefined => {
     if (sessionId) return `${SESSIONS_SIDEBAR_KEY}-${sessionId}`
+    // Archived prompts sits under `/apps` but is not Home; with no Prompts row nothing lights up.
+    if (pathname.endsWith("/apps/archived")) return PROMPTS_ROW_KEY
     // Pinning a row the rail does not render selects nothing, so leave the route match instead.
     if (!promptsRowShown) return undefined
     return /\/apps\/\[app_id\]\/(overview|playground)$/.test(pathname) ? PROMPTS_ROW_KEY : undefined

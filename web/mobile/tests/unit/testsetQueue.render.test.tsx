@@ -110,14 +110,11 @@ describe("Send test cases to an annotation queue", () => {
         act(() =>
             root.render(
                 <QueryClientProvider client={queryClient}>
-                    <TestcaseQueueButton
-                        label="Add annotation queue"
-                        itemIds={["case-1", "case-2"]}
-                    />
+                    <TestcaseQueueButton label="Add to queue" itemIds={["case-1", "case-2"]} />
                 </QueryClientProvider>,
             ),
         )
-        await act(async () => button("Add annotation queue")?.click())
+        await act(async () => button("Add to queue")?.click())
         // The picker code loads on the first open.
         await flush()
 
@@ -167,7 +164,7 @@ describe("Send test cases to an annotation queue", () => {
                 )
         })
         const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
-            (element) => element.textContent?.includes("Add annotation queue"),
+            (element) => element.textContent?.includes("Add to queue"),
         )
         await act(async () => item?.click())
         await flush()

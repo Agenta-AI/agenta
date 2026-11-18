@@ -59,5 +59,6 @@
     "detailedConfiguration": "Detaillierte Konfiguration",
     "minLength": "Min.: {{value}}",
     "maxLength": "Max.: {{value}}",
-    "selectPlaceholder": "Auswählen..."
+    "selectPlaceholder": "Auswählen...",
+    "defaultValue": "Standard"
 }

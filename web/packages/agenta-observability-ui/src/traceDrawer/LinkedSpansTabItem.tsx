@@ -114,7 +114,7 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
             }),
             render: (_: unknown, record: LinkedSpanTableRow) => {
                 const spanId = record.span_id || ""
-                const shortId = spanId ? spanId.split("-")[0] : "-"
+                const shortId = spanId ? spanId.split("-")[0] : "—"
                 return (
                     <EnhancedTooltip
                         copyText={spanId}

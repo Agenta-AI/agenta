@@ -95,6 +95,8 @@ export interface CreateEphemeralAppFromTemplateParams {
      * inspect round-trip. @default false — await inspect, seed once, return null if the signal aborts.
      */
     deferInspect?: boolean
+    /** The folder the app is created in. The create sends it as `folder_id`. */
+    folderId?: string | null
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
@@ -174,6 +176,7 @@ export async function createEphemeralAppFromTemplate({
     defaultName,
     signal,
     deferInspect = false,
+    folderId = null,
 }: CreateEphemeralAppFromTemplateParams): Promise<string | null> {
     const startedAt = Date.now()
     const store = getDefaultStore()
@@ -320,6 +323,7 @@ export async function createEphemeralAppFromTemplate({
                 __ephemeral: true,
                 templateKey: template.key,
                 defaultName: resolvedName,
+                ...(folderId ? {folderId} : {}),
             },
         }) as Workflow
 

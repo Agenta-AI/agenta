@@ -23,11 +23,9 @@ export const AllCaughtUp = ({observabilityHref}: {observabilityHref: string}) =>
             image={<Check aria-hidden size={28} />}
             title="You're all caught up"
             description={
-                <>
-                    All runs in this queue have been annotated.
-                    <br />
-                    {isTraces ? "Add more from Tracing." : "Add more from Test Sets."}
-                </>
+                isTraces
+                    ? "Every trace in this queue is annotated. Add more traces from Observability."
+                    : "Every test case in this queue is annotated. Add more from a test set."
             }
         >
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -38,12 +36,12 @@ export const AllCaughtUp = ({observabilityHref}: {observabilityHref: string}) =>
                     onClick={() => openAddToTestset({scope: "complete"})}
                 >
                     <Plus aria-hidden size={14} />
-                    Add to Testset
+                    Add to test set
                 </LoadingButton>
                 {isTraces ? (
                     <Button size="sm" variant="outline" asChild>
                         <Link href={observabilityHref} prefetch={false}>
-                            Go to observability
+                            Go to Observability
                         </Link>
                     </Button>
                 ) : null}

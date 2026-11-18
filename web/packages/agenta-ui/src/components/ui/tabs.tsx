@@ -47,8 +47,8 @@ const tabsTriggerVariants = cva(
             variant: {
                 // Raised on the surface while active (a hairline + tint in dark).
                 pill: "data-[state=active]:bg-background data-[state=active]:shadow-sm dark:data-[state=active]:border-input dark:data-[state=active]:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_30%,transparent)]",
-                // A 2px underline 5px below the trigger, shown while active.
-                line: "after:absolute after:inset-x-0 after:-bottom-[5px] after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=active]:after:opacity-100",
+                // A 2px underline at the bottom edge of the list, shown while active.
+                line: "after:absolute after:inset-x-0 after:-bottom-[4px] after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=active]:after:opacity-100",
             },
         },
         defaultVariants: {variant: "line"},

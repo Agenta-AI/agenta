@@ -7,9 +7,11 @@ import {
     runReferencesAtomFamily,
     type RunMetricEntry,
 } from "@agenta/entities/evaluationRun"
-import {testsetQueryAtomFamily} from "@agenta/entities/testset"
+import {testsetQueryAtomFamily, testsetRevisionHeaderAtomFamily} from "@agenta/entities/testset"
 import {workflowArtifactQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
+
+import {metricDisplayLabel} from "../metricLabel"
 
 /** A catalog entry with the evaluator's display name resolved. */
 export interface OverviewMetric extends RunMetricEntry {
@@ -22,11 +24,16 @@ export interface OverviewNames {
     testsets: (string | null)[]
     application: string | null
     variant: string | null
+    /** The stored versions, for a run whose references carry none (human runs). */
+    revisionVersion?: number | null
+    testsetVersions?: (number | null)[]
 }
 
 interface OverviewNameIds {
     evaluatorIds: string[]
     testsetIds: string[]
+    /** The test set revisions whose version the run does not name; "" for the others. */
+    testsetRevisionIds?: string[]
     applicationId: string | null
     revisionId: string | null
 }
@@ -39,9 +46,11 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
     const {applicationId, revisionId} = ids
     const evaluatorKey = [...new Set(ids.evaluatorIds)].join(",")
     const testsetKey = ids.testsetIds.join(",")
+    const testsetRevisionKey = (ids.testsetRevisionIds ?? []).join(",")
     const namesAtom = useMemo(() => {
         const evaluatorIds = evaluatorKey ? evaluatorKey.split(",") : []
         const testsetIds = testsetKey ? testsetKey.split(",") : []
+        const testsetRevisionIds = testsetRevisionKey ? testsetRevisionKey.split(",") : []
         return atom<OverviewNames>((get) => ({
             evaluators: Object.fromEntries(
                 evaluatorIds.map((id) => [id, get(workflowArtifactQueryAtomFamily(id)).data?.name]),
@@ -51,8 +60,16 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
                 ? (get(workflowArtifactQueryAtomFamily(applicationId)).data?.name ?? null)
                 : null,
             variant: revisionId ? get(workflowMolecule.selectors.variantLabel(revisionId)) : null,
+            revisionVersion: revisionId
+                ? (get(workflowMolecule.selectors.data(revisionId))?.version ?? null)
+                : null,
+            testsetVersions: testsetRevisionIds.map((id) =>
+                id
+                    ? (get(testsetRevisionHeaderAtomFamily(id)).data?.revisionVersion ?? null)
+                    : null,
+            ),
         }))
-    }, [evaluatorKey, testsetKey, applicationId, revisionId])
+    }, [evaluatorKey, testsetKey, testsetRevisionKey, applicationId, revisionId])
     return useAtomValue(namesAtom)
 }
 
@@ -71,18 +88,26 @@ export function useRunOverview(runId: string) {
     const names = useOverviewNames({
         evaluatorIds: catalog.flatMap((entry) => entry.evaluatorId ?? []),
         testsetIds: references?.testsets.map((testset) => testset.testsetId) ?? [],
+        testsetRevisionIds:
+            references?.testsets.map((testset) =>
+                testset.version === null ? (testset.revisionId ?? "") : "",
+            ) ?? [],
         applicationId: references?.applicationId ?? null,
         revisionId: references?.revisionId ?? null,
     })
 
     const metrics = useMemo<OverviewMetric[]>(
         () =>
-            catalog.map((entry) => ({
-                ...entry,
-                evaluatorName: entry.evaluatorId
+            catalog.map((entry) => {
+                const evaluatorName = entry.evaluatorId
                     ? (names.evaluators[entry.evaluatorId] ?? entry.evaluatorSlug)
-                    : null,
-            })),
+                    : null
+                return {
+                    ...entry,
+                    label: metricDisplayLabel(entry.label, evaluatorName),
+                    evaluatorName,
+                }
+            }),
         [catalog, names.evaluators],
     )
 

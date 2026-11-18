@@ -1,5 +1,5 @@
-import {ScenarioCellValue} from "./ScenarioCellValue"
 import type {ScenarioCell} from "./scenarioColumns"
+import {ScenarioLabeledValue} from "./ScenarioLabeledValue"
 import {ScenarioStepError} from "./states/ScenarioStepError"
 
 /** Each group shows this many values in the table. The rest open with the row. */
@@ -17,10 +17,7 @@ export const ScenarioGroupCell = ({cells, error}: {cells: ScenarioCell[]; error?
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
             {shown.map((cell) => (
-                <div key={cell.name} className="min-w-0">
-                    <div className="truncate text-[11px] text-muted-foreground">{cell.name}</div>
-                    <ScenarioCellValue cell={cell} />
-                </div>
+                <ScenarioLabeledValue key={cell.name} cell={cell} />
             ))}
             {hidden > 0 ? (
                 <span

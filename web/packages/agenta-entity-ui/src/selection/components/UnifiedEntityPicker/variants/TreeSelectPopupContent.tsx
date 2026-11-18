@@ -359,8 +359,8 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                 </div>
             )}
 
-            {/* Empty state */}
-            {!isLoadingParents && !parentsError && treeData.length === 0 && (
+            {/* Empty state: not while anything still loads, or it shows beside the loading line */}
+            {!isLoadingParents && !isLoadingChildren && !parentsError && treeData.length === 0 && (
                 <div className="px-3 py-4 text-xs text-colorTextSecondary text-center">
                     {displayEmptyMessage}
                 </div>
@@ -449,9 +449,9 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                                                 child.disabled
                                                                     ? "cursor-not-allowed opacity-80"
                                                                     : "cursor-pointer",
+                                                                // The current one stays marked even when it cannot be picked again.
                                                                 isSelected &&
-                                                                    !child.disabled &&
-                                                                    "bg-controlItemBgActive",
+                                                                    "bg-controlItemBgActive opacity-100",
                                                                 !isSelected &&
                                                                     !child.disabled &&
                                                                     "hover:bg-muted",

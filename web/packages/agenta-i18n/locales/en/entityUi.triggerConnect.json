@@ -11,7 +11,7 @@
     "nameTip": "Display name for this connection",
     "required": "Required",
     "namePlaceholder": "e.g. My {{name}} Account",
-    "authMethod": "Auth Method",
+    "authMethod": "Auth method",
     "apiKey": "API Key",
     "connect": "Connect"
 }

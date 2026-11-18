@@ -9,18 +9,18 @@ import type {ArchivedAppRow} from "./archivedAppsView"
 const NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
 const CREATED_COLUMN: ListTableColumn = {
     key: "created",
-    label: "Created At",
+    label: "Created at",
     width: "minmax(150px,1fr)",
 }
 const TYPE_COLUMN: ListTableColumn = {key: "type", label: "Type", width: "minmax(96px,1fr)"}
 const ARCHIVED_AT_COLUMN = (width: string): ListTableColumn => ({
     key: "archivedAt",
-    label: "Archived At",
+    label: "Archived at",
     width,
 })
 const ARCHIVED_BY_COLUMN: ListTableColumn = {
     key: "archivedBy",
-    label: "Archived By",
+    label: "Archived by",
     width: "minmax(120px,1fr)",
 }
 const ACTIONS_COLUMN: ListTableColumn = {

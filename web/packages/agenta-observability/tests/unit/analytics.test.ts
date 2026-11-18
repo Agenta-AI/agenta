@@ -265,3 +265,9 @@ describe("filters, reasons, ranges, format", () => {
         expect(formatMetric("runs", 2.5, true)).toBe("2.5")
     })
 })
+
+describe("formatMetric short cost", () => {
+    it("shows zero as $0 on axis ticks", () => {
+        expect(formatMetric("cost", 0, true)).toBe("$0")
+    })
+})

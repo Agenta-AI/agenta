@@ -24,12 +24,14 @@
     "selectRuntime": "Select runtime",
     "basic": "Basic",
     "backToFallbackModels": "Back to fallback models",
-    "addFallbackModel": "Add Fallback Model",
+    "addFallbackModel": "Add fallback model",
     "editFallbackModel": "Edit Fallback Model",
     "configure": "Configure",
     "newBadge": "new",
     "resetToDefault": "Reset to default",
     "tabModel": "Model",
     "tabFallback": "Fallback",
-    "tabRetry": "Retry"
+    "tabRetry": "Retry",
+    "noConfiguration": "No configuration",
+    "revisionNoConfig": "This revision has no prompt or settings yet."
 }

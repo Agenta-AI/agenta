@@ -82,9 +82,9 @@ export const ConfigPanelHeader = ({
     const isLatest = revisionId === latestId
 
     return (
-        <div className="@container/config-header flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 max-sm:min-h-12 max-sm:py-1.5 sm:sticky sm:top-0 sm:z-10 sm:h-12 sm:flex-nowrap sm:gap-2 sm:px-4">
-            {/* The details shrink first (the switcher name truncates). Only in a very narrow pane,
-                once they reach their minimum, do the buttons on the right shrink and scroll. */}
+        <div className="@container/config-header flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 py-1.5 sm:sticky sm:top-0 sm:z-10 sm:gap-2 sm:px-4">
+            {/* When the details and the buttons do not fit on one line (a compare column), the
+                buttons go to a second line, so the Draft tag is never clipped. */}
             <div className="flex min-w-[5.5rem] items-center gap-1 overflow-hidden text-sm">
                 {!isLocalDraft ? switcher : null}
                 {isLocalDraft ? (

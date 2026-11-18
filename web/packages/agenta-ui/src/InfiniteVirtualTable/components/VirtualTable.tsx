@@ -416,6 +416,8 @@ export const VirtualTable = <RecordType extends object>({
     )
 
     const headerGroups = table.getHeaderGroups()
+    // An ungrouped column's header spans the rows down from its first placeholder.
+    const spannedHeaderColumns = new Set<string>()
 
     return (
         <div
@@ -484,18 +486,39 @@ export const VirtualTable = <RecordType extends object>({
                                     />
                                 ) : null}
                                 {headerGroup.headers.map((header) => {
+                                    if (spannedHeaderColumns.has(header.column.id)) return null
+                                    const spanRows = header.isPlaceholder
+                                        ? headerGroups.length - groupIndex
+                                        : 1
+                                    if (spanRows > 1) spannedHeaderColumns.add(header.column.id)
                                     const source = sourceOf<RecordType>(
                                         header.column.columnDef.meta,
                                     )
-                                    const props =
+                                    const cellProps =
                                         source && source.onHeaderCell
                                             ? (source.onHeaderCell(source, header.index) ?? {})
                                             : {}
+                                    // Strip antd resize props; a <th> must not receive them.
+                                    const {
+                                        width: _width,
+                                        minWidth: _minWidth,
+                                        onResize: _onResize,
+                                        onResizeStart: _onResizeStart,
+                                        onResizeStop: _onResizeStop,
+                                        ...props
+                                    } = cellProps as typeof cellProps & {
+                                        width?: unknown
+                                        minWidth?: unknown
+                                        onResize?: unknown
+                                        onResizeStart?: unknown
+                                        onResizeStop?: unknown
+                                    }
                                     return (
                                         <th
                                             {...props}
                                             key={header.id}
                                             colSpan={header.colSpan}
+                                            rowSpan={spanRows > 1 ? spanRows : undefined}
                                             data-column-key={header.column.id}
                                             className={cn(
                                                 AVT.headerCell,
@@ -516,7 +539,7 @@ export const VirtualTable = <RecordType extends object>({
                                             {/* flexRender returns an UNKEYED element, and these
                                                 siblings form a child array React validates, so
                                                 the wrapper carries the key. */}
-                                            {header.isPlaceholder ? null : (
+                                            {header.isPlaceholder && spanRows === 1 ? null : (
                                                 <Fragment key="content">
                                                     {flexRender(
                                                         header.column.columnDef.header,

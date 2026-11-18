@@ -21,7 +21,6 @@
     "copySpanId": "Copier l’identifiant du span",
     "searchInTree": "Rechercher dans l’arborescence",
     "hiddenByKeySpans_one": "<count>{{count}}</count> span masqué par les spans clés",
-    "hiddenByKeySpans_many": "<count>{{count}}</count> spans masqués par les spans clés",
     "hiddenByKeySpans_other": "<count>{{count}}</count> spans masqués par les spans clés",
     "showAll": "Tout afficher",
     "display": "Affichage",
@@ -48,5 +47,8 @@
     "completionTokens": "Jetons de la complétion",
     "trace": "Trace",
     "copyTraceId": "Copier l’identifiant de la trace",
-    "addAnnotationQueue": "Ajouter une file d’attente d’annotations"
+    "addAnnotationQueue": "Ajouter une file d’attente d’annotations",
+    "traceNotFound": "Trace introuvable",
+    "traceNotFoundHint": "Elle a peut-être été supprimée, ou le lien pointe vers un autre projet.",
+    "hiddenByKeySpans_many": "<count>{{count}}</count> spans masqués par les spans clés"
 }

@@ -21,7 +21,6 @@
     "copySpanId": "Copiar ID del span",
     "searchInTree": "Buscar en el árbol",
     "hiddenByKeySpans_one": "<count>{{count}}</count> span oculto por la vista de spans clave",
-    "hiddenByKeySpans_many": "<count>{{count}}</count> spans ocultos por la vista de spans clave",
     "hiddenByKeySpans_other": "<count>{{count}}</count> spans ocultos por la vista de spans clave",
     "showAll": "Mostrar todo",
     "display": "Visualización",
@@ -48,5 +47,8 @@
     "completionTokens": "Tokens de la respuesta",
     "trace": "Traza",
     "copyTraceId": "Copiar ID de la traza",
-    "addAnnotationQueue": "Añadir cola de anotaciones"
+    "addAnnotationQueue": "Añadir cola de anotaciones",
+    "traceNotFound": "Traza no encontrada",
+    "traceNotFoundHint": "Puede que se haya eliminado o que el enlace apunte a otro proyecto.",
+    "hiddenByKeySpans_many": "<count>{{count}}</count> spans ocultos por la vista de spans clave"
 }

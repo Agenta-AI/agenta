@@ -488,12 +488,12 @@ describe("live evaluation sheet", () => {
         await mount()
 
         expect(text()).toContain(
-            "No supported evaluators are available. Add an evaluator configured as Custom, LLM-as-a-judge, Code, Regex test, or Webhook test to continue.",
+            "No evaluator can run on live traffic yet. Create an LLM-as-a-judge, code, regex, webhook, or custom evaluator to continue.",
         )
         expect(evaluatorSelect()?.disabled).toBe(true)
         expect(button(/^Create live evaluation$/)?.disabled).toBe(true)
         const link = [...document.querySelectorAll("a")].find(
-            (a) => a.textContent === "Open evaluator registry",
+            (a) => a.textContent === "Open evaluators",
         )
         expect(link?.getAttribute("href")).toBe("/w/ws/p/pr/evaluators")
     })
@@ -501,8 +501,8 @@ describe("live evaluation sheet", () => {
     it("The registry link is hidden while the evaluators view is off", async () => {
         evaluators = [EXACT]
         await mount()
-        expect(text()).toContain("No supported evaluators are available.")
-        expect(text()).not.toContain("Open evaluator registry")
+        expect(text()).toContain("No evaluator can run on live traffic yet.")
+        expect(text()).not.toContain("Open evaluators")
     })
 
     it("While evaluators load the select says Loading evaluators and the name is usable", async () => {

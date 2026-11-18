@@ -46,5 +46,9 @@
     "callId": "Aufruf-ID",
     "promptRefined": "Prompt erfolgreich verfeinert.",
     "leaveWarning": "Sie haben lokale Entwurfsrevisionen oder nicht gespeicherte Änderungen, die beim Verlassen verloren gehen. Möchten Sie wirklich fortfahren?",
-    "rerunning": "Wird erneut ausgeführt ..."
+    "rerunning": "Wird erneut ausgeführt ...",
+    "averageTokens": "Durchschnittliche Tokens",
+    "newAgent": "Neuer Agent",
+    "newPrompt": "Neuer Prompt",
+    "revisionOpen": "Geöffnet"
 }

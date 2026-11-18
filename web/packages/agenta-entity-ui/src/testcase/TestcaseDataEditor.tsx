@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
@@ -6,7 +6,6 @@ import {copyToClipboard} from "@agenta/ui"
 import {
     DrillInContent,
     DrillInRootToolbar,
-    JsonEditorWithLocalState,
     type DataType,
     type FieldViewModeOption,
     type PropertyType,
@@ -17,7 +16,13 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import deepEqual from "fast-deep-equal"
 
-import {parseCodeString, toCodeString, type RootDrawerViewMode} from "./codeFormat"
+import {
+    codeParseError,
+    parseCodeString,
+    textMatchesValue,
+    toCodeString,
+    type RootDrawerViewMode,
+} from "./codeFormat"
 import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
 import {
     buildTestcaseCodeEditorValue,
@@ -74,6 +79,7 @@ function FullPayloadCodeEditor({
     editable: boolean
     columns?: TestcaseDataEditorColumn[]
 }) {
+    const t = useT(testcaseCatalog)
     // When data columns are provided, scope the JSON/YAML view to just those
     // columns. The full flattened entity also contains system fields like
     // `tags`, `flags`, `meta`, `created_at` etc. — surfacing them here lets the
@@ -86,10 +92,26 @@ function FullPayloadCodeEditor({
 
     const displayValue = useMemo(() => toCodeString(editableValue, format), [editableValue, format])
     const editorId = `testcase-root-${format}-editor`
+    // Text that does not parse stays in the editor and says why; it never reaches the testcase.
+    const [parseError, setParseError] = useState<string | null>(null)
+    const [jsonText, setJsonText] = useState(displayValue)
+    const typedText = useRef(displayValue)
+    // Resync only on an outside change, so the user's own edit is never rewritten.
+    useEffect(() => {
+        if (textMatchesValue(typedText.current, format, editableValue)) return
+        typedText.current = displayValue
+        setJsonText(displayValue)
+        setParseError(null)
+    }, [displayValue, editableValue, format])
 
     const handleChange = useCallback(
         (next: string) => {
             if (!editable || !onChange) return
+            typedText.current = next
+            if (format === "json") setJsonText(next)
+            const error = codeParseError(next, format)
+            setParseError(error)
+            if (error) return
             const parsed = parseCodeString<unknown>(next, format, editableValue)
             if (parsed === editableValue) return
             const parsedRecord = normalizeTestcaseData(parsed as Record<string, unknown>)
@@ -99,15 +121,39 @@ function FullPayloadCodeEditor({
         [columns, editable, editableValue, format, onChange, value],
     )
 
+    const errorNote = parseError ? (
+        <p role="alert" className="m-0 mt-2 text-xs text-error">
+            {t("entityUi.testcase.invalidCode", {
+                format: format === "json" ? "JSON" : "YAML",
+                error: parseError,
+            })}
+        </p>
+    ) : null
+
     if (format === "json") {
         return (
             <div className="px-6 py-4">
-                <JsonEditorWithLocalState
-                    editorKey={editorId}
-                    initialValue={displayValue}
-                    onValidChange={handleChange}
-                    readOnly={!editable}
-                />
+                <EditorProvider key={editorId} codeOnly language="json" showToolbar={false}>
+                    <SharedEditor
+                        key={`${editorId}-shared`}
+                        initialValue={jsonText}
+                        handleChange={editable ? handleChange : undefined}
+                        editorType="border"
+                        className="min-h-[60px] overflow-hidden"
+                        disableDebounce
+                        noProvider
+                        syncWithInitialValueChanges
+                        disabled={!editable}
+                        state={editable ? undefined : "readOnly"}
+                        editorProps={{
+                            codeOnly: true,
+                            language: "json",
+                            showLineNumbers: true,
+                            disableLongText: true,
+                        }}
+                    />
+                </EditorProvider>
+                {errorNote}
             </div>
         )
     }
@@ -141,6 +187,7 @@ function FullPayloadCodeEditor({
                     }}
                 />
             </EditorProvider>
+            {errorNote}
         </div>
     )
 }

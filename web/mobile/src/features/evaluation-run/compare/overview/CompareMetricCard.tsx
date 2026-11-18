@@ -24,8 +24,8 @@ const DELTA_TONE = {
 } as const
 
 /**
- * One evaluator metric of every compared run, as the old app draws it: each run's value in its
- * color with the change against the base run under it, and one bar per run in the distribution.
+ * One evaluator metric of every compared run: each run's value by a dot in its
+ * color, with the change against the base run under it, and one bar per run in the distribution.
  */
 export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) => {
     const narrow = useIsNarrowScreen()
@@ -44,7 +44,7 @@ export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) =
         >
             <header className="flex min-w-0 flex-col">
                 <span className="truncate text-xs text-muted-foreground">{evaluator}</span>
-                <h3 className="m-0 truncate text-sm font-semibold capitalize text-foreground">
+                <h3 className="m-0 truncate text-sm font-semibold text-foreground">
                     {first.label}
                 </h3>
             </header>
@@ -52,13 +52,24 @@ export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) =
                 {runs.map((run, index) => {
                     const summary = metricSummary(run.metric?.stats)
                     const delta = index === 0 ? null : compareDelta(summary?.value, baseValue)
+                    // Against a base of 0 there is no percent change: equal reads 0%, else a dash.
+                    const deltaText =
+                        index === 0
+                            ? "Base"
+                            : delta?.text !== "-"
+                              ? delta?.text
+                              : summary && summary.value === baseValue
+                                ? "0%"
+                                : "—"
                     return (
                         <li key={run.runId} className="flex flex-col items-center">
                             <span className="sr-only">{run.name}</span>
-                            <span
-                                className="text-lg font-semibold tabular-nums"
-                                style={{color: compareColor(run.slot)}}
-                            >
+                            <span className="inline-flex items-center gap-1.5 text-lg font-semibold tabular-nums text-foreground">
+                                <span
+                                    aria-hidden
+                                    className="size-2 shrink-0 rounded-full"
+                                    style={{backgroundColor: compareColor(run.slot)}}
+                                />
                                 {summary?.formatted ?? "—"}
                             </span>
                             <span
@@ -67,7 +78,7 @@ export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) =
                                     DELTA_TONE[delta?.tone ?? "neutral"],
                                 )}
                             >
-                                {delta?.text ?? "-"}
+                                {deltaText}
                             </span>
                         </li>
                     )

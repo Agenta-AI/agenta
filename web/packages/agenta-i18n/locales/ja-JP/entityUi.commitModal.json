@@ -32,7 +32,7 @@
     "newVersion": "新しいバージョン",
     "newVariant": "新しいバリアント",
     "variantNote": "別のバリアントを作成します。<name>{{name}}</name> は v{{version}} のままです。",
-    "versionNote": "<version>バージョン {{version}}</version> として保存します。{{name}} を使用している全員に変更が反映されます。",
+    "versionNote": "{{name}} の <version>v{{version}}</version> として保存します。デプロイ済みの環境は、このバージョンをデプロイするまで現在のバージョンのままです。",
     "createsVariantFrom": "<name>{{name}}</name> から新しいバリアントを作成します。",
     "createsRevisionOf": "<name>{{name}}</name> の新しいリビジョンを作成します。",
     "newVariantFallback": "新しいバリアント",

@@ -151,12 +151,15 @@ export const createMobileAppNavScope = (
         const bottomItems = useMobileBottomNavItems(projectURL)
         const evaluator = useAppNavEvaluator(appId)
         const t = useT(navigationCatalog)
+        // Read into hook scope so the memo reruns when the shell swaps in another app's scope.
+        const scopeProjectURL = projectURL
+        const scopeAppId = appId
         return useMemo(
             () => [
-                {key: "app", items: appNavItems(projectURL, appId, views, evaluator, t)},
+                {key: "app", items: appNavItems(scopeProjectURL, scopeAppId, views, evaluator, t)},
                 {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
             ],
-            [bottomItems, views, evaluator, t],
+            [bottomItems, views, evaluator, scopeProjectURL, scopeAppId, t],
         )
     }
 

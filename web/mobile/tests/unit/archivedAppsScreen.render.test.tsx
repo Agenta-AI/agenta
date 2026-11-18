@@ -88,17 +88,17 @@ describe("archived apps route", () => {
         expect(DEVELOPER_VIEWS.find((view) => view.id === "archived-apps")?.stage).toBe("preview")
         await mount()
         expect(document.querySelector('[data-testid="not-found"]')).not.toBeNull()
-        expect(host.textContent).not.toContain("Archived Apps")
+        expect(host.textContent).not.toContain("Archived prompts")
         expect(api.queryWorkflows).not.toHaveBeenCalled()
     })
 
-    it("A failed load shows Could not load archived apps with a retry", async () => {
+    it("A failed load shows Could not load archived prompts with a retry", async () => {
         // The view is hidden in the registry; the deployment override is how a view is forced on.
         vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "archived-apps")
         api.queryWorkflows.mockRejectedValue(new Error("boom"))
         await mount()
-        expect(host.textContent).toContain("Could not load archived apps")
-        expect(host.textContent).not.toContain("No archived apps")
+        expect(host.textContent).toContain("Could not load archived prompts")
+        expect(host.textContent).not.toContain("No archived prompts")
         const retry = [...host.querySelectorAll("button")].find((b) =>
             /try again/i.test(b.textContent ?? ""),
         )

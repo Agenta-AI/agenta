@@ -30,6 +30,7 @@ import {AddDomainDialog} from "./AddDomainDialog"
 import {ConfirmModal} from "./ConfirmModal"
 import {DomainDnsInstructions} from "./DomainDnsInstructions"
 import {OrganizationSlugField} from "./OrganizationSlugField"
+import {SeePlansButton} from "./SeePlansButton"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
 import {SsoProviderDialog, type SsoProviderFormValues} from "./SsoProviderDialog"
@@ -356,7 +357,10 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 </div>
             ) : null}
 
-            <AccessUpgradeNotice locked={locked} />
+            <AccessUpgradeNotice
+                locked={locked}
+                action={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
+            />
 
             <AddDomainDialog
                 open={addDomainOpen}

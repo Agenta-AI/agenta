@@ -6,5 +6,10 @@
     "confirmMany": "Voulez-vous vraiment supprimer {{count}} traces ?",
     "notReversible": "Cette action est irréversible.",
     "cancel": "Annuler",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "descriptionOne": "Cette trace et tous ses spans sont supprimés définitivement. Cette action est irréversible.",
+    "descriptionMany": "Ces traces et tous leurs spans sont supprimés définitivement. Cette action est irréversible.",
+    "deleting": "Suppression…",
+    "deletedOne": "Trace supprimée",
+    "deletedMany": "{{count}} traces supprimées"
 }

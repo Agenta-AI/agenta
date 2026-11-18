@@ -149,7 +149,7 @@ describe("the queue session screen", () => {
     it("Changing the tab writes the view to the URL with replace", async () => {
         await render()
         const tab = Array.from(host.querySelectorAll("[role=tab]")).find(
-            (t) => t.textContent === "All Annotations",
+            (t) => t.textContent === "All annotations",
         )!
         // Radix tabs switch on mouse down.
         await act(async () => tab.dispatchEvent(new MouseEvent("mousedown", {bubbles: true})))
@@ -230,14 +230,14 @@ describe("the queue session screen", () => {
         expect(fixture.invalidateDetail).toHaveBeenCalledWith("queue-1")
     })
 
-    it("A queue with no items shows There's nothing to see here without View previous annotations", async () => {
+    it("A queue with no items shows This queue is empty without View previous annotations", async () => {
         patchSession({scenarioIds: [], scenarioRecords: []})
         await render()
-        expect(host.textContent).toContain("There's nothing to see here")
-        expect(host.textContent).toContain("please add runs from traces.")
+        expect(host.textContent).toContain("This queue is empty")
+        expect(host.textContent).toContain("Add traces to this queue from Observability.")
         expect(host.textContent).not.toContain("View previous annotations")
         const link = Array.from(host.querySelectorAll("a")).find(
-            (a) => a.textContent === "Go to observability",
+            (a) => a.textContent === "Go to Observability",
         )
         expect(link?.getAttribute("href")).toBe("/w/ws-1/p/proj-1/observability")
     })
@@ -249,7 +249,7 @@ describe("the queue session screen", () => {
         })
         await render()
         expect(host.textContent).toContain("Could not load the items in this queue")
-        expect(host.textContent).not.toContain("There's nothing to see here")
+        expect(host.textContent).not.toContain("This queue is empty")
         await clickButton(/try again/i)
         expect(fixture.invalidateProgress).toHaveBeenCalledWith("queue-1")
     })
@@ -258,6 +258,6 @@ describe("the queue session screen", () => {
         patchSession({activeQueueId: null, scenarioIds: []})
         await render()
         expect(host.querySelector("[aria-label='Loading the annotation queue']")).not.toBeNull()
-        expect(host.textContent).not.toContain("There's nothing to see here")
+        expect(host.textContent).not.toContain("This queue is empty")
     })
 })

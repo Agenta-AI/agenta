@@ -26,7 +26,7 @@ export interface AddActionsDropdownProps {
     queueAction?: {
         itemType: "traces" | "testcases"
         itemIds: string[]
-        /** Menu label. Defaults to "Add annotation queue". */
+        /** Menu label. Defaults to "Add to queue". */
         label?: string
         disabled?: boolean
         onItemsAdded?: () => void

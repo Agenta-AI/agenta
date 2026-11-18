@@ -155,8 +155,23 @@ describe("the annotation queues table", () => {
         expect(host.textContent).toContain("3 out of 5")
     })
 
+    it("An empty queue shows Pending, not its stored Running", async () => {
+        fixture.status.set("q-1", "running")
+        fixture.progress.set("q-1", {completed: 0, total: 0})
+        await mount([row({status: "running"})])
+        expect(host.textContent).toContain("Pending")
+        expect(host.textContent).not.toContain("Running")
+    })
+
+    it("The status waits for the items instead of showing the stored one", async () => {
+        await mount([row({status: "running"})])
+        expect(host.textContent).not.toContain("Running")
+        expect(host.textContent).not.toContain("Pending")
+    })
+
     it("A running queue shows Running", async () => {
         fixture.status.set("q-1", "running")
+        fixture.progress.set("q-1", {completed: 1, total: 5})
         await mount([row()])
         expect(host.textContent).toContain("Running")
     })

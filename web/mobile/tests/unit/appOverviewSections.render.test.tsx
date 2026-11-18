@@ -49,6 +49,13 @@ vi.mock("next/link", () => ({
 vi.mock("@/features/variants/useAppEnvironments", () => ({
     useAppEnvironments: () => ({environments: fixture.environments, variantNames: new Map()}),
 }))
+// The newest deployment of the app to each environment, by slug.
+vi.mock("@/features/variants/useLastDeployedAt", () => ({
+    useLastDeployedAt: (target: {projectId: string; appId: string} | null) =>
+        target?.projectId === "pr" && target.appId === "app-1"
+            ? new Map([["development", "2025-07-09T10:00:00Z"]])
+            : new Map(),
+}))
 vi.mock("@/features/variants/useAppRevisions", () => ({
     useAppRevisions: () => fixture.revisions,
 }))
@@ -108,7 +115,8 @@ const mount = (element: ReactNode) =>
     act(() => {
         root.render(createElement(QueryClientProvider, {client: new QueryClient()}, element))
     })
-const deployment = () => createElement(AppDeploymentSection, {app: APP as never, base: BASE})
+const deployment = () =>
+    createElement(AppDeploymentSection, {projectId: "pr", app: APP as never, base: BASE})
 const prompts = () =>
     createElement(AppRecentPromptsSection, {projectId: "pr", app: APP as never, base: BASE})
 const text = () => host.textContent ?? ""
@@ -151,6 +159,11 @@ describe("app deployment section", () => {
         expect(production?.getAttribute("data-prefetch")).toBe("false")
     })
 
+    it("A card dates the last deployment of the app, not the revision", () => {
+        mount(deployment())
+        expect(text()).toContain("2025")
+    })
+
     it("A card is a plain block while the variants view is off", () => {
         fixture.views = {}
         mount(deployment())
@@ -174,9 +187,27 @@ describe("app deployment section", () => {
 describe("app recent prompts section", () => {
     it("Recent prompts shows the five newest revisions", () => {
         mount(prompts())
-        expect(text()).toContain("Recent Prompts")
+        expect(text()).toContain("Recent prompts")
         for (const version of [8, 7, 6, 5, 4]) expect(text()).toContain(`Main v${version}`)
         expect(text()).not.toContain("Main v3")
+    })
+
+    it("The table header scrolls with the section instead of sticking over the next ones", () => {
+        mount(prompts())
+        expect(host.querySelector(".sticky")).toBeNull()
+    })
+
+    it("An evaluator's section names its revisions, not prompts", () => {
+        mount(
+            createElement(AppRecentPromptsSection, {
+                projectId: "pr",
+                app: APP as never,
+                base: BASE,
+                evaluator: true,
+            }),
+        )
+        expect(text()).toContain("Recent revisions")
+        expect(text()).not.toContain("Recent prompts")
     })
 
     it("A row opens the revision drawer", () => {

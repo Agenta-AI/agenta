@@ -74,7 +74,7 @@ export const RevisionMenu = ({
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!dirty} onSelect={onRevert}>
                 <ArrowCounterClockwise aria-hidden size={14} />
-                Revert Changes
+                Revert changes
             </DropdownMenuItem>
             {onDelete ? (
                 <DropdownMenuItem

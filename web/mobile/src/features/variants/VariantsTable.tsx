@@ -6,7 +6,8 @@ import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/l
 import type {AppRevisionRow} from "./useAppRevisions"
 import {VariantRowCells} from "./VariantRowCells"
 
-const NAME: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
+// Room for the name, the version and the "Last modified" tag.
+const NAME: ListTableColumn = {key: "name", label: "Name", width: "minmax(220px,2fr)"}
 const CREATED_ON = (width: string): ListTableColumn => ({
     key: "createdOn",
     label: "Created on",
@@ -54,6 +55,7 @@ export const VariantsTable = ({
     onDelete,
     empty,
     detailed = false,
+    stickyHeader = true,
 }: {
     groups: ListTableGroup<AppRevisionRow>[]
     isLoading: boolean
@@ -72,6 +74,8 @@ export const VariantsTable = ({
     empty: ReactNode
     /** The full model name and the time, as the Registry table shows them. */
     detailed?: boolean
+    /** False where the table is one section of a longer page: the header scrolls away with it. */
+    stickyHeader?: boolean
 }) => {
     const narrow = !useMediaQuery(WIDE_QUERY)
     const toggleGroup = useCallback(
@@ -86,8 +90,8 @@ export const VariantsTable = ({
     return (
         <ListTable
             columns={narrow ? NARROW_COLUMNS : detailed ? DETAILED_COLUMNS : WIDE_COLUMNS}
-            minWidth={narrow ? 300 : 760}
-            stickyHeader
+            minWidth={narrow ? 300 : 820}
+            stickyHeader={stickyHeader}
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.revisionId}

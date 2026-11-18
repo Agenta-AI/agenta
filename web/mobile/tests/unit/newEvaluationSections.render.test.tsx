@@ -96,9 +96,9 @@ describe("application step", () => {
         wizardData.appTypes = {"app-1": "completion", "app-2": "chat"}
     })
 
-    it("The app step is a table with Name, Kind, Type and Created At", async () => {
+    it("The app step is a table with Name, Kind, Type and Date created", async () => {
         await mount(<AppSection selectedId={null} onPick={noop} />)
-        expect(headers()).toEqual(["Name", "Kind", "Type", "Created At"])
+        expect(headers()).toEqual(["Name", "Kind", "Type", "Date created"])
         const row = rowByText("Capital finder")?.textContent ?? ""
         expect(row).toContain("App")
         expect(row).toContain("completion")
@@ -188,7 +188,7 @@ describe("revision step", () => {
 
     it("The revision step shows the /w columns: model, created on, created by and commit notes", async () => {
         await mountRevisions("auto")
-        expect(headers()).toEqual(["Name", "Model", "Created on", "Created by", "Commit notes"])
+        expect(headers()).toEqual(["Name", "Model", "Date created", "Created by", "Commit message"])
         const row = rowByText("default v3")?.textContent ?? ""
         expect(row).toContain("mistral-small")
         expect(row).toContain("Tune prompt (2)")
@@ -203,6 +203,14 @@ describe("revision step", () => {
         expect(rowByText("default v2")?.textContent).toContain("Tune prompt (1)")
         // Opening the older revisions picks nothing.
         expect(byLabel("Select default v2")?.getAttribute("data-state")).toBe("unchecked")
+    })
+
+    // `useAppRevisions` drops empty v0 seeds (see `isEmptySeed`); a v0 it returns is configured.
+    it("A configured v0 the revisions list returns can be picked", async () => {
+        wizardData.revisions = [...wizardData.revisions, revisionRow("rev-d0", "default", 0)]
+        await mountRevisions("auto")
+        await act(async () => byLabel("Show older revisions of default")?.click())
+        expect(byLabel("Select default v0")).not.toBeNull()
     })
 
     it("An auto evaluation picks several revisions with checkboxes", async () => {
@@ -261,9 +269,9 @@ describe("test set step", () => {
             />,
         )
 
-    it("The test set step is an inline table with Name, Commit Message, Date Created and Created by", async () => {
+    it("The test set step is an inline table with Name, Commit message, Date created and Created by", async () => {
         await mountTestsets()
-        expect(headers()).toEqual(["Name", "Commit Message", "Date Created", "Created by"])
+        expect(headers()).toEqual(["Name", "Commit message", "Date created", "Created by"])
         expect(rowByText("Capitals")?.textContent).toContain("Add Peru")
         // A message the system wrote on its own is not shown.
         expect(rowByText("Support tickets")?.textContent).not.toContain("Initial commit")

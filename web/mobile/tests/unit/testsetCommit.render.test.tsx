@@ -135,7 +135,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
     it("The commit dialog shows the next version after the latest one", async () => {
         await mount(fakeEditor())
         await click("Commit")
-        expect(document.body.textContent).toContain("Commit Changes")
+        expect(document.body.textContent).toContain("Commit changes")
         expect(document.body.textContent).toContain("v2 → v6")
     })
 
@@ -188,7 +188,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
         await click("Commit")
 
         expect(router.push).not.toHaveBeenCalled()
-        expect(document.body.textContent).toContain("Commit Changes")
+        expect(document.body.textContent).toContain("Commit changes")
     })
 
     it("Save in the leave prompt opens the commit dialog and stays on the page", async () => {
@@ -199,7 +199,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
 
         await click("Save")
 
-        expect(document.body.textContent).toContain("Commit Changes")
+        expect(document.body.textContent).toContain("Commit changes")
         expect(router.push).not.toHaveBeenCalled()
     })
 

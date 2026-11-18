@@ -9,7 +9,6 @@ import {
     type EvaluationRun,
     type EvaluationRunKind,
     type RunListColumns,
-    type RunStatusTone,
 } from "@agenta/entities/evaluationRun"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {FormattedDate} from "@agenta/ui/components/presentational"
@@ -20,6 +19,7 @@ import {useInView} from "../../annotations/useInView"
 import {RunApplicationCell} from "./RunApplicationCell"
 import {readRunReferences, runDisplayName} from "./runReferences"
 import {RunRowMenu} from "./RunRowMenu"
+import {RUN_STATUS_DOT_COLOR} from "./runStatusDotColor"
 import {RunTestsetCell} from "./RunTestsetCell"
 import type {RunRowActions} from "./useRunRowActions"
 
@@ -39,14 +39,6 @@ const KIND_BADGE: Record<EvaluationRunKind, NonNullable<BadgeProps["variant"]>> 
     custom: "magenta",
 }
 
-const DOT_COLOR: Record<RunStatusTone, string> = {
-    success: "bg-[var(--ag-run-status-success)]",
-    processing: "bg-[var(--ag-run-status-processing)]",
-    default: "bg-[var(--ag-run-status-default)]",
-    error: "bg-[var(--ag-run-status-error)]",
-    warning: "bg-[var(--ag-run-status-warning)]",
-}
-
 const DATE_FORMAT = "MMM D, YYYY h:mm A"
 
 /** A 12 px dot in the status colour. The word is the tooltip and the accessible name. */
@@ -58,7 +50,7 @@ export const RunStatusDot = ({status}: {status: string | null | undefined}) => {
             role="img"
             aria-label={label}
             title={label}
-            className={`inline-block size-3 rounded-full ${DOT_COLOR[runStatusTone(status)]}`}
+            className={`inline-block size-3 rounded-full ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
         />
     )
 }

@@ -46,13 +46,13 @@ export const buildHelpDocsNavItem = ({
         },
         {
             key: "github-support",
-            title: "GitHub Support",
+            title: "GitHub support",
             link: SUPPORT_URLS.github,
             icon: icons.github,
         },
         {
             key: "slack-connect",
-            title: "Slack Support",
+            title: "Slack support",
             link: SUPPORT_URLS.slack,
             icon: icons.slack,
         },

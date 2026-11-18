@@ -10,15 +10,14 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n"
+import {formatLocale, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsSecretsCatalog from "@agenta/i18n/catalogs/settings.secrets"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
-import {formatDay} from "@agenta/shared/utils/dateTime"
-import {Tag} from "@agenta/ui/components/presentational"
-import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {LoadError, Tag} from "@agenta/ui/components/presentational"
+import {formatListDateTime, ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button, IconTile} from "@agenta/ui/ui"
 import {LockKey, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue} from "jotai"
@@ -171,12 +170,7 @@ const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsLi
                     ) : null}
                     {shows("created_at") ? (
                         <span className="truncate text-muted-foreground">
-                            {record.created_at
-                                ? formatDay({
-                                      date: record.created_at,
-                                      outputFormat: "YYYY-MM-DD HH:mm",
-                                  })
-                                : "-"}
+                            {formatListDateTime(record.created_at, formatLocale())}
                         </span>
                     ) : null}
                     <SettingsRowMenu
@@ -230,7 +224,7 @@ export const NamedSecretTable = ({
     projectCount,
 }: NamedSecretTableProps) => {
     const t = useT(commonCatalog, settingsSecretsCatalog, settingsSharedCatalog)
-    const {namedSecrets, loading} = useVaultSecret()
+    const {namedSecrets, loading, loadFailed, mutate} = useVaultSecret()
     const access = useAtomValue(personalAccountsAccessAtom)
     const personalSecrets = useAtomValue(personalNamedSecretsAtom)
     const personalQuery = useAtomValue(personalSecretsQueryAtom)
@@ -310,22 +304,36 @@ export const NamedSecretTable = ({
                                 label={projectSwitch ?? t("common.project")}
                                 count={rows.length}
                             />
-                            <SecretsList
-                                rows={rows}
-                                loading={loading}
-                                empty={
-                                    <SettingsEmpty
-                                        plain
-                                        icon={getSettingsSidebarIcon("secrets")}
-                                        title={t("settings.secrets.emptyTitle")}
-                                        description={t("settings.secrets.emptyDescription")}
-                                    />
-                                }
-                                onOpen={openSecret}
-                                onDelete={deleteSecret}
-                            />
+                            {loadFailed ? (
+                                <LoadError
+                                    framed
+                                    title={t("settings.secrets.loadFailed")}
+                                    onRetry={() => void mutate()}
+                                />
+                            ) : (
+                                <SecretsList
+                                    rows={rows}
+                                    loading={loading}
+                                    empty={
+                                        <SettingsEmpty
+                                            plain
+                                            icon={getSettingsSidebarIcon("secrets")}
+                                            title={t("settings.secrets.emptyTitle")}
+                                            description={t("settings.secrets.emptyDescription")}
+                                        />
+                                    }
+                                    onOpen={openSecret}
+                                    onDelete={deleteSecret}
+                                />
+                            )}
                         </section>
                     </div>
+                ) : loadFailed ? (
+                    <LoadError
+                        framed
+                        title={t("settings.secrets.loadFailed")}
+                        onRetry={() => void mutate()}
+                    />
                 ) : (
                     <SecretsList
                         rows={rows}

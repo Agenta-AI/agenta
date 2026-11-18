@@ -14,6 +14,7 @@ import {RUNS_LIST_KEY} from "../list/runsListKey"
 
 import {readHumanRunInputs} from "./humanRunInputs"
 import {
+    runNameFor,
     validateDraft,
     type DraftTestset,
     type NewEvaluationDraft,
@@ -23,15 +24,12 @@ import {needsProviderKey, showProviderKeyMissing} from "./providerKey"
 
 export type StartEvaluationResult =
     | {status: "started"; kind: "auto" | "human"}
-    | {status: "invalid"; section: NewEvaluationSection}
+    | {status: "invalid"; section: NewEvaluationSection; message: string}
     | {status: "blocked"}
     | {status: "failed"}
     | {status: "busy"}
 
-/**
- * Start the draft as an auto or a human evaluation. A second call while one runs does nothing.
- * Errors show as toasts; the caller keeps the sheet open unless the result is `started`.
- */
+/** Start the draft as an auto or human evaluation; an invalid draft comes back for inline errors. */
 export const useStartEvaluation = ({
     projectId,
     base,
@@ -62,18 +60,38 @@ export const useStartEvaluation = ({
                     void router.push(`${base}/settings?tab=llms`)
                     return {status: "blocked"}
                 }
-                const {runIds, failedRevisionIds} = await createAutoEvaluationRuns({
-                    projectId,
-                    name: draft.name.trim(),
-                    testsetRevisionId: testset.revisionId,
-                    applicationRevisionIds: draft.revisions.map((revision) => revision.id),
-                    evaluatorRevisionIds: draft.evaluators.map((evaluator) => evaluator.revisionId),
-                    concurrency: {
-                        batch_size: draft.concurrency.batch_size ?? 0,
-                        max_retries: draft.concurrency.max_retries ?? 0,
-                        retry_delay: draft.concurrency.retry_delay ?? 0,
-                    },
-                })
+                // One request per revision, so each run carries its own name.
+                const settled = await Promise.allSettled(
+                    draft.revisions.map((revision) =>
+                        createAutoEvaluationRuns({
+                            projectId,
+                            name: runNameFor(draft, revision),
+                            testsetRevisionId: testset.revisionId,
+                            applicationRevisionIds: [revision.id],
+                            evaluatorRevisionIds: draft.evaluators.map(
+                                (evaluator) => evaluator.revisionId,
+                            ),
+                            concurrency: {
+                                batch_size: draft.concurrency.batch_size ?? 1,
+                                max_retries: draft.concurrency.max_retries ?? 0,
+                                retry_delay: draft.concurrency.retry_delay ?? 0,
+                            },
+                        }),
+                    ),
+                )
+                const runIds = settled.flatMap((entry) =>
+                    entry.status === "fulfilled" ? entry.value.runIds : [],
+                )
+                const failedRevisionIds = draft.revisions
+                    .filter((_, index) => settled[index].status === "rejected")
+                    .map((revision) => revision.id)
+                if (runIds.length === 0) {
+                    throw (
+                        settled.find(
+                            (entry) => entry.status === "rejected",
+                        ) as PromiseRejectedResult
+                    ).reason
+                }
                 const total = runIds.length + failedRevisionIds.length
                 const content =
                     failedRevisionIds.length > 0
@@ -137,13 +155,11 @@ export const useStartEvaluation = ({
         async (draft: NewEvaluationDraft): Promise<StartEvaluationResult> => {
             if (busyRef.current) return {status: "busy"}
             const problem = validateDraft(draft)
-            if (problem) {
-                message.error(problem.message)
-                return {status: "invalid", section: problem.section}
-            }
+            if (problem) return {status: "invalid", ...problem}
             // `validateDraft` has checked the test set, which narrows the type for the starters.
             const {testset} = draft
-            if (!testset) return {status: "invalid", section: "testset"}
+            if (!testset)
+                return {status: "invalid", section: "testset", message: "Select a test set"}
             busyRef.current = true
             setIsStarting(true)
             try {

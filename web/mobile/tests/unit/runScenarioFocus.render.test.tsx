@@ -331,7 +331,7 @@ describe("scenario focus drawer", () => {
         await mount("sc-1")
         const metrics = document.body.querySelector('[aria-label="Exact Match metrics"]')
         expect(metrics?.textContent).toContain("Exact Match")
-        expect(metrics?.textContent).toContain("success")
+        expect(metrics?.textContent).toContain("Success")
     })
     it("Each step shows its own time, tokens and cost", async () => {
         await mount("sc-1", {}, "auto", withStepTraces)
@@ -378,14 +378,14 @@ describe("scenario focus drawer", () => {
         expect(text()).toContain("Japan")
         await click("Collapse all sections")
         expect(text()).not.toContain("Japan")
-        expect(text()).not.toContain("success")
+        expect(text()).not.toContain("Success")
         await act(async () => {
             buttonNamed("Inputs").click()
         })
         expect(text()).toContain("Japan")
-        expect(text()).not.toContain("success")
+        expect(text()).not.toContain("Success")
         await click("Expand all sections")
-        expect(text()).toContain("success")
+        expect(text()).toContain("Success")
     })
 
     it("JSON shows the whole scenario as data, and Copy as JSON copies that text", async () => {

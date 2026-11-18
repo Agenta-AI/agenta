@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useState} from "react"
 
 export type ThemeModeValue = "light" | "dark" | "system"
 
@@ -20,6 +20,8 @@ const read = (): ThemeModeValue => {
 
 const DARK_QUERY = "(prefers-color-scheme: dark)"
 
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect
+
 /**
  * THE theme-mode controller: the stored preference, the theme it resolves to, and the `.dark`
  * class that carries it.
@@ -31,10 +33,14 @@ const DARK_QUERY = "(prefers-color-scheme: dark)"
 export const useThemeMode = () => {
     const [themeMode, setThemeMode] = useState<ThemeModeValue>("system")
     const [systemDark, setSystemDark] = useState(false)
+    const [hydrated, setHydrated] = useState(false)
 
-    // Read after mount: the value is client-only, and the boot script has already applied the
-    // class, so hydrating from it here would mismatch the server render.
-    useEffect(() => setThemeMode(read()), [])
+    // Client-only read after mount, in a layout effect so the mode lands before first paint.
+    useIsomorphicLayoutEffect(() => {
+        setThemeMode(read())
+        if (window.matchMedia) setSystemDark(window.matchMedia(DARK_QUERY).matches)
+        setHydrated(true)
+    }, [])
 
     // The OS preference is STATE, not a render-time `matchMedia` read: re-setting the mode to
     // "system" on a change is a no-op write React bails out of, so the page only flipped on
@@ -42,7 +48,6 @@ export const useThemeMode = () => {
     useEffect(() => {
         if (typeof window === "undefined" || !window.matchMedia) return
         const query = window.matchMedia(DARK_QUERY)
-        setSystemDark(query.matches)
         const sync = (event: MediaQueryListEvent) => setSystemDark(event.matches)
         query.addEventListener("change", sync)
         return () => query.removeEventListener("change", sync)
@@ -51,12 +56,13 @@ export const useThemeMode = () => {
     const resolved: "light" | "dark" =
         themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode
 
+    // Until the stored mode is read, the boot script's class is the truth; do not touch it.
     useEffect(() => {
-        if (typeof document === "undefined") return
+        if (typeof document === "undefined" || !hydrated) return
         const root = document.documentElement
         root.classList.toggle("dark", resolved === "dark")
         root.style.colorScheme = resolved
-    }, [resolved])
+    }, [hydrated, resolved])
 
     const setMode = useCallback((next: ThemeModeValue) => {
         setThemeMode(next)

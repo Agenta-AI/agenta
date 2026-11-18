@@ -1144,7 +1144,7 @@ function matchExistingAnnotations({
 
             if (selection.conflictCode) {
                 throw new Error(
-                    `Multiple existing testcase annotations found for evaluator "${slug}" in this queue`,
+                    `Multiple existing test case annotations found for evaluator "${slug}" in this queue`,
                 )
             }
 
