@@ -1,7 +1,7 @@
 import {useMemo, useRef, useState, type DragEvent, type ReactNode} from "react"
 
 import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
-import {SKILL_DESCRIPTION_MAX, type SkillFile} from "@agenta/skills"
+import type {SkillFile} from "@agenta/skills"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -375,15 +375,6 @@ export function SkillEditor({
                                 <Hint label="About the description">
                                     Agents read this to decide when the skill fits a task.
                                 </Hint>
-                                <span className="flex-1" />
-                                <span
-                                    className={cn(
-                                        "text-xs tabular-nums",
-                                        tooLong ? "text-destructive" : "text-muted-foreground",
-                                    )}
-                                >
-                                    {draft.description.length} / {SKILL_DESCRIPTION_MAX}
-                                </span>
                             </div>
                             <textarea
                                 id="skill-description"
