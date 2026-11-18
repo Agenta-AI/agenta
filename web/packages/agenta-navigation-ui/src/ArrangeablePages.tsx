@@ -32,7 +32,7 @@ const DROP_TARGET =
 const MENU_ROW =
     "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-2 text-left text-sm text-colorText no-underline [font-family:inherit] select-none hover:bg-colorFillSecondary"
 
-/** Calls `begin` after a small mouse move or a touch long-press, so a tap still clicks and a swipe still scrolls. */
+/** Starts a drag after a small mouse move or a touch long-press, so taps click and swipes scroll. */
 const pressToDrag = (press: ReactPointerEvent, begin: (event: PointerEvent) => void) => {
     if (press.button !== 0) return
     if ((press.target as HTMLElement).closest("button, input, [role='button']")) return
@@ -179,7 +179,7 @@ const MoreMenu = ({
     </div>
 )
 
-/** The top-level pages, arranged by drag: reorder in place, drop on "More" to hide, drag out of it to show. */
+/** The top-level pages: drag to reorder, drop on "More" to hide, drag out of it to show. */
 export const ArrangeablePages = ({
     items,
     arrange,
@@ -199,7 +199,7 @@ export const ArrangeablePages = ({
     const [overMore, setOverMore] = useState(false)
     const moreRef = useRef<HTMLButtonElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
-    const live = useRef({draft, overMore: false, started: false, suppressClick: false})
+    const live = useRef({draft, overMore: false, suppressClick: false})
     live.current.draft = draft
 
     const keys = items.map((item) => item.key)
@@ -222,7 +222,7 @@ export const ArrangeablePages = ({
                 [...rest, key],
             )
         else commit(next, rest)
-        live.current = {...live.current, overMore: false, started: false}
+        live.current.overMore = false
         setTimeout(() => {
             live.current.suppressClick = false
         })
@@ -233,7 +233,6 @@ export const ArrangeablePages = ({
     }
 
     const onDragStart = (key: string) => {
-        live.current.started = true
         live.current.suppressClick = true
         setDragging(key)
         setDraft((current) => current ?? keys)
@@ -259,8 +258,7 @@ export const ArrangeablePages = ({
     const onDrag = (info: PanInfo) =>
         trackMore(info.point.x - window.scrollX, info.point.y - window.scrollY)
 
-    // A page dragged out of "More" is placed live in the slot under the pointer; the rows around it
-    // slide aside. Releasing outside the list, or back on "More", leaves it hidden.
+    // A page dragged out of "More" takes the slot under the pointer; dropped outside the list it stays hidden.
     const pull = (item: SidebarConfig, event: PointerEvent) => {
         const place = (e: PointerEvent) => {
             const rows = Array.from(

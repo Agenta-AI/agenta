@@ -300,8 +300,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
             icon: createElement(MessagesSquare, {size: 16, strokeWidth: 1.5}),
             link: `${projectURL}/sessions`,
             hideChildrenWhenCollapsed: true,
-            // No collapse caret here: the filter control is this group's affordance, and the
-            // rows are grouped and individually collapsible already.
+            // No caret: the filter is this group's control.
             alwaysOpen: true,
             // The rail does not scroll; THIS group does, so the footer stays on screen.
             scrollChildren: true,
@@ -326,7 +325,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
 const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
-export const useMobileVersion = () => useAtomValue(versionAtom)
+const useMobileVersion = () => useAtomValue(versionAtom)
 
 /** The Settings row, with the version and the support buttons. */
 export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {

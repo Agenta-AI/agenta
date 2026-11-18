@@ -31,9 +31,8 @@ export const SidebarToggleButton = ({
             type="text"
             size="small"
             className={clsx(
-                // The kit's small button, square: its height, its width.
                 "shrink-0 !p-0 !text-colorTextSecondary hover:!text-colorText",
-                // 32px as the icon rail's first button, the kit's small square beside the trigger.
+                // 32px on the icon rail, the kit's small square elsewhere.
                 collapsed && !onDismiss ? "!size-8 !rounded-[8px]" : "aspect-square !rounded-[6px]",
                 className,
             )}
