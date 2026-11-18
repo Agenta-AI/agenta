@@ -1,7 +1,6 @@
 import {useMemo, useRef, useState, type DragEvent, type ReactNode} from "react"
 
 import {SKILL_DESCRIPTION_MAX, type SkillFile} from "@agenta/skills"
-import {MarkdownPreview} from "@agenta/ui/markdown-preview"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -22,17 +21,13 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 
-import {MarkdownToolbar, WritePreviewSwitch} from "./markdownToolbar"
+import {MarkdownToolbar} from "./markdownToolbar"
 import {descriptionTooLong, type SkillDraft} from "./skillDraft"
 
 export interface SkillEditorProps {
     draft: SkillDraft
     onChange: (next: SkillDraft) => void
     readOnly?: boolean
-    /** Opens Instructions in Preview; a new skill opens in Write. */
-    startInPreview?: boolean
-    /** The Write / Preview switch; the playground drawer has none. */
-    previewSwitch?: boolean
     /** Paints empty required fields red once a save was tried. */
     showMissing?: boolean
     autoFocusTitle?: boolean
@@ -49,12 +44,6 @@ const FIELD =
     "font-[inherit] text-foreground outline-none transition-[border-color,box-shadow] " +
     "placeholder:text-placeholder focus:border-ring focus:ring-[3px] focus:ring-ring/30"
 const MISSING = "border-destructive focus:border-destructive"
-const PREVIEW =
-    "box-border w-full overflow-auto rounded-[10px] border border-solid border-input " +
-    "bg-background px-6 pb-6 pt-5"
-const PREVIEW_TEXT =
-    "!text-[15px] !leading-[26px] !text-foreground [&_h1]:!text-[22px] [&_h2]:!text-[17px] " +
-    "[&_h3]:!text-[15px] [&_table]:!text-sm"
 const ROW_ICON =
     "flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
 const ROW_BUTTON =
@@ -115,18 +104,13 @@ export function SkillEditor({
     draft,
     onChange,
     readOnly = false,
-    startInPreview = false,
-    previewSwitch = true,
     showMissing = false,
     autoFocusTitle = false,
     actions,
     meta,
     notices,
 }: SkillEditorProps) {
-    const [previewOn, setPreview] = useState(startInPreview)
-    const preview = previewSwitch && previewOn
     const [openPath, setOpenPath] = useState<string | null>(null)
-    const [filePreview, setFilePreview] = useState(true)
     const [dragging, setDragging] = useState(false)
     const bodyRef = useRef<HTMLTextAreaElement>(null)
     const fileRef = useRef<HTMLTextAreaElement>(null)
@@ -139,7 +123,6 @@ export function SkillEditor({
     const current = draft.files.find((file) => file.path === openPath) ?? null
     const hasFiles = draft.files.length > 0
     const fileIsMd = current ? extOf(current.path) === "md" : false
-    const showFilePreview = previewSwitch && fileIsMd && filePreview
 
     const groups = useMemo(() => {
         const byDir = new Map<string, SkillFile[]>()
@@ -239,46 +222,31 @@ export function SkillEditor({
                     The steps the agent follows when it uses this skill.
                 </Hint>
                 <span className="flex-1" />
-                {!preview && !readOnly ? (
+                {readOnly ? null : (
                     <MarkdownToolbar
                         target={bodyRef}
                         onChange={(body) => set({body})}
                         className="max-sm:hidden"
                     />
-                ) : null}
-                {previewSwitch ? (
-                    <WritePreviewSwitch preview={preview} onChange={setPreview} />
-                ) : null}
+                )}
             </div>
-            {preview ? (
-                <div className={cn(PREVIEW, "min-h-[360px] flex-1 sm:min-h-[600px]")}>
-                    {draft.body.trim() ? (
-                        <MarkdownPreview content={draft.body} className={PREVIEW_TEXT} />
-                    ) : (
-                        <p className="m-0 text-[15px] text-muted-foreground">
-                            Nothing written yet. Switch to Write to add the steps.
-                        </p>
-                    )}
-                </div>
-            ) : (
-                <textarea
-                    id="skill-body"
-                    ref={bodyRef}
-                    value={draft.body}
-                    readOnly={readOnly}
-                    onChange={(event) => set({body: event.target.value})}
-                    placeholder={
-                        "Write the steps the agent should follow, in plain words.\n\n" +
-                        "1. What to look at first\n2. What to do with it\n" +
-                        "3. What a good result looks like"
-                    }
-                    className={cn(
-                        FIELD,
-                        "min-h-[360px] flex-1 resize-y px-4 py-3.5 text-[15px] leading-[26px] sm:min-h-[600px]",
-                        showMissing && !draft.body.trim() && MISSING,
-                    )}
-                />
-            )}
+            <textarea
+                id="skill-body"
+                ref={bodyRef}
+                value={draft.body}
+                readOnly={readOnly}
+                onChange={(event) => set({body: event.target.value})}
+                placeholder={
+                    "Write the steps the agent should follow, in plain words.\n\n" +
+                    "1. What to look at first\n2. What to do with it\n" +
+                    "3. What a good result looks like"
+                }
+                className={cn(
+                    FIELD,
+                    "min-h-[360px] flex-1 resize-y px-4 py-3.5 text-[15px] leading-[26px] sm:min-h-[600px]",
+                    showMissing && !draft.body.trim() && MISSING,
+                )}
+            />
         </div>
     )
 
@@ -297,47 +265,28 @@ export function SkillEditor({
                     </label>
                 </span>
                 <span className="flex-1" />
-                {fileIsMd ? (
-                    <>
-                        {!showFilePreview && !readOnly ? (
-                            <MarkdownToolbar
-                                target={fileRef}
-                                onChange={setFileContent}
-                                className="max-sm:hidden"
-                            />
-                        ) : null}
-                        {previewSwitch ? (
-                            <WritePreviewSwitch preview={filePreview} onChange={setFilePreview} />
-                        ) : null}
-                    </>
+                {fileIsMd && !readOnly ? (
+                    <MarkdownToolbar
+                        target={fileRef}
+                        onChange={setFileContent}
+                        className="max-sm:hidden"
+                    />
                 ) : (
                     <span className="text-xs text-muted-foreground">{kindOf(current.path)}</span>
                 )}
             </div>
-            {showFilePreview ? (
-                <div className={cn(PREVIEW, "min-h-0 flex-1")}>
-                    {current.content.trim() ? (
-                        <MarkdownPreview content={current.content} className={PREVIEW_TEXT} />
-                    ) : (
-                        <p className="m-0 text-[15px] text-muted-foreground">
-                            Nothing written yet.
-                        </p>
-                    )}
-                </div>
-            ) : (
-                <textarea
-                    id="skill-file"
-                    ref={fileRef}
-                    value={current.content}
-                    readOnly={readOnly}
-                    spellCheck={false}
-                    onChange={(event) => setFileContent(event.target.value)}
-                    className={cn(
-                        FIELD,
-                        "min-h-0 flex-1 resize-none px-4 py-3.5 font-mono text-[13px] leading-[21px]",
-                    )}
-                />
-            )}
+            <textarea
+                id="skill-file"
+                ref={fileRef}
+                value={current.content}
+                readOnly={readOnly}
+                spellCheck={false}
+                onChange={(event) => setFileContent(event.target.value)}
+                className={cn(
+                    FIELD,
+                    "min-h-0 flex-1 resize-none px-4 py-3.5 font-mono text-[13px] leading-[21px]",
+                )}
+            />
         </div>
     ) : null
 

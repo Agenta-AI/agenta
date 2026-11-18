@@ -105,39 +105,3 @@ export function MarkdownToolbar({
         </TooltipProvider>
     )
 }
-
-/** The Write / Preview switch beside an editor's label. */
-export function WritePreviewSwitch({
-    preview,
-    onChange,
-}: {
-    preview: boolean
-    onChange: (preview: boolean) => void
-}) {
-    const tab = (on: boolean, label: string, value: boolean) => (
-        <button
-            type="button"
-            role="tab"
-            aria-selected={on}
-            onClick={() => onChange(value)}
-            className={cn(
-                "h-6 cursor-pointer rounded-md border-0 px-2.5 font-[inherit] text-xs font-medium",
-                on
-                    ? "bg-background text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
-                    : "bg-transparent text-muted-foreground hover:text-foreground",
-            )}
-        >
-            {label}
-        </button>
-    )
-    return (
-        <div
-            role="tablist"
-            aria-label="View"
-            className="ml-1.5 inline-flex gap-0.5 rounded-lg border border-solid border-border bg-muted p-0.5"
-        >
-            {tab(!preview, "Write", false)}
-            {tab(preview, "Preview", true)}
-        </div>
-    )
-}

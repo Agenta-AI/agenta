@@ -351,7 +351,6 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                     <SkillEditor
                         draft={flow.draft}
                         onChange={flow.setDraft}
-                        previewSwitch={false}
                         autoFocusTitle={!flow.fromUpload}
                         showMissing={flow.attempted}
                         notices={

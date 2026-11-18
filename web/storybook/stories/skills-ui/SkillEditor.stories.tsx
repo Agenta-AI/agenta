@@ -23,7 +23,6 @@ const Editor = ({initial, readOnly}: {initial: SkillDraft; readOnly?: boolean}) 
             draft={draft}
             onChange={setDraft}
             readOnly={readOnly}
-            startInPreview={readOnly}
             actions={readOnly ? undefined : <Button>Save</Button>}
         />
     )

@@ -465,7 +465,6 @@ export function SkillDetailView({
                 draft={draft}
                 onChange={edit}
                 readOnly={archived}
-                startInPreview
                 showMissing={attempted}
                 actions={actions}
                 meta={meta}

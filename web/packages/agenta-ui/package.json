@@ -22,7 +22,6 @@
     },
     "exports": {
         ".": "./src/index.ts",
-        "./markdown-preview": "./src/MarkdownPreview.tsx",
         "./app-message": "./src/utils/appMessageContext.tsx",
         "./cell-renderers": "./src/CellRenderers/index.ts",
         "./chat-message": "./src/ChatMessage/index.ts",
