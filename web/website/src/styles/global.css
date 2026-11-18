@@ -1323,3 +1323,16 @@ html,
     white-space: normal;
   }
 }
+
+/* Phone menu button: the two bars turn into an X while the menu is open. */
+.ag-menu .ag-menu-l1,
+.ag-menu .ag-menu-l2 {
+  transform-box: view-box;
+  transform-origin: 10px 10px;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ag-menu[aria-expanded="true"] .ag-menu-l1 { transform: translateY(2.5px) rotate(45deg); }
+.ag-menu[aria-expanded="true"] .ag-menu-l2 { transform: translateY(-2.5px) rotate(-45deg); }
+@media (prefers-reduced-motion: reduce) {
+  .ag-menu .ag-menu-l1, .ag-menu .ag-menu-l2 { transition: none; }
+}
