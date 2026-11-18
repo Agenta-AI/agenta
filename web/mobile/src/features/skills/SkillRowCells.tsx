@@ -41,7 +41,7 @@ export const SkillRowCells = ({
             onToggle={() => onToggle(row)}
         />
         <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-sm font-semibold text-foreground" title={row.title}>
+            <span className="truncate text-sm font-medium text-foreground" title={row.title}>
                 {row.title}
             </span>
             <span

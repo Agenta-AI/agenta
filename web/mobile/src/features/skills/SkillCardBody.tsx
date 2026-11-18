@@ -35,7 +35,7 @@ export const SkillCardBody = ({
             </div>
             <div className="flex min-w-0 flex-col gap-1.5">
                 <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-[15px] font-semibold leading-[22px]">
+                    <span className="truncate text-[15px] font-medium leading-[22px]">
                         {row.title}
                     </span>
                     {row.origin === "imported" ? (
