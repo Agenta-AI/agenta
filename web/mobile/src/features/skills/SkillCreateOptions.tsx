@@ -15,7 +15,7 @@ const tile = (className: string, icon: ReactNode) => (
     <span
         aria-hidden
         className={cn(
-            "box-border inline-flex size-[30px] shrink-0 items-center justify-center rounded-[9px] border border-solid",
+            "box-border inline-flex size-[30px] shrink-0 items-center justify-center rounded-[9px]",
             className,
         )}
     >
@@ -40,7 +40,7 @@ export const SkillCreateOptions = ({
         <FeatureSection title={t("skills.list.waysToAdd")} hint={t("skills.list.waysToAddHint")}>
             <div className="grid gap-3 @2xl:grid-cols-3">
                 <FeatureActionCard
-                    media={tile("border-colorInfo/20 bg-colorInfoBg text-colorInfo", <PencilSimple size={15} />)}
+                    media={tile("bg-colorInfoBg text-colorInfo", <PencilSimple size={15} />)}
                     title={t("skills.list.writeTitle")}
                     description={t("skills.list.writeDescription")}
                     actionLabel={t("skills.list.writeAction")}
@@ -48,7 +48,7 @@ export const SkillCreateOptions = ({
                     onClick={onWrite}
                 />
                 <FeatureActionCard
-                    media={tile("border-foreground bg-foreground text-background", <GithubLogo size={15} />)}
+                    media={tile("bg-foreground text-background", <GithubLogo size={15} />)}
                     title={t("skills.list.importTitle")}
                     description={t("skills.list.importDescription")}
                     actionLabel={t("skills.list.importAction")}
@@ -57,7 +57,7 @@ export const SkillCreateOptions = ({
                 />
                 <FeatureActionCard
                     media={tile(
-                        "border-tag-green/20 bg-tag-green-bg text-tag-green",
+                        "bg-tag-green-bg text-tag-green",
                         <UploadSimple size={15} />,
                     )}
                     title={t("skills.list.uploadTitle")}

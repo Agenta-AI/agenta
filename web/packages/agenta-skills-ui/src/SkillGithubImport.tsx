@@ -20,7 +20,17 @@ interface Found {
     unavailable: UnavailableSkill[]
 }
 
-const errorText = (err: unknown, fallback: string) => extractApiErrorMessage(err) || `${fallback}.`
+const GITHUB_REPO = /^(https?:\/\/)?(www\.)?github\.com\/[\w.-]+\/[\w.-]+/i
+const NOT_A_REPO = "Paste a GitHub repository link, like https://github.com/owner/repo."
+
+/** The server's message, said for a person: a missing repo and a bad link get plain words. */
+const errorText = (err: unknown, fallback: string) => {
+    const raw = extractApiErrorMessage(err)
+    if (/returned 404|not exist|is private/i.test(raw ?? ""))
+        return "We could not find this repository. Check the link, and make sure the repository is public."
+    if (/not a github repository/i.test(raw ?? "")) return NOT_A_REPO
+    return raw || `${fallback}.`
+}
 
 const repoLabel = (url: string) =>
     url
@@ -47,6 +57,10 @@ export function SkillGithubImport({
     const [error, setError] = useState<string | null>(null)
 
     const find = async () => {
+        if (!GITHUB_REPO.test(url.trim())) {
+            setError(NOT_A_REPO)
+            return
+        }
         setBusy("scan")
         setError(null)
         try {
@@ -62,7 +76,12 @@ export function SkillGithubImport({
                 if (already.has(c.path_in_repo))
                     unavailable.push({key: c.path_in_repo, title, reason: "Already added"})
                 else if (!c.valid)
-                    unavailable.push({key: c.path_in_repo, title, reason: "Can't be added"})
+                    unavailable.push({
+                        key: c.path_in_repo,
+                        title,
+                        reason: "Can't be added",
+                        detail: c.issues?.find((issue) => issue.message)?.message ?? undefined,
+                    })
                 else
                     candidates.push({
                         key: c.path_in_repo,
@@ -145,7 +164,10 @@ export function SkillGithubImport({
                     <Input
                         autoFocus
                         value={url}
-                        onChange={(event) => setUrl(event.target.value)}
+                        onChange={(event) => {
+                            setUrl(event.target.value)
+                            setError(null)
+                        }}
                         placeholder="https://github.com/owner/repo"
                     />
                 </label>
@@ -232,7 +254,7 @@ export function SkillGithubImport({
                         />
                     </div>
                     {found.candidates.length ? (
-                        <div className="flex flex-wrap items-center gap-4 border-0 border-t border-solid border-border pt-3">
+                        <div className="sticky bottom-0 z-[1] flex flex-wrap items-center gap-x-4 gap-y-2 border-0 border-t border-solid border-border bg-background py-3 lg:pb-0">
                             <span className="flex-[1_1_240px] text-xs text-muted-foreground">
                                 Skills that run programs can change files and reach the internet.
                                 Add them only from sources you trust.

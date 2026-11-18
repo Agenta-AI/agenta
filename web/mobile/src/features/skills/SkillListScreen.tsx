@@ -216,6 +216,10 @@ export const SkillListScreen = ({
                                 A skill teaches an agent how to do one job well. Add it once, then
                                 use it in any agent.
                             </p>
+                            {/* Outside the scroller, so search and filters stay in reach. */}
+                            {projectEmpty ? null : (
+                                <div className="mt-4 [&>*]:mb-0">{toolbar}</div>
+                            )}
                         </div>
                     }
                 >
@@ -230,7 +234,6 @@ export const SkillListScreen = ({
                             </FeatureOnboarding>
                         ) : (
                             <>
-                                {toolbar}
                                 {query.isError ? (
                                     <LoadError
                                         framed

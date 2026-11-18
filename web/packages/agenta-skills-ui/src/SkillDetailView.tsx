@@ -13,6 +13,7 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache, skillsResolveDataAtom} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
+import {cn} from "@agenta/ui/styles"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -360,15 +361,20 @@ export function SkillDetailView({
                     Saved
                 </span>
             ) : null}
-            {dirty && !archived ? (
+            {archived ? null : (
+                // Kept in the row while hidden, so Save does not move when it shows; on a phone
+                // the row starts at the left, so it follows Save instead.
                 <Button
                     variant="outline"
                     onClick={() => base && setDraft(base.draft)}
-                    disabled={saving}
+                    disabled={saving || !dirty}
+                    aria-hidden={dirty ? undefined : true}
+                    tabIndex={dirty ? undefined : -1}
+                    className={cn("max-sm:order-1", !dirty && "invisible max-sm:hidden")}
                 >
                     Discard
                 </Button>
-            ) : null}
+            )}
             {archived ? null : (
                 <Button
                     onClick={() =>
@@ -384,11 +390,16 @@ export function SkillDetailView({
             )}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="More actions">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="More actions"
+                        className="max-sm:order-2"
+                    >
                         <DotsThreeVertical size={16} weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[210px]">
+                <DropdownMenuContent align="end" collisionPadding={16} className="w-[210px]">
                     <DropdownMenuItem onSelect={download}>
                         <DownloadSimple size={14} />
                         Download

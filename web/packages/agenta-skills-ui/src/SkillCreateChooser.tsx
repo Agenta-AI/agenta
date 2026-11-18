@@ -16,12 +16,12 @@ export interface SkillCreateChooserProps {
 }
 
 const OPTION =
-    "relative box-border flex h-[60px] w-full cursor-pointer items-center gap-3 rounded-[10px] " +
-    "border border-solid border-border bg-card px-3 text-left font-[inherit] text-foreground " +
-    "transition-colors hover:border-input hover:bg-accent/50 focus-visible:outline-none " +
+    "relative box-border flex min-h-[60px] py-2.5 w-full cursor-pointer items-center gap-3 rounded-[10px] " +
+    "border border-solid border-[color:var(--ag-colorBorderSecondary)] bg-card px-3 text-left font-[inherit] text-foreground " +
+    "transition-colors hover:border-border hover:bg-accent/50 focus-visible:outline-none " +
     "focus-visible:ring-[3px] focus-visible:ring-ring/30"
 const TILE =
-    "box-border flex size-8 shrink-0 items-center justify-center rounded-lg border border-solid"
+    "box-border flex size-8 shrink-0 items-center justify-center rounded-lg"
 
 function Option({
     tile,
@@ -69,7 +69,7 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                 title="Write a skill"
                 help="Start from a blank page. Name it, describe it and write the steps."
                 tile={
-                    <span className={cn(TILE, "border-colorInfo/20 bg-colorInfoBg text-colorInfo")}>
+                    <span className={cn(TILE, "bg-colorInfoBg text-colorInfo")}>
                         <PencilSimple size={15} />
                     </span>
                 }
@@ -91,7 +91,7 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                 }}
                 tile={
                     <span
-                        className={cn(TILE, "border-tag-green/20 bg-tag-green-bg text-tag-green")}
+                        className={cn(TILE, "bg-tag-green-bg text-tag-green")}
                     >
                         <UploadSimple size={15} />
                     </span>
@@ -102,7 +102,7 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                 title="Import from GitHub"
                 help="Copy one or more skills from a public repository."
                 tile={
-                    <span className={cn(TILE, "border-foreground bg-foreground text-background")}>
+                    <span className={cn(TILE, "bg-foreground text-background")}>
                         <GithubLogo size={15} weight="fill" />
                     </span>
                 }

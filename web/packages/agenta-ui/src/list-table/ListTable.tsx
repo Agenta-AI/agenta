@@ -47,6 +47,11 @@ const SKELETON_WIDTHS = ["w-4/5", "w-3/5", "w-2/3", "w-1/2", "w-3/4"]
 const STICKY = {height: "h-9", groupTop: "top-9"} as const
 
 /** With no visible header, a stuck group heading sits at the scroller's own top. */
+/** A short fade below a pinned bar, so rows sink under it instead of being cut. */
+const STICKY_FADE =
+    "shadow-[-12px_0_0_var(--color-background),12px_0_0_var(--color-background)] " +
+    "after:pointer-events-none after:absolute after:-inset-x-3 after:top-[calc(100%+1px)] after:h-3 after:bg-linear-to-b after:from-background after:to-background/0 after:content-['']"
+
 const groupTop = (hideHeader: boolean) => (hideHeader ? "top-0" : STICKY.groupTop)
 
 /**
@@ -90,6 +95,7 @@ export const ListTable = <Row,>({
     onToggleGroup,
     empty,
     stickyHeader = false,
+    stickyFade = false,
     hideHeader: hideHeaderProp = false,
     density = "default",
     selection,
@@ -190,7 +196,10 @@ export const ListTable = <Row,>({
                                       // stuck directly beneath it without measuring anything — and the margin
                                       // goes, or a 4px slot of rows would show through the gap.
                                       stickyHeader
-                                          ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
+                                          ? cn(
+                                                `sticky top-0 z-20 ${STICKY.height} items-center bg-background`,
+                                                stickyFade && STICKY_FADE,
+                                            )
                                           : "mb-1 py-2",
                                   ],
                         )}
@@ -330,10 +339,13 @@ export const ListTable = <Row,>({
                                     <div
                                         className={cn(
                                             "flex items-center gap-2 pb-1.5 pt-3.5",
+                                            // A grid has no column header above its first heading.
+                                            isGrid && groupIndex === 0 && "pt-0",
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
                                             stickyHeader &&
                                                 `sticky ${headingTop} z-10 bg-background`,
+                                            stickyHeader && stickyFade && STICKY_FADE,
                                         )}
                                     >
                                         {group.label === null ? null : onToggleGroup ? (

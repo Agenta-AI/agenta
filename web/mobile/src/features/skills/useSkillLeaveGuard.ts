@@ -8,7 +8,7 @@ export const useSkillLeaveGuard = (dirty: boolean) => {
     const {confirm, modal} = useConfirmModal()
     const ask = useCallback(
         (request: {title: string; message: string; onOk: () => void | Promise<void>}) =>
-            confirm({...request, okText: "Discard", danger: true}),
+            confirm({...request, okText: "Discard", cancelText: "Keep editing", danger: true}),
         [confirm],
     )
     const leave = useUnsavedGuard({

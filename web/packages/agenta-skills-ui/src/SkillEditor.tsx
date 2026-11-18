@@ -126,6 +126,7 @@ export function SkillEditor({
     const filesListRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(filesListRef)
     const pickerRef = useRef<HTMLInputElement>(null)
+    const sectionRef = useRef<HTMLElement>(null)
 
     const latest = useRef(draft)
     latest.current = draft
@@ -165,7 +166,7 @@ export function SkillEditor({
     const createFile = (path: string) => {
         set({files: [...latest.current.files, {path, content: ""}]})
         setNaming(null)
-        setOpenPath(path)
+        openFile(path)
     }
     const renameFile = (from: string, to: string) => {
         set({
@@ -234,7 +235,23 @@ export function SkillEditor({
         set({
             files: draft.files.map((file) => (file.path === openPath ? {...file, content} : file)),
         })
+    const setFileExecutable = (executable: boolean) =>
+        set({
+            files: latest.current.files.map((file) =>
+                file.path === openPath ? {...file, executable: executable || undefined} : file,
+            ),
+        })
     const browse = () => pickerRef.current?.click()
+    /** Below lg the editor sits above the list, so bring it into view. */
+    const openFile = (path: string | null) => {
+        setOpenPath(path)
+        requestAnimationFrame(() => {
+            const section = sectionRef.current
+            if (!section || window.matchMedia("(min-width: 1024px)").matches) return
+            if (section.getBoundingClientRect().top < 80)
+                section.scrollIntoView({behavior: "smooth", block: "start"})
+        })
+    }
 
     const onDrop = (event: DragEvent) => {
         event.preventDefault()
@@ -271,7 +288,7 @@ export function SkillEditor({
                     <button
                         type="button"
                         aria-current={on ? "true" : undefined}
-                        onClick={() => setOpenPath(file.path)}
+                        onClick={() => openFile(file.path)}
                         onDoubleClick={() =>
                             readOnly ? undefined : setNaming({path: file.path, dir: dirOf(file.path)})
                         }
@@ -325,8 +342,8 @@ export function SkillEditor({
     ) => (
         <div
             className={cn(
-                "md-doc flex min-h-[360px] flex-1 flex-col rounded-[10px]",
-                fill ? "lg:min-h-0" : "sm:min-h-[600px]",
+                "md-doc flex h-[min(560px,65dvh)] min-h-[320px] flex-col rounded-[10px]",
+                fill && "lg:h-auto lg:min-h-0 lg:flex-1",
                 missing &&
                     "[&_div:has(>.md-prose)]:border-destructive [&_div:has(>.md-prose)]:ring-[3px] [&_div:has(>.md-prose)]:ring-destructive/15",
             )}
@@ -374,22 +391,36 @@ export function SkillEditor({
             key={current.path}
             className="absolute inset-0 flex animate-skill-enter flex-col gap-1.5"
         >
-            <div className="flex min-h-6 flex-wrap items-center gap-2">
-                <FileText size={16} className="text-muted-foreground" />
-                <span className="flex min-w-0 items-baseline gap-0.5 truncate text-sm">
+            <div className="flex min-h-6 items-center gap-2">
+                <FileText size={16} className="shrink-0 text-muted-foreground" />
+                <span title={current.path} className="flex min-w-0 flex-1 items-baseline text-sm">
                     {dirOf(current.path) ? (
-                        <span className="truncate text-muted-foreground">
+                        <span className="min-w-0 shrink-[3] truncate text-muted-foreground">
                             {dirOf(current.path)}/
                         </span>
                     ) : null}
-                    <label htmlFor="skill-file" className="font-medium">
+                    <label htmlFor="skill-file" className="min-w-0 truncate font-medium">
                         {baseOf(current.path)}
                     </label>
                 </span>
                 {fileIsMd ? (
-                    <div ref={setFileToolbar} className="flex min-w-0 flex-1 justify-end max-sm:hidden [&_button]:size-6" />
-                ) : null}
+                    <div ref={setFileToolbar} className="flex min-w-0 justify-end max-sm:hidden [&_button]:size-6" />
+                ) : readOnly ? null : (
+                    <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-muted-foreground">
+                        Run as a program
+                        <Switch
+                            size="sm"
+                            checked={Boolean(current.executable)}
+                            onCheckedChange={setFileExecutable}
+                        />
+                    </label>
+                )}
             </div>
+            {current.executable && !draft.allowExecutable ? (
+                <p className="m-0 text-[13px] leading-[18px] text-tag-orange">
+                    Turn on “Let files run as programs” so this file can run.
+                </p>
+            ) : null}
             {fileIsMd ? (
                 <div className="flex min-h-0 flex-1 flex-col">
                     {richEditor(
@@ -431,7 +462,7 @@ export function SkillEditor({
                         onChange={(event) => set({title: event.target.value})}
                         placeholder="Name your skill, e.g. Weekly report"
                         className={cn(
-                            "-ml-1 box-border w-full rounded-md border-0 bg-transparent px-1 font-[inherit] text-[19px] font-semibold leading-7 text-foreground outline-none placeholder:text-placeholder hover:bg-accent/60 focus:bg-transparent focus-visible:shadow-none sm:text-[26px] sm:leading-9",
+                            "-ml-1 box-border w-full text-ellipsis rounded-md border-0 bg-transparent px-1 font-[inherit] text-[19px] font-semibold leading-7 text-foreground outline-none placeholder:text-placeholder hover:bg-accent/60 focus:bg-transparent focus-visible:shadow-none sm:text-[26px] sm:leading-9",
                             readOnly && "hover:bg-transparent",
                             showMissing && !draft.title.trim() && "ring-[3px] ring-destructive/30",
                         )}
@@ -450,13 +481,14 @@ export function SkillEditor({
 
             <div
                 className={cn(
-                    "mt-1 flex flex-wrap items-stretch gap-6",
-                    fill && "flex-1 lg:min-h-0 lg:flex-nowrap",
+                    "mt-1 flex flex-col gap-6 lg:flex-row lg:items-stretch",
+                    fill && "flex-1 lg:min-h-0",
                 )}
             >
                 <section
+                    ref={sectionRef}
                     className={cn(
-                        "relative flex min-w-0 flex-[999_1_480px] flex-col",
+                        "relative flex min-w-0 scroll-mt-4 flex-col lg:flex-[999_1_480px]",
                         fill && "lg:min-h-0",
                     )}
                 >
@@ -511,7 +543,7 @@ export function SkillEditor({
                 <aside
                     aria-label="Files"
                     className={cn(
-                        "flex min-h-[280px] min-w-0 flex-[1_1_280px] flex-col gap-1.5 sm:max-w-[360px]",
+                        "flex min-h-[280px] min-w-0 flex-col gap-1.5 lg:max-w-[360px] lg:flex-[1_1_280px]",
                         fill && "lg:min-h-0",
                     )}
                 >
@@ -588,7 +620,7 @@ export function SkillEditor({
                                         <button
                                             type="button"
                                             aria-current={current ? undefined : "true"}
-                                            onClick={() => setOpenPath(null)}
+                                            onClick={() => openFile(null)}
                                             className={ROW_BUTTON}
                                         >
                                             SKILL.md

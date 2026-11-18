@@ -12,6 +12,8 @@ export interface UnavailableSkill {
     key: string
     title: string
     reason: string
+    /** Why, in the parser's words; shown under the name. */
+    detail?: string
 }
 
 /** Pickable skills as toggle rows, then the ones that cannot be added. */
@@ -72,11 +74,18 @@ export function SkillCandidateList({
                     {unavailable.map((item) => (
                         <div
                             key={item.key}
-                            className="flex items-baseline gap-2 py-1 text-[13px] leading-[18px] text-muted-foreground"
+                            className="flex flex-col gap-0.5 py-1 text-[13px] leading-[18px] text-muted-foreground"
                         >
-                            <span className="min-w-0 truncate text-foreground">{item.title}</span>
-                            <span className="flex-1" />
-                            <span className="shrink-0 text-right">{item.reason}</span>
+                            <span className="flex items-baseline gap-2">
+                                <span className="min-w-0 truncate text-foreground">{item.title}</span>
+                                <span className="flex-1" />
+                                <span className="shrink-0 text-right">{item.reason}</span>
+                            </span>
+                            {item.detail ? (
+                                <span title={item.detail} className="truncate text-xs">
+                                    {item.detail}
+                                </span>
+                            ) : null}
                         </div>
                     ))}
                 </div>

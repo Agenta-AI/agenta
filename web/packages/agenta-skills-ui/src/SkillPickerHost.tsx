@@ -6,7 +6,19 @@ import {skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
 import type {SkillsPickerHostProps} from "@agenta/ui/drill-in"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn} from "@agenta/ui/styles"
-import {Button, SearchInput, Spinner} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    SearchInput,
+    Spinner,
+} from "@agenta/ui/ui"
 import {ArrowLeft, Check, CheckCircle, Compass, PencilSimple, Plus, X} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -25,7 +37,7 @@ type View = "list" | "create"
 const ROW =
     "relative flex h-16 items-center gap-3 rounded-[10px] px-2.5 transition-colors hover:bg-accent/60"
 const TILE =
-    "flex size-8 shrink-0 items-center justify-center rounded-[9px] border border-solid border-border bg-muted text-muted-foreground"
+    "flex size-8 shrink-0 items-center justify-center rounded-[7px] bg-muted text-muted-foreground"
 
 const entryFor = (created: {
     slug: string
@@ -46,8 +58,8 @@ function Header({
     onClose: () => void
 }) {
     return (
-        <div className="relative flex flex-col gap-1.5 px-5 pb-4 pt-5">
-            <div className="flex items-center gap-1.5 pr-8">
+        <div className="flex flex-col gap-1.5 px-5 pb-4 pt-5">
+            <div className="flex min-h-8 items-center gap-1.5">
                 {onBack ? (
                     <Button
                         variant="ghost"
@@ -59,20 +71,22 @@ function Header({
                         <ArrowLeft size={16} />
                     </Button>
                 ) : null}
-                <h2 className="m-0 text-[17px] font-medium leading-6">{title}</h2>
+                <h2 className="m-0 min-w-0 flex-1 truncate text-[17px] font-medium leading-6">
+                    {title}
+                </h2>
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Close"
+                    onClick={onClose}
+                    className="-mr-1.5 shrink-0"
+                >
+                    <X size={16} />
+                </Button>
             </div>
             {description ? (
                 <p className="m-0 text-sm text-muted-foreground">{description}</p>
             ) : null}
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Close"
-                onClick={onClose}
-                className="absolute right-3.5 top-3.5"
-            >
-                <X size={16} />
-            </Button>
         </div>
     )
 }
@@ -195,7 +209,10 @@ export function SkillPickerHost({
             .map((item) => {
                 const mapped = toPickerItem(item, item.origin ? "imported" : "project", none)
                 if (!mapped) return null
-                return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
+                // A detached import is the project's own again, as the registry groups it.
+                return item.origin && !item.origin.detached
+                    ? {...mapped, source: toSourceInfo(item.origin)}
+                    : mapped
             })
             .filter((item): item is SkillListItem => item !== null)
     }, [registry])
@@ -224,12 +241,26 @@ export function SkillPickerHost({
     }
 
     const writing = view === "create" && flow.step === "write"
+    const draftTouched =
+        writing &&
+        Boolean(
+            flow.draft.title.trim() ||
+                flow.draft.description.trim() ||
+                flow.draft.body.trim() ||
+                flow.draft.files.length,
+        )
+    /** Leaving a written draft asks first, as the create page does. */
+    const [leaving, setLeaving] = useState<(() => void) | null>(null)
+    const guard = (go: () => void) => () => (draftTouched ? setLeaving(() => go) : go())
+    const close = guard(onClose)
     const createHeader = (title: string, description?: string) => (
         <Header
             title={title}
             description={description}
-            onBack={() => (flow.step === "choose" ? setView("list") : flow.setStep("choose"))}
-            onClose={onClose}
+            onBack={guard(() =>
+                flow.step === "choose" ? setView("list") : flow.setStep("choose"),
+            )}
+            onClose={close}
         />
     )
 
@@ -305,7 +336,7 @@ export function SkillPickerHost({
                                                         {skillTitle(option)}
                                                     </span>
                                                     {option.source ? (
-                                                        <span className="truncate text-xs text-muted-foreground">
+                                                        <span className="truncate text-xs text-muted-foreground max-sm:hidden">
                                                             {option.source.label}
                                                         </span>
                                                     ) : null}
@@ -394,8 +425,9 @@ export function SkillPickerHost({
         body = (
             <>
                 {createHeader(flow.fromUpload ? "Review the upload" : "Write a skill")}
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-5">
                     <SkillEditor
+                        fill
                         draft={flow.draft}
                         onChange={flow.setDraft}
                         autoFocusTitle={!flow.fromUpload}
@@ -419,12 +451,16 @@ export function SkillPickerHost({
                             "flex-1 text-[13px]",
                             flow.error
                                 ? "text-destructive"
-                                : "text-muted-foreground max-sm:invisible",
+                                : "text-muted-foreground max-sm:hidden",
                         )}
                     >
                         {flow.error ?? "Saved to the registry and added to this agent."}
                     </span>
-                    <Button variant="outline" onClick={() => flow.setStep("choose")}>
+                    <Button
+                        variant="outline"
+                        className="max-sm:ml-auto"
+                        onClick={guard(() => flow.setStep("choose"))}
+                    >
                         Cancel
                     </Button>
                     <Button onClick={() => void flow.create()} disabled={!flow.canCreate}>
@@ -490,7 +526,7 @@ export function SkillPickerHost({
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
-            onClose={onClose}
+            onClose={close}
             placement="right"
             width={writing ? 960 : 560}
             className="transition-[width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
@@ -506,6 +542,32 @@ export function SkillPickerHost({
             >
                 {body}
             </div>
+            <AlertDialog open={leaving !== null} onOpenChange={(next) => !next && setLeaving(null)}>
+                <AlertDialogContent className="sm:max-w-[400px]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Discard this skill?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            It is not created yet. What you wrote will be lost.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline">Keep editing</Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    leaving?.()
+                                    setLeaving(null)
+                                }}
+                            >
+                                Discard
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </EnhancedDrawer>
     )
 }

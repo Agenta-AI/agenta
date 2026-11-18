@@ -15,10 +15,15 @@ const WIDE_QUERY = "(min-width: 640px)"
 const columns = (group: SkillGrouping, narrow: boolean, select: ReactNode): ListTableColumn[] => {
     const lead: ListTableColumn[] = [
         {key: "select", label: "Select", srOnly: true, width: "32px", header: select},
-        {key: "name", label: "Name", width: "minmax(180px,2fr)"},
+        {key: "name", label: "Name", width: narrow ? "minmax(0,1fr)" : "minmax(180px,2fr)"},
     ]
     const tail: ListTableColumn[] = [
-        {key: "updated", label: "Last edited", width: "96px", headerClassName: "text-right"},
+        {
+            key: "updated",
+            label: "Last edited",
+            width: narrow ? "auto" : "96px",
+            headerClassName: "text-right",
+        },
         {key: "actions", label: "Actions", srOnly: true, width: "32px"},
     ]
     if (narrow) return [...lead, ...tail]
@@ -116,6 +121,7 @@ export const SkillListTable = ({
             view={view}
             cardMinWidth={280}
             stickyHeader
+            stickyFade
             density="compact"
             loading={isLoading}
             groups={groups}
@@ -128,9 +134,15 @@ export const SkillListTable = ({
             wrapRow={(row, node) => (
                 <div
                     className={cn(
-                        "-mx-3 mb-0.5 w-[calc(100%+1.5rem)] rounded-md px-3 transition-colors",
-                        selected.has(row.id) && "bg-accent",
-                        fresh.has(row.id) && "animate-skill-fresh",
+                        view === "grid"
+                            ? "contents [&>div]:transition-colors"
+                            : "-mx-3 mb-0.5 w-[calc(100%+1.5rem)] rounded-md px-3 transition-colors",
+                        selected.has(row.id) &&
+                            (view === "grid"
+                                ? "[&>div]:border-foreground/25! [&>div]:bg-accent/60"
+                                : "bg-accent"),
+                        fresh.has(row.id) &&
+                            (view === "grid" ? "[&>div]:animate-skill-fresh" : "animate-skill-fresh"),
                     )}
                 >
                     {node}
