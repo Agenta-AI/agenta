@@ -502,7 +502,7 @@ export function SkillEditor({
                             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
                                 <span
                                     aria-hidden
-                                    className="flex size-11 items-center justify-center rounded-xl border border-solid border-border bg-muted text-muted-foreground"
+                                    className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground"
                                 >
                                     <FilePlus size={20} />
                                 </span>
