@@ -99,8 +99,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         getIcon: () => null,
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
-        getRowClassName: (session) =>
-            session.archived ? "text-colorTextSecondary opacity-60" : "text-colorTextSecondary",
+        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
