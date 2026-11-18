@@ -56,7 +56,7 @@ export function SkillDetailHost({
                 width={960}
                 closable={false}
                 destroyOnClose
-                styles={{body: {padding: 20}}}
+                styles={{body: {padding: 20, display: "flex", flexDirection: "column"}}}
             >
                 {workflowId ? (
                     <SkillDetailView

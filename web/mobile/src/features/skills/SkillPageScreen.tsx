@@ -44,7 +44,9 @@ export const SkillPageScreen = ({
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 lg:pt-8 ${PAGE_FRAME}`}>
+                    <div
+                        className={`flex min-w-0 flex-1 flex-col px-4 pb-12 pt-3 lg:min-h-0 lg:pb-8 lg:pt-8 ${PAGE_FRAME}`}
+                    >
                         <SkillDetailView
                             key={skillId}
                             projectId={projectId}

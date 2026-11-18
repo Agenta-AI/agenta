@@ -51,7 +51,7 @@ export const SkillRowCells = ({
                 className="truncate text-sm text-muted-foreground"
                 title={row.description || undefined}
             >
-                {row.description || NO_DESCRIPTION}
+                {row.description || noDescriptionLabel()}
             </span>
         </span>
         {narrow ? null : (

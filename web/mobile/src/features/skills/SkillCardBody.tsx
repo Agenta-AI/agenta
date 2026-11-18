@@ -3,7 +3,7 @@ import {GithubLogo, Robot} from "@phosphor-icons/react"
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillAvatarCheck} from "./SkillAvatarCheck"
 import type {SkillRowProps} from "./SkillRowCells"
-import {lastUpdatedLabel, NO_DESCRIPTION} from "./skillListView"
+import {lastUpdatedLabel, noDescriptionLabel} from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
 import {SkillUsedBy} from "./SkillUsedBy"
 import {useSkillUpdateStatus} from "./useSkillUpdates"
@@ -49,7 +49,7 @@ export const SkillCardBody = ({
                     ) : null}
                 </span>
                 <span className="line-clamp-2 min-h-10 text-[13px] leading-5 text-muted-foreground">
-                    {row.description || NO_DESCRIPTION}
+                    {row.description || noDescriptionLabel()}
                 </span>
             </div>
             <div className="mt-auto flex items-center gap-2 text-xs text-muted-foreground">

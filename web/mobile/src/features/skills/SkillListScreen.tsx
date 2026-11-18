@@ -26,11 +26,13 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {pendingSkillUploadAtom} from "./pendingUpload"
+import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {SkillListTable} from "./SkillListTable"
 import {
@@ -43,7 +45,6 @@ import {
     type SkillListView,
 } from "./skillListView"
 import {SkillSelectionBar} from "./SkillSelectionBar"
-import {SkillsEmpty} from "./states/SkillsEmpty"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
 import {useSkillActions} from "./useSkillActions"
 
@@ -212,11 +213,13 @@ export const SkillListScreen = ({
                 >
                     <div className={`flex min-w-0 flex-col gap-4 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
                         {projectEmpty ? (
-                            <SkillsEmpty
-                                onWrite={() => goCreate("write")}
-                                onUpload={uploadFromEmpty}
-                                onImport={() => goCreate("github")}
-                            />
+                            <FeatureOnboarding guideKey="skills" base={base}>
+                                <SkillCreateOptions
+                                    onWrite={() => goCreate("write")}
+                                    onUpload={uploadFromEmpty}
+                                    onImport={() => goCreate("github")}
+                                />
+                            </FeatureOnboarding>
                         ) : (
                             <>
                                 {toolbar}

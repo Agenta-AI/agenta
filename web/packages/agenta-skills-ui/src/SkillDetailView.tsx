@@ -358,7 +358,7 @@ export function SkillDetailView({
             )}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" aria-label="More actions">
+                    <Button variant="ghost" size="icon" aria-label="More actions">
                         <DotsThreeVertical size={16} weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
@@ -461,10 +461,11 @@ export function SkillDetailView({
     }
 
     return (
-        <div className="flex animate-skill-enter flex-col gap-4">
+        <div className="flex flex-1 animate-skill-enter flex-col gap-4 lg:min-h-0">
             {top}
             <SkillEditor
                 key={base?.id}
+                fill
                 draft={draft}
                 onChange={edit}
                 readOnly={archived}

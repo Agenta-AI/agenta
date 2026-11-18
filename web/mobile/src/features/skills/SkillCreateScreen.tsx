@@ -105,6 +105,7 @@ export const SkillCreateScreen = ({
             <SkillEditor
                 draft={flow.draft}
                 onChange={flow.setDraft}
+                fill
                 autoFocusTitle={!flow.fromUpload}
                 showMissing={flow.attempted}
                 actions={
@@ -205,9 +206,13 @@ export const SkillCreateScreen = ({
                         </div>
                     }
                 >
-                    <div className={`flex min-h-full min-w-0 flex-col gap-4 px-4 pb-12 pt-3 lg:pt-8 ${PAGE_FRAME}`}>
+                    <div
+                        className={`flex min-h-full min-w-0 flex-col gap-4 px-4 pb-12 pt-3 lg:pt-8 ${PAGE_FRAME} ${
+                            flow.step === "write" ? "flex-1 lg:min-h-0 lg:pb-8" : ""
+                        }`}
+                    >
                         {back}
-                        <div key={flow.step} className="flex flex-1 animate-skill-enter flex-col">
+                        <div key={flow.step} className="flex flex-1 animate-skill-enter flex-col lg:min-h-0">
                             {body}
                         </div>
                     </div>

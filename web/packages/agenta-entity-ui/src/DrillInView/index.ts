@@ -448,6 +448,7 @@ export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFor
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
 export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
 export {SkillFormView} from "./SchemaControls/SkillFormView"
+export {MarkdownEditor} from "./SchemaControls/MarkdownEditor"
 export {SkillFormSkeleton} from "./SchemaControls/DrawerSkeletons"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"

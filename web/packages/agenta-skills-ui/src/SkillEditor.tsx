@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState, type DragEvent, type ReactNode} from "react"
 
+import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import {SKILL_DESCRIPTION_MAX, type SkillFile} from "@agenta/skills"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -21,7 +22,6 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 
-import {MarkdownToolbar} from "./markdownToolbar"
 import {descriptionTooLong, type SkillDraft} from "./skillDraft"
 
 export interface SkillEditorProps {
@@ -31,6 +31,8 @@ export interface SkillEditorProps {
     /** Paints empty required fields red once a save was tried. */
     showMissing?: boolean
     autoFocusTitle?: boolean
+    /** From the lg breakpoint, fill the page height; the fields scroll inside. */
+    fill?: boolean
     /** Right of the title. */
     actions?: ReactNode
     /** Under the title. */
@@ -106,14 +108,15 @@ export function SkillEditor({
     readOnly = false,
     showMissing = false,
     autoFocusTitle = false,
+    fill = false,
     actions,
     meta,
     notices,
 }: SkillEditorProps) {
     const [openPath, setOpenPath] = useState<string | null>(null)
     const [dragging, setDragging] = useState(false)
-    const bodyRef = useRef<HTMLTextAreaElement>(null)
-    const fileRef = useRef<HTMLTextAreaElement>(null)
+    const [bodyToolbar, setBodyToolbar] = useState<HTMLDivElement | null>(null)
+    const [fileToolbar, setFileToolbar] = useState<HTMLDivElement | null>(null)
     const pickerRef = useRef<HTMLInputElement>(null)
 
     const latest = useRef(draft)
@@ -212,41 +215,50 @@ export function SkillEditor({
         )
     }
 
+    const richEditor = (
+        value: string,
+        onValue: (next: string) => void,
+        toolbar: HTMLDivElement | null,
+        missing = false,
+    ) => (
+        <div
+            className={cn(
+                "flex min-h-[360px] flex-1 flex-col rounded-[10px]",
+                fill ? "lg:min-h-0" : "sm:min-h-[600px]",
+                missing && "ring-1 ring-destructive",
+            )}
+        >
+            <MarkdownEditor
+                value={value}
+                onChange={onValue}
+                placeholder="Write the steps the agent should follow, in plain words."
+                editable={!readOnly}
+                showToolbar={!readOnly}
+                toolbarContainer={toolbar}
+                toolbarLayout="inline"
+                defaultView="rendered"
+                hideHeader
+                grow
+            />
+        </div>
+    )
+
     const instructions = (
-        <div className="flex flex-1 flex-col gap-1.5">
+        <div className={cn("flex flex-1 flex-col gap-1.5", fill && "lg:min-h-0")}>
             <div className="flex min-h-6 flex-wrap items-center gap-1.5">
-                <label htmlFor="skill-body" className="text-sm font-medium">
-                    Instructions
-                </label>
+                <span className="text-sm font-medium">Instructions</span>
                 <Hint label="About the instructions">
                     The steps the agent follows when it uses this skill.
                 </Hint>
                 <span className="flex-1" />
-                {readOnly ? null : (
-                    <MarkdownToolbar
-                        target={bodyRef}
-                        onChange={(body) => set({body})}
-                        className="max-sm:hidden"
-                    />
-                )}
+                <div ref={setBodyToolbar} className="max-sm:hidden" />
             </div>
-            <textarea
-                id="skill-body"
-                ref={bodyRef}
-                value={draft.body}
-                readOnly={readOnly}
-                onChange={(event) => set({body: event.target.value})}
-                placeholder={
-                    "Write the steps the agent should follow, in plain words.\n\n" +
-                    "1. What to look at first\n2. What to do with it\n" +
-                    "3. What a good result looks like"
-                }
-                className={cn(
-                    FIELD,
-                    "min-h-[360px] flex-1 resize-y px-4 py-3.5 text-[15px] leading-[26px] sm:min-h-[600px]",
-                    showMissing && !draft.body.trim() && MISSING,
-                )}
-            />
+            {richEditor(
+                draft.body,
+                (body) => set({body}),
+                bodyToolbar,
+                showMissing && !draft.body.trim(),
+            )}
         </div>
     )
 
@@ -265,33 +277,34 @@ export function SkillEditor({
                     </label>
                 </span>
                 <span className="flex-1" />
-                {fileIsMd && !readOnly ? (
-                    <MarkdownToolbar
-                        target={fileRef}
-                        onChange={setFileContent}
-                        className="max-sm:hidden"
-                    />
+                {fileIsMd ? (
+                    <div ref={setFileToolbar} className="max-sm:hidden" />
                 ) : (
                     <span className="text-xs text-muted-foreground">{kindOf(current.path)}</span>
                 )}
             </div>
-            <textarea
-                id="skill-file"
-                ref={fileRef}
-                value={current.content}
-                readOnly={readOnly}
-                spellCheck={false}
-                onChange={(event) => setFileContent(event.target.value)}
-                className={cn(
-                    FIELD,
-                    "min-h-0 flex-1 resize-none px-4 py-3.5 font-mono text-[13px] leading-[21px]",
-                )}
-            />
+            {fileIsMd ? (
+                <div className="flex min-h-0 flex-1 flex-col">
+                    {richEditor(current.content, setFileContent, fileToolbar)}
+                </div>
+            ) : (
+                <textarea
+                    id="skill-file"
+                    value={current.content}
+                    readOnly={readOnly}
+                    spellCheck={false}
+                    onChange={(event) => setFileContent(event.target.value)}
+                    className={cn(
+                        FIELD,
+                        "min-h-0 flex-1 resize-none px-4 py-3.5 font-mono text-[13px] leading-[21px]",
+                    )}
+                />
+            )}
         </div>
     ) : null
 
     return (
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className={cn("flex min-w-0 flex-col gap-4", fill && "flex-1 lg:min-h-0")}>
             <div className="flex flex-wrap items-start gap-3">
                 <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
                     <label htmlFor="skill-title" className="sr-only">
@@ -317,12 +330,23 @@ export function SkillEditor({
 
             {notices}
 
-            <div className="mt-1 flex flex-wrap items-stretch gap-6">
-                <section className="relative flex min-w-0 flex-[999_1_480px] flex-col">
+            <div
+                className={cn(
+                    "mt-1 flex flex-wrap items-stretch gap-6",
+                    fill && "flex-1 lg:min-h-0 lg:flex-nowrap",
+                )}
+            >
+                <section
+                    className={cn(
+                        "relative flex min-w-0 flex-[999_1_480px] flex-col",
+                        fill && "lg:min-h-0",
+                    )}
+                >
                     <div
                         key={current ? "file" : "skill"}
                         className={cn(
                             "flex flex-1 flex-col gap-5",
+                            fill && "lg:min-h-0",
                             current ? "invisible" : "animate-skill-enter",
                         )}
                         aria-hidden={current ? true : undefined}
@@ -373,7 +397,10 @@ export function SkillEditor({
 
                 <aside
                     aria-label="Files"
-                    className="flex min-h-[280px] min-w-0 flex-[1_1_280px] flex-col gap-1.5 sm:max-w-[360px]"
+                    className={cn(
+                        "flex min-h-[280px] min-w-0 flex-[1_1_280px] flex-col gap-1.5 sm:max-w-[360px]",
+                        fill && "lg:min-h-0",
+                    )}
                 >
                     <div className="flex min-h-6 items-center gap-1.5">
                         <span className="text-sm font-medium">Files</span>
@@ -404,7 +431,7 @@ export function SkillEditor({
                         onDragLeave={() => setDragging(false)}
                         onDrop={onDrop}
                         className={cn(
-                            "box-border flex flex-1 flex-col gap-0.5 overflow-hidden rounded-[10px] border border-solid border-input bg-background p-1.5",
+                            "box-border flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded-[10px] border border-solid border-input bg-background p-1.5",
                             dragging && "border-dashed border-foreground",
                         )}
                     >
@@ -461,7 +488,7 @@ export function SkillEditor({
                                 )}
                             </>
                         ) : (
-                            <div className="flex flex-1 flex-col items-center gap-3 px-6 pb-8 pt-16 text-center">
+                            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
                                 <span
                                     aria-hidden
                                     className="flex size-11 items-center justify-center rounded-xl border border-solid border-border bg-muted text-muted-foreground"
