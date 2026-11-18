@@ -265,9 +265,9 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         [developerMode, developerViews, projectURL, promptsSource, t],
     )
 
-    return useMemo(() => {
+    const pages = useMemo(() => {
         const developerRows = [...developerSlots.afterHome, ...developerSlots.afterSessions]
-        const pages: SidebarConfig[] = [
+        const list: SidebarConfig[] = [
             {
                 key: "mobile-home",
                 title: t("navigation.items.home"),
@@ -311,7 +311,11 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
             },
             ...developerRows,
         ]
-        const sessions: SidebarConfig = {
+        return {pages: list, defaultHidden: new Set(developerRows.map((row) => row.key))}
+    }, [developerSlots, projectURL])
+
+    const sessions = useMemo<SidebarConfig>(
+        () => ({
             key: SESSIONS_SIDEBAR_KEY,
             title: t("navigation.items.sessions"),
             icon: createElement(ChatsCircleIcon, {size: 16}),
@@ -341,11 +345,11 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
                 undefined,
                 wrapSessionRow,
             ),
-        }
-        // Developer pages start in "More".
-        const defaultHidden = new Set(developerRows.map((row) => row.key))
-        return {pages, sessions, defaultHidden}
-    }, [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots, t])
+        }),
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, t],
+    )
+
+    return useMemo(() => ({...pages, sessions}), [pages, sessions])
 }
 
 // Lazy-load package.json so its version stays out of the initial bundle.

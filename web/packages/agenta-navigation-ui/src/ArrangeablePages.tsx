@@ -27,7 +27,7 @@ const TOUCH_HOLD_MS = 350
 const TOUCH_SLOP_PX = 8
 const SETTLE = {type: "spring", stiffness: 500, damping: 40, mass: 0.8} as const
 const LIFTED =
-    "z-20 [&>div:first-child]:bg-colorBgElevated [&>div:first-child]:shadow-overlay [&>div:first-child]:cursor-grabbing"
+    "z-20 rounded-md bg-[var(--ag-sidebar-bg)] [&>div:first-child]:bg-colorBgElevated [&>div:first-child]:shadow-overlay [&>div:first-child]:cursor-grabbing"
 const DROP_TARGET =
     "bg-[var(--ag-shell-selected-bg)] !text-colorText shadow-[inset_0_0_0_1px_currentColor]"
 const MENU_ROW =
@@ -126,9 +126,12 @@ const SortableRow = ({
             animate={{opacity: dropping ? 0.55 : 1, height: "auto"}}
             exit={reduced ? {opacity: 0} : {opacity: 0, height: 0, overflow: "hidden"}}
             whileDrag={{scale: 1.02}}
-            aria-roledescription="sortable"
             className={cn("relative flex flex-col [-webkit-touch-callout:none]", lifted && LIFTED)}
-            onPointerDown={(event) => pressToDrag(event, (start) => controls.start(start))}
+            onPointerDown={(event) => {
+                const header = event.currentTarget.firstElementChild
+                if (!header?.contains(event.target as Node)) return
+                pressToDrag(event, (start) => controls.start(start))
+            }}
             onKeyDown={(event: KeyboardEvent) => {
                 if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
                 event.preventDefault()
@@ -236,7 +239,11 @@ export const ArrangeablePages = ({
                 [...rest, key],
             )
         else commit(next, rest)
-        live.current = {...live.current, overMore: false, started: false, suppressClick: true}
+        live.current = {...live.current, overMore: false, started: false}
+        pending.current = null
+        setTimeout(() => {
+            live.current.suppressClick = false
+        })
         setDraft(null)
         setPulled(null)
         setDragging(null)
@@ -245,6 +252,7 @@ export const ArrangeablePages = ({
 
     const onDragStart = (key: string) => {
         live.current.started = true
+        live.current.suppressClick = true
         setDragging(key)
         setDraft((current) => current ?? keys)
     }
@@ -335,9 +343,6 @@ export const ArrangeablePages = ({
                 live.current.suppressClick = false
                 event.preventDefault()
                 event.stopPropagation()
-            }}
-            onPointerDownCapture={() => {
-                live.current.suppressClick = false
             }}
         >
             <Reorder.Group

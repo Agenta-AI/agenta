@@ -29,6 +29,8 @@ export const usePageArrangement = (
         const titleOf = (key: string) => String(byKey.get(key)?.title ?? "Page")
         const pick = (keys: string[]) => keys.flatMap((key) => byKey.get(key) ?? [])
 
+        // Pages absent today (Developer Mode off) keep their saved place for when they return.
+        const absent = (keys: string[] = []) => keys.filter((key) => !byKey.has(key))
         const change = (next: PageLayout | null, text: string) => {
             setSaved(next)
             message.open({
@@ -45,7 +47,13 @@ export const usePageArrangement = (
             arrange: {
                 hidden: pick(layout.hidden),
                 onArrange: (visible, hidden) =>
-                    change({visible, hidden}, describe(layout, {visible, hidden}, titleOf)),
+                    change(
+                        {
+                            visible: [...visible, ...absent(saved?.visible)],
+                            hidden: [...hidden, ...absent(saved?.hidden)],
+                        },
+                        describe(layout, {visible, hidden}, titleOf),
+                    ),
                 onReset: () => change(null, "Sidebar reset to default."),
             },
         }
