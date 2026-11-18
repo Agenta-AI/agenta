@@ -50,6 +50,7 @@ import {
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
+import {MessagesSquare} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {agentEntryHref} from "@/features/agents/agentEntry"
@@ -99,7 +100,8 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         getIcon: () => null,
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
-        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
+        getRowClassName: (session) =>
+            session.archived ? "opacity-60" : session.running ? RUNNING_TITLE : undefined,
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -123,6 +125,10 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         maxItems: SIDEBAR_UNBOUNDED,
     },
 )
+
+/** A running session's title shimmers, the same live-text sweep the chat uses. */
+const RUNNING_TITLE =
+    "[&_span[title]]:bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] [&_span[title]]:bg-clip-text motion-safe:[&_span[title]]:animate-text-shimmer motion-safe:[&_span[title]]:bg-[length:200%_100%] motion-safe:[&_span[title]]:text-transparent"
 
 /** A spinner while a turn runs, amber while it waits on you, dark while the session is live. */
 const sessionStatusMark = (session: SessionSidebarRef): ReactNode => {
@@ -291,7 +297,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         () => ({
             key: SESSIONS_SIDEBAR_KEY,
             title: t("navigation.items.sessions"),
-            icon: createElement(ChatsCircleIcon, {size: 16}),
+            icon: createElement(MessagesSquare, {size: 16, strokeWidth: 1.5}),
             link: `${projectURL}/sessions`,
             hideChildrenWhenCollapsed: true,
             // No collapse caret here: the filter control is this group's affordance, and the

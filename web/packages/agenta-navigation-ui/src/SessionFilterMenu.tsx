@@ -21,7 +21,7 @@ import {
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
     ClockIcon,
-    FadersHorizontalIcon,
+    FunnelSimpleIcon,
     LightningIcon,
     ListBulletsIcon,
     PulseIcon,
@@ -223,7 +223,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 onOpenChange={onOpenChange}
                 label={null}
                 triggerAriaLabel={t("shell.sessionFilter.filterSessions")}
-                icon={<FadersHorizontalIcon size={ICON} />}
+                icon={<FunnelSimpleIcon size={ICON} />}
                 variant="ghost"
                 // The rail's own control geometry, not the toolbar button's: a 22px square on a
                 // 28px group row. Square, so its hover fill reads as one hit area rather than a

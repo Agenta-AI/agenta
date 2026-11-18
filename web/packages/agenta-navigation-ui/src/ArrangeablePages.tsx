@@ -8,7 +8,8 @@ import {
 
 import type {SidebarArrange, SidebarConfig} from "@agenta/navigation"
 import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
-import {ArrowCounterClockwise, DotsThree} from "@phosphor-icons/react"
+import {ArrowCounterClockwise} from "@phosphor-icons/react"
+import {Ellipsis} from "lucide-react"
 import {
     AnimatePresence,
     Reorder,
@@ -331,7 +332,7 @@ export const ArrangeablePages = ({
                                 moreOpen && ROW_SELECTED,
                             )}
                         >
-                            <DotsThree size={16} weight="bold" />
+                            <Ellipsis size={16} strokeWidth={2} />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -406,7 +407,7 @@ export const ArrangeablePages = ({
                             dropping && DROP_TARGET,
                         )}
                     >
-                        <DotsThree size={16} weight="bold" className="shrink-0" />
+                        <Ellipsis size={16} strokeWidth={2} className="shrink-0" />
                         <span className="min-w-0 flex-1 truncate">
                             {keepsLast
                                 ? "Keep one page here"
