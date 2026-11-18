@@ -149,7 +149,11 @@ export const SkillCreateScreen = ({
             />
         )
     } else if (flow.step === "github") {
-        body = centered(<SkillGithubImport projectId={projectId} onImported={onImported} />)
+        body = (
+            <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col pt-2 lg:min-h-0">
+                <SkillGithubImport projectId={projectId} onImported={onImported} />
+            </div>
+        )
     } else if (flow.step === "upload") {
         body = centered(
             <>
@@ -210,7 +214,7 @@ export const SkillCreateScreen = ({
                 >
                     <div
                         className={`flex min-h-full min-w-0 flex-col gap-4 px-4 pb-12 pt-3 lg:pt-8 ${PAGE_FRAME} ${
-                            flow.step === "write" ? "flex-1 lg:min-h-0 lg:pb-8" : ""
+                            flow.step === "write" || flow.step === "github" ? "flex-1 lg:min-h-0 lg:pb-8" : ""
                         }`}
                     >
                         {back}

@@ -120,7 +120,7 @@ export function SkillGithubImport({
     )
 
     return (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1">
             {showHeader ? (
                 <div className="flex items-center gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-foreground text-background">
@@ -181,7 +181,7 @@ export function SkillGithubImport({
             ) : null}
 
             {found ? (
-                <div className="flex animate-skill-enter flex-col gap-3">
+                <div className="flex animate-skill-enter flex-col gap-3 lg:min-h-0 lg:flex-1">
                     <div className="flex items-center gap-2 pt-1">
                         <span className="flex-1 text-sm text-muted-foreground">
                             {found.candidates.length ? (
@@ -214,13 +214,15 @@ export function SkillGithubImport({
                             </Button>
                         ) : null}
                     </div>
-                    <SkillCandidateList
-                        candidates={found.candidates}
-                        selected={picked}
-                        onToggle={toggle}
-                        unavailable={found.unavailable}
-                        disabled={busy !== null}
-                    />
+                    <div className="-mx-1 px-1 py-px lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                        <SkillCandidateList
+                            candidates={found.candidates}
+                            selected={picked}
+                            onToggle={toggle}
+                            unavailable={found.unavailable}
+                            disabled={busy !== null}
+                        />
+                    </div>
                     {found.candidates.length ? (
                         <div className="flex flex-wrap items-center gap-4 border-0 border-t border-solid border-border pt-3">
                             <span className="flex-[1_1_240px] text-xs text-muted-foreground">
