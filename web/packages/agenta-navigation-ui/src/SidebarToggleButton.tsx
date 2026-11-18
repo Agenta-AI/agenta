@@ -3,10 +3,10 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Sidebar, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
+import {PanelLeft, X} from "lucide-react"
 
 export interface SidebarToggleButtonProps {
     /** The rail's collapsed state. Defaults to the shared atom both shells already use. */
@@ -31,20 +31,16 @@ export const SidebarToggleButton = ({
             type="text"
             size="small"
             className={clsx(
-                // 24px beside the header's trigger, 32px as the icon rail's first button.
-                "shrink-0 !p-0",
-                collapsed && !onDismiss ? "!size-8" : "!size-6 mr-0.5",
+                // The kit's small button, square: its height, its width.
+                "aspect-square shrink-0 !p-0",
                 className,
             )}
             aria-label={onDismiss ? t("navigation.chrome.closeNavigation") : undefined}
             icon={
                 onDismiss ? (
-                    <X size={14} />
+                    <X size={16} strokeWidth={1.75} />
                 ) : (
-                    <Sidebar
-                        size={collapsed ? 16 : 14}
-                        className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
-                    />
+                    <PanelLeft size={16} strokeWidth={1.75} />
                 )
             }
             onClick={() => (onDismiss ? onDismiss() : setCollapsed((c) => !c))}
