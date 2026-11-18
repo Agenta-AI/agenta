@@ -4,7 +4,7 @@ import {extractApiErrorMessage, formatCount, skillDisplayName} from "@agenta/sha
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
-import {Button, Input, Spinner} from "@agenta/ui/ui"
+import {Button, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {GithubLogo, WarningCircle} from "@phosphor-icons/react"
 
 import {SkillCandidateList, type SkillCandidate, type UnavailableSkill} from "./SkillCandidateList"
@@ -169,7 +169,23 @@ export function SkillGithubImport({
                 </div>
             ) : null}
 
-            {found ? (
+            {busy === "scan" ? (
+                <div aria-busy className="flex flex-col gap-1.5 pt-1">
+                    <SkeletonBlock active className="mb-1.5 h-4 w-48 rounded" />
+                    {[0, 1, 2, 3, 4].map((row) => (
+                        <div
+                            key={row}
+                            className="box-border flex h-14 items-center gap-2.5 rounded-[10px] border border-solid border-border px-3"
+                        >
+                            <SkeletonBlock active className="size-7 shrink-0 rounded-lg" />
+                            <span className="flex flex-1 flex-col gap-1.5">
+                                <SkeletonBlock active className="h-3.5 w-32 rounded" />
+                                <SkeletonBlock active className="h-3 w-3/4 rounded" />
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            ) : found ? (
                 <div className="flex animate-skill-enter flex-col gap-3 lg:min-h-0 lg:flex-1">
                     <div className="flex items-center gap-2 pt-1">
                         <span className="flex-1 text-sm text-muted-foreground">
