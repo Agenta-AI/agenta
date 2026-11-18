@@ -548,11 +548,53 @@ export function deriveWorkspace(state, setState, onLive) {
       skills: skillsAll.slice(4),
     },
   ];
+  // Configuration pane: the agent setup behind the open session.
+  const configOpen = st.configOpen !== false;
+  const ssAutos = AUTOS.filter((au) => au.agent === ss.title);
+  const ssFull = {
+    ...ss,
+    autos: ssAutos.length
+      ? ssAutos
+      : AUTOS.filter((automation) => automation.area === ss.area),
+    // Every app the agent's own sessions use, so the pane matches the chat.
+    configIntegrations: [
+      ...new Set([
+        ...ss.tools,
+        ...(activePlaygroundGroup?.tasks ?? [])
+          .flatMap((task) => (task.steps ?? []).map((step) => step[0]))
+          .filter((k) => k !== WEB && LOGO[k]),
+      ]),
+    ],
+    configSkills: skillsAll
+      .filter((skill) =>
+        (ss.area === "Marketing"
+          ? ["research-brief", "draft-article", "publish-digest"]
+          : ss.area === "Sales"
+            ? ["score-fit", "publish-digest", "schedule-run"]
+            : ss.area === "Support"
+              ? ["classify-ticket", "publish-digest", "schedule-run"]
+              : ["review-diff", "publish-digest", "schedule-run"]
+        ).includes(skill.slug),
+      ),
+    subagents: sessions
+      .filter((agent) => agent.area === ss.area && agent.title !== ss.title)
+      .slice(0, 2),
+    files: [
+      {
+        name: ss.tools[0].toLowerCase() + "-notes.md",
+        when: whens[st.session ?? 0],
+      },
+      { name: "AGENTS.md", when: "1w ago" },
+      { name: "context/" + ss.area.toLowerCase() + ".md", when: "2w ago" },
+    ],
+  };
   return {
     nav,
     view,
     railGroups: visibleRailGroups,
-    ss,
+    ss: ssFull,
+    configOpen,
+    toggleConfig: () => setState({ configOpen: !configOpen }),
     homeAgent: sessions[homeSel],
     homeRows,
     agentRows: sessions.slice(0, 10),

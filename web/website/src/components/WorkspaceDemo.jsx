@@ -2,7 +2,9 @@ import {
   ArrowLeft,
   ArrowUp,
   CalendarBlank,
+  CaretDoubleRight,
   CaretDown,
+  CaretUpDown,
   CaretRight,
   ChatCircle,
   ChatsCircle,
@@ -25,6 +27,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import AutomationHistory from "./workspace-demo/AutomationHistory.jsx";
+import PlaygroundSettings from "./workspace-demo/PlaygroundSettings.jsx";
 import { Component, Fragment } from "react";
 
 // Sample workspace content from the approved landing design. All actions stay local.
@@ -121,6 +124,8 @@ export default class WorkspaceDemo extends Component {
       view,
       railGroups,
       ss,
+      configOpen,
+      toggleConfig,
       homeAgent,
       homeRows,
       agentRows,
@@ -448,6 +453,7 @@ export default class WorkspaceDemo extends Component {
                   )}
                 >{`Default project`}</span>
               </span>
+              <CaretUpDown size={14} weight="regular" aria-hidden="true" style={css(`flex:0 0 auto;color:var(--muted-foreground);`)} />
             </div>
           </div>
         </div>
@@ -1966,6 +1972,25 @@ export default class WorkspaceDemo extends Component {
                   <b>{ss.title}</b>
                 </span>
               </div>
+              <div className="ws-split" data-config={configOpen}>
+              {configOpen && (
+                <PlaygroundSettings
+                  key={ss.title}
+                  agent={ss}
+                  onHide={toggleConfig}
+                />
+              )}
+              <div className="ws-chat">
+              {!configOpen && (
+                <button
+                  type="button"
+                  className="ws-cfg-show"
+                  aria-label="Show configuration"
+                  onClick={toggleConfig}
+                >
+                  <CaretDoubleRight size={14} weight="regular" aria-hidden="true" />
+                </button>
+              )}
               <div className="r3-ap-thread" style={css(`overflow-y:auto;`)}>
                 <div className="r3-ap-user">
                   <p>{ss.ask}</p>
@@ -2014,6 +2039,8 @@ export default class WorkspaceDemo extends Component {
                     <ArrowUp size={14} weight="bold" aria-hidden="true" />
                   </span>
                 </div>
+              </div>
+              </div>
               </div>
             </div>
           )}

@@ -1,0 +1,296 @@
+.ag-demo-config {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-right: 1px solid var(--ag-shell-line);
+  background: var(--ag-surface-raised);
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ag-demo-config::-webkit-scrollbar {
+  display: none;
+}
+.ag-settings-header {
+  display: flex;
+  flex-shrink: 0;
+  height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--ag-surface-section-header);
+}
+.ag-settings-header:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.ag-settings-header strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.ag-settings-header > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ag-settings-header button {
+  display: flex;
+  border: 0;
+  border-radius: 4px;
+  padding: 4px;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+.ag-settings-sections {
+  padding: 0 16px;
+}
+.ag-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 16px;
+}
+.ag-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin: 0;
+  border: 1px solid var(--ag-colorBorderSecondary);
+  border-radius: 8px;
+  background: var(--ag-surface-section-content);
+  color: var(--foreground);
+  text-align: left;
+  font: inherit;
+}
+.ag-settings-item > img,
+.ag-settings-item > svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+.ag-settings-item > svg {
+  color: var(--muted-foreground);
+}
+.ag-settings-item > svg:last-child {
+  width: 12px;
+  height: 12px;
+}
+.ag-settings-item > span {
+  flex: 1;
+  min-width: 0;
+}
+.ag-settings-item strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-settings-item small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.ag-settings-automations,
+.ag-settings-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+.ag-settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ag-settings-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ag-settings-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.ag-settings-fields input,
+.ag-settings-fields textarea,
+.ag-settings-body > textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--ag-colorBorder);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--ag-surface-section-content);
+  color: var(--foreground);
+  font: inherit;
+}
+.ag-settings-fields textarea,
+.ag-settings-body > textarea {
+  min-height: 210px;
+  resize: vertical;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ag-settings-note,
+.ag-settings-integration {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ag-settings-integration h4 {
+  margin: 10px 0;
+  color: var(--foreground);
+  font-size: 14px;
+}
+.ag-settings-integration ul {
+  padding-left: 18px;
+  line-height: 1.8;
+}
+.ag-settings-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+}
+[data-theme="dark"] .ag-settings-item img {
+  filter: brightness(0) invert(0.8);
+}
+
+/* Product-parity row furniture: avatar squares, name rows, previews, tags. */
+.ag-settings-avatar,
+.ag-settings-item > .ag-settings-avatar {
+  position: relative;
+  display: flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: #fff;
+}
+.ag-settings-avatar--muted {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.ag-settings-dot {
+  position: absolute;
+  left: -2px;
+  bottom: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ag-run-status-success);
+  border: 2px solid var(--ag-surface-section-content);
+}
+.ag-settings-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ag-settings-name-row small {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ag-settings-preview {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-settings-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--ag-colorBorder);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--ag-surface-section-content);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.ag-settings-select svg {
+  color: var(--muted-foreground);
+}
+.ag-settings-add {
+  display: inline-flex;
+  padding: 2px;
+  color: var(--muted-foreground);
+}
+.ag-settings-header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ag-settings-tag {
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: 10px;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--muted-foreground);
+}
+.ag-settings-item-meta {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Section carets: Phosphor's outline caret (an arrow), not the filled triangle.
+   The caret still turns 90 degrees when the section opens. */
+.ag-demo-config [data-slot="collapse-caret"] {
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ag-demo-config [data-slot="collapse-caret"] path {
+  display: none;
+}
+/* Tailwind's rotate-90 needs base-layer variables this page does not load. */
+.ag-demo-config [data-slot="collapse-caret"].rotate-90 {
+  transform: rotate(90deg);
+}
+
+/* Muted avatars: one neutral tile for instructions, subagents and skills. */
+.ag-demo-config .ag-settings-avatar { color: var(--muted-foreground); box-shadow: inset 0 0 0 1px var(--border); }
+
+/* Model picker, laid out like the product's two-column provider menu. */
+.ag-model-picker { display: flex; flex-direction: column; gap: 6px; }
+.ag-model-picker .ag-settings-select { width: 100%; cursor: pointer; font: inherit; text-align: left; }
+.ag-model-current { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.ag-model-current img, .ag-model-conns img { width: 14px; height: 14px; flex: 0 0 auto; }
+.ag-model-menu { border: 1px solid var(--border); border-radius: 8px; background: var(--background); box-shadow: var(--ag-boxShadowSecondary, 0 4px 12px rgb(0 0 0 / 0.08)); overflow: hidden; font-size: 13px; }
+.ag-model-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.ag-model-cols { display: grid; grid-template-columns: 112px minmax(0, 1fr); }
+.ag-model-conns { display: flex; flex-direction: column; padding: 4px; border-right: 1px solid var(--border); }
+.ag-model-conns button, .ag-model-list button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; font: inherit; color: var(--foreground); text-align: left; cursor: pointer; }
+.ag-model-conns button span { display: flex; flex-direction: column; min-width: 0; }
+.ag-model-conns small { color: var(--muted-foreground); font-size: 11px; }
+.ag-model-conns button[aria-pressed="true"], .ag-model-list button[aria-selected="true"] { background: var(--muted); }
+.ag-model-conns button:hover, .ag-model-list button:hover { background: var(--muted); }
+.ag-model-list { padding: 4px; max-height: 220px; overflow-y: auto; }
+.ag-model-list p { margin: 6px 8px 2px; font-size: 11px; color: var(--muted-foreground); }
+.ag-model-list button span { flex: 1; }
+/* Picker logos follow the theme, like the integration rows. */
+[data-theme="dark"] .ag-model-current img,
+[data-theme="dark"] .ag-model-conns img {
+  filter: brightness(0) invert(0.8);
+}

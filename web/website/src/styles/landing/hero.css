@@ -67,7 +67,7 @@
 .r3 .r3-hx-toast > span:last-child { font:400 13px / 19px "Inter", -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif; color:var(--lp-body); }
 @media (prefers-reduced-motion: reduce){.r3 .r3-an { animation:auto ease 0s 1 normal none running none !important; opacity:1 !important; clip-path:none !important; transform:none !important; }}
 @media (prefers-reduced-motion: reduce){.r3 .r3-an-pre, .r3 .r3-hx-spin, .r3 .r3-hx-working, .r3 .r3-hx-sendon { display:none !important; }}
-.r3 .r3-aw { position:relative; z-index:2; display:grid; grid-template-columns:246px minmax(0px, 1fr); height:730px; max-width:1120px; margin:0px auto; background:var(--lp-surface); border-radius:14px; overflow:hidden; text-align:left; box-shadow:var(--lp-line-strong) 0px 0px 0px 1px, rgba(30, 29, 28, 0.22) 0px 30px 60px -20px; font:400 14px / 20px -apple-system, "system-ui", "Segoe UI", Inter, Roboto, sans-serif; color:var(--lp-text); -webkit-font-smoothing:antialiased; }
+.r3 .r3-aw { position:relative; z-index:2; display:grid; grid-template-columns:255px minmax(0px, 1fr); height:730px; max-width:1120px; margin:0px auto; background:var(--lp-surface); border-radius:14px; overflow:hidden; text-align:left; box-shadow:var(--lp-line-strong) 0px 0px 0px 1px, rgba(30, 29, 28, 0.22) 0px 30px 60px -20px; font:400 14px / 20px -apple-system, "system-ui", "Segoe UI", Inter, Roboto, sans-serif; color:var(--lp-text); -webkit-font-smoothing:antialiased; }
 .r3 .r3-aw svg { flex:0 0 auto; }
 .r3 .r3-aw-main { display:flex; flex-direction:column; min-width:0px; min-height:0px; overflow:hidden; background:var(--lp-surface); }
 .r3 .r3-aw-main .r3-pf-top { height:52px; flex:0 0 auto; }
@@ -88,7 +88,8 @@
 .r3 .r3-rs-s.r3-on { background:var(--lp-surface); box-shadow:var(--lp-page) 0px 0px 0px 1px; }
 .r3 .r3-rs-live { position:relative; width:13px; height:13px; flex:0 0 auto; }
 .r3 .r3-rs-live > span { position:absolute; inset:0px; display:flex; align-items:center; justify-content:center; }
-.r3 .r3-rs-sp { flex:1 1 0%; }
+/* Sessions scroll inside the sidebar so the project selector stays pinned, as in the live demo. */
+.r3 .r3-rs-list { flex:1 1 0%; min-height:0px; overflow-y:auto; scrollbar-width:none; display:flex; flex-direction:column; }
 .r3 .r3-rs-ws { display:flex; align-items:center; gap:10px; height:32px; padding:0px 4px; margin-top:4px; }
 .r3 .r3-rs-av { width:22px; height:22px; border-radius:6px; background:var(--carbon-750); color:var(--lp-fixed-white); font:600 11px / 22px "Inter", -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif; text-align:center; flex:0 0 auto; }
 .r3 .r3-an-end0 { opacity:0; }
@@ -103,7 +104,7 @@
 .r3 .r3-aw-main .r3-hx-tl .r3-ap-step.r3-th { color:var(--lp-text); }
 .r3 .r3-aw-main .r3-hx-tl .r3-ap-node { width:24px; height:24px; box-sizing:border-box; border-radius:50%; background:var(--lp-surface); box-shadow:none; border:1px solid var(--lp-line); color:var(--lp-mut); }
 .r3 .r3-aw-main .r3-hx-tl .r3-ap-step + .r3-ap-step::after { left:11.5px; top:0px; height:18px; width:1px; background:var(--lp-surface-6); }
-.r3 .r3-aw-main .r3-hx-tl .r3-ap-st { max-width:none; flex:0 1 auto; }
+.r3 .r3-aw-main .r3-hx-tl .r3-ap-st { max-width:none; flex:0 1 auto; min-width:0px; }
 .r3 .r3-aw-main .r3-hx-tl .r3-ap-st b { font-weight:500; }
 .r3 .r3-aw-main .r3-hx-tl .r3-ap-c { color:var(--lp-dim); margin-left:-8px; }
 .r3 .r3-aw-main .r3-ap-prose { gap:14px; font-size:14px; line-height:24px; }
@@ -417,3 +418,38 @@
 .r3 .r3-ag-hero .r3-ag-app-frame[hidden], .lp-demo-live[hidden] { display:none !important; }
 .lp-demo-live { width:min(1120px,100%); position:relative; z-index:6; }
 .lp-demo-live:focus { outline:none; }
+
+/* The agent configuration pane beside the chat, open by default. */
+.r3 .ws-split { flex:1 1 0%; min-height:0px; display:grid; grid-template-columns:minmax(0,1fr); }
+.r3 .ws-split[data-config="true"] { grid-template-columns:320px minmax(0,1fr); }
+.r3 .ws-split .ag-demo-config { min-height:0px; overflow-y:auto; border-right:1px solid var(--ag-shell-line, var(--lp-line)); }
+.r3 .ws-chat { position:relative; display:flex; flex-direction:column; min-height:0px; min-width:0px; }
+.r3 .ws-cfg-show { position:absolute; top:10px; left:10px; z-index:1; display:inline-flex; width:28px; height:28px; align-items:center; justify-content:center; border:0; border-radius:6px; background:transparent; color:var(--muted-foreground, var(--lp-body)); cursor:pointer; }
+.r3 .ws-cfg-show:hover { background:var(--lp-surface-3); }
+.r3 .ws-cfg-show:focus-visible { outline:2px solid var(--lp-text); outline-offset:1px; }
+@media (max-width: 860px) {
+  .r3 .ws-split[data-config="true"] { grid-template-columns:minmax(0,1fr); }
+  .r3 .ws-split[data-config="true"] .ws-chat { display:none; }
+  .r3 .ws-split .ag-demo-config { border-right:0; }
+  /* On a phone the hero keeps its animated run; the pane opens in the live demo. */
+  .r3 .r3-ag-app-frame .ws-split[data-config="true"] .ws-chat { display:flex; }
+  .r3 .r3-ag-app-frame .ws-split .ag-demo-config, .r3 .r3-ag-app-frame .ws-cfg-show { display:none; }
+}
+
+/* With the configuration pane open the chat column is narrower: let the table use it all. */
+html body .lp .r3 .ws-split[data-config="true"] .r3-hx-venues { max-width: none !important; }
+.r3 .ws-split .r3-ap-table > div > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r3 .ws-split .r3-ap-table > div { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 0.8fr); gap: 12px; }
+
+/* Project selector: workspace and project, as in the live demo. */
+.r3 .r3-rs .r3-rs-ws { height:44px; }
+.r3 .r3-rs-wsn { display:flex; flex-direction:column; min-width:0px; flex:1 1 0%; }
+.r3 .r3-rs-wsn b { font:500 13px/16px var(--font-sans, 'Inter', sans-serif); color:var(--lp-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.r3 .r3-rs-wsn small { font:400 11px/14px var(--font-sans, 'Inter', sans-serif); color:var(--lp-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* With the configuration pane open, the toast sits over the pane's foot, not on the table. */
+@media (min-width: 861px) {
+  html body .lp .r3 .r3-i2-run:has(.ws-split[data-config="true"]) .r3-hx-toast { top:auto; right:auto; bottom:16px; left:271px; width:288px; }
+}
+@media (min-width: 861px) and (max-width: 1100px) {
+  html body .lp .r3 .r3-i2-run:has(.ws-split[data-config="true"]) .r3-hx-toast { left:68px; }
+}
