@@ -282,8 +282,7 @@
 .ag-model-cols { display: grid; grid-template-columns: 112px minmax(0, 1fr); }
 .ag-model-conns { display: flex; flex-direction: column; padding: 4px; border-right: 1px solid var(--border); }
 .ag-model-conns button, .ag-model-list button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; font: inherit; color: var(--foreground); text-align: left; cursor: pointer; }
-.ag-model-conns button span { display: flex; flex-direction: column; min-width: 0; }
-.ag-model-conns small { color: var(--muted-foreground); font-size: 11px; }
+.ag-model-conns button span { min-width: 0; font-weight: 500; white-space: nowrap; }
 .ag-model-conns button[aria-pressed="true"], .ag-model-list button[aria-selected="true"] { background: var(--muted); }
 .ag-model-conns button:hover, .ag-model-list button:hover { background: var(--muted); }
 .ag-model-list { padding: 4px; max-height: 220px; overflow-y: auto; }

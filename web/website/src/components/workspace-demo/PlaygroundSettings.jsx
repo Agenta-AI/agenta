@@ -73,7 +73,6 @@ const CONNECTIONS = [
   {
     name: "Anthropic",
     logo: "Claude",
-    note: "API key",
     sections: [
       ["Claude Code", ["Sonnet 5.5", "Opus 5.5", "Haiku 5.5"]],
       ["Pi", ["Sonnet 5.5", "Opus 5.5"]],
@@ -82,13 +81,11 @@ const CONNECTIONS = [
   {
     name: "OpenAI",
     logo: "ChatGPT",
-    note: "API key",
     sections: [["Pi", ["GPT-5.2", "GPT-5.2 mini"]]],
   },
   {
     name: "Google",
     logo: "Gemini",
-    note: "API key",
     sections: [["Pi", ["Gemini 3.8", "Gemini 3.8 Flash"]]],
   },
 ];
@@ -150,10 +147,7 @@ function ModelPicker({ value, onChange }) {
                   onClick={() => setConnection(c.name)}
                 >
                   <img src={LOGO[c.logo]} alt="" />
-                  <span>
-                    <strong>{c.name}</strong>
-                    <small>{c.note}</small>
-                  </span>
+                  <span>{c.name}</span>
                 </button>
               ))}
             </div>
