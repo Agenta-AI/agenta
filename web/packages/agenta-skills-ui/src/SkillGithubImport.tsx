@@ -1,8 +1,9 @@
-import {useMemo, useState} from "react"
+import {useMemo, useRef, useState} from "react"
 
 import {formatCount, skillDisplayName} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {Button, Input, Spinner} from "@agenta/ui/ui"
 import {GithubLogo, WarningCircle} from "@phosphor-icons/react"
 
@@ -43,6 +44,8 @@ export function SkillGithubImport({
     const [found, setFound] = useState<Found | null>(null)
     const [picked, setPicked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<"scan" | "import" | null>(null)
+    const listRef = useRef<HTMLDivElement>(null)
+    useScrollFadeEdges(listRef, {enabled: Boolean(found?.candidates.length)})
     const [error, setError] = useState<string | null>(null)
 
     const find = async () => {
@@ -214,7 +217,10 @@ export function SkillGithubImport({
                             </Button>
                         ) : null}
                     </div>
-                    <div className="-mx-1 px-1 py-px lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                    <div
+                        ref={listRef}
+                        className="ag-scroll-fade -mx-1 px-1 py-px lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+                    >
                         <SkillCandidateList
                             candidates={found.candidates}
                             selected={picked}
