@@ -63,7 +63,7 @@ export default function DemoSidebar({
     if (r.top < box.top || r.bottom > box.bottom)
       list.current.scrollTop += r.top - box.top - (box.height - r.height) / 2;
   }, [selected]);
-  const go = (detail) => (onGo ? () => onGo(detail) : undefined);
+  const go = (detail) => (onGo && detail ? () => onGo(detail) : undefined);
   const goAttr = (detail) => (detail ? JSON.stringify(detail) : undefined);
   const rowDetail = (group, row) =>
     row.live
@@ -121,8 +121,10 @@ export default function DemoSidebar({
         {NAV.map(({ label, icon: Icon, go: detail, href, muted }) => {
           const props = {
             className: `dsb-row${muted ? " dsb-row--muted" : ""}`,
-            "aria-current": selected === label.toLowerCase() ? "page" : undefined,
+            "aria-current":
+              selected === label.toLowerCase() ? "page" : undefined,
             title: collapsed ? label : undefined,
+            "aria-label": collapsed ? label : undefined,
           };
           const body = (
             <>
@@ -157,6 +159,8 @@ export default function DemoSidebar({
             type="button"
             className="dsb-row"
             aria-current={selected === "sessions" ? "page" : undefined}
+            title={collapsed ? "Sessions" : undefined}
+            aria-label={collapsed ? "Sessions" : undefined}
             data-go={goAttr({ view: "sessions" })}
             onClick={go({ view: "sessions" })}
           >

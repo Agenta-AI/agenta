@@ -128,10 +128,12 @@ export default class WorkspaceDemo extends Component {
   };
   componentDidUpdate(_, previous) {
     if (previous.skill === null && this.state.skill !== null) {
-      this.returnFocus = document.activeElement;
       this.frame?.querySelector('[aria-label="Back to skills"]')?.focus();
-    } else if (previous.skill !== null && this.state.skill === null)
-      this.returnFocus?.focus();
+    } else if (previous.skill !== null && this.state.skill === null) {
+      // The row unmounted while the details showed, so find it again by title.
+      const rows = this.frame?.querySelectorAll("[data-skill]") ?? [];
+      [...rows].find((r) => r.dataset.skill === this.openSkillTitle)?.focus();
+    }
   }
   state = {
     view: "home",
@@ -1425,10 +1427,18 @@ export default class WorkspaceDemo extends Component {
                             key={k.title}
                             role={`button`}
                             tabIndex={0}
-                            onClick={k.open}
-                            onKeyDown={(event) =>
-                              event.key === "Enter" && k.open()
-                            }
+                            onClick={() => {
+                              this.openSkillTitle = k.title;
+                              k.open();
+                            }}
+                            data-skill={k.title}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter" && event.key !== " ")
+                                return;
+                              event.preventDefault();
+                              this.openSkillTitle = k.title;
+                              k.open();
+                            }}
                             className={`ag-skill-grid ag-skill-row`}
                             style={css(
                               `width:calc(100% + 24px);margin:0 -12px;padding:10px 12px;align-items:center;border-radius:6px;cursor:default;`,
@@ -1715,86 +1725,102 @@ export default class WorkspaceDemo extends Component {
                 </span>
               </div>
               <div className="ws-split" data-config={configOpen}>
-              {configOpen && (
-                <PlaygroundSettings
-                  key={ss.title}
-                  agent={ss}
-                  onHide={toggleConfig}
-                />
-              )}
-              <div className="ws-chat">
-              {!configOpen && (
-                <button
-                  type="button"
-                  className="ws-cfg-show"
-                  aria-label="Show configuration"
-                  onClick={toggleConfig}
-                >
-                  <CaretDoubleRight size={14} weight="regular" aria-hidden="true" />
-                </button>
-              )}
-              <div className="r3-ap-thread" style={css(`overflow-y:auto;`)}>
-                <div className="r3-ap-user">
-                  <p>{ss.ask}</p>
-                </div>
-                {/* Collapsed by default, like a finished run in the product. */}
-                <div className="r3-ap-worked r3-hx-wk">
-                  <button
-                    type="button"
-                    className="ws-worked"
-                    aria-expanded={this.state.stepsFor === ss.ask}
-                    onClick={() =>
-                      this.setState((state) => ({
-                        stepsFor: state.stepsFor === ss.ask ? null : ss.ask,
-                      }))
-                    }
-                  >
-                    {ss.worked}
-                    <CaretDown size={13} weight="regular" aria-hidden="true" />
-                  </button>
-                </div>
-                {this.state.stepsFor === ss.ask && (
-                  <div className="r3-ap-tl r3-hx-tl">
-                    {ss.steps.map((st, index11) => (
-                      <div className="r3-ap-step" key={index11}>
-                        <span className="r3-ap-node">
-                          <span>
-                            <span style={css(st.logoStyle)}></span>
-                          </span>
-                        </span>
-                        <span className="r3-ap-st">
-                          {`${st.pre} `}
-                          <b>{st.bold}</b>
-                          {st.post ? ` ${st.post}` : ""}
-                        </span>
-                        <span className="r3-ap-c">
-                          <CaretDown
-                            size={13}
-                            weight="regular"
-                            aria-hidden="true"
-                          />
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                {configOpen && (
+                  <PlaygroundSettings
+                    key={ss.title}
+                    agent={ss}
+                    onHide={toggleConfig}
+                  />
                 )}
-                <div className="r3-ap-prose">
-                  <p>{ss.reply}</p>
+                <div className="ws-chat">
+                  {!configOpen && (
+                    <button
+                      type="button"
+                      className="ws-cfg-show"
+                      aria-label="Show configuration"
+                      onClick={toggleConfig}
+                    >
+                      <CaretDoubleRight
+                        size={14}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )}
+                  <div className="r3-ap-thread" style={css(`overflow-y:auto;`)}>
+                    <div className="r3-ap-user">
+                      <p>{ss.ask}</p>
+                    </div>
+                    {/* Collapsed by default, like a finished run in the product. */}
+                    <div className="r3-ap-worked r3-hx-wk">
+                      <button
+                        type="button"
+                        className="ws-worked"
+                        aria-expanded={this.state.stepsFor === ss.ask}
+                        onClick={() =>
+                          this.setState((state) => ({
+                            stepsFor: state.stepsFor === ss.ask ? null : ss.ask,
+                          }))
+                        }
+                      >
+                        {ss.worked}
+                        <CaretDown
+                          size={13}
+                          weight="regular"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </div>
+                    {this.state.stepsFor === ss.ask && (
+                      <div className="r3-ap-tl r3-hx-tl">
+                        {ss.steps.map((st, index11) => (
+                          <div className="r3-ap-step" key={index11}>
+                            <span className="r3-ap-node">
+                              <span>
+                                <span style={css(st.logoStyle)}></span>
+                              </span>
+                            </span>
+                            <span className="r3-ap-st">
+                              {`${st.pre} `}
+                              <b>{st.bold}</b>
+                              {st.post ? ` ${st.post}` : ""}
+                            </span>
+                            <span className="r3-ap-c">
+                              <CaretDown
+                                size={13}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="r3-ap-prose">
+                      <p>{ss.reply}</p>
+                    </div>
+                  </div>
+                  <div className="r3-ap-comp r3-hx-comp">
+                    <div className="r3-hx-field">
+                      <span className="r3-hx-ph">Ask the agent…</span>
+                    </div>
+                    <div>
+                      <Microphone
+                        size={16}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
+                      <Paperclip
+                        size={16}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
+                      <span className="r3-ap-send">
+                        <ArrowUp size={14} weight="bold" aria-hidden="true" />
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="r3-ap-comp r3-hx-comp">
-                <div className="r3-hx-field">
-                  <span className="r3-hx-ph">Ask the agent…</span>
-                </div>
-                <div>
-                  <Microphone size={16} weight="regular" aria-hidden="true" />
-                  <Paperclip size={16} weight="regular" aria-hidden="true" />
-                  <span className="r3-ap-send">
-                    <ArrowUp size={14} weight="bold" aria-hidden="true" />
-                  </span>
-                </div>
-              </div>
-              </div>
               </div>
             </div>
           )}

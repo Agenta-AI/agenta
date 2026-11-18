@@ -120,13 +120,22 @@ function ModelPicker({ value, onChange }) {
         onClick={() => setOpen(!open)}
       >
         <span className="ag-model-current">
-          <img src={LOGO[CONNECTIONS.find((c) => c.name === value.connection).logo]} alt="" />
+          <img
+            src={
+              LOGO[CONNECTIONS.find((c) => c.name === value.connection).logo]
+            }
+            alt=""
+          />
           {value.harness} · {value.model}
         </span>
         <CaretDown size={12} />
       </button>
       {open && (
-        <div className="ag-model-menu" role="listbox" aria-label="Choose a model">
+        <div
+          className="ag-model-menu"
+          role="listbox"
+          aria-label="Choose a model"
+        >
           <div className="ag-model-search">
             <MagnifyingGlass size={14} aria-hidden="true" />
             <span>Search models</span>
@@ -196,7 +205,12 @@ export default function PlaygroundSettings({ agent, onHide }) {
   const agentsMd = `# ${agent.title}\n\n${agent.desc}\n\nUse the connected apps and skills below. Cite sources, keep drafts ready for review, and ask before publishing or sending to customers.`;
   const wordCount = agentsMd.trim().split(/\s+/).filter(Boolean).length;
   // The preview starts after the "# Title" line, as the product card does.
-  const mdPreview = agentsMd.split("\n").slice(1).join(" ").replace(/\s+/g, " ").trim();
+  const mdPreview = agentsMd
+    .split("\n")
+    .slice(1)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
   // Titles, icons, order, summaries, and row presentation mirror the product
   // config panel (AgentTemplateControl): Model, Instructions, Integrations,
   // Subagents, MCP servers, Skills, Permissions, Advanced.

@@ -576,17 +576,16 @@ export function deriveWorkspace(state, setState, onLive) {
           .filter((k) => k !== WEB && LOGO[k]),
       ]),
     ],
-    configSkills: skillsAll
-      .filter((skill) =>
-        (ss.area === "Marketing"
-          ? ["research-brief", "draft-article", "publish-digest"]
-          : ss.area === "Sales"
-            ? ["score-fit", "publish-digest", "schedule-run"]
-            : ss.area === "Support"
-              ? ["classify-ticket", "publish-digest", "schedule-run"]
-              : ["review-diff", "publish-digest", "schedule-run"]
-        ).includes(skill.slug),
-      ),
+    configSkills: skillsAll.filter((skill) =>
+      (ss.area === "Marketing"
+        ? ["research-brief", "draft-article", "publish-digest"]
+        : ss.area === "Sales"
+          ? ["score-fit", "publish-digest", "schedule-run"]
+          : ss.area === "Support"
+            ? ["classify-ticket", "publish-digest", "schedule-run"]
+            : ["review-diff", "publish-digest", "schedule-run"]
+      ).includes(skill.slug),
+    ),
     subagents: sessions
       .filter((agent) => agent.area === ss.area && agent.title !== ss.title)
       .slice(0, 2),
