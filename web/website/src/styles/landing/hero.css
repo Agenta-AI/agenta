@@ -439,3 +439,8 @@
   html body .lp .r3 .r3-ag-hero .r3-ag-app-frame.r3-i2-run:not([hidden]),
   html body .lp .r3 .r3-ag-hero .lp-demo-live.lp-demo-live { display:none !important; }
 }
+
+/* Phones: a smaller hero subtitle. */
+@media (max-width: 600px) {
+  .r3 .r3-ag-hero .r3-ag-sub { font-size:14px !important; line-height:22px !important; }
+}
