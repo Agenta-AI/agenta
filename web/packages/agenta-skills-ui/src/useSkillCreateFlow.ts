@@ -17,6 +17,7 @@ import {
     toSkillDraft,
     type SkillDraft,
 } from "./skillDraft"
+import {useClearOnNextPress} from "./useClearOnNextPress"
 
 export type SkillCreateStep = "choose" | "write" | "upload" | "github"
 
@@ -42,6 +43,7 @@ export function useSkillCreateFlow({
     const [draft, setDraft] = useState<SkillDraft>(EMPTY_SKILL_DRAFT)
     const [fromUpload, setFromUpload] = useState(false)
     const [attempted, setAttempted] = useState(false)
+    useClearOnNextPress(attempted, setAttempted)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [scan, setScan] = useState<SkillUploadScan | null>(null)

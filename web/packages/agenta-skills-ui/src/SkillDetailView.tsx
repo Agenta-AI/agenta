@@ -59,6 +59,7 @@ import {
     type SkillDraft,
 } from "./skillDraft"
 import {SkillEditor} from "./SkillEditor"
+import {useClearOnNextPress} from "./useClearOnNextPress"
 
 export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
     ["skills", "revisions", projectId, workflowId] as const
@@ -180,6 +181,7 @@ export function SkillDetailView({
     // The head the draft started from; a newer head replaces it only while there are no edits.
     const [base, setBase] = useState<{id: string; draft: SkillDraft} | null>(null)
     const [attempted, setAttempted] = useState(false)
+    useClearOnNextPress(attempted, setAttempted)
     const [saving, setSaving] = useState(false)
     const [justSaved, setJustSaved] = useState(false)
     const [update, setUpdate] = useState<"checking" | "available" | "current" | null>(null)
