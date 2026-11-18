@@ -48,5 +48,9 @@
     "accessKeyPlaceholder": "シークレットアクセスキーを入力",
     "sessionTokenLabel": "セッショントークン",
     "sessionTokenPlaceholder": "セッショントークンを入力",
-    "bedrockAuthRequired": "Bedrock には、Bedrock API キー、またはアクセスキー ID とシークレットアクセスキーの両方が必要です。"
+    "bedrockAuthRequired": "Bedrock には、Bedrock API キー、またはアクセスキー ID とシークレットアクセスキーの両方が必要です。",
+    "apiKeyLabelCustom": "API キー（エンドポイントで必要な場合）",
+    "protocolLabel": "プロトコル",
+    "protocolOpenai": "OpenAI 互換",
+    "protocolAnthropic": "Anthropic Messages"
 }

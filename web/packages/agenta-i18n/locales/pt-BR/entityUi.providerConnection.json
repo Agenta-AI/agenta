@@ -34,5 +34,9 @@
     "showAll": "Mostrar todos os {{total}}",
     "fetched": "Obtido {{time}} ·",
     "refetch": "Obter novamente",
-    "apiKeyPlaceholder": "Chave de API do {{provider}}"
+    "apiKeyPlaceholder": "Chave de API do {{provider}}",
+    "anyHarness": "qualquer harness compatível com o Agenta",
+    "noHarnessSelected": "nenhum harness selecionado",
+    "enabledInHarness": "ativado em {{harness}}",
+    "enabledInHarnesses": "ativado em {{harnesses}} e {{last}}"
 }
