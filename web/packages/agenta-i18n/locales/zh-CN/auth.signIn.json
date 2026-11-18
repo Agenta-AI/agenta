@@ -17,5 +17,6 @@
     "ssoSubheading": "此邮箱的登录由你的组织管理。",
     "subheadingNew": "登录或创建账户。",
     "subheadingReturning": "登录以继续进入你的工作区。",
-    "termsNotice": "继续即表示你同意 Agenta 的<terms>服务条款</terms>和<privacy>隐私政策</privacy>。"
+    "termsNotice": "继续即表示你同意 Agenta 的<terms>服务条款</terms>和<privacy>隐私政策</privacy>。",
+    "or": "或"
 }

@@ -29,5 +29,8 @@
     "moreFields_one": "+{{count}} weiteres Feld",
     "moreFields_other": "+{{count}} weitere Felder",
     "trueValue": "wahr",
-    "falseValue": "falsch"
+    "falseValue": "falsch",
+    "durationValue": "Dauer: {{duration}}",
+    "tokenCount_one": "{{tokens}} Token",
+    "tokenCount_other": "{{tokens}} Tokens"
 }
