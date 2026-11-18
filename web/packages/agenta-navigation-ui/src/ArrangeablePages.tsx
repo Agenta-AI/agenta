@@ -315,7 +315,7 @@ export const ArrangeablePages = ({
                                 moreOpen && ROW_SELECTED,
                             )}
                         >
-                            <DotsThree size={16} />
+                            <DotsThree size={16} weight="bold" />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -390,7 +390,7 @@ export const ArrangeablePages = ({
                             dropping && DROP_TARGET,
                         )}
                     >
-                        <DotsThree size={16} className="shrink-0" />
+                        <DotsThree size={16} weight="bold" className="shrink-0" />
                         <span className="min-w-0 flex-1 truncate">
                             {dragging ? "Drop here to hide" : "More"}
                         </span>
