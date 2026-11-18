@@ -528,13 +528,8 @@ export function SkillEditor({
                             </div>
                         )}
                         <div className="mt-auto flex items-center gap-2.5 border-0 border-t border-solid border-border/60 px-2 pb-1.5 pt-2.5">
-                            <span className="flex flex-1 flex-col gap-px">
-                                <span id="skill-exec-label" className="text-[13px] font-medium">
-                                    Let files run as programs
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    Your sandbox must allow it too.
-                                </span>
+                            <span id="skill-exec-label" className="flex-1 text-[13px] font-medium">
+                                Let files run as programs
                             </span>
                             <Switch
                                 size="sm"
