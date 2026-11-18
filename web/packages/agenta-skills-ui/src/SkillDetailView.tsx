@@ -202,6 +202,7 @@ export function SkillDetailView({
         setDraft(headDraft)
     }
     const dirty = base !== null && !sameSkillDraft(draft, base.draft)
+    const turnsOnPrograms = Boolean(base && draft.allowExecutable && !base.draft.allowExecutable)
     useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange])
 
     const edit = (next: SkillDraft) => {
@@ -371,7 +372,9 @@ export function SkillDetailView({
             {archived ? null : (
                 <Button
                     onClick={() =>
-                        detaches && !skillDraftProblem(draft) ? setConfirmDetach(true) : void save()
+                        (detaches || turnsOnPrograms) && !skillDraftProblem(draft)
+                            ? setConfirmDetach(true)
+                            : void save()
                     }
                     disabled={!dirty || saving || descriptionTooLong(draft)}
                 >
@@ -500,16 +503,32 @@ export function SkillDetailView({
             <AlertDialog open={confirmDetach} onOpenChange={setConfirmDetach}>
                 <AlertDialogContent className="sm:max-w-[400px]">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Save your own version?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This skill comes from {origin?.repository}. After you save, it keeps
-                            your version and stops getting updates from GitHub.
+                        <AlertDialogTitle>
+                            {detaches ? "Save your own version?" : "Let files run as programs?"}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="flex flex-col gap-2">
+                                {detaches ? (
+                                    <p className="m-0">
+                                        This skill comes from {origin?.repository}. After you save,
+                                        it keeps your version and stops getting updates from GitHub.
+                                    </p>
+                                ) : null}
+                                {turnsOnPrograms ? (
+                                    <p className="m-0 flex items-start gap-2 rounded-lg bg-tag-orange-bg px-3 py-2 text-tag-orange">
+                                        <WarningCircle size={16} className="mt-0.5 shrink-0" />
+                                        Its files will run as programs. They can change files and
+                                        reach the internet, so turn this on only for sources you
+                                        trust.
+                                    </p>
+                                ) : null}
+                            </div>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Keep editing</AlertDialogCancel>
                         <AlertDialogAction onClick={() => void save()}>
-                            Save my version
+                            Save
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
