@@ -31,6 +31,8 @@ export interface SkillEditorProps {
     readOnly?: boolean
     /** Opens Instructions in Preview; a new skill opens in Write. */
     startInPreview?: boolean
+    /** The Write / Preview switch; the playground drawer has none. */
+    previewSwitch?: boolean
     /** Paints empty required fields red once a save was tried. */
     showMissing?: boolean
     autoFocusTitle?: boolean
@@ -114,13 +116,15 @@ export function SkillEditor({
     onChange,
     readOnly = false,
     startInPreview = false,
+    previewSwitch = true,
     showMissing = false,
     autoFocusTitle = false,
     actions,
     meta,
     notices,
 }: SkillEditorProps) {
-    const [preview, setPreview] = useState(startInPreview)
+    const [previewOn, setPreview] = useState(startInPreview)
+    const preview = previewSwitch && previewOn
     const [openPath, setOpenPath] = useState<string | null>(null)
     const [filePreview, setFilePreview] = useState(true)
     const [dragging, setDragging] = useState(false)
@@ -135,7 +139,7 @@ export function SkillEditor({
     const current = draft.files.find((file) => file.path === openPath) ?? null
     const hasFiles = draft.files.length > 0
     const fileIsMd = current ? extOf(current.path) === "md" : false
-    const showFilePreview = fileIsMd && filePreview
+    const showFilePreview = previewSwitch && fileIsMd && filePreview
 
     const groups = useMemo(() => {
         const byDir = new Map<string, SkillFile[]>()
@@ -242,7 +246,9 @@ export function SkillEditor({
                         className="max-sm:hidden"
                     />
                 ) : null}
-                <WritePreviewSwitch preview={preview} onChange={setPreview} />
+                {previewSwitch ? (
+                    <WritePreviewSwitch preview={preview} onChange={setPreview} />
+                ) : null}
             </div>
             {preview ? (
                 <div className={cn(PREVIEW, "min-h-[360px] flex-1 sm:min-h-[600px]")}>
@@ -300,7 +306,9 @@ export function SkillEditor({
                                 className="max-sm:hidden"
                             />
                         ) : null}
-                        <WritePreviewSwitch preview={filePreview} onChange={setFilePreview} />
+                        {previewSwitch ? (
+                            <WritePreviewSwitch preview={filePreview} onChange={setFilePreview} />
+                        ) : null}
                     </>
                 ) : (
                     <span className="text-xs text-muted-foreground">{kindOf(current.path)}</span>
@@ -348,7 +356,7 @@ export function SkillEditor({
                         onChange={(event) => set({title: event.target.value})}
                         placeholder="Name your skill, e.g. Weekly report"
                         className={cn(
-                            "-ml-1 box-border w-full rounded-md border-0 bg-transparent px-1 font-[inherit] text-[22px] font-semibold leading-8 text-foreground outline-none placeholder:text-placeholder hover:bg-accent/60 focus:bg-transparent focus:ring-[3px] focus:ring-ring/30 sm:text-[26px] sm:leading-9",
+                            "-ml-1 box-border w-full rounded-md border-0 bg-transparent px-1 font-[inherit] text-[19px] font-semibold leading-7 text-foreground outline-none placeholder:text-placeholder hover:bg-accent/60 focus:bg-transparent focus-visible:shadow-none sm:text-[26px] sm:leading-9",
                             readOnly && "hover:bg-transparent",
                             showMissing && !draft.title.trim() && "ring-[3px] ring-destructive/30",
                         )}
@@ -393,7 +401,7 @@ export function SkillEditor({
                                 placeholder="e.g. Use when someone asks for a weekly summary of the team's work."
                                 className={cn(
                                     FIELD,
-                                    "resize-y px-3 py-2.5 text-sm leading-5",
+                                    "min-h-[66px] resize-y px-3 py-2.5 text-sm leading-5 [field-sizing:content]",
                                     (tooLong || (showMissing && !draft.description.trim())) &&
                                         MISSING,
                                 )}
@@ -484,7 +492,7 @@ export function SkillEditor({
                                     </div>
                                 ))}
                                 {readOnly ? null : (
-                                    <div className="flex min-h-[110px] flex-1 flex-col items-center justify-center gap-2 p-5 text-center text-[13px] leading-[18px] text-muted-foreground">
+                                    <div className="flex min-h-[110px] flex-col items-center justify-center gap-2 p-5 text-center text-[13px] leading-[18px] text-muted-foreground">
                                         <FileArrowUp size={18} />
                                         <span>
                                             Drop more files here, or{" "}
@@ -500,7 +508,7 @@ export function SkillEditor({
                                 )}
                             </>
                         ) : (
-                            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+                            <div className="flex flex-1 flex-col items-center gap-3 px-6 pb-8 pt-16 text-center">
                                 <span
                                     aria-hidden
                                     className="flex size-11 items-center justify-center rounded-xl border border-solid border-border bg-muted text-muted-foreground"

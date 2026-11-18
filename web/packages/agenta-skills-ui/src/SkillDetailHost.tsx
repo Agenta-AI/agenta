@@ -15,7 +15,6 @@ import {
     Button,
     Spinner,
 } from "@agenta/ui/ui"
-import {X} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {SkillDetailView} from "./SkillDetailView"
@@ -65,18 +64,7 @@ export function SkillDetailHost({
                         workflowId={workflowId}
                         onArchived={close}
                         onDirtyChange={setDirty}
-                        top={
-                            <div className="flex justify-end">
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label="Close"
-                                    onClick={requestClose}
-                                >
-                                    <X size={16} />
-                                </Button>
-                            </div>
-                        }
+                        onClose={requestClose}
                     />
                 ) : (
                     <div className="flex flex-col items-center gap-3 py-16 text-sm text-muted-foreground">

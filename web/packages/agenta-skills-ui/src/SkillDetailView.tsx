@@ -41,6 +41,7 @@ import {
     GithubLogo,
     Robot,
     WarningCircle,
+    X,
 } from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -72,6 +73,8 @@ export interface SkillDetailViewProps {
     onDirtyChange?: (dirty: boolean) => void
     /** Drawn above the title. */
     top?: ReactNode
+    /** In a drawer: a close button after the menu. */
+    onClose?: () => void
 }
 
 const NOTICE = "flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-sm"
@@ -147,6 +150,7 @@ export function SkillDetailView({
     onArchived,
     onDirtyChange,
     top,
+    onClose,
 }: SkillDetailViewProps) {
     const item = useSkillItem(workflowId)
     const origin = item?.origin?.repository ? item.origin : null
@@ -287,7 +291,7 @@ export function SkillDetailView({
             {agents.length > 1 ? (
                 <HoverCard openDelay={100}>
                     <HoverCardTrigger asChild>
-                        <span tabIndex={0} className="cursor-default underline decoration-dotted underline-offset-2">
+                        <span tabIndex={0} className="cursor-default">
                             {usedText}
                         </span>
                     </HoverCardTrigger>
@@ -391,6 +395,11 @@ export function SkillDetailView({
                     )}
                 </DropdownMenuContent>
             </DropdownMenu>
+            {onClose ? (
+                <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+                    <X size={16} />
+                </Button>
+            ) : null}
         </>
     )
 

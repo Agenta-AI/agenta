@@ -351,6 +351,7 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                     <SkillEditor
                         draft={flow.draft}
                         onChange={flow.setDraft}
+                        previewSwitch={false}
                         autoFocusTitle={!flow.fromUpload}
                         showMissing={flow.attempted}
                         notices={
@@ -364,7 +365,12 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                     />
                 </div>
                 <Footer>
-                    <span className={cn("flex-1 text-[13px]", flow.error ? "text-destructive" : "text-muted-foreground")}>
+                    <span
+                        className={cn(
+                            "flex-1 text-[13px]",
+                            flow.error ? "text-destructive" : "text-muted-foreground max-sm:invisible",
+                        )}
+                    >
                         {flow.error ?? "Saved to the registry and added to this agent."}
                     </span>
                     <Button variant="outline" onClick={() => flow.setStep("choose")}>
