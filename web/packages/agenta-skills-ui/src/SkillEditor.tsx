@@ -13,7 +13,6 @@ import {
 } from "@agenta/ui/ui"
 import {
     File as FileIcon,
-    FileArrowUp,
     FilePlus,
     FileText,
     Folder,
@@ -480,21 +479,6 @@ export function SkillEditor({
                                         {files.map(fileRow)}
                                     </div>
                                 ))}
-                                {readOnly ? null : (
-                                    <div className="flex min-h-[110px] flex-col items-center justify-center gap-2 p-5 text-center text-[13px] leading-[18px] text-muted-foreground">
-                                        <FileArrowUp size={18} />
-                                        <span>
-                                            Drop more files here, or{" "}
-                                            <button
-                                                type="button"
-                                                onClick={browse}
-                                                className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-foreground underline"
-                                            >
-                                                browse
-                                            </button>
-                                        </span>
-                                    </div>
-                                )}
                             </>
                         ) : (
                             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
