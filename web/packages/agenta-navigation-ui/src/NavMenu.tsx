@@ -175,7 +175,6 @@ const RowLabel = memo(function RowLabel({
             {item.suffix ? <span className="ml-auto shrink-0 pl-2">{item.suffix}</span> : null}
         </span>
     )
-    if (item.isLoading) return <SkeletonBlock active className="h-4 min-w-[72px] flex-1" />
     if (!item.link || item.disabled)
         return (
             <span className="min-w-0 flex-1 truncate" data-tour={item.dataTour}>
@@ -303,6 +302,23 @@ const PlaceholderRow = ({item}: {item: NavItem}) => (
     </p>
 )
 
+/** Row widths for the loading list, varied so it reads as titles rather than a block. */
+const LOADING_WIDTHS = ["w-[72%]", "w-[58%]", "w-[80%]", "w-[46%]", "w-[66%]", "w-[54%]"]
+
+/** A group's loading state, shaped like the list it stands in for: a caption, then rows. */
+const LoadingRows = () => (
+    <div className="flex shrink-0 flex-col" aria-busy="true" aria-label="Loading">
+        <div className="flex h-6 items-center pl-5 pr-3 pt-2">
+            <SkeletonBlock active className="h-2.5 w-24 rounded-full" />
+        </div>
+        {LOADING_WIDTHS.map((width) => (
+            <div key={width} className={`${ROW_BASE} pointer-events-none`}>
+                <SkeletonBlock active className={`h-3 rounded-full ${width}`} />
+            </div>
+        ))}
+    </div>
+)
+
 const LeafRow = memo(function LeafRow({
     item,
     selected,
@@ -312,6 +328,7 @@ const LeafRow = memo(function LeafRow({
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) {
+    if (item.isLoading) return <LoadingRows />
     if (item.isPlaceholder) return <PlaceholderRow item={item} />
     const onClick = rowClickHandler(item, onItemSelect)
     // A controlled scope (Settings) gives its items `onItemSelect` and no `link`, so the row

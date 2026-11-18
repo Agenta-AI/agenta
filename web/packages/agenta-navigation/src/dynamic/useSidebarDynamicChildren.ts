@@ -176,7 +176,6 @@ export const resolveChildren = (
             {
                 key: `${entity.parentKey}-loading`,
                 title: getSidebarSourceStatusLabel("loading"),
-                icon: icon(),
                 disabled: true,
                 isDynamic: true,
                 isLoading: true,
