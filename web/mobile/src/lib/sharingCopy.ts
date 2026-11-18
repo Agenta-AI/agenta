@@ -88,8 +88,13 @@ export const sharingCopy = {
 }
 
 /** The display name of a channel platform, as the agent privacy dialog names it. */
-export const channelPlatformLabel: Record<"slack" | "telegram" | "whatsapp", string> = {
+export const channelPlatformLabel: Record<
+    "slack" | "telegram" | "whatsapp" | "discord" | "teams",
+    string
+> = {
     slack: "Slack",
     telegram: "Telegram",
     whatsapp: "WhatsApp",
+    discord: "Discord",
+    teams: "Microsoft Teams",
 }

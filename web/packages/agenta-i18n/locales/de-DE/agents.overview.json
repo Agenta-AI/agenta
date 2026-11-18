@@ -6,7 +6,7 @@
     "automationsLoadError": "Automatisierungen konnten nicht geladen werden.",
     "automationsTitle": "Automatisierungen",
     "channelsLoadError": "Kanäle konnten nicht geladen werden.",
-    "channelsLogosLabel": "Slack, Telegram und WhatsApp",
+    "channelsLogosLabel": "Slack, Telegram, WhatsApp, Discord und Microsoft Teams",
     "channelsManage": "Verwalten",
     "channelsPanelLoadError": "Kanäle konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
     "channelsPublish": "Veröffentlichen",
@@ -17,12 +17,13 @@
     "descriptionUpdateFailed": "Die Beschreibung dieses Agents konnte nicht aktualisiert werden",
     "driveEmpty": "Dieser Agent hat noch kein Laufwerk.",
     "edit": "Bearbeiten",
-    "filesEmpty": "Dieser Agent hat noch keine Dateien.",
+    "filesLoadError": "Dateien konnten nicht geladen werden.",
     "filesTitle": "Dateien",
     "needsAttention": "Erfordert Aufmerksamkeit",
     "openChat": "Chat öffnen",
     "openFiles": "Dateien öffnen",
     "pageTitle": "Agents",
+    "readOnly": "nur lesen",
     "renameFailed": "Dieser Agent konnte nicht umbenannt werden",
     "retry": "Erneut versuchen"
 }

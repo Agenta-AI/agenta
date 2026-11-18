@@ -467,3 +467,141 @@ async def test_hidden_session_of_the_root_span_gives_no_application_references()
         can_view_session=_deny,
     )
     assert general_fields.application_references == {}
+
+
+@pytest.mark.asyncio
+async def test_turn_of_a_child_is_not_copied_when_the_root_session_is_hidden():
+    child_with_turn_only = _span(CHILD, ROOT, {"turn": {"id": str(TURN_2)}})
+    for references in (
+        None,
+        SimpleTraceReferences(application=Reference(slug="app")),
+    ):
+        service = _service(spans=[AGENT_ROOT, child_with_turn_only])
+        general_fields = await _build(
+            service,
+            links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+            references=references,
+            can_view_session=_deny,
+        )
+        assert (general_fields.session_id, general_fields.turn_id) == (None, None)
+        assert general_fields.application_references == {}
+
+
+@pytest.mark.asyncio
+async def test_visible_root_session_does_not_keep_a_turn_of_a_hidden_session():
+    root_of_another_session = _span(
+        ROOT,
+        None,
+        {"session": {"id": "s-41"}, "references": {"workflow": {"id": "w-1"}}},
+    )
+    child = _span(CHILD, ROOT, {"turn": {"id": str(TURN_2)}})
+    service = _service(spans=[root_of_another_session, child], turns=[_turn(TURN_2, 2)])
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+        can_view_session=_deny_s40,
+    )
+    assert general_fields.turn_id is None
+
+
+@pytest.mark.asyncio
+async def test_sessionless_root_with_turn_rows_gives_no_application_references():
+    root_without_session = _span(
+        ROOT, None, {"references": {"workflow": {"id": "w-1"}}}
+    )
+    # A hidden turn of s-40 and a later visible turn of s-41 on the same trace.
+    visible_turn = _turn(TURN_1, 9)
+    visible_turn.session_id = "s-41"
+    service = _service(
+        spans=[root_without_session], turns=[_turn(TURN_2, 2), visible_turn]
+    )
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=ROOT)},
+        can_view_session=_deny_s40,
+    )
+    assert general_fields.application_references == {}
+
+
+@pytest.mark.asyncio
+async def test_prompt_trace_without_session_keeps_its_application_references():
+    root_without_session = _span(
+        ROOT, None, {"references": {"workflow": {"id": "w-1"}}}
+    )
+    service = _service(spans=[root_without_session])
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=ROOT)},
+        can_view_session=_deny,
+    )
+    assert general_fields.application_references == {"application": {"id": "w-1"}}
+
+
+async def _deny_s40(session_id):
+    return session_id != "s-40"
+
+
+@pytest.mark.asyncio
+async def test_hidden_session_of_a_middle_span_is_not_copied():
+    root_without_session = _span(
+        ROOT, None, {"references": {"workflow": {"id": "w-1"}}}
+    )
+    middle = _span("cccccccccccccccc", ROOT, {"session": {"id": "s-40"}})
+    child = _span(CHILD, "cccccccccccccccc", {"turn": {"id": str(TURN_2)}})
+    service = _service(spans=[root_without_session, middle, child])
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+        can_view_session=_deny_s40,
+    )
+    assert (general_fields.session_id, general_fields.turn_id) == (None, None)
+    assert general_fields.application_references == {}
+
+
+@pytest.mark.asyncio
+async def test_turn_row_of_a_hidden_session_blocks_a_sessionless_trace():
+    root_without_session = _span(
+        ROOT, None, {"references": {"workflow": {"id": "w-1"}}}
+    )
+    child = _span(CHILD, ROOT, {"turn": {"id": str(TURN_2)}})
+    service = _service(spans=[root_without_session, child], turns=[_turn(TURN_2, 2)])
+    general_fields = await _build(
+        service,
+        turn_id="t-request",
+        links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+        can_view_session=_deny_s40,
+    )
+    # Only the caller's own turn stays.
+    assert (general_fields.session_id, general_fields.turn_id) == (None, "t-request")
+    assert general_fields.application_references == {}
+
+
+@pytest.mark.asyncio
+async def test_turn_row_of_a_visible_session_keeps_the_turn_of_a_child():
+    # The parent is not stored yet (a running agent); the turn row names the session.
+    child = _span(CHILD, ROOT, {"turn": {"id": str(TURN_2)}})
+    service = _service(spans=[child], turns=[_turn(TURN_2, 2)])
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+    )
+    assert general_fields.turn_id == str(TURN_2)
+
+
+@pytest.mark.asyncio
+async def test_visible_child_session_does_not_open_a_sessionless_root_with_turn_rows():
+    root_without_session = _span(
+        ROOT, None, {"references": {"workflow": {"id": "w-1"}}}
+    )
+    child_of_visible_session = _span(CHILD, ROOT, {"session": {"id": "s-41"}})
+    service = _service(
+        spans=[root_without_session, child_of_visible_session],
+        turns=[_turn(TURN_2, 2)],
+    )
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+        can_view_session=_deny_s40,
+    )
+    assert general_fields.session_id == "s-41"
+    assert general_fields.application_references == {}

@@ -1,29 +1,19 @@
 /**
- * The durable-agent-mount contributor to the system-prompt appendix.
+ * The home drive's contributor to the system-prompt appendix.
  *
  * This module owns ONE appendix paragraph and its wording. Composition, ordering and the Claude
  * delivery shape live in `system-prompt-appendix.ts`, because they are not about mounts: other
  * contributors are coming and the mount must not be their owner.
  *
  * Discovery problem: on a natural "remember this for next time" prompt, an agent has no way
- * to know its cwd is throwaway and `agent-files/` (the agent mount linked into the cwd by
- * `agent-mount.ts`) is durable, so it writes to its own session-scoped memory and the note is
+ * to know its cwd is throwaway and `agent-files/` (the home drive linked into the cwd by
+ * `run-drives.ts`) is durable, so it writes to its own session-scoped memory and the note is
  * lost next session. This segment is appended to the harness's SYSTEM PROMPT — never to the
- * author's `CLAUDE.md`/`AGENTS.md` — and only when an agent mount exists for the run.
+ * author's `CLAUDE.md`/`AGENTS.md` — and only when the run has a home drive.
  *
- * WHY THE PATH IS SPELLED OUT AND THE VARIABLE NAME IS NOT. This segment used to name
- * `$AGENTA_AGENT_MOUNT_DIR` beside the folder. Two failures came out of that one clause.
- *
- * On Daytona the runner NEVER sets that variable: `mount-lifecycle.ts` writes it only for a local
- * run, because Daytona freezes the daemon environment at sandbox creation. So the clause taught
- * the model the name of a variable that expands to the empty string, and `ls "$VAR"` then reads
- * the wrong place or fails.
- *
- * The harness's own file tools take a path literally. Its terminal expands `$VAR` because a shell
- * runs the command; its file reader does not, because no shell is involved. A model that learned
- * the variable therefore succeeds in one tool and fails in the other, for reasons it cannot see.
- *
- * Both go away by naming the resolved absolute path and never the variable.
+ * WHY THE PATH IS SPELLED OUT. A harness's file tools take a path literally, and a shell variable
+ * expands only in its terminal; the runner sets no variable for the folder. So the segment names
+ * the resolved absolute path.
  *
  * Wired per harness in `sandbox_agent.ts`:
  *  - Pi: combined into `plan.appendSystemPrompt`, rendered via the existing

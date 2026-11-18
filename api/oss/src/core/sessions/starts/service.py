@@ -455,6 +455,7 @@ class SessionStartsService:
                     envelope=envelope,
                     run_id=execution_id,
                     strict_start=True,
+                    admitted_agent_id=agent_artifact_id,
                 )
             except Exception as exc:
                 error = exc

@@ -6,6 +6,7 @@ import {
     agentItemIdentity,
     buildCommitSummaryMessage,
     classifyAgentChanges as classify,
+    NO_COMMIT_DIFF_TEXT,
     parseGatewayToolName,
     readAgentConfig,
 } from "@agenta/entities/workflow/commitDiff"
@@ -588,6 +589,19 @@ describe("classifyAgentChanges", () => {
 
     it("no-op returns []", () => {
         expect(classifyAgentChanges(base, base)).toEqual([])
+    })
+
+    it("builds the same commit message without any words", () => {
+        // The auto-commit passes NO_COMMIT_DIFF_TEXT; the message must not depend on the words.
+        const local = {
+            prompt: {
+                messages: [{role: "system", content: "You are a careful assistant."}],
+                llm_config: {model: "gpt-4.1", temperature: 0.2, tools: [tool("gmail_send")]},
+            },
+        }
+        const message = buildCommitSummaryMessage(classifyAgentChanges(local, base))
+        expect(message).not.toBe("")
+        expect(buildCommitSummaryMessage(classify(local, base, NO_COMMIT_DIFF_TEXT))).toBe(message)
     })
 
     it("added tool", () => {

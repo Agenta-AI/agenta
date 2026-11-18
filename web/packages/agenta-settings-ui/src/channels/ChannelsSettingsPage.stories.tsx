@@ -61,7 +61,7 @@ const SettingsHost = ({
                 connections={
                     rows
                         ? connectionsForAgent(rows, agentId ?? "")
-                        : {slack: null, telegram: null, whatsapp: null}
+                        : {slack: null, telegram: null, whatsapp: null, discord: null}
                 }
                 loading={loading}
                 loadError={loadError}

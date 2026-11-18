@@ -48,5 +48,9 @@
     "accessKeyPlaceholder": "输入秘密访问密钥",
     "sessionTokenLabel": "会话令牌",
     "sessionTokenPlaceholder": "输入会话令牌",
-    "bedrockAuthRequired": "Bedrock 需要 Bedrock API 密钥，或同时提供访问密钥 ID 和秘密访问密钥。"
+    "bedrockAuthRequired": "Bedrock 需要 Bedrock API 密钥，或同时提供访问密钥 ID 和秘密访问密钥。",
+    "apiKeyLabelCustom": "API 密钥（如果端点需要）",
+    "protocolLabel": "协议",
+    "protocolOpenai": "OpenAI 兼容",
+    "protocolAnthropic": "Anthropic Messages"
 }

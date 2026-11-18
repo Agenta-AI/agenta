@@ -18,7 +18,7 @@ import {
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {commitDiffTextNow} from "@agenta/entity-ui/changes"
-import {useT} from "@agenta/i18n"
+import {textVersionAtom, useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -154,12 +154,13 @@ export const AgentVersionHistoryDrawer = ({
 
     // `local` is the selected version and `remote` its predecessor, so "added" reads as what this
     // version added — the same tense as the commit message on its row.
+    const textVersion = useAtomValue(textVersionAtom)
     const sections = useMemo(
         () =>
             selectedParams && previousParams
                 ? classifyAgentChanges(selectedParams, previousParams, commitDiffTextNow())
                 : [],
-        [selectedParams, previousParams],
+        [selectedParams, previousParams, textVersion],
     )
 
     // Restoring a version whose configuration already matches the head does nothing, so the

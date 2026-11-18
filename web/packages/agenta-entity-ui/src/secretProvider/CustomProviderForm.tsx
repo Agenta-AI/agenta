@@ -22,6 +22,7 @@ import {Button, Textarea} from "@agenta/ui/ui"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 
 import ModelNameInput from "./ModelNameInput"
+import {translateProviderField} from "./providerFieldText"
 
 /** Imperative surface the host's footer (Submit button) drives — replaces the antd
  * `FormInstance` the pre-migration API shared with the caller. */
@@ -57,70 +58,6 @@ const INITIAL_VALUES: FormValues = {
 const tNow = createT(customProviderFormCatalog)
 type FormKey = CatalogKey<typeof customProviderFormCatalog>
 
-/** Display text per field key. The field config in @agenta/entities keeps English only as data. */
-const FIELD_TEXT: Record<string, {label: FormKey; placeholder: FormKey}> = {
-    name: {
-        label: "entityUi.customProviderForm.nameLabel",
-        placeholder: "entityUi.customProviderForm.namePlaceholder",
-    },
-    apiKey: {
-        label: "entityUi.customProviderForm.apiKeyLabel",
-        placeholder: "entityUi.customProviderForm.apiKeyPlaceholder",
-    },
-    apiBaseUrl: {
-        label: "entityUi.customProviderForm.apiBaseUrlLabel",
-        placeholder: "entityUi.customProviderForm.apiBaseUrlPlaceholder",
-    },
-    version: {
-        label: "entityUi.customProviderForm.versionLabel",
-        placeholder: "entityUi.customProviderForm.versionPlaceholder",
-    },
-    region: {
-        label: "entityUi.customProviderForm.regionLabel",
-        placeholder: "entityUi.customProviderForm.regionPlaceholder",
-    },
-    vertexProject: {
-        label: "entityUi.customProviderForm.vertexProjectLabel",
-        placeholder: "entityUi.customProviderForm.vertexProjectPlaceholder",
-    },
-    vertexLocation: {
-        label: "entityUi.customProviderForm.vertexLocationLabel",
-        placeholder: "entityUi.customProviderForm.vertexLocationPlaceholder",
-    },
-    vertexCredentials: {
-        label: "entityUi.customProviderForm.vertexCredentialsLabel",
-        placeholder: "entityUi.customProviderForm.vertexCredentialsPlaceholder",
-    },
-    bearerToken: {
-        label: "entityUi.customProviderForm.bearerTokenLabel",
-        placeholder: "entityUi.customProviderForm.bearerTokenPlaceholder",
-    },
-    accessKeyId: {
-        label: "entityUi.customProviderForm.accessKeyIdLabel",
-        placeholder: "entityUi.customProviderForm.accessKeyIdPlaceholder",
-    },
-    accessKey: {
-        label: "entityUi.customProviderForm.accessKeyLabel",
-        placeholder: "entityUi.customProviderForm.accessKeyPlaceholder",
-    },
-    sessionToken: {
-        label: "entityUi.customProviderForm.sessionTokenLabel",
-        placeholder: "entityUi.customProviderForm.sessionTokenPlaceholder",
-    },
-}
-
-/** A field's hint, by `<field>/<provider kind>` first, then by field. */
-const NOTE_TEXT: Record<string, FormKey> = {
-    "apiBaseUrl/custom": "entityUi.customProviderForm.apiBaseUrlNoteCustom",
-    "apiBaseUrl/azure": "entityUi.customProviderForm.apiBaseUrlNoteAzure",
-    bearerToken: "entityUi.customProviderForm.bearerTokenNote",
-    apiKey: "entityUi.customProviderForm.secretNote",
-    vertexCredentials: "entityUi.customProviderForm.secretNote",
-    accessKeyId: "entityUi.customProviderForm.secretNote",
-    accessKey: "entityUi.customProviderForm.secretNote",
-    sessionToken: "entityUi.customProviderForm.secretNote",
-}
-
 /** The either/or credential message, by provider kind. */
 const AUTH_MESSAGE_TEXT: Record<string, FormKey> = {
     bedrock: "entityUi.customProviderForm.bedrockAuthRequired",
@@ -133,19 +70,6 @@ const providerLabel = (kind: string): string =>
         : Object.hasOwn(PROVIDER_LABELS, kind)
           ? PROVIDER_LABELS[kind]
           : capitalize(kind)
-
-/** The field in the active language; a field this form has no text for keeps its own. */
-const translateField = (field: ProviderFieldConfig, kind: string): ProviderFieldConfig => {
-    const text = Object.hasOwn(FIELD_TEXT, field.key) ? FIELD_TEXT[field.key] : undefined
-    const note = fieldNoteForKind(field, kind)
-    const noteKey = [`${field.key}/${kind}`, field.key].find((key) => Object.hasOwn(NOTE_TEXT, key))
-    return {
-        ...field,
-        label: text ? tNow(text.label) : field.label,
-        placeholder: text ? tNow(text.placeholder) : field.placeholder,
-        note: note && noteKey ? tNow(NOTE_TEXT[noteKey]) : note,
-    }
-}
 
 const FieldError = ({error}: {error?: string}) =>
     error ? <span className="text-xs text-colorError">{error}</span> : null
@@ -236,17 +160,19 @@ const CustomProviderForm = ({
         [standardProviders],
     )
 
-    // Build provider options for SelectLLMProviderBase
-    const providerOptions = useMemo<ProviderGroup[]>(() => {
-        const allProviders = [...new Set([...standardProviders, ...customProviders])]
-        return allProviders.map((key) => {
-            const label = providerLabel(key)
-            return {
-                label,
-                options: [{label, value: key, key}],
-            }
-        })
-    }, [standardProviders, customProviders])
+    // Build provider options for SelectLLMProviderBase. Labels are read on every render, so they
+    // follow the language and a catalog that loads after the form opens.
+    const allProviders = useMemo(
+        () => [...new Set([...standardProviders, ...customProviders])],
+        [standardProviders, customProviders],
+    )
+    const providerOptions: ProviderGroup[] = allProviders.map((key) => {
+        const label = providerLabel(key)
+        return {
+            label,
+            options: [{label, value: key, key}],
+        }
+    })
 
     const providerValue = values.provider || ""
     const normalizedProviderKind = useMemo(() => {
@@ -300,15 +226,22 @@ const CustomProviderForm = ({
         }
     }, [selectedProvider, initialProviderKind])
 
-    const visibleFields = useMemo(
+    const providerFields = useMemo(
         () =>
             PROVIDER_FIELDS.filter((field) => {
                 if (shouldFilter) {
                     return !field.model || field.model.includes(normalizedProviderKind)
                 }
                 return true
-            }).map((field) => translateField(field, normalizedProviderKind)),
+            }),
         [shouldFilter, normalizedProviderKind],
+    )
+    // Translated on every render, like the provider options above.
+    const visibleFields = providerFields.map((field) =>
+        translateProviderField(
+            {...field, note: fieldNoteForKind(field, normalizedProviderKind)},
+            normalizedProviderKind,
+        ),
     )
 
     const isFieldRequired = useCallback(
