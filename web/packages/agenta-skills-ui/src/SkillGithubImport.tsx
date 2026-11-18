@@ -39,7 +39,6 @@ export function SkillGithubImport({
     showHeader?: boolean
 }) {
     const [url, setUrl] = useState("")
-    const [branch, setBranch] = useState("")
     const [found, setFound] = useState<Found | null>(null)
     const [picked, setPicked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<"scan" | "import" | null>(null)
@@ -54,7 +53,6 @@ export function SkillGithubImport({
             const response = await scanSkillSource({
                 projectId,
                 repoUrl: url.trim(),
-                ref: branch.trim() || undefined,
             })
             const already = new Set(response?.already_imported_paths ?? [])
             const candidates: SkillCandidate[] = []
@@ -88,7 +86,6 @@ export function SkillGithubImport({
             const response = await importSkillSource({
                 projectId,
                 repoUrl: url.trim(),
-                ref: branch.trim() || undefined,
                 paths: [...picked],
             })
             invalidateSkillsListCache()
@@ -150,16 +147,6 @@ export function SkillGithubImport({
                         value={url}
                         onChange={(event) => setUrl(event.target.value)}
                         placeholder="https://github.com/owner/repo"
-                    />
-                </label>
-                <label className="flex min-w-0 flex-[0_1_140px] flex-col gap-1.5">
-                    <span className="text-sm font-medium">
-                        Branch <span className="font-normal text-muted-foreground">(optional)</span>
-                    </span>
-                    <Input
-                        value={branch}
-                        onChange={(event) => setBranch(event.target.value)}
-                        placeholder="main"
                     />
                 </label>
                 <Button
