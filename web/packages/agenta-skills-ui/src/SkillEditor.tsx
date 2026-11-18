@@ -290,9 +290,7 @@ export function SkillEditor({
                 </span>
                 {fileIsMd ? (
                     <div ref={setFileToolbar} className="flex min-w-0 flex-1 justify-end max-sm:hidden [&_button]:size-6" />
-                ) : (
-                    <span className="ml-auto text-xs text-muted-foreground">{kindOf(current.path)}</span>
-                )}
+                ) : null}
             </div>
             {fileIsMd ? (
                 <div className="flex min-h-0 flex-1 flex-col">
