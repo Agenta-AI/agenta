@@ -63,7 +63,7 @@ export const GET: APIRoute = () =>
     page({
       title: "Agenta — The open-source agent platform",
       description:
-        "Agenta is the open-source agent platform. Build agents and automations by chatting with them, work with them in the Agenta workspace, or deploy them to Slack, WhatsApp, Telegram or your website. Self-hosted or in the cloud.",
+        "Agenta is the open-source agent platform. Build agents and automations by chatting with them, work with them in the Agenta workspace, or deploy them to Slack, Discord, Teams, WhatsApp, Telegram or your website. Self-hosted or in the cloud.",
       path: "/",
       body,
     }),

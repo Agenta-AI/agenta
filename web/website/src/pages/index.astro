@@ -40,7 +40,7 @@ const orgJsonLd = {
   }}
   sticky
   title="Agenta — The open-source agent platform"
-  description="Agenta is the open-source agent platform. Build agents and automations by chatting with them, work with them in the Agenta workspace, or deploy them to Slack, WhatsApp, Telegram or your website. Self-hosted or in the cloud."
+  description="Agenta is the open-source agent platform. Build agents and automations by chatting with them, work with them in the Agenta workspace, or deploy them to Slack, Discord, Teams, WhatsApp, Telegram or your website. Self-hosted or in the cloud."
 >
   <Fragment slot="head">
     <script
@@ -77,7 +77,12 @@ const orgJsonLd = {
         (entries) => {
           for (const e of entries) {
             const seen = e.intersectionRect.height;
-            const need = 0.6 * Math.min(e.boundingClientRect.height, e.rootBounds?.height ?? innerHeight);
+            const viewH = e.rootBounds?.height ?? innerHeight;
+            let need = 0.6 * Math.min(e.boundingClientRect.height, viewH);
+            // A demo that starts on the first screen (the hero) can never show 60%
+            // before the visitor scrolls, so it needs only what that screen shows.
+            const firstScreen = viewH - (e.boundingClientRect.top + scrollY);
+            if (firstScreen > 0) need = Math.min(need, firstScreen);
             e.target.toggleAttribute("data-lp-in", e.isIntersecting && seen >= need);
           }
         },

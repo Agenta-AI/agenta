@@ -283,11 +283,19 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     const focusInMenu = menu?.contains(document.activeElement) ?? false;
     menu?.classList.remove("is-open");
     toggle?.setAttribute("aria-expanded", "false");
+    toggle?.setAttribute("aria-label", "Open menu");
     if (focusInMenu) toggle?.focus();
   };
   toggle?.addEventListener("click", () => {
     const open = menu?.classList.toggle("is-open");
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && menu?.classList.contains("is-open")) {
+      closeMenu();
+      toggle?.focus();
+    }
   });
   document.addEventListener("pointerdown", (e) => {
     const t = e.target as Node;

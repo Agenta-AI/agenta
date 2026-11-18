@@ -4,6 +4,7 @@
 .sx-share .b { background:var(--lp-surface-6); }
 .sx-share .fg-hd { max-width:720px; margin:0px auto 72px; text-align:center; display:flex; flex-direction:column; gap:16px; align-items:center; }
 .sx-share .fg-hd h2 { margin:0px; font:400 52px / 1.06 "GT Alpina", serif; letter-spacing:-0.01em; }
+.sx-share .fg-hd p { margin:0px; max-width:560px; font-size:16px; line-height:25px; color:var(--lp-body); text-wrap:pretty; }
 .sx-share .wa { width:22px; height:22px; border-radius:6px; background:var(--lp-ink-bg); display:inline-flex; align-items:center; justify-content:center; }
 .sx-share .s5 { position:relative; padding:112px 24px 120px; background:none var(--lp-surface-3); overflow:hidden; font-family:var(--font-sans); color:var(--lp-text); }
 .sx-share .s5 * { box-sizing:border-box; }

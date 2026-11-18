@@ -56,7 +56,7 @@
 .r3 .r3-ap-node > span { position:absolute; inset:0px; display:flex; align-items:center; justify-content:center; }
 .r3 .r3-hx-spin i { width:11px; height:11px; border-radius:50%; border-width:1.5px; border-style:solid; border-color:var(--carbon-950) var(--lp-line-strong) var(--lp-line-strong); border-image:none; animation:0.8s linear 0s infinite normal none running r3_hxr; }
 .r3 .r3-hx-field { position:relative; height:22px; }
-.r3 .r3-hx-field > span { position:absolute; left:0px; top:0px; white-space:nowrap; }
+.r3 .r3-hx-field > span { position:absolute; left:0px; top:0px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .r3 .r3-hx-ph { color:var(--lp-dim); }
 .r3 .r3-hx-typed { color:var(--lp-text); }
 .r3 .r3-ap-send { position:relative; }
