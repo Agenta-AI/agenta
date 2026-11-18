@@ -20,11 +20,11 @@ export const SkillCheckTile = ({
     <span
         aria-hidden
         className={cn(
-            "relative box-border block shrink-0 overflow-hidden transition-colors duration-200 motion-reduce:transition-none",
+            "relative box-border block shrink-0 overflow-hidden transition-[background-color,color,box-shadow] duration-200 motion-reduce:transition-none",
             size === 40 ? "size-10 rounded-[9px]" : size === 32 ? "size-8 rounded-[7px]" : "size-7 rounded-md",
             checked
                 ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground group-hover/check:text-foreground",
+                : "bg-muted text-muted-foreground group-hover/check:bg-background group-hover/check:text-foreground group-hover/check:shadow-sm",
         )}
     >
         <span
