@@ -29,14 +29,14 @@ export function SkillCandidateList({
 }) {
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
                 {candidates.map((candidate) => {
                     const on = selected.has(candidate.key)
                     return (
                         <label
                             key={candidate.key}
                             className={cn(
-                                "relative box-border flex min-h-[72px] cursor-pointer items-center gap-3 rounded-xl border border-solid bg-card px-4 py-3 transition-colors hover:bg-accent/50 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/30",
+                                "relative box-border flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-solid bg-card px-3 py-2 transition-colors hover:bg-accent/50 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/30",
                                 on ? "border-foreground" : "border-border",
                             )}
                         >
@@ -49,16 +49,19 @@ export function SkillCandidateList({
                             />
                             <span
                                 aria-hidden
-                                className="flex size-8 shrink-0 items-center justify-center rounded-[9px] border border-solid border-border bg-muted text-muted-foreground"
+                                className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-muted text-muted-foreground"
                             >
-                                <Compass size={16} />
+                                <Compass size={14} />
                             </span>
-                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="flex min-w-0 flex-1 flex-col">
                                 <span className="truncate text-sm font-medium">
                                     {candidate.title}
                                 </span>
                                 {candidate.description ? (
-                                    <span className="line-clamp-2 text-[13px] leading-[18px] text-muted-foreground">
+                                    <span
+                                        className="truncate text-[13px] leading-[18px] text-muted-foreground"
+                                        title={candidate.description}
+                                    >
                                         {candidate.description}
                                     </span>
                                 ) : null}
@@ -66,14 +69,14 @@ export function SkillCandidateList({
                             <span
                                 aria-hidden
                                 className={cn(
-                                    "box-border flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-solid transition-colors",
+                                    "box-border flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-solid transition-colors",
                                     on
                                         ? "border-primary bg-primary text-primary-foreground"
                                         : "border-input text-transparent",
                                 )}
                             >
                                 <Check
-                                    size={12}
+                                    size={11}
                                     weight="bold"
                                     className={on ? "animate-skill-pop" : undefined}
                                 />
