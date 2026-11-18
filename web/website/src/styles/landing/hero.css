@@ -69,25 +69,6 @@
 .r3 .r3-aw-main .r3-pf-top { height:52px; flex:0 0 auto; }
 .r3 .r3-aw-main .r3-ap-thread { padding:24px 40px 8px; }
 .r3 .r3-aw-main .r3-ap-comp { margin:0px 20px 16px; }
-.r3 .r3-rs { background:var(--lp-surface-3); border-right:1px solid var(--lp-page); display:flex; flex-direction:column; padding:0px 8px 10px; min-height:0px; overflow:hidden; }
-.r3 .r3-rs-top { display:flex; align-items:center; height:42px; padding:0px 6px 0px 4px; flex:0 0 auto; }
-.r3 .r3-rs-logo { display:inline-flex; align-items:center; gap:7px; }
-.r3 .r3-rs-logo b { font:600 17px / 1 "Inter", -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif; letter-spacing:-0.02em; }
-.r3 .r3-rs-r { margin-left:auto; display:inline-flex; align-items:center; gap:10px; color:var(--lp-body); }
-.r3 .r3-rs-n { display:flex; align-items:center; gap:10px; height:28px; padding:0px 10px; margin-bottom:4px; border-radius:8px; flex:0 0 auto; color:var(--lp-text); }
-.r3 .r3-rs-n > svg { color:var(--lp-text-2); }
-.r3 .r3-rs-g { display:flex; align-items:center; gap:4px; height:18px; margin:14px 0px 8px; padding:0px 12px; font-size:12px; color:var(--lp-mut); flex:0 0 auto; }
-.r3 .r3-rs-g > svg { color:var(--lp-mut); }
-.r3 .r3-rs-s { display:flex; align-items:center; gap:8px; height:28px; padding:0px 12px; margin-bottom:4px; border-radius:8px; flex:0 0 auto; min-width:0px; }
-.r3 .r3-rs-s > span:last-child { flex:1 1 0%; min-width:0px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.r3 .r3-rs-s > svg, .r3 .r3-rs-live svg { color:var(--lp-mut); }
-.r3 .r3-rs-s.r3-on { background:var(--lp-surface); box-shadow:var(--lp-page) 0px 0px 0px 1px; }
-.r3 .r3-rs-live { position:relative; width:13px; height:13px; flex:0 0 auto; }
-.r3 .r3-rs-live > span { position:absolute; inset:0px; display:flex; align-items:center; justify-content:center; }
-/* Sessions scroll inside the sidebar so the project selector stays pinned, as in the live demo. */
-.r3 .r3-rs-list { flex:1 1 0%; min-height:0px; overflow-y:auto; scrollbar-width:none; display:flex; flex-direction:column; }
-.r3 .r3-rs-ws { display:flex; align-items:center; gap:10px; height:32px; padding:0px 4px; margin-top:4px; }
-.r3 .r3-rs-av { width:22px; height:22px; border-radius:6px; background:var(--carbon-750); color:var(--lp-fixed-white); font:600 11px / 22px "Inter", -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif; text-align:center; flex:0 0 auto; }
 .r3 .r3-an-end0 { opacity:0; }
 .r3 .r3-aw-main .r3-ap-thread { gap:0px; }
 .r3 .r3-aw-main .r3-ap-user { align-self:flex-end; max-width:76%; background:var(--lp-surface-3); border-radius:14px 14px 6px; padding:10px 14px; margin-bottom:28px; }
@@ -109,8 +90,6 @@
 .r3 .r3-hx-t2 { display:flex; flex-direction:column; padding-top:28px; }
 .r3 .r3-aw-main { --sh:-330px; }
 @media (prefers-reduced-motion: reduce){.r3 .r3-an-end0 { display:none !important; }}
-.r3 .r3-rs .r3-rs-ws { width:100%; box-sizing:border-box; height:36px; padding:0px 10px 0px 7px; margin-top:6px; border-radius:9px; background:var(--lp-surface); box-shadow:var(--lp-page) 0px 0px 0px 1px; }
-.r3 .r3-rs .r3-rs-ws .r3-rs-r { color:var(--lp-body); }
 .r3 .r3-i2-run .r3-aw { height:100%; max-width:none; border-radius:0px; box-shadow:none; }
 .r3 .r3-i2-run [style*="animation:r3_ia"], .r3 .r3-i2-run .r3-hx-scroll { animation-delay:-0.85s !important; }
 .r3 .r3-i2-run .r3-ap-comp { box-shadow:rgb(220, 213, 209) 0px 0px 0px 1px !important; }
@@ -401,9 +380,6 @@
 }
 
 /* Sidebar rows that open the interactive demo. */
-.r3 .r3-rs [data-lp-go] { cursor:pointer; }
-.r3 .r3-rs [data-lp-go]:hover { background:var(--lp-glass-strong); }
-.r3 .r3-rs [data-lp-go]:focus-visible { outline:2px solid var(--lp-text); outline-offset:-2px; }
 .r3 .r3-ag-hero .r3-ag-app-frame[hidden], .lp-demo-live[hidden] { display:none !important; }
 .lp-demo-live { width:min(1120px,100%); position:relative; z-index:6; }
 .lp-demo-live:focus { outline:none; }
@@ -430,10 +406,6 @@
 .r3 .ws-split .r3-ap-table > div { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 0.8fr); gap: 12px; }
 
 /* Project selector: workspace and project, as in the live demo. */
-.r3 .r3-rs .r3-rs-ws { height:44px; }
-.r3 .r3-rs-wsn { display:flex; flex-direction:column; min-width:0px; flex:1 1 0%; }
-.r3 .r3-rs-wsn b { font:500 13px/16px var(--font-sans, 'Inter', sans-serif); color:var(--lp-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.r3 .r3-rs-wsn small { font:400 11px/14px var(--font-sans, 'Inter', sans-serif); color:var(--lp-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* Smaller screens: no app demo in the hero; the headline and buttons stand alone. */
 @media (max-width: 860px) {
   html body .lp .r3 .r3-ag-hero .r3-ag-app-frame.r3-i2-run:not([hidden]),

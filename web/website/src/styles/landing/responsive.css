@@ -43,29 +43,6 @@
   html body .lp .r3 .r3-aw.r3-aw-full {
     grid-template-columns: 52px minmax(0, 1fr) !important;
   }
-  .lp .r3 .r3-rs {
-    padding: 0 8px 10px;
-    align-items: center;
-  }
-  .lp .r3 .r3-rs-top {
-    justify-content: center;
-    padding: 0;
-  }
-  .lp .r3 .r3-rs-logo,
-  .lp .r3 .r3-rs-g,
-  .lp .r3 .r3-rs-s,
-  .lp .r3 .r3-rs-n > span,
-  .lp .r3 .r3-rs-ws {
-    display: none;
-  }
-  .lp .r3 .r3-rs-top .r3-rs-r {
-    margin: 0;
-  }
-  .lp .r3 .r3-rs-n {
-    width: 36px;
-    padding: 0;
-    justify-content: center;
-  }
 }
 
 /* ── tablet ──────────────────────────────────────────────────── */
@@ -274,10 +251,6 @@
 }
 
 /* ── dark-mode fixes for drawn logos ─────────────────────────────── */
-/* The mock app's leaf logo follows the text colour instead of a fixed ink. */
-.lp .r3 .r3-rs-logo svg path {
-  fill: currentColor;
-}
 /* Single-colour brand marks on themed chips. */
 [data-theme="dark"] .lp img[src$="/logos/apps/github.svg"] {
   filter: invert(1);

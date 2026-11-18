@@ -4,30 +4,24 @@ import {
   CalendarBlank,
   CaretDoubleRight,
   CaretDown,
-  CaretUpDown,
   CaretRight,
   ChatCircle,
-  ChatsCircle,
   Clock,
   Check,
   ClockCounterClockwise,
   DotsThree,
   Funnel,
-  GearSix,
-  House,
   Lightning,
   Paperclip,
   Microphone,
   MagnifyingGlass,
   Plus,
-  PuzzlePiece,
   Robot,
-  SidebarSimple,
-  SquaresFour,
   X,
 } from "@phosphor-icons/react";
 import AutomationHistory from "./workspace-demo/AutomationHistory.jsx";
 import PlaygroundSettings from "./workspace-demo/PlaygroundSettings.jsx";
+import DemoSidebar from "./workspace-demo/DemoSidebar.jsx";
 import { Component, Fragment } from "react";
 
 // Sample workspace content from the approved landing design. All actions stay local.
@@ -157,306 +151,19 @@ export default class WorkspaceDemo extends Component {
           `position:relative;z-index:6;width:min(1120px,100%);height:680px;border-radius:12px;border:1px solid var(--border);box-shadow:0 0 0 6px var(--muted),0 0 0 7px var(--border),var(--ag-boxShadowSecondary);display:grid;grid-template-columns:255px minmax(0,1fr);overflow:hidden;text-align:left;font-family:var(--font-sans);color:var(--foreground);background:var(--background);`,
         )}
       >
-        <div
-          className={`ag-app-side`}
-          style={css(
-            `display:flex;flex-direction:column;min-width:0;background:var(--ag-sidebar-bg);border-right:1px solid var(--ag-shell-line);`,
-          )}
-        >
-          <div
-            style={css(
-              `display:flex;height:32px;flex:0 0 auto;align-items:center;justify-content:space-between;margin:6px 0 4px 8px;padding:0 12px;`,
-            )}
-          >
-            <img
-              className={`th-light-only`}
-              src={`/logos/Agenta-logo-full-light.svg`}
-              alt={`Agenta`}
-              style={css(`height:18px;display:block;`)}
-            />
-            <img
-              className={`th-dark-only`}
-              src={`/logos/Agenta-logo-full-dark.svg`}
-              alt={`Agenta`}
-              style={css(`height:18px;display:block;`)}
-            />
-            <button
-              type="button"
-              aria-label={
-                this.state.sidebarCollapsed
-                  ? "Expand sidebar"
-                  : "Collapse sidebar"
-              }
-              aria-expanded={!this.state.sidebarCollapsed}
-              onClick={() =>
-                this.setState((state) => ({
-                  sidebarCollapsed: !state.sidebarCollapsed,
-                }))
-              }
-              style={css(
-                `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border:0;background:transparent;border-radius:6px;color:var(--muted-foreground);`,
-              )}
-            >
-              <SidebarSimple size={16} weight="regular" aria-hidden="true" />
-            </button>
-          </div>
-          <nav
-            style={css(
-              `display:flex;flex-direction:column;padding-top:4px;min-height:0;flex:1;`,
-            )}
-            aria-label="Demo workspace"
-          >
-            <button
-              type={`button`}
-              aria-label="Home"
-              onClick={nav.home.go}
-              style={css(nav.home.style)}
-            >
-              <span
-                style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
-              >
-                <House size={16} weight="regular" aria-hidden="true" />
-              </span>
-              <span
-                style={css(
-                  `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                )}
-              >{`Home`}</span>
-            </button>
-            <button
-              type={`button`}
-              aria-label="Agents"
-              onClick={nav.agents.go}
-              style={css(nav.agents.style)}
-            >
-              <span
-                style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
-              >
-                <Robot size={16} weight="regular" aria-hidden="true" />
-              </span>
-              <span
-                style={css(
-                  `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                )}
-              >{`Agents`}</span>
-            </button>
-            <button
-              type={`button`}
-              aria-label="Automations"
-              onClick={nav.automations.go}
-              style={css(nav.automations.style)}
-            >
-              <span
-                style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
-              >
-                <Lightning size={16} weight="regular" aria-hidden="true" />
-              </span>
-              <span
-                style={css(
-                  `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                )}
-              >{`Automations`}</span>
-            </button>
-            <button
-              type={`button`}
-              aria-label="Skills"
-              onClick={nav.skills.go}
-              style={css(nav.skills.style)}
-            >
-              <span
-                style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
-              >
-                <PuzzlePiece size={16} weight="regular" aria-hidden="true" />
-              </span>
-              <span
-                style={css(
-                  `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                )}
-              >{`Skills`}</span>
-            </button>
-            <div
-              style={css(
-                `position:relative;box-sizing:border-box;margin:0 auto 4px;display:flex;height:28px;flex:0 0 auto;width:calc(100% - 16px);align-items:center;gap:10px;border-radius:6px;padding:0 12px;font:400 14px/28px var(--font-sans);border:none;background:transparent;cursor:default;text-align:left;color:var(--foreground);padding-right:0;`,
-              )}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  nav.sessions.go();
-                }
-              }}
-              aria-label="Sessions"
-              onClick={nav.sessions.go}
-            >
-              <span
-                style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
-              >
-                <ChatsCircle size={16} weight="regular" aria-hidden="true" />
-              </span>
-              <span
-                style={css(
-                  `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                )}
-              >{`Sessions`}</span>
-            </div>
-            <div
-              style={css(
-                `display:flex;flex:1 1 0;flex-direction:column;min-height:0;overflow-y:auto;`,
-              )}
-            >
-              {railGroups.map((g, index4) => (
-                <Fragment key={index4}>
-                  <button
-                    type="button"
-                    className="ag-demo-group-toggle"
-                    aria-expanded={!this.state.closedGroups?.[g.agent]}
-                    onClick={() =>
-                      this.setState((state) => ({
-                        closedGroups: {
-                          ...state.closedGroups,
-                          [g.agent]: !state.closedGroups?.[g.agent],
-                        },
-                      }))
-                    }
-                    style={css(
-                      `margin:0 auto;display:flex;width:calc(100% - 16px);flex:0 0 auto;cursor:default;user-select:none;align-items:center;gap:4px;border-radius:6px;padding:8px 0 2px 12px;font:400 12px/16px var(--font-sans);color:var(--muted-foreground);`,
-                    )}
-                  >
-                    <span
-                      style={css(
-                        `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                      )}
-                    >
-                      {g.agent}
-                    </span>
-                    <span
-                      style={css(
-                        `margin-right:4px;display:flex;width:22px;height:22px;flex:0 0 auto;align-items:center;justify-content:center;transform:rotate(${this.state.closedGroups?.[g.agent] ? 0 : 90}deg);`,
-                      )}
-                    >
-                      <CaretRight
-                        size={11}
-                        weight="regular"
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </button>
-                  {!this.state.closedGroups?.[g.agent] &&
-                    g.rows.map((r, index5) => (
-                      <Fragment key={index5}>
-                        <button
-                          type={`button`}
-                          onClick={r.open}
-                          style={css(r.style)}
-                        >
-                          <span
-                            style={css(
-                              `display:flex;flex:0 0 auto;align-items:center;justify-content:center;width:12px;color:${r.railDot};`,
-                            )}
-                          >
-                            {r.auto && (
-                              <>
-                                <Lightning
-                                  size={12}
-                                  weight="regular"
-                                  aria-hidden="true"
-                                />
-                              </>
-                            )}
-                            {r.chat && (
-                              <>
-                                <span
-                                  style={css(
-                                    `width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;background:${r.railFill};`,
-                                  )}
-                                ></span>
-                              </>
-                            )}
-                          </span>
-                          <span
-                            style={css(
-                              `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                            )}
-                          >
-                            {r.name ?? r.ask}
-                          </span>
-                        </button>
-                      </Fragment>
-                    ))}
-                </Fragment>
-              ))}
-            </div>
-          </nav>
-          <div
-            style={css(
-              `display:flex;flex-direction:column;flex:0 0 auto;padding-bottom:4px;`,
-            )}
-          >
-            <a
-              href="/marketplace"
-              className="ag-demo-link"
-              style={css(
-                `position:relative;box-sizing:border-box;margin:0 auto 4px;display:flex;height:28px;flex:0 0 auto;width:calc(100% - 16px);align-items:center;gap:10px;border-radius:6px;padding:0 12px;font:400 14px/28px var(--font-sans);border:none;background:transparent;cursor:pointer;text-decoration:none;text-align:left;color:var(--foreground);`,
-              )}
-            >
-              <span
-                style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
-              >
-                <SquaresFour size={16} weight="regular" aria-hidden="true" />
-              </span>
-              <span
-                style={css(
-                  `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                )}
-              >{`Templates`}</span>
-            </a>
-            <div
-              style={css(
-                `position:relative;box-sizing:border-box;margin:0 auto 4px;display:flex;height:28px;flex:0 0 auto;width:calc(100% - 16px);align-items:center;gap:10px;border-radius:6px;padding:0 12px;font:400 14px/28px var(--font-sans);border:none;background:transparent;cursor:default;text-align:left;color:var(--foreground);`,
-              )}
-            >
-              <span
-                style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
-              >
-                <GearSix size={16} weight="regular" aria-hidden="true" />
-              </span>
-              <span
-                style={css(
-                  `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                )}
-              >{`Settings`}</span>
-            </div>
-            <div
-              style={css(
-                `display:flex;align-items:center;gap:8px;margin:4px 8px 8px;padding:6px 8px;border-radius:6px;border:1px solid var(--ag-shell-line);background:var(--background);`,
-              )}
-            >
-              <span
-                style={css(
-                  `display:inline-flex;width:24px;height:24px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:6px;background:var(--primary);color:var(--primary-foreground);font:600 11px/1 var(--font-sans);`,
-                )}
-              >{`A`}</span>
-              <span
-                style={css(
-                  `display:flex;min-width:0;flex:1;flex-direction:column;`,
-                )}
-              >
-                <span
-                  style={css(
-                    `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 13px/16px var(--font-sans);color:var(--foreground);`,
-                  )}
-                >{`Acme`}</span>
-                <span
-                  style={css(
-                    `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/14px var(--font-sans);color:var(--muted-foreground);`,
-                  )}
-                >{`Default project`}</span>
-              </span>
-              <CaretUpDown size={14} weight="regular" aria-hidden="true" style={css(`flex:0 0 auto;color:var(--muted-foreground);`)} />
-            </div>
-          </div>
-        </div>
+        <DemoSidebar
+          groups={railGroups}
+          selected={view.playground ? ss.name : this.state.view}
+          collapsed={this.state.sidebarCollapsed || false}
+          onGo={(detail) =>
+            detail.live ? this.onLive() : this.onGo({ detail })
+          }
+          onToggleCollapse={() =>
+            this.setState((state) => ({
+              sidebarCollapsed: !state.sidebarCollapsed,
+            }))
+          }
+        />
         <div
           className="ag-app-content"
           style={css(

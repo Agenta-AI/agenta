@@ -158,9 +158,10 @@ export function deriveWorkspace(state, setState, onLive) {
       sessionIndex: 7,
       label: "Lead Qualifier",
       tasks: [
-        { name: "New leads from the website", live: true },
+        { name: "New leads from the website", live: true, status: "running" },
         {
           name: "Leads from the webinar",
+          status: "unread",
           ask: "Qualify the 22 people who signed up for Tuesday's webinar.",
           worked: "Worked for 1m 12s",
           files1: "",
@@ -189,6 +190,7 @@ export function deriveWorkspace(state, setState, onLive) {
         },
         {
           name: "Weekly pipeline review",
+          pinned: true,
           ask: "Summarize this week's pipeline changes for the sales channel.",
           worked: "Worked for 1m 40s",
           files1: "1 file",
@@ -209,6 +211,7 @@ export function deriveWorkspace(state, setState, onLive) {
       tasks: [
         {
           name: "Follow-up for the Northwind call",
+          status: "unread",
           ask: "Write the follow-up email for today's Northwind call.",
           worked: "Worked for 48s",
           files1: "1 draft",
@@ -243,6 +246,7 @@ export function deriveWorkspace(state, setState, onLive) {
       tasks: [
         {
           name: "Refund question from Dana",
+          status: "waiting",
           ask: "Draft a reply to Dana's refund request.",
           worked: "Worked for 36s",
           files1: "",
@@ -257,6 +261,7 @@ export function deriveWorkspace(state, setState, onLive) {
         },
         {
           name: "Login issue at Acme Retail",
+          status: "failed",
           ask: "Help Acme Retail with their login problem.",
           worked: "Worked for 58s",
           files1: "",

@@ -292,42 +292,9 @@
   border-right: 0;
 }
 
-.ag-demo-group-toggle {
-  border: 0;
-  background: transparent;
-  text-align: left;
-}
-/* Collapsed sidebar: an icon rail. Smaller screens start collapsed. */
+/* Collapsed sidebar: an icon rail (DemoSidebar styles live in demo-sidebar.css). */
 .ag-app-frame[data-sidebar-collapsed="true"] {
   grid-template-columns: 52px minmax(0, 1fr) !important;
-}
-.ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side > div:first-child {
-  margin: 6px 0 4px !important;
-  padding: 0 !important;
-  justify-content: center !important;
-}
-.ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side > div:first-child img,
-.ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side > div:last-child,
-.ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side nav > div:last-child,
-.ag-app-frame[data-sidebar-collapsed="true"]
-  .ag-app-side
-  nav
-  > button
-  > span:not(:first-child),
-.ag-app-frame[data-sidebar-collapsed="true"]
-  .ag-app-side
-  nav
-  > div[role="button"]
-  > span:not(:first-child) {
-  display: none !important;
-}
-.ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side nav > button,
-.ag-app-frame[data-sidebar-collapsed="true"]
-  .ag-app-side
-  nav
-  > div[role="button"] {
-  padding: 0 !important;
-  justify-content: center !important;
 }
 
 /* Phones: the collapsed rail leaves a narrow content column. */
