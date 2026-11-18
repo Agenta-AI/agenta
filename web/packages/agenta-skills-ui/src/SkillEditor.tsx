@@ -45,7 +45,9 @@ const FIELD =
     "box-border w-full rounded-[10px] border border-solid border-input bg-background " +
     "font-[inherit] text-foreground outline-none transition-[border-color,box-shadow] " +
     "placeholder:text-placeholder focus:border-ring focus:ring-[3px] focus:ring-ring/30"
-const MISSING = "border-destructive focus:border-destructive"
+const MISSING =
+    "border-destructive! ring-[3px] ring-destructive/15 focus:border-destructive! focus:ring-destructive/25"
+const MISSING_TEXT = "m-0 text-[13px] leading-[18px] text-destructive"
 const ROW_ICON =
     "flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
 const ROW_BUTTON =
@@ -227,7 +229,8 @@ export function SkillEditor({
             className={cn(
                 "flex min-h-[360px] flex-1 flex-col rounded-[10px]",
                 fill ? "lg:min-h-0" : "sm:min-h-[600px]",
-                missing && "ring-1 ring-destructive",
+                missing &&
+                    "[&_div:has(>.md-prose)]:border-destructive [&_div:has(>.md-prose)]:ring-[3px] [&_div:has(>.md-prose)]:ring-destructive/15",
             )}
         >
             <MarkdownEditor
@@ -261,6 +264,11 @@ export function SkillEditor({
                 bodyToolbar,
                 showMissing && !draft.body.trim(),
             )}
+            {showMissing && !draft.body.trim() ? (
+                <p role="alert" className={MISSING_TEXT}>
+                    Write the steps the agent should follow.
+                </p>
+            ) : null}
         </div>
     )
 
@@ -328,6 +336,11 @@ export function SkillEditor({
                             showMissing && !draft.title.trim() && "ring-[3px] ring-destructive/30",
                         )}
                     />
+                    {showMissing && !draft.title.trim() ? (
+                        <p role="alert" className={MISSING_TEXT}>
+                            Name the skill.
+                        </p>
+                    ) : null}
                     {meta}
                 </div>
                 {actions ? <div className="flex items-center gap-2 pt-0.5">{actions}</div> : null}
@@ -393,6 +406,10 @@ export function SkillEditor({
                                     Shorten it to 1,024 characters or fewer. Agents cannot read a
                                     longer description.
                                 </span>
+                            ) : showMissing && !draft.description.trim() ? (
+                                <p role="alert" className={MISSING_TEXT}>
+                                    Add a description so agents know when to use this skill.
+                                </p>
                             ) : null}
                         </div>
                         {instructions}
