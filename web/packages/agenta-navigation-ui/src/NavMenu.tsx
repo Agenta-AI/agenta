@@ -364,7 +364,11 @@ const LeafRow = memo(function LeafRow({
                 onClick?.(event as unknown as MouseEvent)
             }}
         >
-            {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
+            {item.icon ? (
+                <span data-row-icon className="flex shrink-0 items-center">
+                    {item.icon}
+                </span>
+            ) : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
             {/* Above the stretched link anchor, like a group's action. */}
             {item.rowAction ? <span className={ROW_ACTION}>{item.rowAction}</span> : null}
@@ -556,7 +560,9 @@ const NavMenuImpl = ({
                         )}
                         onClick={rowClickHandler(item, onItemSelect)}
                     >
-                        {item.icon}
+                        <span data-row-icon className="flex">
+                            {item.icon}
+                        </span>
                         {item.link && !item.disabled ? (
                             <RowLabelCollapsed item={item} onItemSelect={onItemSelect} />
                         ) : null}
@@ -594,7 +600,9 @@ const NavMenuImpl = ({
                                     : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] rounded-[6px] px-3`,
                             )}
                         >
-                            {item.icon}
+                            <span data-row-icon className="flex">
+                                {item.icon}
+                            </span>
                             {/* Allow the flex item to shrink so the title truncates instead of wrapping. */}
                             {!collapsed ? (
                                 <span className="min-w-0 flex-1 truncate text-left">
@@ -647,7 +655,9 @@ const NavMenuImpl = ({
                         )}
                     >
                         {item.icon ? (
-                            <span className="flex shrink-0 items-center">{item.icon}</span>
+                            <span data-row-icon className="flex shrink-0 items-center">
+                                {item.icon}
+                            </span>
                         ) : null}
                         <RowLabel item={item} onItemSelect={onItemSelect} />
                         {/* z-[1] for the same reason as the caret: the link anchor is stretched

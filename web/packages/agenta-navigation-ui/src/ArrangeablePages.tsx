@@ -332,7 +332,9 @@ export const ArrangeablePages = ({
                                 moreOpen && ROW_SELECTED,
                             )}
                         >
-                            <Ellipsis size={16} strokeWidth={2} />
+                            <span data-row-icon className="flex">
+                                <Ellipsis size={16} strokeWidth={2} />
+                            </span>
                         </button>
                     </PopoverTrigger>
                     <PopoverContent

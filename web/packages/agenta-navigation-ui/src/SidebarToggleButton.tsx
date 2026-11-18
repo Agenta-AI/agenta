@@ -32,7 +32,9 @@ export const SidebarToggleButton = ({
             size="small"
             className={clsx(
                 // The kit's small button, square: its height, its width.
-                "aspect-square shrink-0 !rounded-[6px] !p-0",
+                "shrink-0 !p-0 !text-colorTextSecondary hover:!text-colorText",
+                // 32px as the icon rail's first button, the kit's small square beside the trigger.
+                collapsed && !onDismiss ? "!size-8 !rounded-[8px]" : "aspect-square !rounded-[6px]",
                 className,
             )}
             aria-label={onDismiss ? t("navigation.chrome.closeNavigation") : undefined}

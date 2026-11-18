@@ -14,7 +14,6 @@ import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
-import {SupportActions} from "./SupportActions"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
 import {usePageArrangement} from "./usePageArrangement"
 
@@ -108,12 +107,7 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
     // The icon rail has no room in its header, so the switcher waits at the bottom there.
     const AfterBottom = ({collapsed}: {collapsed: boolean}) =>
         collapsed ? (
-            <DrawerProjectSwitcher
-                workspaceId={workspaceId}
-                projectId={projectId}
-                collapsed
-                trailing={<SupportActions projectId={projectId} />}
-            />
+            <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} collapsed />
         ) : null
 
     const Footer = ({collapsed}: SidebarSlotContext) => (

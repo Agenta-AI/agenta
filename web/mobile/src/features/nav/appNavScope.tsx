@@ -33,7 +33,6 @@ import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 import {lastMainRailPathAtom} from "./appRoute"
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {tNow, type NavTranslate} from "./observabilityNavItems"
-import {SupportActions} from "./SupportActions"
 import {useMobileBottomNavItems} from "./useMobileNavItems"
 
 /** The app menu's scope id: its own open-groups bucket, apart from the main rail's. */
@@ -191,13 +190,11 @@ export const createMobileAppNavScope = (
         )
     }
 
-    // Expanded, help and live chat ride the Settings row; collapsed, they stack above the switcher.
     const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
         <DrawerProjectSwitcher
             workspaceId={workspaceId}
             projectId={projectId}
             collapsed={collapsed}
-            trailing={collapsed ? <SupportActions projectId={projectId} /> : undefined}
         />
     )
 
