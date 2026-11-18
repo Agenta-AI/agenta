@@ -48,25 +48,12 @@ const MISSING =
     "border-destructive! ring-[3px] ring-destructive/15 focus:border-destructive! focus:ring-destructive/25"
 const MISSING_TEXT = "m-0 text-[13px] leading-[18px] text-destructive"
 const ROW_ICON =
-    "flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+    "flex size-7 shrink-0 items-center justify-center rounded-[6px] bg-muted text-muted-foreground"
 const ROW_BUTTON =
     "cursor-pointer truncate border-0 bg-transparent p-0 text-left font-[inherit] text-sm " +
     "font-medium text-foreground after:absolute after:inset-0 after:content-['']"
 
-const KIND: Record<string, string> = {
-    py: "Python script",
-    js: "JavaScript",
-    ts: "TypeScript",
-    sh: "Shell script",
-    csv: "CSV data",
-    json: "JSON",
-    md: "Markdown",
-    txt: "Text",
-    yaml: "YAML",
-    yml: "YAML",
-}
 const extOf = (path: string) => path.split(".").pop()?.toLowerCase() ?? ""
-const kindOf = (path: string) => KIND[extOf(path)] ?? "File"
 const dirOf = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "")
 const baseOf = (path: string) => path.split("/").pop() ?? path
 
@@ -172,12 +159,12 @@ export function SkillEditor({
                 key={file.path}
                 title={file.path}
                 className={cn(
-                    "group relative flex items-center gap-3 rounded-lg py-2 pl-2 pr-1.5",
+                    "group relative flex items-center gap-2.5 rounded-lg py-1.5 pl-2 pr-1.5",
                     on ? "bg-accent" : "hover:bg-accent/60",
                 )}
             >
                 <span aria-hidden className={ROW_ICON}>
-                    <FileIcon size={16} />
+                    <FileIcon size={14} />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
                     <button
@@ -188,21 +175,16 @@ export function SkillEditor({
                     >
                         {baseOf(file.path)}
                     </button>
-                    <span
-                        className={cn(
-                            "truncate text-xs",
-                            exec && !draft.allowExecutable
-                                ? "text-tag-orange"
-                                : "text-muted-foreground",
-                        )}
-                    >
-                        {kindOf(file.path)}
-                        {exec
-                            ? draft.allowExecutable
-                                ? " · Runs as a program"
-                                : " · Program, turned off"
-                            : ""}
-                    </span>
+                    {exec ? (
+                        <span
+                            className={cn(
+                                "truncate text-xs",
+                                draft.allowExecutable ? "text-muted-foreground" : "text-tag-orange",
+                            )}
+                        >
+                            {draft.allowExecutable ? "Runs as a program" : "Program, turned off"}
+                        </span>
+                    ) : null}
                 </span>
                 {readOnly ? null : (
                     <button
@@ -447,12 +429,12 @@ export function SkillEditor({
                             <>
                                 <div
                                     className={cn(
-                                        "relative flex items-center gap-3 rounded-lg py-2 pl-2 pr-1.5",
+                                        "relative flex items-center gap-2.5 rounded-lg py-1.5 pl-2 pr-1.5",
                                         current ? "hover:bg-accent/60" : "bg-accent",
                                     )}
                                 >
                                     <span aria-hidden className={ROW_ICON}>
-                                        <FileText size={16} />
+                                        <FileText size={14} />
                                     </span>
                                     <span className="flex min-w-0 flex-1 flex-col gap-px">
                                         <button
@@ -463,9 +445,6 @@ export function SkillEditor({
                                         >
                                             SKILL.md
                                         </button>
-                                        <span className="text-xs text-muted-foreground">
-                                            Description and instructions
-                                        </span>
                                     </span>
                                 </div>
                                 {groups.map(([dir, files]) => (
