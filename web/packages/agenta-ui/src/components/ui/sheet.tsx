@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import {cva, type VariantProps} from "class-variance-authority"
 import {X} from "lucide-react"
@@ -131,6 +133,7 @@ function SheetHeader({
     /** Renders the close button after the title, at the right edge. */
     showCloseButton?: boolean
 }) {
+    const t = useT(commonCatalog)
     return (
         <div
             data-slot="sheet-header"
@@ -163,7 +166,7 @@ function SheetHeader({
                             "-my-0.5 shrink-0",
                             touchTargetExpansion({height: 28, width: 28}),
                         )}
-                        aria-label="Close"
+                        aria-label={t("common.close")}
                     >
                         <X />
                     </Button>

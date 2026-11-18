@@ -1,0 +1,12 @@
+{
+    "copyValue": "Copier la valeur",
+    "deleteField": "Supprimer le champ",
+    "addItem": "Ajouter un élément",
+    "expand": "Développer",
+    "collapse": "Réduire",
+    "goBack": "Retour",
+    "noItems": "Aucun élément à afficher",
+    "itemCount_one": "{{count}} élément",
+    "itemCount_many": "{{count}} éléments",
+    "itemCount_other": "{{count}} éléments"
+}

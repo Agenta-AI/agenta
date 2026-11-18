@@ -1,5 +1,9 @@
 import React, {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {CaretLeft, CaretRight, Check, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {ChevronDown} from "lucide-react"
@@ -79,11 +83,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     onSelectValue,
     providerDropdownWidth,
     modelListWidth,
-    emptyText = "No data",
+    emptyText: emptyTextProp,
     container,
     value,
     onChange,
-    placeholder = "Select a provider",
+    placeholder: placeholderProp,
     disabled = false,
     invalid = false,
     size = "middle",
@@ -102,6 +106,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     panelFooter,
     selectedKey,
 }) => {
+    const t = useT(uiLlmProviderCatalog, commonCatalog, uiControlsCatalog)
+    const emptyText = emptyTextProp ?? t("ui.controls.noData")
+    const placeholder = placeholderProp ?? t("ui.llmProvider.selectProvider")
     const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
     const isControlled = controlledOpen !== undefined
     const open = isControlled ? controlledOpen : uncontrolledOpen
@@ -417,13 +424,17 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
-                        <span className="text-nowrap text-[12px]">Input:</span>
+                        <span className="text-nowrap text-[12px]">
+                            {t("ui.llmProvider.inputLabel")}
+                        </span>
                         <span className="text-nowrap text-[12px]">
                             ${formatCost(metadata.input as number)} / 1M
                         </span>
                     </div>
                     <div className="flex justify-between gap-4">
-                        <span className="text-nowrap text-[12px]">Output: </span>
+                        <span className="text-nowrap text-[12px]">
+                            {t("ui.llmProvider.outputLabel")}{" "}
+                        </span>
                         <span className="text-nowrap text-[12px]">
                             ${formatCost(metadata.output as number)} / 1M
                         </span>
@@ -527,7 +538,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 role="presentation"
                 className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-colorTextTertiary"
             >
-                {single ? <span>via</span> : null}
+                {single ? <span>{t("ui.llmProvider.via")}</span> : null}
                 {Icon && <Icon className="w-3 h-3 shrink-0" />}
                 {name}
             </div>
@@ -737,7 +748,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             {searchTerm && (
                                 <button
                                     type="button"
-                                    aria-label="Clear search"
+                                    aria-label={t("common.clearSearch")}
                                     onClick={() => {
                                         setSearchTerm("")
                                         inputRef.current?.focus()
@@ -764,7 +775,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             <div
                                 id={listId}
                                 role="listbox"
-                                aria-label={ariaLabel ?? "Options"}
+                                aria-label={ariaLabel ?? t("ui.controls.options")}
                                 className="max-h-[256px] overflow-y-auto"
                                 onWheel={handleWheelScroll}
                             >
@@ -827,7 +838,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         className="py-1"
                                         role="listbox"
                                         id={providerListId}
-                                        aria-label="Providers"
+                                        aria-label={t("ui.llmProvider.providers")}
                                     >
                                         {filteredProviders.map((group, idx) => {
                                             const Icon = getProviderIcon(
@@ -925,7 +936,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     <div
                                         role="listbox"
                                         id={modelListId}
-                                        aria-label={hoveredGroup.label ?? "Models"}
+                                        aria-label={
+                                            hoveredGroup.label ?? t("ui.llmProvider.models")
+                                        }
                                         className={clsx(
                                             "overflow-y-auto py-1",
                                             singleColumn

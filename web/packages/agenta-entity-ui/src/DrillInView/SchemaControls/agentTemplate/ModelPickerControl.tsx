@@ -21,6 +21,8 @@ import {
     invalidateAgentRequirements,
     loadAgentModelCandidates,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
@@ -90,6 +92,7 @@ const ModelPickerControl = ({
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
+    const t = useT(configItemsCatalog)
     const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
     const candidateState = useAtomValue(candidateAtom)
     const connections = candidateState.connections
@@ -203,7 +206,7 @@ const ModelPickerControl = ({
     if (!allSourcesResolved) {
         return (
             <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-colorTextTertiary">
-                Loading models…
+                {t("entityUi.configItems.loadingModels")}
             </div>
         )
     }
@@ -220,7 +223,7 @@ const ModelPickerControl = ({
                     className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <Plus size={14} className="shrink-0" />
-                    Set up model providers
+                    {t("entityUi.configItems.setUpProviders")}
                 </button>
                 {drawer}
             </>
@@ -238,7 +241,7 @@ const ModelPickerControl = ({
                 providerDropdownWidth="max(calc(var(--radix-popover-trigger-width) - 0.5rem), 460px)"
                 // Provider names are short; the saved width goes to the model column.
                 connectionColumnWidth={200}
-                searchPlaceholder="Search models"
+                searchPlaceholder={t("entityUi.configItems.searchModels")}
                 sectionTooltip={<HarnessTooltip />}
                 options={groups}
                 value={displayed.modelId ?? undefined}
@@ -250,7 +253,7 @@ const ModelPickerControl = ({
                     onSelect(pickerSelectionFrom(value as string, metadata))
                 }}
                 disabled={disabled}
-                placeholder="Select a model…"
+                placeholder={t("entityUi.configItems.selectModel")}
                 className="w-full"
                 footerContent={<ManageProvidersRow onClick={openProviderDrawer} />}
             />

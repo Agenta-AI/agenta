@@ -1,0 +1,12 @@
+{
+    "addBot": "Adicionar um bot",
+    "addNumber": "Adicionar outro número",
+    "addOwnBot": "Adicionar seu próprio bot",
+    "addWorkspace": "Adicionar outro workspace",
+    "bots": "Bots",
+    "connectedCount_one": "{{count}} conectado",
+    "connectedCount_many": "{{count}} conectados",
+    "connectedCount_other": "{{count}} conectados",
+    "numbers": "Números",
+    "workspaces": "Workspaces"
+}

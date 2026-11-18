@@ -1,0 +1,11 @@
+{
+    "addProviderKey": "このエージェントを実行するには、モデルプロバイダーのキーを追加してください。",
+    "attachment": "添付ファイル",
+    "backToCommands": "← コマンドに戻る",
+    "changesDraft": "このエージェントの下書き設定を変更します。",
+    "connectModelPlaceholder": "モデルを接続するとチャットを始められます…",
+    "messageSubject": "メッセージ",
+    "removeOneToAdd": "別のファイルを追加するには1つ削除してください（最大 {{count}} 件）",
+    "searchModels": "モデルを検索",
+    "setUpProviders": "モデルプロバイダーを設定"
+}

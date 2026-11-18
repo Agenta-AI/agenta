@@ -1,0 +1,10 @@
+{
+    "true": "Vrai",
+    "false": "Faux",
+    "metrics_one": "{{count}} métrique",
+    "metrics_many": "{{count}} métriques",
+    "metrics_other": "{{count}} métriques",
+    "copySessionId": "Copier l’identifiant de session",
+    "statusFailure": "échec",
+    "statusSuccess": "succès"
+}

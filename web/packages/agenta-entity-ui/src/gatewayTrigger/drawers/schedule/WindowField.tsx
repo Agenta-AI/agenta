@@ -2,6 +2,8 @@
 import {useId} from "react"
 
 import {localFaceToUtcIso, utcIsoToLocalFace} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
 import {DateTimePicker} from "@agenta/ui/ui"
 
 // ---------------------------------------------------------------------------
@@ -58,18 +60,23 @@ export function WindowField({
     onChangeStart: (next: string | null) => void
     onChangeEnd: (next: string | null) => void
 }) {
+    const t = useT(triggerScheduleCatalog)
     return (
         <div className="flex flex-col gap-2">
             <Row
-                label="Start"
-                placeholder="Starts right away"
+                label={t("entityUi.triggerSchedule.start")}
+                placeholder={t("entityUi.triggerSchedule.startsRightAway")}
                 value={startTime}
                 onChange={onChangeStart}
             />
-            <Row label="End" placeholder="Never ends" value={endTime} onChange={onChangeEnd} />
+            <Row
+                label={t("entityUi.triggerSchedule.end")}
+                placeholder={t("entityUi.triggerSchedule.neverEnds")}
+                value={endTime}
+                onChange={onChangeEnd}
+            />
             <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                Times are UTC. Leave either empty for no limit — a start in the future delays the
-                first run, and an end in the past stops the schedule.
+                {t("entityUi.triggerSchedule.windowHint")}
             </span>
         </div>
     )

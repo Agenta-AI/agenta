@@ -9,11 +9,8 @@ import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // GatewayCatalogDrawer — the shared Composio catalog drawer (connections rail + app grid +
-// per-app items view). antd `Drawer size="large"` → `EnhancedDrawer width={736}` (the
-// antd-compatible facade over the @agenta/ui Sheet), plus Input/Spin/Empty/Tag/Card/
-// Dropdown.Button swaps. A parity pair would duplicate the whole pre-migration file, so this
-// is an interactive showcase: open the drawer, browse, click an app for the items view
-// (Connect split-button, expandable description, item cards).
+// per-app items view). Interactive showcase: open the drawer, browse, click an app for the
+// items view (Connect split-button, expandable description, item cards).
 const meta = {
     title: "@agenta/entity-ui/Drawers/GatewayCatalogDrawer",
     component: GatewayCatalogDrawer,
@@ -22,7 +19,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The trigger/tool catalog drawer. antd `Drawer` → `EnhancedDrawer` (Sheet facade), `Dropdown.Button` → `DropdownButton`, `Card` → div + tokens, `Empty` → `EmptyState`, `Typography.Paragraph ellipsis` → composed ExpandableText. Showcase story (no parity pair).",
+                    "The trigger/tool catalog drawer: a connections rail, an app grid, and a per-app items view.",
             },
         },
     },

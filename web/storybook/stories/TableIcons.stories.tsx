@@ -14,8 +14,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 /**
  * The icons that `InfiniteVirtualTable` draws itself: the row actions button, the expand and
  * collapse circles (with the loading spinner), and the file and folder icons in the column
- * visibility list. This story is the before and after proof for the move from antd icons to
- * Phosphor icons.
+ * visibility list. They are all Phosphor icons.
  */
 const meta = {
     title: "@agenta/ui/Table/TableIcons",

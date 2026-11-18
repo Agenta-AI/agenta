@@ -4,7 +4,7 @@ Scope is WP-B1 only: the judge backend patch (provider/secret resolution + tempe
 
 ## Testing strategy
 
-Follow `docs/designs/testing/README.md` and the interface specs:
+Follow `docs/design/testing/README.md` and the interface specs:
 
 - Prefer isolated unit tests because no running API, DB, or live LLM is required.
 - Mock or fake at the boundary: `SecretsManager`, runtime context/secrets, and the LLM completion function.

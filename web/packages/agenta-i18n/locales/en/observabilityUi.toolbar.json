@@ -1,0 +1,20 @@
+{
+    "tabRoot": "Root",
+    "tabLlm": "LLM",
+    "tabAll": "All",
+    "traceProjection": "Trace projection",
+    "allActivity": "All activity",
+    "latestActivity": "Latest activity",
+    "sessionOrdering": "Session activity ordering",
+    "autoRefreshAria": "Auto-refresh",
+    "autoRefreshLabel": "auto-refresh",
+    "refreshData": "Refresh data",
+    "cancelExport": "Cancel export",
+    "exportTraces": "Export traces",
+    "export": "Export",
+    "selectToDelete": "Select traces to delete",
+    "deleteSelected": "Delete selected traces",
+    "delete": "Delete",
+    "searchData": "Search observability data",
+    "search": "Search"
+}

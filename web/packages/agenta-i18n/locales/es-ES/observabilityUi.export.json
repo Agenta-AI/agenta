@@ -1,0 +1,11 @@
+{
+    "couldNotStart": "No se pudo iniciar la exportación.",
+    "preparing": "Preparando la exportación",
+    "rateLimited": "Límite de frecuencia alcanzado: en pausa durante {{seconds}} s (hasta ahora se han exportado {{rows}} filas)",
+    "exporting": "Exportando {{rows}} filas",
+    "nothingToExport": "No hay trazas que exportar",
+    "limitReached": "Se alcanzó el límite de exportación. Se descargaron las primeras {{rows}} filas.",
+    "exported": "Se exportaron {{rows}} filas",
+    "cancelled": "Exportación cancelada",
+    "failed": "Error al exportar"
+}

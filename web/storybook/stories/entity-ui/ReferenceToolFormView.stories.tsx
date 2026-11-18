@@ -70,7 +70,7 @@ const bridgeWith = (detail: SubagentDetail | null) =>
     }) as unknown as WorkflowReferenceBridge
 
 const Frame = (bridge: WorkflowReferenceBridge | undefined, children: React.ReactNode) => (
-    <div data-vrt-subject className="w-[520px]">
+    <div className="w-[520px]">
         <DrillInUIProvider components={bridge ? {workflowReference: bridge} : {}}>
             {children}
         </DrillInUIProvider>

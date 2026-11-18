@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import evalCatalog from "@agenta/i18n/catalogs/playground.evaluator"
 import {cn} from "@agenta/ui/styles"
 import {
     Badge,
@@ -22,83 +24,90 @@ import {
 /** What the evaluator runs on: data the reader gives it, or an app's output. */
 export type RunOnMode = "data" | "app"
 
+type EvalKey = CatalogKey<typeof evalCatalog>
+
 interface Step {
-    label: string
+    label: EvalKey
     variant: NonNullable<BadgeProps["variant"]>
     icon?: Icon
 }
 
 interface ModeOption {
     key: RunOnMode | "trace"
-    label: string
-    shortLabel: string
+    label: EvalKey
+    shortLabel: EvalKey
     icon: Icon
-    description: string
+    description: EvalKey
     flow: Step[]
     badge?: "default" | "soon"
 }
 
-const DATA: Step = {label: "Data", variant: "blue", icon: Database}
-const EVALUATOR: Step = {label: "Evaluator", variant: "purple", icon: Gavel}
-const SCORE: Step = {label: "Score", variant: "green"}
+const DATA: Step = {label: "playground.evaluator.stepData", variant: "blue", icon: Database}
+const EVALUATOR: Step = {label: "playground.evaluator.evaluator", variant: "purple", icon: Gavel}
+const SCORE: Step = {label: "playground.evaluator.stepScore", variant: "green"}
 
 const MODES: ModeOption[] = [
     {
         key: "data",
-        label: "Run directly on a test case",
-        shortLabel: "Test case",
+        label: "playground.evaluator.modeDataLabel",
+        shortLabel: "playground.evaluator.modeDataShort",
         icon: Database,
-        description:
-            "Evaluate data you provide. Connect a test set, or type the input and output in by hand.",
+        description: "playground.evaluator.modeDataDescription",
         flow: [DATA, EVALUATOR, SCORE],
     },
     {
         key: "app",
-        label: "Run on an app output",
-        shortLabel: "App output",
+        label: "playground.evaluator.modeAppLabel",
+        shortLabel: "playground.evaluator.modeAppShort",
         icon: AppWindow,
         badge: "default",
-        description:
-            "Run an app over your data, then the evaluator grades its output. The usual evaluation flow.",
+        description: "playground.evaluator.modeAppDescription",
         flow: [
             DATA,
-            {label: "App", variant: "outlined", icon: AppWindow},
-            {label: "Output", variant: "green"},
+            {label: "playground.evaluator.stepApp", variant: "outlined", icon: AppWindow},
+            {label: "playground.evaluator.stepOutput", variant: "green"},
             EVALUATOR,
             SCORE,
         ],
     },
     {
         key: "trace",
-        label: "Run on a trace",
-        shortLabel: "Trace",
+        label: "playground.evaluator.modeTraceLabel",
+        shortLabel: "playground.evaluator.modeTraceShort",
         icon: TreeView,
         badge: "soon",
-        description: "Pull the input and output straight from a logged trace in Observability.",
-        flow: [{label: "Trace", variant: "cyan", icon: TreeView}, EVALUATOR, SCORE],
+        description: "playground.evaluator.modeTraceDescription",
+        flow: [
+            {label: "playground.evaluator.stepTrace", variant: "cyan", icon: TreeView},
+            EVALUATOR,
+            SCORE,
+        ],
     },
 ]
 
-const Flow = ({steps}: {steps: Step[]}) => (
-    <div className="flex flex-wrap items-center gap-y-1">
-        {steps.map((step, index) => (
-            <span key={`${step.label}-${index}`} className="flex items-center">
-                {index > 0 ? (
-                    <span aria-hidden className="px-1.5 text-xs text-muted-foreground">
-                        →
-                    </span>
-                ) : null}
-                <Badge
-                    variant={step.variant}
-                    icon={step.icon ? <step.icon aria-hidden size={12} /> : undefined}
-                    className="rounded-full"
-                >
-                    {step.label}
-                </Badge>
-            </span>
-        ))}
-    </div>
-)
+const Flow = ({steps}: {steps: Step[]}) => {
+    const t = useT(evalCatalog)
+    return (
+        <div className="flex flex-wrap items-center gap-y-1">
+            {steps.map((step, index) => (
+                <span key={`${step.label}-${index}`} className="flex items-center">
+                    {index > 0 ? (
+                        <span aria-hidden className="px-1.5 text-xs text-muted-foreground">
+                            →
+                        </span>
+                    ) : null}
+                    <Badge
+                        variant={step.variant}
+                        icon={step.icon ? <step.icon aria-hidden size={12} /> : undefined}
+                        className="rounded-full"
+                    >
+                        {t(step.label)}
+                    </Badge>
+                </span>
+            ))}
+        </div>
+    )
+}
 
 /**
  * The "Run on" control of the evaluator playground: a button with the mode in effect, and a list
@@ -112,6 +121,7 @@ export const RunOnSelector = ({
     mode: RunOnMode
     onPick: (mode: RunOnMode) => void
 }) => {
+    const t = useT(evalCatalog)
     const [open, setOpen] = useState(false)
     const current = MODES.find((option) => option.key === mode) ?? MODES[1]
 
@@ -119,9 +129,11 @@ export const RunOnSelector = ({
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5">
-                    <span className="font-normal text-muted-foreground">Run on:</span>
+                    <span className="font-normal text-muted-foreground">
+                        {t("playground.evaluator.runOn")}
+                    </span>
                     <current.icon aria-hidden size={14} />
-                    <span className="truncate">{current.shortLabel}</span>
+                    <span className="truncate">{t(current.shortLabel)}</span>
                     <CaretDown aria-hidden size={12} className="text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
@@ -132,9 +144,9 @@ export const RunOnSelector = ({
                 className="w-[min(460px,calc(100vw-32px))] p-1.5"
             >
                 <p className="m-0 px-2.5 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    What should the evaluator run on?
+                    {t("playground.evaluator.runOnQuestion")}
                 </p>
-                <div role="listbox" aria-label="Run on">
+                <div role="listbox" aria-label={t("playground.evaluator.runOnAria")}>
                     {MODES.map((option) => {
                         const selected = option.key === mode
                         const disabled = option.key === "trace"
@@ -162,20 +174,20 @@ export const RunOnSelector = ({
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
                                         <option.icon aria-hidden size={15} />
-                                        {option.label}
+                                        {t(option.label)}
                                         {option.badge === "default" ? (
                                             <Badge variant="info" className="rounded-full">
-                                                default
+                                                {t("playground.evaluator.badgeDefault")}
                                             </Badge>
                                         ) : null}
                                         {option.badge === "soon" ? (
                                             <Badge variant="gold" className="rounded-full">
-                                                soon
+                                                {t("playground.evaluator.badgeSoon")}
                                             </Badge>
                                         ) : null}
                                     </span>
                                     <span className="text-xs leading-snug text-muted-foreground">
-                                        {option.description}
+                                        {t(option.description)}
                                     </span>
                                     <span className="mt-1.5">
                                         <Flow steps={option.flow} />

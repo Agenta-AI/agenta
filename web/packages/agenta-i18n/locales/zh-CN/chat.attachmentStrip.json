@@ -1,0 +1,6 @@
+{
+    "pause": "暂停 {{name}}",
+    "play": "播放 {{name}}",
+    "view": "查看 {{name}}",
+    "viewMore_other": "再查看 {{count}} 个文件"
+}

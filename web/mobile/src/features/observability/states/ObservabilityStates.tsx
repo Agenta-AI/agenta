@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {
     Button,
     Empty,
@@ -32,37 +34,39 @@ export const ObservabilityListSkeleton = ({rows = 6}: {rows?: number}) => (
     </div>
 )
 
-export const ObservabilityEmpty = ({
-    title = "No traces yet",
-    hint = "Traces appear here once your app sends them.",
-}: {
-    title?: string
-    hint?: string
-}) => (
-    <Empty className="py-16">
-        <EmptyHeader>
-            <EmptyMedia variant="icon">
-                <Activity />
-            </EmptyMedia>
-            <EmptyTitle>{title}</EmptyTitle>
-            <EmptyDescription>{hint}</EmptyDescription>
-        </EmptyHeader>
-    </Empty>
-)
+export const ObservabilityEmpty = ({title, hint}: {title?: string; hint?: string}) => {
+    const t = useT(screenCatalog)
+    return (
+        <Empty className="py-16">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">
+                    <Activity />
+                </EmptyMedia>
+                <EmptyTitle>{title ?? t("observability.screen.noTracesTitle")}</EmptyTitle>
+                <EmptyDescription>
+                    {hint ?? t("observability.screen.noTracesHint")}
+                </EmptyDescription>
+            </EmptyHeader>
+        </Empty>
+    )
+}
 
-export const ObservabilityFiltered = ({onClear}: {onClear: () => void}) => (
-    <Empty className="py-16">
-        <EmptyHeader>
-            <EmptyMedia variant="icon">
-                <Activity />
-            </EmptyMedia>
-            <EmptyTitle>Nothing matches these filters</EmptyTitle>
-            <EmptyDescription>Try a wider time range, or clear the filters.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-            <Button variant="outline" size="sm" onClick={onClear}>
-                Clear filters
-            </Button>
-        </EmptyContent>
-    </Empty>
-)
+export const ObservabilityFiltered = ({onClear}: {onClear: () => void}) => {
+    const t = useT(screenCatalog)
+    return (
+        <Empty className="py-16">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">
+                    <Activity />
+                </EmptyMedia>
+                <EmptyTitle>{t("observability.screen.nothingMatchesTitle")}</EmptyTitle>
+                <EmptyDescription>{t("observability.screen.nothingMatchesHint")}</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+                <Button variant="outline" size="sm" onClick={onClear}>
+                    {t("observability.screen.clearFilters")}
+                </Button>
+            </EmptyContent>
+        </Empty>
+    )
+}

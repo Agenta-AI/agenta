@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {getSettingsSidebarTabs, SETTINGS_SCOPES, type SettingsTabKey} from "@agenta/settings"
 
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
@@ -20,6 +22,7 @@ export const SettingsTabRail = ({
     onSelect: (tab: SettingsTabKey) => void
 }) => {
     const access = useMobileSettingsAccess()
+    const t = useT(navigationCatalog)
 
     const groups = useMemo(() => {
         const tabs = withMobileSettingsLabels(
@@ -28,10 +31,11 @@ export const SettingsTabRail = ({
             ),
         )
         return SETTINGS_SCOPES.map((scope) => ({
-            ...scope,
+            key: scope.key,
+            title: t(scope.titleKey),
             tabs: tabs.filter((tab) => tab.scope === scope.key),
         })).filter((scope) => scope.tabs.length > 0)
-    }, [access])
+    }, [access, t])
 
     return (
         // A scrolling strip on a phone, a grouped rail from lg.

@@ -1,0 +1,21 @@
+{
+    "atTimesUtc": "{{cadence}} {{times}} UTC",
+    "cronDaysAt": "{{days}} {{time}}",
+    "cronEveryDayAt": "每天 {{time}}",
+    "cronEveryHour": "每小时 (UTC)",
+    "cronEveryHourAt": "每小时 :{{minute}} (UTC)",
+    "cronEveryHoursAt": "每 {{hours}} 小时 :{{minute}} (UTC)",
+    "cronEveryMinute": "每分钟 (UTC)",
+    "cronEveryMinutes": "每 {{minutes}} 分钟 (UTC)",
+    "cronEveryWeekdayAt": "每{{day}} {{time}}",
+    "cronRaw": "{{expression}} (UTC)",
+    "daily": "每天",
+    "dayOfMonth": "{{day}} 日",
+    "everyDay": "每天",
+    "everyHours": "每 {{hours}} 小时，:{{minute}}",
+    "monthlyOn": "每月 {{days}}",
+    "nextRun": "下次运行：{{date}} {{time}} UTC · {{relative}}",
+    "runsPerDay_other": "{{line}} · 每天 {{count}} 次",
+    "utc": "{{cadence}} UTC",
+    "weekdays": "工作日"
+}

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import {useSessions} from "@agenta/observability"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {Badge, Button} from "@agenta/ui/ui"
@@ -28,6 +30,7 @@ export const SessionDrawerHeader = ({
     expanded,
     onToggleWidth,
 }: SessionDrawerHeaderProps) => {
+    const t = useT(sessionCatalog)
     const {sessionIds} = useSessions()
     const [annotationsVisible, setAnnotationsVisible] = useAtom(
         observabilitySessionAnnotationsVisibleAtom,
@@ -43,7 +46,11 @@ export const SessionDrawerHeader = ({
                     variant="ghost"
                     size="icon-sm"
                     onClick={onToggleWidth}
-                    aria-label={expanded ? "Make the drawer narrower" : "Make the drawer wider"}
+                    aria-label={
+                        expanded
+                            ? t("observability.sessionDrawer.makeNarrower")
+                            : t("observability.sessionDrawer.makeWider")
+                    }
                 >
                     {expanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
                 </Button>
@@ -53,7 +60,7 @@ export const SessionDrawerHeader = ({
                 size="icon-sm"
                 disabled={previous === null}
                 onClick={() => previous !== null && onSelectSession(previous)}
-                aria-label="Previous session"
+                aria-label={t("observability.sessionDrawer.previousSession")}
             >
                 <CaretUp size={14} />
             </Button>
@@ -62,12 +69,17 @@ export const SessionDrawerHeader = ({
                 size="icon-sm"
                 disabled={next === null}
                 onClick={() => next !== null && onSelectSession(next)}
-                aria-label="Next session"
+                aria-label={t("observability.sessionDrawer.nextSession")}
             >
                 <CaretDown size={14} />
             </Button>
-            <span className="text-sm font-medium text-foreground">Session</span>
-            <CopyTooltip copyText={sessionId} title="Copy session id">
+            <span className="text-sm font-medium text-foreground">
+                {t("observability.sessionDrawer.session")}
+            </span>
+            <CopyTooltip
+                copyText={sessionId}
+                title={t("observability.sessionDrawer.copySessionId")}
+            >
                 <Badge className="max-w-full min-w-0 cursor-pointer font-mono">
                     <span className="truncate"># {sessionId}</span>
                 </Badge>
@@ -78,9 +90,16 @@ export const SessionDrawerHeader = ({
                     size="sm"
                     onClick={() => setAnnotationsVisible(!annotationsVisible)}
                 >
-                    {annotationsVisible ? "Hide annotations" : "Show annotations"}
+                    {annotationsVisible
+                        ? t("observability.sessionDrawer.hideAnnotations")
+                        : t("observability.sessionDrawer.showAnnotations")}
                 </Button>
-                <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onClose}
+                    aria-label={t("observability.sessionDrawer.close")}
+                >
                     <X size={14} />
                 </Button>
             </div>

@@ -111,7 +111,7 @@ describe("extractTemplateVariables", () => {
         // emits dotted PATHS for variables inside sections. The section
         // opener still emits its bare name (the user must provide a value
         // for the section to render), and nested references join the
-        // open-stack with `.` separators. `docs/designs/mustache-section
+        // open-stack with `.` separators. `docs/design/mustache-section
         // -support.md` §2b for the design.
         it("emits scoped paths for bare variables INSIDE a section block", () => {
             expect(extractTemplateVariables("{{#repo}}{{name}}{{/repo}}", "mustache")).toEqual([

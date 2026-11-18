@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {Alert, Button, EmptyState, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretRight, ChatCircleText} from "@phosphor-icons/react"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
@@ -20,6 +23,7 @@ export interface AgentEmbedPanelProps extends EmbedViewProps {
 /** Publish > Embed: the agent's embeds and "Create embed", or one embed's settings. */
 export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     const {client, projectId, agentId, agentName, connectionId, onOpen} = props
+    const t = useT(commonCatalog, publishCatalog)
     const queryClient = useQueryClient()
     const scope = {queryParams: {project_id: projectId}}
     const queryKey = ["channels", "embeds", projectId, agentId]
@@ -53,11 +57,11 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
                 <Alert
                     type="error"
                     showIcon
-                    message={embeds.error?.message ?? "Could not load the embeds."}
+                    message={embeds.error?.message ?? t("publish.loadEmbedsError")}
                     className="w-full"
                 />
                 <Button variant="outline" size="sm" onClick={() => void embeds.refetch()}>
-                    Try again
+                    {t("common.tryAgain")}
                 </Button>
             </div>
         )
@@ -66,7 +70,7 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     if (connectionId) {
         const embed = embeds.data.find((candidate) => candidate.id === connectionId)
         if (!embed) {
-            return <Alert type="error" showIcon message="This embed no longer exists." />
+            return <Alert type="error" showIcon message={t("publish.embedMissing")} />
         }
         return <EmbedSettingsForm key={embed.id} {...props} embed={embed} queryKey={queryKey} />
     }
@@ -77,7 +81,7 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
             onClick={() => create.mutate()}
             data-testid="agent-embed-create"
         >
-            Create embed
+            {t("publish.createEmbed")}
         </LoadingButton>
     )
     const createError = create.error ? (
@@ -89,8 +93,8 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
             <div className="flex min-w-0 flex-col gap-3" data-testid="agent-embed-panel">
                 <EmptyState
                     image={<ChatCircleText size={24} />}
-                    title="No embeds yet"
-                    description="Add a chat with this agent to your website."
+                    title={t("publish.noEmbedsTitle")}
+                    description={t("publish.embedsDescription")}
                 >
                     {createButton}
                 </EmptyState>
@@ -103,7 +107,7 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
         <div className="flex min-w-0 flex-col gap-3" data-testid="agent-embed-panel">
             <div className="flex items-center justify-between gap-3">
                 <span className="text-[13px] text-muted-foreground">
-                    Add a chat with this agent to your website.
+                    {t("publish.embedsDescription")}
                 </span>
                 {createButton}
             </div>
@@ -119,12 +123,12 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
                     >
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                             <span className="truncate text-sm font-medium text-foreground">
-                                {embed.name || "Embed"}
+                                {embed.name || t("publish.embed")}
                             </span>
                             <span className="truncate text-[12.5px] text-muted-foreground">
                                 {embed.restricted
                                     ? parseOrigins(embed.origins).origins.join(", ")
-                                    : "Any website"}
+                                    : t("publish.anyWebsite")}
                             </span>
                         </span>
                         <CaretRight size={12} className="flex-none text-muted-foreground" />

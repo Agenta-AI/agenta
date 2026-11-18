@@ -1,0 +1,21 @@
+{
+    "codeHeading": "受信トレイを確認してください",
+    "codeSubheading": "メールで送信した 6 文字のコードを入力してください。",
+    "continueWithSso": "SSO で続行（{{provider}}）",
+    "headingNew": "Agenta へようこそ",
+    "headingReturning": "おかえりなさい",
+    "noAuthMethods": "このデプロイではサインイン方法が有効になっていません。管理者に連絡してください。",
+    "noMethodForEmail": "このメールアドレスで利用できるサインイン方法がありません。別のアドレスをお試しください。",
+    "otpHeading": "サインインコードを受け取る",
+    "otpSubheading": "このアドレスにワンタイムコードをメールで送信します。",
+    "passwordHeading": "パスワードを入力",
+    "passwordSubheading": "Agenta は初めてですか？ここで設定したパスワードでアカウントが作成されます。",
+    "providerUnreachable": "そのプロバイダーに接続できませんでした。もう一度お試しください。",
+    "redirectingTo": "{{provider}} にリダイレクトしています…",
+    "signedInButAppFailed": "サインインしましたが、アプリを開けませんでした。もう一度お試しください。",
+    "ssoHeading": "SSO でサインイン",
+    "ssoSubheading": "このメールアドレスのサインインは組織が管理しています。",
+    "subheadingNew": "サインインするか、アカウントを作成します。",
+    "subheadingReturning": "サインインしてワークスペースに進みます。",
+    "termsNotice": "続行すると、Agenta の<terms>利用規約</terms>と<privacy>プライバシーポリシー</privacy>に同意したことになります。"
+}

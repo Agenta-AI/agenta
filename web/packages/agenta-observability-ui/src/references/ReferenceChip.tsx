@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState, type ComponentType, type MouseEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import referencesCatalog from "@agenta/i18n/catalogs/observabilityUi.references"
 import {SkeletonBlock, HoverCard, HoverCardContent, HoverCardTrigger} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {
@@ -37,13 +39,24 @@ export interface ReferenceChipProps {
     deleted?: boolean
 }
 
-const KIND_META: Record<ReferenceKind, {label: string; Icon: ComponentType<IconProps>}> = {
-    app: {label: "Application", Icon: SquaresFour},
-    variant: {label: "Variant", Icon: GitCommit},
-    testset: {label: "Test set", Icon: Database},
-    evaluator: {label: "Evaluator", Icon: Gavel},
-    environment: {label: "Environment", Icon: CloudArrowUp},
-}
+const KIND_META = {
+    app: {labelKey: "observabilityUi.references.application", Icon: SquaresFour},
+    variant: {labelKey: "observabilityUi.references.variant", Icon: GitCommit},
+    testset: {labelKey: "observabilityUi.references.testSet", Icon: Database},
+    evaluator: {labelKey: "observabilityUi.references.evaluator", Icon: Gavel},
+    environment: {labelKey: "observabilityUi.references.environment", Icon: CloudArrowUp},
+} as const satisfies Record<
+    ReferenceKind,
+    {
+        labelKey:
+            | "observabilityUi.references.application"
+            | "observabilityUi.references.variant"
+            | "observabilityUi.references.testSet"
+            | "observabilityUi.references.evaluator"
+            | "observabilityUi.references.environment"
+        Icon: ComponentType<IconProps>
+    }
+>
 
 // The per-kind tone variables from @agenta/ui/theme-variables.css, light and dark.
 const toneStyle = (kind: ReferenceKind) => ({
@@ -99,29 +112,49 @@ export const ReferenceChip = ({
     identifiers,
     deleted = false,
 }: ReferenceChipProps) => {
-    const {label: kindLabel, Icon} = KIND_META[kind]
+    const t = useT(referencesCatalog)
+    const {labelKey, Icon} = KIND_META[kind]
+    const kindLabel = t(labelKey)
     const linked = Boolean(href) && !deleted
     const version = deleted ? null : (identifiers?.version ?? null)
     const rows = deleted
         ? []
         : [
               identifiers?.slug && identifiers.slug !== label
-                  ? {name: "Slug", value: identifiers.slug, copy: identifiers.slug}
+                  ? {
+                        id: "slug",
+                        name: t("observabilityUi.references.slug"),
+                        value: identifiers.slug,
+                        copy: identifiers.slug,
+                    }
                   : null,
               identifiers?.id
-                  ? {name: "ID", value: middleTruncate(identifiers.id), copy: identifiers.id}
+                  ? {
+                        id: "id",
+                        name: t("observabilityUi.references.id"),
+                        value: middleTruncate(identifiers.id),
+                        copy: identifiers.id,
+                    }
                   : null,
               version != null
-                  ? {name: "Version", value: `v${version}`, copy: String(version)}
+                  ? {
+                        id: "version",
+                        name: t("observabilityUi.references.version"),
+                        value: `v${version}`,
+                        copy: String(version),
+                    }
                   : null,
               identifiers?.revisionId
                   ? {
-                        name: "Revision ID",
+                        id: "revisionId",
+                        name: t("observabilityUi.references.revisionId"),
                         value: middleTruncate(identifiers.revisionId),
                         copy: identifiers.revisionId,
                     }
                   : null,
-          ].filter((row): row is {name: string; value: string; copy: string} => row !== null)
+          ].filter(
+              (row): row is {id: string; name: string; value: string; copy: string} => row !== null,
+          )
 
     const body = (
         <>
@@ -129,7 +162,8 @@ export const ReferenceChip = ({
             <span className={clsx("min-w-0 truncate", deleted && "line-through")}>{label}</span>
             {version != null ? (
                 <span className="shrink-0 rounded-sm bg-colorBgContainer px-1 text-[11px] leading-4">
-                    v{version}
+                    {/* A version tag ("v3"), the same in every language. */}
+                    {`v${version}`}
                 </span>
             ) : null}
             {linked ? <ArrowSquareOut size={12} className="shrink-0" /> : null}
@@ -180,11 +214,14 @@ export const ReferenceChip = ({
                             {label}
                         </div>
                     </div>
-                    <CopyIconButton value={label} title="Copy name" />
+                    <CopyIconButton
+                        value={label}
+                        title={t("observabilityUi.references.copyName")}
+                    />
                 </div>
                 <div className="flex flex-col px-3 pb-2 pt-1.5">
                     {rows.map((row) => (
-                        <div key={row.name} className="flex min-h-6 items-center gap-2 py-1">
+                        <div key={row.id} className="flex min-h-6 items-center gap-2 py-1">
                             <span className="w-[76px] shrink-0 text-xs text-colorTextTertiary">
                                 {row.name}
                             </span>
@@ -194,7 +231,10 @@ export const ReferenceChip = ({
                             >
                                 {row.value}
                             </span>
-                            <CopyIconButton value={row.copy} title={`Copy ${row.name}`} />
+                            <CopyIconButton
+                                value={row.copy}
+                                title={t("observabilityUi.references.copyField", {name: row.name})}
+                            />
                         </div>
                     ))}
                 </div>

@@ -16,6 +16,8 @@
  */
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsFiltersCatalog from "@agenta/i18n/catalogs/sessions.filters"
 import {useSessionFilters} from "@agenta/sessions/state"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {FunnelIcon} from "@phosphor-icons/react"
@@ -53,6 +55,7 @@ export const SessionFiltersBar = ({
     hideAgentFilter,
     className,
 }: SessionFiltersBarProps) => {
+    const t = useT(sessionsFiltersCatalog)
     const [open, setOpen] = useState(false)
     const {agentId, mode, includeArchived} = useSessionFilters()
     // NOT gated on the roster having arrived: hiding the picker until the agents query resolves
@@ -91,11 +94,11 @@ export const SessionFiltersBar = ({
                     <PopoverTrigger asChild>
                         <button
                             type="button"
-                            aria-label="Filters"
+                            aria-label={t("sessions.filters.filters")}
                             className="box-border flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-colorFillQuaternary px-2 text-xs text-colorTextSecondary outline-none transition-colors hover:bg-colorFillSecondary hover:text-colorText focus-visible:text-colorText focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring lg:hidden"
                         >
                             <FunnelIcon size={14} weight={activeCount ? "fill" : "regular"} />
-                            Filters
+                            {t("sessions.filters.filters")}
                             {activeCount ? (
                                 <span className="rounded bg-colorFillSecondary px-1 py-0.5 text-[11px] leading-none text-colorText">
                                     {activeCount}
@@ -113,18 +116,18 @@ export const SessionFiltersBar = ({
                     >
                         {showAgent ? (
                             <section className="flex flex-col gap-2">
-                                <FilterLabel>Agent</FilterLabel>
+                                <FilterLabel>{t("sessions.filters.agent")}</FilterLabel>
                                 <SessionAgentControl agents={agents ?? []} />
                             </section>
                         ) : null}
 
                         <section className="flex flex-col gap-2">
-                            <FilterLabel>Show</FilterLabel>
+                            <FilterLabel>{t("sessions.filters.show")}</FilterLabel>
                             <SessionModeControl size="sm" />
                         </section>
 
                         <section className="flex flex-col gap-2">
-                            <FilterLabel>Include</FilterLabel>
+                            <FilterLabel>{t("sessions.filters.include")}</FilterLabel>
                             <SessionArchivedControl size="sm" />
                         </section>
                     </PopoverContent>

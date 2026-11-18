@@ -1,0 +1,11 @@
+{
+    "agent": "Agente",
+    "loadingConversation": "Cargando la conversación",
+    "noMessages": "No hay mensajes: esta sesión no tiene un historial reproducible.",
+    "readOnlyNoAgent": "Solo lectura: esta sesión aún no tiene ningún agente al que enviar mensajes.",
+    "readOnlyNoRevision": "Solo lectura: este agente aún no tiene ninguna revisión a la que enviar mensajes.",
+    "running": "en ejecución",
+    "tryAgain": "Intentar de nuevo",
+    "unreachableDescription": "El servidor no respondió. Comprueba tu conexión y vuelve a intentarlo.",
+    "unreachableTitle": "No se pudo cargar esta sesión"
+}

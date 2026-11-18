@@ -1,0 +1,15 @@
+{
+    "allowReads": "Lesezugriffe erlauben",
+    "alwaysAllowMany": "{{count}} Werkzeuge immer erlauben",
+    "alwaysAllowOne": "{{name}} immer erlauben",
+    "commands": "Befehle",
+    "modelDescription": "Modell dieses Agent wechseln",
+    "modelSetTo": "Modell auf {{label}} gesetzt",
+    "modelSetToHarness": "Modell auf {{label}} · {{harness}} gesetzt",
+    "newDescription": "Neue Sitzung mit diesem Agent starten",
+    "permissionsDescription": "Legen Sie fest, was der Agent tun darf, bevor er fragen muss",
+    "permissionsSetTo": "Berechtigungen auf {{label}} gesetzt",
+    "skills": "Skills",
+    "tools": "Werkzeuge",
+    "toolsCount": "{{count}} Werkzeuge"
+}

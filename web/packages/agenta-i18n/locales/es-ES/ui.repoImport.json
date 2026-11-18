@@ -1,0 +1,6 @@
+{
+    "scanRepository": "Analizar repositorio",
+    "repositoryUrl": "URL del repositorio",
+    "scanFailed": "No se ha podido analizar. Comprueba la URL y que el repositorio sea público.",
+    "noDescription": "Sin descripción."
+}

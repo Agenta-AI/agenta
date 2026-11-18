@@ -5,13 +5,9 @@ import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
- * Showcase stories (agenta only — NOT pixel pairs) for the antd→@agenta/ui migration of
- * `TestcaseDrawer`. The component is an `EnhancedDrawer` overlay that portals to `body`,
- * so its chrome cannot sit inside a `[label | antd | agenta]` grid cell for the VRT.
- * Every swapped piece is covered by primitive parity stories instead: ghost icon Buttons
- * (Button), header Tooltips (Tooltip), the footer split-button (DropdownButton — the same
- * `@agenta/ui/components` composition, replacing antd `Space.Compact` + `Dropdown`),
- * `Skeleton active paragraph={{rows: 8}}` (Skeleton), and the error `Alert` (Alert).
+ * Stories for `TestcaseDrawer`, an `EnhancedDrawer` overlay that portals to `body`. It shows
+ * ghost icon Buttons, header Tooltips, a footer split-button (DropdownButton), a loading
+ * Skeleton and an error `Alert`.
  *
  * Open each story in light AND dark; the drawer opens immediately.
  */

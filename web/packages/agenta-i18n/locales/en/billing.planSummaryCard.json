@@ -1,0 +1,11 @@
+{
+    "cancelSubscription": "Cancel subscription",
+    "changePlan": "Change plan",
+    "contactUs": "Contact us about your plan",
+    "creditsAMonth": "{{credits}} credits a month",
+    "currentPlan": "Current plan",
+    "renews": "Renews {{date}}",
+    "trialEnded": "Trial ended {{date}}",
+    "trialEnds": "Trial ends {{date}}",
+    "upgradePlan": "Upgrade plan"
+}

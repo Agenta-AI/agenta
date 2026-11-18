@@ -8,6 +8,8 @@
 
 import {memo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import clsx from "clsx"
 
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
@@ -123,6 +125,7 @@ const BooleanBar = memo(function BooleanBar({
     total: number
     width: number
 }) {
+    const t = useT(uiStatusCatalog)
     const truePercent = total > 0 ? (trueSeg.value / total) * 100 : 0
 
     return (
@@ -137,7 +140,7 @@ const BooleanBar = memo(function BooleanBar({
                         className="text-[12px] leading-[18px] whitespace-nowrap"
                         style={{color: TRUE_LABEL_COLOR}}
                     >
-                        true
+                        {t("ui.status.trueValue")}
                     </span>
                     <TooltipProvider delayDuration={100}>
                         <Tooltip>
@@ -164,7 +167,7 @@ const BooleanBar = memo(function BooleanBar({
                         className="text-[12px] leading-[18px] whitespace-nowrap"
                         style={{color: FALSE_LABEL_COLOR}}
                     >
-                        false
+                        {t("ui.status.falseValue")}
                     </span>
                     <TooltipProvider delayDuration={100}>
                         <Tooltip>

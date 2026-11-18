@@ -6,6 +6,8 @@
  * save the secret is written to the project vault and handed back via `onCreated` so the caller
  * can select it in its draft.
  */
+import {useT} from "@agenta/i18n"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {toEnvVarName} from "@agenta/shared/utils"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button} from "@agenta/ui/ui"
@@ -45,6 +47,7 @@ export function CreateSecretDrawer({
     onCreated,
     zIndex = 1100,
 }: CreateSecretDrawerProps) {
+    const t = useT(secretFormCatalog)
     // Default to the server's env var for this secret, falling back to the header name.
     const serverEnv = toEnvVarName(serverName ?? "")
     const suggestedName = serverEnv ? `${serverEnv}_${nameSuffix}` : toEnvVarName(headerName ?? "")
@@ -75,16 +78,18 @@ export function CreateSecretDrawer({
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="Back"
+                        aria-label={t("entityUi.secretForm.back")}
                         onClick={onClose}
                         className="shrink-0"
                     >
                         <ArrowLeft size={14} />
                     </Button>
                     <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">Create secret</div>
+                        <div className="truncate text-sm font-medium">
+                            {t("entityUi.secretForm.createSecret")}
+                        </div>
                         <div className="truncate text-xs font-normal text-colorTextSecondary">
-                            Available to every agent in this project
+                            {t("entityUi.secretForm.availableToEveryAgent")}
                         </div>
                     </div>
                 </div>
@@ -93,13 +98,13 @@ export function CreateSecretDrawer({
                 <DrawerFooter
                     left={
                         <span className="min-w-0 truncate text-xs text-colorTextSecondary">
-                            Saved to the project, then selected here
+                            {t("entityUi.secretForm.savedThenSelected")}
                         </span>
                     }
                     onCancel={onClose}
                     isMutating={controller.saving}
                     canSave={!controller.okDisabled}
-                    submitLabel="Save"
+                    submitLabel={t("entityUi.secretForm.save")}
                     onSubmit={controller.submit}
                 />
             }

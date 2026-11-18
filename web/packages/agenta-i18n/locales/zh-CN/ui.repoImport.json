@@ -1,0 +1,6 @@
+{
+    "scanRepository": "扫描仓库",
+    "repositoryUrl": "仓库 URL",
+    "scanFailed": "扫描失败。请检查 URL，并确认仓库是公开的。",
+    "noDescription": "暂无描述。"
+}

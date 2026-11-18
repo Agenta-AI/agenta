@@ -18,6 +18,8 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -389,6 +391,7 @@ const ToolHeader = memo(function ToolHeader({
     referenceSlug,
     containerRef,
 }: ToolHeaderProps) {
+    const t = useT(toolFormCatalog)
     return (
         <div className="w-full flex items-start justify-between py-1">
             <div className="grow min-w-0">
@@ -401,7 +404,7 @@ const ToolHeader = memo(function ToolHeader({
                                 <GraphIcon size={14} />
                             </span>
                             <span className="text-sm font-semibold truncate">
-                                {name || referenceSlug || "Workflow tool"}
+                                {name || referenceSlug || t("entityUi.toolForm.workflowTool")}
                             </span>
                             {referenceSlug && (
                                 <span className="text-xs truncate text-colorTextDescription">
@@ -436,13 +439,13 @@ const ToolHeader = memo(function ToolHeader({
                 ) : (
                     <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-semibold truncate">
-                            {name || "Function Name"}
+                            {name || t("entityUi.toolForm.functionName")}
                         </span>
                         {desc ? (
                             <span className="text-xs text-colorTextDescription">{desc}</span>
                         ) : (
                             <span className="text-xs opacity-50 text-colorTextDescription">
-                                Function Description
+                                {t("entityUi.toolForm.functionDescription")}
                             </span>
                         )}
                     </div>
@@ -457,13 +460,13 @@ const ToolHeader = memo(function ToolHeader({
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Duplicate"
+                                    aria-label={t("entityUi.toolForm.duplicate")}
                                     onClick={onDuplicate}
                                 >
                                     <CopySimple size={14} />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Duplicate</TooltipContent>
+                            <TooltipContent>{t("entityUi.toolForm.duplicate")}</TooltipContent>
                         </Tooltip>
                     )}
                     {!isReadOnly && onDelete && (
@@ -472,13 +475,13 @@ const ToolHeader = memo(function ToolHeader({
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Remove"
+                                    aria-label={t("entityUi.toolForm.remove")}
                                     onClick={onDelete}
                                 >
                                     <MinusCircle size={14} />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Remove</TooltipContent>
+                            <TooltipContent>{t("entityUi.toolForm.remove")}</TooltipContent>
                         </Tooltip>
                     )}
                 </TooltipProvider>
@@ -531,6 +534,7 @@ export const ToolItemControl = memo(function ToolItemControl({
     className,
     renderProviderIcon,
 }: ToolItemControlProps) {
+    const t = useT(toolFormCatalog)
     const {SharedEditor, gatewayTools} = useDrillInUI()
 
     // Use prop if provided, otherwise use default
@@ -732,7 +736,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                 />
                 {!minimized && (
                     <textarea
-                        aria-label="Tool configuration"
+                        aria-label={t("entityUi.toolForm.toolConfiguration")}
                         className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                         value={editorText}
                         onChange={(e) => onEditorChange(e.target.value)}
