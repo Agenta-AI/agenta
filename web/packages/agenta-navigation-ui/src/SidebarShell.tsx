@@ -254,8 +254,13 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
 
         return (
             <React.Fragment key={section.key}>
-                {section.dividerBefore && !collapsed && (
-                    <hr className="my-2 w-full shrink-0 border-0 border-t border-solid border-[var(--ag-shell-line)]" />
+                {section.dividerBefore && (
+                    <hr
+                        className={clsx(
+                            "w-full shrink-0 border-0 border-t border-solid border-[var(--ag-shell-line)]",
+                            collapsed ? "my-1" : "my-2",
+                        )}
+                    />
                 )}
                 {renderSlot(section.before, collapsed)}
                 <NavMenu
