@@ -1,6 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
-import {formatCount, skillDisplayName} from "@agenta/shared/utils"
+import {extractApiErrorMessage, formatCount, skillDisplayName} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
@@ -20,8 +20,7 @@ interface Found {
     unavailable: UnavailableSkill[]
 }
 
-const errorText = (err: unknown, fallback: string) =>
-    err instanceof Error && err.message ? `${fallback}: ${err.message}` : `${fallback}.`
+const errorText = (err: unknown, fallback: string) => extractApiErrorMessage(err) || `${fallback}.`
 
 const repoLabel = (url: string) =>
     url

@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache, skillsListDataAtom} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
@@ -27,7 +28,7 @@ export interface CreatedSkill {
 }
 
 const failure = (err: unknown, what: string) =>
-    err instanceof Error && err.message ? `${what} failed: ${err.message}` : `${what} failed.`
+    extractApiErrorMessage(err) || `${what} failed.`
 
 /** The create flow's state: which step, the draft, an upload's picks, and the writes. */
 export function useSkillCreateFlow({

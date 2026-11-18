@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {downloadSkill} from "@agenta/entity-ui/drill-in"
-import {timeAgo} from "@agenta/shared/utils"
+import {extractApiErrorMessage, timeAgo} from "@agenta/shared/utils"
 import {
     applySkillUpdate,
     checkSkillUpdate,
@@ -220,9 +220,7 @@ export function SkillDetailView({
             setAttempted(false)
             setJustSaved(true)
         } catch (err) {
-            message.error(
-                err instanceof Error && err.message ? `Save failed: ${err.message}` : "Save failed",
-            )
+            message.error(extractApiErrorMessage(err) || "Save failed.")
         } finally {
             setSaving(false)
         }

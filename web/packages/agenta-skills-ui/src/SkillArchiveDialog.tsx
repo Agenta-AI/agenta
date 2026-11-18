@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {archiveSkill, querySkillReferencedBy} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
@@ -81,7 +82,7 @@ export function SkillArchiveDialog({
             }
             onArchived(done)
         } catch (err) {
-            const reason = err instanceof Error && err.message ? err.message : "Archiving failed."
+            const reason = extractApiErrorMessage(err) || "Archiving failed."
             if (done.length) {
                 message.error(`Some skills were not archived: ${reason}`)
                 onArchived(done)
