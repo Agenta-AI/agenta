@@ -61,14 +61,13 @@ describe("Invite Teammate in the rail", () => {
 
     afterEach(() => act(() => root.unmount()))
 
-    it("Developer Mode adds Invite Teammate after Settings, opening the invite dialog", () => {
+    it("Developer Mode adds Invite Teammate above Settings, opening the invite dialog", () => {
         expect(render(true)).toEqual([
-            {key: "mobile-templates", link: `${P}/templates`},
-            {key: "mobile-settings", link: `${P}/settings`},
             {
                 key: "invite-teammate-link",
                 link: `${P}/settings?tab=workspace&inviteModal=open`,
             },
+            {key: "mobile-settings", link: `${P}/settings`},
         ])
         expect(permission).toHaveBeenCalledWith("proj-1", "add_new_user_to_workspace")
     })
@@ -79,11 +78,11 @@ describe("Invite Teammate in the rail", () => {
 
     it("a reader who may not invite gets no row", () => {
         permission.mockReturnValue(false)
-        expect(render(true).map(({key}) => key)).toEqual(["mobile-templates", "mobile-settings"])
+        expect(render(true).map(({key}) => key)).toEqual(["mobile-settings"])
     })
 
     it("without Developer Mode the bottom rail is unchanged and asks no permission", () => {
-        expect(render(false).map(({key}) => key)).toEqual(["mobile-templates", "mobile-settings"])
+        expect(render(false).map(({key}) => key)).toEqual(["mobile-settings"])
         expect(render(false, false)).toEqual([])
         expect(permission.mock.calls.every(([projectId]) => projectId === "")).toBe(true)
     })

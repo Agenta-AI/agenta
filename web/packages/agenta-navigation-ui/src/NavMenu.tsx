@@ -721,9 +721,8 @@ const NavMenuImpl = ({
                 // Collapsed rows carry no margin of their own (ROW_BASE's `mb-1` belongs to the
                 // expanded rail), so without this the icon buttons touch edge to edge.
                 collapsed && "gap-1",
-                // A scrolling group only shrinks if its own line can: claim the section's height
-                // and allow shrinking past the content.
-                items.some((item) => item.scrollChildren) && "min-h-0 flex-1",
+                // Claim the spare height, but keep room for a few rows; past that the rail scrolls.
+                items.some((item) => item.scrollChildren) && "min-h-40 flex-1",
                 className,
             )}
         >

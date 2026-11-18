@@ -156,7 +156,9 @@ describe("the sidebar credits meter", () => {
         )
 
         expect(shown).toContain("0 of 75")
-        expect(host!.querySelector(".bg-primary")?.getAttribute("style")).toContain("width: 0%")
+        expect(host!.querySelector(".bg-muted > span")?.getAttribute("style")).toContain(
+            "width: 0%",
+        )
     })
 
     it("is hidden in off mode", async () => {
