@@ -2,6 +2,7 @@ import {useMemo, useRef, useState, type DragEvent, type ReactNode} from "react"
 
 import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import type {SkillFile} from "@agenta/skills"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -105,6 +106,8 @@ export function SkillEditor({
     const [dragging, setDragging] = useState(false)
     const [bodyToolbar, setBodyToolbar] = useState<HTMLDivElement | null>(null)
     const [fileToolbar, setFileToolbar] = useState<HTMLDivElement | null>(null)
+    const filesListRef = useRef<HTMLDivElement>(null)
+    useScrollFadeEdges(filesListRef)
     const pickerRef = useRef<HTMLInputElement>(null)
 
     const latest = useRef(draft)
@@ -421,10 +424,14 @@ export function SkillEditor({
                         onDragLeave={() => setDragging(false)}
                         onDrop={onDrop}
                         className={cn(
-                            "box-border flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded-[10px] border border-solid border-input bg-background p-1.5",
+                            "box-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border border-solid border-input bg-background",
                             dragging && "border-dashed border-foreground",
                         )}
                     >
+                        <div
+                            ref={filesListRef}
+                            className="ag-scroll-fade flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5"
+                        >
                         {hasFiles ? (
                             <>
                                 <div
@@ -488,7 +495,8 @@ export function SkillEditor({
                                 )}
                             </div>
                         )}
-                        <div className="sticky -bottom-1.5 z-[1] -mx-1.5 -mb-1.5 mt-auto flex items-center gap-2.5 rounded-b-[9px] px-3.5 py-2.5 [background:linear-gradient(color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent),color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)),var(--background)]">
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2.5 bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)] px-3.5 py-2.5">
                             <span id="skill-exec-label" className="flex-1 text-[13px] font-medium">
                                 Let files run as programs
                             </span>
