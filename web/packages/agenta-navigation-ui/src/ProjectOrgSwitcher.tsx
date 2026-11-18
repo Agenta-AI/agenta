@@ -8,6 +8,7 @@ import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowsLeftRight,
+    CaretDown,
     CaretRight,
     CaretUpDown,
     Check,
@@ -50,8 +51,10 @@ export interface ProjectOrgSwitcherViewProps {
     panelContainer?: HTMLElement | null
     /** Theme fly-out row above logout — omit and no theme control renders. */
     theme?: SwitcherThemeControl
-    /** Rendered beside the trigger on the expanded rail — the help menu button. */
+    /** Rendered beside the trigger on the expanded rail. */
     trailing?: ReactNode
+    /** Where the panel opens: "bottom" when the switcher sits in the rail's header. */
+    side?: "top" | "bottom"
     /** Quiet text inside the expanded trigger, before the caret (the app version). */
     triggerMeta?: ReactNode
     /** Optional rows — absent handlers render nothing, so a shell offers what it supports. */
@@ -154,6 +157,7 @@ export const ProjectOrgSwitcherView = ({
     panelContainer,
     theme,
     trailing,
+    side = "top",
     triggerMeta,
     onCreateProject,
     onCreateOrg,
@@ -291,7 +295,8 @@ export const ProjectOrgSwitcherView = ({
                 // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 pb-1.5 transition-all duration-300",
+                "flex gap-1 px-2 transition-all duration-300",
+                side === "bottom" ? "h-12 shrink-0" : "pb-1.5",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -330,10 +335,17 @@ export const ProjectOrgSwitcherView = ({
                                         {triggerMeta}
                                     </span>
                                 ) : null}
-                                <CaretUpDown
-                                    size={12}
-                                    className="shrink-0 text-colorTextSecondary"
-                                />
+                                {side === "bottom" ? (
+                                    <CaretDown
+                                        size={12}
+                                        className="shrink-0 text-colorTextSecondary"
+                                    />
+                                ) : (
+                                    <CaretUpDown
+                                        size={12}
+                                        className="shrink-0 text-colorTextSecondary"
+                                    />
+                                )}
                             </>
                         )}
                     </button>
@@ -345,7 +357,7 @@ export const ProjectOrgSwitcherView = ({
                 <PopoverContent
                     container={panelContainer}
                     onOpenAutoFocus={(event) => event.preventDefault()}
-                    side="top"
+                    side={side}
                     align="start"
                     className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
                 >

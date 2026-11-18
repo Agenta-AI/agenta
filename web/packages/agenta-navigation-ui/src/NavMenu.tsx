@@ -2,7 +2,12 @@ import {Fragment, memo, useRef, type KeyboardEvent, type MouseEvent, type ReactN
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import type {SidebarConfig, SidebarDragItem, SidebarMenuMode} from "@agenta/navigation"
+import type {
+    SidebarArrange,
+    SidebarConfig,
+    SidebarDragItem,
+    SidebarMenuMode,
+} from "@agenta/navigation"
 import {HeightCollapse} from "@agenta/ui/components/presentational"
 import {
     DropdownMenu,
@@ -22,9 +27,11 @@ import {CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
+import {ArrangeablePages} from "./ArrangeablePages"
 import {FadeScrollBox} from "./FadeScrollBox"
 import {HoverFlyout} from "./HoverFlyout"
 import {SidebarReorderLayer} from "./reorder"
+import {ROW_BASE, ROW_HEIGHT, ROW_INTERACTIVE, ROW_SELECTED} from "./rowStyles"
 
 /**
  * The antd-free nav renderer: one `@agenta/navigation` model, any shell. Inline mode expands
@@ -43,27 +50,11 @@ export interface NavMenuProps {
     onPopupOpenChange?: (key: string, open: boolean) => void
     /** Controlled scopes (settings): handle the click and suppress navigation. */
     onItemSelect?: (key: string, event: MouseEvent) => void
+    /** Makes the top-level rows arrangeable, with a "More" row for the hidden ones. */
+    arrange?: SidebarArrange
     className?: string
 }
 
-// calc, not 94%: an exact 8px inset each side, so the row's right edge lines up with the
-// 8px-inset collapse toggle in the brand row.
-// h-7/text-sm: the rail's own row, and the reading rhythm ChatGPT and Manus keep. A
-// 26px/13px pass was tried and read as one packed column with no breathing room.
-// gap-[10px], not gap-2: the rail's icon-to-label gap is 10px.
-// leading-7, not leading-none: `truncate` clips to the line box, and a line box equal to the
-// font size slices the descenders off every g, p and y.
-const ROW_HEIGHT = "h-7 text-sm leading-7"
-// shrink-0: the rows are flex children of a `min-h-0 flex-1` nav, so an overflowing rail
-// squeezed them below their own height instead of scrolling. The Sessions group owns the
-// scrolling; every other row holds its size.
-const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-md px-3 select-none`
-const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
-// The rail's own selection tokens, not neutral fills: a raised pill with a hairline in both
-// themes. The ring is inset rather than a border so the row's box never changes size
-// between states.
-const ROW_SELECTED =
-    "bg-[var(--ag-shell-selected-bg)] font-medium !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
 const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
 // Guide line marks the group's extent, the way the old inline menu did.
 const GROUP_CHILDREN =
@@ -339,6 +330,7 @@ const LeafRow = memo(function LeafRow({
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
                 item.rowAction && "group/row pr-0",
+                item.trailing && "pr-0",
                 item.rowClassName,
                 isControl &&
                     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
@@ -360,6 +352,11 @@ const LeafRow = memo(function LeafRow({
             <RowLabel item={item} onItemSelect={onItemSelect} />
             {/* Above the stretched link anchor, like a group's action. */}
             {item.rowAction ? <span className={ROW_ACTION}>{item.rowAction}</span> : null}
+            {item.trailing ? (
+                <span className="relative z-[1] mr-0.5 flex shrink-0 items-center">
+                    {item.trailing}
+                </span>
+            ) : null}
         </div>
     )
 })
@@ -514,6 +511,7 @@ const NavMenuImpl = ({
     onToggleOpenKey,
     onPopupOpenChange,
     onItemSelect,
+    arrange,
     className,
 }: NavMenuProps) => {
     const t = useT(navigationCatalog)
@@ -729,7 +727,16 @@ const NavMenuImpl = ({
                 className,
             )}
         >
-            {items.map(renderItem)}
+            {arrange ? (
+                <ArrangeablePages
+                    items={items}
+                    arrange={arrange}
+                    collapsed={collapsed}
+                    renderItem={renderItem}
+                />
+            ) : (
+                items.map(renderItem)
+            )}
             {inline ? <SidebarReorderLayer containerRef={navRef} /> : null}
         </nav>
     )

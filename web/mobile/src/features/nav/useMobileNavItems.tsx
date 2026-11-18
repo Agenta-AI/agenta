@@ -70,6 +70,7 @@ import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {SupportActions} from "./SupportActions"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)
@@ -177,7 +178,14 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
  */
-export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+export interface MobileNavItems {
+    /** The pages the user arranges, in their default order. */
+    pages: SidebarConfig[]
+    sessions: SidebarConfig
+    defaultHidden: ReadonlySet<string>
+}
+
+export const useMobileNavItems = (projectURL: string): MobileNavItems => {
     const t = useT(navigationCatalog)
     // Sessions this client created ride the shared local seam until the server lists them.
     useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
@@ -257,15 +265,15 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [developerMode, developerViews, projectURL, promptsSource, t],
     )
 
-    return useMemo(
-        () => [
+    return useMemo(() => {
+        const developerRows = [...developerSlots.afterHome, ...developerSlots.afterSessions]
+        const pages: SidebarConfig[] = [
             {
                 key: "mobile-home",
                 title: t("navigation.items.home"),
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
-            ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
@@ -282,6 +290,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                         autoFocusSearch: false,
                     }),
             },
+            {
+                key: "mobile-templates",
+                title: "Templates",
+                icon: createElement(SquaresFourIcon, {size: 16}),
+                link: `${projectURL}/templates`,
+            },
             // After Agents: an automation is something an agent has, and Skills is what it uses.
             {
                 key: "automations",
@@ -295,42 +309,43 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 icon: createElement(CompassIcon, {size: 16}),
                 link: `${projectURL}/skills`,
             },
-            {
-                key: SESSIONS_SIDEBAR_KEY,
-                title: t("navigation.items.sessions"),
-                icon: createElement(ChatsCircleIcon, {size: 16}),
-                link: `${projectURL}/sessions`,
-                hideChildrenWhenCollapsed: true,
-                // No collapse caret here: the filter control is this group's affordance, and the
-                // rows are grouped and individually collapsible already.
-                alwaysOpen: true,
-                // The rail does not scroll; THIS group does. Sessions is the only list that grows
-                // without bound, so Observability (and whatever lands after it) stays on screen.
-                scrollChildren: true,
-                onReachEnd: loadMoreSessions,
-                // Search reaches past what the rail lists; the filter narrows it.
-                groupAction: createElement(
-                    "span",
-                    {className: "flex items-center gap-0.5"},
-                    createElement(SessionSearchButton, {
-                        label: t("navigation.items.search"),
-                        shortcut: paletteShortcut,
-                    }),
-                    createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
-                ),
-                submenu: resolveChildren(
-                    mobileSessionsEntity,
-                    source,
-                    projectURL,
-                    undefined,
-                    undefined,
-                    wrapSessionRow,
-                ),
-            },
-            ...developerSlots.afterSessions,
-        ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots, t],
-    )
+            ...developerRows,
+        ]
+        const sessions: SidebarConfig = {
+            key: SESSIONS_SIDEBAR_KEY,
+            title: t("navigation.items.sessions"),
+            icon: createElement(ChatsCircleIcon, {size: 16}),
+            link: `${projectURL}/sessions`,
+            hideChildrenWhenCollapsed: true,
+            // No collapse caret here: the filter control is this group's affordance, and the
+            // rows are grouped and individually collapsible already.
+            alwaysOpen: true,
+            // The rail does not scroll; THIS group does, so the footer stays on screen.
+            scrollChildren: true,
+            onReachEnd: loadMoreSessions,
+            // Search reaches past what the rail lists; the filter narrows it.
+            groupAction: createElement(
+                "span",
+                {className: "flex items-center gap-0.5"},
+                createElement(SessionSearchButton, {
+                    label: t("navigation.items.search"),
+                    shortcut: paletteShortcut,
+                }),
+                createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
+            ),
+            submenu: resolveChildren(
+                mobileSessionsEntity,
+                source,
+                projectURL,
+                undefined,
+                undefined,
+                wrapSessionRow,
+            ),
+        }
+        // Developer pages start in "More".
+        const defaultHidden = new Set(developerRows.map((row) => row.key))
+        return {pages, sessions, defaultHidden}
+    }, [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots, t])
 }
 
 // Lazy-load package.json so its version stays out of the initial bundle.
@@ -339,7 +354,7 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Templates and Settings (not in the settings scope), plus Invite Teammate in Developer Mode. */
+/** Settings with the support buttons (not in the settings scope), plus Invite Teammate in Developer Mode. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
@@ -375,12 +390,6 @@ export const useMobileBottomNavItems = (
             includeSettingsLink
                 ? [
                       {
-                          key: "mobile-templates",
-                          title: t("navigation.items.templates"),
-                          icon: createElement(SquaresFourIcon, {size: 16}),
-                          link: `${projectURL}/templates`,
-                      },
-                      {
                           key: "mobile-settings",
                           title: t("common.settings"),
                           icon: createElement(GearIcon, {size: 16}),
@@ -392,19 +401,20 @@ export const useMobileBottomNavItems = (
                                     `v${version}`,
                                 )
                               : undefined,
+                          trailing: createElement(SupportActions, {projectId}),
                       },
                   ]
                 : [],
-        [includeSettingsLink, projectURL, version, t],
+        [includeSettingsLink, projectId, projectURL, version, t],
     )
     return useMemo(
-        () => (inviteItems.length ? [...items, ...inviteItems] : items),
+        () => (inviteItems.length ? [...inviteItems, ...items] : items),
         [inviteItems, items],
     )
 }
 
 /**
- * Help & Docs as an item the rail renders as an icon button beside the project switcher.
+ * Help & Docs as an item the rail renders as an icon button on the Settings row.
  * It is a menu you reach for, not a place in the product,
  * and the row it held was the widest thing in the rail's footer.
  */

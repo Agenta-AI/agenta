@@ -264,6 +264,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     // section after it down the rail.
                     className={section.placement === "bottom" ? "pb-1" : undefined}
                     items={section.items}
+                    arrange={section.arrange}
                     collapsed={collapsed}
                     mode={section.mode}
                     selectedKeys={selectedKeys}

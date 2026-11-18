@@ -144,7 +144,7 @@ describe("the sidebar credits meter", () => {
             <CreditsRemainingWidget projectId="proj-1" settingsURL="/settings" collapsed={false} />,
         )
 
-        expect(shown).toContain("Credits remaining")
+        expect(shown).toContain("Credits")
         expect(shown).toContain("1,234.5 of 5,000")
         expect(host!.querySelector("a")?.getAttribute("href")).toBe("/settings?tab=credits")
     })

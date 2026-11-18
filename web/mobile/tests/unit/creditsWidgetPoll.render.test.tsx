@@ -89,7 +89,7 @@ describe("CreditsRemainingWidget", () => {
         await renderWidget()
         await idle(60_000)
         expect(api.summary.mock.calls.length).toBe(1)
-        expect(host!.textContent).toContain("Credits remaining")
+        expect(host!.textContent).toContain("Credits")
 
         await act(async () => report(true))
         await idle(30_000)

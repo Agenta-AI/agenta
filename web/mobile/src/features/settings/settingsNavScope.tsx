@@ -23,6 +23,7 @@ import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {lastNonSettingsPathAtom} from "../nav/lastNonSettingsPath"
+import {SupportActions} from "../nav/SupportActions"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 
 import {
@@ -125,6 +126,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
             workspaceId={workspaceId}
             projectId={projectId}
             collapsed={collapsed}
+            trailing={<SupportActions projectId={projectId} />}
         />
     )
 
