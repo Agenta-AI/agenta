@@ -527,7 +527,7 @@ export function SkillEditor({
                                 )}
                             </div>
                         )}
-                        <div className="mt-auto flex items-center gap-2.5 border-0 border-t border-solid border-border/60 px-2 pb-1.5 pt-2.5">
+                        <div className="-mx-1.5 -mb-1.5 mt-auto flex items-center gap-2.5 rounded-b-[9px] bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)] px-3.5 py-2.5">
                             <span id="skill-exec-label" className="flex-1 text-[13px] font-medium">
                                 Let files run as programs
                             </span>
