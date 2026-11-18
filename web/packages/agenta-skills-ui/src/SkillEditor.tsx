@@ -511,7 +511,7 @@ export function SkillEditor({
                                     <span className="max-w-[240px] text-[13px] leading-[18px] text-muted-foreground">
                                         {readOnly
                                             ? "This skill has only its instructions."
-                                            : "Add scripts, templates or examples the agent can open. You can also drop files here."}
+                                            : "Add scripts, templates or examples the agent can use."}
                                     </span>
                                 </span>
                                 {readOnly ? null : (
