@@ -175,7 +175,7 @@ a {
   border-color: transparent;
 }
 /* Pill variant (landing): the shell sticks and the rAF loop toggles
-   `.nav-scrolled` on <html> past 24px. Only .ag-nav-inner animates — it narrows
+   `.nav-scrolled` on <html> past 160px. Only .ag-nav-inner animates — it narrows
    into a centered pill and drops by --nav-pill-inset, carrying brand (left) and
    CTAs (right) inward. The center links sit in a separate absolutely-centered
    layer, so they hold x (dx=0) and only ride down (dy=+inset) with the pill. */

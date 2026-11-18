@@ -419,7 +419,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   }
 
   // Nav-pill: landing only. The rAF loop toggles `.nav-scrolled` on <html> past
-  // 24px so the sticky bar floats into the glass pill (styles in global.css). It
+  // 160px so the sticky bar floats into the glass pill (styles in global.css). It
   // runs ONLY when a `nav[data-pill]` is present — inner pages render a static
   // bar with no pill, so the loop never starts and `.nav-scrolled` never toggles.
   const root = document.documentElement;
@@ -428,7 +428,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     let raf = 0;
     const measure = () => {
       raf = 0;
-      const on = (window.scrollY || root.scrollTop || 0) > 24;
+      const on = (window.scrollY || root.scrollTop || 0) > 160;
       if (on !== root.classList.contains("nav-scrolled")) {
         root.classList.toggle("nav-scrolled", on);
       }
