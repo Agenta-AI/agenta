@@ -132,9 +132,9 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     <a class="ag-navlink" href={pricing.href} style={linkStyle}>{pricing.label}</a>
 
     <div class="ag-navdd" data-mega>
-      <a class="ag-navlink" href="/marketplace" style={linkStyle} aria-haspopup="true" aria-expanded="false" aria-controls="ag-mega-templates">
+      <button class="ag-navlink" type="button" style={triggerStyle} aria-expanded="false" aria-controls="ag-mega-templates">
         Templates
-      </a>
+      </button>
       <div class="ag-mega ag-art" id="ag-mega-templates" role="region" aria-label="Templates">
         <div class="ag-mega__cols">
           {
@@ -164,6 +164,9 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
               </div>
             ))
           }
+        </div>
+        <div class="ag-mega__foot">
+          <a class="ag-mega__all" href="/marketplace">See all templates<span set:html={arrow} /></a>
         </div>
       </div>
     </div>
@@ -349,17 +352,9 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     menus.forEach((dd) => {
       const trigger = triggerOf(dd);
       const panel = dd.querySelector<HTMLElement>(".ag-mega");
-      const isLink = trigger instanceof HTMLAnchorElement;
-      trigger?.addEventListener("click", (e) => {
+      trigger?.addEventListener("click", () => {
         clearTimeout(timers.get(dd));
         const isOpen = dd.hasAttribute("data-open");
-        if (isLink) {
-          if (finePointer.matches || isOpen) return;
-          e.preventDefault();
-          closeAll(dd);
-          setOpen(dd, true, "click");
-          return;
-        }
         // A click on a menu that hover just opened keeps it open.
         const open = !isOpen || dd.dataset.openedBy === "hover";
         closeAll(dd);

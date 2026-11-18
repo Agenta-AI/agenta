@@ -151,6 +151,25 @@ a.ag-mega__head:focus-visible svg {
   outline-offset: 2px;
   border-radius: 4px;
 }
+.ag-mega__foot {
+  grid-column: 1 / -1;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--lp-line-2);
+}
+.ag-mega__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 14px/20px var(--font-sans);
+  color: var(--lp-text);
+  text-decoration: underline 2px var(--yellow-400);
+  text-underline-offset: 5px;
+}
+.ag-mega__all:focus-visible {
+  outline: 2px solid var(--lp-text);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 .ag-mega__side {
   padding: 16px 16px 16px 0;
 }
