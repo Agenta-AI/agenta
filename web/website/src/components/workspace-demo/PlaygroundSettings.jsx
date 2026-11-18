@@ -54,7 +54,8 @@ const countSummary = (n, noun) =>
 
 // Row avatar colors from the product item descriptors.
 const AVATAR = {
-  instructions: "var(--muted)",
+  // The product row colour for an instructions file (itemDescriptors.describeInstruction).
+  instructions: "#0f766e",
   subagent: "var(--muted)",
   skill: "var(--muted)",
 };
@@ -221,7 +222,11 @@ export default function PlaygroundSettings({ agent, onHide }) {
           >
             <span
               className="ag-settings-avatar"
-              style={{ background: AVATAR.instructions }}
+              style={{
+                background: AVATAR.instructions,
+                color: "#fff",
+                boxShadow: "none",
+              }}
             >
               <FileText size={14} />
             </span>
