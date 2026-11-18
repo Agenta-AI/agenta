@@ -31,22 +31,18 @@ export const SidebarToggleButton = ({
             type="text"
             size="small"
             className={clsx(
-                // A 28px square, the same box the rail's icon rows use, so the one control above
-                // the list is as easy to hit as the rows under it. It was 22 with a -3px ::after
-                // extending only the POINTER area, which left a hover fill visibly smaller than
-                // the thing you were pointing at.
-                "shrink-0 !size-7 !p-0",
-                // 4px nearer the rail's right edge on the expanded rail only; collapsed, it centres.
-                !collapsed && "-mr-1",
+                // 24px beside the header's trigger, 32px as the icon rail's first button.
+                "shrink-0 !p-0",
+                collapsed && !onDismiss ? "!size-8" : "!size-6 mr-0.5",
                 className,
             )}
             aria-label={onDismiss ? t("navigation.chrome.closeNavigation") : undefined}
             icon={
                 onDismiss ? (
-                    <X size={16} />
+                    <X size={14} />
                 ) : (
                     <Sidebar
-                        size={16}
+                        size={collapsed ? 16 : 14}
                         className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
                     />
                 )

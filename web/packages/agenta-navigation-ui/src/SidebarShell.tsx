@@ -254,8 +254,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
 
         return (
             <React.Fragment key={section.key}>
-                {section.dividerBefore && (
-                    <hr className="my-1 w-full border-0 border-t border-solid border-colorBorderSecondary" />
+                {section.dividerBefore && !collapsed && (
+                    <hr className="my-2 w-full shrink-0 border-0 border-t border-solid border-[var(--ag-shell-line)]" />
                 )}
                 {renderSlot(section.before, collapsed)}
                 <NavMenu
@@ -363,6 +363,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div
                                 className={clsx(
                                     "w-full flex flex-col shrink-0",
+                                    !collapsed &&
+                                        "border-0 border-t border-solid border-[var(--ag-shell-line)] pt-2",
                                     // The home indicator sits inside `dvh`; reserve it.
                                     isOverlay && "pb-[env(safe-area-inset-bottom)]",
                                 )}

@@ -39,7 +39,6 @@ import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
     ChatsCircleIcon,
-    CircleIcon,
     GearIcon,
     GithubLogoIcon,
     CompassIcon,
@@ -104,32 +103,12 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         hideWhenEmpty: true,
         // No "Show all" row: the group's own "Sessions" row already links to the full list, and
         // the headings make a trailing overflow link read as one more session.
-        // No pin glyph: pinned rows sit under their own heading, which says it once.
-        // Amber for a session blocked on you. `--ag-run-status-warning` rather than
-        // `colorWarning`: the semantic token's light step is a muddy #8a6400 that reads as
-        // disabled at 8px, and this one is the palette's bright amber in BOTH themes.
-        getIcon: (session) => {
-            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
-            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
-            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
-            const live = session.waiting || session.alive
-            if (session.running) return createElement(Spinner, {className: "size-3"})
-            if (session.isAutomation)
-                return createElement(LightningIcon, {
-                    size: 12,
-                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
-                    weight: live ? "fill" : "regular",
-                    className: amber,
-                })
-            return createElement(CircleIcon, {
-                size: 8,
-                weight: live ? "fill" : "regular",
-                className: amber,
-            })
-        },
+        // No leading glyph: a row's state shows as a quiet mark on its right (sessionStatusMark).
+        getIcon: () => null,
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
-        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
+        getRowClassName: (session) =>
+            session.archived ? "text-colorTextSecondary opacity-60" : "text-colorTextSecondary",
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -153,6 +132,17 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         maxItems: SIDEBAR_UNBOUNDED,
     },
 )
+
+/** A mark only when it matters: a spinner while a turn runs, amber while it waits on you. */
+const sessionStatusMark = (session: SessionSidebarRef): ReactNode => {
+    if (session.running) return createElement(Spinner, {className: "size-2.5"})
+    if (session.waiting)
+        return createElement("span", {
+            "aria-label": "Waiting on you",
+            className: "size-1.5 rounded-full bg-[var(--ag-run-status-warning)]",
+        })
+    return null
+}
 
 /**
  * The prompt apps under the Developer Mode Prompts row. The list loads
@@ -245,6 +235,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
             createElement(SessionRowActions, {
                 session: ref as SessionSidebarRef,
                 chrome,
+                status: sessionStatusMark(ref as SessionSidebarRef),
                 children: node,
             }),
         [chrome],

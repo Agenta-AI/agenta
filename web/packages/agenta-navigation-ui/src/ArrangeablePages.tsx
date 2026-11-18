@@ -310,7 +310,7 @@ export const ArrangeablePages = ({
                             type="button"
                             aria-label="More"
                             className={cn(
-                                "relative mx-auto flex size-7 items-center justify-center rounded-md border-0 bg-transparent",
+                                "relative mx-auto flex size-8 items-center justify-center rounded-lg border-0 bg-transparent",
                                 ROW_INTERACTIVE,
                                 moreOpen && ROW_SELECTED,
                             )}
@@ -321,7 +321,8 @@ export const ArrangeablePages = ({
                     <PopoverContent
                         side="right"
                         align="start"
-                        className="z-[2000] w-60 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                        sideOffset={8}
+                        className="z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
                     >
                         <MoreMenu
                             hidden={arrange.hidden}
@@ -401,8 +402,8 @@ export const ArrangeablePages = ({
                         moreRef.current?.closest('[data-slot="sheet-content"]') ? "bottom" : "right"
                     }
                     align="start"
-                    sideOffset={6}
-                    className="z-[2000] w-60 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                    sideOffset={2}
+                    className="z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
                 >
                     <MoreMenu
                         hidden={menuHidden}

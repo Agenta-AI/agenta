@@ -534,9 +534,7 @@ const NavMenuImpl = ({
                 const icon = (
                     <div
                         className={clsx(
-                            // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
-                            // side and the icons read as tiles rather than as a nav.
-                            "relative mx-auto flex size-7 items-center justify-center rounded-md",
+                            "relative mx-auto flex size-8 items-center justify-center rounded-lg",
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                         )}
@@ -576,7 +574,7 @@ const NavMenuImpl = ({
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 collapsed
-                                    ? "size-7 justify-center"
+                                    ? "size-8 justify-center rounded-lg"
                                     : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
                             )}
                         >

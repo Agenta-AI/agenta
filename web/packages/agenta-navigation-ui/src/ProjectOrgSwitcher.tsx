@@ -296,7 +296,7 @@ export const ProjectOrgSwitcherView = ({
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
                 "flex gap-1 px-2 transition-all duration-300",
-                side === "bottom" ? "h-12 shrink-0" : "pb-1.5",
+                side === "bottom" ? "h-12 shrink-0 justify-between" : "pb-1.5",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -317,17 +317,33 @@ export const ProjectOrgSwitcherView = ({
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
-                                : "h-8 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
+                                : side === "bottom"
+                                  ? "h-7 min-w-0 max-w-[196px] gap-2 pl-2.5 pr-3"
+                                  : "h-8 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
-                        <InitialsAvatar size="small" name={projectLabel} className="shrink-0" />
+                        <InitialsAvatar
+                            size="small"
+                            name={projectLabel}
+                            className={clsx(
+                                "shrink-0",
+                                side === "bottom" && "!size-5 !rounded !text-[10px] !font-semibold",
+                            )}
+                        />
                         {/* One line, not two: the org already names itself on the panel's
                             caption, and stacking it here made the rail's shortest row its
                             tallest. */}
                         {!collapsed && (
                             <>
-                                <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-none text-colorText">
+                                <span
+                                    className={clsx(
+                                        "min-w-0 truncate text-left text-colorText",
+                                        side === "bottom"
+                                            ? "text-sm font-medium leading-5"
+                                            : "flex-1 text-[13px] leading-none",
+                                    )}
+                                >
                                     {projectLabel}
                                 </span>
                                 {triggerMeta ? (

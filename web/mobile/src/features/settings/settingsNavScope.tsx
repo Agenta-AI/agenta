@@ -21,10 +21,9 @@ import {useRouter} from "next/router"
 import {isProjectPath, projectSwitchUrl} from "@/lib/context"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
-import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {lastNonSettingsPathAtom} from "../nav/lastNonSettingsPath"
 import {SupportActions} from "../nav/SupportActions"
-import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
+import {useMobileVersion} from "../nav/useMobileNavItems"
 
 import {
     AVAILABLE_SETTINGS_TABS,
@@ -34,7 +33,7 @@ import {
 
 /**
  * Settings TAKES OVER the rail: the main nav is replaced by the settings
- * groups, its header becomes "← Back", and the page carries no top bar.
+ * groups, its header becomes "← Settings", and the page carries no top bar.
  *
  * Built per workspace/project like `mobileNavScope`, so the slot components keep stable
  * identities across renders.
@@ -61,7 +60,6 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
 
     const useSections = (): SidebarSection[] => {
         const access = useMobileSettingsAccess()
-        const bottomItems = useMobileBottomNavItems(projectURL, {includeSettingsLink: false})
         const t = useT(navigationCatalog)
 
         return useMemo(
@@ -77,14 +75,8 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     // selection intercepts the navigation before it happens.
                     {getLink: (key) => `${settingsURL}?tab=${key}`},
                 ),
-                {
-                    key: "bottom",
-                    items: bottomItems,
-                    placement: "bottom",
-                    mode: "vertical",
-                },
             ],
-            [access, bottomItems, t],
+            [access, t],
         )
     }
 
@@ -100,11 +92,12 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     // side, so stack them instead of squeezing both into one row.
                     collapsed
                         ? "flex-col justify-center gap-1 py-1"
-                        : "h-[48px] justify-between px-1.5",
+                        : "h-[48px] justify-between gap-0.5 px-2",
                 ].join(" ")}
             >
                 <SidebarBackButton
                     collapsed={collapsed}
+                    label="Settings"
                     onBack={() =>
                         void router.push(
                             !lastPath
@@ -120,22 +113,26 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         )
     }
 
-    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
-    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
-        <DrawerProjectSwitcher
-            workspaceId={workspaceId}
-            projectId={projectId}
-            collapsed={collapsed}
-            trailing={<SupportActions projectId={projectId} />}
-        />
-    )
+    // The version, live chat and help; Credits is a tab here, and the icon rail keeps only its tabs.
+    const Footer = ({collapsed}: SidebarSlotContext) => {
+        const version = useMobileVersion()
+        if (collapsed) return null
+        return (
+            <div className="flex items-center gap-0.5 px-2 pb-2">
+                <span className="flex h-7 min-w-0 flex-1 items-center px-3 text-xs tabular-nums text-colorTextTertiary">
+                    {version ? `Agenta v${version}` : "Agenta"}
+                </span>
+                <SupportActions projectId={projectId} />
+            </div>
+        )
+    }
 
     return {
         id: SETTINGS_SIDEBAR_SCOPE_ID,
         useSelection,
         useSections,
         header: Header,
-        afterBottom: AfterBottom,
+        footer: Footer,
     }
 }
 
