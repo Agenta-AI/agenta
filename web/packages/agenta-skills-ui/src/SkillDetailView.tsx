@@ -471,16 +471,33 @@ export function SkillDetailView({
 
     if (!head || !base) {
         return (
-            <div aria-busy className="flex flex-col gap-4">
+            <div aria-busy className="flex flex-1 flex-col gap-4 lg:min-h-0">
                 {top}
-                <SkeletonBlock active className="h-9 w-1/3 rounded-md" />
-                <SkeletonBlock active className="h-4 w-1/2 rounded" />
-                <div className="mt-2 flex gap-6">
-                    <SkeletonBlock active className="h-[420px] flex-[999_1_480px] rounded-[10px]" />
-                    <SkeletonBlock
-                        active
-                        className="h-[420px] flex-[1_1_280px] rounded-[10px] max-sm:hidden"
-                    />
+                <div className="flex items-start gap-3">
+                    <div className="flex flex-1 flex-col gap-2.5 pt-1">
+                        <SkeletonBlock active className="h-7 w-48 rounded-md" />
+                        <SkeletonBlock active className="h-3.5 w-72 max-w-full rounded" />
+                    </div>
+                    <SkeletonBlock active className="h-8 w-16 rounded-lg" />
+                </div>
+                <div className="mt-1 flex flex-1 flex-wrap items-stretch gap-6 lg:min-h-0">
+                    <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-1.5">
+                        <SkeletonBlock active className="h-4 w-24 rounded" />
+                        <SkeletonBlock active className="h-[66px] rounded-[10px]" />
+                        <SkeletonBlock active className="mt-3 h-4 w-28 rounded" />
+                        <SkeletonBlock active className="min-h-[360px] flex-1 rounded-[10px]" />
+                    </div>
+                    <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-1.5 sm:max-w-[360px] max-sm:hidden">
+                        <SkeletonBlock active className="h-4 w-16 rounded" />
+                        <div className="flex flex-1 flex-col gap-1 rounded-[10px] border border-solid border-input p-1.5">
+                            {[0, 1, 2, 3].map((row) => (
+                                <div key={row} className="flex h-10 items-center gap-2.5 px-2">
+                                    <SkeletonBlock active className="size-7 shrink-0 rounded-[6px]" />
+                                    <SkeletonBlock active className="h-3.5 w-32 rounded" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         )
