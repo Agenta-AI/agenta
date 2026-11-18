@@ -251,7 +251,7 @@ export function SkillEditor({
     )
 
     const fileView = current ? (
-        <div className="absolute inset-0 flex flex-col gap-1.5">
+        <div key={current.path} className="absolute inset-0 flex animate-skill-enter flex-col gap-1.5">
             <div className="flex min-h-6 flex-wrap items-center gap-2">
                 <FileText size={16} className="text-muted-foreground" />
                 <span className="flex min-w-0 items-baseline gap-0.5 truncate text-sm">
@@ -320,7 +320,11 @@ export function SkillEditor({
             <div className="mt-1 flex flex-wrap items-stretch gap-6">
                 <section className="relative flex min-w-0 flex-[999_1_480px] flex-col">
                     <div
-                        className={cn("flex flex-1 flex-col gap-5", current && "invisible")}
+                        key={current ? "file" : "skill"}
+                        className={cn(
+                            "flex flex-1 flex-col gap-5",
+                            current ? "invisible" : "animate-skill-enter",
+                        )}
                         aria-hidden={current ? true : undefined}
                     >
                         <div className="flex flex-col gap-1.5">

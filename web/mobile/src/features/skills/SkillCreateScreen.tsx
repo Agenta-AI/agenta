@@ -207,7 +207,9 @@ export const SkillCreateScreen = ({
                 >
                     <div className={`flex min-h-full min-w-0 flex-col gap-4 px-4 pb-12 pt-3 lg:pt-8 ${PAGE_FRAME}`}>
                         {back}
-                        {body}
+                        <div key={flow.step} className="flex flex-1 animate-skill-enter flex-col">
+                            {body}
+                        </div>
                     </div>
                 </ScreenScaffold>
             </AppShell>

@@ -156,6 +156,7 @@ export const SkillListScreen = ({
         />
     ) : (
         <ListTableToolbar
+            className="animate-in fade-in-0 motion-reduce:animate-none"
             search={typed}
             onSearchChange={setTyped}
             searchPlaceholder="Search skills"

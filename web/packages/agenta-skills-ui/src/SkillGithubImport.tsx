@@ -180,7 +180,7 @@ export function SkillGithubImport({
             ) : null}
 
             {found ? (
-                <div className="flex flex-col gap-3">
+                <div className="flex animate-skill-enter flex-col gap-3">
                     <div className="flex items-center gap-2 pt-1">
                         <span className="flex-1 text-sm text-muted-foreground">
                             {found.candidates.length ? (

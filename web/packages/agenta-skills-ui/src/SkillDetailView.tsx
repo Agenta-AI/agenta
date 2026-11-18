@@ -77,7 +77,7 @@ export interface SkillDetailViewProps {
     onClose?: () => void
 }
 
-const NOTICE = "flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-sm"
+const NOTICE = "flex animate-skill-enter items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-sm"
 const META_LINK =
     "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 font-[inherit] text-[13px]"
 
@@ -333,7 +333,10 @@ export function SkillDetailView({
     const actions = (
         <>
             {justSaved && !dirty ? (
-                <span role="status" className="inline-flex items-center gap-1.5 pr-1 text-[13px] text-tag-green">
+                <span
+                    role="status"
+                    className="inline-flex animate-skill-enter items-center gap-1.5 pr-1 text-[13px] text-tag-green"
+                >
                     <CheckCircle size={15} weight="fill" />
                     Saved
                 </span>
@@ -458,7 +461,7 @@ export function SkillDetailView({
     }
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex animate-skill-enter flex-col gap-4">
             {top}
             <SkillEditor
                 key={base?.id}

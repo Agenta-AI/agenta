@@ -23,7 +23,7 @@ export const SkillSelectionBar = ({
     <div
         role="toolbar"
         aria-label="Selected skills"
-        className="mb-3 box-border flex h-9 shrink-0 items-center gap-2 rounded-[10px] border border-solid border-input bg-background px-[3px]"
+        className="mb-3 box-border flex h-9 animate-in fade-in-0 motion-reduce:animate-none shrink-0 items-center gap-2 rounded-[10px] border border-solid border-input bg-background px-[3px]"
     >
         <Button
             variant="ghost"

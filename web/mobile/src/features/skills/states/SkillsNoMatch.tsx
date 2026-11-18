@@ -10,7 +10,7 @@ export const SkillsNoMatch = ({
     archived: boolean
     onClear?: () => void
 }) => (
-    <div className="flex flex-col items-center gap-2.5 px-4 py-12 text-center text-sm text-muted-foreground">
+    <div className="flex animate-skill-enter flex-col items-center gap-2.5 px-4 py-12 text-center text-sm text-muted-foreground">
         <span>
             {term
                 ? `No skills match “${term}”.`

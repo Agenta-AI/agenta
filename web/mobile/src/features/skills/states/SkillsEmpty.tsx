@@ -12,7 +12,7 @@ export const SkillsEmpty = ({
     onUpload: (scan: Promise<SkillUploadScan>) => void
     onImport: () => void
 }) => (
-    <div className="flex flex-col items-center gap-5 rounded-[14px] border border-dashed border-input px-4 py-14 text-center">
+    <div className="flex animate-skill-enter flex-col items-center gap-5 rounded-[14px] border border-dashed border-input px-4 py-14 text-center">
         <span
             aria-hidden
             className="flex size-12 items-center justify-center rounded-[14px] border border-solid border-border bg-muted text-foreground"

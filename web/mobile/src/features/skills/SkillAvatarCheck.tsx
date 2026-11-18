@@ -46,7 +46,7 @@ export const SkillAvatarCheck = ({
             <Compass
                 size={size === 40 ? 18 : 16}
                 className={cn(
-                    "absolute transition-[transform,opacity] duration-200",
+                    "absolute transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
                     checked || selecting
                         ? "scale-50 opacity-0"
                         : "group-hover/check:-translate-y-[70%] group-hover/check:opacity-0",
@@ -56,9 +56,9 @@ export const SkillAvatarCheck = ({
                 size={size === 40 ? 18 : 15}
                 weight="bold"
                 className={cn(
-                    "absolute transition-[transform,opacity] duration-200",
+                    "absolute transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
                     checked
-                        ? "opacity-100"
+                        ? "animate-skill-pop opacity-100"
                         : selecting
                           ? "opacity-40"
                           : "translate-y-[70%] opacity-0 group-hover/check:translate-y-0 group-hover/check:opacity-50",

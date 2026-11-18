@@ -238,7 +238,7 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                         </Button>
                     </div>
                     {notice ? (
-                        <div role="status" className="flex items-center gap-2 rounded-[10px] bg-tag-green-bg px-3 py-2 text-[13px] text-tag-green">
+                        <div role="status" className="flex animate-skill-enter items-center gap-2 rounded-[10px] bg-tag-green-bg px-3 py-2 text-[13px] text-tag-green">
                             <CheckCircle size={15} weight="fill" className="shrink-0" />
                             <span className="flex-1">{notice}</span>
                         </div>
@@ -263,7 +263,7 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                                     return (
                                         <div
                                             key={option.id}
-                                            className={cn(ROW, fresh.has(option.slug) && "bg-tag-green-bg")}
+                                            className={cn(ROW, fresh.has(option.slug) && "animate-skill-fresh")}
                                         >
                                             <span aria-hidden className={TILE}>
                                                 <Compass size={16} />
@@ -292,7 +292,11 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                                                     on ? "bg-accent hover:bg-foreground/10" : "bg-transparent hover:bg-accent",
                                                 )}
                                             >
-                                                {on ? <Check size={15} weight="bold" /> : <Plus size={15} />}
+                                                {on ? (
+                                                    <Check size={15} weight="bold" className="animate-skill-pop" />
+                                                ) : (
+                                                    <Plus size={15} />
+                                                )}
                                             </button>
                                         </div>
                                     )
@@ -428,11 +432,17 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
             onClose={onClose}
             placement="right"
             width={writing ? 960 : 560}
+            className="transition-[width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
             closable={false}
             destroyOnClose
             styles={{body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"}}}
         >
-            {body}
+            <div
+                key={view === "list" ? "list" : flow.step}
+                className="flex min-h-0 flex-1 animate-skill-enter flex-col"
+            >
+                {body}
+            </div>
         </EnhancedDrawer>
     )
 }
