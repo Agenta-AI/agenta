@@ -80,6 +80,17 @@
   text-underline-offset: 6px;
 }
 
+.ag-navchev {
+  display: inline-flex;
+  margin: 0 -2.5px 0 -1px;
+  color: var(--th-text-mut);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ag-navlink[aria-expanded="true"] .ag-navchev {
+  transform: rotate(180deg);
+  color: currentColor;
+}
+
 /* ── columns ─────────────────────────────────────────────────── */
 .ag-mega__cols {
   display: grid;

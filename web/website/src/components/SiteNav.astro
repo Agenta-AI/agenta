@@ -133,7 +133,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
 
     <div class="ag-navdd" data-mega>
       <button class="ag-navlink" type="button" style={triggerStyle} aria-expanded="false" aria-controls="ag-mega-templates">
-        Templates
+        Templates<span class="ag-navchev" set:html={chevron} />
       </button>
       <div class="ag-mega ag-art" id="ag-mega-templates" role="region" aria-label="Templates">
         <div class="ag-mega__cols">
@@ -173,7 +173,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
 
     <div class="ag-navdd" data-mega>
       <button class="ag-navlink" type="button" style={triggerStyle} aria-expanded="false" aria-controls="ag-mega-resources">
-        Resources
+        Resources<span class="ag-navchev" set:html={chevron} />
       </button>
       <div class="ag-mega ag-mega--narrow ag-art" id="ag-mega-resources" role="region" aria-label="Resources">
         <div class="ag-mega__cols">
