@@ -61,10 +61,6 @@
 .r3 .r3-hx-typed { color:var(--lp-text); }
 .r3 .r3-ap-send { position:relative; }
 .r3 .r3-hx-sendon { position:absolute; inset:0px; border-radius:8px; background:var(--carbon-950); color:var(--lp-on-ink); display:flex; align-items:center; justify-content:center; }
-.r3 .r3-hx-toast { position:absolute; right:-40px; bottom:96px; z-index:9; width:250px; padding:16px 18px; border-radius:12px; background:var(--lp-surface); display:flex; flex-direction:column; gap:6px; text-align:left; box-shadow:rgb(var(--lp-ink-rgb) / 0.08) 0px 0px 0px 1px, rgba(30, 29, 28, 0.16) 0px 20px 44px; border-top:3px solid var(--yellow-400); }
-.r3 .r3-hx-toast .r3-k { display:inline-flex; align-items:center; gap:6px; font:500 10px / 1 "Geist Mono", monospace; letter-spacing:0.06em; text-transform:uppercase; color:var(--lp-body); }
-.r3 .r3-hx-toast b { font:400 21px / 1.2 "GT Alpina", serif; color:var(--lp-text); }
-.r3 .r3-hx-toast > span:last-child { font:400 13px / 19px "Inter", -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif; color:var(--lp-body); }
 @media (prefers-reduced-motion: reduce){.r3 .r3-an { animation:auto ease 0s 1 normal none running none !important; opacity:1 !important; clip-path:none !important; transform:none !important; }}
 @media (prefers-reduced-motion: reduce){.r3 .r3-an-pre, .r3 .r3-hx-spin, .r3 .r3-hx-working, .r3 .r3-hx-sendon { display:none !important; }}
 .r3 .r3-aw { position:relative; z-index:2; display:grid; grid-template-columns:255px minmax(0px, 1fr); height:730px; max-width:1120px; margin:0px auto; background:var(--lp-surface); border-radius:14px; overflow:hidden; text-align:left; box-shadow:var(--lp-line-strong) 0px 0px 0px 1px, rgba(30, 29, 28, 0.22) 0px 30px 60px -20px; font:400 14px / 20px -apple-system, "system-ui", "Segoe UI", Inter, Roboto, sans-serif; color:var(--lp-text); -webkit-font-smoothing:antialiased; }
@@ -117,7 +113,6 @@
 .r3 .r3-rs .r3-rs-ws .r3-rs-r { color:var(--lp-body); }
 .r3 .r3-i2-run .r3-aw { height:100%; max-width:none; border-radius:0px; box-shadow:none; }
 .r3 .r3-i2-run [style*="animation:r3_ia"], .r3 .r3-i2-run .r3-hx-scroll { animation-delay:-0.85s !important; }
-.r3 .r3-i2-run .r3-hx-toast { right:24px; top:72px; bottom:auto; border-top:0px; box-shadow:rgb(var(--lp-ink-rgb) / 0.1) 0px 0px 0px 1px, rgba(72, 70, 68, 0.1) 0px 1px 3px; }
 .r3 .r3-i2-run .r3-ap-comp { box-shadow:rgb(220, 213, 209) 0px 0px 0px 1px !important; }
 /* keyframes */
 @keyframes r3_hxShim { 
@@ -382,12 +377,6 @@
   53.75% { opacity:1; }
   54.35%, 100% { opacity:0; }
 }
-@keyframes r3_ia43 { 
-  0%, 72.92% { opacity:0; transform:translateY(6px); }
-  74.32% { opacity:1; transform:none; }
-  95.5% { opacity:1; transform:none; }
-  96.1%, 100% { opacity:0; transform:none; }
-}
 @keyframes r3_ia44 { 
   0%, 7.08% { opacity:0; }
   8.48% { opacity:1; }
@@ -436,8 +425,7 @@
   .r3 .r3-ag-app-frame .ws-split .ag-demo-config, .r3 .r3-ag-app-frame .ws-cfg-show { display:none; }
 }
 
-/* With the configuration pane open the chat column is narrower: let the table use it all. */
-html body .lp .r3 .ws-split[data-config="true"] .r3-hx-venues { max-width: none !important; }
+/* The chat column is narrower beside the pane: cells stay on one line. */
 .r3 .ws-split .r3-ap-table > div > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .r3 .ws-split .r3-ap-table > div { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 0.8fr); gap: 12px; }
 
@@ -446,13 +434,6 @@ html body .lp .r3 .ws-split[data-config="true"] .r3-hx-venues { max-width: none 
 .r3 .r3-rs-wsn { display:flex; flex-direction:column; min-width:0px; flex:1 1 0%; }
 .r3 .r3-rs-wsn b { font:500 13px/16px var(--font-sans, 'Inter', sans-serif); color:var(--lp-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .r3 .r3-rs-wsn small { font:400 11px/14px var(--font-sans, 'Inter', sans-serif); color:var(--lp-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-/* With the configuration pane open, the toast sits over the pane's foot, not on the table. */
-@media (min-width: 861px) {
-  html body .lp .r3 .r3-i2-run:has(.ws-split[data-config="true"]) .r3-hx-toast { top:auto; right:auto; bottom:16px; left:271px; width:288px; }
-}
-@media (min-width: 861px) and (max-width: 1100px) {
-  html body .lp .r3 .r3-i2-run:has(.ws-split[data-config="true"]) .r3-hx-toast { left:68px; }
-}
 /* Smaller screens: no app demo in the hero; the headline and buttons stand alone. */
 @media (max-width: 860px) {
   html body .lp .r3 .r3-ag-hero .r3-ag-app-frame.r3-i2-run:not([hidden]),

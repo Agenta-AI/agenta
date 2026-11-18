@@ -24,12 +24,6 @@
   }
 }
 
-/* Keep the hero table clear of the toast. */
-@media (max-width: 1320px) and (min-width: 601px) {
-  html body .lp .r3 .r3-hx-venues {
-    max-width: calc(100% - 268px) !important;
-  }
-}
 @media (max-width: 1100px) and (min-width: 861px) {
   /* The chat needs its design width for the scripted scroll to land. */
   .sx-hiw .hw .hw-files {
@@ -149,11 +143,6 @@
     margin-left: 12px !important;
     margin-right: 12px !important;
   }
-  html body .lp .r3 .r3-hx-toast {
-    right: 12px !important;
-    left: auto !important;
-    max-width: calc(100% - 24px);
-  }
 
   /* No sticky stage on phones; the beats loop instead. */
   html body .lp .sx-hiw section.hw {
@@ -248,9 +237,6 @@
   }
   .sx-hiw .hw .hw-files {
     display: none;
-  }
-  html body .lp .r3 .r3-hx-toast {
-    display: none !important;
   }
   html body .lp .ossx .rv2-oss h2 {
     font-size: 34px !important;
