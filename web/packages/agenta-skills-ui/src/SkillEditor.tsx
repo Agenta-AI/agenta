@@ -1,0 +1,552 @@
+import {useMemo, useRef, useState, type DragEvent, type ReactNode} from "react"
+
+import {SKILL_DESCRIPTION_MAX, type SkillFile} from "@agenta/skills"
+import {MarkdownPreview} from "@agenta/ui/markdown-preview"
+import {cn} from "@agenta/ui/styles"
+import {
+    Button,
+    Switch,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
+import {
+    File as FileIcon,
+    FileArrowUp,
+    FilePlus,
+    FileText,
+    Folder,
+    Plus,
+    Question,
+    Trash,
+} from "@phosphor-icons/react"
+
+import {MarkdownToolbar, WritePreviewSwitch} from "./markdownToolbar"
+import {descriptionTooLong, type SkillDraft} from "./skillDraft"
+
+export interface SkillEditorProps {
+    draft: SkillDraft
+    onChange: (next: SkillDraft) => void
+    readOnly?: boolean
+    /** Opens Instructions in Preview; a new skill opens in Write. */
+    startInPreview?: boolean
+    /** Paints empty required fields red once a save was tried. */
+    showMissing?: boolean
+    autoFocusTitle?: boolean
+    /** Right of the title. */
+    actions?: ReactNode
+    /** Under the title. */
+    meta?: ReactNode
+    /** Above the body. */
+    notices?: ReactNode
+}
+
+const FIELD =
+    "box-border w-full rounded-[10px] border border-solid border-input bg-background " +
+    "font-[inherit] text-foreground outline-none transition-[border-color,box-shadow] " +
+    "placeholder:text-placeholder focus:border-ring focus:ring-[3px] focus:ring-ring/30"
+const MISSING = "border-destructive focus:border-destructive"
+const PREVIEW =
+    "box-border w-full overflow-auto rounded-[10px] border border-solid border-input " +
+    "bg-background px-6 pb-6 pt-5"
+const PREVIEW_TEXT =
+    "!text-[15px] !leading-[26px] !text-foreground [&_h1]:!text-[22px] [&_h2]:!text-[17px] " +
+    "[&_h3]:!text-[15px] [&_table]:!text-sm"
+const ROW_ICON =
+    "flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+const ROW_BUTTON =
+    "cursor-pointer truncate border-0 bg-transparent p-0 text-left font-[inherit] text-sm " +
+    "font-medium text-foreground after:absolute after:inset-0 after:content-['']"
+
+const KIND: Record<string, string> = {
+    py: "Python script",
+    js: "JavaScript",
+    ts: "TypeScript",
+    sh: "Shell script",
+    csv: "CSV data",
+    json: "JSON",
+    md: "Markdown",
+    txt: "Text",
+    yaml: "YAML",
+    yml: "YAML",
+}
+const extOf = (path: string) => path.split(".").pop()?.toLowerCase() ?? ""
+const kindOf = (path: string) => KIND[extOf(path)] ?? "File"
+const dirOf = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "")
+const baseOf = (path: string) => path.split("/").pop() ?? path
+
+function Hint({label, children}: {label: string; children: ReactNode}) {
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        aria-label={label}
+                        className="inline-flex size-5 cursor-help items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground"
+                    >
+                        <Question size={15} />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[220px]">
+                    {children}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+}
+
+async function readTextFiles(list: FileList | File[]): Promise<SkillFile[]> {
+    const read = await Promise.all(
+        Array.from(list).map(async (file) => {
+            const content = await file.text()
+            if (content.includes("\u0000")) return null
+            return {path: file.webkitRelativePath || file.name, content}
+        }),
+    )
+    return read.filter((file): file is SkillFile => file !== null)
+}
+
+/** The skill editor the skill page, the create page and the playground drawer share. */
+export function SkillEditor({
+    draft,
+    onChange,
+    readOnly = false,
+    startInPreview = false,
+    showMissing = false,
+    autoFocusTitle = false,
+    actions,
+    meta,
+    notices,
+}: SkillEditorProps) {
+    const [preview, setPreview] = useState(startInPreview)
+    const [openPath, setOpenPath] = useState<string | null>(null)
+    const [filePreview, setFilePreview] = useState(true)
+    const [dragging, setDragging] = useState(false)
+    const bodyRef = useRef<HTMLTextAreaElement>(null)
+    const fileRef = useRef<HTMLTextAreaElement>(null)
+    const pickerRef = useRef<HTMLInputElement>(null)
+
+    const set = (patch: Partial<SkillDraft>) => onChange({...draft, ...patch})
+    const tooLong = descriptionTooLong(draft)
+    const current = draft.files.find((file) => file.path === openPath) ?? null
+    const hasFiles = draft.files.length > 0
+    const fileIsMd = current ? extOf(current.path) === "md" : false
+    const showFilePreview = fileIsMd && filePreview
+
+    const groups = useMemo(() => {
+        const byDir = new Map<string, SkillFile[]>()
+        for (const file of draft.files) {
+            const dir = dirOf(file.path)
+            byDir.set(dir, [...(byDir.get(dir) ?? []), file])
+        }
+        return [...byDir.entries()].sort(([a], [b]) =>
+            a === "" ? -1 : b === "" ? 1 : a.localeCompare(b),
+        )
+    }, [draft.files])
+
+    const addFiles = async (list: FileList | File[]) => {
+        const added = await readTextFiles(list)
+        if (!added.length) return
+        const paths = new Set(added.map((file) => file.path))
+        set({files: [...draft.files.filter((file) => !paths.has(file.path)), ...added]})
+    }
+    const removeFile = (path: string) => {
+        set({files: draft.files.filter((file) => file.path !== path)})
+        if (openPath === path) setOpenPath(null)
+    }
+    const setFileContent = (content: string) =>
+        set({files: draft.files.map((file) => (file.path === openPath ? {...file, content} : file))})
+    const browse = () => pickerRef.current?.click()
+
+    const onDrop = (event: DragEvent) => {
+        event.preventDefault()
+        setDragging(false)
+        if (!readOnly && event.dataTransfer.files.length) void addFiles(event.dataTransfer.files)
+    }
+
+    const fileRow = (file: SkillFile) => {
+        const on = openPath === file.path
+        const exec = Boolean(file.executable)
+        return (
+            <div
+                key={file.path}
+                title={file.path}
+                className={cn(
+                    "group relative flex items-center gap-3 rounded-lg py-2 pl-2 pr-1.5",
+                    on ? "bg-accent" : "hover:bg-accent/60",
+                )}
+            >
+                <span aria-hidden className={ROW_ICON}>
+                    <FileIcon size={16} />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-px">
+                    <button
+                        type="button"
+                        aria-current={on ? "true" : undefined}
+                        onClick={() => setOpenPath(file.path)}
+                        className={ROW_BUTTON}
+                    >
+                        {baseOf(file.path)}
+                    </button>
+                    <span
+                        className={cn(
+                            "truncate text-xs",
+                            exec && !draft.allowExecutable
+                                ? "text-tag-orange"
+                                : "text-muted-foreground",
+                        )}
+                    >
+                        {kindOf(file.path)}
+                        {exec
+                            ? draft.allowExecutable
+                                ? " · Runs as a program"
+                                : " · Program, turned off"
+                            : ""}
+                    </span>
+                </span>
+                {readOnly ? null : (
+                    <button
+                        type="button"
+                        aria-label={`Remove ${baseOf(file.path)}`}
+                        onClick={() => removeFile(file.path)}
+                        className="relative z-[1] inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 max-sm:opacity-100"
+                    >
+                        <Trash size={15} />
+                    </button>
+                )}
+            </div>
+        )
+    }
+
+    const instructions = (
+        <div className="flex flex-1 flex-col gap-1.5">
+            <div className="flex min-h-6 flex-wrap items-center gap-1.5">
+                <label htmlFor="skill-body" className="text-sm font-medium">
+                    Instructions
+                </label>
+                <Hint label="About the instructions">
+                    The steps the agent follows when it uses this skill.
+                </Hint>
+                <span className="flex-1" />
+                {!preview && !readOnly ? (
+                    <MarkdownToolbar
+                        target={bodyRef}
+                        onChange={(body) => set({body})}
+                        className="max-sm:hidden"
+                    />
+                ) : null}
+                <WritePreviewSwitch preview={preview} onChange={setPreview} />
+            </div>
+            {preview ? (
+                <div className={cn(PREVIEW, "min-h-[360px] flex-1 sm:min-h-[600px]")}>
+                    {draft.body.trim() ? (
+                        <MarkdownPreview content={draft.body} className={PREVIEW_TEXT} />
+                    ) : (
+                        <p className="m-0 text-[15px] text-muted-foreground">
+                            Nothing written yet. Switch to Write to add the steps.
+                        </p>
+                    )}
+                </div>
+            ) : (
+                <textarea
+                    id="skill-body"
+                    ref={bodyRef}
+                    value={draft.body}
+                    readOnly={readOnly}
+                    onChange={(event) => set({body: event.target.value})}
+                    placeholder={
+                        "Write the steps the agent should follow, in plain words.\n\n" +
+                        "1. What to look at first\n2. What to do with it\n" +
+                        "3. What a good result looks like"
+                    }
+                    className={cn(
+                        FIELD,
+                        "min-h-[360px] flex-1 resize-y px-4 py-3.5 text-[15px] leading-[26px] sm:min-h-[600px]",
+                        showMissing && !draft.body.trim() && MISSING,
+                    )}
+                />
+            )}
+        </div>
+    )
+
+    const fileView = current ? (
+        <div className="absolute inset-0 flex flex-col gap-1.5">
+            <div className="flex min-h-6 flex-wrap items-center gap-2">
+                <FileText size={16} className="text-muted-foreground" />
+                <span className="flex min-w-0 items-baseline gap-0.5 truncate text-sm">
+                    {dirOf(current.path) ? (
+                        <span className="truncate text-muted-foreground">
+                            {dirOf(current.path)}/
+                        </span>
+                    ) : null}
+                    <label htmlFor="skill-file" className="font-medium">
+                        {baseOf(current.path)}
+                    </label>
+                </span>
+                <span className="flex-1" />
+                {fileIsMd ? (
+                    <>
+                        {!showFilePreview && !readOnly ? (
+                            <MarkdownToolbar
+                                target={fileRef}
+                                onChange={setFileContent}
+                                className="max-sm:hidden"
+                            />
+                        ) : null}
+                        <WritePreviewSwitch preview={filePreview} onChange={setFilePreview} />
+                    </>
+                ) : (
+                    <span className="text-xs text-muted-foreground">{kindOf(current.path)}</span>
+                )}
+            </div>
+            {showFilePreview ? (
+                <div className={cn(PREVIEW, "min-h-0 flex-1")}>
+                    {current.content.trim() ? (
+                        <MarkdownPreview content={current.content} className={PREVIEW_TEXT} />
+                    ) : (
+                        <p className="m-0 text-[15px] text-muted-foreground">
+                            Nothing written yet.
+                        </p>
+                    )}
+                </div>
+            ) : (
+                <textarea
+                    id="skill-file"
+                    ref={fileRef}
+                    value={current.content}
+                    readOnly={readOnly}
+                    spellCheck={false}
+                    onChange={(event) => setFileContent(event.target.value)}
+                    className={cn(
+                        FIELD,
+                        "min-h-0 flex-1 resize-none px-4 py-3.5 font-mono text-[13px] leading-[21px]",
+                    )}
+                />
+            )}
+        </div>
+    ) : null
+
+    return (
+        <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex flex-wrap items-start gap-3">
+                <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
+                    <label htmlFor="skill-title" className="sr-only">
+                        Skill name
+                    </label>
+                    <input
+                        id="skill-title"
+                        value={draft.title}
+                        readOnly={readOnly}
+                        autoFocus={autoFocusTitle}
+                        onChange={(event) => set({title: event.target.value})}
+                        placeholder="Name your skill, e.g. Weekly report"
+                        className={cn(
+                            "-ml-1 box-border w-full rounded-md border-0 bg-transparent px-1 font-[inherit] text-[22px] font-semibold leading-8 text-foreground outline-none placeholder:text-placeholder hover:bg-accent/60 focus:bg-transparent focus:ring-[3px] focus:ring-ring/30 sm:text-[26px] sm:leading-9",
+                            readOnly && "hover:bg-transparent",
+                            showMissing && !draft.title.trim() && "ring-[3px] ring-destructive/30",
+                        )}
+                    />
+                    {meta}
+                </div>
+                {actions ? <div className="flex items-center gap-2 pt-0.5">{actions}</div> : null}
+            </div>
+
+            {notices}
+
+            <div className="mt-1 flex flex-wrap items-stretch gap-6">
+                <section className="relative flex min-w-0 flex-[999_1_480px] flex-col">
+                    <div
+                        className={cn("flex flex-1 flex-col gap-5", current && "invisible")}
+                        aria-hidden={current ? true : undefined}
+                    >
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex min-h-6 items-center gap-1.5">
+                                <label htmlFor="skill-description" className="text-sm font-medium">
+                                    Description
+                                </label>
+                                <Hint label="About the description">
+                                    Agents read this to decide when the skill fits a task.
+                                </Hint>
+                                <span className="flex-1" />
+                                <span
+                                    className={cn(
+                                        "text-xs tabular-nums",
+                                        tooLong ? "text-destructive" : "text-muted-foreground",
+                                    )}
+                                >
+                                    {draft.description.length} / {SKILL_DESCRIPTION_MAX}
+                                </span>
+                            </div>
+                            <textarea
+                                id="skill-description"
+                                rows={2}
+                                value={draft.description}
+                                readOnly={readOnly}
+                                onChange={(event) => set({description: event.target.value})}
+                                placeholder="e.g. Use when someone asks for a weekly summary of the team's work."
+                                className={cn(
+                                    FIELD,
+                                    "resize-y px-3 py-2.5 text-sm leading-5",
+                                    (tooLong || (showMissing && !draft.description.trim())) &&
+                                        MISSING,
+                                )}
+                            />
+                            {tooLong ? (
+                                <span className="text-[13px] leading-[18px] text-destructive">
+                                    Shorten it to 1,024 characters or fewer. Agents cannot read a
+                                    longer description.
+                                </span>
+                            ) : null}
+                        </div>
+                        {instructions}
+                    </div>
+                    {fileView}
+                </section>
+
+                <aside
+                    aria-label="Files"
+                    className="flex min-h-[280px] min-w-0 flex-[1_1_280px] flex-col gap-1.5 sm:max-w-[360px]"
+                >
+                    <div className="flex min-h-6 items-center gap-1.5">
+                        <span className="text-sm font-medium">Files</span>
+                        <Hint label="About files">
+                            Scripts, templates and examples the agent can open while it follows
+                            the instructions.
+                        </Hint>
+                        <span className="flex-1" />
+                        {hasFiles && !readOnly ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-muted-foreground"
+                                onClick={browse}
+                            >
+                                <Plus size={14} />
+                                Add
+                            </Button>
+                        ) : null}
+                    </div>
+                    <div
+                        onDragOver={(event) => {
+                            if (readOnly) return
+                            event.preventDefault()
+                            setDragging(true)
+                        }}
+                        onDragLeave={() => setDragging(false)}
+                        onDrop={onDrop}
+                        className={cn(
+                            "box-border flex flex-1 flex-col gap-0.5 overflow-hidden rounded-[10px] border border-solid border-input bg-background p-1.5",
+                            dragging && "border-dashed border-foreground",
+                        )}
+                    >
+                        {hasFiles ? (
+                            <>
+                                <div
+                                    className={cn(
+                                        "relative flex items-center gap-3 rounded-lg py-2 pl-2 pr-1.5",
+                                        current ? "hover:bg-accent/60" : "bg-accent",
+                                    )}
+                                >
+                                    <span aria-hidden className={ROW_ICON}>
+                                        <FileText size={16} />
+                                    </span>
+                                    <span className="flex min-w-0 flex-1 flex-col gap-px">
+                                        <button
+                                            type="button"
+                                            aria-current={current ? undefined : "true"}
+                                            onClick={() => setOpenPath(null)}
+                                            className={ROW_BUTTON}
+                                        >
+                                            SKILL.md
+                                        </button>
+                                        <span className="text-xs text-muted-foreground">
+                                            Description and instructions
+                                        </span>
+                                    </span>
+                                </div>
+                                {groups.map(([dir, files]) => (
+                                    <div key={dir || "root"} className="flex flex-col gap-0.5">
+                                        {dir ? (
+                                            <div className="flex items-center gap-1.5 px-2 pb-1 pt-2.5 text-xs font-medium text-muted-foreground">
+                                                <Folder size={14} />
+                                                <span className="truncate">{dir}</span>
+                                            </div>
+                                        ) : null}
+                                        {files.map(fileRow)}
+                                    </div>
+                                ))}
+                                {readOnly ? null : (
+                                    <div className="flex min-h-[110px] flex-1 flex-col items-center justify-center gap-2 p-5 text-center text-[13px] leading-[18px] text-muted-foreground">
+                                        <FileArrowUp size={18} />
+                                        <span>
+                                            Drop more files here, or{" "}
+                                            <button
+                                                type="button"
+                                                onClick={browse}
+                                                className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-foreground underline"
+                                            >
+                                                browse
+                                            </button>
+                                        </span>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+                                <span
+                                    aria-hidden
+                                    className="flex size-11 items-center justify-center rounded-xl border border-solid border-border bg-muted text-muted-foreground"
+                                >
+                                    <FilePlus size={20} />
+                                </span>
+                                <span className="flex flex-col gap-1">
+                                    <span className="text-sm font-medium">No files yet</span>
+                                    <span className="max-w-[240px] text-[13px] leading-[18px] text-muted-foreground">
+                                        {readOnly
+                                            ? "This skill has only its instructions."
+                                            : "Add scripts, templates or examples the agent can open. You can also drop files here."}
+                                    </span>
+                                </span>
+                                {readOnly ? null : (
+                                    <Button type="button" variant="outline" size="sm" onClick={browse}>
+                                        <Plus size={14} />
+                                        Add files
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+                        <div className="mt-auto flex items-center gap-2.5 border-0 border-t border-solid border-border/60 px-2 pb-1.5 pt-2.5">
+                            <span className="flex flex-1 flex-col gap-px">
+                                <span id="skill-exec-label" className="text-[13px] font-medium">
+                                    Let files run as programs
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                    Your sandbox must allow it too.
+                                </span>
+                            </span>
+                            <Switch
+                                aria-labelledby="skill-exec-label"
+                                checked={draft.allowExecutable}
+                                disabled={readOnly}
+                                onCheckedChange={(allowExecutable) => set({allowExecutable})}
+                            />
+                        </div>
+                    </div>
+                    <input
+                        ref={pickerRef}
+                        type="file"
+                        multiple
+                        hidden
+                        onChange={(event) => {
+                            if (event.target.files) void addFiles(event.target.files)
+                            event.target.value = ""
+                        }}
+                    />
+                </aside>
+            </div>
+        </div>
+    )
+}

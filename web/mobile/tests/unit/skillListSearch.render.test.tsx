@@ -27,10 +27,7 @@ vi.mock("@/features/agents/useAgentOwners", () => ({
 vi.mock("@/features/skills/SkillListTable", () => ({SkillListTable: () => null}))
 vi.mock("@agenta/skills-ui", async (original) => ({
     ...(await original<object>()),
-    NewSkillMenuButton: () => null,
-    SkillCreateDrawer: () => null,
-    SkillDetailDrawer: () => null,
-    SkillImportDrawer: () => null,
+    SkillArchiveDialog: () => null,
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true

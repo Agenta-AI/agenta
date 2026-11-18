@@ -8,11 +8,23 @@ import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {timeAgo} from "@agenta/shared/utils"
 import type {SkillOriginInfo, SkillRegistryItem} from "@agenta/skills"
 
-import type {SkillGallerySection} from "./SkillGallerySections"
-import type {SkillSourceNavEntry} from "./SkillsGalleryPage"
 import type {SkillListItem, SkillSourceInfo} from "./types"
 
 const tNow = createT(skillsGalleryCatalog)
+
+export interface SkillGallerySection {
+    key: string
+    label: string
+    repository?: string
+    skillIds?: string[]
+    skills: SkillListItem[]
+}
+
+export interface SkillSourceNavEntry {
+    key: string
+    label: string
+    count: number
+}
 
 const toUnixMs = (value?: string | null): number | undefined => {
     if (!value) return undefined

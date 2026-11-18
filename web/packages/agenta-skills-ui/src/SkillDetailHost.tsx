@@ -1,19 +1,13 @@
-/**
- * The drill-in bridge's skill DETAIL surface: resolves an embed slug against the live
- * registry and renders the same SkillDetailDrawer the registry page opens — so clicking a
- * skill row in the agent config lands in versions/edit/save, not a raw JSON editor.
- * An unresolvable slug renders nothing; the PANEL falls back to the JSON round-trip.
- */
-import {useMemo} from "react"
-
 import {projectIdAtom} from "@agenta/shared/state"
 import {skillsResolveDataAtom} from "@agenta/skills/state"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Button} from "@agenta/ui/ui"
+import {X} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {toSkillListItem, toSourceInfo} from "./registrySections"
-import {SkillDetailDrawer} from "./SkillDetailDrawer"
-import type {SkillListItem} from "./types"
+import {SkillDetailView} from "./SkillDetailView"
 
+/** The playground's skill detail: the skill page's view in a drawer, found by embed slug. */
 export function SkillDetailHost({
     open,
     onClose,
@@ -24,25 +18,37 @@ export function SkillDetailHost({
     slug: string | null
 }) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    // Archived-inclusive: a config row referencing an archived skill still opens here.
-    const projectSkills = useAtomValue(skillsResolveDataAtom)
-
-    const item = useMemo<SkillListItem | null>(() => {
-        if (!slug) return null
-        const match = projectSkills.find(
-            (skill) => skill.workflow_slug === slug || skill.skill_name === slug,
-        )
-        if (!match) return null
-        const mapped = toSkillListItem(match, match.origin ? "imported" : "project")
-        return match.origin ? {...mapped, source: toSourceInfo(match.origin)} : mapped
-    }, [projectSkills, slug])
+    const registry = useAtomValue(skillsResolveDataAtom)
+    const match = slug
+        ? registry.find((skill) => skill.workflow_slug === slug || skill.skill_name === slug)
+        : undefined
+    const workflowId = match?.workflow_id ?? ""
 
     return (
-        <SkillDetailDrawer
-            open={open && item !== null}
+        <EnhancedDrawer
+            rootClassName="ag-drawer-elevated"
+            open={open && Boolean(workflowId)}
             onClose={onClose}
-            projectId={projectId}
-            skill={item}
-        />
+            placement="right"
+            width={960}
+            closable={false}
+            destroyOnClose
+            styles={{body: {padding: 20}}}
+        >
+            {workflowId ? (
+                <SkillDetailView
+                    projectId={projectId}
+                    workflowId={workflowId}
+                    onArchived={onClose}
+                    top={
+                        <div className="flex justify-end">
+                            <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
+                                <X size={16} />
+                            </Button>
+                        </div>
+                    }
+                />
+            ) : null}
+        </EnhancedDrawer>
     )
 }

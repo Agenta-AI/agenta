@@ -220,11 +220,12 @@ export const ListTable = <Row,>({
                                     role="columnheader"
                                     className={column.headerClassName}
                                 >
-                                    {column.srOnly ? (
-                                        <span className="sr-only">{column.label}</span>
-                                    ) : (
-                                        column.label
-                                    )}
+                                    {column.header ??
+                                        (column.srOnly ? (
+                                            <span className="sr-only">{column.label}</span>
+                                        ) : (
+                                            column.label
+                                        ))}
                                 </span>
                             ))
                         )}

@@ -9,6 +9,8 @@ export interface ListTableColumn {
     /** Header text. Set `srOnly` when the column carries controls rather than a heading. */
     label: string
     srOnly?: boolean
+    /** Drawn in the header cell in place of the label, e.g. a select-all checkbox. */
+    header?: ReactNode
     /**
      * A CSS grid track: `"minmax(140px,2fr)"`, `"24px"`, `"1fr"`. `minmax`/`fr` rather than
      * fixed widths, because a fixed column among flexible siblings hands all the surplus to

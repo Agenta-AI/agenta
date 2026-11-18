@@ -1,110 +1,65 @@
-import {useCallback, useState} from "react"
-import type {ReactNode} from "react"
+import {useCallback, useState, type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n"
-import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
+import {cn} from "@agenta/ui/styles"
+import {Checkbox} from "@agenta/ui/ui"
 
 import {SkillCardBody} from "./SkillCardBody"
 import type {SkillGrouping, SkillListGroup, SkillListRow} from "./skillListView"
 import {SkillRowCells} from "./SkillRowCells"
 import {SkillSourceUpdateAction} from "./SkillSourceUpdateAction"
 
-/**
- * The columns, shared by the header row and every body row so the two can never drift.
- *
- * Identity takes twice the share of the reading columns; the kebab is fixed at the button's own
- * width so the reading columns keep their proportions.
- *
- * A phone drops Source and Used by rather than scrolling them off: the rows sit under a heading
- * that already names the source, and the drawer's header carries the usage.
- */
-type ListText = ReturnType<typeof useT<[typeof skillsListCatalog]>>
-
-const nameColumn = (t: ListText): ListTableColumn => ({
-    key: "name",
-    label: t("skills.list.columnName"),
-    width: "minmax(160px,2fr)",
-})
-/** Grouped by source, the heading already names it, so the column names the author instead. */
-const provenanceColumn = (t: ListText, group: SkillGrouping): ListTableColumn => ({
-    key: "provenance",
-    label: group === "source" ? t("skills.list.columnCreatedBy") : t("skills.list.columnSource"),
-    width: "minmax(120px,1fr)",
-})
-const usedByColumn = (t: ListText): ListTableColumn => ({
-    key: "usedBy",
-    label: t("skills.list.columnUsedBy"),
-    width: "88px",
-})
-const updatedColumn = (t: ListText, width: string): ListTableColumn => ({
-    key: "updated",
-    label: t("skills.list.columnLastUpdated"),
-    width,
-})
-const actionsColumn = (t: ListText): ListTableColumn => ({
-    key: "actions",
-    label: t("skills.list.columnActions"),
-    srOnly: true,
-    // Two icon buttons and their gap: the kebab, and the Update mark a check can put beside it.
-    // Fixed, so a row with something to update keeps its cells on the others' tracks.
-    width: "52px",
-})
-
-const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
-    nameColumn(t),
-    provenanceColumn(t, group),
-    usedByColumn(t),
-    updatedColumn(t, "96px"),
-    actionsColumn(t),
-]
-const narrowColumns = (t: ListText): ListTableColumn[] => [
-    nameColumn(t),
-    updatedColumn(t, "84px"),
-    actionsColumn(t),
-]
-
-/** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 520
-const NARROW_MIN_WIDTH = 320
 
-/** A group's rows all share one repository, so the first says whether it can be checked. */
-const repositoryIds = (group: SkillListGroup): string[] =>
-    group.rows[0]?.repository ? group.rows.map((row) => row.id) : []
+const columns = (group: SkillGrouping, narrow: boolean, select: ReactNode): ListTableColumn[] => {
+    const lead: ListTableColumn[] = [
+        {key: "select", label: "Select", srOnly: true, width: "32px", header: select},
+        {key: "name", label: "Name", width: "minmax(180px,2fr)"},
+    ]
+    const tail: ListTableColumn[] = [
+        {key: "updated", label: "Last edited", width: "96px", headerClassName: "text-right"},
+        {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+    ]
+    if (narrow) return [...lead, ...tail]
+    return [
+        ...lead,
+        {key: "usedBy", label: "Used by", width: "minmax(110px,1fr)"},
+        {
+            key: "provenance",
+            label: group === "source" ? "Created by" : "Source",
+            width: "minmax(120px,1fr)",
+        },
+        ...tail,
+    ]
+}
 
-/**
- * The skills registry in the shared frame — rows or cards over the same groups, in the same
- * frame the agents and automations lists use.
- *
- * Every row answers what it is, where it came from and when it last changed, and the whole row
- * opens the drawer; its only controls are the kebab and, once a check found one, an Update
- * mark. A repository's heading carries the one action that belongs to the group rather than
- * to a skill: checking upstream.
- */
+/** The skills registry as rows or cards, with a selectable tile on every skill. */
 export const SkillListTable = ({
     groups,
     view,
     group,
     isLoading,
+    selected,
+    onSelect,
+    fresh,
     onOpen,
+    onArchive,
     empty,
 }: {
     groups: SkillListGroup[]
     view: ListTableView
-    /** How the rows are cut — decides what the provenance column and a card's footer read. */
     group: SkillGrouping
     isLoading: boolean
+    selected: ReadonlySet<string>
+    onSelect: (next: Set<string>) => void
+    /** Rows just imported: they flash once. */
+    fresh: ReadonlySet<string>
     onOpen: (row: SkillListRow) => void
+    onArchive: (row: SkillListRow) => void
     empty: ReactNode
 }) => {
-    // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
-    // "wide?" because the shared hook starts false before it reads the viewport, and a phone
-    // is the common case here.
-    const t = useT(skillsListCatalog)
     const narrow = !useMediaQuery(WIDE_QUERY)
-
     const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
     const toggleGroup = useCallback(
         (key: string) =>
@@ -116,25 +71,53 @@ export const SkillListTable = ({
         [],
     )
 
-    // Only a source group is one repository; ungrouped, the single run mixes sources.
+    const shown = groups.flatMap((run) => run.rows.map((row) => row.id))
+    const picked = shown.filter((id) => selected.has(id)).length
+    const allState = picked === 0 ? false : picked === shown.length ? true : "indeterminate"
+    const toggleAll = () =>
+        onSelect(allState === true ? new Set() : new Set(shown))
+    const toggle = (row: SkillListRow) => {
+        const next = new Set(selected)
+        if (!next.delete(row.id)) next.add(row.id)
+        onSelect(next)
+    }
+    const selecting = selected.size > 0
+
+    const selectAll = (
+        <span className="flex w-8 justify-center">
+            <Checkbox
+                checked={allState}
+                disabled={!shown.length}
+                onCheckedChange={toggleAll}
+                aria-label="Select all"
+            />
+        </span>
+    )
+
     const groupActions = useCallback(
         (run: SkillListGroup) => {
-            if (group !== "source") return null
-            const ids = repositoryIds(run)
-            return ids.length ? <SkillSourceUpdateAction ids={ids} /> : null
+            if (group !== "source" || !run.rows[0]?.repository) return null
+            return <SkillSourceUpdateAction ids={run.rows.map((row) => row.id)} />
         },
         [group],
     )
 
+    const rowProps = (row: SkillListRow) => ({
+        row,
+        group,
+        checked: selected.has(row.id),
+        selecting,
+        onToggle: toggle,
+        onOpen,
+        onArchive,
+    })
+
     return (
         <ListTable
-            columns={narrow ? narrowColumns(t) : wideColumns(t, group)}
-            minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
+            columns={columns(group, narrow, selectAll)}
+            minWidth={narrow ? 320 : 640}
             view={view}
-            // A card holds three lines of description; narrower than this they wrap to four
-            // and the grid reads as a wall of text.
-            cardMinWidth={300}
-            // The column names stay put while the list scrolls, as they do on agents.
+            cardMinWidth={280}
             stickyHeader
             loading={isLoading}
             groups={groups}
@@ -144,10 +127,19 @@ export const SkillListTable = ({
             onToggleGroup={toggleGroup}
             groupActions={groupActions}
             empty={empty}
-            renderRow={(row) => (
-                <SkillRowCells row={row} narrow={narrow} group={group} onOpen={onOpen} />
+            wrapRow={(row, node) => (
+                <div
+                    className={cn(
+                        "rounded-[10px] transition-colors duration-1000",
+                        selected.has(row.id) && "bg-accent",
+                        fresh.has(row.id) && "bg-tag-green-bg",
+                    )}
+                >
+                    {node}
+                </div>
             )}
-            renderCard={(row) => <SkillCardBody row={row} group={group} onOpen={onOpen} />}
+            renderRow={(row) => <SkillRowCells {...rowProps(row)} narrow={narrow} />}
+            renderCard={(row) => <SkillCardBody {...rowProps(row)} />}
         />
     )
 }

@@ -42,9 +42,7 @@ export const DEFAULT_SKILL_LIST_VIEW: SkillListView = {
 
 /** The view control's dot: the filters only — how the list is cut or drawn hides nothing. */
 export const isDefaultSkillFilters = (view: SkillListView): boolean =>
-    view.source === DEFAULT_SKILL_LIST_VIEW.source &&
-    view.archived === DEFAULT_SKILL_LIST_VIEW.archived &&
-    view.usedBy === DEFAULT_SKILL_LIST_VIEW.usedBy
+    view.source === DEFAULT_SKILL_LIST_VIEW.source && view.usedBy === DEFAULT_SKILL_LIST_VIEW.usedBy
 
 /** What both views need of a skill, resolved once by the screen. */
 export interface SkillListRow {
@@ -82,9 +80,9 @@ export const noDescriptionLabel = (): string => tNow("skills.list.noDescription"
 export const provenanceLabel = (row: SkillListRow, group: SkillGrouping): string =>
     group === "source" ? row.creatorName || "—" : row.repository || projectLabel()
 
-/** The "Used by" cell: how many agents run it, or an em dash for none. */
+/** The "Used by" cell: how many agents run it. */
 export const usedByLabel = (count: number): string =>
-    count === 0 ? "—" : tNow("skills.list.usedByCount", {count})
+    count === 0 ? "Not used yet" : tNow("skills.list.usedByCount", {count})
 
 /** The "Last updated" cell. Empty rows read as an em dash, not as "just now". */
 export const lastUpdatedLabel = (age: string | null): string => age || "—"

@@ -1,35 +1,34 @@
 /**
- * @agenta/skills-ui — presentational skill-registry surfaces (gallery, drawers, save
- * dialog content). Options in, callbacks out; data comes from @agenta/skills via the host.
+ * @agenta/skills-ui — skill-registry surfaces: the editor, the create flow, the skill page
+ * view and the playground drawer. Data comes from @agenta/skills.
  */
 export * from "./types"
-export {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
-export {SkillCard, type SkillCardProps} from "./SkillCard"
 export {skillTitle} from "./skillTitle"
 export {
-    SkillsGalleryPage,
-    type SkillsGalleryPageProps,
-    type SkillSourceNavEntry,
-} from "./SkillsGalleryPage"
-export {
-    SkillGallerySections,
-    type SkillGallerySectionsProps,
+    buildRegistrySections,
+    toSkillListItem,
+    type RegistrySections,
     type SkillGallerySection,
-} from "./SkillGallerySections"
+    type SkillSourceNavEntry,
+} from "./registrySections"
+export {SkillEditor, type SkillEditorProps} from "./SkillEditor"
 export {
-    SkillPickerDrawer,
-    type SkillPickerDrawerProps,
-    type SkillAddChoice,
-} from "./SkillPickerDrawer"
-export {buildRegistrySections, toSkillListItem, type RegistrySections} from "./registrySections"
-export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
-export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
-export {useSkillCreateEntry} from "./useSkillCreateEntry"
+    EMPTY_SKILL_DRAFT,
+    toSkillDraft,
+    toSkillContent,
+    skillDraftProblem,
+    type SkillDraft,
+} from "./skillDraft"
+export {SkillCreateChooser, type SkillCreateChooserProps} from "./SkillCreateChooser"
+export {SkillCandidateList, type SkillCandidate} from "./SkillCandidateList"
+export {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
+export {useSkillCreateFlow, type CreatedSkill, type SkillCreateFlow} from "./useSkillCreateFlow"
+export {SkillArchiveDialog, type ArchiveTarget} from "./SkillArchiveDialog"
 export {
-    SkillDetailDrawer,
+    SkillDetailView,
     skillRevisionsQueryKey,
-    type SkillDetailDrawerProps,
-} from "./SkillDetailDrawer"
+    type SkillDetailViewProps,
+} from "./SkillDetailView"
 export {SkillAgentPicker} from "./SkillAgentPicker"
 export {SkillPickerHost} from "./SkillPickerHost"
 export {SkillDetailHost} from "./SkillDetailHost"
