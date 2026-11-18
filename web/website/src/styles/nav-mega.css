@@ -165,6 +165,14 @@ a.ag-mega__head:focus-visible svg {
   text-decoration: underline 2px var(--yellow-400);
   text-underline-offset: 5px;
 }
+.ag-mega__all span {
+  display: inline-flex;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ag-mega__all:hover span,
+.ag-mega__all:focus-visible span {
+  transform: translateX(3px);
+}
 .ag-mega__all:focus-visible {
   outline: 2px solid var(--lp-text);
   outline-offset: 2px;
