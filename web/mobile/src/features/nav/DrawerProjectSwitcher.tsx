@@ -36,6 +36,7 @@ export const DrawerProjectSwitcher = ({
     projectId,
     collapsed = false,
     side = "top",
+    compact,
     trailing,
 }: {
     workspaceId: string
@@ -44,6 +45,8 @@ export const DrawerProjectSwitcher = ({
     collapsed?: boolean
     /** Where the panel opens: "bottom" in the rail's header, "top" in its footer. */
     side?: "top" | "bottom"
+    /** The header's compact trigger; on by default in the header. */
+    compact?: boolean
     /** Controls beside the trigger, such as the collapse toggle. */
     trailing?: ReactNode
 }) => {
@@ -154,6 +157,7 @@ export const DrawerProjectSwitcher = ({
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
                 side={side}
+                compact={compact}
                 trailing={trailing}
             />
             <CreateProjectSheet

@@ -55,6 +55,8 @@ export interface ProjectOrgSwitcherViewProps {
     trailing?: ReactNode
     /** Where the panel opens: "bottom" when the switcher sits in the rail's header. */
     side?: "top" | "bottom"
+    /** The header's compact trigger, with the panel as wide as the rail. On by default for "bottom". */
+    compact?: boolean
     /** Quiet text inside the expanded trigger, before the caret (the app version). */
     triggerMeta?: ReactNode
     /** Optional rows — absent handlers render nothing, so a shell offers what it supports. */
@@ -162,6 +164,7 @@ export const ProjectOrgSwitcherView = ({
     theme,
     trailing,
     side = "top",
+    compact: compactProp,
     triggerMeta,
     onCreateProject,
     onCreateOrg,
@@ -169,6 +172,7 @@ export const ProjectOrgSwitcherView = ({
     onLogout,
 }: ProjectOrgSwitcherViewProps) => {
     const t = useT(navigationCatalog, commonCatalog)
+    const compact = compactProp ?? side === "bottom"
     const [open, setOpen] = useState(false)
     const [panel, setPanel] = useState<Panel>("projects")
     const rowRef = useRef<HTMLDivElement>(null)
@@ -177,12 +181,12 @@ export const ProjectOrgSwitcherView = ({
     const handleOpenChange = useCallback(
         (next: boolean) => {
             // In the header the panel spans the rail, 8px in from each side, as the trigger is.
-            if (next && side === "bottom" && !collapsed && rowRef.current)
+            if (next && compact && !collapsed && rowRef.current)
                 setHeaderWidth(rowRef.current.offsetWidth - 16)
             setOpen(next)
             if (!next) setPanel("projects")
         },
-        [collapsed, side],
+        [collapsed, compact],
     )
 
     const close = useCallback(() => {
@@ -309,7 +313,8 @@ export const ProjectOrgSwitcherView = ({
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
                 "flex gap-1 px-2 transition-all duration-300",
-                side === "bottom" ? "h-12 shrink-0 justify-between" : "pb-1.5",
+                side === "bottom" ? "h-12 shrink-0" : "pb-1.5",
+                compact && "justify-between",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -330,7 +335,7 @@ export const ProjectOrgSwitcherView = ({
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
-                                : side === "bottom"
+                                : compact
                                   ? "h-7 min-w-0 max-w-[196px] gap-2 pl-2.5 pr-3"
                                   : "h-8 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
                         )}
@@ -341,7 +346,7 @@ export const ProjectOrgSwitcherView = ({
                             name={projectLabel}
                             className={clsx(
                                 "shrink-0",
-                                side === "bottom" && "!size-5 !rounded !text-[10px] !font-semibold",
+                                compact && "!size-5 !rounded !text-[10px] !font-semibold",
                             )}
                         />
                         {/* One line, not two: the org already names itself on the panel's
@@ -352,7 +357,7 @@ export const ProjectOrgSwitcherView = ({
                                 <span
                                     className={clsx(
                                         "min-w-0 truncate text-left text-colorText",
-                                        side === "bottom"
+                                        compact
                                             ? "text-sm font-medium leading-5"
                                             : "flex-1 text-[13px] leading-none",
                                     )}
@@ -364,10 +369,13 @@ export const ProjectOrgSwitcherView = ({
                                         {triggerMeta}
                                     </span>
                                 ) : null}
-                                {side === "bottom" ? (
+                                {compact ? (
                                     <CaretDown
                                         size={12}
-                                        className="shrink-0 text-colorTextSecondary"
+                                        className={clsx(
+                                            "shrink-0 text-colorTextSecondary",
+                                            side === "top" && "rotate-180",
+                                        )}
                                     />
                                 ) : (
                                     <CaretUpDown
@@ -389,7 +397,7 @@ export const ProjectOrgSwitcherView = ({
                     side={side}
                     align="start"
                     sideOffset={side === "bottom" ? 4 : undefined}
-                    style={side === "bottom" && !collapsed ? {width: headerWidth} : undefined}
+                    style={compact && !collapsed ? {width: headerWidth} : undefined}
                     className="z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
                 >
                     {panel === "projects" ? projectPanel : orgPanel}

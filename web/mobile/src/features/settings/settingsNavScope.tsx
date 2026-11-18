@@ -24,7 +24,6 @@ import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {lastNonSettingsPathAtom} from "../nav/lastNonSettingsPath"
 import {SupportActions} from "../nav/SupportActions"
-import {useMobileVersion} from "../nav/useMobileNavItems"
 
 import {
     AVAILABLE_SETTINGS_TABS,
@@ -114,35 +113,28 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         )
     }
 
-    // The project switcher closes the rail, expanded and collapsed, as on the main rail's icon rail.
+    // The project switcher, in the main header's look, with live chat and help on its row.
     const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
         <DrawerProjectSwitcher
             workspaceId={workspaceId}
             projectId={projectId}
             collapsed={collapsed}
+            compact
+            trailing={
+                collapsed ? undefined : (
+                    <span className="flex items-center">
+                        <SupportActions projectId={projectId} />
+                    </span>
+                )
+            }
         />
     )
-
-    // The version, live chat and help; Credits is a tab here, and the icon rail keeps only its tabs.
-    const Footer = ({collapsed}: SidebarSlotContext) => {
-        const version = useMobileVersion()
-        if (collapsed) return null
-        return (
-            <div className="flex items-center gap-0.5 px-2 pb-2">
-                <span className="flex h-7 min-w-0 flex-1 items-center px-3 text-xs tabular-nums text-colorTextTertiary">
-                    {version ? `Agenta v${version}` : "Agenta"}
-                </span>
-                <SupportActions projectId={projectId} />
-            </div>
-        )
-    }
 
     return {
         id: SETTINGS_SIDEBAR_SCOPE_ID,
         useSelection,
         useSections,
         header: Header,
-        footer: Footer,
         afterBottom: AfterBottom,
     }
 }
