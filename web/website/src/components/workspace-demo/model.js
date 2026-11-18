@@ -1,5 +1,7 @@
 import { AREAS, LOGO, GLOBE, WEB, mask } from "./fixtures.js";
 
+const SKILL_AUTHORS = ["Alex", "Sam"];
+
 export function deriveWorkspace(state, setState, onLive) {
   const st = state;
   const FG = "var(--foreground)",
@@ -469,85 +471,91 @@ export function deriveWorkspace(state, setState, onLive) {
   // Skills
   const skillsAll = [
     [
-      "research-brief",
+      "Research Brief",
       "Turn a topic into a sourced brief with search intent and outline.",
-      "3 files · 3 agents · 2w",
+      ["templates/brief.md", "examples/seo-brief.md"],
+      3,
+      "2w ago",
       "project",
-      "# research-brief\n\nInputs: topic, audience.\n1. Search the web and internal docs\n2. Cluster findings by intent\n3. Write a brief with sources\n\nOutput: a Notion page, linked in the reply.",
+      "Inputs: topic, audience.\n1. Search the web and internal docs\n2. Cluster findings by intent\n3. Write a brief with sources\n\nOutput: a Notion page, linked in the reply.",
     ],
     [
-      "draft-article",
+      "Draft Article",
       "Write a long-form draft from an approved brief, in the house voice.",
-      "2 files · 2 agents · 2w",
+      ["style-guide.md"],
+      2,
+      "2w ago",
       "project",
-      "# draft-article\n\nInputs: brief URL.\n1. Read the brief and the style guide\n2. Draft sections, cite every claim\n3. Open a PR with the .mdx\n\nRules: no hype adjectives, sentence case.",
+      "Inputs: brief URL.\n1. Read the brief and the style guide\n2. Draft sections, cite every claim\n3. Open a PR with the .mdx\n\nRules: no hype adjectives, sentence case.",
     ],
     [
-      "classify-ticket",
+      "Classify Ticket",
       "Label a support ticket by category and priority.",
-      "1 file · 2 agents · 1mo",
+      [],
+      2,
+      "1mo ago",
       "project",
-      "# classify-ticket\n\nCategories: how-to, bug, billing, security.\nPriority from impact x reach.\nBilling and security escalate to a human.",
+      "Categories: how-to, bug, billing, security.\nPriority from impact x reach.\nBilling and security escalate to a human.",
     ],
     [
-      "score-fit",
+      "Score Fit",
       "Score a lead against the ICP, 1 to 5, with reasons.",
-      "1 file · 2 agents · 3w",
+      [],
+      1,
+      "3w ago",
       "project",
-      "# score-fit\n\nSignals: size, industry, stack, role.\nBelow 2: recommend a polite pass.",
+      "Signals: size, industry, stack, role.\nBelow 2: recommend a polite pass.",
     ],
     [
-      "review-diff",
+      "Review Diff",
       "Review a pull request against team conventions.",
-      "2 files · 1 agent",
+      ["checklist.md"],
+      1,
+      "3d ago",
       "builtin",
-      "# review-diff\n\n1. Read PR description and linked issue\n2. Review file by file\n3. Comment only where you would block a merge",
+      "1. Read PR description and linked issue\n2. Review file by file\n3. Comment only where you would block a merge",
     ],
     [
-      "publish-digest",
+      "Publish Digest",
       "Post a short summary with links to a Slack channel.",
-      "1 file · 4 agents",
+      [],
+      4,
+      "3d ago",
       "builtin",
-      "# publish-digest\n\nMax 5 lines. One link per item. No emoji.",
+      "Max 5 lines. One link per item. No emoji.",
     ],
     [
-      "schedule-run",
+      "Schedule Run",
       "Create or update a schedule for the current agent.",
-      "1 file · 5 agents",
+      [],
+      5,
+      "3d ago",
       "builtin",
-      "# schedule-run\n\nParse the cadence, confirm the timezone, create the schedule.",
+      "Parse the cadence, confirm the timezone, create the schedule.",
     ],
-  ].map(([slug, desc, meta, origin, md], i) => ({
-    slug,
-    desc,
-    meta,
-    md,
-    builtin: origin === "builtin",
-    project: origin !== "builtin",
-    avatarStyle:
-      "display:flex;width:28px;height:28px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:6px;font:600 11px/1 var(--font-mono);" +
-      (origin === "builtin"
-        ? "background:var(--ag-colorPrimary);color:var(--ag-colorBgContainer);"
-        : "background:var(--demo-avatar-3);color:var(--demo-avatar-10);"),
-    versions: ["v4", "v3", "v2"].map((v, j) => ({
-      v,
-      when: j === 0 ? "current · " + whens[i + 1] : whens[i + 4 + j],
-      style: j === 0 ? "background:var(--accent);" : "",
-    })),
-    usedBy: [sessions[i], sessions[(i + 5) % sessions.length]],
-    open: () => setState({ skill: i, skillVersion: "v4" }),
-  }));
+  ].map(([title, desc, files, agents, age, origin, md], i) => {
+    const usedBy = Array.from(
+      { length: agents },
+      (_, j) => sessions[(i + j * 5) % sessions.length],
+    );
+    return {
+      title,
+      slug: title.toLowerCase().replace(/ /g, "-"),
+      desc,
+      files,
+      age,
+      md,
+      usedBy,
+      usedByLabel: agents === 1 ? usedBy[0].title : agents + " agents",
+      createdBy: origin === "builtin" ? "Agenta" : SKILL_AUTHORS[i % 2],
+      open: () => setState({ skill: i }),
+    };
+  });
   const skillSections = [
+    { label: "This project", count: 4, skills: skillsAll.slice(0, 4) },
     {
-      label: "This project",
-      count: 4,
-      tag: null,
-      skills: skillsAll.slice(0, 4),
-    },
-    {
-      label: "Agenta built-in",
+      label: "Agenta-AI/agenta-skills",
       count: 3,
-      tag: "synced 3d ago",
       skills: skillsAll.slice(4),
     },
   ];

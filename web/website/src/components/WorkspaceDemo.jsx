@@ -4,12 +4,15 @@ import {
   CalendarBlank,
   CaretDoubleRight,
   CaretDown,
+  CaretLeft,
   CaretRight,
   ChatCircle,
   Clock,
   Check,
+  Compass,
   ClockCounterClockwise,
   DotsThree,
+  FileText,
   Funnel,
   Lightning,
   Paperclip,
@@ -17,7 +20,6 @@ import {
   MagnifyingGlass,
   Plus,
   Robot,
-  X,
 } from "@phosphor-icons/react";
 import AutomationHistory from "./workspace-demo/AutomationHistory.jsx";
 import PlaygroundSettings from "./workspace-demo/PlaygroundSettings.jsx";
@@ -59,6 +61,37 @@ function css(value) {
 
 import { deriveWorkspace } from "./workspace-demo/model.js";
 
+const SKILL_LABEL = `font:500 14px/20px var(--font-sans);color:var(--foreground);`;
+const SKILL_BOX = `box-sizing:border-box;border-radius:10px;border:1px solid var(--input);font:400 14px/1.6 var(--font-sans);color:var(--foreground);`;
+const SKILL_CELL = `min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 14px/20px var(--font-sans);color:var(--foreground);`;
+const SKILL_SWITCH = `box-sizing:border-box;display:inline-flex;width:28px;height:16px;flex:0 0 auto;align-items:center;border-radius:999px;padding:2px;background:var(--input);`;
+const SKILL_SWITCH_THUMB = `width:12px;height:12px;border-radius:999px;background:var(--background);`;
+
+// Shows a skill's steps as rendered markdown: numbered runs become a list.
+function renderSkillMarkdown(md) {
+  const blocks = [];
+  for (const line of md.split("\n")) {
+    const step = line.match(/^\d+\. (.*)$/);
+    const last = blocks[blocks.length - 1];
+    if (step && Array.isArray(last)) last.push(step[1]);
+    else if (step) blocks.push([step[1]]);
+    else if (line) blocks.push(line);
+  }
+  return blocks.map((block, i) =>
+    Array.isArray(block) ? (
+      <ol key={i} style={css(`margin:0 0 10px;padding-left:22px;`)}>
+        {block.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+    ) : (
+      <p key={i} style={css(`margin:0 0 10px;`)}>
+        {block}
+      </p>
+    ),
+  );
+}
+
 const SAMPLE_NAMES = ["Alex", "Sam", "Jordan", "Taylor", "Casey"];
 
 export default class WorkspaceDemo extends Component {
@@ -96,7 +129,7 @@ export default class WorkspaceDemo extends Component {
   componentDidUpdate(_, previous) {
     if (previous.skill === null && this.state.skill !== null) {
       this.returnFocus = document.activeElement;
-      this.frame?.querySelector('[aria-label="Close skill details"]')?.focus();
+      this.frame?.querySelector('[aria-label="Back to skills"]')?.focus();
     } else if (previous.skill !== null && this.state.skill === null)
       this.returnFocus?.focus();
   }
@@ -1099,368 +1132,370 @@ export default class WorkspaceDemo extends Component {
             </>
           )}
           {view.skills && (
-            <>
-              <div
-                style={css(
-                  `position:relative;display:flex;flex:1;min-height:0;flex-direction:column;overflow:hidden;`,
-                )}
-              >
+            <div
+              style={css(
+                `display:flex;flex:1;min-height:0;flex-direction:column;overflow:hidden;`,
+              )}
+            >
+              {hasSkill ? (
                 <div
+                  key={sk.title}
+                  className={`ag-skill-page`}
                   style={css(
-                    `box-sizing:border-box;flex:0 0 auto;display:flex;flex-direction:column;gap:12px;padding:56px 64px 12px;`,
+                    `box-sizing:border-box;display:flex;flex:1;min-height:0;flex-direction:column;gap:16px;padding:32px 64px 24px;overflow-y:auto;`,
                   )}
                 >
                   <div
-                    style={css(
-                      `display:flex;min-width:0;align-items:center;gap:8px;`,
-                    )}
+                    style={css(`display:flex;flex-direction:column;gap:8px;`)}
                   >
-                    <h3
+                    <button
+                      type={`button`}
+                      aria-label="Back to skills"
+                      onClick={closeSkill}
                       style={css(
-                        `margin:0;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 24px/1.3333 var(--font-sans);color:var(--foreground);`,
+                        `display:inline-flex;align-self:flex-start;align-items:center;gap:4px;border:0;padding:0;background:transparent;font:400 13px/18px var(--font-sans);color:var(--muted-foreground);`,
                       )}
-                    >{`Skills`}</h3>
+                    >
+                      <CaretLeft
+                        size={12}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
+                      {`Skills`}
+                    </button>
+                    <div
+                      style={css(
+                        `display:flex;min-width:0;align-items:center;gap:8px;`,
+                      )}
+                    >
+                      <h3
+                        className={`ag-skill-title`}
+                        style={css(
+                          `margin:0;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 24px/1.3333 var(--font-sans);color:var(--foreground);`,
+                        )}
+                      >
+                        {sk.title}
+                      </h3>
+                      <span
+                        style={css(
+                          `display:inline-flex;height:32px;align-items:center;border-radius:6px;padding:0 12px;background:var(--primary);color:var(--primary-foreground);font:500 14px/1 var(--font-sans);opacity:0.5;`,
+                        )}
+                      >{`Save`}</span>
+                      <span
+                        aria-hidden="true"
+                        style={css(
+                          `display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
+                        )}
+                      >
+                        <DotsThree size={18} weight="bold" />
+                      </span>
+                    </div>
                     <span
                       style={css(
-                        `flex:0 0 auto;font:400 13px/1 var(--font-sans);color:var(--muted-foreground);`,
+                        `font:400 13px/18px var(--font-sans);color:var(--muted-foreground);`,
                       )}
-                    >{`Archived skills`}</span>
+                    >
+                      {`Used by `}
+                      <span style={css(`color:var(--foreground);`)}>
+                        {sk.usedByLabel}
+                      </span>
+                      {` · Edited ${sk.age}`}
+                    </span>
                   </div>
                   <div
+                    className={`ag-skill-page-body`}
+                    style={css(`display:flex;flex:1;min-height:0;gap:20px;`)}
+                  >
+                    <div
+                      style={css(
+                        `display:flex;min-width:0;flex:1;flex-direction:column;gap:8px;`,
+                      )}
+                    >
+                      <span style={css(SKILL_LABEL)}>{`Description`}</span>
+                      <div style={css(`${SKILL_BOX}padding:10px 12px;`)}>
+                        {sk.desc}
+                      </div>
+                      <span style={css(`${SKILL_LABEL}margin-top:8px;`)}>
+                        {`Instructions`}
+                      </span>
+                      <div
+                        style={css(
+                          `${SKILL_BOX}flex:1;min-height:180px;padding:12px 14px;overflow-y:auto;`,
+                        )}
+                      >
+                        {renderSkillMarkdown(sk.md)}
+                      </div>
+                    </div>
+                    <div
+                      className={`ag-skill-files`}
+                      style={css(
+                        `display:flex;width:260px;flex:0 0 auto;flex-direction:column;gap:8px;`,
+                      )}
+                    >
+                      <span style={css(SKILL_LABEL)}>{`Files`}</span>
+                      <div
+                        style={css(
+                          `${SKILL_BOX}display:flex;flex:1;flex-direction:column;padding:6px;`,
+                        )}
+                      >
+                        {["SKILL.md", ...sk.files].map((file, index8) => (
+                          <span
+                            key={file}
+                            style={css(
+                              `display:flex;align-items:center;gap:8px;border-radius:6px;padding:6px 8px;font:400 13px/18px var(--font-sans);color:var(--foreground);${index8 === 0 ? "background:var(--accent);font-weight:500;" : ""}`,
+                            )}
+                          >
+                            <FileText
+                              size={14}
+                              weight="regular"
+                              aria-hidden="true"
+                              style={css(
+                                `flex:0 0 auto;color:var(--muted-foreground);`,
+                              )}
+                            />
+                            <span
+                              style={css(
+                                `min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
+                              )}
+                            >
+                              {file}
+                            </span>
+                          </span>
+                        ))}
+                        <span style={css(`flex:1;`)}></span>
+                        <span
+                          style={css(
+                            `display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);margin:6px -6px -6px;padding:10px 14px;`,
+                          )}
+                        >
+                          <span
+                            style={css(
+                              `display:flex;min-width:0;flex:1;flex-direction:column;gap:2px;`,
+                            )}
+                          >
+                            <span
+                              style={css(
+                                `font:500 13px/18px var(--font-sans);color:var(--foreground);`,
+                              )}
+                            >{`Let files run as programs`}</span>
+                            <span
+                              style={css(
+                                `font:400 12px/16px var(--font-sans);color:var(--muted-foreground);`,
+                              )}
+                            >{`Your sandbox must allow it too.`}</span>
+                          </span>
+                          <span aria-hidden="true" style={css(SKILL_SWITCH)}>
+                            <span style={css(SKILL_SWITCH_THUMB)}></span>
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div
                     style={css(
-                      `display:flex;min-width:0;align-items:center;justify-content:space-between;gap:12px;`,
+                      `box-sizing:border-box;flex:0 0 auto;display:flex;flex-direction:column;gap:12px;padding:56px 64px 12px;`,
                     )}
                   >
-                    <span
+                    <div
+                      style={css(`display:flex;flex-direction:column;gap:4px;`)}
+                    >
+                      <div
+                        style={css(
+                          `display:flex;min-width:0;align-items:center;gap:8px;`,
+                        )}
+                      >
+                        <h3
+                          style={css(
+                            `margin:0;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 24px/1.3333 var(--font-sans);color:var(--foreground);`,
+                          )}
+                        >{`Skills`}</h3>
+                        <span
+                          style={css(
+                            `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;padding:0 12px;background:var(--primary);color:var(--primary-foreground);font:500 14px/1 var(--font-sans);`,
+                          )}
+                        >
+                          <Plus size={14} weight="regular" aria-hidden="true" />
+                          {`New skill`}
+                        </span>
+                      </div>
+                      <span
+                        className={`ag-skill-intro`}
+                        style={css(
+                          `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 14px/20px var(--font-sans);color:var(--muted-foreground);`,
+                        )}
+                      >{`A skill teaches an agent how to do one job well. Add it once, then use it in any agent.`}</span>
+                    </div>
+                    <div
                       style={css(
-                        `display:inline-flex;min-width:0;flex:1;max-width:320px;height:32px;align-items:center;gap:8px;border-radius:6px;border:1px solid var(--input);padding:0 10px;font:400 13px/1 var(--font-sans);color:var(--placeholder);`,
+                        `display:flex;min-width:0;align-items:center;gap:8px;`,
                       )}
                     >
                       <span
                         style={css(
-                          `display:inline-flex;color:var(--muted-foreground);`,
+                          `display:inline-flex;min-width:0;flex:1;max-width:320px;height:32px;align-items:center;gap:8px;border-radius:6px;border:1px solid var(--input);padding:0 10px;font:400 13px/1 var(--font-sans);color:var(--placeholder);`,
                         )}
                       >
                         <MagnifyingGlass
                           size={14}
                           weight="regular"
                           aria-hidden="true"
+                          style={css(
+                            `flex:0 0 auto;color:var(--muted-foreground);`,
+                          )}
                         />
+                        <span
+                          style={css(
+                            `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
+                          )}
+                        >{`Search skills`}</span>
                       </span>
-                      {`Search skills by name…`}
-                    </span>
-                    <span
-                      style={css(
-                        `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;padding:0 12px;background:var(--primary);color:var(--primary-foreground);font:500 14px/1 var(--font-sans);`,
-                      )}
-                    >
-                      <Plus size={14} weight="regular" aria-hidden="true" />
-                      {`New skill`}
-                    </span>
-                  </div>
-                </div>
-                <div
-                  style={css(
-                    `min-height:0;min-width:0;flex:1;overflow-y:auto;padding:16px 64px 24px;display:flex;flex-direction:column;gap:24px;`,
-                  )}
-                >
-                  {skillSections.map((sec, index5) => (
-                    <Fragment key={index5}>
-                      <section
+                      <span
                         style={css(
-                          `display:flex;flex-direction:column;gap:10px;`,
+                          `display:inline-flex;height:32px;flex:0 0 auto;align-items:center;gap:6px;border-radius:6px;border:1px solid var(--border);padding:0 10px;font:500 13px/1 var(--font-sans);color:var(--foreground);`,
                         )}
                       >
-                        <div
+                        <Funnel size={14} weight="regular" aria-hidden="true" />
+                        {`Filter`}
+                      </span>
+                      <span style={css(`flex:1;`)}></span>
+                      <span
+                        className={`ag-skill-archived`}
+                        style={css(
+                          `display:inline-flex;flex:0 0 auto;align-items:center;gap:8px;font:400 13px/1 var(--font-sans);color:var(--muted-foreground);`,
+                        )}
+                      >
+                        <span aria-hidden="true" style={css(SKILL_SWITCH)}>
+                          <span style={css(SKILL_SWITCH_THUMB)}></span>
+                        </span>
+                        {`Show archived`}
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    style={css(
+                      `min-height:0;min-width:0;flex:1;overflow-y:auto;padding:4px 64px 24px;`,
+                    )}
+                  >
+                    <div
+                      role={`row`}
+                      className={`ag-skill-grid`}
+                      style={css(
+                        `border-bottom:1px solid color-mix(in srgb,var(--border) 40%,transparent);padding:8px 0;font:500 13px/18px var(--font-sans);color:var(--muted-foreground);`,
+                      )}
+                    >
+                      <span></span>
+                      <span>{`Name`}</span>
+                      <span className={`ag-skill-wide`}>{`Used by`}</span>
+                      <span className={`ag-skill-wide`}>{`Created by`}</span>
+                      <span
+                        className={`ag-skill-age`}
+                        style={css(`text-align:right;`)}
+                      >
+                        {`Last edited`}
+                      </span>
+                      <span></span>
+                    </div>
+                    {skillSections.map((sec, index5) => (
+                      <section key={index5}>
+                        <h2
                           style={css(
-                            `display:flex;align-items:center;gap:8px;`,
+                            `display:flex;align-items:center;gap:6px;margin:0;padding:14px 0 6px;font:500 13px/18px var(--font-sans);color:var(--foreground);`,
                           )}
                         >
-                          <h2
-                            style={css(
-                              `margin:0;font:600 12px/16px var(--font-sans);letter-spacing:0.025em;text-transform:uppercase;color:var(--ag-colorTextSecondary);`,
-                            )}
-                          >
-                            {sec.label}
-                          </h2>
+                          <CaretDown
+                            size={12}
+                            weight="regular"
+                            aria-hidden="true"
+                            style={css(`color:var(--muted-foreground);`)}
+                          />
+                          {sec.label}
                           <span
                             style={css(
-                              `font:400 12px/16px var(--font-sans);font-variant-numeric:tabular-nums;color:var(--ag-colorTextTertiary);`,
+                              `font-weight:400;font-variant-numeric:tabular-nums;color:var(--muted-foreground);`,
                             )}
                           >
                             {sec.count}
                           </span>
-                          {sec.tag && (
-                            <>
+                        </h2>
+                        {sec.skills.map((k) => (
+                          <div
+                            key={k.title}
+                            role={`button`}
+                            tabIndex={0}
+                            onClick={k.open}
+                            onKeyDown={(event) =>
+                              event.key === "Enter" && k.open()
+                            }
+                            className={`ag-skill-grid ag-skill-row`}
+                            style={css(
+                              `width:calc(100% + 24px);margin:0 -12px;padding:10px 12px;align-items:center;border-radius:6px;cursor:default;`,
+                            )}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={css(
+                                `box-sizing:border-box;display:flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:9px;border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground);`,
+                              )}
+                            >
+                              <Compass size={16} weight="regular" />
+                            </span>
+                            <span
+                              style={css(
+                                `display:flex;min-width:0;flex-direction:column;gap:2px;`,
+                              )}
+                            >
+                              <span
+                                style={css(`${SKILL_CELL}font-weight:600;`)}
+                              >
+                                {k.title}
+                              </span>
                               <span
                                 style={css(
-                                  `border-radius:4px;background:var(--ag-colorFillTertiary);padding:1px 6px;font:400 10px/14px var(--font-sans);color:var(--ag-colorTextTertiary);`,
+                                  `${SKILL_CELL}color:var(--muted-foreground);`,
                                 )}
                               >
-                                {sec.tag}
+                                {k.desc}
                               </span>
-                            </>
-                          )}
-                        </div>
-                        <div
-                          className={`ag-app-skills`}
-                          style={css(
-                            `display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;`,
-                          )}
-                        >
-                          {sec.skills.map((k, index8) => (
-                            <Fragment key={index8}>
-                              <button
-                                type={`button`}
-                                onClick={k.open}
-                                style={css(
-                                  `box-sizing:border-box;display:flex;cursor:default;flex-direction:column;gap:8px;border-radius:8px;border:1px solid var(--ag-colorBorderSecondary);background:var(--ag-colorBgContainer);padding:12px;text-align:left;transition:border-color .15s;`,
-                                )}
-                              >
-                                <span
-                                  style={css(
-                                    `display:flex;min-width:0;align-items:center;gap:8px;`,
-                                  )}
-                                >
-                                  <span style={css(k.avatarStyle)}>
-                                    {k.builtin && (
-                                      <>
-                                        <Lightning
-                                          size={13}
-                                          weight="regular"
-                                          aria-hidden="true"
-                                        />
-                                      </>
-                                    )}
-                                    {k.project && <>{`sk`}</>}
-                                  </span>
-                                  <span
-                                    style={css(
-                                      `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 12px/16px var(--font-sans);color:var(--ag-colorText);`,
-                                    )}
-                                  >
-                                    {k.slug}
-                                  </span>
-                                </span>
-                                <span
-                                  style={css(
-                                    `min-height:32px;font:400 12px/16px var(--font-sans);color:var(--ag-colorTextSecondary);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;`,
-                                  )}
-                                >
-                                  {k.desc}
-                                </span>
-                                <span
-                                  style={css(
-                                    `display:flex;align-items:center;gap:6px;font:400 11px/14px var(--font-sans);color:var(--ag-colorTextTertiary);`,
-                                  )}
-                                >
-                                  {k.meta}
-                                </span>
-                              </button>
-                            </Fragment>
-                          ))}
-                        </div>
+                            </span>
+                            <span
+                              className={`ag-skill-wide`}
+                              style={css(SKILL_CELL)}
+                            >
+                              {k.usedByLabel}
+                            </span>
+                            <span
+                              className={`ag-skill-wide`}
+                              style={css(SKILL_CELL)}
+                            >
+                              {k.createdBy}
+                            </span>
+                            <span
+                              className={`ag-skill-age`}
+                              style={css(
+                                `${SKILL_CELL}text-align:right;color:var(--muted-foreground);`,
+                              )}
+                            >
+                              {k.age}
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              style={css(
+                                `display:flex;justify-content:flex-end;color:var(--muted-foreground);`,
+                              )}
+                            >
+                              <DotsThree size={16} weight="bold" />
+                            </span>
+                          </div>
+                        ))}
                       </section>
-                    </Fragment>
-                  ))}
-                </div>
-                {hasSkill && (
-                  <>
-                    <div
-                      onClick={closeSkill}
-                      style={css(
-                        `position:absolute;inset:0;background:var(--ag-colorBgMask);`,
-                      )}
-                    ></div>
-                    <div
-                      className={`ag-app-drawer`}
-                      style={css(
-                        `position:absolute;top:0;right:0;bottom:0;width:min(560px,100%);display:flex;flex-direction:column;background:var(--background);border-left:1px solid var(--border);box-shadow:var(--ag-surface-inspector-shadow);`,
-                      )}
-                    >
-                      <div
-                        style={css(
-                          `display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);`,
-                        )}
-                      >
-                        <span style={css(sk.avatarStyle)}>
-                          {sk.builtin && (
-                            <>
-                              <Lightning
-                                size={13}
-                                weight="regular"
-                                aria-hidden="true"
-                              />
-                            </>
-                          )}
-                          {sk.project && <>{`sk`}</>}
-                        </span>
-                        <span
-                          style={css(
-                            `display:flex;min-width:0;flex:1;flex-direction:column;`,
-                          )}
-                        >
-                          <span
-                            style={css(
-                              `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 14px/18px var(--font-sans);color:var(--foreground);`,
-                            )}
-                          >
-                            {sk.slug}
-                          </span>
-                          <span
-                            style={css(
-                              `font:400 12px/16px var(--font-sans);color:var(--muted-foreground);`,
-                            )}
-                          >
-                            {sk.meta}
-                          </span>
-                        </span>
-                        <span
-                          style={css(
-                            `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;border:1px solid var(--border);padding:0 12px;background:transparent;color:var(--foreground);font:400 14px/1 var(--font-sans);white-space:nowrap;`,
-                          )}
-                        >{`Edit`}</span>
-                        <button
-                          type={`button`}
-                          aria-label="Close skill details"
-                          onClick={closeSkill}
-                          style={css(
-                            `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;border:none;background:transparent;cursor:default;color:var(--muted-foreground);`,
-                          )}
-                        >
-                          <X size={14} weight="regular" aria-hidden="true" />
-                        </button>
-                      </div>
-                      <div
-                        className={`ag-app-drawer-body`}
-                        style={css(
-                          `display:grid;grid-template-columns:minmax(0,1fr) 180px;flex:1;min-height:0;`,
-                        )}
-                      >
-                        <div
-                          style={css(
-                            `display:flex;flex-direction:column;min-height:0;overflow-y:auto;`,
-                          )}
-                        >
-                          <div
-                            style={css(
-                              `padding:14px 16px 6px;font:400 13px/1.45 var(--font-sans);color:var(--muted-foreground);`,
-                            )}
-                          >
-                            {sk.desc}
-                          </div>
-                          <div
-                            style={css(
-                              `display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);`,
-                            )}
-                          >
-                            <span
-                              style={css(
-                                `font:500 12px/16px var(--font-mono);color:var(--foreground);`,
-                              )}
-                            >{`SKILL.md`}</span>
-                            <span
-                              style={css(
-                                `font:400 11px/1 var(--font-sans);color:var(--muted-foreground);`,
-                              )}
-                            >{`read-only`}</span>
-                          </div>
-                          <pre
-                            style={css(
-                              `margin:0;padding:14px 16px;font:400 12px/1.7 var(--font-mono);color:var(--foreground);white-space:pre-wrap;`,
-                            )}
-                          >
-                            {this.state.skillVersion === "v3"
-                              ? sk.md
-                                  .split("\n")
-                                  .filter(
-                                    (line) =>
-                                      !line.startsWith("Output:") &&
-                                      !line.startsWith("Rules:"),
-                                  )
-                                  .join("\n")
-                              : this.state.skillVersion === "v2"
-                                ? `# ${sk.slug}\n\n${sk.desc}`
-                                : sk.md}
-                          </pre>
-                        </div>
-                        <div
-                          style={css(
-                            `display:flex;flex-direction:column;border-left:1px solid var(--border);background:var(--ag-surface-raised);min-height:0;overflow-y:auto;`,
-                          )}
-                        >
-                          <span
-                            style={css(
-                              `padding:14px 14px 6px;font:500 12px/16px var(--font-sans);color:var(--muted-foreground);`,
-                            )}
-                          >{`Versions`}</span>
-                          {sk.versions.map((v, index8) => (
-                            <Fragment key={index8}>
-                              <button
-                                type="button"
-                                aria-pressed={
-                                  (this.state.skillVersion || "v4") === v.v
-                                }
-                                onClick={() =>
-                                  this.setState({ skillVersion: v.v })
-                                }
-                                style={css(
-                                  `display:flex;flex-direction:column;gap:2px;padding:8px 14px;border:0;text-align:left;background:${(this.state.skillVersion || "v4") === v.v ? "var(--accent)" : "transparent"};`,
-                                )}
-                              >
-                                <span
-                                  style={css(
-                                    `font:500 12px/16px var(--font-mono);color:var(--foreground);`,
-                                  )}
-                                >
-                                  {v.v}
-                                </span>
-                                <span
-                                  style={css(
-                                    `font:400 11px/14px var(--font-sans);color:var(--muted-foreground);`,
-                                  )}
-                                >
-                                  {v.when}
-                                </span>
-                              </button>
-                            </Fragment>
-                          ))}
-                          <span
-                            style={css(
-                              `padding:14px 14px 6px;font:500 12px/16px var(--font-sans);color:var(--muted-foreground);border-top:1px solid var(--border);margin-top:8px;`,
-                            )}
-                          >{`Used by`}</span>
-                          {sk.usedBy.map((u, index8) => (
-                            <Fragment key={index8}>
-                              <div
-                                style={css(
-                                  `display:flex;align-items:center;gap:8px;padding:6px 14px;`,
-                                )}
-                              >
-                                <span style={css(u.chipStyle)}>
-                                  <Robot
-                                    size="62%"
-                                    weight="regular"
-                                    aria-hidden="true"
-                                  />
-                                </span>
-                                <span
-                                  style={css(
-                                    `min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 13px/18px var(--font-sans);color:var(--foreground);`,
-                                  )}
-                                >
-                                  {u.title}
-                                </span>
-                              </div>
-                            </Fragment>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
           {view.sessions && (
             <>

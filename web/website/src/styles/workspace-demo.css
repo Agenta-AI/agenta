@@ -24,14 +24,6 @@
 [data-theme="dark"] .ag-app-frame .th-light-only {
   display: none !important;
 }
-.ag-app-frame .ag-app-skills {
-  min-width: 0;
-}
-@media (max-width: 860px) {
-  .ag-app-frame .ag-app-drawer-body {
-    grid-template-columns: 1fr !important;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .ag-app-frame *,
   .ag-app-frame *::before,
@@ -303,7 +295,39 @@
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
-  .ag-app-frame .ag-app-skills {
-    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+/* Skills registry table, as in the product. */
+.ag-app-frame .ag-skill-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns:
+    32px minmax(180px, 2fr) minmax(110px, 1fr) minmax(100px, 1fr)
+    80px 24px;
+}
+.ag-app-frame .ag-skill-row:hover {
+  background: var(--accent);
+}
+@media (max-width: 860px) {
+  .ag-app-frame .ag-skill-page-body {
+    flex-direction: column;
+  }
+  .ag-app-frame .ag-skill-files {
+    width: auto !important;
+  }
+}
+@media (max-width: 600px) {
+  .ag-app-frame .ag-skill-grid {
+    gap: 10px;
+    grid-template-columns: 32px minmax(0, 1fr) 24px;
+  }
+  .ag-app-frame .ag-skill-title {
+    font-size: 19px !important;
+  }
+  .ag-app-frame .ag-skill-wide,
+  .ag-app-frame .ag-skill-age,
+  .ag-app-frame .ag-skill-intro,
+  .ag-app-frame .ag-skill-archived {
+    display: none !important;
   }
 }
