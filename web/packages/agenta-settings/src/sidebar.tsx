@@ -116,7 +116,7 @@ export const buildSettingsSidebarSections = (
         dividerBefore: false,
         before: ({collapsed}: SidebarSlotContext) =>
             collapsed ? (
-                <div className="mx-auto my-1 h-px w-5 shrink-0 bg-colorBorderSecondary" />
+                <div className="my-1 h-px w-full shrink-0 bg-[var(--ag-shell-line)]" />
             ) : (
                 // pl-5 = the rows' 8px inset + their 12px padding.
                 <div
