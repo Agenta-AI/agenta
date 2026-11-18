@@ -1048,10 +1048,15 @@ html,
   }
   /* Under the floating pill: pill width, attached below its 5px outer ring. */
   .nav-scrolled .ag-mobile-menu.is-open {
-    top: 82.5px;
+    top: 88px;
     left: 17px;
     right: 17px;
-    max-height: calc(100dvh - 94px);
+    max-height: calc(100dvh - 100px);
+    /* Detached from the pill, so every corner is round and the top has an edge. */
+    border-radius: 18px;
+    box-shadow:
+      0 0 0 1px var(--lp-line-2),
+      0 8px 24px rgba(24, 16, 16, 0.08);
   }
 
   /* Authors grids never collapsed (inline repeat(3,1fr)); 3-up -> 2-up on tablet.
