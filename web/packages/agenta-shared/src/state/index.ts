@@ -10,7 +10,6 @@ export {
     activeUserIdAtom,
     agentaChannelSurfaceEnabledAtom,
     channelDebugEnabledAtom,
-    languagePickerEnabledAtom,
     playgroundInspectorEnabledAtom,
     userScopedFlagAtom,
     userSettingsKey,
