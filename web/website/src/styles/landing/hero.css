@@ -453,3 +453,8 @@ html body .lp .r3 .ws-split[data-config="true"] .r3-hx-venues { max-width: none 
 @media (min-width: 861px) and (max-width: 1100px) {
   html body .lp .r3 .r3-i2-run:has(.ws-split[data-config="true"]) .r3-hx-toast { left:68px; }
 }
+/* Smaller screens: no app demo in the hero; the headline and buttons stand alone. */
+@media (max-width: 860px) {
+  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame.r3-i2-run:not([hidden]),
+  html body .lp .r3 .r3-ag-hero .lp-demo-live.lp-demo-live { display:none !important; }
+}
