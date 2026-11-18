@@ -9,7 +9,7 @@ import {
 import type {SidebarArrange, SidebarConfig} from "@agenta/navigation"
 import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
-import {Ellipsis} from "lucide-react"
+import {Ellipsis, Pin} from "lucide-react"
 import {
     AnimatePresence,
     Reorder,
@@ -140,31 +140,49 @@ const MoreMenu = ({
     hidden,
     onPull,
     onPick,
+    onPin,
     onReset,
 }: {
     hidden: SidebarConfig[]
     onPull?: (item: SidebarConfig, event: PointerEvent) => void
     onPick: () => void
+    onPin: (key: string) => void
     onReset: () => void
 }) => (
     <div className="flex flex-col p-1">
         <div className="px-2 pb-1 pt-1.5 text-xs text-colorTextSecondary">More pages</div>
         {hidden.length ? (
             hidden.map((item) => (
-                <Link
-                    key={item.key}
-                    href={item.link ?? "#"}
-                    draggable={false}
-                    prefetch={item.prefetch}
-                    className={cn(MENU_ROW, onPull && "[-webkit-touch-callout:none]")}
-                    onClick={onPick}
-                    onPointerDown={
-                        onPull ? (event) => pressToDrag(event, (e) => onPull(item, e)) : undefined
-                    }
-                >
-                    <span className="flex shrink-0 items-center">{item.icon}</span>
-                    <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                </Link>
+                <div key={item.key} className="flex items-center gap-0.5">
+                    <Link
+                        href={item.link ?? "#"}
+                        draggable={false}
+                        prefetch={item.prefetch}
+                        className={cn(
+                            MENU_ROW,
+                            "min-w-0 flex-1",
+                            onPull && "[-webkit-touch-callout:none]",
+                        )}
+                        onClick={onPick}
+                        onPointerDown={
+                            onPull
+                                ? (event) => pressToDrag(event, (e) => onPull(item, e))
+                                : undefined
+                        }
+                    >
+                        <span className="flex shrink-0 items-center">{item.icon}</span>
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                    </Link>
+                    <button
+                        type="button"
+                        aria-label={`Pin ${item.title} to the sidebar`}
+                        title="Pin to the sidebar"
+                        className="mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
+                        onClick={() => onPin(item.key)}
+                    >
+                        <Pin size={12} strokeWidth={1.75} />
+                    </button>
+                </div>
             ))
         ) : (
             <p className="m-0 px-2 pb-2 pt-1 text-[13px] leading-[18px] text-colorTextTertiary">
@@ -310,6 +328,14 @@ export const ArrangeablePages = ({
         commit(next, hiddenKeys)
     }
 
+    const pin = (key: string) => {
+        setMoreOpen(false)
+        commit(
+            [...keys, key],
+            hiddenKeys.filter((hiddenKey) => hiddenKey !== key),
+        )
+    }
+
     const reset = () => {
         setMoreOpen(false)
         arrange.onReset()
@@ -344,6 +370,7 @@ export const ArrangeablePages = ({
                         <MoreMenu
                             hidden={arrange.hidden}
                             onPick={() => setMoreOpen(false)}
+                            onPin={pin}
                             onReset={reset}
                         />
                     </PopoverContent>
@@ -430,6 +457,7 @@ export const ArrangeablePages = ({
                         hidden={menuHidden}
                         onPull={pull}
                         onPick={() => setMoreOpen(false)}
+                        onPin={pin}
                         onReset={reset}
                     />
                 </PopoverContent>
