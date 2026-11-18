@@ -1,0 +1,81 @@
+---
+title: "Agents in Discord and Microsoft Teams, shared drives and 7 languages"
+slug: v0-129-0-discord-teams-drives-languages
+date: 2026-11-18
+tags: [v0.129.0]
+description: "Connect an agent to Discord or Microsoft Teams, share folders between agents with drives, and use the app in 7 languages."
+---
+
+{/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
+
+<Summary>
+
+{/* Placeholder: add a demo video or screenshot of an agent answering in Discord here. */}
+
+Agents can now answer in Discord and in Microsoft Teams. You connect your own bot to the agent, and people talk to it in direct messages or by mentioning it in a channel. Agents can also share folders, called drives, and the app now comes in 7 languages.
+
+</Summary>
+
+{/* truncate */}
+
+{/* Placeholder: add a demo video or screenshot of an agent answering in Discord here. */}
+
+## Agents in Discord
+
+You can connect a Discord bot to an agent. People then talk to the agent in two ways:
+
+- **Direct messages:** The agent answers every message.
+- **Server channels:** Mention the bot in a channel. The agent replies in a new thread under your message.
+
+When the agent needs approval to run a tool, it posts **Approve** and **Deny** buttons in the chat.
+
+The bot is your own. Create it in the Discord Developer Portal, copy its bot token, and paste the token in the agent's **Publish** panel in the app. Agenta checks the token with Discord before it saves anything.
+
+Read the full steps in [Connect an agent to Discord](https://agenta.ai/docs/guides/connect-discord).
+
+## Agents in Microsoft Teams
+
+You can also connect an agent to Microsoft Teams. The agent answers in personal chats. In group chats and team channels, it answers when someone mentions it. While it works, the chat shows a typing indicator. When it needs approval, it posts a card with **Approve** and **Deny** buttons.
+
+You register your own bot in the Teams Developer Portal. Then you paste three values on the agent page: the application (client) ID, the client secret and the directory (tenant) ID. After the bot connects, the app offers a download of the Teams app package. You upload that file in Teams to add the agent.
+
+Read the full steps in [Connect an agent to Microsoft Teams](https://agenta.ai/docs/guides/connect-microsoft-teams).
+
+## Shared drives for agents
+
+A drive is a folder of files that Agenta keeps between conversations. Each agent folder is now a drive, and each drive has its own visibility.
+
+- An agent's configuration lists the drives it mounts. Each drive is either read-write or read-only.
+- Two agents can share a drive.
+- A read-only drive refuses writes.
+- The session files pane shows every drive of the agent.
+
+## The app in 7 languages
+
+The app now comes in these languages:
+
+- English
+- Chinese (Simplified)
+- Japanese
+- Spanish
+- Portuguese (Brazil)
+- German
+- French
+
+To change the language, open **Settings**, then **Preferences**, then **Language**. The languages other than English are marked **Beta**.
+
+## Upgrade note for self-hosted users
+
+If you deploy with Helm, set `alembic.hookPhase` to `pre` for this upgrade. The database migration then runs before the new API starts.
+
+```yaml
+alembic:
+  hookPhase: pre
+```
+
+The default is `post`. Keep `post` if you use the PostgreSQL that the chart installs. That database does not exist yet when the migration runs in the `pre` phase. See the [Kubernetes deployment guide](/self-host/guides/deploy-to-kubernetes) for more detail.
+
+## Getting started
+
+- [Connect an agent to Discord](https://agenta.ai/docs/guides/connect-discord)
+- [Connect an agent to Microsoft Teams](https://agenta.ai/docs/guides/connect-microsoft-teams)
