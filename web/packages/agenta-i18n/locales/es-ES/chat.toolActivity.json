@@ -137,5 +137,17 @@
     "writeDone": "Escribió",
     "writeFileDone": "Escribió un archivo",
     "writeFileRunning": "Escribiendo un archivo",
-    "writeRunning": "Escribiendo"
+    "writeRunning": "Escribiendo",
+    "forSearchQuery": "{{query}}",
+    "termTrace": "una traza",
+    "termSchedule": "una programación",
+    "termSchedules": "programaciones",
+    "termTool": "una herramienta",
+    "termTools": "herramientas",
+    "termTriggers": "disparadores",
+    "termConnections": "conexiones",
+    "termDeliveries": "entregas",
+    "termChannelDestinations": "destinos de canal",
+    "termChannelMessages": "mensajes del canal",
+    "termChannelMessage": "un mensaje de canal"
 }

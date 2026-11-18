@@ -23,5 +23,7 @@
     "orgLoadFailed": "Die Organisationsverbindungen konnten nicht geladen werden.",
     "removeFailed": "Agenta konnte {{name}} nicht entfernen. Versuchen Sie es erneut.",
     "signInAgain": "Erneut anmelden",
-    "vertexFields": "Projekt, Standort und Zugangsdaten"
+    "vertexFields": "Projekt, Standort und Zugangsdaten",
+    "modelsDefaults": "Standard",
+    "modelsActive": "{{active}} von {{total}} aktiv"
 }

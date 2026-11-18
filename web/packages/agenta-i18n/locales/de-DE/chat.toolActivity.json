@@ -42,7 +42,7 @@
     "fetchRunning": "Holt",
     "findDone": "gefunden",
     "findRunning": "Sucht",
-    "forQuery": "nach {{query}}",
+    "forQuery": "für {{query}}",
     "getDone": "abgerufen",
     "getRunning": "Holt",
     "labelCommand": "Befehl",
@@ -137,5 +137,17 @@
     "writeDone": "geschrieben",
     "writeFileDone": "Datei geschrieben",
     "writeFileRunning": "Schreibt eine Datei",
-    "writeRunning": "Schreibt"
+    "writeRunning": "Schreibt",
+    "forSearchQuery": "nach {{query}}",
+    "termTrace": "Trace",
+    "termSchedule": "Zeitplan",
+    "termSchedules": "Zeitpläne",
+    "termTool": "Werkzeug",
+    "termTools": "Werkzeugen",
+    "termTriggers": "Auslösern",
+    "termConnections": "Verbindungen",
+    "termDeliveries": "Zustellungen",
+    "termChannelDestinations": "Kanalziele",
+    "termChannelMessages": "Kanalnachrichten",
+    "termChannelMessage": "Kanalnachricht"
 }

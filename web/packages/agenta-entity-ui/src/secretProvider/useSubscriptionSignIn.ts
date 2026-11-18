@@ -9,18 +9,17 @@ import {
     loginAttemptQueryAtomFamily,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
-    subscriptionAttemptErrorSentence,
     subscriptionProviderName,
-    subscriptionStatusLine,
     type ProviderConnection,
     type SecretOwnerScope,
 } from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
-import {createT} from "@agenta/i18n"
+import {createT, textVersionAtom} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {subscriptionAttemptErrorSentence, subscriptionStatusLine} from "./subscriptionText"
 import {organizationRefusal} from "./useOrganizationProjectsDraft"
 
 /** The in-flight device login being shown. */
@@ -172,7 +171,7 @@ export const useSubscriptionSignIn = ({
                 return
             }
             if (!attempt.user_code || !attempt.verification_uri) {
-                throw new Error("The sign-in started without a code. Try again.")
+                throw new Error(tNow("entityUi.subscriptionSignIn.startedWithoutCode"))
             }
             const startedAt = Date.now()
             setPending({
@@ -226,12 +225,14 @@ export const useSubscriptionSignIn = ({
         closeAttempt(pending)
     }, [cancelLogin, closeAttempt, scope, pending])
 
+    // The line is text, so it is rebuilt when the language changes.
+    const textVersion = useAtomValue(textVersionAtom)
     const statusLine = useMemo(
         () =>
             pending
                 ? tNow("entityUi.subscriptionSignIn.waitingForSignIn")
                 : subscriptionStatusLine(connection?.subscription),
-        [connection?.subscription, pending],
+        [connection?.subscription, pending, textVersion],
     )
 
     return {

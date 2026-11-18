@@ -6,7 +6,6 @@ import {
     subscriptionConnectionFor,
     subscriptionIsReady,
     subscriptionProviderName,
-    subscriptionStatusLine,
     type ProviderCatalogEntry,
     type ProviderConnection,
 } from "@agenta/entities/secret"
@@ -16,6 +15,7 @@ import {
     SubscriptionSignInDialog,
     type OrganizationConnectionScope,
     type ProviderOwnerChoice,
+    subscriptionStatusLine,
 } from "@agenta/entity-ui/secretProvider"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"

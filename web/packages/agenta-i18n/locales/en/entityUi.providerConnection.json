@@ -38,5 +38,18 @@
     "anyHarness": "any harness Agenta supports",
     "noHarnessSelected": "no harness selected",
     "enabledInHarness": "enabled in {{harness}}",
-    "enabledInHarnesses": "enabled in {{harnesses}} and {{last}}"
+    "testNoteKey": "Test checks the key with {{provider}} and fetches its model list. Nothing is saved until Done.",
+    "testNoteEndpoint": "Test pings the endpoint and fetches its model list. Nothing is saved until Done.",
+    "addModelIdApi": "Add a model ID the API doesn't list",
+    "addModelIdEndpoint": "Add a model ID the endpoint doesn't list",
+    "modelsFetched_one": "{{count}} model fetched",
+    "modelsFetched_other": "{{count}} models fetched",
+    "activeModelsCount": "{{checked}} of {{total}}",
+    "connectionGone": "This connection no longer exists. Reload and try again.",
+    "couldNotReach": "Agenta could not reach {{provider}} to test this credential.",
+    "keyConfiguredLabel": "Key configured",
+    "modelCount_one": "{{count}} model",
+    "modelCount_other": "{{count}} models",
+    "savedUntested": "This provider offers no free credential check, so the key is saved untested.",
+    "testBeforeSaving": "Test this credential before saving it."
 }

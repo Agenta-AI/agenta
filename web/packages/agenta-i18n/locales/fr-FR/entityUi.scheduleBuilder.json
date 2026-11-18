@@ -23,5 +23,7 @@
     "timeUtc": "Heure (UTC)",
     "runTimeAria": "Heure d’exécution {{time}} (UTC)",
     "removeTime": "Supprimer {{time}}",
-    "add": "Ajouter"
+    "add": "Ajouter",
+    "hoursChip": "{{hours}} h",
+    "cronPlaceholder": "minute heure jour mois jour-de-la-semaine (UTC)"
 }

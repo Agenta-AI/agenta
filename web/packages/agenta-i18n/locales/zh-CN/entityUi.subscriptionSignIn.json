@@ -37,5 +37,14 @@
     "browserOpens": "浏览器窗口会打开。请使用你的 Pro 或 Max 账号登录并批准访问。",
     "pasteTokenPrints": "粘贴命令输出的 Token",
     "tokenWorksOneYear": "Token 有效期为一年。Agenta 会加密存储它，并且不会再次显示。",
-    "connectedStatus": "已连接"
+    "connectedStatus": "已连接",
+    "signInNeeded": "需要登录",
+    "notSignedIn": "未登录",
+    "signInNoLongerValid": "需要登录。{{product}} 登录已失效。",
+    "signInNeedsRenewal": "需要登录。{{product}} 登录需要续期。",
+    "attemptLost": "Agenta 已无法跟踪该登录。请重新开始。",
+    "attemptInvalidLogin": "{{product}} 返回的登录信息 Agenta 无法使用。请重试。",
+    "attemptDeclined": "{{product}} 登录已被拒绝。",
+    "attemptIncomplete": "登录未完成。请重试。",
+    "startedWithoutCode": "登录已开始，但没有登录代码。请重试。"
 }

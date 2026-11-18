@@ -23,7 +23,6 @@ import {
     buildModelOptions,
     connectionPolicyForSave,
     credentialFieldsForKind,
-    credentialStatusLine,
     credentialValuesFor,
     DEFAULT_ENDPOINT_PROTOCOL,
     defaultNamePreview,
@@ -32,17 +31,14 @@ import {
     harnessSupportsProviderKind,
     hasRequiredCredential,
     initialEndpointProtocol,
-    manualModelPlaceholderForKind,
     modelDisplayOrder,
     nextConnectionName,
     probeProviderMutationAtom,
-    probeFailureMessage,
     probeRequestFor,
     providerModelCatalog,
     providerTitleForKind,
     saveProviderConnectionAtom,
     secretKindForProviderKind,
-    secretNoteForKind,
     SecretKind,
     storedCredentialFields,
     type CredentialValues,
@@ -80,6 +76,12 @@ import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
 import OrganizationProjectsSection, {
     type OrganizationConnectionScope,
 } from "./OrganizationProjectsSection"
+import {
+    credentialStatusLine,
+    manualModelPlaceholder,
+    probeFailureText,
+    testNote,
+} from "./providerCardText"
 import {
     providerDisplayTitle,
     translateProtocolField,
@@ -421,9 +423,9 @@ const ProviderConnectionCard = ({
                 )
         } catch (error) {
             setProbe(null)
-            setProbeFailure(probeFailureMessage(error, title))
+            setProbeFailure(probeFailureText(error, displayTitle))
         }
-    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title, displayTitle])
+    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, displayTitle])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -545,9 +547,7 @@ const ProviderConnectionCard = ({
                         </LoadingButton>
                     </span>
                 </TooltipTrigger>
-                <TooltipContent className="max-w-64">
-                    {secretNoteForKind(kind, title)}
-                </TooltipContent>
+                <TooltipContent className="max-w-64">{testNote(kind, displayTitle)}</TooltipContent>
             </Tooltip>
         </TooltipProvider>
     )
@@ -701,7 +701,11 @@ const ProviderConnectionCard = ({
                 {/* Why the footer's Done is disabled (or what saving now would mean), stated where
                     the credential that decides it is. */}
                 {done.note && !readOnly ? (
-                    <span className="text-[11px] text-colorTextTertiary">{done.note}</span>
+                    <span className="text-[11px] text-colorTextTertiary">
+                        {done.note === "savedUntested"
+                            ? t("entityUi.providerConnection.savedUntested")
+                            : t("entityUi.providerConnection.testBeforeSaving")}
+                    </span>
                 ) : null}
             </section>
 
@@ -758,7 +762,7 @@ const ProviderConnectionCard = ({
                 <ActiveModelsSection
                     readOnly={readOnly}
                     options={modelOptions}
-                    manualPlaceholder={manualModelPlaceholderForKind(kind)}
+                    manualPlaceholder={manualModelPlaceholder(kind)}
                     onToggle={toggleModel}
                     onSelectAll={() => setCheckedModels(modelOptions.map((option) => option.id))}
                     onClear={() => setCheckedModels([])}

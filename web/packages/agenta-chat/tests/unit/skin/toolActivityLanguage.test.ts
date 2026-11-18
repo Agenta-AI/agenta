@@ -10,7 +10,7 @@ import {renderHook, waitFor} from "@testing-library/react"
 import {getDefaultStore} from "jotai"
 import {afterAll, beforeAll, describe, expect, it} from "vitest"
 
-import {inSentence, resolveToolDisplay} from "../../../src/skin/registry"
+import {inSentence, registerChatSkin, resolveToolDisplay} from "../../../src/skin/registry"
 
 const SKILL_PATH = "/tmp/agenta/mounts/p/m/agents/skills/5692802a/build-an-agent/SKILL.md"
 
@@ -73,14 +73,68 @@ describe("tool activity in Japanese", () => {
     })
 })
 
+describe("a skin's own wording in Japanese", () => {
+    inLanguage("ja-JP")
+
+    it("shows a registered sentence instead of the built-in frame filled with the object", () => {
+        registerChatSkin({
+            toolDisplay: {
+                todowrite: {
+                    activity: {running: "Planning the work", done: "Planned the work"},
+                },
+            },
+        })
+        const display = resolveToolDisplay("TodoWrite", {todos: []})
+        expect(display.activity.done).toBe("Planned the work")
+        expect(display.verb).toBeUndefined()
+        expect(display.frame).toBeUndefined()
+    })
+
+    it("keeps a registered verb at the front of its sentence", () => {
+        registerChatSkin({
+            toolDisplay: {
+                inspect_settings: {
+                    activity: {running: "Inspecting settings", done: "Inspected settings"},
+                    verb: {running: "Inspecting", done: "Inspected"},
+                },
+            },
+        })
+        const display = resolveToolDisplay("inspect_settings")
+        expect(display.frame).toEqual({
+            running: "Inspecting {{object}}",
+            done: "Inspected {{object}}",
+        })
+    })
+})
+
 describe("tool activity in German", () => {
     inLanguage("de-DE")
 
     it("puts the preposition of a search before its object in both tenses", () => {
         const discover = resolveToolDisplay("discover_triggers")
-        expect(discover.activity.running).toBe("Sucht nach triggers")
-        expect(discover.activity.done).toBe("nach triggers gesucht")
+        expect(discover.activity.running).toBe("Sucht nach Auslösern")
+        expect(discover.activity.done).toBe("nach Auslösern gesucht")
         expect(discover.frame?.done.split("{{object}}")).toEqual(["nach ", " gesucht"])
+    })
+
+    it("says our own nouns in German", () => {
+        expect(resolveToolDisplay("list_schedules").activity.done).toBe("Zeitpläne geprüft")
+        expect(resolveToolDisplay("create_schedule").activity.done).toBe("Zeitplan erstellt")
+        expect(resolveToolDisplay("list_deliveries").activity.done).toBe("Zustellungen geprüft")
+        expect(resolveToolDisplay("list_connections").activity.done).toBe("Verbindungen geprüft")
+        expect(resolveToolDisplay("read_channel_messages").activity.done).toBe(
+            "Kanalnachrichten gelesen",
+        )
+    })
+
+    it("searches nach a query but finds für it", () => {
+        const query = {query: "offene Rechnungen"}
+        expect(resolveToolDisplay("search_invoices", query).activity.done).toBe(
+            "nach offene Rechnungen gesucht",
+        )
+        expect(resolveToolDisplay("find_invoices", query).activity.done).toBe(
+            "für offene Rechnungen gefunden",
+        )
     })
 
     it("frames a builtin search's detail the same way", () => {

@@ -137,5 +137,17 @@
     "writeDone": "書き込みました",
     "writeFileDone": "ファイルを書き込みました",
     "writeFileRunning": "ファイルを書き込み中",
-    "writeRunning": "書き込み中"
+    "writeRunning": "書き込み中",
+    "forSearchQuery": "「{{query}}」",
+    "termTrace": "トレース",
+    "termSchedule": "スケジュール",
+    "termSchedules": "スケジュール",
+    "termTool": "ツール",
+    "termTools": "ツール",
+    "termTriggers": "トリガー",
+    "termConnections": "接続",
+    "termDeliveries": "配信",
+    "termChannelDestinations": "チャネルの送信先",
+    "termChannelMessages": "チャネルのメッセージ",
+    "termChannelMessage": "チャネルのメッセージ"
 }

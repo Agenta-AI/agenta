@@ -4,7 +4,7 @@ import {
     buildAgentModelCandidates,
     firstAgentModelForConnection,
     isSubscriptionConnection,
-    subscriptionAttemptErrorSentence,
+    subscriptionAttemptFailure,
     subscriptionAvailability,
     subscriptionConnectionFor,
     subscriptionConnectMethod,
@@ -12,7 +12,7 @@ import {
     subscriptionProviderFamily,
     subscriptionProviderName,
     subscriptionRunProvider,
-    subscriptionStatusLine,
+    subscriptionStatus,
     subscriptionTokenErrorText,
     toProviderConnections,
     transformSecret,
@@ -187,89 +187,44 @@ describe("subscription candidates", () => {
     })
 })
 
-describe("subscriptionStatusLine", () => {
+describe("subscriptionStatus", () => {
     const needsLogin = (loginError?: string) =>
-        subscriptionStatusLine({provider: "chatgpt", loginState: "needs_login", loginError})
+        subscriptionStatus({provider: "chatgpt", loginState: "needs_login", loginError})
 
     it("names each state", () => {
-        expect(subscriptionStatusLine({provider: "chatgpt", loginState: "ready"})).toBe("Connected")
-        expect(subscriptionStatusLine({provider: "chatgpt", loginState: "pending_login"})).toBe(
-            "Not signed in",
+        expect(subscriptionStatus({provider: "chatgpt", loginState: "ready"})).toBe("connected")
+        expect(subscriptionStatus({provider: "chatgpt", loginState: "pending_login"})).toBe(
+            "notSignedIn",
         )
-        expect(needsLogin()).toBe("Sign in needed")
+        expect(needsLogin()).toBe("signInNeeded")
+        expect(subscriptionStatus(null)).toBeNull()
     })
 
-    it("explains a dead sign-in in a sentence, never in the server's own word", () => {
-        // The card used to print "Sign in needed — refresh_rejected". The slug is safe to show,
-        // no token and no path, but it is a log line: it tells the user nothing to do.
+    it("reads a dead sign-in from the server's reason, never shows the reason", () => {
         for (const reason of ["login_unreadable", "refresh_rejected", "refresh_status_401"]) {
-            expect(needsLogin(reason)).toBe(
-                "Sign in needed. The ChatGPT sign-in is no longer valid.",
-            )
-            expect(needsLogin(reason)).not.toContain(reason)
+            expect(needsLogin(reason)).toBe("signInNoLongerValid")
         }
     })
 
     it("falls back to the general case for a reason it does not know", () => {
-        // A new server reason must never reach the card as raw text.
-        expect(needsLogin("something_new")).toBe(
-            "Sign in needed. The ChatGPT sign-in needs to be renewed.",
-        )
-        expect(needsLogin("something_new")).not.toContain("something_new")
-    })
-
-    it("names the product the row is for, not ChatGPT by default", () => {
-        expect(
-            subscriptionStatusLine({
-                provider: "grok",
-                loginState: "needs_login",
-                loginError: "refresh_rejected",
-            }),
-        ).toBe("Sign in needed. The grok sign-in is no longer valid.")
+        expect(needsLogin("something_new")).toBe("signInNeedsRenewal")
     })
 })
 
-describe("subscriptionAttemptErrorSentence", () => {
-    it("says what happened, never the slug the server used", () => {
-        for (const reason of [
-            "login_failed",
-            "access_denied",
-            "expired_token",
-            "invalid_login",
-            "attempt not found; try again",
-            "something_the_runner_invented",
-        ]) {
-            const sentence = subscriptionAttemptErrorSentence(reason)
-            expect(sentence).not.toContain(reason)
-            expect(sentence.endsWith(".")).toBe(true)
-        }
+describe("subscriptionAttemptFailure", () => {
+    it("maps every slug the server uses, and any other, to a known failure", () => {
+        expect(subscriptionAttemptFailure("attempt not found; try again")).toBe("lost")
+        expect(subscriptionAttemptFailure("invalid_login")).toBe("invalidLogin")
+        expect(subscriptionAttemptFailure("access_denied")).toBe("declined")
+        expect(subscriptionAttemptFailure("expired_token")).toBe("expired")
+        expect(subscriptionAttemptFailure("expired")).toBe("expired")
+        expect(subscriptionAttemptFailure("login_failed")).toBe("incomplete")
+        expect(subscriptionAttemptFailure("something_the_runner_invented")).toBe("incomplete")
     })
 
-    it("tells a lost attempt apart from a declined one", () => {
-        expect(subscriptionAttemptErrorSentence("attempt not found; try again")).toBe(
-            "Agenta lost track of that sign-in. Start it again.",
-        )
-        expect(subscriptionAttemptErrorSentence("access_denied")).toBe(
-            "The ChatGPT sign-in was declined.",
-        )
-        expect(subscriptionAttemptErrorSentence("expired_token")).toBe(
-            "The sign-in code expired. Start again.",
-        )
-    })
-
-    it("has a sentence for an attempt that ended with no reason at all", () => {
-        expect(subscriptionAttemptErrorSentence(null)).toBe(
-            "The sign-in did not complete. Try again.",
-        )
-        expect(subscriptionAttemptErrorSentence(undefined)).toBe(
-            "The sign-in did not complete. Try again.",
-        )
-    })
-
-    it("names the product the connection is for", () => {
-        expect(subscriptionAttemptErrorSentence("access_denied", "grok")).toBe(
-            "The grok sign-in was declined.",
-        )
+    it("has a failure for an attempt that ended with no reason at all", () => {
+        expect(subscriptionAttemptFailure(null)).toBe("incomplete")
+        expect(subscriptionAttemptFailure(undefined)).toBe("incomplete")
     })
 })
 

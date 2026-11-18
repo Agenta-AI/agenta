@@ -23,5 +23,7 @@
     "orgLoadFailed": "Couldn't load the organization connections.",
     "removeFailed": "Agenta could not remove {{name}}. Try again.",
     "signInAgain": "Sign in again",
-    "vertexFields": "Project, location and credentials"
+    "vertexFields": "Project, location and credentials",
+    "modelsDefaults": "Defaults",
+    "modelsActive": "{{active}} of {{total}} active"
 }

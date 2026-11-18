@@ -23,5 +23,7 @@
     "orgLoadFailed": "无法加载组织连接。",
     "removeFailed": "Agenta 无法移除 {{name}}。请重试。",
     "signInAgain": "重新登录",
-    "vertexFields": "项目、位置和凭据"
+    "vertexFields": "项目、位置和凭据",
+    "modelsDefaults": "默认",
+    "modelsActive": "已启用 {{active}} / {{total}}"
 }
