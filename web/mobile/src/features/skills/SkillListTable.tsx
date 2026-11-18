@@ -80,7 +80,6 @@ export const SkillListTable = ({
         if (!next.delete(row.id)) next.add(row.id)
         onSelect(next)
     }
-    const selecting = selected.size > 0
 
     const selectAll = (
         <span className="flex w-8 justify-center">
@@ -105,7 +104,6 @@ export const SkillListTable = ({
         row,
         group,
         checked: selected.has(row.id),
-        selecting,
         onToggle: toggle,
         onOpen,
         onArchive,

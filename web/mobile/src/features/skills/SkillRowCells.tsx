@@ -14,7 +14,6 @@ export interface SkillRowProps {
     row: SkillListRow
     group: SkillGrouping
     checked: boolean
-    selecting: boolean
     onToggle: (row: SkillListRow) => void
     onOpen: (row: SkillListRow) => void
     onArchive: (row: SkillListRow) => void
@@ -30,7 +29,6 @@ export const SkillRowCells = ({
     row,
     group,
     checked,
-    selecting,
     onToggle,
     onOpen,
     onArchive,
@@ -40,7 +38,6 @@ export const SkillRowCells = ({
         <SkillAvatarCheck
             title={row.title}
             checked={checked}
-            selecting={selecting}
             onToggle={() => onToggle(row)}
         />
         <span className="flex min-w-0 flex-col gap-0.5">

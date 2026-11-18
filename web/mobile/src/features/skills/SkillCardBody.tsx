@@ -12,7 +12,6 @@ import {useSkillUpdateStatus} from "./useSkillUpdates"
 export const SkillCardBody = ({
     row,
     checked,
-    selecting,
     onToggle,
     onOpen,
     onArchive,
@@ -24,7 +23,6 @@ export const SkillCardBody = ({
                 <SkillAvatarCheck
                     title={row.title}
                     checked={checked}
-                    selecting={selecting}
                     onToggle={() => onToggle(row)}
                     size={40}
                 />

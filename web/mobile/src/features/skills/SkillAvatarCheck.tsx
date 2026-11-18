@@ -5,14 +5,11 @@ import {cn} from "@agenta/ui/styles"
 export const SkillAvatarCheck = ({
     title,
     checked,
-    selecting,
     onToggle,
     size = 32,
 }: {
     title: string
     checked: boolean
-    /** Any row is selected: unselected tiles get a dashed edge. */
-    selecting: boolean
     onToggle: () => void
     size?: 32 | 40
 }) => (
@@ -32,6 +29,6 @@ export const SkillAvatarCheck = ({
             onChange={onToggle}
             aria-label={`Select ${title}`}
         />
-        <SkillCheckTile checked={checked} selecting={selecting} size={size} />
+        <SkillCheckTile checked={checked} size={size} />
     </label>
 )

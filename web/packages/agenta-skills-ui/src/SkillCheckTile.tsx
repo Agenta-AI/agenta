@@ -12,25 +12,19 @@ const LAYER =
  */
 export const SkillCheckTile = ({
     checked,
-    selecting = false,
     size = 32,
 }: {
     checked: boolean
-    /** Any skill is selected: unselected tiles get a dashed edge. */
-    selecting?: boolean
     size?: 28 | 32 | 40
 }) => (
     <span
         aria-hidden
         className={cn(
-            "relative box-border block shrink-0 overflow-hidden border border-solid transition-colors duration-200 motion-reduce:transition-none",
-            size === 40 ? "size-10 rounded-xl" : size === 32 ? "size-8 rounded-[9px]" : "size-7 rounded-lg",
+            "relative box-border block shrink-0 overflow-hidden transition-colors duration-200 motion-reduce:transition-none",
+            size === 40 ? "size-10 rounded-[9px]" : size === 32 ? "size-8 rounded-[7px]" : "size-7 rounded-md",
             checked
-                ? "border-primary bg-primary text-primary-foreground"
-                : cn(
-                      "border-border bg-muted text-muted-foreground group-hover/check:border-ring group-hover/check:text-foreground",
-                      selecting && "border-dashed border-ring",
-                  ),
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground group-hover/check:text-foreground",
         )}
     >
         <span

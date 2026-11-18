@@ -177,7 +177,7 @@ export function SkillGithubImport({
                             key={row}
                             className="flex h-[54px] items-center gap-2.5 px-2"
                         >
-                            <SkeletonBlock active className="size-7 shrink-0 rounded-lg" />
+                            <SkeletonBlock active className="size-8 shrink-0 rounded-[7px]" />
                             <span className="flex flex-1 flex-col gap-1.5">
                                 <SkeletonBlock active className="h-3.5 w-32 rounded" />
                                 <SkeletonBlock active className="h-3 w-3/4 rounded" />

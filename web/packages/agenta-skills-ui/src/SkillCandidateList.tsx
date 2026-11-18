@@ -48,7 +48,7 @@ export function SkillCandidateList({
                                 disabled={disabled}
                                 onChange={() => onToggle(candidate.key)}
                             />
-                            <SkillCheckTile checked={on} selecting={selected.size > 0} size={28} />
+                            <SkillCheckTile checked={on} size={32} />
                             <span className="flex min-w-0 flex-1 flex-col">
                                 <span className="truncate text-sm font-medium">
                                     {candidate.title}
