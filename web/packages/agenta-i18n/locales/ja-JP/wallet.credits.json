@@ -19,7 +19,7 @@
     "ofAmount": "/ {{amount}}",
     "purchased": "購入済み",
     "remainingOfTotal": "{{remaining}} / {{total}}",
-    "remainingTitle": "残りクレジット",
+    "remainingTitle": "クレジット",
     "resets": "{{date}} にリセット",
     "resetsDaily": "毎日リセット",
     "statusEmpty": "残高なし",

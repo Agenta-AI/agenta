@@ -290,7 +290,9 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
             },
             ...developerRows,
         ]
-        return {pages: list, defaultHidden: new Set(developerRows.map((row) => row.key))}
+        // Templates and the developer pages start in "More".
+        const defaultHidden = new Set(["mobile-templates", ...developerRows.map((row) => row.key)])
+        return {pages: list, defaultHidden}
     }, [developerSlots, projectURL])
 
     const sessions = useMemo<SidebarConfig>(
