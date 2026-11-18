@@ -517,7 +517,7 @@ export function SkillEditor({
                                 {readOnly ? null : (
                                     <Button
                                         type="button"
-                                        variant="outline"
+                                        variant="ghost"
                                         size="sm"
                                         onClick={browse}
                                     >
