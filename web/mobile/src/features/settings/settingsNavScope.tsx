@@ -21,6 +21,7 @@ import {useRouter} from "next/router"
 import {isProjectPath, projectSwitchUrl} from "@/lib/context"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
+import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {lastNonSettingsPathAtom} from "../nav/lastNonSettingsPath"
 import {SupportActions} from "../nav/SupportActions"
 import {useMobileVersion} from "../nav/useMobileNavItems"
@@ -113,6 +114,15 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         )
     }
 
+    // The project switcher closes the rail, expanded and collapsed, as on the main rail's icon rail.
+    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
+        <DrawerProjectSwitcher
+            workspaceId={workspaceId}
+            projectId={projectId}
+            collapsed={collapsed}
+        />
+    )
+
     // The version, live chat and help; Credits is a tab here, and the icon rail keeps only its tabs.
     const Footer = ({collapsed}: SidebarSlotContext) => {
         const version = useMobileVersion()
@@ -133,6 +143,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         useSections,
         header: Header,
         footer: Footer,
+        afterBottom: AfterBottom,
     }
 }
 
