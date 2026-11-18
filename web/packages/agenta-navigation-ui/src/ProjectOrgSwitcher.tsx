@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {InitialsAvatar} from "@agenta/ui/components/presentational"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowsLeftRight,
@@ -296,7 +296,7 @@ export const ProjectOrgSwitcherView = ({
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
                 "flex gap-1 px-2 transition-all duration-300",
-                side === "bottom" ? "h-12 shrink-0 justify-between" : "pb-1.5",
+                side === "bottom" ? "relative h-12 shrink-0 justify-between" : "pb-1.5",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -305,6 +305,10 @@ export const ProjectOrgSwitcherView = ({
                 switcher instead of sitting beside it. */}
             {collapsed ? trailing : null}
             <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
+                {/* In the header the panel spans the rail, 8px in from each side. */}
+                {side === "bottom" && !collapsed ? (
+                    <PopoverAnchor className="pointer-events-none absolute inset-x-2 inset-y-0" />
+                ) : null}
                 <PopoverTrigger asChild>
                     <button
                         type="button"
@@ -369,13 +373,19 @@ export const ProjectOrgSwitcherView = ({
                 {/* A popover, not a menu: the panels hold scrollable lists, and a Radix menu's
                     pointer handling swallows touch scrolling. Docked at the rail's bottom-left
                     edge: open upward, left-aligned, so the panel never clips the viewport's
-                    left edge. Width matches the expanded trigger. */}
+                    left edge. In the header it opens below, as wide as the rail. */}
                 <PopoverContent
                     container={panelContainer}
                     onOpenAutoFocus={(event) => event.preventDefault()}
                     side={side}
                     align="start"
-                    className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                    sideOffset={side === "bottom" ? -4 : undefined}
+                    className={clsx(
+                        "z-[2000] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md",
+                        side === "bottom" && !collapsed
+                            ? "w-[var(--radix-popover-trigger-width)]"
+                            : "w-[220px]",
+                    )}
                 >
                     {panel === "projects" ? projectPanel : orgPanel}
                 </PopoverContent>

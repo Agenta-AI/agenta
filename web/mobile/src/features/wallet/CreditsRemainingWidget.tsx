@@ -90,7 +90,7 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
                             })}
                         </span>
                     </span>
-                    <span className="bg-muted block h-[3px] overflow-hidden rounded-full">
+                    <span className="bg-border block h-[3px] overflow-hidden rounded-full">
                         <span
                             className={`block h-full rounded-full ${tone.bar}`}
                             style={{width: `${ratio * 100}%`}}

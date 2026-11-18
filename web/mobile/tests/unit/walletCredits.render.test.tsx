@@ -156,7 +156,7 @@ describe("the sidebar credits meter", () => {
         )
 
         expect(shown).toContain("0 of 75")
-        expect(host!.querySelector(".bg-muted > span")?.getAttribute("style")).toContain(
+        expect(host!.querySelector(".bg-border > span")?.getAttribute("style")).toContain(
             "width: 0%",
         )
     })
