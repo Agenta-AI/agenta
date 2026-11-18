@@ -14,7 +14,6 @@ import {
   Robot,
   SidebarSimple,
   SquaresFour,
-  Tray,
 } from "@phosphor-icons/react";
 
 // The product sidebar: org switcher, page links, the Sessions list (pinned, then
@@ -23,7 +22,6 @@ import {
 // the same component with `onGo`, so both look the same.
 const NAV = [
   { label: "Home", icon: House, go: { view: "home" } },
-  { label: "Inbox", icon: Tray },
   { label: "Agents", icon: Robot, go: { view: "agents" } },
   { label: "Templates", icon: SquaresFour, href: "/marketplace" },
   { label: "Automations", icon: Lightning, go: { view: "automations" } },
