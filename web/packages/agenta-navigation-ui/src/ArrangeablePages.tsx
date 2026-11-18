@@ -1,6 +1,4 @@
 import {
-    useCallback,
-    useEffect,
     useRef,
     useState,
     type KeyboardEvent,
@@ -84,9 +82,7 @@ const SortableRow = ({
     value,
     lifted,
     dropping,
-    appear,
     reduced,
-    takePull,
     onDragStart,
     onDrag,
     onDragEnd,
@@ -97,10 +93,7 @@ const SortableRow = ({
     lifted: boolean
     /** Lifted over "More": faded so the drop target shows through. */
     dropping: boolean
-    appear: boolean
     reduced: boolean
-    /** A drag begun on this page's row in "More", to continue here once the row mounts. */
-    takePull: (key: string) => PointerEvent | null
     onDragStart: (key: string) => void
     onDrag: (info: PanInfo) => void
     onDragEnd: (key: string) => void
@@ -108,11 +101,6 @@ const SortableRow = ({
     children: ReactNode
 }) => {
     const controls = useDragControls()
-    // An effect, not a layout effect: motion attaches the row's drag handlers in its own effect.
-    useEffect(() => {
-        const pulled = takePull(value)
-        if (pulled) controls.start(pulled, {snapToCursor: true})
-    }, [controls, takePull, value])
 
     return (
         <Reorder.Item
@@ -122,10 +110,11 @@ const SortableRow = ({
             dragControls={controls}
             layout={reduced ? undefined : "position"}
             transition={SETTLE}
-            initial={reduced || !appear ? false : {opacity: 0, height: 0}}
+            initial={reduced ? false : {opacity: 0, height: 0}}
             animate={{opacity: dropping ? 0.55 : 1, height: "auto"}}
             exit={reduced ? {opacity: 0} : {opacity: 0, height: 0, overflow: "hidden"}}
             whileDrag={{scale: 1.02}}
+            data-page-key={value}
             className={cn("relative flex flex-col [-webkit-touch-callout:none]", lifted && LIFTED)}
             onPointerDown={(event) => {
                 const header = event.currentTarget.firstElementChild
@@ -208,7 +197,7 @@ export const ArrangeablePages = ({
     const [dragging, setDragging] = useState<string | null>(null)
     const [overMore, setOverMore] = useState(false)
     const moreRef = useRef<HTMLButtonElement>(null)
-    const pending = useRef<{key: string; event: PointerEvent} | null>(null)
+    const listRef = useRef<HTMLDivElement>(null)
     const live = useRef({draft, overMore: false, started: false, suppressClick: false})
     live.current.draft = draft
 
@@ -217,13 +206,6 @@ export const ArrangeablePages = ({
     const byKey = new Map([...items, ...arrange.hidden].map((item) => [item.key, item]))
     const hiddenKeys = arrange.hidden.map((item) => item.key)
     const menuHidden = arrange.hidden.filter((item) => item.key !== pulled?.key)
-
-    const takePull = useCallback((key: string) => {
-        if (pending.current?.key !== key) return null
-        const {event} = pending.current
-        pending.current = null
-        return event
-    }, [])
 
     const commit = (visible: string[], hidden: string[]) => {
         if (sameOrder(visible, keys) && sameOrder(hidden, hiddenKeys)) return
@@ -240,7 +222,6 @@ export const ArrangeablePages = ({
             )
         else commit(next, rest)
         live.current = {...live.current, overMore: false, started: false}
-        pending.current = null
         setTimeout(() => {
             live.current.suppressClick = false
         })
@@ -257,10 +238,8 @@ export const ArrangeablePages = ({
         setDraft((current) => current ?? keys)
     }
 
-    const onDrag = (info: PanInfo) => {
+    const trackMore = (x: number, y: number) => {
         const rect = moreRef.current?.getBoundingClientRect()
-        const x = info.point.x - window.scrollX
-        const y = info.point.y - window.scrollY
         const over = Boolean(
             rect && x >= rect.left && x <= rect.right && y >= rect.top - 4 && y <= rect.bottom + 8,
         )
@@ -269,20 +248,50 @@ export const ArrangeablePages = ({
         setOverMore(over)
     }
 
+    const onDrag = (info: PanInfo) =>
+        trackMore(info.point.x - window.scrollX, info.point.y - window.scrollY)
+
+    // A page dragged out of "More" is placed live in the slot under the pointer; the rows around it
+    // slide aside. Releasing outside the list, or back on "More", leaves it hidden.
     const pull = (item: SidebarConfig, event: PointerEvent) => {
-        live.current.started = false
-        pending.current = {key: item.key, event}
-        live.current.draft = [...keys, item.key]
+        const place = (e: PointerEvent) => {
+            const rows = Array.from(
+                listRef.current?.querySelectorAll<HTMLElement>("[data-page-key]") ?? [],
+            ).filter((row) => row.dataset.pageKey !== item.key)
+            const index = rows.filter((row) => {
+                const rect = row.getBoundingClientRect()
+                return rect.top + rect.height / 2 < e.clientY
+            }).length
+            const next = [...keys]
+            next.splice(index, 0, item.key)
+            if (!sameOrder(next, live.current.draft ?? [])) {
+                live.current.draft = next
+                setDraft(next)
+            }
+            trackMore(e.clientX, e.clientY)
+        }
+        const release = (e: PointerEvent) => {
+            window.removeEventListener("pointermove", place)
+            window.removeEventListener("pointerup", release)
+            window.removeEventListener("pointercancel", release)
+            const list = listRef.current?.getBoundingClientRect()
+            if (
+                e.type === "pointercancel" ||
+                !list ||
+                e.clientX < list.left ||
+                e.clientX > list.right
+            )
+                live.current.overMore = true
+            finish(item.key)
+        }
+        live.current.suppressClick = true
         setMoreOpen(false)
         setPulled(item)
         setDragging(item.key)
-        setDraft(live.current.draft)
-        // A release before the drag engaged still lands the page at the end.
-        window.addEventListener(
-            "pointerup",
-            () => setTimeout(() => !live.current.started && finish(item.key)),
-            {once: true},
-        )
+        place(event)
+        window.addEventListener("pointermove", place)
+        window.addEventListener("pointerup", release)
+        window.addEventListener("pointercancel", release)
     }
 
     const moveByKey = (key: string, delta: -1 | 1) => {
@@ -347,6 +356,7 @@ export const ArrangeablePages = ({
             }}
         >
             <Reorder.Group
+                ref={listRef}
                 as="div"
                 axis="y"
                 values={order}
@@ -363,9 +373,7 @@ export const ArrangeablePages = ({
                                 value={key}
                                 lifted={dragging === key}
                                 dropping={dragging === key && overMore}
-                                appear={key !== pulled?.key}
                                 reduced={reduced}
-                                takePull={takePull}
                                 onDragStart={onDragStart}
                                 onDrag={onDrag}
                                 onDragEnd={finish}
