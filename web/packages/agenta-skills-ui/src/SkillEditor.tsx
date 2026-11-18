@@ -2,6 +2,7 @@ import {useMemo, useRef, useState, type DragEvent, type ReactNode} from "react"
 
 import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import type {SkillFile} from "@agenta/skills"
+import {message} from "@agenta/ui/app-message"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -21,6 +22,7 @@ import {
     FilePlus,
     FileText,
     Folder,
+    FolderOpen,
     PencilSimple,
     Plus,
     Question,
@@ -115,6 +117,10 @@ export function SkillEditor({
     const [dragging, setDragging] = useState(false)
     /** The inline name row: a new file in `dir`, or a rename of `path`. */
     const [naming, setNaming] = useState<{path: string | null; dir: string} | null>(null)
+    /** A file being dragged to another folder, the folder under the pointer, and the last move. */
+    const [dragPath, setDragPath] = useState<string | null>(null)
+    const [dropDir, setDropDir] = useState<string | null>(null)
+    const [movedPath, setMovedPath] = useState<string | null>(null)
     const [bodyToolbar, setBodyToolbar] = useState<HTMLDivElement | null>(null)
     const [fileToolbar, setFileToolbar] = useState<HTMLDivElement | null>(null)
     const filesListRef = useRef<HTMLDivElement>(null)
@@ -170,6 +176,50 @@ export function SkillEditor({
         setNaming(null)
         if (openPath === from) setOpenPath(to)
     }
+    const endDrag = () => {
+        setDragPath(null)
+        setDropDir(null)
+    }
+    const moveInto = (dir: string) => {
+        const from = dragPath
+        endDrag()
+        if (!from || dirOf(from) === dir) return
+        const to = dir ? `${dir}/${baseOf(from)}` : baseOf(from)
+        if (latest.current.files.some((file) => file.path === to)) {
+            message.warning(`${dir || "The top level"} already has a file named ${baseOf(from)}.`)
+            return
+        }
+        renameFile(from, to)
+        setMovedPath(to)
+        window.setTimeout(() => setMovedPath((moved) => (moved === to ? null : moved)), 2800)
+    }
+    /** Where a dragged file can land: the top level or one folder. */
+    const dropZone = (dir: string) => ({
+        onDragOver: (event: DragEvent) => {
+            if (!dragPath) return
+            event.preventDefault()
+            event.stopPropagation()
+            event.dataTransfer.dropEffect = dirOf(dragPath) === dir ? "none" : "move"
+            if (dropDir !== dir) setDropDir(dir)
+        },
+        onDragLeave: (event: DragEvent) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+            setDropDir((current) => (current === dir ? null : current))
+        },
+        onDrop: (event: DragEvent) => {
+            if (!dragPath) return
+            event.preventDefault()
+            event.stopPropagation()
+            moveInto(dir)
+        },
+        className: cn(
+            "flex flex-col gap-0.5 rounded-[10px] transition-[background-color,box-shadow] duration-150 motion-reduce:transition-none",
+            dragPath &&
+                dropDir === dir &&
+                dirOf(dragPath) !== dir &&
+                "bg-accent/70 shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--foreground)_22%,transparent)]",
+        ),
+    })
     const nameRow = (path: string | null, dir: string) => (
         <SkillFileNameRow
             key={path ?? `new:${dir}`}
@@ -200,9 +250,18 @@ export function SkillEditor({
             <div
                 key={file.path}
                 title={file.path}
+                draggable={!readOnly}
+                onDragStart={(event) => {
+                    event.dataTransfer.setData("text/plain", file.path)
+                    event.dataTransfer.effectAllowed = "move"
+                    setDragPath(file.path)
+                }}
+                onDragEnd={endDrag}
                 className={cn(
-                    "group relative flex items-center gap-2.5 rounded-lg py-1.5 pl-2 pr-1.5",
+                    "group relative flex items-center gap-2.5 rounded-lg py-1.5 pl-2 pr-1.5 transition-opacity duration-150",
                     on ? "bg-accent" : "hover:bg-accent/60",
+                    dragPath === file.path && "opacity-40",
+                    movedPath === file.path && "animate-skill-fresh",
                 )}
             >
                 <span aria-hidden className={ROW_ICON}>
@@ -498,15 +557,15 @@ export function SkillEditor({
                     </div>
                     <div
                         onDragOver={(event) => {
-                            if (readOnly) return
+                            if (readOnly || !event.dataTransfer.types.includes("Files")) return
                             event.preventDefault()
                             setDragging(true)
                         }}
                         onDragLeave={() => setDragging(false)}
                         onDrop={onDrop}
                         className={cn(
-                            "box-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border border-solid border-input bg-background",
-                            dragging && "border-dashed border-foreground",
+                            "box-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border bg-background transition-colors duration-150",
+                            dragging ? "border-dashed border-foreground" : "border-solid border-input",
                         )}
                     >
                         <div
@@ -515,6 +574,7 @@ export function SkillEditor({
                         >
                         {hasFiles || naming ? (
                             <>
+                                <div {...dropZone("")}>
                                 <div
                                     className={cn(
                                         "relative flex items-center gap-2.5 rounded-lg py-1.5 pl-2 pr-1.5",
@@ -535,34 +595,51 @@ export function SkillEditor({
                                         </button>
                                     </span>
                                 </div>
-                                {naming?.path === null && !folders.includes(naming.dir)
-                                    ? nameRow(null, naming.dir)
-                                    : null}
-                                {groups.map(([dir, files]) => (
-                                    <div key={dir || "root"} className="flex flex-col gap-0.5">
-                                        {dir ? (
-                                            <div className="group/folder flex items-center gap-1.5 px-2 pb-1 pt-2.5 text-xs font-medium text-muted-foreground">
-                                                <Folder size={14} />
-                                                <span className="flex-1 truncate">{dir}</span>
-                                                {readOnly ? null : (
-                                                    <button
-                                                        type="button"
-                                                        aria-label={`New file in ${dir}`}
-                                                        title="New file here"
-                                                        onClick={() => setNaming({path: null, dir})}
-                                                        className="-my-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/folder:opacity-100 max-sm:opacity-100"
+                                    {naming?.path === null && !folders.includes(naming.dir)
+                                        ? nameRow(null, naming.dir)
+                                        : null}
+                                    {(groups.find(([dir]) => dir === "")?.[1] ?? []).map(fileRow)}
+                                </div>
+                                {groups
+                                    .filter(([dir]) => dir)
+                                    .map(([dir, files]) => {
+                                        const target =
+                                            dragPath !== null && dropDir === dir && dirOf(dragPath) !== dir
+                                        return (
+                                            <div key={dir} {...dropZone(dir)}>
+                                                <div className="group/folder flex items-center gap-1.5 px-2 pb-1 pt-2.5 text-xs font-medium text-muted-foreground">
+                                                    {target ? (
+                                                        <FolderOpen size={14} className="text-foreground" />
+                                                    ) : (
+                                                        <Folder size={14} />
+                                                    )}
+                                                    <span
+                                                        className={cn(
+                                                            "flex-1 truncate transition-colors duration-150",
+                                                            target && "text-foreground",
+                                                        )}
                                                     >
-                                                        <Plus size={13} />
-                                                    </button>
-                                                )}
+                                                        {dir}
+                                                    </span>
+                                                    {readOnly ? null : (
+                                                        <button
+                                                            type="button"
+                                                            aria-label={`New file in ${dir}`}
+                                                            title="New file here"
+                                                            onClick={() => setNaming({path: null, dir})}
+                                                            className="-my-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/folder:opacity-100 max-sm:opacity-100"
+                                                        >
+                                                            <Plus size={13} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {naming?.path === null && naming.dir === dir
+                                                    ? nameRow(null, dir)
+                                                    : null}
+                                                {files.map(fileRow)}
                                             </div>
-                                        ) : null}
-                                        {dir && naming?.path === null && naming.dir === dir
-                                            ? nameRow(null, dir)
-                                            : null}
-                                        {files.map(fileRow)}
-                                    </div>
-                                ))}
+                                        )
+                                    })}
                             </>
                         ) : (
                             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
