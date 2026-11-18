@@ -898,6 +898,11 @@ pre::-webkit-scrollbar-thumb {
     margin-bottom: 10px;
     line-height: 1.6;
 }
+/* Blank lines in the markdown become empty paragraphs; render them as a small gap, not a full line. */
+.md-prose .editor-input:not(.markdown-view) > .editor-paragraph:has(> br:only-child) {
+    margin: 0;
+    line-height: 8px;
+}
 .md-prose .editor-heading-h1,
 .md-prose .editor-heading-h2,
 .md-prose .editor-heading-h3,
