@@ -183,7 +183,13 @@ export const SkillCreateScreen = ({
     } else {
         body = centered(
             <>
-                <h1 className="m-0 text-center text-2xl font-semibold leading-8">Add a skill</h1>
+                <div className="flex flex-col gap-1 text-center">
+                    <h1 className="m-0 text-2xl font-semibold leading-8">Add a skill</h1>
+                    <p className="m-0 text-sm text-muted-foreground">
+                        A skill teaches an agent how to do one job well. Add it once, then use it in
+                        any agent.
+                    </p>
+                </div>
                 <SkillCreateChooser
                     onWrite={() => flow.write()}
                     onUpload={flow.upload}
