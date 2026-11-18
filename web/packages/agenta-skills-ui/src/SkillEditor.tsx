@@ -385,7 +385,7 @@ export function SkillEditor({
                                 placeholder="e.g. Use when someone asks for a weekly summary of the team's work."
                                 className={cn(
                                     FIELD,
-                                    "min-h-[66px] resize-y px-3 py-2.5 text-sm leading-5 [field-sizing:content]",
+                                    "max-h-[84px] min-h-[66px] resize-y overflow-y-auto px-3 py-2.5 text-sm leading-5 [field-sizing:content]",
                                     (tooLong || (showMissing && !draft.description.trim())) &&
                                         MISSING,
                                 )}
