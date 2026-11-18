@@ -488,7 +488,7 @@ export function SkillEditor({
                                 )}
                             </div>
                         )}
-                        <div className="-mx-1.5 -mb-1.5 mt-auto flex items-center gap-2.5 rounded-b-[9px] bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)] px-3.5 py-2.5">
+                        <div className="sticky -bottom-1.5 z-[1] -mx-1.5 -mb-1.5 mt-auto flex items-center gap-2.5 rounded-b-[9px] px-3.5 py-2.5 [background:linear-gradient(color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent),color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)),var(--background)]">
                             <span id="skill-exec-label" className="flex-1 text-[13px] font-medium">
                                 Let files run as programs
                             </span>
