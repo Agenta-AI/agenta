@@ -31,9 +31,7 @@ const NAV = [
 
 const STATUS_LABEL = {
   running: "Running",
-  waiting: "Waiting for you",
   unread: "Unread",
-  failed: "Failed",
 };
 
 function Status({ status }) {

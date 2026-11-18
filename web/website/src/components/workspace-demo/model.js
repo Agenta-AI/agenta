@@ -246,7 +246,6 @@ export function deriveWorkspace(state, setState, onLive) {
       tasks: [
         {
           name: "Refund question from Dana",
-          status: "waiting",
           ask: "Draft a reply to Dana's refund request.",
           worked: "Worked for 36s",
           files1: "",
@@ -261,7 +260,6 @@ export function deriveWorkspace(state, setState, onLive) {
         },
         {
           name: "Login issue at Acme Retail",
-          status: "failed",
           ask: "Help Acme Retail with their login problem.",
           worked: "Worked for 58s",
           files1: "",

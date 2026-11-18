@@ -223,15 +223,6 @@ span.dsb-row {
 .dsb-status--unread {
   background: var(--dsb-fg);
 }
-.dsb-status--waiting {
-  background: #f59e0b;
-}
-.dsb-status--failed {
-  background: #991b1b;
-}
-[data-theme="dark"] .dsb-status--failed {
-  background: #f87171;
-}
 .dsb-status--running {
   width: 12px;
   height: 12px;
