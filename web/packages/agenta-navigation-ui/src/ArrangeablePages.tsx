@@ -26,11 +26,11 @@ const TOUCH_HOLD_MS = 350
 const TOUCH_SLOP_PX = 8
 const SETTLE = {type: "spring", stiffness: 500, damping: 40, mass: 0.8} as const
 const LIFTED =
-    "z-20 rounded-md bg-[var(--ag-sidebar-bg)] [&>div:first-child]:bg-colorBgElevated [&>div:first-child]:shadow-overlay [&>div:first-child]:cursor-grabbing"
+    "z-20 rounded-[6px] bg-[var(--ag-sidebar-bg)] [&>div:first-child]:bg-colorBgElevated [&>div:first-child]:shadow-overlay [&>div:first-child]:cursor-grabbing"
 const DROP_TARGET =
     "bg-[var(--ag-shell-selected-bg)] !text-colorText shadow-[inset_0_0_0_1px_currentColor]"
 const MENU_ROW =
-    "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-md border-0 bg-transparent px-2 text-left text-sm text-colorText no-underline [font-family:inherit] select-none hover:bg-colorFillTertiary"
+    "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-2 text-left text-sm text-colorText no-underline [font-family:inherit] select-none hover:bg-colorFillTertiary"
 
 /** Calls `begin` after a small mouse move or a touch long-press, so a tap still clicks and a swipe still scrolls. */
 const pressToDrag = (press: ReactPointerEvent, begin: (event: PointerEvent) => void) => {
@@ -327,7 +327,7 @@ export const ArrangeablePages = ({
                             type="button"
                             aria-label="More"
                             className={cn(
-                                "relative mx-auto flex size-8 items-center justify-center rounded-lg border-0 bg-transparent",
+                                "relative mx-auto flex size-8 items-center justify-center rounded-[8px] border-0 bg-transparent",
                                 ROW_INTERACTIVE,
                                 moreOpen && ROW_SELECTED,
                             )}

@@ -31,11 +31,11 @@ export const SidebarBackButton = ({
                 // the same weight as the nav rows beside it, not as a dimmed caption.
                 // [font-family:inherit] is load-bearing — preflight is off, so a bare <button>
                 // falls back to Arial while every <div> row beside it renders Inter.
-                "flex cursor-pointer items-center justify-center gap-2 rounded-md border-0 bg-transparent [font-family:inherit] text-colorText",
+                "flex cursor-pointer items-center justify-center gap-2 border-0 bg-transparent [font-family:inherit] text-colorText",
                 "hover:bg-colorFillTertiary",
                 collapsed
-                    ? "size-8 rounded-lg"
-                    : "h-7 min-w-0 flex-1 justify-start gap-[10px] px-3 text-sm font-medium",
+                    ? "size-8 rounded-[8px]"
+                    : "h-7 min-w-0 flex-1 justify-start gap-[10px] rounded-[6px] px-3 text-sm font-medium",
                 className,
             )}
         >

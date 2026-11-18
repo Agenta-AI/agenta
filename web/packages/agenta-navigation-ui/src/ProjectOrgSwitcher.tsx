@@ -67,7 +67,7 @@ export interface ProjectOrgSwitcherViewProps {
 type Panel = "projects" | "orgs"
 
 export const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-md text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
+    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 export const ITEM_ROW_CLASS = "shrink-0"
@@ -326,7 +326,7 @@ export const ProjectOrgSwitcherView = ({
                             // Borderless at rest; the hover fill is the affordance. `transition-all`
                             // (not just colors) so the width/padding swap below travels with the
                             // rail rather than snapping ahead of it.
-                            "flex cursor-pointer items-center rounded-md border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
+                            "flex cursor-pointer items-center rounded-[6px] border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
@@ -390,7 +390,7 @@ export const ProjectOrgSwitcherView = ({
                     align="start"
                     sideOffset={side === "bottom" ? 4 : undefined}
                     style={side === "bottom" && !collapsed ? {width: headerWidth} : undefined}
-                    className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                    className="z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
                 >
                     {panel === "projects" ? projectPanel : orgPanel}
                 </PopoverContent>

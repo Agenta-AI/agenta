@@ -550,7 +550,7 @@ const NavMenuImpl = ({
                 const icon = (
                     <div
                         className={clsx(
-                            "relative mx-auto flex size-8 items-center justify-center rounded-lg",
+                            "relative mx-auto flex size-8 items-center justify-center rounded-[8px]",
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                         )}
@@ -586,12 +586,12 @@ const NavMenuImpl = ({
                             className={clsx(
                                 // [font-family:inherit]: preflight is off, so a bare <button>
                                 // renders Arial while the <div> rows around it render Inter.
-                                "mx-auto flex min-w-0 shrink-0 items-center rounded-md border-0 bg-transparent [font-family:inherit]",
+                                "mx-auto flex min-w-0 shrink-0 items-center border-0 bg-transparent [font-family:inherit]",
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 collapsed
-                                    ? "size-8 justify-center rounded-lg"
-                                    : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
+                                    ? "size-8 justify-center rounded-[8px]"
+                                    : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] rounded-[6px] px-3`,
                             )}
                         >
                             {item.icon}
