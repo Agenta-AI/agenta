@@ -132,6 +132,8 @@
     "uploadRunning": "Subiendo",
     "withObjectDone": "{{verb}} {{object}}",
     "withObjectRunning": "{{verb}} {{object}}",
+    "withSearchObjectDone": "{{verb}} {{object}}",
+    "withSearchObjectRunning": "{{verb}} {{object}}",
     "writeDone": "Escribió",
     "writeFileDone": "Escribió un archivo",
     "writeFileRunning": "Escribiendo un archivo",

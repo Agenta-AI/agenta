@@ -1761,6 +1761,8 @@
         "uploadRunning": "8b898ca34ce7",
         "withObjectDone": "99a7ae31560f",
         "withObjectRunning": "99a7ae31560f",
+        "withSearchObjectDone": "99a7ae31560f",
+        "withSearchObjectRunning": "99a7ae31560f",
         "writeDone": "4271706273b6",
         "writeFileDone": "bd7b4f2aa077",
         "writeFileRunning": "8820b22786d9",

@@ -132,6 +132,8 @@
     "uploadRunning": "Téléverse",
     "withObjectDone": "{{verb}} {{object}}",
     "withObjectRunning": "{{verb}} {{object}}",
+    "withSearchObjectDone": "{{verb}} {{object}}",
+    "withSearchObjectRunning": "{{verb}} {{object}}",
     "writeDone": "A écrit",
     "writeFileDone": "A écrit un fichier",
     "writeFileRunning": "Écrit un fichier",

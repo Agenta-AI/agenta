@@ -132,6 +132,8 @@
     "uploadRunning": "アップロード中",
     "withObjectDone": "{{object}}を{{verb}}",
     "withObjectRunning": "{{object}}を{{verb}}",
+    "withSearchObjectDone": "{{object}}を{{verb}}",
+    "withSearchObjectRunning": "{{object}}を{{verb}}",
     "writeDone": "書き込みました",
     "writeFileDone": "ファイルを書き込みました",
     "writeFileRunning": "ファイルを書き込み中",

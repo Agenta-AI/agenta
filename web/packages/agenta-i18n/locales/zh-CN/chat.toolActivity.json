@@ -132,6 +132,8 @@
     "uploadRunning": "正在上传",
     "withObjectDone": "{{verb}} {{object}}",
     "withObjectRunning": "{{verb}} {{object}}",
+    "withSearchObjectDone": "{{verb}} {{object}}",
+    "withSearchObjectRunning": "{{verb}} {{object}}",
     "writeDone": "已写入",
     "writeFileDone": "已写入文件",
     "writeFileRunning": "正在写入文件",

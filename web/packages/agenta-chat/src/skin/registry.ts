@@ -291,10 +291,41 @@ const verbForms = (id: VerbId): ToolActivity => ({
     done: tNow(`chat.toolActivity.${id}Done`),
 })
 
+/** Verbs that reach their object through a preposition ("search for"). English keeps it in the
+ * verb; German has to put it before the object, ahead of the done verb ("nach Triggern gesucht"),
+ * so these verbs take their own frame. */
+const SEARCH_VERBS: ReadonlySet<VerbId> = new Set(["discover", "lookFor"])
+
 /** A verb and what it acts on; the language decides the order. */
-const withObject = (verb: ToolActivity, object: string): ToolActivity => ({
-    running: tNow("chat.toolActivity.withObjectRunning", {verb: verb.running, object}),
-    done: tNow("chat.toolActivity.withObjectDone", {verb: verb.done, object}),
+const withObject = (id: VerbId, object: string): ToolActivity => {
+    const verb = verbForms(id)
+    return SEARCH_VERBS.has(id)
+        ? {
+              running: tNow("chat.toolActivity.withSearchObjectRunning", {
+                  verb: verb.running,
+                  object,
+              }),
+              done: tNow("chat.toolActivity.withSearchObjectDone", {verb: verb.done, object}),
+          }
+        : {
+              running: tNow("chat.toolActivity.withObjectRunning", {verb: verb.running, object}),
+              done: tNow("chat.toolActivity.withObjectDone", {verb: verb.done, object}),
+          }
+}
+
+/** Where the object goes in a frame. */
+const OBJECT_SLOT = "{{object}}"
+
+/** The verb forms and the sentence around their object, so a row can set the object apart. */
+const verbParts = (id: VerbId): {verb: ToolActivity; frame: ToolActivity} => ({
+    verb: verbForms(id),
+    frame: withObject(id, OBJECT_SLOT),
+})
+
+/** The frame of a verb a skin registered: the language's plain word order. */
+const plainFrame = (verb: ToolActivity): ToolActivity => ({
+    running: tNow("chat.toolActivity.withObjectRunning", {verb: verb.running, object: OBJECT_SLOT}),
+    done: tNow("chat.toolActivity.withObjectDone", {verb: verb.done, object: OBJECT_SLOT}),
 })
 
 /** A verb with nothing after it leads the row, so it starts with a capital ("Gelesen"). */
@@ -327,8 +358,11 @@ const sentence = (id: SentenceId, values?: Record<string, string>): ToolActivity
  * is in the language the reader has chosen at that moment. */
 type DefaultEntry = ToolDisplayEntry & {sentence?: SentenceId; verbId?: VerbId}
 
-const inLanguage = ({sentence: id, verbId, ...entry}: DefaultEntry): ToolDisplayEntry =>
-    id ? {...entry, activity: sentence(id), verb: verbId ? verbForms(verbId) : undefined} : entry
+/** An entry as the resolver reads it: a built-in one also carries its verb's frame. */
+type LookedUpEntry = ToolDisplayEntry & {frame?: ToolActivity}
+
+const inLanguage = ({sentence: id, verbId, ...entry}: DefaultEntry): LookedUpEntry =>
+    id ? {...entry, activity: sentence(id), ...(verbId ? verbParts(verbId) : {})} : entry
 
 /** One shell entry for every harness's name for it. */
 const SHELL: DefaultEntry = {kind: "shell", icon: "terminal", sentence: "runCommand", verbId: "run"}
@@ -479,6 +513,8 @@ interface BuiltActivity {
     namedApp: boolean
     /** The verb forms the sentence opens with, so a row can set the rest apart. */
     verb?: ToolActivity
+    /** The sentence around its object, with `{{object}}` left in; set with a built-in verb. */
+    frame?: ToolActivity
 }
 
 const ARTICLES = new Set(["a", "an", "the"])
@@ -564,14 +600,14 @@ const conjugate = (
 ): BuiltActivity | null => {
     const split = splitVerb(label, appName)
     if (!split) return null
-    const forms = verbForms(split.verb)
+    const parts = verbParts(split.verb)
+    const forms = parts.verb
     const object = split.rest.join(" ").trim()
-    const say = (phrase: string): ToolActivity => withObject(forms, phrase)
+    const say = (phrase: string): ToolActivity => withObject(split.verb, phrase)
     // A search says what it looked for, so the query replaces the object entirely.
     if (query) {
         const lent = lendVerb(query)
         const verbId = lent?.verb ?? split.verb
-        const verb = verbForms(verbId)
         const asked = lent?.object ?? query
         // Known app becomes the subject; until then the query is all the row has.
         const phrase = appName
@@ -579,11 +615,15 @@ const conjugate = (
             : lent || PREPOSITION_VERBS.has(verbId)
               ? asked
               : tNow("chat.toolActivity.forQuery", {query: asked})
-        return {activity: withObject(verb, phrase), namedApp: Boolean(appName), verb}
+        return {
+            activity: withObject(verbId, phrase),
+            namedApp: Boolean(appName),
+            ...verbParts(verbId),
+        }
     }
     if (!object) {
         return appName
-            ? {activity: say(appName), namedApp: true, verb: forms}
+            ? {activity: say(appName), namedApp: true, ...parts}
             : {
                   activity: {running: capitalized(forms.running), done: capitalized(forms.done)},
                   namedApp: false,
@@ -591,13 +631,13 @@ const conjugate = (
     }
     // A glossary term brings its own article and never takes an app name: it is ours.
     const term = ours ? platformTerm(object.toLowerCase()) : undefined
-    if (term) return {activity: say(term), namedApp: false, verb: forms}
+    if (term) return {activity: say(term), namedApp: false, ...parts}
     // An article the action name already carries ("Create an issue") has to come off before the app
     // goes in front of the noun, or it lands mid-phrase ("Created GitHub an issue").
     const words = object.split(" ")
     const carried = ARTICLES.has(words[0]?.toLowerCase() ?? "")
     const noun = (carried ? words.slice(1) : words).join(" ")
-    if (!noun) return {activity: say(object), namedApp: false, verb: forms}
+    if (!noun) return {activity: say(object), namedApp: false, ...parts}
     const app = appName && !echoesApp(noun, appName) ? appName : undefined
     // The app modifies the noun, so the article is chosen for whichever word now comes first.
     const phrase = app ? `${app} ${noun}` : noun
@@ -605,7 +645,7 @@ const conjugate = (
     return {
         activity: say(single ? withArticle(app ?? noun, phrase) : phrase),
         namedApp: Boolean(app),
-        verb: forms,
+        ...parts,
     }
 }
 
@@ -690,14 +730,14 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
         return {
             label: tNow("chat.toolActivity.labelCommand"),
             kind: "shell",
-            activity: {activity: sentence("runCommand"), namedApp: false, verb: verbForms("run")},
+            activity: {activity: sentence("runCommand"), namedApp: false, ...verbParts("run")},
         }
     }
     if (CODEX_READ_TITLE.test(raw)) {
         return {
             label: tNow("chat.toolActivity.labelFile"),
             kind: "file",
-            activity: {activity: sentence("readFile"), namedApp: false, verb: verbForms("read")},
+            activity: {activity: sentence("readFile"), namedApp: false, ...verbParts("read")},
         }
     }
     if (CODEX_LIST_TITLE.test(raw)) {
@@ -707,7 +747,7 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
             activity: {
                 activity: sentence("listFiles"),
                 namedApp: false,
-                verb: verbForms("listing"),
+                ...verbParts("listing"),
             },
         }
     }
@@ -815,15 +855,16 @@ const toolDetail = (raw: string, input?: unknown, output?: unknown): string | un
 
 /** A registered activity as a `BuiltActivity`; only the app-naming form fills `namedApp`. */
 const overrideActivity = (
-    override: ToolDisplayEntry | undefined,
+    override: LookedUpEntry | undefined,
     ownApp?: string,
 ): BuiltActivity | null => {
     const activity = override?.activity
     if (!activity) return null
-    if (typeof activity !== "function") return {activity, namedApp: false, verb: override.verb}
+    const {verb, frame} = override
+    if (typeof activity !== "function") return {activity, namedApp: false, verb, frame}
     const built = activity(ownApp)
     // A function may decline (undefined) and let the reported tool's own wording speak.
-    return built ? {activity: built, namedApp: Boolean(ownApp), verb: override.verb} : null
+    return built ? {activity: built, namedApp: Boolean(ownApp), verb, frame} : null
 }
 
 /** How a reported tool reads: read-only verbs unless the call actually ran it. */
@@ -836,7 +877,7 @@ const reportedActivity = (action: string, appName: string, ran: boolean): BuiltA
 
 /** A registration merges ONTO the built-in default field-wise, so a skin that overrides only the
  * summary keeps the default's wording rather than falling back to the parsed name. */
-const lookupToolDisplay = (canonical: string): ToolDisplayEntry | undefined => {
+const lookupToolDisplay = (canonical: string): LookedUpEntry | undefined => {
     const key = canonical.toLowerCase()
     // The name is data ("constructor" is a valid tool name), so own keys only.
     const base = Object.hasOwn(DEFAULT_TOOL_DISPLAY, key)
@@ -845,7 +886,8 @@ const lookupToolDisplay = (canonical: string): ToolDisplayEntry | undefined => {
     const registered = Object.hasOwn(store.toolDisplay, key) ? store.toolDisplay[key] : undefined
     if (!base) return registered
     if (!registered) return base
-    return {...base, ...registered}
+    // A registered verb brings no frame, so the built-in one must not outlive its verb.
+    return registered.verb ? {...base, ...registered, frame: undefined} : {...base, ...registered}
 }
 
 /**
@@ -899,13 +941,18 @@ export const resolveToolDisplay = (
         detail: toolDetail(raw, input, output),
         summary: override?.summary,
         verb: built?.verb,
+        frame: built?.frame ?? (built?.verb ? plainFrame(built.verb) : undefined),
         icon: override?.icon ?? resolveActivityIcon(kind, canonical),
     }
 }
 
 /** A tool sentence dropped into prose ("…before running a command"): a gerund, so decapitalise.
- * German keeps the capital: its rows can open with a noun ("Datei gelesen"). */
+ * Only a leading verb loses its capital. German keeps it, as its rows can open with a noun ("Datei
+ * gelesen"), and so does a language that puts the object first: its row can open with an app's
+ * name ("GitHub issuesを検索中"). */
 export const inSentence = (phrase: string): string =>
-    phrase && getActiveLanguage() !== "de-DE"
+    phrase &&
+    getActiveLanguage() !== "de-DE" &&
+    tNow("chat.toolActivity.withObjectRunning").startsWith("{{verb}}")
         ? phrase.charAt(0).toLowerCase() + phrase.slice(1)
         : phrase
