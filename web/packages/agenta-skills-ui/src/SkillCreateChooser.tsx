@@ -16,12 +16,12 @@ export interface SkillCreateChooserProps {
 }
 
 const OPTION =
-    "relative box-border flex h-[76px] w-full cursor-pointer items-center gap-3.5 rounded-xl " +
-    "border border-solid border-border bg-card p-4 text-left font-[inherit] text-foreground " +
+    "relative box-border flex h-[60px] w-full cursor-pointer items-center gap-3 rounded-[10px] " +
+    "border border-solid border-border bg-card px-3 text-left font-[inherit] text-foreground " +
     "transition-colors hover:border-input hover:bg-accent/50 focus-visible:outline-none " +
     "focus-visible:ring-[3px] focus-visible:ring-ring/30"
 const TILE =
-    "box-border flex size-10 shrink-0 items-center justify-center rounded-[10px] border border-solid"
+    "box-border flex size-8 shrink-0 items-center justify-center rounded-lg border border-solid"
 
 function Option({
     tile,
@@ -70,7 +70,7 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                 help="Start from a blank page. Name it, describe it and write the steps."
                 tile={
                     <span className={cn(TILE, "border-colorInfo/20 bg-colorInfoBg text-colorInfo")}>
-                        <PencilSimple size={18} />
+                        <PencilSimple size={15} />
                     </span>
                 }
             />
@@ -93,7 +93,7 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                     <span
                         className={cn(TILE, "border-tag-green/20 bg-tag-green-bg text-tag-green")}
                     >
-                        <UploadSimple size={18} />
+                        <UploadSimple size={15} />
                     </span>
                 }
             />
@@ -103,7 +103,7 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                 help="Copy one or more skills from a public repository."
                 tile={
                     <span className={cn(TILE, "border-foreground bg-foreground text-background")}>
-                        <GithubLogo size={18} weight="fill" />
+                        <GithubLogo size={15} weight="fill" />
                     </span>
                 }
             />
