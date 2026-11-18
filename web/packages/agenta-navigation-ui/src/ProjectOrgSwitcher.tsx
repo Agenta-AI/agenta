@@ -1,10 +1,10 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {InitialsAvatar} from "@agenta/ui/components/presentational"
-import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowsLeftRight,
@@ -167,11 +167,19 @@ export const ProjectOrgSwitcherView = ({
     const t = useT(navigationCatalog, commonCatalog)
     const [open, setOpen] = useState(false)
     const [panel, setPanel] = useState<Panel>("projects")
+    const rowRef = useRef<HTMLDivElement>(null)
+    const [headerWidth, setHeaderWidth] = useState<number>()
 
-    const handleOpenChange = useCallback((next: boolean) => {
-        setOpen(next)
-        if (!next) setPanel("projects")
-    }, [])
+    const handleOpenChange = useCallback(
+        (next: boolean) => {
+            // In the header the panel spans the rail, 8px in from each side, as the trigger is.
+            if (next && side === "bottom" && !collapsed && rowRef.current)
+                setHeaderWidth(rowRef.current.offsetWidth - 16)
+            setOpen(next)
+            if (!next) setPanel("projects")
+        },
+        [collapsed, side],
+    )
 
     const close = useCallback(() => {
         setOpen(false)
@@ -291,12 +299,13 @@ export const ProjectOrgSwitcherView = ({
 
     return (
         <div
+            ref={rowRef}
             className={clsx(
                 // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
                 "flex gap-1 px-2 transition-all duration-300",
-                side === "bottom" ? "relative h-12 shrink-0 justify-between" : "pb-1.5",
+                side === "bottom" ? "h-12 shrink-0 justify-between" : "pb-1.5",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -305,10 +314,6 @@ export const ProjectOrgSwitcherView = ({
                 switcher instead of sitting beside it. */}
             {collapsed ? trailing : null}
             <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
-                {/* In the header the panel spans the rail, 8px in from each side. */}
-                {side === "bottom" && !collapsed ? (
-                    <PopoverAnchor className="pointer-events-none absolute inset-x-2 inset-y-0" />
-                ) : null}
                 <PopoverTrigger asChild>
                     <button
                         type="button"
@@ -379,13 +384,9 @@ export const ProjectOrgSwitcherView = ({
                     onOpenAutoFocus={(event) => event.preventDefault()}
                     side={side}
                     align="start"
-                    sideOffset={side === "bottom" ? -4 : undefined}
-                    className={clsx(
-                        "z-[2000] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md",
-                        side === "bottom" && !collapsed
-                            ? "w-[var(--radix-popover-trigger-width)]"
-                            : "w-[220px]",
-                    )}
+                    sideOffset={side === "bottom" ? 4 : undefined}
+                    style={side === "bottom" && !collapsed ? {width: headerWidth} : undefined}
+                    className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
                 >
                     {panel === "projects" ? projectPanel : orgPanel}
                 </PopoverContent>
