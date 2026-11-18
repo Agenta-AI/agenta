@@ -90,6 +90,10 @@ const Row = ({
     </button>
 )
 
+// The rule above it is drawn by the row, 8px up, so it matches the panel's own dividers.
+const LOGOUT_ROW =
+    "relative mt-[9px] !text-colorError before:pointer-events-none before:absolute before:inset-x-0 before:-top-[5px] before:h-px before:bg-colorBorderSecondary before:content-['']"
+
 /** Theme picker as a hover fly-out row; the Preferences tab offers the same choices. */
 const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
     const t = useT(navigationCatalog)
@@ -214,7 +218,7 @@ export const ProjectOrgSwitcherView = ({
                 {theme && <ThemeFlyout theme={theme} />}
                 {onLogout && (
                     <Row
-                        className="!text-colorError"
+                        className={LOGOUT_ROW}
                         onClick={() => {
                             close()
                             onLogout()
@@ -282,7 +286,7 @@ export const ProjectOrgSwitcherView = ({
                 {theme && <ThemeFlyout theme={theme} />}
                 {onLogout && (
                     <Row
-                        className="!text-colorError"
+                        className={LOGOUT_ROW}
                         onClick={() => {
                             close()
                             onLogout()
