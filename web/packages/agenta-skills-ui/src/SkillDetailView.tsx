@@ -14,6 +14,14 @@ import {
 import {invalidateSkillsListCache, skillsResolveDataAtom} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     DropdownMenu,
     DropdownMenuContent,
@@ -160,6 +168,7 @@ export function SkillDetailView({
 }: SkillDetailViewProps) {
     const item = useSkillItem(workflowId)
     const origin = item?.origin?.repository ? item.origin : null
+    const detaches = Boolean(origin && !item?.origin?.detached)
     const archived = Boolean(item?.archived)
 
     const revisions = useQuery({
@@ -181,6 +190,7 @@ export function SkillDetailView({
     // The head the draft started from; a newer head replaces it only while there are no edits.
     const [base, setBase] = useState<{id: string; draft: SkillDraft} | null>(null)
     const [attempted, setAttempted] = useState(false)
+    const [confirmDetach, setConfirmDetach] = useState(false)
     useClearOnNextPress(attempted, setAttempted)
     const [saving, setSaving] = useState(false)
     const [justSaved, setJustSaved] = useState(false)
@@ -360,7 +370,9 @@ export function SkillDetailView({
             ) : null}
             {archived ? null : (
                 <Button
-                    onClick={() => void save()}
+                    onClick={() =>
+                        detaches && !skillDraftProblem(draft) ? setConfirmDetach(true) : void save()
+                    }
                     disabled={!dirty || saving || descriptionTooLong(draft)}
                 >
                     {saving ? <Spinner size="small" /> : null}
@@ -436,18 +448,6 @@ export function SkillDetailView({
                     </Button>
                 </div>
             ) : null}
-            {origin && !item?.origin?.detached && dirty ? (
-                <div
-                    role="alert"
-                    className={`${NOTICE} items-start bg-tag-orange-bg text-tag-orange`}
-                >
-                    <WarningCircle size={16} className="mt-0.5 shrink-0" />
-                    <span>
-                        You are changing a skill that comes from GitHub. After you save, it keeps
-                        your version and stops getting updates from {origin.repository}.
-                    </span>
-                </div>
-            ) : null}
         </>
     )
 
@@ -497,6 +497,23 @@ export function SkillDetailView({
                 meta={meta}
                 notices={notices}
             />
+            <AlertDialog open={confirmDetach} onOpenChange={setConfirmDetach}>
+                <AlertDialogContent className="sm:max-w-[400px]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Save your own version?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This skill comes from {origin?.repository}. After you save, it keeps
+                            your version and stops getting updates from GitHub.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => void save()}>
+                            Save my version
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <SkillArchiveDialog
                 projectId={projectId}
                 skills={archiveTargets}
