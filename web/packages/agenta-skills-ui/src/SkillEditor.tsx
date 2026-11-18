@@ -494,6 +494,7 @@ export function SkillEditor({
                                 </span>
                             </span>
                             <Switch
+                                size="sm"
                                 aria-labelledby="skill-exec-label"
                                 checked={draft.allowExecutable}
                                 disabled={readOnly}

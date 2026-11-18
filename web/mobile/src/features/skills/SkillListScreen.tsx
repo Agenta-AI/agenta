@@ -165,6 +165,7 @@ export const SkillListScreen = ({
                     <SkillFilterMenu view={view} onChange={setView} repositories={repositories} />
                     <label className="flex h-9 cursor-pointer items-center gap-2 whitespace-nowrap px-1 text-sm">
                         <Switch
+                            size="sm"
                             checked={view.archived}
                             onCheckedChange={(archived) => setView({...view, archived})}
                         />
