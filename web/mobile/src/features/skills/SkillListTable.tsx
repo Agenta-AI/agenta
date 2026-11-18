@@ -130,7 +130,7 @@ export const SkillListTable = ({
             wrapRow={(row, node) => (
                 <div
                     className={cn(
-                        "rounded-[10px] transition-colors",
+                        "-mx-3 w-[calc(100%+1.5rem)] rounded-md px-3 transition-colors",
                         selected.has(row.id) && "bg-accent",
                         fresh.has(row.id) && "animate-skill-fresh",
                     )}

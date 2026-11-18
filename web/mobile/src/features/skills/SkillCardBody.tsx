@@ -3,8 +3,9 @@ import {GithubLogo, Robot} from "@phosphor-icons/react"
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillAvatarCheck} from "./SkillAvatarCheck"
 import type {SkillRowProps} from "./SkillRowCells"
-import {lastUpdatedLabel, NO_DESCRIPTION, usedByLabel} from "./skillListView"
+import {lastUpdatedLabel, NO_DESCRIPTION} from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
+import {SkillUsedBy} from "./SkillUsedBy"
 import {useSkillUpdateStatus} from "./useSkillUpdates"
 
 /** A skill as a card: the tile and menu on top, name and description, usage and age below. */
@@ -58,9 +59,7 @@ export const SkillCardBody = ({
                 >
                     <Robot size={13} />
                 </span>
-                <span className={row.usedByCount ? "text-foreground" : undefined}>
-                    {usedByLabel(row.usedByCount)}
-                </span>
+                <SkillUsedBy workflowId={row.id} count={row.usedByCount} className="min-w-0" />
                 <span className="flex-1" />
                 {update === "available" ? (
                     <SkillUpdateCell workflowId={row.id} />

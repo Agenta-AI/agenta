@@ -1,7 +1,12 @@
 import {cn} from "@agenta/ui/styles"
 import {Check, Compass} from "@phosphor-icons/react"
 
-/** The skill tile; on hover, or while rows are selected, it is the row's checkbox. */
+const LAYER =
+    "absolute inset-0 flex items-center justify-center " +
+    "[transition:translate_240ms_cubic-bezier(0.2,0.8,0.2,1),scale_240ms_cubic-bezier(0.2,0.8,0.2,1),opacity_180ms] " +
+    "motion-reduce:transition-none"
+
+/** The skill tile; on hover it turns into the row's checkbox. */
 export const SkillAvatarCheck = ({
     title,
     checked,
@@ -11,7 +16,7 @@ export const SkillAvatarCheck = ({
 }: {
     title: string
     checked: boolean
-    /** Any row is selected: every tile shows as a checkbox. */
+    /** Any row is selected: unselected tiles get a dashed edge. */
     selecting: boolean
     onToggle: () => void
     size?: 32 | 40
@@ -34,7 +39,8 @@ export const SkillAvatarCheck = ({
         <span
             aria-hidden
             className={cn(
-                "relative box-border flex size-full items-center justify-center overflow-hidden rounded-[inherit] border border-solid transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-foreground",
+                "relative box-border size-full overflow-hidden rounded-[inherit] border border-solid transition-colors duration-200 motion-reduce:transition-none",
+                "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-foreground",
                 checked
                     ? "border-primary bg-primary text-primary-foreground"
                     : cn(
@@ -43,27 +49,26 @@ export const SkillAvatarCheck = ({
                       ),
             )}
         >
-            <Compass
-                size={size === 40 ? 18 : 16}
+            <span
                 className={cn(
-                    "absolute transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-                    checked || selecting
-                        ? "scale-50 opacity-0"
+                    LAYER,
+                    checked
+                        ? "scale-[0.4] opacity-0"
                         : "group-hover/check:-translate-y-[70%] group-hover/check:opacity-0",
                 )}
-            />
-            <Check
-                size={size === 40 ? 18 : 15}
-                weight="bold"
+            >
+                <Compass size={size === 40 ? 18 : 16} />
+            </span>
+            <span
                 className={cn(
-                    "absolute transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+                    LAYER,
                     checked
                         ? "animate-skill-pop opacity-100"
-                        : selecting
-                          ? "opacity-40"
-                          : "translate-y-[70%] opacity-0 group-hover/check:translate-y-0 group-hover/check:opacity-50",
+                        : "translate-y-[70%] opacity-0 group-hover/check:translate-y-0 group-hover/check:opacity-55",
                 )}
-            />
+            >
+                <Check size={size === 40 ? 18 : 15} weight="bold" />
+            </span>
         </span>
     </label>
 )

@@ -4,11 +4,11 @@ import {
     lastUpdatedLabel,
     noDescriptionLabel,
     provenanceLabel,
-    usedByLabel,
     type SkillGrouping,
     type SkillListRow,
 } from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
+import {SkillUsedBy} from "./SkillUsedBy"
 
 export interface SkillRowProps {
     row: SkillListRow
@@ -55,13 +55,8 @@ export const SkillRowCells = ({
             </span>
         </span>
         {narrow ? null : (
-            <span
-                className={`block truncate text-sm ${
-                    row.usedByCount ? "text-foreground" : "text-muted-foreground"
-                }`}
-            >
-                <SkillUpdateCell workflowId={row.id} compact />
-                <SkillActionsMenu row={row} onOpen={onOpen} />
+            <span className="flex min-w-0 text-sm">
+                <SkillUsedBy workflowId={row.id} count={row.usedByCount} />
             </span>
         )}
         {narrow ? null : (

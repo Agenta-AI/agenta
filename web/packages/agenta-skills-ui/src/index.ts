@@ -29,7 +29,7 @@ export {
     skillRevisionsQueryKey,
     type SkillDetailViewProps,
 } from "./SkillDetailView"
-export {SkillAgentPicker} from "./SkillAgentPicker"
+export {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 export {SkillPickerHost} from "./SkillPickerHost"
 export {SkillDetailHost} from "./SkillDetailHost"
 export {SourceRefreshButton} from "./SourceRefreshButton"
