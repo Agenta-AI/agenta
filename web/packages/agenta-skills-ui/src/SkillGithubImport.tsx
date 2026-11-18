@@ -170,12 +170,12 @@ export function SkillGithubImport({
             ) : null}
 
             {busy === "scan" ? (
-                <div aria-busy className="flex flex-col gap-1.5 pt-1">
+                <div aria-busy className="flex flex-col gap-0.5 pt-1">
                     <SkeletonBlock active className="mb-1.5 h-4 w-48 rounded" />
                     {[0, 1, 2, 3, 4].map((row) => (
                         <div
                             key={row}
-                            className="box-border flex h-14 items-center gap-2.5 rounded-[10px] border border-solid border-border px-3"
+                            className="flex h-[54px] items-center gap-2.5 px-2"
                         >
                             <SkeletonBlock active className="size-7 shrink-0 rounded-lg" />
                             <span className="flex flex-1 flex-col gap-1.5">

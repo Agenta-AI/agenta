@@ -21,6 +21,7 @@ export {
 } from "./skillDraft"
 export {SkillCreateChooser, type SkillCreateChooserProps} from "./SkillCreateChooser"
 export {SkillCandidateList, type SkillCandidate} from "./SkillCandidateList"
+export {SkillCheckTile} from "./SkillCheckTile"
 export {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
 export {useSkillCreateFlow, type CreatedSkill, type SkillCreateFlow} from "./useSkillCreateFlow"
 export {SkillArchiveDialog, type ArchiveTarget} from "./SkillArchiveDialog"
