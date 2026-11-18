@@ -171,18 +171,19 @@ export function SkillDetailView({
     )
 
     const [draft, setDraft] = useState<SkillDraft>(EMPTY_SKILL_DRAFT)
-    const [baseId, setBaseId] = useState<string | null>(null)
+    // The head the draft started from; a newer head replaces it only while there are no edits.
+    const [base, setBase] = useState<{id: string; draft: SkillDraft} | null>(null)
     const [attempted, setAttempted] = useState(false)
     const [saving, setSaving] = useState(false)
     const [justSaved, setJustSaved] = useState(false)
     const [update, setUpdate] = useState<"checking" | "available" | "current" | null>(null)
     const [archiveTargets, setArchiveTargets] = useState<ArchiveTarget[]>([])
 
-    if (head && baseId === null) {
+    if (head && (!base || (base.id !== head.id && sameSkillDraft(draft, base.draft)))) {
+        setBase({id: head.id, draft: headDraft})
         setDraft(headDraft)
-        setBaseId(head.id)
     }
-    const dirty = baseId !== null && !sameSkillDraft(draft, headDraft)
+    const dirty = base !== null && !sameSkillDraft(draft, base.draft)
     useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange])
 
     const edit = (next: SkillDraft) => {
@@ -191,26 +192,31 @@ export function SkillDetailView({
     }
 
     const save = async () => {
-        if (!head) return
+        if (!base) return
         setAttempted(true)
-        if (skillDraftProblem(draft)) return
+        const problem = skillDraftProblem(draft)
         const parsed = skillContentSchema.safeParse(toSkillContent(draft))
-        if (!parsed.success) return
+        if (problem || !parsed.success) {
+            message.error(problem ?? "This skill has a field the registry does not accept.")
+            return
+        }
         setSaving(true)
         try {
-            await commitSkillRevision({
+            const committed = await commitSkillRevision({
                 projectId,
                 workflowId,
                 skill: parsed.data,
-                baseRevisionId: baseId ?? head.id,
+                baseRevisionId: base.id,
             })
+            setBase({id: committed.revision_id ?? base.id, draft})
             invalidateSkillsListCache()
             await revisions.refetch()
-            setBaseId(null)
             setAttempted(false)
             setJustSaved(true)
         } catch (err) {
-            message.error(err instanceof Error && err.message ? `Save failed: ${err.message}` : "Save failed")
+            message.error(
+                err instanceof Error && err.message ? `Save failed: ${err.message}` : "Save failed",
+            )
         } finally {
             setSaving(false)
         }
@@ -248,8 +254,8 @@ export function SkillDetailView({
             return
         }
         invalidateSkillsListCache()
+        setBase(null)
         await revisions.refetch()
-        setBaseId(null)
         setUpdate("current")
         message.success(`${draft.title} is updated from GitHub.`)
     }
@@ -329,7 +335,11 @@ export function SkillDetailView({
                 </span>
             ) : null}
             {dirty && !archived ? (
-                <Button variant="outline" onClick={() => setDraft(headDraft)} disabled={saving}>
+                <Button
+                    variant="outline"
+                    onClick={() => base && setDraft(base.draft)}
+                    disabled={saving}
+                >
                     Discard
                 </Button>
             ) : null}
@@ -424,7 +434,7 @@ export function SkillDetailView({
         )
     }
 
-    if (!head) {
+    if (!head || !base) {
         return (
             <div aria-busy className="flex flex-col gap-4">
                 {top}
@@ -442,7 +452,7 @@ export function SkillDetailView({
         <div className="flex flex-col gap-4">
             {top}
             <SkillEditor
-                key={head.id}
+                key={base?.id}
                 draft={draft}
                 onChange={edit}
                 readOnly={archived}

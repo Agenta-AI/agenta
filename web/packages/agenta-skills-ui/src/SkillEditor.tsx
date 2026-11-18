@@ -128,7 +128,9 @@ export function SkillEditor({
     const fileRef = useRef<HTMLTextAreaElement>(null)
     const pickerRef = useRef<HTMLInputElement>(null)
 
-    const set = (patch: Partial<SkillDraft>) => onChange({...draft, ...patch})
+    const latest = useRef(draft)
+    latest.current = draft
+    const set = (patch: Partial<SkillDraft>) => onChange({...latest.current, ...patch})
     const tooLong = descriptionTooLong(draft)
     const current = draft.files.find((file) => file.path === openPath) ?? null
     const hasFiles = draft.files.length > 0
@@ -149,8 +151,11 @@ export function SkillEditor({
     const addFiles = async (list: FileList | File[]) => {
         const added = await readTextFiles(list)
         if (!added.length) return
+        const files = latest.current.files
+        const byPath = new Map(files.map((file) => [file.path, file]))
+        const merged = added.map((file) => ({...byPath.get(file.path), ...file}))
         const paths = new Set(added.map((file) => file.path))
-        set({files: [...draft.files.filter((file) => !paths.has(file.path)), ...added]})
+        set({files: [...files.filter((file) => !paths.has(file.path)), ...merged]})
     }
     const removeFile = (path: string) => {
         set({files: draft.files.filter((file) => file.path !== path)})

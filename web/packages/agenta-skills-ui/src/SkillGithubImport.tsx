@@ -3,7 +3,6 @@ import {useMemo, useState} from "react"
 import {formatCount, skillDisplayName} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
-import {cn} from "@agenta/ui/styles"
 import {Button, Input, Spinner} from "@agenta/ui/ui"
 import {GithubLogo, WarningCircle} from "@phosphor-icons/react"
 
@@ -221,11 +220,8 @@ export function SkillGithubImport({
                         unavailable={found.unavailable}
                         disabled={busy !== null}
                     />
-                    <div
-                        className={cn(
-                            "flex flex-wrap items-center gap-4 border-0 border-t border-solid border-border pt-3",
-                        )}
-                    >
+                    {found.candidates.length ? (
+                    <div className="flex flex-wrap items-center gap-4 border-0 border-t border-solid border-border pt-3">
                         <span className="flex-[1_1_240px] text-xs text-muted-foreground">
                             Skills that run programs can change files and reach the internet. Add
                             them only from sources you trust.
@@ -239,6 +235,7 @@ export function SkillGithubImport({
                             {importLabel}
                         </Button>
                     </div>
+                    ) : null}
                 </div>
             ) : null}
         </div>

@@ -109,7 +109,7 @@ export const SkillCreateScreen = ({
                 showMissing={flow.attempted}
                 actions={
                     <>
-                        <Button variant="outline" onClick={() => leave(listHref)}>
+                        <Button variant="outline" onClick={() => void router.push(listHref)}>
                             Cancel
                         </Button>
                         <Button onClick={() => void flow.create()} disabled={!flow.canCreate}>

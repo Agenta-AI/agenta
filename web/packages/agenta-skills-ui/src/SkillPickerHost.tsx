@@ -145,7 +145,7 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                 const byId = new Map(
                     latest.skills.map((item: SkillRegistryItem) => [item.workflow_id ?? "", item]),
                 )
-                const created = imported.flatMap((skill) => {
+                const added = imported.flatMap((skill) => {
                     const item = byId.get(skill.workflowId ?? "")
                     if (!item?.workflow_slug) return []
                     return [
@@ -157,13 +157,16 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                         },
                     ]
                 })
-                finishCreate(created)
-                if (created.length)
-                    setNotice(
-                        created.length === 1
-                            ? `${skillTitle({name: created[0].name, slug: created[0].slug})} is imported and added to this agent.`
-                            : `${created.length} skills are imported and added to this agent.`,
-                    )
+                if (!added.length) throw new Error("not found")
+                finishCreate(added)
+                setNotice(
+                    added.length === 1
+                        ? `${skillTitle({name: added[0].name, slug: added[0].slug})} is imported and added to this agent.`
+                        : `${added.length} skills are imported and added to this agent.`,
+                )
+            } catch {
+                setView("list")
+                setNotice("The import is done, but it could not be added here. Add it from this list.")
             } finally {
                 setImporting(false)
             }

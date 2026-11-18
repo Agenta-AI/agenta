@@ -651,23 +651,33 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 }),
         [skills],
     )
+    // Reads and writes the latest config, so an add and a remove in one tick both land.
+    const writeSkills = useCallback(
+        (next: (current: unknown[]) => unknown[]) => {
+            const base = configRef.current ?? config
+            const current = Array.isArray(base.skills) ? (base.skills as unknown[]) : []
+            const updated = {...base, skills: next(current)}
+            configRef.current = updated
+            onChange(updated)
+        },
+        [config, configRef, onChange],
+    )
     const handleAddSkillEmbeds = useCallback(
-        (entries: Record<string, unknown>[]) => setAgentField("skills", [...skills, ...entries]),
-        [setAgentField, skills],
+        (entries: Record<string, unknown>[]) => writeSkills((current) => [...current, ...entries]),
+        [writeSkills],
     )
     const handleRemoveSkillEmbeds = useCallback(
         (slugs: string[]) => {
             const drop = new Set(slugs)
-            setAgentField(
-                "skills",
-                skills.filter((entry) => {
+            writeSkills((current) =>
+                current.filter((entry) => {
                     if (!isEmbedRefSkill(entry)) return true
                     const slug = staticEmbedSlug(entry as Record<string, unknown>)
                     return !slug || !drop.has(slug)
                 }),
             )
         },
-        [setAgentField, skills],
+        [writeSkills],
     )
 
     // Controlled open-state for the list sections so the accordion can react to the agent

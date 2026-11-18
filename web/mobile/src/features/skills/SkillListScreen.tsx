@@ -115,7 +115,7 @@ export const SkillListScreen = ({
     const askBulkArchive = () =>
         setArchiveTargets(
             rows
-                .filter((row) => selected.has(row.id))
+                .filter((row) => selectedShown.includes(row.id))
                 .map((row) => ({workflowId: row.id, title: row.title})),
         )
 

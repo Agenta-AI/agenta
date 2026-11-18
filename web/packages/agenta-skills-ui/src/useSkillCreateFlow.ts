@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache, skillsListDataAtom} from "@agenta/skills/state"
+import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 
 import type {SkillCandidate} from "./SkillCandidateList"
@@ -92,7 +93,12 @@ export function useSkillCreateFlow({
 
     const createOne = useCallback(
         async (skill: Record<string, unknown>): Promise<CreatedSkill> => {
-            const parsed = skillContentSchema.parse(skill)
+            const result = skillContentSchema.safeParse(skill)
+            if (!result.success) {
+                const field = result.error.issues[0]?.path.join(".") || "content"
+                throw new Error(`the ${field} is not valid`)
+            }
+            const parsed = result.data
             const created = await createSkillWorkflow({projectId, skill: parsed})
             return {
                 workflowId: created.workflowId,
@@ -132,7 +138,10 @@ export function useSkillCreateFlow({
             }
             onCreated(created)
         } catch (err) {
-            setError(failure(err, "Import"))
+            if (created.length) {
+                message.error(failure(err, "Import"))
+                onCreated(created)
+            } else setError(failure(err, "Import"))
         } finally {
             if (created.length) invalidateSkillsListCache()
             setBusy(false)

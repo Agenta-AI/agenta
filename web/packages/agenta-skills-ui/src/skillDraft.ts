@@ -1,5 +1,10 @@
 import {skillDisplayName} from "@agenta/shared/utils"
-import {SKILL_DESCRIPTION_MAX, SKILL_NAME_MAX, type SkillFile} from "@agenta/skills"
+import {
+    SKILL_DESCRIPTION_MAX,
+    SKILL_NAME_MAX,
+    SKILL_NAME_PATTERN,
+    type SkillFile,
+} from "@agenta/skills"
 
 /** What the skill editor edits. `name` is the stored SKILL.md name the draft was loaded with. */
 export interface SkillDraft {
@@ -50,7 +55,7 @@ export const toSkillDraft = (skill?: Record<string, unknown> | null): SkillDraft
 
 /** The stored name: kept while the title still reads as it, else the title as a slug. */
 export const draftSkillName = (draft: SkillDraft): string =>
-    draft.name && skillDisplayName(draft.name) === draft.title.trim()
+    SKILL_NAME_PATTERN.test(draft.name) && skillDisplayName(draft.name) === draft.title.trim()
         ? draft.name
         : slugifySkillName(draft.title)
 
