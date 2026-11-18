@@ -116,6 +116,7 @@ export const SkillListTable = ({
             view={view}
             cardMinWidth={280}
             stickyHeader
+            density="compact"
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.id}
@@ -127,7 +128,7 @@ export const SkillListTable = ({
             wrapRow={(row, node) => (
                 <div
                     className={cn(
-                        "-mx-3 w-[calc(100%+1.5rem)] rounded-md px-3 transition-colors",
+                        "-mx-3 mb-0.5 w-[calc(100%+1.5rem)] rounded-md px-3 transition-colors",
                         selected.has(row.id) && "bg-accent",
                         fresh.has(row.id) && "animate-skill-fresh",
                     )}
