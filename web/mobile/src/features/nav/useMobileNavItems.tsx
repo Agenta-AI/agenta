@@ -7,7 +7,6 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
-    buildInviteTeammateNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
@@ -25,7 +24,7 @@ import {
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -34,8 +33,6 @@ import {
     type SessionActionTarget,
 } from "@agenta/sessions-ui"
 import {developerModeActiveAtom, userAtom} from "@agenta/shared/state"
-import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
-import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
     ChatsCircleIcon,
@@ -45,7 +42,6 @@ import {
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
-    PaperPlaneIcon,
     QuestionIcon,
     RobotIcon,
     ScrollIcon,
@@ -63,8 +59,6 @@ import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
-import {useProjectPermission} from "../context/useProjectPermission"
-
 import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
@@ -79,8 +73,6 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 // By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
 // that is a date or a status names no agent to start a session with. Reset comes back here.
 setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
-/** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
-const PALETTE_SHORTCUT_ID = "palette.open"
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -133,15 +125,14 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     },
 )
 
-/** A mark only when it matters: a spinner while a turn runs, amber while it waits on you. */
+/** A spinner while a turn runs, amber while it waits on you, dark while the session is live. */
 const sessionStatusMark = (session: SessionSidebarRef): ReactNode => {
     if (session.running) return createElement(Spinner, {className: "size-2.5"})
-    if (session.waiting)
-        return createElement("span", {
-            "aria-label": "Waiting on you",
-            className: "size-1.5 rounded-full bg-[var(--ag-run-status-warning)]",
-        })
-    return null
+    if (!session.waiting && !session.alive) return null
+    return createElement("span", {
+        "aria-label": session.waiting ? "Waiting on you" : "Live",
+        className: `size-1.5 rounded-full ${session.waiting ? "bg-[var(--ag-run-status-warning)]" : "bg-colorText"}`,
+    })
 }
 
 /**
@@ -220,14 +211,6 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
             sharePathFor,
         }),
     )
-    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
-    const mac = useIsMacPlatform()
-    const paletteShortcut = useMemo(() => {
-        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
-        return shortcut
-            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
-            : undefined
-    }, [mac])
     const developerViews = useEnabledDeveloperViews()
     const developerMode = useAtomValue(developerModeActiveAtom)
     const wrapSessionRow = useCallback(
@@ -318,16 +301,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
             // The rail does not scroll; THIS group does, so the footer stays on screen.
             scrollChildren: true,
             onReachEnd: loadMoreSessions,
-            // Search reaches past what the rail lists; the filter narrows it.
-            groupAction: createElement(
-                "span",
-                {className: "flex items-center gap-0.5"},
-                createElement(SessionSearchButton, {
-                    label: t("navigation.items.search"),
-                    shortcut: paletteShortcut,
-                }),
-                createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
-            ),
+            groupAction: createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
             submenu: resolveChildren(
                 mobileSessionsEntity,
                 source,
@@ -337,7 +311,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
                 wrapSessionRow,
             ),
         }),
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, t],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, t],
     )
 
     return useMemo(() => ({...pages, sessions}), [pages, sessions])
@@ -349,62 +323,29 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Settings with the support buttons (not in the settings scope), plus Invite Teammate in Developer Mode. */
-export const useMobileBottomNavItems = (
-    projectURL: string,
-    {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] => {
+/** The Settings row, with the version and the support buttons. */
+export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog, commonCatalog)
     const version = useMobileVersion()
-    const developerMode = useAtomValue(developerModeActiveAtom)
-    // No project id, no permission request: outside Developer Mode nothing is asked.
     const [, , , , projectId = ""] = projectURL.split("/")
-    const canInvite = useProjectPermission(
-        developerMode ? projectId : "",
-        "add_new_user_to_workspace",
-    )
-    const inviteItems = useMemo(
-        () =>
-            developerMode && canInvite
-                ? [
-                      {
-                          ...buildInviteTeammateNavItem({
-                              projectURL,
-                              icon: createElement(PaperPlaneIcon, {size: 16}),
-                          }),
-                          title: t("navigation.items.inviteTeammate"),
-                          tooltip: t("navigation.items.inviteTeammate"),
-                      },
-                  ]
-                : [],
-        [canInvite, developerMode, projectURL, t],
-    )
-    const items = useMemo(
-        () =>
-            // The settings scope drops them: the rail IS settings there.
-            includeSettingsLink
-                ? [
-                      {
-                          key: "mobile-settings",
-                          title: t("common.settings"),
-                          icon: createElement(GearIcon, {size: 16}),
-                          link: `${projectURL}/settings`,
-                          suffix: version
-                              ? createElement(
-                                    "span",
-                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
-                                    `v${version}`,
-                                )
-                              : undefined,
-                          trailing: createElement(SupportActions, {projectId}),
-                      },
-                  ]
-                : [],
-        [includeSettingsLink, projectId, projectURL, version, t],
-    )
     return useMemo(
-        () => (inviteItems.length ? [...inviteItems, ...items] : items),
-        [inviteItems, items],
+        () => [
+            {
+                key: "mobile-settings",
+                title: t("common.settings"),
+                icon: createElement(GearIcon, {size: 16}),
+                link: `${projectURL}/settings`,
+                suffix: version
+                    ? createElement(
+                          "span",
+                          {className: "text-[10px] leading-none text-colorTextTertiary"},
+                          `v${version}`,
+                      )
+                    : undefined,
+                trailing: createElement(SupportActions, {projectId}),
+            },
+        ],
+        [projectId, projectURL, version, t],
     )
 }
 
