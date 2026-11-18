@@ -3,15 +3,7 @@ import {useMemo} from "react"
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
-import {
-    Folder,
-    GitBranch,
-    Minus,
-    Robot,
-    Rows,
-    SquaresFour,
-    Stack,
-} from "@phosphor-icons/react"
+import {Folder, GitBranch, Minus, Robot, Rows, SquaresFour, Stack} from "@phosphor-icons/react"
 
 import {
     ALL_SOURCES,

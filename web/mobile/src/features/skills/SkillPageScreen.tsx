@@ -39,7 +39,9 @@ export const SkillPageScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className={`box-border flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden ${PAGE_FRAME}`}>
+                        <div
+                            className={`box-border flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden ${PAGE_FRAME}`}
+                        >
                             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                         </div>
                     }

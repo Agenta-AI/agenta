@@ -152,7 +152,9 @@ export function SkillEditor({
         if (openPath === path) setOpenPath(null)
     }
     const setFileContent = (content: string) =>
-        set({files: draft.files.map((file) => (file.path === openPath ? {...file, content} : file))})
+        set({
+            files: draft.files.map((file) => (file.path === openPath ? {...file, content} : file)),
+        })
     const browse = () => pickerRef.current?.click()
 
     const onDrop = (event: DragEvent) => {
@@ -263,7 +265,10 @@ export function SkillEditor({
     )
 
     const fileView = current ? (
-        <div key={current.path} className="absolute inset-0 flex animate-skill-enter flex-col gap-1.5">
+        <div
+            key={current.path}
+            className="absolute inset-0 flex animate-skill-enter flex-col gap-1.5"
+        >
             <div className="flex min-h-6 flex-wrap items-center gap-2">
                 <FileText size={16} className="text-muted-foreground" />
                 <span className="flex min-w-0 items-baseline gap-0.5 truncate text-sm">
@@ -405,8 +410,8 @@ export function SkillEditor({
                     <div className="flex min-h-6 items-center gap-1.5">
                         <span className="text-sm font-medium">Files</span>
                         <Hint label="About files">
-                            Scripts, templates and examples the agent can open while it follows
-                            the instructions.
+                            Scripts, templates and examples the agent can open while it follows the
+                            instructions.
                         </Hint>
                         <span className="flex-1" />
                         {hasFiles && !readOnly ? (
@@ -504,7 +509,12 @@ export function SkillEditor({
                                     </span>
                                 </span>
                                 {readOnly ? null : (
-                                    <Button type="button" variant="outline" size="sm" onClick={browse}>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={browse}
+                                    >
                                         <Plus size={14} />
                                         Add files
                                     </Button>

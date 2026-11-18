@@ -7,15 +7,7 @@ import type {SkillsPickerHostProps} from "@agenta/ui/drill-in"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn} from "@agenta/ui/styles"
 import {Button, SearchInput, Spinner} from "@agenta/ui/ui"
-import {
-    ArrowLeft,
-    Check,
-    CheckCircle,
-    Compass,
-    PencilSimple,
-    Plus,
-    X,
-} from "@phosphor-icons/react"
+import {ArrowLeft, Check, CheckCircle, Compass, PencilSimple, Plus, X} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {SkillCandidateList} from "./SkillCandidateList"
@@ -30,12 +22,17 @@ import {useSkillCreateFlow, type CreatedSkill} from "./useSkillCreateFlow"
 
 type View = "list" | "create"
 
-const ROW = "relative flex h-16 items-center gap-3 rounded-[10px] px-2.5 transition-colors hover:bg-accent/60"
+const ROW =
+    "relative flex h-16 items-center gap-3 rounded-[10px] px-2.5 transition-colors hover:bg-accent/60"
 const TILE =
     "flex size-8 shrink-0 items-center justify-center rounded-[9px] border border-solid border-border bg-muted text-muted-foreground"
 
-const entryFor = (created: {slug: string; workflowId?: string; name: string; description?: string}) =>
-    buildSkillEmbedEntry({...created, mode: "latest"}) as unknown as Record<string, unknown>
+const entryFor = (created: {
+    slug: string
+    workflowId?: string
+    name: string
+    description?: string
+}) => buildSkillEmbedEntry({...created, mode: "latest"}) as unknown as Record<string, unknown>
 
 function Header({
     title,
@@ -52,13 +49,21 @@ function Header({
         <div className="relative flex flex-col gap-1.5 px-5 pb-4 pt-5">
             <div className="flex items-center gap-1.5 pr-8">
                 {onBack ? (
-                    <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack} className="-ml-1.5">
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Back"
+                        onClick={onBack}
+                        className="-ml-1.5"
+                    >
                         <ArrowLeft size={16} />
                     </Button>
                 ) : null}
                 <h2 className="m-0 text-[17px] font-medium leading-6">{title}</h2>
             </div>
-            {description ? <p className="m-0 text-sm text-muted-foreground">{description}</p> : null}
+            {description ? (
+                <p className="m-0 text-sm text-muted-foreground">{description}</p>
+            ) : null}
             <Button
                 variant="ghost"
                 size="icon-sm"
@@ -81,7 +86,14 @@ function Footer({children}: {children: ReactNode}) {
 }
 
 /** The playground's skills drawer: pick registry skills for the agent, or make a new one. */
-export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWith = "list"}: SkillsPickerHostProps) {
+export function SkillPickerHost({
+    open,
+    onClose,
+    added,
+    onAdd,
+    onRemove,
+    startWith = "list",
+}: SkillsPickerHostProps) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const query = useAtomValue(skillsListQueryAtom)
     const registry = useAtomValue(skillsListDataAtom)
@@ -166,7 +178,9 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                 )
             } catch {
                 setView("list")
-                setNotice("The import is done, but it could not be added here. Add it from this list.")
+                setNotice(
+                    "The import is done, but it could not be added here. Add it from this list.",
+                )
             } finally {
                 setImporting(false)
             }
@@ -223,7 +237,11 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
     if (view === "list") {
         body = (
             <>
-                <Header title="Add skills" description="Choose skills from the registry for this agent." onClose={onClose} />
+                <Header
+                    title="Add skills"
+                    description="Choose skills from the registry for this agent."
+                    onClose={onClose}
+                />
                 <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
                     <div className="flex gap-2">
                         <SearchInput
@@ -238,7 +256,10 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                         </Button>
                     </div>
                     {notice ? (
-                        <div role="status" className="flex animate-skill-enter items-center gap-2 rounded-[10px] bg-tag-green-bg px-3 py-2 text-[13px] text-tag-green">
+                        <div
+                            role="status"
+                            className="flex animate-skill-enter items-center gap-2 rounded-[10px] bg-tag-green-bg px-3 py-2 text-[13px] text-tag-green"
+                        >
                             <CheckCircle size={15} weight="fill" className="shrink-0" />
                             <span className="flex-1">{notice}</span>
                         </div>
@@ -252,9 +273,16 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                         {groups.map((group, index) => (
                             <div key={group.label ?? "all"} className="flex flex-col gap-0.5">
                                 {group.label ? (
-                                    <div className={cn("flex items-center gap-1.5 px-2.5 pb-1.5 pt-1 text-xs font-medium text-muted-foreground", index > 0 && "mt-3.5")}>
+                                    <div
+                                        className={cn(
+                                            "flex items-center gap-1.5 px-2.5 pb-1.5 pt-1 text-xs font-medium text-muted-foreground",
+                                            index > 0 && "mt-3.5",
+                                        )}
+                                    >
                                         <span>{group.label}</span>
-                                        <span className="font-normal opacity-80">{group.rows.length}</span>
+                                        <span className="font-normal opacity-80">
+                                            {group.rows.length}
+                                        </span>
                                     </div>
                                 ) : null}
                                 {group.rows.map((option) => {
@@ -263,14 +291,19 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                                     return (
                                         <div
                                             key={option.id}
-                                            className={cn(ROW, fresh.has(option.slug) && "animate-skill-fresh")}
+                                            className={cn(
+                                                ROW,
+                                                fresh.has(option.slug) && "animate-skill-fresh",
+                                            )}
                                         >
                                             <span aria-hidden className={TILE}>
                                                 <Compass size={16} />
                                             </span>
                                             <span className="flex min-w-0 flex-1 flex-col">
                                                 <span className="flex min-w-0 items-center gap-2">
-                                                    <span className="truncate text-sm font-medium">{skillTitle(option)}</span>
+                                                    <span className="truncate text-sm font-medium">
+                                                        {skillTitle(option)}
+                                                    </span>
                                                     {option.source ? (
                                                         <span className="truncate text-xs text-muted-foreground">
                                                             {option.source.label}
@@ -289,11 +322,17 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                                                 onClick={() => toggle(option.slug)}
                                                 className={cn(
                                                     "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 text-foreground after:absolute after:inset-0 after:content-['']",
-                                                    on ? "bg-accent hover:bg-foreground/10" : "bg-transparent hover:bg-accent",
+                                                    on
+                                                        ? "bg-accent hover:bg-foreground/10"
+                                                        : "bg-transparent hover:bg-accent",
                                                 )}
                                             >
                                                 {on ? (
-                                                    <Check size={15} weight="bold" className="animate-skill-pop" />
+                                                    <Check
+                                                        size={15}
+                                                        weight="bold"
+                                                        className="animate-skill-pop"
+                                                    />
                                                 ) : (
                                                     <Plus size={15} />
                                                 )}
@@ -305,7 +344,9 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                         ))}
                         {!query.isPending && !visible.length ? (
                             <div className="flex flex-col items-center gap-2.5 px-2.5 py-8 text-center text-sm text-muted-foreground">
-                                {search.trim() ? `No skill matches “${search.trim()}”.` : "No skills in the registry yet."}
+                                {search.trim()
+                                    ? `No skill matches “${search.trim()}”.`
+                                    : "No skills in the registry yet."}
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -343,7 +384,9 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                         onImport={() => flow.setStep("github")}
                     />
                     {flow.busy ? <Spinner size="small" /> : null}
-                    {flow.error ? <p className="m-0 text-[13px] text-destructive">{flow.error}</p> : null}
+                    {flow.error ? (
+                        <p className="m-0 text-[13px] text-destructive">{flow.error}</p>
+                    ) : null}
                 </div>
             </>
         )
@@ -359,9 +402,12 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                         showMissing={flow.attempted}
                         notices={
                             flow.duplicate ? (
-                                <div role="alert" className="rounded-[10px] bg-tag-orange-bg px-3 py-2 text-sm text-tag-orange">
-                                    You already have a skill called “{flow.draft.title}”. Creating this one
-                                    makes a second copy.
+                                <div
+                                    role="alert"
+                                    className="rounded-[10px] bg-tag-orange-bg px-3 py-2 text-sm text-tag-orange"
+                                >
+                                    You already have a skill called “{flow.draft.title}”. Creating
+                                    this one makes a second copy.
                                 </div>
                             ) : null
                         }
@@ -371,7 +417,9 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                     <span
                         className={cn(
                             "flex-1 text-[13px]",
-                            flow.error ? "text-destructive" : "text-muted-foreground max-sm:invisible",
+                            flow.error
+                                ? "text-destructive"
+                                : "text-muted-foreground max-sm:invisible",
                         )}
                     >
                         {flow.error ?? "Saved to the registry and added to this agent."}
@@ -389,7 +437,10 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
     } else if (flow.step === "upload") {
         body = (
             <>
-                {createHeader("Review the upload", "Pick the skills to save and add to this agent.")}
+                {createHeader(
+                    "Review the upload",
+                    "Pick the skills to save and add to this agent.",
+                )}
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
                     <SkillCandidateList
                         candidates={flow.uploadCandidates}
@@ -400,7 +451,10 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                 </div>
                 <Footer>
                     <span className="flex-1 text-[13px] text-destructive">{flow.error}</span>
-                    <Button onClick={() => void flow.importUploads()} disabled={!flow.picked.size || flow.busy}>
+                    <Button
+                        onClick={() => void flow.importUploads()}
+                        disabled={!flow.picked.size || flow.busy}
+                    >
                         {flow.busy ? <Spinner size="small" /> : null}
                         Add {flow.picked.size} {flow.picked.size === 1 ? "skill" : "skills"}
                     </Button>
@@ -410,7 +464,10 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
     } else {
         body = (
             <>
-                {createHeader("Import from GitHub", "Paste a public repository link. We find every skill in its folders.")}
+                {createHeader(
+                    "Import from GitHub",
+                    "Paste a public repository link. We find every skill in its folders.",
+                )}
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
                     {importing ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -418,7 +475,11 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
                             Adding to this agent…
                         </div>
                     ) : (
-                        <SkillGithubImport projectId={projectId} showHeader={false} onImported={(skills) => void finishImport(skills)} />
+                        <SkillGithubImport
+                            projectId={projectId}
+                            showHeader={false}
+                            onImported={(skills) => void finishImport(skills)}
+                        />
                     )}
                 </div>
             </>
@@ -435,7 +496,9 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
             className="transition-[width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
             closable={false}
             destroyOnClose
-            styles={{body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"}}}
+            styles={{
+                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+            }}
         >
             <div
                 key={view === "list" ? "list" : flow.step}
@@ -446,4 +509,3 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove, startWit
         </EnhancedDrawer>
     )
 }
-

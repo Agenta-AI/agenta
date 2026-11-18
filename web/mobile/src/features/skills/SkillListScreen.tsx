@@ -134,12 +134,18 @@ export const SkillListScreen = ({
 
     const term = search.trim()
     const isLoading = query.isPending
-    const projectEmpty = !isLoading && !query.isError && rows.length === 0 && !term && !view.archived
+    const projectEmpty =
+        !isLoading && !query.isError && rows.length === 0 && !term && !view.archived
     const filtered = !isDefaultSkillFilters(view) || Boolean(term)
     const resetAll = () => {
         setSearch("")
         setTyped("")
-        setView({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode, archived: view.archived})
+        setView({
+            ...DEFAULT_SKILL_LIST_VIEW,
+            group: view.group,
+            mode: view.mode,
+            archived: view.archived,
+        })
     }
 
     const toolbar = selectedShown.length ? (
@@ -188,7 +194,9 @@ export const SkillListScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}>
+                        <div
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
+                        >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.5]">

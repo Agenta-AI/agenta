@@ -201,7 +201,9 @@ export const SkillCreateScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className={`box-border flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden ${PAGE_FRAME}`}>
+                        <div
+                            className={`box-border flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden ${PAGE_FRAME}`}
+                        >
                             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                         </div>
                     }
@@ -212,7 +214,10 @@ export const SkillCreateScreen = ({
                         }`}
                     >
                         {back}
-                        <div key={flow.step} className="flex flex-1 animate-skill-enter flex-col lg:min-h-0">
+                        <div
+                            key={flow.step}
+                            className="flex flex-1 animate-skill-enter flex-col lg:min-h-0"
+                        >
                             {body}
                         </div>
                     </div>

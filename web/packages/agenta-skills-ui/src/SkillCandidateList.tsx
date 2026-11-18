@@ -72,7 +72,11 @@ export function SkillCandidateList({
                                         : "border-input text-transparent",
                                 )}
                             >
-                                <Check size={12} weight="bold" className={on ? "animate-skill-pop" : undefined} />
+                                <Check
+                                    size={12}
+                                    weight="bold"
+                                    className={on ? "animate-skill-pop" : undefined}
+                                />
                             </span>
                         </label>
                     )

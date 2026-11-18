@@ -24,11 +24,7 @@ export {SkillCandidateList, type SkillCandidate} from "./SkillCandidateList"
 export {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
 export {useSkillCreateFlow, type CreatedSkill, type SkillCreateFlow} from "./useSkillCreateFlow"
 export {SkillArchiveDialog, type ArchiveTarget} from "./SkillArchiveDialog"
-export {
-    SkillDetailView,
-    skillRevisionsQueryKey,
-    type SkillDetailViewProps,
-} from "./SkillDetailView"
+export {SkillDetailView, skillRevisionsQueryKey, type SkillDetailViewProps} from "./SkillDetailView"
 export {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 export {SkillPickerHost} from "./SkillPickerHost"
 export {SkillDetailHost} from "./SkillDetailHost"

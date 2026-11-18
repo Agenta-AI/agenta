@@ -38,7 +38,12 @@ function Option({
     className?: string
 } & Pick<React.HTMLAttributes<HTMLButtonElement>, "onDragOver" | "onDragLeave" | "onDrop">) {
     return (
-        <button type="button" onClick={onClick} className={cn(OPTION, "group", className)} {...drop}>
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(OPTION, "group", className)}
+            {...drop}
+        >
             {tile}
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-sm font-medium">{title}</span>

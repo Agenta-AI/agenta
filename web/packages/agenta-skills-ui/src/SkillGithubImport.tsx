@@ -114,7 +114,8 @@ export function SkillGithubImport({
             return next
         })
     const importLabel = useMemo(
-        () => (picked.size ? `Import ${formatCount(picked.size, "skill")}` : "Choose skills to import"),
+        () =>
+            picked.size ? `Import ${formatCount(picked.size, "skill")}` : "Choose skills to import",
         [picked.size],
     )
 
@@ -221,20 +222,20 @@ export function SkillGithubImport({
                         disabled={busy !== null}
                     />
                     {found.candidates.length ? (
-                    <div className="flex flex-wrap items-center gap-4 border-0 border-t border-solid border-border pt-3">
-                        <span className="flex-[1_1_240px] text-xs text-muted-foreground">
-                            Skills that run programs can change files and reach the internet. Add
-                            them only from sources you trust.
-                        </span>
-                        <Button
-                            type="button"
-                            onClick={() => void runImport()}
-                            disabled={!picked.size || busy !== null}
-                        >
-                            {busy === "import" ? <Spinner size="small" /> : null}
-                            {importLabel}
-                        </Button>
-                    </div>
+                        <div className="flex flex-wrap items-center gap-4 border-0 border-t border-solid border-border pt-3">
+                            <span className="flex-[1_1_240px] text-xs text-muted-foreground">
+                                Skills that run programs can change files and reach the internet.
+                                Add them only from sources you trust.
+                            </span>
+                            <Button
+                                type="button"
+                                onClick={() => void runImport()}
+                                disabled={!picked.size || busy !== null}
+                            >
+                                {busy === "import" ? <Spinner size="small" /> : null}
+                                {importLabel}
+                            </Button>
+                        </div>
                     ) : null}
                 </div>
             ) : null}

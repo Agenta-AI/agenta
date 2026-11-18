@@ -74,8 +74,7 @@ export const SkillListTable = ({
     const shown = groups.flatMap((run) => run.rows.map((row) => row.id))
     const picked = shown.filter((id) => selected.has(id)).length
     const allState = picked === 0 ? false : picked === shown.length ? true : "indeterminate"
-    const toggleAll = () =>
-        onSelect(allState === true ? new Set() : new Set(shown))
+    const toggleAll = () => onSelect(allState === true ? new Set() : new Set(shown))
     const toggle = (row: SkillListRow) => {
         const next = new Set(selected)
         if (!next.delete(row.id)) next.add(row.id)

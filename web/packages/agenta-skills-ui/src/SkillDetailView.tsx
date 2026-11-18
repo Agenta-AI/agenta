@@ -106,12 +106,17 @@ function SourceDetails({origin}: {origin: NonNullable<SkillOrigin>}) {
                     <CaretDown size={12} />
                 </button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-[380px] max-w-[calc(100vw-32px)] px-4 pb-3.5 pt-2">
+            <PopoverContent
+                align="start"
+                className="w-[380px] max-w-[calc(100vw-32px)] px-4 pb-3.5 pt-2"
+            >
                 {rows.map(([label, value], index) => (
                     <div
                         key={label}
                         className={`grid grid-cols-[96px_1fr] gap-3 py-[7px] text-[13px] leading-[18px] ${
-                            index < rows.length - 1 ? "border-0 border-b border-solid border-border/60" : ""
+                            index < rows.length - 1
+                                ? "border-0 border-b border-solid border-border/60"
+                                : ""
                         }`}
                     >
                         <span className="text-muted-foreground">{label}</span>
@@ -169,10 +174,7 @@ export function SkillDetailView({
         staleTime: 15_000,
     })
     const head = revisions.data?.[0]
-    const headDraft = useMemo(
-        () => (head ? toSkillDraft(head.skill) : EMPTY_SKILL_DRAFT),
-        [head],
-    )
+    const headDraft = useMemo(() => (head ? toSkillDraft(head.skill) : EMPTY_SKILL_DRAFT), [head])
 
     const [draft, setDraft] = useState<SkillDraft>(EMPTY_SKILL_DRAFT)
     // The head the draft started from; a newer head replaces it only while there are no edits.
@@ -265,7 +267,8 @@ export function SkillDetailView({
     }
 
     const download = () => {
-        if (!head?.skill || !downloadSkill(head.skill)) message.error("Could not download this skill")
+        if (!head?.skill || !downloadSkill(head.skill))
+            message.error("Could not download this skill")
     }
 
     const agents = (usage.data?.referenced_by ?? []).map((entry) => ({
@@ -276,7 +279,8 @@ export function SkillDetailView({
         ? `Used by ${agents.length === 1 ? agents[0].name : `${agents.length} agents`}`
         : "Not used by any agent yet"
     const edited = timeAgo(
-        new Date(head?.createdAt ?? item?.updated_at ?? item?.created_at ?? "").getTime() || undefined,
+        new Date(head?.createdAt ?? item?.updated_at ?? item?.created_at ?? "").getTime() ||
+            undefined,
     )
 
     const dot = <span aria-hidden>·</span>
@@ -316,7 +320,11 @@ export function SkillDetailView({
             {update === "available" ? (
                 <>
                     {dot}
-                    <button type="button" onClick={() => void applyUpdate()} className={`${META_LINK} text-tag-orange`}>
+                    <button
+                        type="button"
+                        onClick={() => void applyUpdate()}
+                        className={`${META_LINK} text-tag-orange`}
+                    >
                         <span aria-hidden className="size-1.5 rounded-full bg-tag-orange" />
                         <span className="underline underline-offset-2">Update available</span>
                     </button>
@@ -351,7 +359,10 @@ export function SkillDetailView({
                 </Button>
             ) : null}
             {archived ? null : (
-                <Button onClick={() => void save()} disabled={!dirty || saving || descriptionTooLong(draft)}>
+                <Button
+                    onClick={() => void save()}
+                    disabled={!dirty || saving || descriptionTooLong(draft)}
+                >
                     {saving ? <Spinner size="small" /> : null}
                     Save
                 </Button>
@@ -369,7 +380,10 @@ export function SkillDetailView({
                     </DropdownMenuItem>
                     {origin ? (
                         <>
-                            <DropdownMenuItem disabled={update === "checking"} onSelect={() => void check()}>
+                            <DropdownMenuItem
+                                disabled={update === "checking"}
+                                onSelect={() => void check()}
+                            >
                                 <ArrowsClockwise size={14} />
                                 Check for updates
                             </DropdownMenuItem>
@@ -409,7 +423,10 @@ export function SkillDetailView({
     const notices = (
         <>
             {archived ? (
-                <div role="status" className={`${NOTICE} border border-solid border-border bg-muted py-2 pr-2.5`}>
+                <div
+                    role="status"
+                    className={`${NOTICE} border border-solid border-border bg-muted py-2 pr-2.5`}
+                >
                     <Archive size={16} className="shrink-0 text-muted-foreground" />
                     <span className="flex-1">
                         This skill is archived. Agents do not use it, and you cannot edit it.
@@ -420,7 +437,10 @@ export function SkillDetailView({
                 </div>
             ) : null}
             {origin && !item?.origin?.detached && dirty ? (
-                <div role="alert" className={`${NOTICE} items-start bg-tag-orange-bg text-tag-orange`}>
+                <div
+                    role="alert"
+                    className={`${NOTICE} items-start bg-tag-orange-bg text-tag-orange`}
+                >
                     <WarningCircle size={16} className="mt-0.5 shrink-0" />
                     <span>
                         You are changing a skill that comes from GitHub. After you save, it keeps
@@ -454,7 +474,10 @@ export function SkillDetailView({
                 <SkeletonBlock active className="h-4 w-1/2 rounded" />
                 <div className="mt-2 flex gap-6">
                     <SkeletonBlock active className="h-[420px] flex-[999_1_480px] rounded-[10px]" />
-                    <SkeletonBlock active className="h-[420px] flex-[1_1_280px] rounded-[10px] max-sm:hidden" />
+                    <SkeletonBlock
+                        active
+                        className="h-[420px] flex-[1_1_280px] rounded-[10px] max-sm:hidden"
+                    />
                 </div>
             </div>
         )
@@ -480,7 +503,9 @@ export function SkillDetailView({
                 onClose={() => setArchiveTargets([])}
                 onArchived={(done) => {
                     setArchiveTargets([])
-                    message.success(`${done[0]?.title} is archived. Restore any time from Archived.`)
+                    message.success(
+                        `${done[0]?.title} is archived. Restore any time from Archived.`,
+                    )
                     onArchived(done)
                 }}
             />
