@@ -578,20 +578,17 @@ def _reject_unrunnable_agent(data: Any) -> None:
                 paths[name] = [f"{root}.{name}"]
             kept[name] = value
 
-    if (
-        not wrapped
-        and any(name in template for name in BARE_TEMPLATE_KEYS)
-        and not any(name in kept for name in BARE_TEMPLATE_KEYS)
-    ):
-        # Every definition field of the bare template holds an embed. The runtime reads
-        # this template, not the `prompt` fallback, and its content is known only after
-        # the embeds resolve.
-        return
+    # The runtime reads a bare template, not the `prompt` fallback, whenever the
+    # parameters hold a definition field. When every such field holds an embed, the
+    # filtered fields are parsed as that template, so the parse does not fall back.
+    bare_template = not wrapped and any(name in template for name in BARE_TEMPLATE_KEYS)
+    if bare_template and not any(name in kept for name in BARE_TEMPLATE_KEYS):
+        parsed = {"agent": {k: v for k, v in kept.items() if k != "prompt"}}
+    else:
+        parsed = {**parameters, "agent": kept} if wrapped else kept
 
     try:
-        AgentTemplate.from_params(
-            {**parameters, "agent": kept} if wrapped else kept,
-        )
+        AgentTemplate.from_params(parsed)
     except InvalidHarnessKindError as e:
         raise InvalidAgentHarnessError(value=e.value, message=e.message) from e
     # The parse's refusals: the entry errors, the template shape error, and the
