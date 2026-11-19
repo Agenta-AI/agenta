@@ -9,9 +9,8 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {agentEntryHref} from "../agents/agentEntry"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
-
 import {SkillBackLink} from "./SkillBackLink"
+import {SkillScreenBar} from "./SkillScreenBar"
 import {useSkillLeaveGuard} from "./useSkillLeaveGuard"
 
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
@@ -32,6 +31,7 @@ export const SkillPageScreen = ({
     const [dirty, setDirty] = useState(false)
     const {leave, modal} = useSkillLeaveGuard(dirty)
     const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
+    const [bar, setBar] = useState<HTMLDivElement | null>(null)
 
     return (
         <>
@@ -39,15 +39,17 @@ export const SkillPageScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div
-                            className={`box-border flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden ${PAGE_FRAME}`}
-                        >
-                            <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                        </div>
+                        <SkillScreenBar
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            back={<SkillBackLink href={listHref} label="Skills" />}
+                            onSlot={setBar}
+                            className={PAGE_FRAME}
+                        />
                     }
                 >
                     <div
-                        className={`flex min-w-0 flex-1 flex-col px-4 pb-12 pt-3 lg:min-h-0 lg:pb-8 lg:pt-8 ${PAGE_FRAME}`}
+                        className={`flex min-w-0 flex-1 flex-col px-4 pb-12 pt-1 lg:min-h-0 lg:pb-8 lg:pt-8 ${PAGE_FRAME}`}
                     >
                         <SkillDetailView
                             key={skillId}
@@ -56,7 +58,12 @@ export const SkillPageScreen = ({
                             agentHref={agentHref}
                             onDirtyChange={setDirty}
                             onArchived={() => leave(listHref)}
-                            top={<SkillBackLink href={listHref} label="Skills" />}
+                            top={
+                                <span className="flex max-lg:hidden">
+                                    <SkillBackLink href={listHref} label="Skills" />
+                                </span>
+                            }
+                            actionsTarget={bar}
                         />
                     </div>
                 </ScreenScaffold>

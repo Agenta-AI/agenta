@@ -1,9 +1,10 @@
 import {useMemo, useRef, useState, type DragEvent, type ReactNode} from "react"
+import {createPortal} from "react-dom"
 
 import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import type {SkillFile} from "@agenta/skills"
 import {message} from "@agenta/ui/app-message"
-import {useScrollFadeEdges} from "@agenta/ui/hooks"
+import {useMediaQuery, useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -44,6 +45,8 @@ export interface SkillEditorProps {
     fill?: boolean
     /** Right of the title. */
     actions?: ReactNode
+    /** Below lg, the actions render here instead (a screen's top bar), so they never scroll away. */
+    actionsTarget?: HTMLElement | null
     /** Under the title. */
     meta?: ReactNode
     /** Above the body. */
@@ -110,9 +113,12 @@ export function SkillEditor({
     autoFocusTitle = false,
     fill = false,
     actions,
+    actionsTarget,
     meta,
     notices,
 }: SkillEditorProps) {
+    const wide = useMediaQuery("(min-width: 1024px)")
+    const inBar = Boolean(actionsTarget) && !wide
     const [openPath, setOpenPath] = useState<string | null>(null)
     const [dragging, setDragging] = useState(false)
     /** The inline name row: a new file in `dir`, or a rename of `path`. */
@@ -474,7 +480,10 @@ export function SkillEditor({
                     ) : null}
                     {meta}
                 </div>
-                {actions ? <div className="flex items-center gap-1 pt-0.5">{actions}</div> : null}
+                {actions && !inBar ? (
+                    <div className="flex items-center gap-1 pt-0.5">{actions}</div>
+                ) : null}
+                {actions && inBar && actionsTarget ? createPortal(actions, actionsTarget) : null}
             </div>
 
             {notices}

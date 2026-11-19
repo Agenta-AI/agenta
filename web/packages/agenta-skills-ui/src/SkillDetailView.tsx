@@ -78,6 +78,8 @@ export interface SkillDetailViewProps {
     onDirtyChange?: (dirty: boolean) => void
     /** Drawn above the title. */
     top?: ReactNode
+    /** Below lg, where Save and the menu go (the screen's top bar). */
+    actionsTarget?: HTMLElement | null
     /** In a drawer: a close button after the menu. */
     onClose?: () => void
 }
@@ -160,6 +162,7 @@ export function SkillDetailView({
     onArchived,
     onDirtyChange,
     top,
+    actionsTarget,
     onClose,
 }: SkillDetailViewProps) {
     const item = useSkillItem(workflowId)
@@ -344,19 +347,18 @@ export function SkillDetailView({
                     className="inline-flex animate-skill-enter items-center gap-1.5 pr-1 text-[13px] text-tag-green"
                 >
                     <CheckCircle size={15} weight="fill" />
-                    Saved
+                    <span className="max-sm:sr-only">Saved</span>
                 </span>
             ) : null}
             {archived ? null : (
-                // Kept in the row while hidden, so Save does not move when it shows; on a phone
-                // the row starts at the left, so it follows Save instead.
+                // Kept in the row while hidden, so Save does not move when it shows.
                 <Button
                     variant="outline"
                     onClick={() => base && setDraft(base.draft)}
                     disabled={saving || !dirty}
                     aria-hidden={dirty ? undefined : true}
                     tabIndex={dirty ? undefined : -1}
-                    className={cn("max-sm:order-1", !dirty && "invisible max-sm:hidden")}
+                    className={cn(!dirty && "invisible")}
                 >
                     Discard
                 </Button>
@@ -376,12 +378,7 @@ export function SkillDetailView({
             )}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="More actions"
-                        className="max-sm:order-2"
-                    >
+                    <Button variant="ghost" size="icon" aria-label="More actions">
                         <DotsThreeVertical size={16} weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
@@ -475,7 +472,7 @@ export function SkillDetailView({
                         <SkeletonBlock active className="h-7 w-48 rounded-md" />
                         <SkeletonBlock active className="h-3.5 w-72 max-w-full rounded" />
                     </div>
-                    <SkeletonBlock active className="h-8 w-16 rounded-lg" />
+                    <SkeletonBlock active className="h-8 w-16 rounded-lg max-lg:hidden" />
                 </div>
                 <div className="mt-1 flex flex-1 flex-wrap items-stretch gap-6 lg:min-h-0">
                     <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-1.5">
@@ -513,6 +510,7 @@ export function SkillDetailView({
                 readOnly={archived}
                 showMissing={attempted}
                 actions={actions}
+                actionsTarget={actionsTarget}
                 meta={meta}
                 notices={notices}
             />

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     SkillCandidateList,
@@ -19,10 +19,10 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
 
 import {pendingSkillUploadAtom} from "./pendingUpload"
 import {SkillBackLink} from "./SkillBackLink"
+import {SkillScreenBar} from "./SkillScreenBar"
 import {useSkillLeaveGuard} from "./useSkillLeaveGuard"
 
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
@@ -69,6 +69,7 @@ export const SkillCreateScreen = ({
         }
     }, [pendingUpload, setPendingUpload, setStep, start, upload, write])
 
+    const [bar, setBar] = useState<HTMLDivElement | null>(null)
     const back =
         flow.step === "choose" ? (
             <SkillBackLink href={listHref} label="Skills" />
@@ -95,6 +96,7 @@ export const SkillCreateScreen = ({
             <SkillEditor
                 draft={flow.draft}
                 onChange={flow.setDraft}
+                actionsTarget={bar}
                 fill
                 autoFocusTitle={!flow.fromUpload}
                 showMissing={flow.attempted}
@@ -203,21 +205,23 @@ export const SkillCreateScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div
-                            className={`box-border flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden ${PAGE_FRAME}`}
-                        >
-                            <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                        </div>
+                        <SkillScreenBar
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            back={back}
+                            onSlot={setBar}
+                            className={PAGE_FRAME}
+                        />
                     }
                 >
                     <div
-                        className={`flex min-h-full min-w-0 flex-col gap-4 px-4 pb-12 pt-3 lg:pt-8 ${PAGE_FRAME} ${
+                        className={`flex min-h-full min-w-0 flex-col gap-4 px-4 pb-12 pt-1 lg:pt-8 ${PAGE_FRAME} ${
                             flow.step === "write" || flow.step === "github"
                                 ? "flex-1 lg:min-h-0 lg:pb-8"
                                 : ""
                         }`}
                     >
-                        {back}
+                        <span className="flex max-lg:hidden">{back}</span>
                         <div
                             key={flow.step}
                             className="flex flex-1 animate-skill-enter flex-col lg:min-h-0"
