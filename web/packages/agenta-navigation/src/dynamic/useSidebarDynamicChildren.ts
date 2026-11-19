@@ -112,6 +112,7 @@ const groupedChildren = (
             isDynamic: true,
             isCollapsed,
             groupAdd: entity.groupAddLink?.(group, projectURL),
+            groupEnter: entity.groupEnter?.(group),
             dragItem:
                 groupZone && groupId ? {kind: "group", id: groupId, zone: groupZone} : undefined,
             onClick: entity.toggleGroupAtom
@@ -120,7 +121,9 @@ const groupedChildren = (
         })
         if (isCollapsed) continue
         const rowZone = source.reorder?.rowZone?.(group.key)
-        children.push(...groupRefs.map((ref) => toRow(ref, rowZone)))
+        const max = entity.groupMaxItems?.(group)
+        const shown = max === undefined ? groupRefs : groupRefs.slice(0, max)
+        children.push(...shown.map((ref) => toRow(ref, rowZone)))
     }
     return children
 }

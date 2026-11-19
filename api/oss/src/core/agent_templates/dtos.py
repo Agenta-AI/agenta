@@ -273,6 +273,8 @@ class TemplateLoadResult(BaseModel):
     execution_id: str
     input_id: UUID
     replayed: bool
+    # Template files not written: the agent has no drive created in this load.
+    skipped_files: list[str] = []
 
 
 class TemplateValidationIssue(BaseModel):

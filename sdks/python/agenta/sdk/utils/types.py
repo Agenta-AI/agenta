@@ -9,6 +9,8 @@ from pydantic import Field, model_validator, AliasChoices
 
 
 from agenta.sdk.agents.dtos import (
+    MAX_AGENT_DRIVES,
+    AgentDriveAccess,
     HARNESS_IDENTITIES,
     UNLISTED_HARNESS_KINDS,
     SandboxPermission,
@@ -1267,6 +1269,29 @@ class _InstructionsSchema(BaseModel):
     )
 
 
+class _AgentDriveSchema(BaseModel):
+    """Strict twin of :class:`agenta.sdk.agents.dtos.AgentDrive` for schema generation.
+    ``validate_agent_drives`` owns the rules across entries (each slug once)."""
+
+    model_config = ConfigDict(extra="forbid", title="Drive")
+
+    slug: str = Field(
+        min_length=1,
+        title="Slug",
+        description="The slug of a drive of the project. It appears at drives/<slug>/.",
+    )
+    access: AgentDriveAccess = Field(
+        default="read-write",
+        title="Access",
+        description="read-write (default) or read.",
+    )
+
+
+def _no_schema_default(schema: Dict[str, Any]) -> None:
+    # An editor that fills schema defaults must leave the key absent, not write null.
+    schema.pop("default", None)
+
+
 class AgentTemplateSchema(AgSchemaMixin):
     """The agent template (the ``parameters.agent`` value), as one semantic type.
 
@@ -1321,6 +1346,31 @@ class AgentTemplateSchema(AgSchemaMixin):
             "``skill-template`` catalog type) or an @ag.embed reference to a stored skill the "
             "backend inlines into that same shape before the runner sees it."
         ),
+    )
+    has_session_drive: bool = Field(
+        default=True,
+        title="Session drive",
+        description="Keep each session's working folder in the store between turns.",
+    )
+    drives: Optional[List[_AgentDriveSchema]] = Field(
+        default=None,
+        max_length=MAX_AGENT_DRIVES,
+        title="Drives",
+        description=(
+            "The drives the agent attaches ({slug, access}), each at drives/<slug>/. "
+            "Absent: the agent's own drive, as before drives were configurable."
+        ),
+        json_schema_extra=_no_schema_default,
+    )
+    home_drive: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        title="Home drive",
+        description=(
+            "The slug of the read-write drive that holds the agent's tools and app files, "
+            "also at agent-files/. Null: no home drive."
+        ),
+        json_schema_extra=_no_schema_default,
     )
     harness: "_HarnessSchema" = Field(
         default_factory=lambda: _HarnessSchema(),
@@ -1540,6 +1590,7 @@ def build_agent_v0_default(
         # on the Agenta tools every new agent gets, in every run.
         "tools": [{"type": "agenta_tools", "tools": dict(DEFAULT_AGENTA_TOOLS)}],
         "mcps": [],
+        "has_session_drive": True,
         # Present and empty, so a first skill is an `add_item` like every later one.
         "skills": [],
     }

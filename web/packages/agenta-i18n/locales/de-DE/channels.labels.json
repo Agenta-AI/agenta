@@ -6,6 +6,8 @@
     "answersNowhere": "Antwortet nirgends",
     "channelCount_one": "{{count}} Kanal",
     "channelCount_other": "{{count}} Kanäle",
+    "chatCount_one": "{{count}} Chat",
+    "chatCount_other": "{{count}} Chats",
     "directMessages": "Direktnachrichten",
     "dms": "DMs",
     "dmsAndPlaces": "DMs und {{places}}",

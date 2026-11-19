@@ -2,10 +2,12 @@
 
 import pytest
 
-from agenta.sdk.agents.dtos import SessionContext
+from agenta.sdk.agents.dtos import AgentDrive, SessionContext
 from agenta.sdk.agents.platform_instructions import (
     AGENTA_CONFIG_SECTIONS,
     AGENTA_PLATFORM_BASE,
+    AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE,
+    DRIVES_GUIDANCE,
     CONFIG_COMMIT_TOOL,
     compose_platform_instructions,
     is_placeholder_agent_name,
@@ -279,3 +281,42 @@ def test_channel_guidance_appears_only_when_the_run_can_list_channels():
     # a tool the run does not have is never named
     assert "read_channel_messages" not in section
     assert "search_channel_messages" not in section
+
+
+def test_a_legacy_configuration_and_a_home_drive_keep_todays_text():
+    today = compose_platform_instructions([], [], [])
+    assert today.startswith(AGENTA_PLATFORM_BASE)
+    assert DRIVES_GUIDANCE not in today
+    home_only = compose_platform_instructions(
+        [], [], [], [AgentDrive(slug="quote-agent-files")], "quote-agent-files"
+    )
+    assert home_only == today
+
+
+def test_an_agent_without_a_home_drive_is_never_sent_to_agent_files():
+    for drives in ([], [AgentDrive(slug="price-lists")]):
+        text = compose_platform_instructions([], [], [], drives, None)
+        assert text.startswith(AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE)
+        assert "agent-files" not in text
+        assert "## Files and storage" in text
+        assert "## What does not work here" in text
+    assert "durable" not in AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE
+
+
+def test_other_drives_add_the_drives_paragraph():
+    text = compose_platform_instructions(
+        [],
+        [],
+        [],
+        [
+            AgentDrive(slug="quote-agent-files"),
+            AgentDrive(slug="price-lists", access="read"),
+        ],
+        "quote-agent-files",
+    )
+    assert text.startswith(AGENTA_PLATFORM_BASE)
+    assert DRIVES_GUIDANCE in text
+    assert "drives/README.md" in text
+    assert "](drives/price-lists/prices.csv)" in text
+    # "shared" names a visibility, never a writable drive.
+    assert "shared" not in DRIVES_GUIDANCE

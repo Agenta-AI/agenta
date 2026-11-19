@@ -220,6 +220,8 @@ export const WebhooksPage = ({
                                         {record.name || "-"}
                                     </span>
                                     <span className="truncate text-[12.5px] text-muted-foreground">
+                                        {/* Product names: the glossaries keep "Webhook" in every language. */}
+                                        {/* eslint-disable-next-line agenta-i18n/no-hardcoded-text */}
                                         {github ? "GitHub" : "Webhook"}
                                     </span>
                                 </span>

@@ -5,5 +5,6 @@
     "expand": "展开",
     "collapse": "收起",
     "goBack": "返回",
-    "noItems": "没有可显示的项"
+    "noItems": "没有可显示的项",
+    "itemCount_other": "{{count}} 项"
 }

@@ -850,6 +850,7 @@ async def handle_commit_revision(
     from oss.src.core.workflows.dtos import WorkflowRevisionCommit
     from oss.src.core.workflows.service import RevisionConflictError
     from oss.src.core.workflows.types import (
+        AgentDriveError,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
         InvalidAgentHarnessError,
@@ -941,6 +942,8 @@ async def handle_commit_revision(
     except InvalidAgentInstructionsError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
     except InvalidAgentConnectionError as e:
+        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
+    except AgentDriveError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
     except RevisionConflictError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))

@@ -18,6 +18,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointRoute,
 )
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.dtos import MCPUserSignIn
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.core.gateways.mcps.oauth.sign_ins import is_sign_in_ready
 from oss.src.core.gateways.mcps.oauth.storage import grant_slug, token_slug
@@ -195,7 +196,7 @@ async def test_the_sign_ins_of_many_servers_are_read_in_one_call():
     )
 
     assert vault.person_calls == ["list_personal_sign_ins"]
-    assert sign_ins == {token.id: True}
+    assert sign_ins == {token.id: MCPUserSignIn(is_ready=True)}
 
 
 @pytest.mark.asyncio

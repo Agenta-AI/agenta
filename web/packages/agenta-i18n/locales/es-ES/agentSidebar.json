@@ -1,0 +1,21 @@
+{
+    "agent": "Agente",
+    "agents": "Agentes",
+    "analytics": "Analítica",
+    "backToMainSidebar": "Volver a la barra lateral principal",
+    "channels": "Canales",
+    "configuration": "Configuración",
+    "earlier": "Anteriores",
+    "loadError": "No se pudieron cargar las sesiones",
+    "loading": "Cargando",
+    "newSession": "Nueva sesión",
+    "retry": "Reintentar",
+    "searchAgents": "Buscar agentes",
+    "seeAllSessions": "Ver todas las sesiones en una tabla",
+    "sessions": "Sesiones",
+    "showOlderSessions_one": "Mostrar {{count}} sesión anterior",
+    "showOlderSessions_many": "Mostrar {{count}} sesiones anteriores",
+    "showOlderSessions_other": "Mostrar {{count}} sesiones anteriores",
+    "today": "Hoy",
+    "yesterday": "Ayer"
+}

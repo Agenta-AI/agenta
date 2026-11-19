@@ -80,7 +80,7 @@ class _FakeAdapter(ChannelAdapterInterface):
     async def verify_connection(self, *, connection, credentials):
         return {"team_id": "T1", "api_app_id": "A1"}
 
-    async def build_setup_document(self, *, request_url, locator=None):
+    async def build_setup_document(self, *, request_url, identity=None, locator=None):
         return None
 
 

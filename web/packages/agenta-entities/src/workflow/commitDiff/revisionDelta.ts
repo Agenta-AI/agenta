@@ -7,6 +7,7 @@
  * `parameters`, so this module wraps/unwraps the data-tree root.
  */
 import {classifyAgentChanges} from "./classify"
+import type {CommitDiffText} from "./text"
 import type {ChangeSection} from "./types"
 
 export interface RevisionDelta {
@@ -89,6 +90,7 @@ export interface RevisionDeltaPreview {
 export function classifyRevisionDeltaChanges(
     currentParams: unknown,
     delta: unknown,
+    text: CommitDiffText,
 ): RevisionDeltaPreview | null {
     if (!isRecord(delta)) return null
     const set = isRecord(delta.set) ? delta.set : null
@@ -109,7 +111,7 @@ export function classifyRevisionDeltaChanges(
     const base = isRecord(currentParams) ? currentParams : {}
     const data = applyRevisionDelta({parameters: base}, {set: set ?? {}, remove})
     const proposedParams = isRecord(data.parameters) ? data.parameters : {}
-    const sections = classifyAgentChanges(proposedParams, base)
+    const sections = classifyAgentChanges(proposedParams, base, text)
     if (!sections.length) return null
     return {sections, proposedParams}
 }

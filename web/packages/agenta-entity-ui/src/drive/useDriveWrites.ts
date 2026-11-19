@@ -1,8 +1,10 @@
 /** The Files pane's write verbs bound to one drive: resolve the mount, run, refresh; a failure toasts. */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {
     AGENT_FILES_DIR,
+    DRIVES_DIR,
+    fileOrigin,
     moveMountFile,
     createMountFolder,
     deleteMountPath,
@@ -21,6 +23,18 @@ import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
+/** Mount roots (the root, `agent-files/`, `drives/<slug>/`), the `drives/` folder that holds them
+ * and read drives are never renamed or deleted. */
+export const canMoveOrDelete = (
+    drive: Pick<SessionDriveData, "resolveMount" | "otherDrives">,
+    presentedPath: string,
+): boolean => {
+    if (["", AGENT_FILES_DIR, DRIVES_DIR].includes(presentedPath)) return false
+    if (fileOrigin(presentedPath, drive.otherDrives) !== "drive") return true
+    const resolved = drive.resolveMount(presentedPath)
+    return Boolean(resolved && resolved.path !== "" && !resolved.readOnly)
+}
+
 // Toasts and the confirm open from callbacks, outside render.
 const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
 
@@ -32,6 +46,9 @@ export function useDriveWrites(
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const queryClient = useAtomValue(queryClientAtom)
     const [busy, setBusy] = useState(false)
+    // A delete confirmed later writes through the drive as it is then (a drive set to read).
+    const driveRef = useRef(drive)
+    driveRef.current = drive
 
     const run = useCallback(
         async (
@@ -42,8 +59,8 @@ export function useDriveWrites(
             }) => Promise<void>,
             success?: string,
         ): Promise<boolean> => {
-            const resolved = drive.resolveMount(presentedPath)
-            if (!resolved?.mount) {
+            const resolved = driveRef.current.resolveMount(presentedPath)
+            if (!resolved?.mount || resolved.readOnly) {
                 void message.error(tNow("entityUi.driveBrowser.cannotWriteHere"))
                 return false
             }
@@ -64,7 +81,7 @@ export function useDriveWrites(
                 setBusy(false)
             }
         },
-        [drive, projectId, queryClient],
+        [projectId, queryClient],
     )
 
     const createFolder = useCallback(
@@ -138,10 +155,9 @@ export function useDriveWrites(
         [run, projectId, getContainer],
     )
 
-    /** Mount roots (the root, `agent-files/`) never offer Delete. */
-    const canDelete = useCallback(
-        (presentedPath: string) => presentedPath !== "" && presentedPath !== AGENT_FILES_DIR,
-        [],
+    const canChange = useCallback(
+        (presentedPath: string) => canMoveOrDelete(drive, presentedPath),
+        [drive],
     )
 
     return useMemo(
@@ -152,8 +168,8 @@ export function useDriveWrites(
             rename,
             renameEmptyFolder,
             remove,
-            canDelete,
+            canChange,
         }),
-        [busy, createFolder, createFile, rename, renameEmptyFolder, remove, canDelete],
+        [busy, createFolder, createFile, rename, renameEmptyFolder, remove, canChange],
     )
 }

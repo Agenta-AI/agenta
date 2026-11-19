@@ -3,7 +3,6 @@ import {describe, expect, it, vi} from "vitest"
 import {
     activeModelsCount,
     credentialStatusLine,
-    harnessSummary,
     manualModelPlaceholderForKind,
     MODEL_LIST_RENDER_CAP,
     modelListView,
@@ -119,23 +118,6 @@ describe("manualModelPlaceholderForKind", () => {
         expect(manualModelPlaceholderForKind("custom")).toBe(
             "Add a model ID the endpoint doesn't list",
         )
-    })
-})
-
-describe("harnessSummary", () => {
-    it("shows the collapsed row's value rather than hiding it", () => {
-        expect(harnessSummary(["Pi"], false)).toBe("enabled in Pi")
-    })
-
-    it("lists several harnesses in one line", () => {
-        expect(harnessSummary(["Pi", "Claude Code", "Codex"], false)).toBe(
-            "enabled in Pi, Claude Code and Codex",
-        )
-    })
-
-    it("separates 'nobody chose' from 'the user chose none'", () => {
-        expect(harnessSummary([], true)).toBe("any harness Agenta supports")
-        expect(harnessSummary([], false)).toBe("no harness selected")
     })
 })
 

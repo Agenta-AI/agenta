@@ -59,7 +59,7 @@ export const EmailPasswordForm = ({
         if (message.type === "error") shake()
     }, [message, shake])
 
-    const trySignUp = async (token: string | null) => {
+    const trySignUp = async (token: string | null, afterWrongCredentials = false) => {
         security?.stampToken(token)
         const outcome = await signUpDetailed(email.trim(), password)
         if (outcome.kind === "ok") {
@@ -80,7 +80,15 @@ export const EmailPasswordForm = ({
             setMessage({message: outcome.message, type: "error"})
         } else {
             const failure = outcome.kind === "error" ? outcome.failure : "unknown"
-            setMessage({message: failureText(failure), type: "error"})
+            // The API answers a sign-up for an existing email with the sign-in result, which
+            // supertokens-web-js cannot read, so after a wrong password it lands here as "unknown".
+            setMessage({
+                message:
+                    afterWrongCredentials && failure === "unknown"
+                        ? t("auth.emailPasswordForm.invalidEmailOrPassword")
+                        : failureText(failure),
+                type: "error",
+            })
         }
     }
 
@@ -126,7 +134,7 @@ export const EmailPasswordForm = ({
                     retryToken = await security.refreshToken()
                     if (!retryToken) return
                 }
-                await trySignUp(retryToken)
+                await trySignUp(retryToken, true)
             } else if (outcome.kind === "field-error" || outcome.kind === "not-allowed") {
                 setMessage({message: outcome.message, type: "error"})
             } else {
