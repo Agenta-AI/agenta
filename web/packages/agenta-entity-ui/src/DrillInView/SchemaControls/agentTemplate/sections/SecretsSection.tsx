@@ -1,7 +1,4 @@
-/**
- * The custom secrets of the agent (`sandbox.credentials`), shown inside the Advanced section:
- * the bindings read from the config, the secrets body and its summary.
- */
+/** The agent's custom secrets (`sandbox.credentials`), shown inside the Advanced section. */
 import {useState} from "react"
 
 import type {AgentSecretBinding} from "@agenta/entities/secret"

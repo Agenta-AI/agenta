@@ -24,7 +24,7 @@ export interface IntegrationsSectionParams {
     closeEditor: () => void
 }
 
-/** Connected apps. Shares the `tools` indicator key with Subagents. */
+/** Connected apps. Shares the `tools` config array with Subagents. */
 export const integrationsSection = ({
     t,
     hasTools,
