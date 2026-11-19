@@ -14,6 +14,7 @@ test.describe("story captures", () => {
             await page.setViewportSize({width: recipe.width, height: recipe.height})
             const url = `${requireEnv("STORYBOOK_URL")}/iframe.html?id=${recipe.story}&globals=theme:${recipe.theme}&viewMode=story`
             await page.goto(url, {waitUntil: "networkidle"})
+            if (recipe.ready) await page.locator(recipe.ready).first().waitFor()
             await page.evaluate(() => document.fonts.ready)
             const path = `${requireEnv("OUT")}/${recipe.id}.png`
             if (recipe.selector) {

@@ -5,7 +5,8 @@
         "width": 600,
         "height": 900,
         "theme": "light",
-        "selector": "[data-testid=\"panel-view\"]"
+        "selector": "[data-testid=\"panel-view\"]",
+        "ready": "text=33 words"
     },
     {
         "id": "sample-login",

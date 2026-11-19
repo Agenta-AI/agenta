@@ -119,8 +119,16 @@ export function makeAgentConfigFixture(scope: StoryScope): AgentConfigFixture {
             ],
             mcps: [],
             skills: [
-                {name: "ticket-labels", description: "Label a ticket by urgency and category"},
-                {name: "reply-drafts", description: "Draft a first reply in plain words"},
+                {
+                    name: "ticket-labels",
+                    description: "Label a ticket by urgency and category",
+                    body: "...",
+                },
+                {
+                    name: "reply-drafts",
+                    description: "Draft a first reply in plain words",
+                    body: "...",
+                },
             ],
             runner: {permissions: {default: "allow_reads"}},
             sandbox: {kind: "local"},

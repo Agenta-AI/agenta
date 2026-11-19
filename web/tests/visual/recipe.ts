@@ -7,6 +7,8 @@ export interface StoryRecipe {
     height: number
     theme: "light" | "dark"
     selector?: string
+    /** Capture only after this selector is visible (a lazy view shows a skeleton first). */
+    ready?: string
 }
 
 export interface ScreenStep {
