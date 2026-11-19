@@ -1,5 +1,7 @@
 {
+    "addDiscordBot": "添加 Discord 机器人",
     "addSlackWorkspace": "添加 Slack 工作区",
+    "addTeamsBot": "添加 Teams 机器人",
     "addTelegramBot": "添加 Telegram 机器人",
     "addWhatsAppNumber": "添加 WhatsApp 号码",
     "agent": "Agent",

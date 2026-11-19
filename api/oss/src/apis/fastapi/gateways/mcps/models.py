@@ -16,7 +16,10 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointEdit,
     MCPEndpointQuery,
 )
-from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptOutcome
+from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPOAuthAttemptOutcome,
+    MCPUserSignIn,
+)
 from oss.src.core.gateways.mcps.probe import MCPServerProbeResult
 from oss.src.core.shared.dtos import Windowing
 
@@ -32,13 +35,6 @@ class MCPEndpointEditRequest(BaseModel):
 class MCPEndpointQueryRequest(BaseModel):
     endpoint: Optional[MCPEndpointQuery] = None
     windowing: Optional[Windowing] = None
-
-
-class MCPUserSignIn(BaseModel):
-    """The caller's own sign-in to a server. `is_ready` has the meaning of
-    `ItemAccount.is_ready`."""
-
-    is_ready: bool
 
 
 class MCPEndpointWithSignIn(MCPEndpoint):

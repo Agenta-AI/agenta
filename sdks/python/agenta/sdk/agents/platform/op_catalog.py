@@ -1629,6 +1629,7 @@ _LIST_STARTERS_INPUT_SCHEMA: Dict[str, Any] = {
     "properties": {
         "session_id": _BOUND_FROM_RUN_SCHEMA,
         "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+        "variant_id": _BOUND_FROM_RUN_SCHEMA,
     },
 }
 
@@ -2116,6 +2117,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             context_bindings={
                 "session_id": "$ctx.session.id",
                 "artifact_id": "$ctx.workflow.artifact.id",
+                "variant_id": "$ctx.workflow.variant.id",
             },
             read_only=True,
             timeout_ms=15000,

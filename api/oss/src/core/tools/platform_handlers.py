@@ -882,6 +882,7 @@ async def _commit_as_agent(
     from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
     from oss.src.core.workflows.service import RevisionConflictError
     from oss.src.core.workflows.types import (
+        AgentDriveError,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
         InvalidAgentHarnessError,
@@ -902,6 +903,7 @@ async def _commit_as_agent(
             first_agent_owner_user_id=first_agent_owner_user_id,
         )
     except (
+        AgentDriveError,
         ChangeSetError,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
@@ -1789,6 +1791,7 @@ async def handle_create_agent(
     from oss.src.core.workflows.change_set import ChangeSetError
     from oss.src.core.workflows.service import SimpleWorkflowsService
     from oss.src.core.workflows.types import (
+        AgentDriveError,
         AgentReferenceUnresolved,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
@@ -1878,6 +1881,7 @@ async def handle_create_agent(
         except ValidationError as e:
             raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
         except (
+            AgentDriveError,
             ChangeSetError,
             InvalidAgentConfigurationError,
             InvalidAgentConnectionError,

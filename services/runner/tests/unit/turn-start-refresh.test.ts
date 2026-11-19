@@ -17,11 +17,11 @@ describe("the drive views at the start of a turn", () => {
     expect(logs).toEqual([]);
   });
 
-  it("refreshes the cwd and agent mounts inside a daytona sandbox with one call", async () => {
+  it("refreshes the cwd and the home drive inside a daytona sandbox with one call", async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
     const sandbox = { runProcess: async (opts: { command: string; args: string[] }) => void calls.push(opts) };
-    await refreshDriveViewsAtTurnStart({ sandbox, mountedCwd: undefined, agentMountedPath: "/drive/conv-agent", installedMountExpiries: { cwd: 1 } }, plan(true), () => {});
-    expect(calls).toEqual([{ command: "python3", args: ["-c", REFRESH_ROOTS_SCRIPT, "/drive/conv", "/drive/conv-agent"], timeoutMs: 10_000 }]);
+    await refreshDriveViewsAtTurnStart({ sandbox, mountedCwd: undefined, drives: [{ slug: "home", access: "read-write" as const, isHome: true, credentials: null, mountedPath: "/drive/conv-drive-home" }], installedMountExpiries: { cwd: 1 } }, plan(true), () => {});
+    expect(calls).toEqual([{ command: "python3", args: ["-c", REFRESH_ROOTS_SCRIPT, "/drive/conv", "/drive/conv-drive-home"], timeoutMs: 10_000 }]);
   });
 
   it("does nothing on daytona when no durable mount is in the sandbox", async () => {
@@ -42,7 +42,7 @@ describe("the drive views at the start of a turn", () => {
   it("logs a refresh whose roots all failed as failed, not as refreshed (Codex round 7 P2)", async () => {
     const logs: string[] = [];
     const sandbox = { runProcess: async () => ({ exitCode: 1, stdout: "2\n" }) };
-    await refreshDriveViewsAtTurnStart({ sandbox, mountedCwd: undefined, agentMountedPath: "/a", installedMountExpiries: { cwd: 1 } }, plan(true), (m) => logs.push(m));
+    await refreshDriveViewsAtTurnStart({ sandbox, mountedCwd: undefined, drives: [{ slug: "home", access: "read-write" as const, isHome: true, credentials: null, mountedPath: "/a" }], installedMountExpiries: { cwd: 1 } }, plan(true), (m) => logs.push(m));
     expect(logs.join("\n")).toMatch(/refresh failed/);
     expect(logs.join("\n")).not.toMatch(/drive views refreshed/);
   });
@@ -51,7 +51,7 @@ describe("the drive views at the start of a turn", () => {
     const calls: unknown[] = [];
     const logs: string[] = [];
     const sandbox = { runProcess: async (o: unknown) => void calls.push(o) };
-    const env = { sandbox, mountedCwd: undefined, agentMountedPath: "/drive/conv-agent", installedMountExpiries: { cwd: 1 }, driveViewsFresh: true };
+    const env = { sandbox, mountedCwd: undefined, drives: [{ slug: "home", access: "read-write" as const, isHome: true, credentials: null, mountedPath: "/drive/conv-drive-home" }], installedMountExpiries: { cwd: 1 }, driveViewsFresh: true };
     await refreshDriveViewsAtTurnStart(env, plan(true), (m) => logs.push(m));
     expect(calls).toEqual([]);
     expect(env.driveViewsFresh).toBe(false);

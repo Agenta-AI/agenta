@@ -115,6 +115,9 @@ environment selector; an empty selector runs the whole family.
   - **Interaction Dispatch**: dispatches async session interactions (`queues:interactions`).
   - **Evaluation Execution**: runs asynchronous evaluation workloads (`queues:evaluations`).
   - **Channel Messages**: processes incoming Slack and Telegram messages (`queues:channels-inbox`).
+    When `channels-inbox` is selected, `worker-queues` also holds the Discord Gateway
+    sockets, because Discord delivers messages only over its socket. One Redis lock makes
+    one replica hold every Discord socket; the other replicas take over when it stops.
 
 Stream and queue names, consumer groups, and message shapes are unchanged by this
 grouping, so scaling a container out shares work across its consumer groups.

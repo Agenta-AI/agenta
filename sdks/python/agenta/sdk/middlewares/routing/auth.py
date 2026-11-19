@@ -129,7 +129,7 @@ def _structured_denial(response) -> Optional[Dict[str, Any]]:
 async def _run_accounts_params(request: Request) -> Dict[str, Any]:
     """The agent and the "user" item keys of the configuration a turn runs, read from the
     request body (`data.parameters`, and the agent from `references`). Empty when the
-    configuration has no "user" items, or the body is not a turn."""
+    body is not a turn, or names no agent and has no "user" items."""
     # Only a turn (`.../invoke`) with a JSON body carries an agent configuration.
     url = getattr(request, "url", None)
     if getattr(request, "method", None) != "POST" or not str(
@@ -160,11 +160,13 @@ async def _run_accounts_params(request: Request) -> Dict[str, Any]:
                 workflow_id = None
             if workflow_id:
                 break
-    if not items:
-        return {}
-    # Without a saved agent there are no account choices; defaults and sign-ins still
-    # resolve, so the keys go either way.
-    params: Dict[str, Any] = {"item_keys": [item.item_key for item in items]}
+    # The agent goes on every turn: the API resolves it for the credential's
+    # `run_agent_id` claim (the home drive) and its account choices. Without a saved
+    # agent there are no account choices; defaults and sign-ins still resolve, so the
+    # keys go either way.
+    params: Dict[str, Any] = {}
+    if items:
+        params["item_keys"] = [item.item_key for item in items]
     if workflow_id:
         params["workflow_id"] = workflow_id
     return params

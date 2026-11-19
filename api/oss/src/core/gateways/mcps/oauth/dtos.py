@@ -113,3 +113,15 @@ class MCPOAuthAttemptOutcome(BaseModel):
     id: UUID
     status: MCPOAuthAttemptStatus
     error: Optional[str] = None
+
+
+class MCPUserSignIn(BaseModel):
+    """A person's own sign-in to a server, as that person reads it.
+
+    `is_ready` has the meaning of `ItemAccount.is_ready`. `account_name` is the account
+    the person signed in as, when an OAuth server named it at sign-in; a token sign-in
+    has none. It is not `ItemAccount.name`, which is the stored row's own label.
+    """
+
+    is_ready: bool
+    account_name: Optional[str] = None

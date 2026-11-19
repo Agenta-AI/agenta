@@ -30,5 +30,9 @@
     "moreFields_many": "+{{count}} campos más",
     "moreFields_other": "+{{count}} campos más",
     "trueValue": "verdadero",
-    "falseValue": "falso"
+    "falseValue": "falso",
+    "durationValue": "Duración: {{duration}}",
+    "tokenCount_one": "{{tokens}} token",
+    "tokenCount_many": "{{tokens}} tokens",
+    "tokenCount_other": "{{tokens}} tokens"
 }

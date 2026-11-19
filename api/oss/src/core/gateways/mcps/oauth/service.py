@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+from mcp.shared.auth import OAuthClientInformationFull
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import (
@@ -19,8 +19,14 @@ from oss.src.core.gateways.mcps.dtos import (
     is_oauth_connection_for,
 )
 from oss.src.core.gateways.mcps.interfaces import MCPEndpointsDAOInterface
-from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
+from oss.src.core.gateways.mcps.oauth.client import (
+    MCPOAuthClient,
+    MCPOAuthTokenResponse,
+    account_name_from_id_token,
+    same_issuer,
+)
 from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPUserSignIn,
     MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
     MCPOAuthAttemptOutcome,
@@ -42,9 +48,9 @@ from oss.src.core.gateways.mcps.oauth.registration import (
 )
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
 from oss.src.core.gateways.mcps.oauth.sign_ins import (
-    is_sign_in_ready,
     sign_in_kind,
     sign_in_slug,
+    user_sign_in,
 )
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
@@ -511,6 +517,13 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             )
             raise
 
+        # Read before the lock, like the exchange: it may call the server again.
+        account_name = (
+            await self._account_name(attempt=attempt, tokens=tokens)
+            if for_person
+            else None
+        )
+
         try:
             async with self.endpoints_dao.oauth_lock(
                 project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
@@ -538,7 +551,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 # `storage` carries the attempt's issuer, so the grant is written pinned to
                 # the authorization server that actually issued it. `refresh_grant` requires
                 # that pin to still hold before it presents the refresh token anywhere.
-                grant = await storage.write_tokens(tokens, client_id=client_id)
+                grant = await storage.write_tokens(
+                    tokens, client_id=client_id, account_name=account_name
+                )
                 if for_person:
                     # A person's own grant: the server row names the project's grant
                     # only, so nothing is bound.
@@ -589,13 +604,25 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             secret_id=grant.id,
         )
 
+    async def _account_name(
+        self, *, attempt: MCPOAuthAttempt, tokens: MCPOAuthTokenResponse
+    ) -> Optional[str]:
+        """The account a person signed in as: from the ID token when the token response
+        carries one, else from the issuer's user info endpoint. None when neither names
+        it, or the read fails; the sign-in goes on without a name either way."""
+        return account_name_from_id_token(
+            tokens.id_token
+        ) or await self.client.read_account_name(
+            issuer=attempt.issuer, access_token=tokens.access_token
+        )
+
     async def _exchange(
         self,
         *,
         attempt: MCPOAuthAttempt,
         code: str,
         owner: Optional[SecretOwner] = None,
-    ) -> Tuple[SecretsTokenStorage, str, OAuthToken]:
+    ) -> Tuple[SecretsTokenStorage, str, MCPOAuthTokenResponse]:
         """Spend the code at the token endpoint the attempt recorded.
 
         Returns the client the code was spent as, which the grant records."""
@@ -796,8 +823,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         organization_id: UUID,
         user_id: UUID,
         endpoints: List[MCPEndpoint],
-    ) -> Dict[UUID, bool]:
-        """Whether each server the person has a sign-in row for is ready, by server id.
+    ) -> Dict[UUID, MCPUserSignIn]:
+        """The person's sign-in to each server they have a sign-in row for, by server id.
 
         One read for the whole list, and none when no server takes a sign-in. A server
         missing from the answer has no sign-in row of this person.
@@ -814,7 +841,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
         now = time.time()
         return {
-            slugs[row.slug]: is_sign_in_ready(row, now=now)
+            slugs[row.slug]: user_sign_in(row, now=now)
             for row in rows
             if row.slug in slugs
         }
@@ -982,7 +1009,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                     # expiry unrecoverable.
                     refreshed.refresh_token = stored.refresh_token
 
-                await storage.write_tokens(refreshed, client_id=client_info.client_id)
+                await storage.write_tokens(
+                    refreshed,
+                    client_id=client_info.client_id,
+                    account_name=stored.account_name,
+                )
             except MCPOAuthRefreshFailedError:
                 # Refused for good. A person's own grant goes, so their list says "not
                 # signed in" and Needs setup asks them again; nothing else marks it dead.

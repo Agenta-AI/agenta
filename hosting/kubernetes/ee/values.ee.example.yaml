@@ -67,6 +67,7 @@ global:
 #     defaultPlan:
 #     defaultPlanOverlay:
 #     emailDisabled: false
+#     personalAccountsEnabled: true
 #     plans:
 #     roles:
 #     rolesOverlay:

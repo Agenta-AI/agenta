@@ -132,6 +132,17 @@ def test_from_params_plain_string_model_leaves_model_ref_none():
     assert config.model_ref is None
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [{"llm_config": "gpt-5.5"}, {"llm_config": ["gpt-5.5"]}, {"messages": 3}],
+)
+def test_from_params_refuses_a_field_of_the_wrong_type(prompt):
+    # A wrong type is the caller's configuration, so it answers like the other shape
+    # errors instead of leaking an AttributeError or a TypeError.
+    with pytest.raises(AgentTemplateShapeError, match="wrong type"):
+        AgentTemplate.from_params({"prompt": prompt})
+
+
 def test_from_params_falls_back_to_defaults():
     config = AgentTemplate.from_params({}, defaults=_DEFAULTS)
     assert config.instructions == "default-md"
