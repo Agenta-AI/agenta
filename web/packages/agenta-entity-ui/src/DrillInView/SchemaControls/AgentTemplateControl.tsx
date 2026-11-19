@@ -53,17 +53,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {
-    Cpu,
-    FileText,
-    Compass,
-    HardDrives,
-    Robot,
-    ShieldCheck,
-    SlidersHorizontal,
-    UploadSimple,
-    Wrench,
-} from "@phosphor-icons/react"
+import {Cpu, UploadSimple} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -78,9 +68,6 @@ import {
     AgentTemplateSectionList,
     type AgentTemplateSectionDescriptor,
 } from "./agentTemplate/AgentTemplateSectionList"
-import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {ConfigItemList} from "./agentTemplate/ConfigItemList"
-import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {
     embedRevisionVersion,
@@ -90,33 +77,27 @@ import {
     toolReferenceSlug,
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
-import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
-import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
+import type {ItemRowStatus} from "./agentTemplate/ItemRow"
 import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
-import {NeedsSetupTag} from "./agentTemplate/NeedsSetupTag"
-import {
-    modelNeedsSetupMessage,
-    needsSetupLabel,
-    needsSetupReasonText,
-} from "./agentTemplate/needsSetupText"
-import {SectionAddButton} from "./agentTemplate/SectionAddButton"
+import {modelNeedsSetupMessage, needsSetupLabel} from "./agentTemplate/needsSetupText"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
     revertPathsTo,
     useAgentSectionChanges,
     type PanelSectionKey,
 } from "./agentTemplate/sectionChanges"
-import {SectionTitleBadge} from "./agentTemplate/SectionTitleBadge"
-import {
-    ConnectedSubagentList,
-    SubagentDrawerContainer,
-} from "./agentTemplate/SubagentDrawerContainer"
+import {advancedSection} from "./agentTemplate/sections/AdvancedSection"
+import {agentMcpSection} from "./agentTemplate/sections/AgentMcpSection"
+import {instructionsSection} from "./agentTemplate/sections/InstructionsSection"
+import {integrationsSection} from "./agentTemplate/sections/IntegrationsSection"
+import {ModelHarnessSectionBody} from "./agentTemplate/sections/ModelHarnessSectionBody"
+import {modelSection} from "./agentTemplate/sections/ModelSection"
+import {permissionsSection} from "./agentTemplate/sections/PermissionsSection"
+import {skillsSection} from "./agentTemplate/sections/SkillsSection"
+import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
+import {SubagentDrawerContainer} from "./agentTemplate/SubagentDrawerContainer"
 import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
-import {
-    selectSubagentTools,
-    SubagentList,
-    ToolManagementList,
-} from "./agentTemplate/ToolManagementList"
+import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -167,29 +148,6 @@ export interface AgentTemplateControlProps {
     withTooltip?: boolean
     disabled?: boolean
     className?: string
-}
-
-// A section's body, in its own component so `useModelHarness` runs HERE rather than in the parent.
-// Two reasons, both load-bearing:
-//  1. Context. The hook itself reads the changed-paths / focus filters (to mark rows, open the group
-//     that changed, and narrow to it). React resolves context at the READER's position, so the hook
-//     must run BELOW the providers — wrapping its output in them does nothing. A body rendered from
-//     the parent's `mh` silently ignores both filters.
-//  2. Cost. `useModelHarness` carries harness-catalog + vault-secrets + build-kit-overlay
-//     subscriptions; mounting it per body keeps them scoped to the bodies that are on screen
-//     (`SectionDrawer` uses `destroyOnClose`).
-const ModelHarnessSectionBody = ({
-    section,
-    ...params
-}: {
-    section: "model-harness" | "advanced" | "permissions"
-} & Parameters<typeof useModelHarness>[0]) => {
-    const mh = useModelHarness(params)
-    if (section === "permissions") return <>{mh.permissionsBody}</>
-    if (section === "advanced") {
-        return <>{mh.advancedDrawerBody}</>
-    }
-    return <>{mh.modelHarnessBody}</>
 }
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
@@ -1075,17 +1033,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIndicator = (key: string) =>
         withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
 
-    // The pill next to the Model section title. "No model" is client-side: with no model set the
-    // server has nothing to check. Everything else is the server's needs-setup check.
-    const modelHarnessBadge: React.ReactNode =
-        mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
-            <SectionTitleBadge label={t("entityUi.agentTemplate.noModel")} tone="error" />
-        ) : modelReq ? (
-            <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
-        ) : null
-    const advancedBadge: React.ReactNode = secretReq ? (
-        <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
-    ) : null
     // A tagged integration opens the drawer that picks or connects its account.
     const openIntegrationRow = useCallback(
         (row: IntegrationRow) => {
@@ -1095,14 +1042,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         [openIntegration, openIntegrationPermissions, toolResolutionStatus],
     )
-
-    const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
-        ? {
-              tone: "edited",
-              label: t("entityUi.agentTemplate.edited"),
-              tooltip: t("entityUi.agentTemplate.editedNotSaved"),
-          }
-        : undefined
 
     // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
     const openSubagentSelector = workflowReference?.enabled
@@ -1114,241 +1053,96 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // The Integrations add button. Routes to the agent-scoped drawer, not the shared global catalog.
     const openIntegrationDrawer = gatewayTools?.enabled ? openIntegration : undefined
 
-    // Compact "+" for a section header's `extra` slot. The header keeps a uniform height regardless
-    // of this button — ConfigAccordionSection collapses the extra slot's vertical footprint (see its
-    // `-my-2`), so no per-button sizing is needed here.
-    const headerAddButton = (label: string, onClick: () => void) => (
-        <SectionAddButton label={label} onClick={onClick} />
-    )
-
-    // Shared by both subagent-list branches, which differ only by wrapper.
-    const subagentListProps = {
-        entries: subagentTools,
-        openEdit,
-        removeItem,
-        closeEditor,
-        disabled,
-        statusFor: toolStatusFor,
-    }
-
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
     // is clean, which is what keeps it a plain drawer-opening row.
     const advancedChangeBody = changeBodyFor("advanced")
 
+    // The props every inline Model, Permissions and Advanced body passes on: the live config.
+    const bodyProps = {schema, config, onChange, disabled, withTooltip, revisionId}
+
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
-    // tabs / cards) without duplicating the content. Schema-gated, like before.
+    // tabs / cards) without duplicating the content. Schema-gated, like before. Each section's
+    // header and body live in its own file under `agentTemplate/sections/`.
     const sections = [
-        mh.hasModelOrHarness && {
-            key: "model-harness",
-            icon: <Cpu size={16} />,
-            title: t("entityUi.agentTemplate.model"),
-            titleBadge: modelHarnessBadge,
-            summary: mh.modelSummary,
-            indicator: sectionIndicator("model-harness"),
-            // A model that needs setup is the one thing that opens the section by itself; the list
-            // holds the affordance that fixes it.
-            defaultOpen: Boolean(modelReq),
-            // The section EXPANDS (it carries no `onOpen`, which is what routes a header to a drawer
-            // instead): the connection list renders right here. The drawer survives for the chat's
-            // "connect a model" banner and for the Advanced section; it is just no longer where this
-            // header leads.
-            content: (
-                <ChangedPathsProvider changes={panelChangedPaths}>
-                    <ModelHarnessSectionBody
-                        section="model-harness"
-                        schema={schema}
-                        config={config}
-                        onChange={onChange}
-                        disabled={disabled}
-                        withTooltip={withTooltip}
-                        revisionId={revisionId}
-                    />
-                    {modelReq ? (
-                        <NeedsSetupTag
-                            tag={false}
-                            reason={needsSetupReasonText(modelReq.reason)}
-                            className="mt-1"
-                        />
-                    ) : null}
-                </ChangedPathsProvider>
-            ),
-        },
-        hasInstructions && {
-            key: "instructions",
-            icon: <FileText size={16} />,
-            title: fieldTitle("instructions", t("entityUi.agentTemplate.instructions")),
-            indicator: sectionIndicator("instructions"),
-            defaultOpen: true,
-            content: (
-                <div className="flex flex-col gap-2">
-                    <InstructionsFileRow
-                        filename="AGENTS.md"
-                        content={agentsMd ?? ""}
-                        onOpen={() => openInstruction("AGENTS.md", agentsMd ?? "")}
-                        status={instructionsStatus}
-                    />
-                </div>
-            ),
-        },
-        // Connected apps. Shares the `tools` indicator key with Subagents.
-        hasTools &&
-            (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
-                key: "tools",
-                icon: <Wrench size={16} />,
-                title: t("entityUi.agentTemplate.integrations"),
-                summary: countSummary(integrationCount, "integration"),
-                indicator: sectionIndicator("tools"),
-                // "Create with AI" beside the drawer that adds one by hand.
-                extra:
-                    !disabled && openIntegrationDrawer ? (
-                        <CreateWithAIAddMenu
-                            label={t("entityUi.agentTemplate.addIntegration")}
-                            starterPrompt={t("entityUi.agentTemplate.integrationStarter")}
-                            onManual={openIntegrationDrawer}
-                            manualTitle={t("entityUi.agentTemplate.browseIntegrations")}
-                            manualHint={t("entityUi.agentTemplate.browseIntegrationsHint")}
-                            manualIcon={<Wrench size={16} />}
-                        />
-                    ) : undefined,
-                defaultOpen: integrationCount > 0,
-                content: (
-                    <ToolManagementList
-                        tools={tools}
-                        integrationRows={integrationRows}
-                        disabled={disabled}
-                        statusFor={toolStatusFor}
-                        onOpenIntegration={gatewayTools?.enabled ? openIntegrationRow : undefined}
-                        onRemoveIntegration={(row) => {
-                            removeIntegration(row)
-                            closeEditor()
-                        }}
-                    />
-                ),
-            },
-        // The agents this agent can call, saved as `{type: "reference"}` in the same `tools` array.
-        hasTools &&
-            (Boolean(openSubagentSelector) || subagentCount > 0) && {
-                key: "subagents",
-                icon: <Robot size={16} />,
-                title: t("entityUi.agentTemplate.subagents"),
-                summary: countSummary(subagentCount, "subagent"),
-                indicator: sectionIndicator("subagents"),
-                extra:
-                    !disabled && openSubagentSelector
-                        ? headerAddButton(
-                              t("entityUi.agentTemplate.addSubagent"),
-                              openSubagentSelector,
-                          )
-                        : undefined,
-                defaultOpen: subagentCount > 0,
-                // Only the connected list can resolve a reference's type and mark a non-agent.
-                content: workflowReference?.enabled ? (
-                    <ConnectedSubagentList bridge={workflowReference} {...subagentListProps} />
-                ) : (
-                    <SubagentList {...subagentListProps} />
-                ),
-            },
-        hasMcp && {
-            key: "mcp",
-            icon: <HardDrives size={16} />,
-            title: fieldTitle("mcps", t("entityUi.agentTemplate.mcpServers")),
-            summary: countSummary(mcpServers.length, "server"),
-            indicator: sectionIndicator("mcp"),
-            extra: !disabled
-                ? headerAddButton(t("entityUi.agentTemplate.addMcpServer"), handleAddMcpServer)
-                : undefined,
-            defaultOpen: mcpServers.length > 0,
-            content: (
-                <McpServersSectionBody
-                    items={mcpServers}
-                    disabled={disabled}
-                    agentPolicy={agentPermissionPolicy}
-                    onChangeItems={(next: unknown[]) => setAgentField("mcps", next)}
-                    openForm={(index: number, item: unknown) => openEdit("mcp", index, item)}
-                    removeItem={(index: number) => removeItem("mcp", index)}
-                    closeEditor={closeEditor}
-                    statusFor={mcpStatusFor}
-                    addOpen={addMcpOpen}
-                    onAddClose={() => setAddMcpOpen(false)}
-                    onAddOpen={() => setAddMcpOpen(true)}
-                />
-            ),
-        },
-        hasSkills && {
-            key: "skills",
-            icon: <Compass size={16} />,
-            title: fieldTitle("skills", t("entityUi.agentTemplate.skills")),
-            summary: countSummary(skills.length, "skill"),
-            indicator: sectionIndicator("skills"),
-            extra: !disabled ? (
-                <CreateWithAIAddMenu
-                    label={t("entityUi.agentTemplate.addSkill")}
-                    starterPrompt={t("entityUi.agentTemplate.skillStarter")}
-                    onManual={handleAddSkill}
-                    manualTitle={t("entityUi.agentTemplate.addManually")}
-                    manualHint={t("entityUi.agentTemplate.addManuallyHint")}
-                    manualIcon={<Compass size={16} />}
-                />
-            ) : undefined,
-            defaultOpen: skills.length > 0,
-            content: (
-                <>
-                    {publishSkillError ? (
-                        <span className="mb-2 block text-xs text-colorError">
-                            {publishSkillError}
-                        </span>
-                    ) : null}
-                    <ConfigItemList
-                        kind="skill"
-                        items={skills}
-                        openEdit={openSkillItem}
-                        removeItem={removeItem}
-                        closeEditor={closeEditor}
-                        disabled={disabled}
-                        statusFor={skillStatusFor}
-                    />
-                </>
-            ),
-        },
-        mh.hasPermissions && {
-            key: "permissions",
-            icon: <ShieldCheck size={16} />,
-            title: t("entityUi.agentTemplate.permissions"),
-            summary: mh.runnerPermissionSummary,
-            indicator: sectionIndicator("permissions"),
-            defaultOpen: true,
-            content: (
-                <ChangedPathsProvider changes={panelChangedPaths}>
-                    <ModelHarnessSectionBody
-                        section="permissions"
-                        schema={schema}
-                        config={config}
-                        onChange={onChange}
-                        disabled={disabled}
-                        withTooltip={withTooltip}
-                        revisionId={revisionId}
-                    />
-                </ChangedPathsProvider>
-            ),
-        },
-        mh.hasAdvanced && {
-            key: "advanced",
-            icon: <SlidersHorizontal size={16} />,
-            title: t("entityUi.agentTemplate.advanced"),
-            titleBadge: advancedBadge,
-            indicator: sectionIndicator("advanced"),
-            // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
-            defaultOpen: false,
-            summary: mh.advancedSummary,
-            // Uncommitted changes → show them inline (dropping `onOpen` is what expands a section
-            // instead of routing to the drawer). Nothing changed → the plain drawer row.
-            ...(advancedChangeBody
-                ? {content: advancedChangeBody}
-                : {
-                      onOpen: () => openSectionDrawer("advanced"),
-                      content: mh.advancedDrawerBody,
-                  }),
-        },
+        modelSection({t, mh, sectionIndicator, config, modelReq, panelChangedPaths, bodyProps}),
+        instructionsSection({
+            t,
+            hasInstructions,
+            fieldTitle,
+            sectionIndicator,
+            draftSectionKeys,
+            agentsMd,
+            openInstruction,
+        }),
+        integrationsSection({
+            t,
+            hasTools,
+            sectionIndicator,
+            disabled,
+            openIntegrationDrawer,
+            integrationCount,
+            tools,
+            integrationRows,
+            toolStatusFor,
+            gatewayToolsEnabled: Boolean(gatewayTools?.enabled),
+            openIntegrationRow,
+            removeIntegration,
+            closeEditor,
+        }),
+        subagentsSection({
+            t,
+            hasTools,
+            sectionIndicator,
+            disabled,
+            openSubagentSelector,
+            subagentCount,
+            workflowReference,
+            subagentTools,
+            openEdit,
+            removeItem,
+            closeEditor,
+            toolStatusFor,
+        }),
+        agentMcpSection({
+            t,
+            hasMcp,
+            fieldTitle,
+            sectionIndicator,
+            disabled,
+            mcpServers,
+            handleAddMcpServer,
+            agentPermissionPolicy,
+            setAgentField,
+            openEdit,
+            removeItem,
+            closeEditor,
+            mcpStatusFor,
+            addMcpOpen,
+            setAddMcpOpen,
+        }),
+        skillsSection({
+            t,
+            hasSkills,
+            fieldTitle,
+            sectionIndicator,
+            disabled,
+            skills,
+            handleAddSkill,
+            publishSkillError,
+            openSkillItem,
+            removeItem,
+            closeEditor,
+            skillStatusFor,
+        }),
+        permissionsSection({t, mh, sectionIndicator, panelChangedPaths, bodyProps}),
+        advancedSection({
+            t,
+            mh,
+            sectionIndicator,
+            secretReq,
+            advancedChangeBody,
+            openSectionDrawer,
+        }),
     ].filter(Boolean) as AgentTemplateSectionDescriptor[]
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
