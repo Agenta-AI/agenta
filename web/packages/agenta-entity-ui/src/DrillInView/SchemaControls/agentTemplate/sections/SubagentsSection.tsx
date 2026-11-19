@@ -58,6 +58,9 @@ export const subagentsSection = ({
             title: t("entityUi.agentTemplate.subagents"),
             summary: countSummary(subagentCount, "subagent"),
             indicator: sectionIndicator("subagents"),
+            // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
+            // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its
+            // `-my-2`), so no per-button sizing is needed here.
             extra:
                 !disabled && openSubagentSelector ? (
                     <SectionAddButton
