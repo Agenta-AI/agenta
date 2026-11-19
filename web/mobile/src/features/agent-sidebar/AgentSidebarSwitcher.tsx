@@ -14,6 +14,7 @@ import {CaretUpDownIcon} from "@phosphor-icons/react"
 
 /** Above this many agents the menu gets a search field. */
 const SEARCH_FROM = 8
+const MENU_KEYS = new Set(["ArrowDown", "ArrowUp", "Escape", "Tab"])
 
 export interface SwitcherAgent {
     id: string
@@ -82,8 +83,11 @@ export const AgentSidebarSwitcher = ({
                 <DropdownMenuLabel>{t("agentSidebar.agents")}</DropdownMenuLabel>
                 {agents.length > SEARCH_FROM ? (
                     <input
-                        // Typing must reach the field, not the menu's type-ahead.
-                        onKeyDown={(event) => event.stopPropagation()}
+                        // Typing must reach the field, not the menu's type-ahead. The arrows,
+                        // Escape and Tab still reach the menu, so the list is reachable by key.
+                        onKeyDown={(event) => {
+                            if (!MENU_KEYS.has(event.key)) event.stopPropagation()
+                        }}
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
                         placeholder={t("agentSidebar.searchAgents")}

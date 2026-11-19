@@ -195,6 +195,15 @@ export const createAgentSidebarScope = (
                         t,
                         newSessionHref: agentEntryHref(projectURL, agentId),
                         onNewSession: (event) => {
+                            // A modified or middle click opens the link in a new tab instead.
+                            if (
+                                event.button !== 0 ||
+                                event.metaKey ||
+                                event.ctrlKey ||
+                                event.shiftKey ||
+                                event.altKey
+                            )
+                                return
                             event.preventDefault()
                             startBlankSession(projectURL, agentId)
                         },

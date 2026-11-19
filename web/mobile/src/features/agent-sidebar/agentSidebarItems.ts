@@ -1,5 +1,6 @@
 import {createElement, type MouseEvent, type ReactElement, type ReactNode} from "react"
 
+import {formatNumber} from "@agenta/i18n"
 import {getSidebarSourceStatusLabel, type SidebarConfig} from "@agenta/navigation"
 import type {SessionRowStatus} from "@agenta/sessions/row"
 import type {SessionRowTarget} from "@agenta/sessions-ui"
@@ -181,7 +182,7 @@ export const agentSidebarItems = ({
                     ? createElement(
                           "span",
                           {className: "text-xs text-colorTextTertiary"},
-                          String(total),
+                          formatNumber(total),
                       )
                     : undefined,
             submenu: rows,

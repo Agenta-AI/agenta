@@ -134,7 +134,10 @@ const mainScope = {
         }, [t])
     },
     header: ({collapsed}: {collapsed: boolean}) => (
-        <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton />} />
+        <SidebarLogo
+            collapsed={collapsed}
+            toggle={<SidebarToggleButton collapsedAtom={collapsedAtom} />}
+        />
     ),
 }
 
@@ -166,7 +169,7 @@ const agentScope = {
         <AgentSidebarHeader
             collapsed={collapsed}
             back={<SidebarBackButton collapsed={collapsed} onBack={noop} />}
-            toggle={<SidebarToggleButton />}
+            toggle={<SidebarToggleButton collapsedAtom={collapsedAtom} />}
             switcher={
                 <AgentSidebarSwitcher
                     agents={SIDEBARS_AGENTS}

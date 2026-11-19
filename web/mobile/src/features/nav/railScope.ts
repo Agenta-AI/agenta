@@ -26,9 +26,13 @@ const useLazyModule = <T>(needed: boolean, load: () => Promise<T>): T | null => 
     useEffect(() => {
         if (!needed || loaded) return
         let live = true
-        void load().then((module) => {
-            if (live) setLoaded(module)
-        })
+        // A failed load (a stale chunk after a deploy) leaves the current rail in place.
+        load().then(
+            (module) => {
+                if (live) setLoaded(module)
+            },
+            () => undefined,
+        )
         return () => {
             live = false
         }

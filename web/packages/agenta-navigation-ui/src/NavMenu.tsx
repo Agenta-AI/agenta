@@ -220,7 +220,7 @@ const STICKY_HEADING =
 
 /** A heading's actions when it has an open button: shown on hover or focus, always on touch. */
 const HEADING_HOVER_ACTION =
-    "opacity-0 transition-opacity group-hover/heading:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+    "opacity-0 transition-opacity group-hover/heading:opacity-100 group-focus-within/heading:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
 
 const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const t = useT(navigationCatalog)
