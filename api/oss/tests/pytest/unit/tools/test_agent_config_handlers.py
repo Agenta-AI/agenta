@@ -30,12 +30,15 @@ from oss.src.core.tools.platform_handlers import (
     EDIT_AGENT_CONFIG_CALL_REF,
     LIST_AGENTS_CALL_REF,
     PLATFORM_TOOL_HANDLERS,
+    PREVIEW_AGENT_CHANGE_CALL_REF,
     READ_AGENT_CONFIG_CALL_REF,
+    RUNNER_ONLY_CALL_REFS,
     PlatformToolHandlerRefused,
     handle_commit_revision,
     handle_create_agent,
     handle_edit_agent_config,
     handle_list_agents,
+    handle_preview_agent_change,
     handle_read_agent_config,
     dispatch_platform_tool_handler,
     required_elevated_permission,
@@ -206,9 +209,11 @@ def _committed(service):
 
 class TestRegistration:
     def test_every_handler_op_in_the_catalog_has_a_handler_here(self):
-        # The SDK catalog and this registry are two halves of one allowlist.
+        # The SDK catalog and this registry are two halves of one allowlist; the only
+        # other handlers are the runner's own.
         handlers = {op.handler for op in PLATFORM_OPS.values() if op.handler}
-        assert handlers == set(PLATFORM_TOOL_HANDLERS)
+        assert handlers | RUNNER_ONLY_CALL_REFS == set(PLATFORM_TOOL_HANDLERS)
+        assert not handlers & RUNNER_ONLY_CALL_REFS
 
     @pytest.mark.parametrize(
         "ref,permission",
@@ -746,7 +751,12 @@ class TestEditAgentConfig:
             "Answer billing questions."
         )
         assert result.content["agent"]["name"] == "Invoice helper"
-        assert result.content["version"] == "4"
+        # The saved revision, in the shape `read_agent_config` answers with; the next edit
+        # sends its id.
+        revision = result.content["revision"]
+        assert revision["version"] == "4"
+        assert result.content["base_revision_id"] == revision["id"]
+        assert "version" not in result.content
         assert result.content["message"] == commit.message
         # Another agent's write: the caches are cleared, and no self-commit signal goes
         # to the caller's playground.
@@ -1037,6 +1047,7 @@ class TestCreateAgent:
                     name=kwargs["simple_workflow_create"].name,
                     revision_id=created_id,
                 ),
+                revision=WorkflowRevision(id=created_id, version="1"),
                 replayed=False,
             )
         )
@@ -1075,7 +1086,8 @@ class TestCreateAgent:
         content = result.content
         assert content["agent"]["name"] == "Invoice helper"
         assert content["agent"]["slug"] == "invoice-helper-0a1b2c3d"
-        assert content["base_revision_id"]
+        assert content["revision"]["version"] == "1"
+        assert content["base_revision_id"] == content["revision"]["id"]
         assert result.wrote_other_agent_revision is True
         # Without operations the agent keeps placeholder instructions; the answer says so.
         assert [w["code"] for w in content["warnings"]] == ["template_instructions"]
@@ -1579,12 +1591,14 @@ class TestCreateAgentRetry:
         assert content["base_revision_id"]
         first = next(r for r in store.values() if r.data is not None)
         assert str(first.id) == content["base_revision_id"]
+        assert content["revision"]["id"] == str(first.id)
         assert first.message.startswith(f'Created by agent "Support Triage" {CALLER}')
 
         # A third call with the same arguments returns the same agent, in the same shape.
         again = await _call(handle_create_agent, service, **arguments)
         assert again.content["agent"] == content["agent"]
         assert again.content["base_revision_id"] == content["base_revision_id"]
+        assert again.content["revision"] == content["revision"]
         service.create_workflow.assert_awaited_once()
 
     async def test_a_retry_that_finds_a_now_hidden_agent_reads_and_writes_nothing(
@@ -1627,3 +1641,125 @@ class TestCreateAgentRetry:
         assert service.commit_workflow_revision.await_count == commits
         service.create_workflow.assert_awaited_once()
         service.create_workflow_variant.assert_awaited_once()
+
+
+# --------------------------------------------------------------------------------------
+# preview_agent_change: the server preview on the approval card
+# --------------------------------------------------------------------------------------
+
+
+class TestPreviewAgentChange:
+    """The runner asks for it when the approval gate of an agent write opens."""
+
+    def _preview(self, service, tool, **arguments):
+        return handle_preview_agent_change(
+            arguments={"tool": tool, "arguments": arguments},
+            project_id=PROJECT,
+            user_id=USER,
+            workflows_service=service,
+        )
+
+    async def test_an_edit_shows_the_old_and_the_new_value_and_saves_nothing(
+        self, service
+    ):
+        service.commit_workflow_revision_checked = AsyncMock()
+        result = await self._preview(
+            service, EDIT_AGENT_CONFIG_CALL_REF, **_edit_args()
+        )
+
+        assert result.ok, result.content
+        assert result.content["applies"] is True
+        assert result.content["base"] == {"id": str(HEAD), "version": "3"}
+        assert result.content["changes"] == [
+            {
+                "path": INSTRUCTIONS,
+                "operations": [0],
+                "change": "changed",
+                "old": "Answer invoice questions.",
+                "new": "Answer billing questions.",
+            }
+        ]
+        service.commit_workflow_revision.assert_not_awaited()
+        service.commit_workflow_revision_checked.assert_not_awaited()
+        assert result.wrote_other_agent_revision is False
+
+    async def test_an_operation_that_does_not_apply(self, service):
+        result = await self._preview(
+            service,
+            EDIT_AGENT_CONFIG_CALL_REF,
+            **_edit_args(
+                operations=[
+                    {
+                        "operation": "edit_text",
+                        "target": INSTRUCTIONS,
+                        "edits": [{"old_text": "payroll", "new_text": "billing"}],
+                    }
+                ]
+            ),
+        )
+
+        assert result.ok, result.content
+        assert result.content["applies"] is False
+        assert result.content["operations"][0]["applies"] is False
+        assert result.content["operations"][0]["error"]["code"] == "text_not_found"
+        service.commit_workflow_revision.assert_not_awaited()
+
+    async def test_a_base_that_is_not_the_head_has_no_preview(self, service):
+        result = await self._preview(
+            service,
+            EDIT_AGENT_CONFIG_CALL_REF,
+            **_edit_args(base_revision_id=str(OTHER)),
+        )
+
+        assert not result.ok
+        assert result.content.code == "revision_conflict"
+
+    async def test_a_hidden_agent_answers_like_one_that_is_not_there(
+        self, service, allowed
+    ):
+        allowed.return_value = False
+        result = await self._preview(
+            service, EDIT_AGENT_CONFIG_CALL_REF, **_edit_args()
+        )
+
+        assert not result.ok
+        assert "Answer invoice questions." not in result.content.model_dump_json()
+        assert allowed.await_args.kwargs["action"] == Permission.VIEW_WORKFLOWS
+
+    async def test_a_create_is_previewed_on_the_new_agent_template(self, service):
+        result = await self._preview(
+            service,
+            CREATE_AGENT_CALL_REF,
+            name="Invoice helper",
+            operations=[
+                {
+                    "operation": "set",
+                    "target": INSTRUCTIONS,
+                    "value": "Answer invoice questions.",
+                }
+            ],
+            caller_agent_id=str(CALLER),
+            caller_session_id=SESSION,
+        )
+
+        assert result.ok, result.content
+        # The template's long placeholder text, replaced: a diff, not two values.
+        (change,) = result.content["changes"]
+        assert change["path"] == INSTRUCTIONS
+        assert "+Answer invoice questions." in change["diff"]
+        template = new_agent_revision_data()["parameters"]["agent"]
+        first_line = template["instructions"]["agents_md"].splitlines()[0]
+        assert f"-{first_line}" in change["diff"]
+        assert "base" not in result.content
+        service.commit_workflow_revision.assert_not_awaited()
+
+    async def test_another_tool_is_refused(self, service):
+        result = await self._preview(service, "tools.agenta.commit_revision")
+
+        assert not result.ok
+        assert result.content.code == "invalid_arguments"
+
+    def test_it_reads_like_read_agent_config(self):
+        registration = PLATFORM_TOOL_HANDLERS[PREVIEW_AGENT_CHANGE_CALL_REF]
+        assert registration.elevated_permission == Permission.VIEW_WORKFLOWS
+        assert registration.needs_agent_read_scope is True

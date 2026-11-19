@@ -830,6 +830,19 @@ def _interaction_parts(
                     "manifest": manifest,
                 },
             }
+        # The server preview of an agent write (old and new value per changed path). Its own
+        # part for the same reasons as the manifest: runner-derived, and not the model's input.
+        preview = payload.get("preview")
+        if preview is not None:
+            yield {
+                "type": "data-approval-preview",
+                "id": tool_call_id,
+                "data": {
+                    "toolCallId": tool_call_id,
+                    "approvalId": data.get("id"),
+                    "preview": preview,
+                },
+            }
         yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),

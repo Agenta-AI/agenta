@@ -32,6 +32,7 @@ __all__ = [
     "apply_text_edits",
     "deep_merge",
     "item_key",
+    "resolve_target",
     "allow_all",
     "subtree_scope",
     "PARAMETERS_ONLY",
@@ -984,6 +985,15 @@ def _walk(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
             )
             node = collection[index]
     return node
+
+
+def resolve_target(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
+    """The node a target addresses in ``root``. Raises ``LookupError`` when it addresses
+    nothing there. Reads only; the approval preview uses it on the base and the result."""
+    try:
+        return _walk(root, segments)
+    except _Fail as error:
+        raise LookupError(error.message) from error
 
 
 def _walk_creating(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
