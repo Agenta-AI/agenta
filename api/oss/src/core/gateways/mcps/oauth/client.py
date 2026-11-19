@@ -84,8 +84,14 @@ def account_name_from_claims(claims: Any) -> Optional[str]:
         return None
     for claim in _ACCOUNT_NAME_CLAIMS:
         value = claims.get(claim)
-        if isinstance(value, str) and value.strip():
-            return value.strip()[:_ACCOUNT_NAME_MAX_LENGTH]
+        if not isinstance(value, str) or not value.strip():
+            continue
+        try:
+            # JSON admits an unpaired surrogate, which the grant then cannot store.
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            continue
+        return value.strip()[:_ACCOUNT_NAME_MAX_LENGTH]
     return None
 
 

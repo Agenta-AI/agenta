@@ -379,6 +379,11 @@ def test_claims_with_no_usable_name_give_none():
     assert account_name_from_claims({"email": ""}) is None
     assert account_name_from_claims({"email": 42}) is None
     assert account_name_from_claims(["lena"]) is None
+    assert account_name_from_claims(json.loads('{"email": "\\ud800"}')) is None
+    assert (
+        account_name_from_claims(json.loads('{"email": "\\ud800", "name": "Lena"}'))
+        == "Lena"
+    )
 
 
 def test_a_long_name_is_cut():
