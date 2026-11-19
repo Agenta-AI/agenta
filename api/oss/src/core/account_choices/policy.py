@@ -1,8 +1,8 @@
 """The deployment switch for a person's own accounts.
 
-`AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` is on by default; an installation can set it to false. While it is off, no route
-reads or writes a person's rows or account choices, and a run leaves every "user" item
-out. Rows stored while it was on stay stored, hidden and unused.
+`AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` is on by default; an installation can set it to
+false. While it is off, no route reads or writes a person's rows or account choices, and
+a run leaves every "user" item out. Rows stored while it was on stay stored, hidden and unused.
 """
 
 from oss.src.utils.env import env

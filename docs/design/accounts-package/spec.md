@@ -692,7 +692,7 @@ The folder goes. `api/oss/src/core/accounts/` cannot take its place: on main it 
 One release carries the schema and the code. Runners and services can lag the API, so the order is:
 
 1. The SDK and the services accept `account_source` on every reference. The SDK models that refuse unknown fields (`SandboxSecretReference`, `MCPGatewayConnection`) need the new field before any revision carries it.
-2. The deployment switch `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (the build's `AGENTA_ACCESS_PERSONAL_CREDENTIALS_ENABLED`, renamed) is on by default; an installation can set it to false. Turn it on only when every API pod, services pod and runner runs the release. While it is off, the API refuses person-owned writes and account choices, and the interface hides "Each person's own account".
+2. The deployment switch `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (the build's `AGENTA_ACCESS_PERSONAL_CREDENTIALS_ENABLED`, renamed) is on by default; an installation can set it to false. Set it to false until every API pod, services pod and runner runs the release. While it is off, the API refuses person-owned writes and account choices, and the interface hides "Each person's own account".
 3. An item without `account_source` reads as `"agent"`, so no stored revision changes meaning at any step.
 
 ### 8.6 Code size

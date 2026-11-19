@@ -211,7 +211,7 @@ class AccessConfig(BaseModel):
 
     # People may store their own accounts (custom secrets, Composio connections, MCP
     # sign-ins), and an agent's "user" items use them. On by default. An installation can
-    # set it to false. Turn it on only after every API pod and runner of the deployment
+    # set it to false. Set it to false until every API pod and runner of the deployment
     # runs the release that added them: an older pod reads a person's row as an
     # organization row.
     personal_accounts_enabled: bool = _parse_bool_env(

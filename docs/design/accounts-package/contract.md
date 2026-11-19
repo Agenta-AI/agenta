@@ -38,7 +38,7 @@ The spec section 7 glossary applies. The names that every layer uses:
 | Run person | none | `run_person_id(envelope)` | none | none |
 | Run accounts | none | `RunAccount`, `RequestAccess.run_accounts` | claim `run_accounts` | none |
 | Sign-in | `secrets` rows of kind `OAUTH_GRANT` and `MCP_TOKEN` | `SecretKind.MCP_TOKEN`, `grant_slug`, `token_slug` | `owner_kind=user` on `connect`; `account_source=user` on the MCP gateway route; `user_sign_in` on the MCP endpoint response | the MCP texts of spec 5.1 and 5.4 |
-| Deployment switch | none | `env.access.personal_accounts_enabled` | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (on by default) | none |
+| Deployment switch | none | `env.agenta.access.personal_accounts_enabled` | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (on by default) | none |
 
 The interface labels come from spec section 5 and `UX-DECISIONS.md`; this column only points to them.
 
