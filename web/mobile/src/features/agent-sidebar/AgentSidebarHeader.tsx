@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
-import {SidebarSimpleIcon} from "@phosphor-icons/react"
+import {ArrowLineLeftIcon} from "@phosphor-icons/react"
 
 const ROW =
     "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
@@ -46,7 +46,7 @@ export const AgentSidebarHeader = ({
                         onClick={onFold}
                         className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextSecondary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
                     >
-                        <SidebarSimpleIcon size={16} />
+                        <ArrowLineLeftIcon size={16} />
                     </button>
                 )}
             </div>
