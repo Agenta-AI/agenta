@@ -24,7 +24,9 @@ import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {conversationKey} from "./conversationKey"
+import {ConversationRoleContext} from "./conversationRole"
 import {LiveConversation} from "./LiveConversation"
+import {usePublishPageSessionId} from "./pageSessionId"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
 import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import type {SessionReadOnly} from "./sessionReadOnly"
@@ -80,6 +82,7 @@ export const ChatScreen = ({
         void prefetchRecords(sessionId).catch(() => undefined)
     }, [boundProjectId, prefetchRecords, projectId, sessionId])
     useLeaveHeldTask(sessionId, projectId)
+    usePublishPageSessionId(sessionId)
     // A session the server does not list yet names its agent only in the route, and the rail's
     // link does not carry it. A first message waiting here names it too.
     const taskAgentId = useAtomValue(pendingTasksAtom)[sessionId]?.agentId
@@ -245,7 +248,12 @@ export const ChatScreen = ({
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
-            chat={chat}
+            // The session's own conversation. The builder chat beside it is "embedded".
+            chat={
+                <ConversationRoleContext.Provider value="page">
+                    {chat}
+                </ConversationRoleContext.Provider>
+            }
             deepLinks
         />
     )
