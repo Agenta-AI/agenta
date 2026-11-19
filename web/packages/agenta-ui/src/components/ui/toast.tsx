@@ -34,7 +34,7 @@ const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["cl
     content: "flex min-h-7 min-w-0 flex-1 flex-col justify-center gap-1",
     title: "text-sm font-normal",
     description: "text-sm text-muted-foreground",
-    actionButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
+    actionButton: cn(buttonVariants({variant: "default", size: "sm"}), "shrink-0"),
     cancelButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
     // Sonner renders the close button first; `order-last` seats it after the actions.
     closeButton: cn(
