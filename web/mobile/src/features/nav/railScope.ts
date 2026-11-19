@@ -5,6 +5,9 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {useSelectedSidebar} from "../agent-sidebar/selectedSidebar"
+import {useAgentSidebarSync} from "../agent-sidebar/useAgentSidebarSync"
+
 import {appScopeAppId, lastMainRailPathAtom} from "./appRoute"
 import {useMobileNavScope} from "./mobileNavScope"
 
@@ -36,13 +39,45 @@ const useAppMenuModule = (needed: boolean): AppMenuModule | null => {
     return loaded
 }
 
-/** The rail for the docked rail and the drawer: the screen's scope, else the app menu, else main. */
+type AgentSidebarModule = typeof import("../agent-sidebar/agentSidebarScope")
+
+/** The agent sidebar's code, loaded the first time this tab shows an agent sidebar. */
+const useAgentSidebarModule = (needed: boolean): AgentSidebarModule | null => {
+    const [loaded, setLoaded] = useState<AgentSidebarModule | null>(null)
+    useEffect(() => {
+        if (!needed || loaded) return
+        let live = true
+        void import("../agent-sidebar/agentSidebarScope").then((module) => {
+            if (live) setLoaded(module)
+        })
+        return () => {
+            live = false
+        }
+    }, [loaded, needed])
+    return loaded
+}
+
+/**
+ * The rail for the docked rail and the drawer: the screen's scope, else the agent sidebar this
+ * tab selected, else the app menu, else main.
+ */
 export const useRailScope = (
     workspaceId: string,
     projectId: string,
     scopeOverride?: SidebarScope,
 ): SidebarScope => {
     const mainScope = useMobileNavScope(workspaceId, projectId)
+    useAgentSidebarSync(projectId)
+    const selected = useSelectedSidebar()
+    const agentId = selected.kind === "agent" ? selected.agentId : null
+    const agentSidebar = useAgentSidebarModule(agentId !== null)
+    const agentScope = useMemo(
+        () =>
+            agentId && agentSidebar
+                ? agentSidebar.createAgentSidebarScope(workspaceId, projectId, agentId)
+                : null,
+        [agentId, agentSidebar, projectId, workspaceId],
+    )
     const appId = useAppMenuAppId()
     const appMenu = useAppMenuModule(appId !== null)
     const appScope = useMemo(
@@ -52,7 +87,7 @@ export const useRailScope = (
                 : null,
         [appId, appMenu, projectId, workspaceId],
     )
-    return scopeOverride ?? appScope ?? mainScope
+    return scopeOverride ?? agentScope ?? appScope ?? mainScope
 }
 
 /** Records the last page the main rail showed, where the app menu's "Back" returns. */

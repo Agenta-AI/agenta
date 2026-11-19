@@ -751,3 +751,59 @@ describe("heading add (+)", () => {
         expect(children[0].groupAdd).toBeUndefined()
     })
 })
+
+describe("heading open button and per-heading cap", () => {
+    const agentGroup = {key: "agent:a1", label: "Demo shoot", agentId: "a1"}
+    const opened: string[] = []
+    const withOpen = defineSidebarEntity("m", "project-sessions-link", {
+        kind: "app",
+        listAtom: null as never,
+        getLabel: (r: SidebarEntityRef) => r.name ?? r.id,
+        childPath: (r: SidebarEntityRef) => `/sessions/${r.id}`,
+        groupOpen: (group) =>
+            group.agentId
+                ? {label: `Open ${group.label}`, onClick: () => opened.push(group.agentId!)}
+                : undefined,
+        groupMaxItems: (group) => (group.agentId ? 2 : undefined),
+    })
+    const grouped = entity({
+        getGroupKey: (r) => (r.id.startsWith("p") ? "pinned" : "agent:a1"),
+        groupOpen: withOpen.groupOpen,
+        groupMaxItems: withOpen.groupMaxItems,
+    })
+    const refs = [
+        ref("p1", "Pinned one"),
+        ref("p2", "Pinned two"),
+        ref("p3", "Pinned three"),
+        ref("s1", "Newest"),
+        ref("s2", "Second"),
+        ref("s3", "Third"),
+    ]
+    const groups = [{key: "pinned", label: "Pinned"}, agentGroup]
+
+    it("puts the open button on the agent heading only, and it runs the host's click", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
+        const headings = children.filter((child) => child.isGroupLabel)
+
+        expect(headings.map((h) => [h.title, h.groupOpen?.label])).toEqual([
+            ["Pinned", undefined],
+            ["Demo shoot", "Open Demo shoot"],
+        ])
+        headings[1].groupOpen?.onClick()
+        expect(opened).toEqual(["a1"])
+    })
+
+    it("caps the rows of a heading that has a cap, and keeps every row of one that has none", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
+
+        expect(children.map((child) => child.title)).toEqual([
+            "Pinned",
+            "Pinned one",
+            "Pinned two",
+            "Pinned three",
+            "Demo shoot",
+            "Newest",
+            "Second",
+        ])
+    })
+})

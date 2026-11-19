@@ -1,0 +1,17 @@
+{
+    "agent": "Agent",
+    "agents": "Agents",
+    "analytics": "Analytics",
+    "backToMainSidebar": "Zurück zur Hauptseitenleiste",
+    "channels": "Kanäle",
+    "configuration": "Konfiguration",
+    "earlier": "Früher",
+    "newSession": "Neue Sitzung",
+    "searchAgents": "Agents suchen",
+    "seeAllSessions": "Alle Sitzungen in einer Tabelle ansehen",
+    "sessions": "Sitzungen",
+    "showOlderSessions_one": "{{count}} ältere Sitzung anzeigen",
+    "showOlderSessions_other": "{{count}} ältere Sitzungen anzeigen",
+    "today": "Heute",
+    "yesterday": "Gestern"
+}

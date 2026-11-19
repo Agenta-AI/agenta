@@ -18,7 +18,7 @@ import {
     TooltipTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {CaretRight, Plus} from "@phosphor-icons/react"
+import {ArrowLineRight, CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
@@ -218,6 +218,10 @@ const RowLabel = memo(function RowLabel({
 const STICKY_HEADING =
     "[[data-nav-scroll]_&]:sticky [[data-nav-scroll]_&]:top-0 [[data-nav-scroll]_&]:z-10 [[data-nav-scroll]_&]:bg-[var(--ag-sidebar-bg)]"
 
+/** A heading's actions when it has an open button: shown on hover or focus, always on touch. */
+const HEADING_HOVER_ACTION =
+    "opacity-0 transition-opacity group-hover/heading:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+
 const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const t = useT(navigationCatalog)
     const toggle = item.onClick
@@ -244,13 +248,14 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             // ENTITY (an agent), and shouting a proper noun misspells it.
             data-sticky-heading="true"
             className={clsx(
-                "flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
+                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
                 STICKY_HEADING,
             )}
             onClick={(event) => {
                 // The "+" is an anchor and its click must reach the shell frame (the drawer
                 // closes itself on any anchor click), so it bubbles — and must not fold the group.
-                if ((event.target as HTMLElement).closest("a")) return
+                // The open button must not fold it either.
+                if ((event.target as HTMLElement).closest("a, button")) return
                 toggle(event)
             }}
             onKeyDown={(event) => {
@@ -287,7 +292,10 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     href={item.groupAdd.link}
                     aria-label={item.groupAdd.label}
                     title={item.groupAdd.label}
-                    className="ml-auto mr-1 flex size-[22px] shrink-0 items-center justify-center rounded-md !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText"
+                    className={clsx(
+                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-md !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
+                        item.groupOpen ? HEADING_HOVER_ACTION : "mr-1",
+                    )}
                     onClick={(event) => {
                         // A modified click opens the bare page in another tab; the click work
                         // belongs to THIS tab only.
@@ -299,6 +307,23 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 >
                     <Plus size={12} />
                 </Link>
+            ) : null}
+            {item.groupOpen ? (
+                <button
+                    type="button"
+                    aria-label={item.groupOpen.label}
+                    title={item.groupOpen.label}
+                    className={clsx(
+                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText",
+                        !item.groupAdd && "ml-auto",
+                        HEADING_HOVER_ACTION,
+                    )}
+                    onClick={() => item.groupOpen?.onClick()}
+                    // Enter on the button is its own activation; the heading must not also toggle.
+                    onKeyDown={(event) => event.stopPropagation()}
+                >
+                    <ArrowLineRight size={12} />
+                </button>
             ) : null}
         </div>
     )

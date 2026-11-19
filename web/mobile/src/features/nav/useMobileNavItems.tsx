@@ -3,6 +3,7 @@ import {createElement, useCallback, useMemo, type ReactNode} from "react"
 import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import agentSectionsCatalog from "@agenta/i18n/catalogs/nav.agentSections"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     AGENTS_SIDEBAR_KEY,
@@ -32,6 +33,7 @@ import {
     useSessionActions,
     useSessionRowChrome,
     type SessionActionTarget,
+    type SessionRowTarget,
 } from "@agenta/sessions-ui"
 import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
@@ -57,6 +59,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 import {useRouter} from "next/router"
 
+import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
 import {agentEntryHref} from "@/features/agents/agentEntry"
 import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
@@ -73,6 +76,10 @@ import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)
+const tAgentSections = createT(agentSectionsCatalog)
+
+/** How many sessions an agent section of the main sidebar lists. */
+export const AGENT_SECTION_SESSIONS = 4
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -146,6 +153,16 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
                       },
                   }
                 : undefined,
+        // The open button shows that agent's sidebar in place of this one; the page stays.
+        groupOpen: (group) =>
+            group.agentId
+                ? {
+                      label: tAgentSections("nav.agentSections.openAgent", {agent: group.label}),
+                      onClick: () => openAgentSidebar(group.agentId!, "main"),
+                  }
+                : undefined,
+        // Each agent section lists its latest sessions; the Sessions page lists them all.
+        groupMaxItems: (group) => (group.agentId ? AGENT_SECTION_SESSIONS : undefined),
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.
@@ -173,21 +190,10 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
 )
 
 /**
- * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
- * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
- * forking a component.
+ * Wraps a rail session row with its verbs (the kebab and the right-click menu, rename in place).
+ * The main sidebar and the agent sidebar both use it, so a row behaves the same in each.
  */
-export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
-    const t = useT(navigationCatalog)
-    // Sessions this client created ride the shared local seam until the server lists them.
-    useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
-    const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
-    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
-    const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
-    // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
-    // call changes identity on every render — which busts the memo below, re-buckets every row,
-    // and hands `NavMenu` a new items array that defeats its own memo.
-    const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
+export const useRailSessionRowWrapper = (projectURL: string) => {
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     // Archiving or deleting the session on screen has to move you off it, from here too.
     // Sharing: the owner's rail menu has Share; someone else's chat keeps only Open-like verbs.
@@ -222,6 +228,33 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             sharePathFor,
         }),
     )
+    return useCallback(
+        (session: SessionRowTarget, node: ReactNode) =>
+            createElement(SessionRowActions, {
+                session,
+                chrome,
+                children: node,
+            }),
+        [chrome],
+    )
+}
+
+/**
+ * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
+ * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
+ * forking a component.
+ */
+export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+    const t = useT(navigationCatalog)
+    // Sessions this client created ride the shared local seam until the server lists them.
+    useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
+    const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
+    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
+    const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
+    // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
+    // call changes identity on every render — which busts the memo below, re-buckets every row,
+    // and hands `NavMenu` a new items array that defeats its own memo.
+    const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
     // Platform read in an effect: the server has none, and a guess mismatches on hydration.
     const mac = useIsMacPlatform()
     const paletteShortcut = useMemo(() => {
@@ -232,14 +265,10 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     }, [mac])
     const developerViews = useEnabledDeveloperViews()
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const wrapSession = useRailSessionRowWrapper(projectURL)
     const wrapSessionRow = useCallback(
-        (ref: SidebarEntityRef, node: ReactNode) =>
-            createElement(SessionRowActions, {
-                session: ref as SessionSidebarRef,
-                chrome,
-                children: node,
-            }),
-        [chrome],
+        (ref: SidebarEntityRef, node: ReactNode) => wrapSession(ref as SessionSidebarRef, node),
+        [wrapSession],
     )
 
     const promptsSource = useAtomValue(mobilePromptsEntity.activeSourceAtom)

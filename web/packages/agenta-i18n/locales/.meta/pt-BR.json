@@ -1,4 +1,22 @@
 {
+    "agentSidebar": {
+        "agent": "11b39c93777e",
+        "agents": "279b44d2ab4b",
+        "analytics": "94c116ee118a",
+        "backToMainSidebar": "cf1d5b414761",
+        "channels": "4c8906cf76f5",
+        "configuration": "b332c3492d5e",
+        "earlier": "e10ae9907401",
+        "newSession": "cffdba22adf2",
+        "searchAgents": "212fd04a1d20",
+        "seeAllSessions": "80a05469096b",
+        "sessions": "6fa3cbf451b2",
+        "showOlderSessions_one": "93ebfab0deb2",
+        "showOlderSessions_many": "7a2270b3935b",
+        "showOlderSessions_other": "7a2270b3935b",
+        "today": "2b065c7c9ce4",
+        "yesterday": "566181254b29"
+    },
     "agents.activity": {
         "automationRun": "ca14d9eeb1e6",
         "columnActions": "ff8059dc6752",
@@ -4697,6 +4715,9 @@
         "toolsItCanUse": "028ee1f57c78",
         "useTemplate": "1a439ee577c7",
         "viewAll": "30a64216eaea"
+    },
+    "nav.agentSections": {
+        "openAgent": "c3ef85408c55"
     },
     "navigation": {
         "chrome.closeNavigation": "99904db30de4",

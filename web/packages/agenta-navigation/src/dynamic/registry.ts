@@ -78,6 +78,8 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     groupsAtom: config.groupsAtom,
     toggleGroupAtom: config.toggleGroupAtom,
     groupAddLink: config.groupAdd,
+    groupOpen: config.groupOpen,
+    groupMaxItems: config.groupMaxItems,
 })
 
 // ── Add a new dynamic entity by appending one entry here. Nothing else. ──────
