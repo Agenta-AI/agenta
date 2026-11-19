@@ -37,11 +37,14 @@ export const ConfigPane = ({
     sessionId,
     filesScope,
     projectId,
+    operations,
 }: {
     entityId: string
     sessionId: string
     filesScope: string
     projectId: string
+    /** False leaves out automations and files: the panel shows them in their own places. */
+    operations?: boolean
 }) => {
     const t = useT(chatMobileConfigCatalog)
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
@@ -67,6 +70,7 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     disabled={!editAccess.pending && !editAccess.allowed}
+                    operations={operations}
                     stickyHeaderTop={48}
                     banner={
                         <div className="px-4">
@@ -100,30 +104,6 @@ export const ConfigPane = ({
                             // `/m` mounts the auto-commit engine, so this header shows Save
                             // rather than Commit. The desktop playground keeps Commit.
                             autoSave
-                            // The desktop's collapse: the header owns "«", the top bar owns the
-                            // "»" that brings the panel back. Without a way OUT, the restore
-                            // control in the bar could never be reached.
-                            trailing={
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            {t("chat.mobileConfig.hideConfiguration")}{" "}
-                                            <ShortcutKeys id="panel.config" tone="inverse" />
-                                        </span>
-                                    }
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label={t("chat.mobileConfig.hideConfiguration")}
-                                        aria-keyshortcuts={shortcutAria("panel.config")}
-                                        onClick={() => setConfigCollapsed(true)}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <Sidebar size={16} weight="fill" mirrored />
-                                    </Button>
-                                </SimpleTooltip>
-                            }
                         />
                     }
                 />

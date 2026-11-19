@@ -1,0 +1,15 @@
+{
+    "archiveAgent": "归档 Agent",
+    "builder": "构建器",
+    "configuration": "配置",
+    "exportAgent": "导出智能体",
+    "files": "文件",
+    "history": "历史记录",
+    "loadFailed": "无法加载会话",
+    "newSession": "新会话",
+    "rename": "重命名",
+    "sessions": "会话",
+    "shareConversation": "分享对话",
+    "tryAgain": "重试",
+    "untitledSession": "未命名会话"
+}

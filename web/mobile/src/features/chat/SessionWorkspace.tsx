@@ -1,83 +1,36 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, type ReactNode} from "react"
 
-import {
-    chatPanelMaximizedAtom,
-    configPanelCollapsedAtom,
-    configPanelCollapsedOverrideAtom,
-    configPanelCollapsedViewportPreferenceAtom,
-    FILES_PANE_MAX,
-    FILES_PANE_MIN,
-    filesPaneWidthAtom,
-    phoneViewportAtom,
-    resolveConfigPanelCollapsed,
-    RIGHT_PANEL_MAX,
-    RIGHT_PANEL_MIN,
-    rightPanelWidthAtom,
-    useCanPanesCoexist,
-    useFilesPaneLayout,
-} from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import type {SessionStream} from "@agenta/entities/session"
 import {sharingKeys, type SessionSharingResponse} from "@agenta/entities/sharing"
-import {
-    DriveLinkContext,
-    DriveSessionProvider,
-    SessionFilesPane,
-    useSessionFilesPane,
-} from "@agenta/entity-ui/drive"
-import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
+import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
 import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
 import {getHostQueryClient} from "@agenta/shared/api"
-import {composerPrefillRequestAtom} from "@agenta/shared/state"
-import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
-import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {AgentLayout} from "../agent-layout/AgentLayout"
+import {useAgentPanel} from "../agent-layout/agentPanelContext"
+import {SessionHeader} from "../agent-layout/SessionHeader"
 import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
 
-import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
-import {resolveSessionPanes} from "./sessionPanes"
-import {SessionsPane} from "./SessionsPane"
-import {SessionTabs} from "./SessionTabs"
-import {SessionTopBar} from "./SessionTopBar"
 import {SessionWorkspaceDrawers} from "./SessionWorkspaceDrawers"
-import {ConfigPaneLoading} from "./states/ConfigPaneLoading"
-import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
 import {sessionHeaderKey} from "./useSessionHeader"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
 
-// Build's config panel carries the whole schema-form surface (DrillInView + the editor). Chat
-// mode never renders it, so it loads on demand instead of riding in the session page's bundle.
-// Until the chunk lands the pane shows its skeleton, not an empty column.
-const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane), {
-    ssr: false,
-    loading: ConfigPaneLoading,
-})
-
 /**
- * The playground's two-pane frame, on the SAME kit `SplitPane` the desktop drives it with and the
- * SAME `chatPanelMaximizedAtom` that decides the mode: "chat" maximizes the conversation (config
- * collapsed to 0, session rail in its place), "build" is the two-panel edit view.
- *
- * The conversation is ALWAYS mounted EXACTLY ONCE — the mode only decides what sits beside it, and
- * the width only decides the geometry — so neither a mode switch nor a rotation drops a streaming
- * turn. That is why both widths drive the SAME `SplitPane` rather than two sibling containers: a
- * node rendered in two containers mounts twice even when one is CSS-hidden, which ran two chat
- * engines at once.
- *
- * Pane geometry is the desktop's, shared from `@agenta/chat/state`. Below `md` there is no room
- * for two panes, so the split collapses to one visible pane and the mode picks which.
+ * The session screen: the session header, the conversation and the one right panel (Files,
+ * Configuration or Builder) of the agent layout. The conversation is mounted exactly once at
+ * every width; the panel decides only what sits beside or over it.
  */
 export const SessionWorkspace = ({
     entityId,
@@ -93,8 +46,6 @@ export const SessionWorkspace = ({
     projectId,
     chat,
     bare = false,
-    hideSessionTabs = false,
-    collapseConfigByDefault = false,
     deepLinks = false,
 }: {
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
@@ -108,11 +59,11 @@ export const SessionWorkspace = ({
      */
     linkEntityId?: string | null
     linkAgentId?: string | null
-    /** The top bar moves to a newer version with no click. Default: it offers the version pill. */
+    /** The header moves to a newer version with no click. Default: it offers the version pill. */
     autoUpdateRevision?: boolean
     /** The session's agent is one the reader cannot see (a private agent). */
     agentHidden?: boolean
-    /** False when the reader may not send here: the top bar drops what only a sender uses. */
+    /** False when the reader may not send here: the header drops what only a sender uses. */
     canSend?: boolean
     sessionId: string
     workspaceId: string
@@ -124,19 +75,6 @@ export const SessionWorkspace = ({
      * only Home's body) would otherwise stack a second nav rail beside the first.
      */
     bare?: boolean
-    /**
-     * Hide the session tab strip. Before the agent is created there is exactly one draft session
-     * and no history, so the strip is a rail with nothing to switch between.
-     */
-    hideSessionTabs?: boolean
-    /**
-     * Start with the config pane collapsed, the way a phone already does. First run leads with the
-     * question and the composer; the configuration is one `»` away rather than half the screen
-     * before there is anything to configure.
-     *
-     * Only the DEFAULT — a stored preference still wins in both directions.
-     */
-    collapseConfigByDefault?: boolean
     /** Mirror the Files pane and the automation drawer in the URL; only where the URL names this session. */
     deepLinks?: boolean
 }) => {
@@ -147,16 +85,12 @@ export const SessionWorkspace = ({
         playgroundEntityId: linkEntityId ?? undefined,
         scope: sessionId,
     })
-    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
-    // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
-    // Build with the panel out of the way, and the top bar's "»" brings it back.
     // Follow the revision an auto-commit produced. Pin it rather than unpinning: unpinning falls
     // back to the latest-revision query, which is stale for a beat, so a commit made FROM an
-    // older revision would land the pane on whatever that query last cached. The desktop gets
-    // this switch from the workflow bridge's onNewRevision; mobile registers none.
+    // older revision would land the pane on whatever that query last cached.
     //
-    // It lives HERE and not in `ConfigPane` because a commit can land while the config pane is
-    // off screen — the pane is swapped out on a phone whenever the conversation has the width.
+    // It lives HERE and not in the Configuration content because a commit can land while that
+    // content is closed.
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     useEffect(
         () =>
@@ -169,113 +103,82 @@ export const SessionWorkspace = ({
         [entityId, pinRevision, sessionId],
     )
 
-    // An automation row's "Test run" (config pane) lands in a new session with this agent.
+    // An automation row's "Test run" (Configuration) lands in a new session with this agent.
     useTriggerTestRun({entityId, agentId, base})
-
-    // Resolved from the parts rather than read off `configPanelCollapsedAtom`: that atom answers
-    // for a device, and this surface gets to answer too. A stored preference still beats both.
-    //
-    // `collapseConfigByDefault` surfaces (the create-an-agent page) LAND collapsed no matter
-    // what the session pages stored — the two surfaces must not share their landing state. The
-    // mount-scoped override does it: any user write (the `»` reveal, the pane's own collapse)
-    // clears it, so the controls work immediately and the preference resumes from that tap.
-    const setConfigOverride = useSetAtom(configPanelCollapsedOverrideAtom)
-    useEffect(() => {
-        if (!collapseConfigByDefault) return
-        setConfigOverride(true)
-        return () => setConfigOverride(null)
-    }, [collapseConfigByDefault, setConfigOverride])
-    const configOverride = useAtomValue(configPanelCollapsedOverrideAtom)
-    const configPreference = useAtomValue(configPanelCollapsedViewportPreferenceAtom)
-    const phoneViewport = useAtomValue(phoneViewportAtom)
-    const configCollapsed =
-        configOverride ??
-        resolveConfigPanelCollapsed(configPreference, phoneViewport, collapseConfigByDefault)
-    // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
-    // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
-    // must not snap the pane shut.
-    const filesScope = agentId ?? sessionId
-    const {
-        open: filesOpen,
-        close: closeFilesPane,
-        toggle: toggleFilesPane,
-    } = useSessionFilesPane(filesScope, sessionId)
-    const driveLink = useDriveUrlSync({sessionId, open: filesOpen, enabled: deepLinks})
     // Drafts outlive the pane, so the unload guard lives on the host.
     useDriveDirtyGuard()
-    // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
-    const twoPane = useMediaQuery("(min-width: 768px)")
-    const filesLayout = useFilesPaneLayout(
-        `m:${workspaceId}:${projectId}:${filesScope}`,
-        sessionId,
-        filesOpen,
-    )
-    const filesExpanded = filesLayout.expanded
-    // Never a config pane for a hidden agent: its configuration is exactly what the reader may not
-    // see, and a pane mounted while it was visible is dropped below, not kept hidden.
+    // Never a configuration for a hidden agent: its configuration is what the reader may not see.
     const configEntityId = agentHidden ? null : entityId
-    // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
-    // pane replaces the conversation, so getting it wrong puts the composer out of reach.
-    const {showConfig, showPane, showFiles} = resolveSessionPanes({
-        chatMaximized,
-        configCollapsed,
-        twoPane,
-        hasEntity: Boolean(configEntityId),
-        filesOpen,
-        filesExpanded,
-    })
-    // Live px during a drag, mirrored from the shared persisted width — which is written at
-    // pointer-up, not per frame, so a drag does not hammer localStorage.
-    const [storedPaneWidth, setStoredPaneWidth] = useAtom(rightPanelWidthAtom)
-    const [paneSize, setPaneSize] = useState(storedPaneWidth)
-    useEffect(() => setPaneSize(storedPaneWidth), [storedPaneWidth])
-    // The files pane keeps its own persisted width — the two panes are dragged independently.
-    const [storedFilesWidth, setStoredFilesWidth] = useAtom(filesPaneWidthAtom)
-    const [filesPaneSize, setFilesPaneSize] = useState(storedFilesWidth)
-    useEffect(() => setFilesPaneSize(storedFilesWidth), [storedFilesWidth])
 
-    // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
-    // it the pane's width flipped in one frame and its content unmounted before the flip, so
-    // opening and hiding either panel jumped instead of moving.
-    const configSlide = usePaneSlide(showPane || filesExpanded)
-    const filesSlide = usePaneSlide(showFiles)
+    const workspace = (
+        // Drive surfaces need the AGENT here, not just the session: without it the per-agent
+        // mount query stays disabled and `agent-files/…` falls back to the cwd mount (#6270).
+        <DriveSessionProvider
+            sessionId={sessionId}
+            artifactId={agentId ?? null}
+            revisionId={configEntityId}
+        >
+            <div className="ag-app-ground flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] min-w-0 flex-col pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]">
+                <AgentLayout
+                    agentId={agentId ?? null}
+                    sessionId={sessionId}
+                    revisionId={configEntityId}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    deepLinks={deepLinks}
+                    header={
+                        <>
+                            <SessionWorkspaceShortcuts
+                                agentId={agentId ?? null}
+                                sessionId={sessionId}
+                                base={base}
+                                projectId={projectId}
+                            />
+                            <SessionHeader
+                                agentId={agentId ?? null}
+                                entityId={entityId}
+                                sessionId={sessionId}
+                                onUpdate={pinRevision}
+                                autoUpdate={autoUpdateRevision}
+                                agentHidden={agentHidden}
+                                canSend={canSend}
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        </>
+                    }
+                    conversation={<div className="min-h-0 flex-1">{chat}</div>}
+                />
+            </div>
+            <SessionWorkspaceDrawers workspaceId={workspaceId} projectId={projectId} />
+        </DriveSessionProvider>
+    )
 
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    if (bare) return workspace
+    return (
+        <AppShell workspaceId={workspaceId} projectId={projectId}>
+            {workspace}
+        </AppShell>
+    )
+}
 
-    // "Create with AI" in the config pane writes a prompt into the composer. On a phone the pane
-    // covers the conversation, so hand the screen back to the chat where the prompt landed.
-    const composerPrefillRequest = useAtomValue(composerPrefillRequestAtom)
-    useEffect(() => {
-        if (composerPrefillRequest && !twoPane) setConfigCollapsed(true)
-    }, [composerPrefillRequest, twoPane, setConfigCollapsed])
-
-    // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
-    // Edge-triggered, so they cannot evict each other in a loop.
-    const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
-    const panesMustAlternate = twoPane && !canPanesCoexist
-    const prevFilesOpenRef = useRef(filesOpen)
-    useEffect(() => {
-        if (filesOpen && !prevFilesOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
-        prevFilesOpenRef.current = filesOpen
-    }, [filesOpen, panesMustAlternate, setConfigCollapsed])
-    const prevConfigCollapsedRef = useRef(configCollapsed)
-    useEffect(() => {
-        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate)
-            closeFilesPane()
-        prevConfigCollapsedRef.current = configCollapsed
-    }, [configCollapsed, panesMustAlternate, closeFilesPane])
-    // Shrinking past the threshold with both open keeps Files, the surface opened deliberately.
-    const prevAlternateRef = useRef(panesMustAlternate)
-    useEffect(() => {
-        if (panesMustAlternate && !prevAlternateRef.current && filesOpen && !configCollapsed)
-            setConfigCollapsed(true)
-        prevAlternateRef.current = panesMustAlternate
-    }, [panesMustAlternate, filesOpen, configCollapsed, setConfigCollapsed])
-
-    // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
-    // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
-    // mounting this on a touch surface is inert rather than harmful.
+/**
+ * The session shortcuts the desktop playground binds. They live inside the agent layout, where
+ * the panel toggles are, and map the panel shortcuts to the panel contents.
+ */
+const SessionWorkspaceShortcuts = ({
+    agentId,
+    sessionId,
+    base,
+    projectId,
+}: {
+    agentId: string | null
+    sessionId: string
+    base: string
+    projectId: string
+}) => {
     const router = useRouter()
+    const panel = useAgentPanel()
     const tabScope = sessionTabScope(agentId)
     const openTabIds = useAtomValue(renderedSessionTabsAtomFamily(tabScope))
     const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
@@ -284,7 +187,7 @@ export const SessionWorkspace = ({
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
     // Read from the session row the screen already caches (it carries the reader's sharing
-    // state), or from the Share dialog's read; not fetched here: the first-run draft has no row.
+    // state), or from the Share dialog's read; not fetched here.
     const isNotOwner = useCallback(
         (id: string) => {
             const client = getHostQueryClient()
@@ -297,9 +200,7 @@ export const SessionWorkspace = ({
         },
         [projectId],
     )
-    // Alt+R opens the active TAB's inline editor — the rail listens for this request.
     const requestTabRename = useRequestSessionTabRename()
-    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
     useSessionShortcuts({
         sessions: shortcutSessions,
         activeId: sessionId,
@@ -329,213 +230,10 @@ export const SessionWorkspace = ({
             (id: string) => closeTabs([id], openTabIds),
             [closeTabs, openTabIds],
         ),
-        // No search box in the sessions pane yet — reveal the pane, which is the half of the
-        // desktop's binding that exists here.
-        onSearch: useCallback(
-            () => setChatMaximized(!chatMaximized),
-            [chatMaximized, setChatMaximized],
-        ),
-        onToggleConfigPanel: useCallback(
-            () => setConfigCollapsed(!configCollapsed),
-            [configCollapsed, setConfigCollapsed],
-        ),
-        onToggleFilesPane: toggleFilesPane,
+        // No search box here; the session menu is in the header.
+        onSearch: useCallback(() => undefined, []),
+        onToggleConfigPanel: useCallback(() => void panel.toggle("configuration"), [panel]),
+        onToggleFilesPane: useCallback(() => void panel.toggle("files"), [panel]),
     })
-
-    // The same surface treatment the desktop layout applies: the workspace is a recessed ground,
-    // the config panel is raised above it, the conversation is the recessed canvas. Without these
-    // the shared panels render flat — identical components, missing surface ladder.
-    // Kept mounted and `display:none` after first use: unmounting this schema form put ~100ms
-    // of main thread behind every toggle.
-    const wantsConfig = showConfig && Boolean(configEntityId)
-    const configMountedRef = useRef(false)
-    if (wantsConfig) configMountedRef.current = true
-    if (agentHidden) configMountedRef.current = false
-    // The pane stays on screen for its closing slide, so it keeps the half it was already showing
-    // rather than swapping content mid-motion.
-    const lastPaneKindRef = useRef<"config" | "sessions">("sessions")
-    if (showPane) lastPaneKindRef.current = wantsConfig ? "config" : "sessions"
-    const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
-    const pane = (
-        <>
-            {configMountedRef.current && configEntityId ? (
-                <div
-                    className={
-                        configSlide.keepMounted && paneKind === "config"
-                            ? "h-full min-h-0 w-full"
-                            : "hidden"
-                    }
-                >
-                    <ConfigPane
-                        entityId={configEntityId}
-                        sessionId={sessionId}
-                        filesScope={filesScope}
-                        projectId={projectId}
-                    />
-                </div>
-            ) : null}
-            {configSlide.keepMounted && paneKind === "sessions" ? (
-                <SessionsPane
-                    agentId={agentId}
-                    agentResolving={agentResolving}
-                    base={base}
-                    activeSessionId={sessionId}
-                />
-            ) : null}
-        </>
-    )
-
-    const workspace = (
-        <>
-            {/* Drive surfaces need the AGENT here, not just the session: without it the per-agent
-                mount query stays disabled and `agent-files/…` falls back to the cwd mount, 404s,
-                and the row opens nothing (#6270). Desktop mounts this; /m did not. */}
-            <DriveSessionProvider
-                sessionId={sessionId}
-                artifactId={agentId ?? null}
-                revisionId={configEntityId}
-            >
-                {/* The workspace column: the shared playground top bar, then the panes under it. The
-                    column owns the top safe-area inset (the bar is the topmost chrome). */}
-                <div className="ag-app-ground flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] min-w-0 flex-col pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]">
-                    <SessionTopBar
-                        entityId={entityId}
-                        sessionId={sessionId}
-                        onUpdate={pinRevision}
-                        autoUpdate={autoUpdateRevision}
-                        agentId={agentId}
-                        agentHidden={agentHidden}
-                        canSend={canSend}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                    />
-
-                    {/* One split at every width. On a phone the pane it does not show is CSS-hidden
-                        rather than dropped, which is what keeps both halves mounted exactly once. */}
-                    <div className="min-h-0 min-w-0 flex-1">
-                        <SplitPane
-                            paneSide="start"
-                            paneSize={twoPane && showPane ? paneSize : 0}
-                            paneMin={RIGHT_PANEL_MIN}
-                            paneMax={RIGHT_PANEL_MAX}
-                            // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
-                            // the pane under its own min.
-                            fillMin={420}
-                            // Phone: no divider, no drag, and the visible half takes the full width.
-                            animate={configSlide.animate}
-                            barHidden={!twoPane || !showPane}
-                            resizable={twoPane && showPane}
-                            paneGrow={!twoPane && showPane}
-                            paneClassName={
-                                filesExpanded || (!twoPane && !showPane) ? "hidden" : undefined
-                            }
-                            fillClassName={!twoPane && showPane ? "hidden" : undefined}
-                            // Controlled width: the drag must write through per tick, or the pane only
-                            // snaps at pointer-up.
-                            onResize={(size) => setPaneSize(size)}
-                            onResizeEnd={(size) => setStoredPaneWidth(size)}
-                            className="h-full"
-                            pane={
-                                <div className="h-full min-h-0" inert={!showPane}>
-                                    {pane}
-                                </div>
-                            }
-                            fill={
-                                <SplitPane
-                                    paneSide="end"
-                                    paneSize={
-                                        twoPane && filesOpen && !filesExpanded ? filesPaneSize : 0
-                                    }
-                                    paneMin={FILES_PANE_MIN}
-                                    paneMax={FILES_PANE_MAX}
-                                    // Lower than the desktop's chat floor for the same reason the
-                                    // config split's is.
-                                    fillMin={360}
-                                    animate={filesSlide.animate}
-                                    // The reveal fades the content in with the width; on a phone
-                                    // the width is the screen, so there is nothing to key it on.
-                                    revealContent={twoPane && !filesExpanded}
-                                    // Phone: Files takes the conversation's place, as the config
-                                    // pane does — no divider, no drag, full width.
-                                    barHidden={filesExpanded || !twoPane || !filesOpen}
-                                    resizable={!filesExpanded && twoPane && filesOpen}
-                                    paneGrow={filesExpanded || (!twoPane && showFiles)}
-                                    paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
-                                    fillClassName={
-                                        filesExpanded || (!twoPane && showFiles)
-                                            ? "hidden"
-                                            : undefined
-                                    }
-                                    // Controlled width, so the drag must write through per tick or the
-                                    // pane only moves at pointer-up.
-                                    onResize={(size) => setFilesPaneSize(size)}
-                                    onResizeEnd={(size) => setStoredFilesWidth(size)}
-                                    className="h-full"
-                                    pane={
-                                        filesSlide.keepMounted ? (
-                                            <DriveLinkContext.Provider value={driveLink.copyLink}>
-                                                <SessionFilesPane
-                                                    scope={filesScope}
-                                                    sessionId={sessionId}
-                                                    onSelectionChange={driveLink.onSelectionChange}
-                                                    // The session bar's icon closes the pane — on a
-                                                    // phone that bar is off screen with it, so the
-                                                    // pane's own control does.
-                                                    closeControl={twoPane ? "none" : "back"}
-                                                    expanded={filesExpanded}
-                                                    onToggleExpand={filesLayout.toggleExpand}
-                                                />
-                                            </DriveLinkContext.Provider>
-                                        ) : null
-                                    }
-                                    fill={
-                                        <div
-                                            className="ag-canvas flex h-full min-h-0"
-                                            inert={filesExpanded || (!twoPane && showFiles)}
-                                        >
-                                            {/* Where the collapsed pane went, on a surface with no
-                                                tab rail to carry its reveal — the empty column
-                                                becomes the pane's own edge instead of dead canvas.
-                                                Needs the width for a vertical label, so `md` up. */}
-                                            {hideSessionTabs &&
-                                            twoPane &&
-                                            !chatMaximized &&
-                                            configCollapsed ? (
-                                                <CollapsedConfigRail />
-                                            ) : null}
-                                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                                                {/* The rail belongs to the WORKSPACE, not to one
-                                                    conversation. It used to live inside the
-                                                    conversation's pinned header, so keying that per
-                                                    session remounted the rail too and reset its
-                                                    scroll to 0. Up here it simply stays put. */}
-                                                {hideSessionTabs ? null : (
-                                                    <SessionTabs
-                                                        sessionId={sessionId}
-                                                        projectId={projectId}
-                                                        workspaceId={workspaceId}
-                                                        agentId={agentId}
-                                                        agentResolving={agentResolving}
-                                                    />
-                                                )}
-                                                <div className="min-h-0 flex-1">{chat}</div>
-                                            </div>
-                                        </div>
-                                    }
-                                />
-                            }
-                        />
-                    </div>
-                </div>
-                <SessionWorkspaceDrawers workspaceId={workspaceId} projectId={projectId} />
-            </DriveSessionProvider>
-        </>
-    )
-
-    if (bare) return workspace
-    return (
-        <AppShell workspaceId={workspaceId} projectId={projectId}>
-            {workspace}
-        </AppShell>
-    )
+    return null
 }
