@@ -8,15 +8,21 @@ the engine in the browser. Nothing here writes.
 
 The preview rides the approval payload, so it is bounded: a long text becomes a unified
 diff, a large value is left out with ``truncated``, and past ``MAX_PREVIEW_BYTES`` the
-remaining changes keep only their path. ``applies`` covers the change-set engine only;
+remaining changes keep only their path, and the changes that do not fit even so are left
+out (``truncated`` says so). ``applies`` covers the change-set engine only;
 the save's later checks (embeds, the runtime parse) can still refuse a change that applies.
 """
 
 import difflib
 import json
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence
 
-from oss.src.core.workflows.change_set import ChangeSetError, item_key, resolve_target
+from oss.src.core.workflows.change_set import (
+    KEY_FIELDS,
+    ChangeSetError,
+    item_key,
+    resolve_target,
+)
 
 # A text longer than this (old and new together) is shown as a diff, not as two values.
 TEXT_DIFF_MIN_CHARS = 400
@@ -43,46 +49,137 @@ def _address(operation: Dict[str, Any]) -> List[Segment]:
     return target
 
 
-def _stable_path(
-    base: Dict[str, Any], result: Dict[str, Any], path: List[Segment]
-) -> List[Segment]:
-    """``path``, or the list it goes through when one of its items does not keep its key.
+class _ListGroup:
+    """The operations that change one keyed list, and which items they name by key."""
 
-    An operation can change the key of an item (a `set` of a skill's `name`), or add an
-    item that a later operation renames. Its selector then finds the item on one side
-    only, or on neither, and the item's change would read as a removal or not show at
-    all. The enclosing list is then the changed path: both sides of it exist."""
-    for position, segment in enumerate(path):
-        if not isinstance(segment, dict):
-            continue
-        item = path[: position + 1]
-        in_base = _value_at(base, item) is not _MISSING
-        in_result = _value_at(result, item) is not _MISSING
-        last = position == len(path) - 1
-        # An item the path ends at may be added or removed; one it goes through must
-        # be on both sides.
-        if (last and not (in_base or in_result)) or (
-            not last and not (in_base and in_result)
-        ):
-            return path[:position] + [segment["list"]]
-    return path
+    def __init__(self, path: List[Segment]) -> None:
+        self.path = path  # the list itself: the parent path plus the list name
+        self.indexes: List[int] = []
+        self.by_key: Dict[str, List[int]] = {}
+        self.fields: Dict[str, List[List[Segment]]] = {}
+        # Keys an operation wrote as a whole item (an add, a replace, a remove).
+        self.whole_items: set = set()
+        # An operation wrote the whole list: its items are compared as whole items.
+        self.whole_list = False
 
 
-def _addresses(
-    base: Dict[str, Any],
-    result: Dict[str, Any],
-    operations: Sequence[Dict[str, Any]],
-) -> List[Tuple[List[Segment], List[int]]]:
-    """Each changed path once, in the order the operations first name it, with the indexes
-    of the operations that change it."""
-    found: Dict[str, Tuple[List[Segment], List[int]]] = {}
+class _Plain:
+    """The operations that change one path outside the keyed lists."""
+
+    def __init__(self, path: List[Segment]) -> None:
+        self.path = path
+        self.indexes: List[int] = []
+
+
+def _groups(operations: Sequence[Dict[str, Any]]) -> List[Any]:
+    """Each changed path once, in the order the operations first name it. A path through
+    a keyed list, or a write of a whole keyed list, is grouped under that list: an
+    operation can change an item's key (a rename), so its items are compared by key."""
+    found: Dict[str, Any] = {}
     for index, operation in enumerate(operations):
-        path = _stable_path(base, result, _address(operation))
-        key = json.dumps(path, sort_keys=True)
-        if key not in found:
-            found[key] = (path, [])
-        found[key][1].append(index)
+        path = _address(operation)
+        position = next(
+            (n for n, segment in enumerate(path) if isinstance(segment, dict)), None
+        )
+        if position is None:
+            if path and path[-1] in KEY_FIELDS:
+                group = found.setdefault(
+                    json.dumps(path, sort_keys=True), _ListGroup(path)
+                )
+                group.whole_list = True
+            else:
+                group = found.setdefault(json.dumps(path, sort_keys=True), _Plain(path))
+            group.indexes.append(index)
+            continue
+        selector = path[position]
+        list_path = path[:position] + [selector["list"]]
+        group = found.setdefault(
+            json.dumps(list_path, sort_keys=True), _ListGroup(list_path)
+        )
+        group.indexes.append(index)
+        group.by_key.setdefault(selector["key"], []).append(index)
+        if position < len(path) - 1:
+            group.fields.setdefault(selector["key"], []).append(path[position + 1 :])
+        else:
+            group.whole_items.add(selector["key"])
     return list(found.values())
+
+
+def _keyed(list_name: str, entries: Any) -> Optional[Dict[str, Any]]:
+    """The entries of a list by key, or None when an entry has no key or a key repeats
+    (then only the whole list can be compared)."""
+    if not isinstance(entries, list):
+        return None
+    keyed: Dict[str, Any] = {}
+    for entry in entries:
+        key = item_key(list_name, entry)
+        if key is None or key in keyed:
+            return None
+        keyed[key] = entry
+    return keyed
+
+
+def _list_changes(
+    base: Dict[str, Any], result: Dict[str, Any], group: _ListGroup
+) -> List[Dict[str, Any]]:
+    """The item changes of one keyed list: added, removed and changed items by key. A
+    changed item whose operations named fields inside it shows those fields, when they
+    are all that changed in it."""
+    old_list, new_list = _value_at(base, group.path), _value_at(result, group.path)
+    list_name = group.path[-1]
+    old_items = _keyed(list_name, [] if old_list is _MISSING else old_list)
+    new_items = _keyed(list_name, [] if new_list is _MISSING else new_list)
+    if old_items is None or new_items is None:
+        change = _change(old_list, new_list, group.path, group.indexes)
+        return [change] if change else []
+
+    changes: List[Dict[str, Any]] = []
+    for key in [*old_items, *(k for k in new_items if k not in old_items)]:
+        old, new = old_items.get(key, _MISSING), new_items.get(key, _MISSING)
+        item_path = group.path[:-1] + [{"list": list_name, "key": key}]
+        # An item no operation named (the new key of a rename) belongs to the list's.
+        item_indexes = group.by_key.get(key) or group.indexes
+        fields = _unique(group.fields.get(key, []))
+        if _only_fields_changed(group, key, old, new, fields):
+            changes.extend(
+                change
+                for field in fields
+                if (
+                    change := _change(
+                        _value_at(old, field),
+                        _value_at(new, field),
+                        item_path + field,
+                        item_indexes,
+                    )
+                )
+            )
+            continue
+        change = _change(old, new, item_path, item_indexes)
+        if change:
+            changes.append(change)
+    return changes
+
+
+def _unique(paths: List[List[Segment]]) -> List[List[Segment]]:
+    seen: Dict[str, List[Segment]] = {}
+    for path in paths:
+        seen.setdefault(json.dumps(path, sort_keys=True), path)
+    return list(seen.values())
+
+
+def _only_fields_changed(
+    group: _ListGroup, key: str, old: Any, new: Any, fields: List[List[Segment]]
+) -> bool:
+    """Whether the item's change is shown field by field: every operation on the item
+    named a field inside it, and the item differs only at those top-level fields."""
+    if not fields or group.whole_list or key in group.whole_items:
+        return False
+    if not isinstance(old, dict) or not isinstance(new, dict):
+        return False
+    names = {field[0] for field in fields if isinstance(field[0], str)}
+    return {k: v for k, v in old.items() if k not in names} == {
+        k: v for k, v in new.items() if k not in names
+    }
 
 
 def _value_at(root: Dict[str, Any], path: List[Segment]) -> Any:
@@ -93,7 +190,8 @@ def _value_at(root: Dict[str, Any], path: List[Segment]) -> Any:
 
 
 def _size(value: Any) -> int:
-    return len(json.dumps(value, ensure_ascii=False, default=str))
+    """The UTF-8 size of a value's JSON, in bytes."""
+    return len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8"))
 
 
 def _text_diff(old: str, new: str) -> Dict[str, Any]:
@@ -120,7 +218,10 @@ def _values(old: Any, new: Any) -> Dict[str, Any]:
         and isinstance(new, str)
         and len(old) + len(new) > TEXT_DIFF_MIN_CHARS
     ):
-        return _text_diff(old, new)
+        detail = _text_diff(old, new)
+        # A change of line endings or of the final newline leaves no line in the diff.
+        if detail["diff"]:
+            return detail
     detail: Dict[str, Any] = {}
     for side, value in (("old", old), ("new", new)):
         if value is _MISSING:
@@ -133,12 +234,8 @@ def _values(old: Any, new: Any) -> Dict[str, Any]:
 
 
 def _change(
-    base: Dict[str, Any],
-    result: Dict[str, Any],
-    path: List[Segment],
-    indexes: List[int],
+    old: Any, new: Any, path: List[Segment], indexes: List[int]
 ) -> Optional[Dict[str, Any]]:
-    old, new = _value_at(base, path), _value_at(result, path)
     if old is _MISSING and new is _MISSING:
         # A later operation removed what an earlier one wrote: nothing changes there.
         return None
@@ -158,33 +255,48 @@ def build_change_preview(
     base: Dict[str, Any],
     result: Dict[str, Any],
     operations: Sequence[Dict[str, Any]],
+    base_revision: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """The preview of operations the engine applied: ``base`` is the revision data they
     start from, ``result`` the data the engine returned for all of them. ``operations``
-    must be the normalized operations the engine ran, so each path is the one it wrote."""
-    changes: List[Dict[str, Any]] = []
-    budget = MAX_PREVIEW_BYTES
-    truncated = False
-    for path, indexes in _addresses(base, result, operations):
-        change = _change(base, result, path, indexes)
-        if change is None:
+    must be the normalized operations the engine ran, so each path is the one it wrote.
+    ``base_revision`` (`{id, version}`) names the base revision of an edit."""
+    found: List[Dict[str, Any]] = []
+    for group in _groups(operations):
+        if isinstance(group, _ListGroup):
+            found.extend(_list_changes(base, result, group))
             continue
-        size = _size(change)
-        if size > budget:
-            truncated = True
-            change = {key: change[key] for key in ("path", "operation_indexes", "kind")}
-            size = _size(change)
-        budget -= size
-        changes.append(change)
+        old, new = _value_at(base, group.path), _value_at(result, group.path)
+        change = _change(old, new, group.path, group.indexes)
+        if change:
+            found.append(change)
+
     preview: Dict[str, Any] = {
         "applies": True,
         "operations": [
             {"index": index, "applies": True} for index in range(len(operations))
         ],
-        "changes": changes,
+        "changes": [],
+        "truncated": True,  # counted in the budget; dropped below when nothing is cut
     }
-    if truncated:
-        preview["truncated"] = True
+    if base_revision is not None:
+        preview["base"] = base_revision
+    # Each change costs its size and a separator in the serialized preview.
+    budget = MAX_PREVIEW_BYTES - _size(preview)
+    truncated = False
+    for change in found:
+        size = _size(change) + 2
+        if size > budget:
+            truncated = True
+            change = {key: change[key] for key in ("path", "operation_indexes", "kind")}
+            size = _size(change) + 2
+            if size > budget:
+                # Not even the path fits: the rest of the changes are left out.
+                break
+        budget -= size
+        preview["changes"].append(change)
+    if not truncated:
+        del preview["truncated"]
     return preview
 
 
