@@ -32,7 +32,10 @@ from oss.src.core.workflows.service import (
     WorkflowsService,
     _reject_unrunnable_agent,
 )
-from oss.src.core.workflows.types import InvalidAgentConfigurationError
+from oss.src.core.workflows.types import (
+    InvalidAgentConfigurationError,
+    InvalidAgentHarnessError,
+)
 
 AGENT_URI = "agenta:builtin:agent:v0"
 SKILL = {"name": "invoice-lookup", "description": "Find invoices.", "body": "Look."}
@@ -450,6 +453,19 @@ class TestTheTemplateIsFoundTheWayTheRuntimeFindsIt:
                 "parameters": {"llm": SKILL_EMBED, "prompt": {"llm_config": "gpt-5.5"}},
             }
         )
+
+    def test_the_other_fields_of_such_a_template_are_still_checked(self):
+        with pytest.raises(InvalidAgentHarnessError):
+            _reject_unrunnable_agent(
+                {
+                    "uri": AGENT_URI,
+                    "parameters": {
+                        "llm": SKILL_EMBED,
+                        "harness": {"kind": "not_a_real_harness"},
+                        "prompt": {"llm_config": "gpt-5.5"},
+                    },
+                }
+            )
 
     def test_a_runnable_prompt_fallback_passes(self):
         _reject_unrunnable_agent(
