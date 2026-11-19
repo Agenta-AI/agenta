@@ -1367,10 +1367,11 @@ export async function runTurn(
       log: logger,
     });
     // The server preview on an agent write's approval card, for both gate paths below.
-    const approvalPreview = buildAgentChangePreviewFetcher({
+    const changePreview = buildAgentChangePreviewFetcher({
       callback: toolCallback.runtime,
       runContext: request.runContext,
       toolSpecs: plan.tools.toolSpecs,
+      signal,
       log: logger,
     });
 
@@ -1436,7 +1437,7 @@ export async function runTurn(
       // Runs only after a non-deny verdict, and only for a gate about to pause: a denied call
       // must perform zero workspace reads.
       onResolveApprovedContent: approvedContent.onResolveApprovedContent,
-      onResolveApprovalPreview: approvalPreview,
+      onResolveChangePreview: changePreview,
       shouldRegateStaleApproval: approvedContent.shouldRegateStaleApproval,
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn
@@ -1531,7 +1532,7 @@ export async function runTurn(
             },
             permissionPlan,
             executionGrants,
-            resolveApprovalPreview: approvalPreview,
+            resolveChangePreview: changePreview,
             log: logger,
           })
         : undefined;

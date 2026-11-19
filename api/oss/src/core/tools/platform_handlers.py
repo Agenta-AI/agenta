@@ -1569,11 +1569,11 @@ async def handle_list_agents(
                     workflow, project_id=project_id, workspace_id=workspace_id
                 ),
                 "description": workflow.description,
-                "version": head.version,
+                "revision": _revision_summary(head),
                 "updated_at": head.created_at.isoformat() if head.created_at else None,
             }
             if workflow.deleted_at is not None:
-                agent["archived"] = True
+                agent["is_archived"] = True
             agents.append(agent)
             if len(agents) == limit:
                 # Stopped inside the batch: what is left of it is the next page.
@@ -1762,7 +1762,7 @@ async def handle_edit_agent_config(
         },
         # Not `committed_revision`: that signal tells the CALLER's playground it committed
         # itself, and this is another agent.
-        wrote_other_agent_revision=outcome.status == "committed",
+        committed_other_agent_revision=outcome.status == "committed",
     )
 
 
@@ -1948,12 +1948,14 @@ async def handle_create_agent(
             ),
             "visibility": result.visibility.value,
             "revision": _revision_summary(result.revision),
-            # The base the first edit of this agent sends.
-            "base_revision_id": str(created.revision_id),
+            # The base the next edit of this agent sends.
+            "base_revision_id": str(
+                result.head.id if result.head else created.revision_id
+            ),
             "message": result.message,
             "warnings": [w.model_dump(mode="json") for w in warnings],
         },
-        wrote_other_agent_revision=True,
+        committed_other_agent_revision=True,
     )
 
 
@@ -1971,12 +1973,13 @@ async def handle_preview_agent_change(
 ) -> PlatformHandlerResult:
     """What a waiting `edit_agent_config` or `create_agent` call would change, saving nothing.
 
-    Arguments: `tool` (the call ref of the waiting call) and `arguments` (its arguments, with
-    the runner's bindings). The engine runs the operations the way the save would, on the
+    Arguments: `call_ref` (of the waiting call) and `arguments` (its arguments, with the
+    runner's bindings). The engine runs the operations the way the save would, on the
     base the call names (an edit) or on the new agent template (a create), and the answer is
     the preview of `change_preview.py`. An edit reads the target agent, so it needs the right
     to read it, like `read_agent_config`. A change set the engine refuses is a preview with
-    `applies: false`; any other refusal (no such agent, a base that is not the head) is the
+    `applies: false` (`applies` covers the change-set engine only: the save's later checks,
+    such as the embed and runtime checks, can still refuse it); any other refusal (no such agent, a base that is not the head) is the
     canonical envelope, and the card then shows the proposed values alone.
     """
     from oss.src.core.workflows.change_preview import (
@@ -1987,7 +1990,10 @@ async def handle_preview_agent_change(
     from oss.src.core.workflows.commit_support import normalize_operations
     from oss.src.core.workflows.dtos import WorkflowRevisionCommit
     from oss.src.core.workflows.new_agent import new_agent_revision_data
-    from oss.src.core.workflows.service import RevisionConflictError
+    from oss.src.core.workflows.service import (
+        RevisionConflictError,
+        SimpleWorkflowsService,
+    )
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("preview_agent_change is unavailable.")
@@ -1995,26 +2001,23 @@ async def handle_preview_agent_change(
 
     try:
         parsed = _parse_arguments(arguments)
-        tool = parsed.get("tool")
+        call_ref = parsed.get("call_ref")
         call = _parse_arguments(parsed.get("arguments"))
-        if tool not in (EDIT_AGENT_CONFIG_CALL_REF, CREATE_AGENT_CALL_REF):
+        if call_ref not in (EDIT_AGENT_CONFIG_CALL_REF, CREATE_AGENT_CALL_REF):
             raise _ArgumentsRefused(
-                "`tool` must name edit_agent_config or create_agent.",
-                next_step="Send the call ref of the waiting call as `tool`.",
+                f"`call_ref` must be {EDIT_AGENT_CONFIG_CALL_REF} or "
+                f"{CREATE_AGENT_CALL_REF}.",
+                next_step="Send the call ref of the waiting call as `call_ref`.",
             )
-        operations = _operations(call, required=tool == EDIT_AGENT_CONFIG_CALL_REF)
+        operations = _operations(call, required=call_ref == EDIT_AGENT_CONFIG_CALL_REF)
         operations = normalize_operations(operations or [])[0]
-        commit = WorkflowRevisionCommit(delta={"operations": operations})
         base_revision = None
         try:
-            if tool == CREATE_AGENT_CALL_REF:
+            if call_ref == CREATE_AGENT_CALL_REF:
                 base = new_agent_revision_data()
-                result, _, _ = workflows_service._apply_delta(
-                    base=base,
-                    workflow_revision_commit=commit,
-                    scope_policy=AGENT_COMMIT_SCOPE,
-                    agent_context=True,
-                )
+                result, _, _ = SimpleWorkflowsService(
+                    workflows_service=workflows_service
+                ).compose_new_agent(operations)
             else:
                 workflow, head = await _resolve_other_agent(
                     workflows_service=workflows_service,
@@ -2032,11 +2035,10 @@ async def handle_preview_agent_change(
                     raise _not_found(call["agent"].strip())
                 resolution = await workflows_service._resolve_revision_delta(
                     project_id=project_id,
-                    workflow_revision_commit=commit.model_copy(
-                        update={
-                            "workflow_variant_id": head.workflow_variant_id,
-                            "base_revision_id": call.get("base_revision_id"),
-                        }
+                    workflow_revision_commit=WorkflowRevisionCommit(
+                        workflow_variant_id=head.workflow_variant_id,
+                        base_revision_id=call.get("base_revision_id"),
+                        delta={"operations": operations},
                     ),
                     scope_policy=AGENT_COMMIT_SCOPE,
                     agent_context=True,

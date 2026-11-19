@@ -169,6 +169,12 @@ export interface AttachPermissionResponderInput {
       }
   >;
   /**
+   * The server preview of an agent write (`edit_agent_config`, `create_agent`): old and new
+   * value per changed path. It rides the approval event as `preview`. Unlike the approved
+   * content above it never fails the gate: no preview, and the card shows the proposed values.
+   */
+  onResolveChangePreview?: AgentChangePreviewFetcher;
+  /**
    * Whether a REPLAYED approval must not answer this gate, so the gate asks again.
    *
    * A cold resume destroys the environment, and with it the frozen bytes the human approved. The
@@ -183,12 +189,6 @@ export interface AttachPermissionResponderInput {
    * must still resolve inline, while an allow under an `ask` permission can only have come from a
    * stored answer.
    */
-  /**
-   * The server preview of an agent write (`edit_agent_config`, `create_agent`): old and new
-   * value per changed path. It rides the approval event as `preview`. Unlike the approved
-   * content above it never fails the gate: no preview, and the card shows the proposed values.
-   */
-  onResolveApprovalPreview?: AgentChangePreviewFetcher;
   shouldRegateStaleApproval?: (input: {
     gate: GateDescriptor;
     toolCallId: string | undefined;
@@ -233,7 +233,7 @@ export function attachPermissionResponder({
   onPiGateAllowed,
   onExecutableGateAllowed,
   onResolveApprovedContent,
-  onResolveApprovalPreview,
+  onResolveChangePreview,
   shouldRegateStaleApproval,
   piToolSpecsByName,
   toolSpecsByName,
@@ -371,7 +371,7 @@ export function attachPermissionResponder({
     toolCallId: string | undefined,
   ): Promise<void> => {
     const preview = () =>
-      onResolveApprovalPreview?.({
+      onResolveChangePreview?.({
         toolName: gate.toolName,
         toolCallId,
         args: gate.args,

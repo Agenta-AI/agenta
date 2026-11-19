@@ -8,7 +8,8 @@ the engine in the browser. Nothing here writes.
 
 The preview rides the approval payload, so it is bounded: a long text becomes a unified
 diff, a large value is left out with ``truncated``, and past ``MAX_PREVIEW_BYTES`` the
-remaining changes keep only their path.
+remaining changes keep only their path. ``applies`` covers the change-set engine only;
+the save's later checks (embeds, the runtime parse) can still refuse a change that applies.
 """
 
 import difflib
@@ -42,14 +43,41 @@ def _address(operation: Dict[str, Any]) -> List[Segment]:
     return target
 
 
+def _stable_path(
+    base: Dict[str, Any], result: Dict[str, Any], path: List[Segment]
+) -> List[Segment]:
+    """``path``, or the list it goes through when one of its items does not keep its key.
+
+    An operation can change the key of an item (a `set` of a skill's `name`), or add an
+    item that a later operation renames. Its selector then finds the item on one side
+    only, or on neither, and the item's change would read as a removal or not show at
+    all. The enclosing list is then the changed path: both sides of it exist."""
+    for position, segment in enumerate(path):
+        if not isinstance(segment, dict):
+            continue
+        item = path[: position + 1]
+        in_base = _value_at(base, item) is not _MISSING
+        in_result = _value_at(result, item) is not _MISSING
+        last = position == len(path) - 1
+        # An item the path ends at may be added or removed; one it goes through must
+        # be on both sides.
+        if (last and not (in_base or in_result)) or (
+            not last and not (in_base and in_result)
+        ):
+            return path[:position] + [segment["list"]]
+    return path
+
+
 def _addresses(
+    base: Dict[str, Any],
+    result: Dict[str, Any],
     operations: Sequence[Dict[str, Any]],
 ) -> List[Tuple[List[Segment], List[int]]]:
     """Each changed path once, in the order the operations first name it, with the indexes
     of the operations that change it."""
     found: Dict[str, Tuple[List[Segment], List[int]]] = {}
     for index, operation in enumerate(operations):
-        path = _address(operation)
+        path = _stable_path(base, result, _address(operation))
         key = json.dumps(path, sort_keys=True)
         if key not in found:
             found[key] = (path, [])
@@ -117,7 +145,12 @@ def _change(
     if old is not _MISSING and new is not _MISSING and old == new:
         return None
     kind = "added" if old is _MISSING else "removed" if new is _MISSING else "changed"
-    return {"path": path, "operations": indexes, "change": kind, **_values(old, new)}
+    return {
+        "path": path,
+        "operation_indexes": indexes,
+        "kind": kind,
+        **_values(old, new),
+    }
 
 
 def build_change_preview(
@@ -132,14 +165,14 @@ def build_change_preview(
     changes: List[Dict[str, Any]] = []
     budget = MAX_PREVIEW_BYTES
     truncated = False
-    for path, indexes in _addresses(operations):
+    for path, indexes in _addresses(base, result, operations):
         change = _change(base, result, path, indexes)
         if change is None:
             continue
         size = _size(change)
         if size > budget:
             truncated = True
-            change = {key: change[key] for key in ("path", "operations", "change")}
+            change = {key: change[key] for key in ("path", "operation_indexes", "kind")}
             size = _size(change)
         budget -= size
         changes.append(change)
