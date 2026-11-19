@@ -133,6 +133,7 @@ describe("leave guard", () => {
                 <Probe />
             </LeaveGuardProvider>,
         )
+        expect(first.ask).toHaveBeenCalledWith("close")
         resolve(true)
         await expect(leaving).resolves.toBe(true)
         expect(second.ask).not.toHaveBeenCalled()
