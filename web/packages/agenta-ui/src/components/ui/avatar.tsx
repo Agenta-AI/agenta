@@ -10,7 +10,7 @@ import {cn} from "./utils"
  * `forwardRef`, `data-slot` on every part). Re-skins antd `Avatar` with NO visual change.
  *
  * antd → @agenta/ui: `src`→`AvatarImage`, `children`/`icon`→`AvatarFallback`, `size`
- * (small/default/large + number)→`size`, `shape` (circle/square)→`shape`. The three Radix
+ * (small/default/large + number)→`size`. Square only: no circle shape. The three Radix
  * parts (`Avatar`, `AvatarImage`, `AvatarFallback`) compose freely; `AvatarBox` is the
  * antd-shaped convenience wrapper (and the shape `InitialsAvatar` folds into).
  *
@@ -18,7 +18,7 @@ import {cn} from "./utils"
  *  - box: small 24 / default 28 / large 34  → `size-avatar-sm/-/-lg`, plus antd's
  *    `border: 1px solid transparent` (avatar/style/index.js L61) — it insets the image by
  *    1px and shrinks the content box the initials centre in.
- *  - radius: circle 50% (`rounded-control-round`); square SCALES with size —
+ *  - radius: SCALES with size —
  *    small 6 / default 8 / large 10 (`rounded-control-sm/-/-lg`), numeric→8.
  *  - fill: antd default avatar bg = `colorTextPlaceholder` (#bdc7d1 light /
  *    rgba(255,255,255,.38) dark — matches both). text = `colorTextLightSolid` (white both).
@@ -31,7 +31,6 @@ import {cn} from "./utils"
  */
 
 export type AvatarSize = "small" | "default" | "large"
-export type AvatarShape = "circle" | "square"
 
 const avatarVariants = cva(
     // `border-solid` is load-bearing (preflight OFF): without it the width computes to 0 and
@@ -41,22 +40,14 @@ const avatarVariants = cva(
         variants: {
             // Dims + default string font per size (AvatarBox overrides font inline for
             // icon/numeric precision). Arbitrary px: no control-scale font key fits.
+            // Square only; the radius scales with size (numeric sizes get the default 8px).
             size: {
-                small: "size-avatar-sm text-[12px]",
-                default: "size-avatar text-[18px]",
-                large: "size-avatar-lg text-[20px]",
-            },
-            shape: {
-                circle: "rounded-control-round",
-                // Default square radius (8px) — also the numeric-size fallback.
-                square: "rounded-control",
+                small: "size-avatar-sm text-[12px] rounded-control-sm",
+                default: "size-avatar text-[18px] rounded-control",
+                large: "size-avatar-lg text-[20px] rounded-control-lg",
             },
         },
-        compoundVariants: [
-            {shape: "square", size: "small", className: "rounded-control-sm"},
-            {shape: "square", size: "large", className: "rounded-control-lg"},
-        ],
-        defaultVariants: {size: "default", shape: "circle"},
+        defaultVariants: {size: "default"},
     },
 )
 
@@ -66,11 +57,11 @@ export interface AvatarProps
         React.ComponentProps<typeof AvatarPrimitive.Root>,
         VariantProps<typeof avatarVariants> {}
 
-function Avatar({className, size, shape, ...props}: AvatarProps) {
+function Avatar({className, size, ...props}: AvatarProps) {
     return (
         <AvatarPrimitive.Root
             data-slot="avatar"
-            className={cn(avatarVariants({size, shape}), className)}
+            className={cn(avatarVariants({size}), className)}
             {...props}
         />
     )
@@ -167,14 +158,13 @@ const STRING_FONT: Record<AvatarSize, number> = {small: 12, default: 18, large: 
 const ICON_FONT: Record<AvatarSize, number> = {small: 12, default: 16, large: 20}
 
 /**
- * antd-shaped convenience Avatar: one tag with `src`/`alt`/`icon`/children + `size`/`shape`.
+ * antd-shaped convenience Avatar: one tag with `src`/`alt`/`icon`/children + `size`.
  * Mirrors antd's single-element API so call-sites (and `InitialsAvatar`) map 1:1.
  */
 function AvatarBox({
     src,
     alt,
     size = "default",
-    shape = "circle",
     icon,
     children,
     className,
@@ -213,7 +203,6 @@ function AvatarBox({
     return (
         <Avatar
             size={isNumeric ? undefined : (size as AvatarSize)}
-            shape={shape}
             // antd clears the root fill for image avatars (the image covers it); the fill
             // moves to the fallback so it still shows if the image fails to load.
             className={cn(src && "bg-transparent", className)}

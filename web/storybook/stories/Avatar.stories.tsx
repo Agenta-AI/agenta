@@ -14,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A user or entity avatar (`AvatarBox`) with image, initials or icon fallback, in circle or square shape.\n\n**Used in:** `Avatar`/`AvatarImage`/`AvatarFallback` have zero call-sites. Only `AvatarBox` ships, and only through `InitialsAvatar` — sidebar org/project pickers, workspace member rows, annotation assignment cells and the shared user author label (7 places).",
+                    "A user or entity avatar (`AvatarBox`) with image, initials or icon fallback. Square only.\n\n**Used in:** `Avatar`/`AvatarImage`/`AvatarFallback` have zero call-sites. Only `AvatarBox` ships, and only through `InitialsAvatar` — sidebar org/project pickers, workspace member rows, annotation assignment cells and the shared user author label (7 places).",
             },
         },
     },
@@ -40,51 +40,36 @@ const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
 export const Variants: Story = {
     render: () => (
         <div className="flex max-w-[560px] flex-col">
-            {/* initials fallback × size × shape */}
-            <Row label="initials — small, circle">
+            {/* initials fallback × size */}
+            <Row label="initials — small">
                 <AvatarBox size="small">AE</AvatarBox>
             </Row>
-            <Row label="initials — default, circle">
+            <Row label="initials — default">
                 <AvatarBox>AE</AvatarBox>
             </Row>
-            <Row label="initials — large, circle">
+            <Row label="initials — large">
                 <AvatarBox size="large">AE</AvatarBox>
             </Row>
-            <Row label="initials — small, square">
-                <AvatarBox size="small" shape="square">
-                    AE
-                </AvatarBox>
-            </Row>
-            <Row label="initials — default, square">
-                <AvatarBox shape="square">AE</AvatarBox>
-            </Row>
-            <Row label="initials — large, square">
-                <AvatarBox size="large" shape="square">
-                    AE
-                </AvatarBox>
-            </Row>
             {/* icon fallback */}
-            <Row label="icon — small, circle">
+            <Row label="icon — small">
                 <AvatarBox size="small" icon={<User size={16} />} alt="user" />
             </Row>
-            <Row label="icon — default, circle">
+            <Row label="icon — default">
                 <AvatarBox icon={<Robot size={18} />} alt="robot" />
             </Row>
-            <Row label="icon — large, square">
-                <AvatarBox size="large" shape="square" icon={<User size={20} />} alt="user" />
+            <Row label="icon — large">
+                <AvatarBox size="large" icon={<User size={20} />} alt="user" />
             </Row>
             {/* image */}
-            <Row label="image — default, circle">
+            <Row label="image — default">
                 <AvatarBox src={IMG} alt="avatar" />
             </Row>
-            <Row label="image — large, square">
-                <AvatarBox size="large" shape="square" src={IMG} alt="avatar" />
+            <Row label="image — large">
+                <AvatarBox size="large" src={IMG} alt="avatar" />
             </Row>
             {/* numeric size (InitialsAvatar/AssignmentsCell pass raw px) */}
-            <Row label="initials — numeric 18, square">
-                <AvatarBox size={18} shape="square">
-                    AE
-                </AvatarBox>
+            <Row label="initials — numeric 18">
+                <AvatarBox size={18}>AE</AvatarBox>
             </Row>
         </div>
     ),
