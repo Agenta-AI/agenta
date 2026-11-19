@@ -4,17 +4,14 @@
 .gitignore
 
 # Dependencies
-node_modules
+**/node_modules
 .pnpm-store
-oss/node_modules
-ee/node_modules
 tests/node_modules
 packages/*/node_modules
 
 # Build outputs
+**/.next
 .turbo
-oss/.next
-ee/.next
 *.tsbuildinfo
 dist/
 build/

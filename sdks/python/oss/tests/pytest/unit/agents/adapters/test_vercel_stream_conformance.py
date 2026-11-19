@@ -1,7 +1,7 @@
 """Pins every Vercel stream part against a vendored mirror of the `ai` package's
 ``uiMessageChunkSchema`` shape, so the adapter's ``_conform`` gate is provably sufficient.
 
-The pinned version MUST match ``web/oss/package.json``'s ``"ai"`` pin
+The pinned version MUST match ``web/mobile/package.json``'s ``"ai"`` pin
 (currently ``6.0.0-beta.150``) -- grep for `_AI_PACKAGE_VERSION` on a version bump and
 re-check the vendored shape against the new schema.
 """
@@ -18,7 +18,7 @@ from agenta.sdk.agents.adapters.vercel.stream import (
 )
 from agenta.sdk.agents.streaming import AgentStream
 
-# Keep in lockstep with web/oss/package.json's "ai" pin.
+# Keep in lockstep with web/mobile/package.json's "ai" pin.
 _AI_PACKAGE_VERSION = "6.0.0-beta.150"
 
 # A hand-kept mirror of `ai@6`'s uiMessageChunkSchema: for each chunk `type`, the set of
@@ -421,7 +421,7 @@ async def test_a_non_slug_runner_code_falls_back_to_the_generic_code() -> None:
 
 def test_vendored_version_matches_package_pin() -> None:
     # CI-grep-able tripwire: bump this const (and re-audit the shape above) whenever
-    # web/oss/package.json's "ai" pin changes.
+    # web/mobile/package.json's "ai" pin changes.
     assert _AI_PACKAGE_VERSION == "6.0.0-beta.150"
 
 

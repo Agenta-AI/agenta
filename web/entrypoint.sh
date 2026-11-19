@@ -101,7 +101,8 @@ case ",${AGENTA_ENABLED_SANDBOX_PROVIDERS}," in
 esac
 export AGENTA_ENABLED_SANDBOX_PROVIDERS
 
-mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
+# The app is built with basePath /m, so this file is served at /m/__env.js.
+mkdir -p "${ENTRYPOINT_DIR}/mobile/public"
 
 # Derive frontend auth feature flags
 # First, check if OIDC providers are configured
@@ -208,7 +209,7 @@ if [ "${AGENTA_LICENSE}" = "ee" ] && [ -n "${CLOUDFLARE_TURNSTILE_SITE_KEY}" ] &
   EFFECTIVE_TURNSTILE_SITE_KEY="${CLOUDFLARE_TURNSTILE_SITE_KEY}"
 fi
 
-cat > "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" <<EOF
+cat > "${ENTRYPOINT_DIR}/mobile/public/__env.js" <<EOF
 window.__env = {
   NEXT_PUBLIC_AGENTA_LICENSE: "${AGENTA_LICENSE:-oss}",
   NEXT_PUBLIC_AGENTA_WEB_URL: "${AGENTA_WEB_URL:-http://localhost}",
@@ -250,15 +251,6 @@ window.__env = {
 };
 EOF
 
-cat "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" >&2
-
-# Mirror the runtime config into the mobile app's public dir (served at
-# /m/__env.js — the mobile app is built with basePath /m). The mobile app is
-# edition-agnostic: one file, same content for oss and ee. Guarded so images
-# without the mobile app (current gh images) are unaffected.
-if [ -d "${ENTRYPOINT_DIR}/mobile" ]; then
-  mkdir -p "${ENTRYPOINT_DIR}/mobile/public"
-  cp "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" "${ENTRYPOINT_DIR}/mobile/public/__env.js"
-fi
+cat "${ENTRYPOINT_DIR}/mobile/public/__env.js" >&2
 
 exec "$@"

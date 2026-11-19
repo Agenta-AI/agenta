@@ -74,7 +74,6 @@ jobs:
   web-unit-tests:
     # Runs the package vitest suites in parallel shards. Each shard still runs its packages one
     # at a time: running them together on one runner starved the CPU and caused timeouts.
-    # The old /w app (web/oss, web/ee) is not tested here.
     needs: detect-web-changes
     if: needs.detect-web-changes.outputs.web == 'true'
     name: run-web-unit-tests (${{ matrix.shard }})

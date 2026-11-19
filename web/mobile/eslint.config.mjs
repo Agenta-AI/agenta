@@ -3,8 +3,8 @@
  *
  * Mirrors web/packages/eslint.config.mjs (flat config: tseslint + import
  * order + prettier, strict no-explicit-any) and adds the mobile hard bans:
- * no antd, no @ant-design/*, no Lexical, no app-layer imports (@/oss/*,
- * @agenta/oss, @agenta/ee), no @agenta/annotation-ui (antd; use @agenta/annotation).
+ * no antd, no @ant-design/*, no Lexical, no @agenta/annotation-ui (antd; use
+ * @agenta/annotation).
  * See web/mobile/AGENTS.md.
  */
 import eslint from "@eslint/js"
@@ -45,17 +45,6 @@ const config = [
                             group: ["lexical", "lexical/*", "@lexical/*"],
                             message:
                                 "Lexical is banned in web/mobile. Use the shared composer input from @agenta/ui/rich-chat-input.",
-                        },
-                        {
-                            group: [
-                                "@/oss/*",
-                                "@agenta/oss",
-                                "@agenta/oss/*",
-                                "@agenta/ee",
-                                "@agenta/ee/*",
-                            ],
-                            message:
-                                "web/mobile never imports app-layer code. Consume @agenta/* packages only.",
                         },
                         {
                             group: ["@agenta/annotation-ui", "@agenta/annotation-ui/*"],

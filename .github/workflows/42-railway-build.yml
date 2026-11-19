@@ -134,7 +134,6 @@ jobs:
       matrix:
         image_name:
           - agenta-api
-          - agenta-web
           - agenta-web-mobile
           - agenta-services
           - agenta-runner
@@ -150,12 +149,7 @@ jobs:
           - image_name: agenta-api
             context: .
             dockerfile: api/oss/docker/Dockerfile.gh
-          - image_name: agenta-web
-            context: web
-            dockerfile: web/oss/docker/Dockerfile.gh
-          # The mobile app is a second Next app in the same `web` workspace, so
-          # it builds from the same context as agenta-web; only the Dockerfile
-          # differs. Built with basePath "/m" and served at /m by the gateway.
+          # The web app, built from the `web` workspace with basePath "/m".
           - image_name: agenta-web-mobile
             context: web
             dockerfile: web/mobile/docker/Dockerfile.gh
@@ -345,7 +339,6 @@ jobs:
       matrix:
         image_name:
           - agenta-api
-          - agenta-web
           - agenta-web-mobile
           - agenta-services
           - agenta-runner

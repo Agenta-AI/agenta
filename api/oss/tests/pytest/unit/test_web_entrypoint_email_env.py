@@ -26,7 +26,7 @@ def _run_entrypoint(tmp_path, repo_root, env):
         capture_output=True,
         text=True,
     )
-    env_js = tmp_path / "oss" / "public" / "__env.js"
+    env_js = tmp_path / "mobile" / "public" / "__env.js"
     assert env_js.exists(), result.stderr
     return env_js.read_text()
 

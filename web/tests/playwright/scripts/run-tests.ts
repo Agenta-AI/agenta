@@ -22,7 +22,7 @@ const WEB_ROOT = resolve(TESTS_ROOT, "..")
 // On Node 22.15+/24, Playwright prefers `module.registerHooks`, whose synchronous `load()`
 // hardcodes format="commonjs" for anything reached via require() — ignoring the "type":
 // "module" package.json of this tests/ package — which breaks requiring its ESM fixtures
-// from the CJS oss/ee spec files. Forcing the older async loader restores per-file
+// from CJS spec files. Forcing the older async loader restores per-file
 // package.json detection.
 process.env.PLAYWRIGHT_FORCE_ASYNC_LOADER ??= "1"
 
@@ -248,7 +248,7 @@ if (envFile) {
 
 // A layer runs every test source for that layer, regardless of runner:
 //   1. package vitest suites (any package with a `test:<layer>` script), then
-//   2. playwright specs in the license's `<license>/tests/playwright/<layer>`.
+//   2. playwright specs in `web/tests/specs/<layer>`.
 // Both phases share license/env/marker handling. We run both even if the first
 // fails, then exit nonzero if either failed, so all failures surface in one run.
 // Without --layer (raw playwright passthrough), only the playwright phase runs.
@@ -263,8 +263,8 @@ if (layer) {
         failed = true
     }
 
-    // Phase 2 — playwright specs for this layer/license.
-    const layerDir = join(TESTS_ROOT, "..", getLicense(), "tests", "playwright", layer)
+    // Phase 2 — playwright specs in web/tests/specs/<layer>.
+    const layerDir = join(TESTS_ROOT, "specs", layer)
     if (!hasSpecFiles(layerDir)) {
         console.log(
             `No ${layer} playwright specs for AGENTA_LICENSE=${getLicense()}; skipping playwright.`,

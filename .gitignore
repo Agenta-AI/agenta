@@ -43,10 +43,6 @@ examples/**/docker.tar.gz
 examples/**/Dockerfile
 
 # web/
-web/src/ee/**
-web/src/pages/apps/index.tsx
-web/src/pages/auth/[[...path]].tsx
-web/src/pages/auth/[[...path]].tsx
 .nextjs_cache/
 
 # sdks/
@@ -54,13 +50,9 @@ sdks/python/tests/test_sdk_locally/config.toml
 sdks/python/agenta/client/fern
 sdks/python/agenta/templates/main.py
 sdks/python/agenta/templates/agenta.py
-web/ee/public/__env.js
-web/oss/public/__env.js
 
 web/tests/results
 web/tests/reports
-web/oss/tests/results
-web/ee/tests/results
 api/oss/tests/results/
 api/ee/tests/results/
 sdks/python/oss/tests/results/

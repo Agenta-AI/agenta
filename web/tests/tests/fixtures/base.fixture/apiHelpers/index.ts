@@ -2,8 +2,7 @@ import {existsSync, readFileSync} from "fs"
 
 import {expect, Page, Response} from "@playwright/test"
 
-import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
-import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
+import type {EvaluationRun, SnakeToCamelCaseKeys, testset} from "./sharedTypes"
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {pollLocatorState} from "../../../../utils"
 import {UseFn} from "../../types"
