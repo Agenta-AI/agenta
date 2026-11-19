@@ -5459,6 +5459,25 @@ class SimpleWorkflowsService:
 
         return simple_workflow
 
+    def compose_new_agent(
+        self, operations: Optional[List[Any]]
+    ) -> tuple[dict, Optional[str], List[CommitWarning]]:
+        """The first data of a new agent: the "New agent" template with ``operations``
+        applied the way an agent's own commit applies them. Returns the data, the derived
+        message clauses and the engine's warnings. Writes nothing: `create_agent` saves
+        it, and the approval preview of `create_agent` shows it."""
+        data = new_agent_revision_data()
+        if not operations:
+            return data, None, []
+        return self.workflows_service._apply_delta(
+            base=data,
+            workflow_revision_commit=WorkflowRevisionCommit(
+                delta={"operations": operations}
+            ),
+            scope_policy=AGENT_COMMIT_SCOPE,
+            agent_context=True,
+        )
+
     async def create_agent(
         self,
         *,
@@ -5495,17 +5514,8 @@ class SimpleWorkflowsService:
         template data. A retry across a deploy that changed the "New agent" template
         therefore finishes the same agent with the new template. This edge case is accepted.
         """
-        data = new_agent_revision_data()
-        warnings: List[CommitWarning] = []
-        if operations:
-            data, derived, warnings = self.workflows_service._apply_delta(
-                base=data,
-                workflow_revision_commit=WorkflowRevisionCommit(
-                    delta={"operations": operations}
-                ),
-                scope_policy=AGENT_COMMIT_SCOPE,
-                agent_context=True,
-            )
+        data, derived, warnings = self.compose_new_agent(operations)
+        if derived:
             message = f"{message}; {derived}"
 
         # The embed checks every commit runs, here before the first write: refused only at
@@ -5557,9 +5567,19 @@ class SimpleWorkflowsService:
         # policy row is ownerless and project-visible.
         access = outcome.workflow.access
         applied = access.visibility if access is not None else Visibility.PROJECT
+        # A replay can come after edits of the agent: the next edit starts from its head.
+        head = (
+            await self.workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=Reference(id=outcome.workflow.variant_id),
+            )
+            if outcome.replayed
+            else None
+        ) or outcome.revision
         return CreatedAgent(
             workflow=outcome.workflow,
             revision=outcome.revision,
+            head=head,
             message=message,
             warnings=warnings,
             visibility=applied,

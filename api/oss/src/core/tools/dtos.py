@@ -521,7 +521,7 @@ class PlatformHandlerResult(BaseModel):
     # Set when this call stored a revision of ANOTHER agent, which the caller's own session
     # does not need to hear about. The boundary clears the caches every write clears, and
     # emits nothing.
-    wrote_other_agent_revision: bool = False
+    committed_other_agent_revision: bool = False
 
     @classmethod
     def failure(cls, error: AgentError) -> "PlatformHandlerResult":

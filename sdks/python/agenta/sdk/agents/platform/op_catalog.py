@@ -1837,7 +1837,7 @@ CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 # the model's. Self-edits keep their own tools (`read_config`, `commit_revision`).
 _LIST_AGENTS_DESCRIPTION = """List the agents in this project.
 
-Each agent has `name`, `id`, `slug`, `description`, `version` and `updated_at`, and a `url`
+Each agent has `name`, `id`, `slug`, `description`, `revision` and `updated_at`, and a `url`
 when Agenta can build a link to it. Pass an agent's `slug` or `id` to `read_agent_config` or
 `edit_agent_config`. To the person, name an agent by its `name`, never its slug or id. When
 it has a `url`, link it: [Invoice helper](url).

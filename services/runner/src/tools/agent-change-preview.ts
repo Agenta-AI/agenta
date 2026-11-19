@@ -24,8 +24,11 @@ const PREVIEWED_CALL_REFS = new Set([
   "tools.agenta.create_agent",
 ]);
 
-/** The card waits for this answer, so it is short; the API's own read budget is longer. */
-const PREVIEW_TIMEOUT_MS = 10_000;
+/**
+ * The card waits for this answer. `callAgentaTool` adds its callback grace on top, so the card
+ * opens at most about 15 s after the gate in the worst case, and a Stop of the turn ends the wait.
+ */
+const PREVIEW_TIMEOUT_MS = 5_000;
 
 export type AgentChangePreviewFetcher = (input: {
   toolName: string | undefined;
@@ -62,7 +65,7 @@ export function buildAgentChangePreviewFetcher(input: {
         input.callback?.credential(),
         PREVIEW_CALL_REF,
         `preview-${toolCallId ?? spec.name}`,
-        { tool: spec.callRef, arguments: callArgs },
+        { call_ref: spec.callRef, arguments: callArgs },
         { signal: input.signal, timeoutMs: PREVIEW_TIMEOUT_MS },
       );
       const preview: unknown = JSON.parse(raw);

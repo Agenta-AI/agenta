@@ -14,6 +14,11 @@ import assert from "node:assert/strict";
 import type { AgentEvent, ResolvedToolSpec } from "../../src/protocol.ts";
 import { buildAgentChangePreviewFetcher } from "../../src/tools/agent-change-preview.ts";
 import { attachPermissionResponder } from "../../src/engines/sandbox_agent/acp-interactions.ts";
+import { buildExecutableToolGate } from "../../src/engines/sandbox_agent/executable-tools.ts";
+import {
+  ApprovalResponder,
+  ConversationDecisions,
+} from "../../src/responder.ts";
 import { toolSpecsByName } from "../../src/tools/public-spec.ts";
 import type { Responder } from "../../src/responder.ts";
 import { fixedToolCallback } from "../utils/tool-callback.ts";
@@ -108,7 +113,7 @@ describe("the agent change preview fetcher", () => {
     );
     const { description: _, ...withoutNote } = EDIT_ARGS;
     assert.deepEqual(sent[0].data.function.arguments, {
-      tool: "tools.agenta.edit_agent_config",
+      call_ref: "tools.agenta.edit_agent_config",
       arguments: {
         ...withoutNote,
         caller_agent_id: "agent-builder",
@@ -166,7 +171,10 @@ describe("the approval event of an agent write", () => {
     },
   } as Responder;
 
-  function gate(onResolveApprovalPreview: any): Promise<AgentEvent[]> {
+  function gate(
+    onResolveChangePreview: any,
+    onResolveApprovedContent?: any,
+  ): Promise<AgentEvent[]> {
     const events: AgentEvent[] = [];
     let handler: ((req: any) => void) | undefined;
     attachPermissionResponder({
@@ -179,7 +187,8 @@ describe("the approval event of an agent write", () => {
       run: { emitEvent: (event: AgentEvent) => events.push(event) },
       responder: askResponder,
       toolSpecsByName: toolSpecsByName([EDIT_SPEC]),
-      onResolveApprovalPreview,
+      onResolveChangePreview,
+      onResolveApprovedContent,
     } as never);
     handler?.({
       id: "permission-1",
@@ -214,5 +223,47 @@ describe("the approval event of an agent write", () => {
     assert.equal(events.length, 1);
     const event = events[0] as { payload: Record<string, unknown> };
     assert.equal("preview" in event.payload, false);
+  });
+
+  it("carries the preview beside the manifest of approved content", async () => {
+    const manifest = { version: 1, files: [] };
+    const events = await gate(
+      async () => PREVIEW,
+      async () => ({ ok: true, manifest }),
+    );
+
+    const event = events[0] as { payload: Record<string, unknown> };
+    assert.deepEqual(event.payload.manifest, manifest);
+    assert.deepEqual(event.payload.preview, PREVIEW);
+  });
+
+  it("carries the preview on the executable tool gate too", async () => {
+    const events: AgentEvent[] = [];
+    const gate = buildExecutableToolGate({
+      responder: new ApprovalResponder(
+        { default: "ask", rules: [] },
+        new ConversationDecisions(new Map()),
+      ),
+      run: {
+        emitEvent: (event: AgentEvent) => events.push(event),
+        wasForceSettled: () => false,
+      },
+      pause: { markPausedToolCall: () => {}, pause: () => {} },
+      recordPendingInteraction: () => {},
+      resolveChangePreview: async () => PREVIEW,
+    });
+
+    const outcome = await gate.onExecutableTool({
+      id: "permission-1",
+      toolCallId: "call-1",
+      toolName: "edit_agent_config",
+      input: EDIT_ARGS,
+      spec: EDIT_SPEC,
+    });
+
+    assert.deepEqual(outcome, { kind: "pendingApproval" });
+    const event = events[0] as { type: string; payload: { preview?: unknown } };
+    assert.equal(event.type, "interaction_request");
+    assert.deepEqual(event.payload.preview, PREVIEW);
   });
 });
