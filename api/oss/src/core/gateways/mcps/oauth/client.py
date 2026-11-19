@@ -106,7 +106,7 @@ def account_name_from_id_token(id_token: Optional[str]) -> Optional[str]:
         claims = json.loads(
             base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
         )
-    except (binascii.Error, ValueError):
+    except (binascii.Error, ValueError, RecursionError):
         return None
     return account_name_from_claims(claims)
 

@@ -390,3 +390,5 @@ def test_a_malformed_id_token_gives_no_name():
     assert account_name_from_id_token("not-a-jwt") is None
     assert account_name_from_id_token("a.%%%.c") is None
     assert account_name_from_id_token("a.bm90LWpzb24.c") is None
+    deep = base64.urlsafe_b64encode(b"[" * 100_000).decode().rstrip("=")
+    assert account_name_from_id_token(f"a.{deep}.c") is None
