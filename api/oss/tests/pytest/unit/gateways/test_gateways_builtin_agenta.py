@@ -130,7 +130,10 @@ def test_agenta_serves_the_gemini_models_from_vertex(vertex):
     assert endpoint.data.models.allowlist == [
         "google/gemini-3.8-flash",
         "google/gemini-3.7-flash",
+        "google/gemini-4-hydrogen",
         "google/gemini-4-argon",
+        "google/gemini-4-carbon",
+        "google/gemini-4-neon",
     ]
 
 

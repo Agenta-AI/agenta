@@ -1002,7 +1002,7 @@
     },
     {
       "question": "Which models are included?",
-      "answer": "Agenta's included models are Gemini 3.7 Flash, Gemini 3.8 Flash, and Gemini 4 Argon. They use credits, so you need no API key to start."
+      "answer": "Agenta's included models are Gemini 3.7 Flash, Gemini 3.8 Flash, Gemini 4 Hydrogen, Gemini 4 Argon, Gemini 4 Carbon, and Gemini 4 Neon. They use credits, so you need no API key to start."
     },
     {
       "question": "Which model providers can I use?",

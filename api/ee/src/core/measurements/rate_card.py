@@ -83,10 +83,29 @@ _GEMINI_FLASH_RATES = TokenRates(
     output_musd_per_million=4_500_000,  # 3_750_000 x 1.2
 )
 
-# Gemini 4 Argon, "through November 30, 2026": $2 input, $0.10 cached input, $10 output
-# (response and reasoning) per million tokens. Google gives this price as 50% credits back
-# on net spend. UPDATE ON 2026-12-01: Google lists $4 / $0.20 / $20 from then.
-_GEMINI_ARGON_RATES = TokenRates(
+# Gemini 4 Hydrogen, read 2026-11-19: $1.50 input, $0.075 cached input, $7.50 output
+# (response and reasoning) per million tokens. No promotion.
+_GEMINI_HYDROGEN_RATES = TokenRates(
+    input_musd_per_million=1_800_000,  # 1_500_000 x 1.2
+    cache_read_musd_per_million=90_000,  # 75_000 x 1.2
+    cache_write_musd_per_million=1_800_000,  # priced as input
+    output_musd_per_million=9_000_000,  # 7_500_000 x 1.2
+)
+
+# Gemini 4 Neon, read 2026-11-19: $3 input, $0.15 cached input, $15 output (response and
+# reasoning) per million tokens. No promotion.
+_GEMINI_NEON_RATES = TokenRates(
+    input_musd_per_million=3_600_000,  # 3_000_000 x 1.2
+    cache_read_musd_per_million=180_000,  # 150_000 x 1.2
+    cache_write_musd_per_million=3_600_000,  # priced as input
+    output_musd_per_million=18_000_000,  # 15_000_000 x 1.2
+)
+
+# Gemini 4 Argon and Gemini 4 Carbon (Carbon read 2026-11-19), one price for both, "through
+# November 30, 2026": $2 input, $0.10 cached input, $10 output (response and reasoning) per
+# million tokens. Google gives this price as 50% credits back on net spend. UPDATE ON
+# 2026-12-01: Google lists $4 / $0.20 / $20 from then.
+_GEMINI_ARGON_CARBON_RATES = TokenRates(
     input_musd_per_million=2_400_000,  # 2_000_000 x 1.2
     cache_read_musd_per_million=120_000,  # 100_000 x 1.2
     cache_write_musd_per_million=2_400_000,  # priced as input
@@ -98,7 +117,10 @@ _GEMINI_ARGON_RATES = TokenRates(
 TOKEN_RATES: Dict[Tuple[str, str], TokenRates] = {
     ("agenta", "google/gemini-3.7-flash"): _GEMINI_FLASH_RATES,
     ("agenta", "google/gemini-3.8-flash"): _GEMINI_FLASH_RATES,
-    ("agenta", "google/gemini-4-argon"): _GEMINI_ARGON_RATES,
+    ("agenta", "google/gemini-4-hydrogen"): _GEMINI_HYDROGEN_RATES,
+    ("agenta", "google/gemini-4-argon"): _GEMINI_ARGON_CARBON_RATES,
+    ("agenta", "google/gemini-4-carbon"): _GEMINI_ARGON_CARBON_RATES,
+    ("agenta", "google/gemini-4-neon"): _GEMINI_NEON_RATES,
     **{
         ("mock", model): _MOCK_RATES
         for model in ("mock/echo", "gpt-5.5", "claude-sonnet-5")

@@ -121,6 +121,24 @@
       "name": "Gemini 4 Argon"
     },
     {
+      "id": "openrouter/google/gemini-4-carbon",
+      "provider": "openrouter",
+      "source": "curated",
+      "name": "Gemini 4 Carbon"
+    },
+    {
+      "id": "openrouter/google/gemini-4-hydrogen",
+      "provider": "openrouter",
+      "source": "curated",
+      "name": "Gemini 4 Hydrogen"
+    },
+    {
+      "id": "openrouter/google/gemini-4-neon",
+      "provider": "openrouter",
+      "source": "curated",
+      "name": "Gemini 4 Neon"
+    },
+    {
       "id": "openrouter/moonshotai/kimi-k3.1-pro",
       "provider": "openrouter",
       "source": "curated",
