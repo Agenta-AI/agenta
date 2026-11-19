@@ -31,7 +31,12 @@ import {
     type AgentSidebarSession,
 } from "./agentSidebarItems"
 import {AgentSidebarSwitcher} from "./AgentSidebarSwitcher"
-import {openAgentSidebar, openMainSidebar, useSelectedSidebar} from "./selectedSidebar"
+import {
+    currentSidebar,
+    openAgentSidebar,
+    openMainSidebar,
+    useSelectedSidebar,
+} from "./selectedSidebar"
 import {switchTarget} from "./switchAgent"
 
 /** How many latest sessions the agent sidebar lists; "Show N older sessions" opens the rest. */
@@ -83,9 +88,6 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     return {sessions, total: query.data?.total ?? null}
 }
 
-/** The newest switcher pick; an older pick whose lookup lands late does not navigate. */
-let latestPick = 0
-
 /**
  * The switcher, connected: the agents the person can see, and a pick that keeps the same kind
  * of page (see `switchTarget`) and shows the picked agent's sidebar.
@@ -107,9 +109,11 @@ const ConnectedSwitcher = ({
     const agents = useAtomValue(agentWorkflowsListQueryStateAtom).data
     const onPick = useCallback(
         async (pickedAgentId: string) => {
-            const pick = ++latestPick
             const fromPath = router.asPath
-            openAgentSidebar(pickedAgentId, selected.kind === "agent" ? selected.from : "main")
+            const choice = openAgentSidebar(
+                pickedAgentId,
+                selected.kind === "agent" ? selected.from : "main",
+            )
             let href: string | null
             try {
                 href = await switchTarget({
@@ -129,8 +133,9 @@ const ConnectedSwitcher = ({
                 // The lookup failed: the agent sidebar shows, and the page stays.
                 return
             }
-            // A later pick, or a move to another page, replaced this one.
-            if (pick !== latestPick || Router.asPath !== fromPath) return
+            // Any later sidebar choice (a pick, Fold, Back, an open button) or a move to another
+            // page replaced this one.
+            if (currentSidebar() !== choice || Router.asPath !== fromPath) return
             if (href) void router.push(href)
             else startBlankSession(projectURL, pickedAgentId)
         },

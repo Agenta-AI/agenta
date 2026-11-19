@@ -73,9 +73,18 @@ export const selectedSidebarAtom = atomWithStorage<SelectedSidebar>(
 export const setSelectedSidebar = (sidebar: SelectedSidebar) =>
     getDefaultStore().set(selectedSidebarAtom, sidebar)
 
-/** Show the agent sidebar of `agentId`. "Back" returns to `from`. */
-export const openAgentSidebar = (agentId: string, from: AgentSidebarOrigin = "main") =>
-    setSelectedSidebar({kind: "agent", agentId, from})
+/** The choice now, outside React: a pending action checks it is still the one it made. */
+export const currentSidebar = (): SelectedSidebar => getDefaultStore().get(selectedSidebarAtom)
+
+/** Show the agent sidebar of `agentId`. "Back" returns to `from`. Returns the new choice. */
+export const openAgentSidebar = (
+    agentId: string,
+    from: AgentSidebarOrigin = "main",
+): SelectedSidebar => {
+    const sidebar: SelectedSidebar = {kind: "agent", agentId, from}
+    setSelectedSidebar(sidebar)
+    return sidebar
+}
 
 export const openMainSidebar = () => setSelectedSidebar(MAIN_SIDEBAR)
 

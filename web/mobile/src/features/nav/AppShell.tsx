@@ -30,7 +30,7 @@ export const AppShell = ({
 }) => {
     useTrackLastNonSettingsPath()
     useTrackLastMainRailPath()
-    // Once per page, not per rail mount: the drawer and the docked rail share the choice.
+    // Here, not per rail mount: the drawer and the docked rail share one choice.
     useAgentSidebarSync(projectId)
     useCanonicalProjectRoute()
 

@@ -10,9 +10,12 @@ import {useSessionHeader} from "../chat/useSessionHeader"
 import {routeAgentId, routeSessionId, sidebarAfterRoute} from "./agentSidebarRoute"
 import {openMainSidebar, setSelectedSidebar, useSelectedSidebar} from "./selectedSidebar"
 
+/** The last path the sync saw in this tab; null until the first page (a load or a reload). */
+let lastSeenPath: string | null = null
+
 /**
  * Keeps the selected sidebar in step with the page while an agent sidebar shows. The app shell
- * runs it once per page.
+ * of each screen runs it.
  *
  * - A page change to a page that does not belong to an agent (Home, Settings, the Agents list)
  *   shows the main sidebar; a page change to a page of another agent switches the agent sidebar
@@ -40,12 +43,16 @@ export const useAgentSidebarSync = (projectId: string) => {
     pageAgentRef.current = pageAgentId
 
     // A page change, with the page's agent if it is already known. If it is not, the effect
-    // below applies it when it arrives.
-    const lastPath = useRef(router.asPath)
+    // below applies it when it arrives. Each screen mounts its own app shell, so the last path
+    // lives outside the component: a new screen's first run still sees the page change.
     const awaitingAgent = useRef(false)
     useEffect(() => {
-        if (lastPath.current === router.asPath) return
-        lastPath.current = router.asPath
+        if (lastSeenPath === null) {
+            lastSeenPath = router.asPath
+            return
+        }
+        if (lastSeenPath === router.asPath) return
+        lastSeenPath = router.asPath
         awaitingAgent.current = pageAgentRef.current === null
         const next = sidebarAfterRoute(selectedRef.current, router.pathname, pageAgentRef.current)
         if (next) setSelectedSidebar(next)
