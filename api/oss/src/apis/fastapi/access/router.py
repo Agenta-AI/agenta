@@ -239,11 +239,20 @@ class AccessRouter:
             return run_agent_id_of_request(request)
         if workflow_id is None or self.workflows_service is None:
             return None
-        return await self.workflows_service.resolve_run_agent_id(
+        run_agent_id = await self.workflows_service.resolve_run_agent_id(
             project_id=envelope.authority.project_id,
             envelope=envelope,
             references={"workflow": {"id": str(workflow_id)}},
         )
+        if run_agent_id is not None:
+            # A first mint starts a run: its static agent's drive exists before the
+            # runner signs the run's drives.
+            await self.workflows_service.ensure_static_agent_drive(
+                project_id=envelope.authority.project_id,
+                envelope=envelope,
+                artifact_id=run_agent_id,
+            )
+        return run_agent_id
 
     @intercept_exceptions()
     async def fetch_roles(self) -> AccessRolesResponse:

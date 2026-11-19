@@ -1,8 +1,9 @@
 """A static catalog agent's own drive is created at its first run in a project.
 
-The agent has no row and is never committed, so the commit never creates its drive. The
-run credential mint (`resolve_run_agent_id`) creates the first `drives` entry whose slug
-is `<agent slug>__<name>`: shared, no owner, named after the catalog revision.
+The agent has no row and is never committed, so the commit never creates its drive. Both
+run credential mints resolve the run's agent (`resolve_run_agent_id`) and then call
+`ensure_static_agent_drive`, which creates the first `drives` entry whose slug is
+`<agent slug>__<name>`: shared, no owner, named after the catalog revision.
 """
 
 from types import SimpleNamespace
@@ -87,14 +88,19 @@ def _service(agent: dict):
 
 
 async def _mint(service, world, artifact_id):
-    return await service.resolve_run_agent_id(
+    """What a run credential mint does: resolve the run's agent, then ensure its drive."""
+    envelope = SimpleNamespace(authority=SimpleNamespace(principal=None), context=None)
+    run_agent_id = await service.resolve_run_agent_id(
         project_id=world.project_id,
-        envelope=SimpleNamespace(
-            authority=SimpleNamespace(principal=None), context=None
-        ),
+        envelope=envelope,
         references=None,
         admitted_agent_id=artifact_id,
     )
+    if run_agent_id is not None:
+        await service.ensure_static_agent_drive(
+            project_id=world.project_id, envelope=envelope, artifact_id=run_agent_id
+        )
+    return run_agent_id
 
 
 async def test_the_first_run_creates_the_listed_drive(world, access):
