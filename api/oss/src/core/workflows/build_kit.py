@@ -90,10 +90,14 @@ def _workflow_embed(
     return embed
 
 
-def reserved_static_tool_embeds() -> list[dict[str, Any]]:
+def reserved_static_tool_embeds(
+    slugs: tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
+    """The reserved client tool embeds, all of them or only the given slugs, in kit order."""
     return [
         _workflow_embed(slug, name=name, selector_path="parameters.tool")
         for slug, name in _STATIC_TOOL_EMBEDS
+        if slugs is None or slug in slugs
     ]
 
 

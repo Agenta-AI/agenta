@@ -10,8 +10,11 @@ from typing import Any
 from agenta.sdk.agents.adapters.agenta_builtins import AGENT_CONFIG_FIELDS_REFERENCE
 from agenta.sdk.agents.skills.models import SkillFile, SkillTemplate
 
+from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
+
 from oss.src.core.workflows.build_kit import (
     AGENTA_BUILTIN_AGENT_URI,
+    REQUEST_INPUT_WORKFLOW_SLUG,
     reserved_static_tool_embeds,
 )
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
@@ -793,9 +796,12 @@ def _builder_agent_parameters() -> dict[str, Any]:
                     {"type": "platform", "op": op, "permission": permission}
                     for op, permission in BUILDER_AGENT_TOOLS.items()
                 ),
-                # The client tools that ask the person for input, a connection or a secret,
-                # embedded the way the build kit embeds them.
-                *reserved_static_tool_embeds(),
+                # The client tools that ask the person for input or a connection, embedded
+                # the way the build kit embeds them. No `request_secret`: its card attaches
+                # the secret to the agent of the chat, which here is the builder itself.
+                *reserved_static_tool_embeds(
+                    (REQUEST_CONNECTION_WORKFLOW_SLUG, REQUEST_INPUT_WORKFLOW_SLUG)
+                ),
             ],
             "mcps": [],
             "skills": [

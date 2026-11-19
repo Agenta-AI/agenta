@@ -1,8 +1,8 @@
 """The builder agent's static catalogue entry (`__ag__builder`).
 
 Pins that the entry resolves in any project without a database read, that its tool approvals
-are the platform defaults, that it holds the client tools that ask the person for input, a
-connection or a secret, that it lists exactly its own learning drive and no home drive, that
+are the platform defaults, that it holds the client tools that ask the person for input or a
+connection, that it lists exactly its own learning drive and no home drive, that
 the runtime parses it, and that its text carries no secret or host.
 """
 
@@ -16,10 +16,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import AGENT_CONFIG_FIELDS_REFER
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
-from agenta.sdk.agents.platform.workflow import (
-    REQUEST_CONNECTION_WORKFLOW_SLUG,
-    REQUEST_SECRET_WORKFLOW_SLUG,
-)
+from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
 from agenta.sdk.agents.tools import ToolResolver
 from agenta.sdk.agents.tools.models import ClientToolConfig
 
@@ -38,7 +35,7 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
 
-_CLIENT_TOOLS = ["request_connection", "request_input", "request_secret"]
+_CLIENT_TOOLS = ["request_connection", "request_input"]
 
 
 def _agent() -> dict:
@@ -159,13 +156,12 @@ def test_instructions_ask_who_a_new_agent_is_for():
     assert "visibility: project" in instructions
 
 
-def test_entry_embeds_the_three_client_tools():
+def test_entry_embeds_the_two_client_tools():
     embeds = [tool["@ag.embed"] for tool in _agent()["tools"] if "@ag.embed" in tool]
 
     assert [embed["@ag.references"]["workflow"]["slug"] for embed in embeds] == [
         REQUEST_CONNECTION_WORKFLOW_SLUG,
         REQUEST_INPUT_WORKFLOW_SLUG,
-        REQUEST_SECRET_WORKFLOW_SLUG,
     ]
     for embed in embeds:
         assert embed["@ag.selector"] == {"path": "parameters.tool"}
@@ -307,7 +303,7 @@ async def test_the_builder_cannot_read_or_edit_itself(handler, by):
 async def test_the_four_agent_tools_resolve_for_a_run(mode):
     """The agent tools are not Agenta tools, so the builder holds them as platform
     entries; a run's resolver must still give it all four, with their approvals, and the
-    three client tools beside them."""
+    two client tools beside them."""
     template = await _resolved_template()
     resolver = ToolResolver(
         platform_resolver=AgentaPlatformToolResolver(
