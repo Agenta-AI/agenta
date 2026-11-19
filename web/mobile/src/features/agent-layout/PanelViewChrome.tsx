@@ -14,7 +14,16 @@ import {useAgentPanel} from "./agentPanelContext"
  * panel" for a wide view, Close, and the view's action row at the bottom. On a phone the
  * breadcrumb gives way to a back arrow.
  */
-export const PanelViewChrome = ({crumbs, apply, wide, form, onBack, onCancel, onSave, children}: ViewChromeProps) => {
+export const PanelViewChrome = ({
+    crumbs,
+    apply,
+    wide,
+    form,
+    onBack,
+    onCancel,
+    onSave,
+    children,
+}: ViewChromeProps) => {
     const t = useT(agentLayoutPanelCatalog)
     const panel = useAgentPanel()
     const {setWide} = panel

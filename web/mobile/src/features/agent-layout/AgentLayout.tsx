@@ -8,12 +8,13 @@ import {
     type ReactNode,
 } from "react"
 
-import {FILES_PANE_MAX, FILES_PANE_MIN, filesPaneWidthAtom, useFilesPaneLayout} from "@agenta/chat/state"
 import {
-    DriveLinkContext,
-    SessionFilesPane,
-    useSessionFilesPane,
-} from "@agenta/entity-ui/drive"
+    FILES_PANE_MAX,
+    FILES_PANE_MIN,
+    filesPaneWidthAtom,
+    useFilesPaneLayout,
+} from "@agenta/chat/state"
+import {DriveLinkContext, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {userAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
@@ -48,7 +49,13 @@ const ConfigurationContent = dynamic(
  * hidden and there is nothing to show.
  */
 export const builderPanelContentAtom = atom<
-    ((props: {agentId: string; sessionId: string; workspaceId: string; projectId: string}) => ReactNode) | null
+    | ((props: {
+          agentId: string
+          sessionId: string
+          workspaceId: string
+          projectId: string
+      }) => ReactNode)
+    | null
 >(null)
 
 interface AgentLayoutProps {
@@ -197,7 +204,10 @@ const AgentLayoutBody = ({
     const filesExpanded = isFiles && filesLayout.expanded
 
     const panelBody = (
-        <div data-testid="agent-panel" className="ag-panel-raised flex h-full min-h-0 w-full flex-col">
+        <div
+            data-testid="agent-panel"
+            className="ag-panel-raised flex h-full min-h-0 w-full flex-col"
+        >
             {mounted.has("files") || isFiles ? (
                 <div className={isFiles ? "h-full min-h-0" : "hidden"}>
                     <DriveLinkContext.Provider value={driveLink.copyLink}>
@@ -238,13 +248,15 @@ const AgentLayoutBody = ({
     const open = content !== null
     // One tree at every width, so neither a resize nor a mode change remounts the conversation:
     // push = side by side; overlay = the panel lies over the conversation; full = it covers it.
-    const mode = phone || filesExpanded ? "full" : !wideWindow || (wide && !isFiles) ? "overlay" : "push"
+    const mode =
+        phone || filesExpanded ? "full" : !wideWindow || (wide && !isFiles) ? "overlay" : "push"
     const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
         const startX = event.clientX
         const startWidth = panelWidth
         const [min, max] = isFiles ? [FILES_PANE_MIN, FILES_PANE_MAX] : [PANEL_MIN, PANEL_MAX]
         const widthAt = (x: number) => Math.min(max, Math.max(min, startWidth + startX - x))
-        const move = (e: PointerEvent) => (isFiles ? setFilesWidth : setLiveWidth)(widthAt(e.clientX))
+        const move = (e: PointerEvent) =>
+            (isFiles ? setFilesWidth : setLiveWidth)(widthAt(e.clientX))
         const up = (e: PointerEvent) => {
             window.removeEventListener("pointermove", move)
             window.removeEventListener("pointerup", up)

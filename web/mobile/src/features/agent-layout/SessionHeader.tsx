@@ -21,24 +21,30 @@ import {
     PopoverTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {CaretDown, FolderSimple, Hammer, LockSimpleIcon, SlidersHorizontal} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    FolderSimple,
+    Hammer,
+    LockSimpleIcon,
+    SlidersHorizontal,
+} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {sharingCopy} from "@/lib/sharingCopy"
 
-import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
-import {NavDrawer} from "../nav/NavDrawer"
-import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 import {heldCommitAtomFamily} from "../chat/selectedRevision"
 import {SessionSharingControl} from "../chat/SessionSharingControl"
 import {useSessionHeader} from "../chat/useSessionHeader"
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useProjectPermission} from "../context/useProjectPermission"
+import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
+import {NavDrawer} from "../nav/NavDrawer"
+import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
-import {useAgentPanel} from "./agentPanelContext"
 import {builderPanelContentAtom} from "./AgentLayout"
+import {useAgentPanel} from "./agentPanelContext"
 import type {PanelContent} from "./agentPanelState"
 
 interface SessionHeaderProps {
@@ -293,7 +299,10 @@ const SessionMenu = ({
                         {t("agentLayout.header.newSession")}
                     </Button>
                     <Button variant="ghost" className="justify-start" asChild>
-                        <Link href={`${base}/agents/${agentId}?view=sessions`} onClick={() => setOpen(false)}>
+                        <Link
+                            href={`${base}/agents/${agentId}?view=sessions`}
+                            onClick={() => setOpen(false)}
+                        >
                             {t("agentLayout.header.sessions")}
                         </Link>
                     </Button>

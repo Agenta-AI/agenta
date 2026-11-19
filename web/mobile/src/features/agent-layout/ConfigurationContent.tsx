@@ -1,4 +1,4 @@
-import {useCallback, useEffect, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
@@ -147,7 +147,11 @@ const ConfigurationRoot = ({
                 ) : panel.configTab === "automations" ? (
                     <AutomationsTab revisionId={revisionId} projectId={projectId} />
                 ) : panel.configTab === "channels" ? (
-                    <ChannelsTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
+                    <ChannelsTab
+                        agentId={agentId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                    />
                 ) : (
                     <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
                 )}
@@ -182,7 +186,7 @@ const AutomationsTab = ({revisionId, projectId}: {revisionId: string; projectId:
 
 const useAgentRow = (agentId: string) => {
     const agents = useAtomValue(agentWorkflowsListQueryStateAtom)
-    const list = agents.data ?? []
+    const list = useMemo(() => agents.data ?? [], [agents.data])
     const row = list.find((candidate) => candidate.id === agentId)
     const resolveAgentName = useCallback(
         (id: string) => {

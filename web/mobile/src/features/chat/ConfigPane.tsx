@@ -2,17 +2,10 @@ import {useCallback} from "react"
 
 import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {ModelSetupBanner} from "@agenta/chat/components"
-import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
-import {useT} from "@agenta/i18n"
-import chatMobileConfigCatalog from "@agenta/i18n/catalogs/chat.mobileConfig"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
-import {shortcutAria} from "@agenta/shared/utils"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -46,8 +39,6 @@ export const ConfigPane = ({
     /** False leaves out automations and files: the panel shows them in their own places. */
     operations?: boolean
 }) => {
-    const t = useT(chatMobileConfigCatalog)
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const openModelSetup = useOpenModelSetup()
     // A commit made here pins the new revision to this session.
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
