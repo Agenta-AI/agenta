@@ -90,7 +90,7 @@ def _workflow_embed(
     return embed
 
 
-def _reserved_static_tool_embeds() -> list[dict[str, Any]]:
+def reserved_static_tool_embeds() -> list[dict[str, Any]]:
     return [
         _workflow_embed(slug, name=name, selector_path="parameters.tool")
         for slug, name in _STATIC_TOOL_EMBEDS
@@ -116,7 +116,7 @@ def build_agent_template_overlay() -> dict[str, Any]:
                 }
                 for op_name in DEFAULT_BUILD_KIT_OPS
             ],
-            *_reserved_static_tool_embeds(),
+            *reserved_static_tool_embeds(),
         ],
         "skills": [
             _workflow_embed(
