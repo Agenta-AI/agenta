@@ -11,6 +11,7 @@
 import {act} from "react"
 
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {screen} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider, useAtomValue} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -140,7 +141,7 @@ describe("a builder save reaches the open session of the agent", () => {
                 </Provider>,
             ),
         )
-    const pill = () => host.textContent?.includes("Update to v5") ?? false
+    const pill = () => screen.queryByRole("button", {name: "Update to v5"}) !== null
 
     beforeEach(() => {
         server.latest = {id: "revision-4", version: "4"}
