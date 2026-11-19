@@ -508,7 +508,11 @@ export function SkillPickerHost({
         >
             <div
                 key={view === "list" ? "list" : flow.step}
-                className="flex min-h-0 flex-1 animate-skill-enter flex-col"
+                // The editor waits out the drawer's widening, so it never reflows on screen.
+                className={cn(
+                    "flex min-h-0 flex-1 animate-skill-enter flex-col",
+                    writing && "[animation-delay:200ms]",
+                )}
             >
                 {body}
             </div>

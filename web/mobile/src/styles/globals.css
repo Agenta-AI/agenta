@@ -585,8 +585,9 @@
     .animate-skill-pop {
         animation: none;
     }
+    /* Holds the tint, then drops it at the end, with no fade. */
     .animate-skill-fresh {
-        animation-duration: 0s;
+        animation-timing-function: steps(1, end);
     }
 }
 
