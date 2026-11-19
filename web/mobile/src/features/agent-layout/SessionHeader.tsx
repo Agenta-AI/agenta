@@ -11,6 +11,7 @@ import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-h
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -34,6 +35,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import {PageTitle} from "@/components/PageTitle"
 import {sharingCopy} from "@/lib/sharingCopy"
 
 import {heldCommitAtomFamily} from "../chat/selectedRevision"
@@ -48,7 +50,6 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {useAgentPanel} from "./agentPanelContext"
 import type {PanelContent} from "./agentPanelState"
-import {builderPanelSlotAtom} from "./panelSlots"
 
 interface SessionHeaderProps {
     agentId: string | null
@@ -89,8 +90,10 @@ export const SessionHeader = ({
     const name = artifactName || tScreen("chat.mobileScreen.agent")
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const session = useSessionHeader(projectId, sessionId)
-    const builder = useAtomValue(builderPanelSlotAtom)
     const showAgentActions = Boolean(agentId) && !agentHidden
+    // No header button for the shortcuts sheet; `?` still opens it.
+    const [shortcutsOpen, setShortcutsOpen] = useState(false)
+    useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
 
     const icon = (content: PanelContent, label: string, glyph: React.ReactNode) => (
         <SimpleTooltip title={label}>
@@ -116,6 +119,8 @@ export const SessionHeader = ({
             data-testid="session-header"
             className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3"
         >
+            <PageTitle title={session.data?.name} />
+            <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
             {agentHidden ? (
                 <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
@@ -163,14 +168,14 @@ export const SessionHeader = ({
                 agentId={agentId}
             />
             {icon("files", t("agentLayout.header.files"), <FolderSimple size={16} />)}
-            {showAgentActions && entityId
+            {showAgentActions && panel.available.configuration
                 ? icon(
                       "configuration",
                       t("agentLayout.header.configuration"),
                       <SlidersHorizontal size={16} />,
                   )
                 : null}
-            {showAgentActions && builder
+            {showAgentActions && panel.available.builder
                 ? icon("builder", t("agentLayout.header.builder"), <Hammer size={16} />)
                 : null}
         </header>

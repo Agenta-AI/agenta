@@ -191,6 +191,37 @@ describe("the session screen on the agent layout", () => {
         expect(files.toggle).toHaveBeenCalledTimes(1)
     })
 
+    it("restores Files again when the scope moves from the session to the resolved agent", async () => {
+        files.toggle.mockClear()
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 440, configTab: "agent"}),
+        )
+        const store = createStore()
+        const mount = (agentId?: string) =>
+            act(async () =>
+                root.render(
+                    <Provider store={store}>
+                        <SessionWorkspace
+                            entityId="rev-1"
+                            agentId={agentId}
+                            sessionId="session-1"
+                            workspaceId="ws-1"
+                            projectId="proj-1"
+                            chat={<div data-testid="chat-column" />}
+                        />
+                    </Provider>,
+                ),
+            )
+        await mount(undefined)
+        await mount("agent-1")
+        // Once for the session scope, once for the agent scope; never read as a close.
+        expect(files.toggle).toHaveBeenCalledTimes(2)
+        expect(
+            JSON.parse(localStorage.getItem(panelStateKey("anonymous", "proj-1"))!).content,
+        ).toBe("files")
+    })
+
     it("hands the screen back to the composer on a phone when a prompt is prefilled", async () => {
         openConfiguration()
         media.width = 390

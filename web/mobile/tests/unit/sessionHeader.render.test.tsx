@@ -29,7 +29,6 @@ vi.mock("@/features/context/useProjectPermission", () => ({
 }))
 
 import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
-import {builderPanelSlotAtom} from "@/features/agent-layout/panelSlots"
 import {SessionHeader} from "@/features/agent-layout/SessionHeader"
 
 afterEach(() => {
@@ -46,17 +45,19 @@ const panel = (over: Partial<AgentPanelApi> = {}): AgentPanelApi => ({
     wide: false,
     setWide: vi.fn(),
     phone: false,
+    available: {files: true, configuration: true, builder: false},
     ...over,
 })
 
 const renderHeader = (
-    api: AgentPanelApi,
+    apiIn: AgentPanelApi,
     {hidden = false, builder = false, inspector = false} = {},
 ) => {
+    let api = apiIn
     const store = createStore()
     store.set(activeUserIdAtom, "qa-user")
     store.set(playgroundInspectorEnabledAtom, inspector)
-    if (builder) store.set(builderPanelSlotAtom, () => () => null)
+    if (builder) api = {...api, available: {...api.available, builder: true}}
     return render(
         <Provider store={store}>
             <AgentPanelContext.Provider value={api}>

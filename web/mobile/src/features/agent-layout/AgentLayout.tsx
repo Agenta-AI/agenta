@@ -119,6 +119,10 @@ const AgentLayoutBody = ({
 
     const builder = useAtomValue(builderPanelSlotAtom)
     const canConfigure = Boolean(revisionId && agentId)
+    const available = useMemo<Record<PanelContent, boolean>>(
+        () => ({files: true, configuration: canConfigure, builder: Boolean(builder && agentId)}),
+        [canConfigure, builder, agentId],
+    )
     // A content the screen cannot show (no configuration, no builder) stays closed.
     const stored = state.content
     const content: PanelContent | null = files.open
@@ -130,6 +134,8 @@ const AgentLayoutBody = ({
             : null
 
     // The Files pane's own close (and a deep link) moves the panel with it.
+    // These two effects run in this order (restore, then follow): the restore resets
+    // `filesWasOpen`, so the follow never reads a scope change as a close.
     const filesWasOpen = useRef(files.open)
     // A stored Files content opens Files again after a reload, through its own open state. Files
     // is scoped by agent, and the scope changes once the agent resolves: each new scope restores
@@ -163,15 +169,14 @@ const AgentLayoutBody = ({
     const toggle = useCallback(
         async (clicked: PanelContent) => {
             // A content this screen cannot show (a hidden agent, no builder yet) is not offered.
-            if (clicked === "configuration" && !canConfigure) return false
-            if (clicked === "builder" && !(builder && agentId)) return false
+            if (!available[clicked]) return false
             const next = nextPanelContent(content, clicked)
             if (!(await confirmLeave(next ? "swap" : "close"))) return false
             setContent(next)
             if (next) requestAnimationFrame(() => panelRef.current?.focus())
             return true
         },
-        [confirmLeave, content, setContent, canConfigure, builder, agentId],
+        [confirmLeave, content, setContent, available],
     )
     const close = useCallback(async () => {
         if (!(await confirmLeave("close"))) return false
@@ -187,7 +192,11 @@ const AgentLayoutBody = ({
     useEffect(() => {
         if (!revealRequest || !canConfigure) return
         setRevealRequest(false)
-        // Also when Configuration is open on another tab: the request is for the Agent tab.
+        // Configuration already open on another tab: only the tab changes, nothing is left.
+        if (content === "configuration") {
+            setState({configTab: "agent"})
+            return
+        }
         void confirmLeave("swap").then((ok) => {
             if (!ok) return
             setContent("configuration")
@@ -214,8 +223,9 @@ const AgentLayoutBody = ({
             wide,
             setWide,
             phone,
+            available,
         }),
-        [content, toggle, close, state.configTab, setState, wide, phone],
+        [content, toggle, close, state.configTab, setState, wide, phone, available],
     )
 
     // Contents stay mounted after first use (hidden), so a swap keeps their state and an upload

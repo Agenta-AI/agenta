@@ -16,6 +16,8 @@ export interface AgentPanelApi {
     setWide: (wide: boolean) => void
     /** Below 768 px a content opens full screen with a back arrow. */
     phone: boolean
+    /** The contents this screen can show; the header offers an icon only for these. */
+    available: Record<PanelContent, boolean>
 }
 
 export const AgentPanelContext = createContext<AgentPanelApi | null>(null)
