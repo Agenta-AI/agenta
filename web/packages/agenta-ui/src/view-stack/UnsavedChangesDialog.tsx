@@ -14,19 +14,22 @@ import {Button} from "../components/ui/button"
 export type LeaveAnswer = "keep" | "discard" | "save"
 
 /**
- * The one generic unsaved-changes dialog (F06 f1). The description comes from the dirty view,
- * because Save writes different places. Domain dialogs live in their domain packages.
+ * The one generic unsaved-changes dialog. The description comes from the dirty view, because
+ * Save writes different places. Domain dialogs live in their domain packages.
  */
 export const UnsavedChangesDialog = ({
     open,
     description,
     canSave,
+    saveFailed = false,
     onAnswer,
 }: {
     open: boolean
     description: string
     /** False when the edits are not valid: "Save changes" is disabled. */
     canSave: boolean
+    /** The last "Save changes" failed: the edits are still there, and the person can try again. */
+    saveFailed?: boolean
     onAnswer: (answer: LeaveAnswer) => void
 }) => {
     const t = useT(viewStackCatalog)
@@ -36,6 +39,11 @@ export const UnsavedChangesDialog = ({
                 <AlertDialogHeader>
                     <AlertDialogTitle>{t("ui.viewStack.unsavedChanges")}</AlertDialogTitle>
                     <AlertDialogDescription>{description}</AlertDialogDescription>
+                    {saveFailed ? (
+                        <span role="alert" className="text-sm text-colorError">
+                            {t("ui.viewStack.saveFailed")}
+                        </span>
+                    ) : null}
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <Button variant="outline" onClick={() => onAnswer("keep")}>

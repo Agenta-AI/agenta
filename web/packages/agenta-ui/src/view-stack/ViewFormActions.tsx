@@ -18,7 +18,7 @@ export const ViewFormActions = ({
     onSave,
 }: Pick<ViewChromeProps, "apply" | "form" | "onBack" | "onCancel" | "onSave">) => {
     const t = useT(viewStackCatalog)
-    if (apply === "immediate" || !form) {
+    if (apply === "immediate") {
         return (
             <div className="flex items-center justify-end gap-2">
                 <Button onClick={onBack}>{t("ui.viewStack.done")}</Button>
@@ -27,22 +27,23 @@ export const ViewFormActions = ({
     }
     return (
         <div className="flex flex-col gap-2">
-            {form.saveFailed ? (
+            {form?.saveFailed ? (
                 <span role="alert" className="text-xs text-colorError">
                     {t("ui.viewStack.saveFailed")}
                 </span>
             ) : null}
             <div className="flex items-center justify-end gap-2">
-                <Button variant="outline" disabled={form.saving} onClick={onCancel}>
+                <Button variant="outline" disabled={form?.saving} onClick={onCancel}>
                     {t("ui.viewStack.cancel")}
                 </Button>
                 <Button
-                    disabled={form.saving || !form.dirty || !form.valid}
-                    aria-busy={form.saving}
+                    // Disabled until the view registers its form, and while it is clean or invalid.
+                    disabled={!form || form.saving || !form.dirty || !form.valid}
+                    aria-busy={form?.saving}
                     onClick={onSave}
                 >
-                    {form.saving ? <Spinner size="small" /> : null}
-                    {form.saving ? t("ui.viewStack.saving") : t("ui.viewStack.save")}
+                    {form?.saving ? <Spinner size="small" /> : null}
+                    {form?.saving ? t("ui.viewStack.saving") : t("ui.viewStack.save")}
                 </Button>
             </div>
         </div>

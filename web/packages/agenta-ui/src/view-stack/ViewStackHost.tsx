@@ -13,10 +13,8 @@ import type {ViewChromeProps, ViewDef, ViewForm, ViewNav, ViewStack, ViewTarget}
 import {UnsavedChangesDialog, type LeaveAnswer} from "./UnsavedChangesDialog"
 
 interface Entry {
-    /** Unique per open, so a reopened view mounts fresh. */
+    /** Unique per open; a new key remounts the view, which drops its local form. */
     key: number
-    /** Bumped to remount the view, which drops its local form (Discard before a child opens). */
-    instance: number
     view: ViewDef<unknown>
     params: unknown
     target: ViewTarget
@@ -25,6 +23,7 @@ interface Entry {
 interface PendingQuestion {
     description: string
     canSave: boolean
+    saveFailed: boolean
     resolve: (answer: LeaveAnswer) => void
 }
 
@@ -37,16 +36,17 @@ const MENU_SELECTOR = '[role="dialog"],[role="alertdialog"],[role="menu"],[role=
 let lastEntryKey = 0
 const newEntry = (view: ViewDef<unknown>, params: unknown, target: ViewTarget): Entry => ({
     key: ++lastEntryKey,
-    instance: 0,
     view,
     params,
     target,
 })
+/** The same view under a new key: it mounts again from the saved data, with no local edits. */
+const remount = (entry: Entry): Entry => ({...entry, key: ++lastEntryKey})
 
 /**
- * Owns the view stack of one container (D2). `children` is the root: it stays mounted (hidden)
- * while a view is open, so it keeps its scroll position. Each open view stays mounted while a
- * child covers it, so a picker never drops its parent's form.
+ * Owns the view stack of one container. `children` is the root: it stays mounted (hidden) while
+ * a view is open, so it keeps its state. Each open view stays mounted while a child covers it,
+ * so a picker never drops its parent's form.
  */
 export const ViewStackHost = ({
     chrome: Chrome,
@@ -104,11 +104,12 @@ export const ViewStackHost = ({
     }, [])
 
     const ask = useCallback(
-        (form: ViewForm) =>
+        (form: ViewForm, saveFailed: boolean) =>
             new Promise<LeaveAnswer>((resolve) => {
                 setQuestion({
                     description: form.leaveDescription,
                     canSave: form.valid,
+                    saveFailed,
                     resolve: (answer) => {
                         setQuestion(null)
                         resolve(answer)
@@ -120,7 +121,8 @@ export const ViewStackHost = ({
 
     /**
      * Settle the one dirty form among `scope` before an action. Resolves false when the person
-     * kept editing or the save failed; the action must then not run.
+     * kept editing; the action must then not run. A failed "Save changes" asks again with the
+     * error, so the failure shows even when the dirty form sits under a picker.
      */
     const settle = useCallback(
         async (scope: Entry[]): Promise<Settled | false> => {
@@ -129,10 +131,14 @@ export const ViewStackHost = ({
             if (askingRef.current) return false
             askingRef.current = true
             try {
-                const answer = await ask(formsRef.current[dirty.key])
-                if (answer === "keep") return false
-                if (answer === "discard") return "discarded"
-                return (await runSave(dirty.key)) ? "saved" : false
+                let saveFailed = false
+                for (;;) {
+                    const answer = await ask(formsRef.current[dirty.key], saveFailed)
+                    if (answer === "keep") return false
+                    if (answer === "discard") return "discarded"
+                    if (await runSave(dirty.key)) return "saved"
+                    saveFailed = true
+                }
             } finally {
                 askingRef.current = false
             }
@@ -140,24 +146,22 @@ export const ViewStackHost = ({
         [ask, runSave],
     )
 
-    const dropForms = useCallback((keys: number[]) => {
-        setForms((prev) => {
-            const next = {...prev}
-            for (const key of keys) delete next[key]
-            return next
-        })
+    /** Replace the stack. Forms and titles of views that leave go with them. */
+    const setStack = useCallback((next: Entry[]) => {
+        const kept = new Set(next.map((entry) => entry.key))
+        const keep = <T,>(prev: Record<number, T>) => {
+            const out: Record<number, T> = {}
+            for (const [key, value] of Object.entries(prev)) {
+                if (kept.has(Number(key))) out[Number(key)] = value
+            }
+            return out
+        }
+        setForms(keep)
+        setTitles(keep)
+        entriesRef.current = next
+        setEntries(next)
+        setFailedKey(null)
     }, [])
-
-    const setStack = useCallback(
-        (next: Entry[]) => {
-            const kept = new Set(next.map((entry) => entry.key))
-            dropForms(entriesRef.current.filter((e) => !kept.has(e.key)).map((e) => e.key))
-            entriesRef.current = next
-            setEntries(next)
-            setFailedKey(null)
-        },
-        [dropForms],
-    )
 
     const open = useCallback(
         async <P,>(view: ViewDef<P>, params: P, target: ViewTarget) => {
@@ -177,11 +181,16 @@ export const ViewStackHost = ({
         return true
     }, [settle, setStack, waitForSave])
 
-    /** Guarded back from the top view: only the top view's own form asks. */
+    /**
+     * Guarded back from the top view: only the top view's own form asks. Tied to the view that
+     * was on top when it was asked for, so a back held behind a save does not pop a second view.
+     */
     const back = useCallback(async () => {
+        const requester = entriesRef.current.at(-1)?.key
         await waitForSave()
         const current = entriesRef.current
         if (current.length === 0) return true
+        if (current.at(-1)?.key !== requester) return false
         if (!(await settle(current.slice(-1)))) return false
         setStack(current.slice(0, -1))
         return true
@@ -199,19 +208,17 @@ export const ViewStackHost = ({
             if (current.length !== 1 || current[0].key !== parentKey) return false
             let parent = current[0]
             // One editable form at a time: a child with its own form needs a clean parent. A
-            // picker ("immediate") opens over the dirty parent, which keeps its edits.
+            // picker ("immediate") opens over the dirty parent, which keeps its edits. After Save
+            // or Discard the parent mounts again, so no stale dirty form stays under the child.
             if (view.apply === "on_save") {
                 const settled = await settle([parent])
                 if (!settled) return false
-                if (settled === "discarded") {
-                    dropForms([parent.key])
-                    parent = {...parent, instance: parent.instance + 1}
-                }
+                if (settled !== "clean") parent = remount(parent)
             }
             setStack([parent, newEntry(view as ViewDef<unknown>, params, target)])
             return true
         },
-        [dropForms, settle, setStack, waitForSave],
+        [settle, setStack, waitForSave],
     )
 
     const save = useCallback(async () => {
@@ -275,9 +282,10 @@ export const ViewStackHost = ({
                     >
                         {entries.map((entry, index) => (
                             <MountedView
-                                key={`${entry.key}:${entry.instance}`}
+                                key={entry.key}
                                 entry={entry}
                                 isTop={entry === top}
+                                saving={saving}
                                 depth={(index + 1) as 1 | 2}
                                 setForms={setForms}
                                 setTitles={setTitles}
@@ -293,6 +301,7 @@ export const ViewStackHost = ({
                 open={question !== null}
                 description={question?.description ?? ""}
                 canSave={question?.canSave ?? false}
+                saveFailed={question?.saveFailed ?? false}
                 onAnswer={(answer) => question?.resolve(answer)}
             />
         </ViewStackContext.Provider>
@@ -302,6 +311,7 @@ export const ViewStackHost = ({
 const MountedView = ({
     entry,
     isTop,
+    saving,
     depth,
     setForms,
     setTitles,
@@ -311,6 +321,7 @@ const MountedView = ({
 }: {
     entry: Entry
     isTop: boolean
+    saving: boolean
     depth: 1 | 2
     setForms: (update: (prev: Record<number, ViewForm>) => Record<number, ViewForm>) => void
     setTitles: (update: (prev: Record<number, string>) => Record<number, string>) => void
@@ -356,6 +367,10 @@ const MountedView = ({
             data-testid={isTop ? "panel-view" : undefined}
             className="flex min-h-0 min-w-0 flex-1 flex-col"
             style={isTop ? undefined : {display: "none"}}
+            // While its Save runs the view takes no input: an edit made then would not be in the
+            // request, and success closes the view.
+            inert={isTop && saving}
+            aria-busy={isTop && saving}
         >
             <ViewEntryContext.Provider value={api}>
                 <Component params={entry.params} target={entry.target} nav={nav} />

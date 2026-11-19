@@ -13,15 +13,17 @@ export type ViewTarget =
     /** Writes a project resource on the server. */
     | {kind: "project"}
 
+/**
+ * "on_save": the chrome shows Cancel and Save; edits reach the target only on Save.
+ * "immediate": edits reach the target at once; the chrome shows Done.
+ */
+export type ViewApply = "on_save" | "immediate"
+
 /** A view definition. A module exports it; nothing registers it globally. */
 export interface ViewDef<P> {
     /** Stable id, for React keys and tests. Never stored. Example: "agent.skill". */
     id: string
-    /**
-     * "on_save": the chrome shows Cancel and Save; edits reach the target only on Save.
-     * "immediate": edits reach the target at once; the chrome shows Done.
-     */
-    apply: "on_save" | "immediate"
+    apply: ViewApply
     /** The panel chrome offers "Widen the panel" for this view. Other containers ignore it. */
     wide?: boolean
     /** The body. Use a `next/dynamic` component so the code loads on first open. */
@@ -55,7 +57,10 @@ export interface ViewNav {
 export interface ViewForm {
     dirty: boolean
     valid: boolean
-    /** Write the edits. Resolve true on success; the stack then goes back. */
+    /**
+     * Write the edits. Resolve true on success. From Save the stack then goes back; before a
+     * child form opens, the view mounts again from the saved data.
+     */
     save: () => Promise<boolean>
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
     leaveDescription: string
@@ -84,7 +89,7 @@ export type ViewChromeForm = ViewForm & {
 export interface ViewChromeProps {
     /** The root crumb first (when the container names its root), then one crumb per view. */
     crumbs: {title: string; onSelect?: () => void}[]
-    apply: "on_save" | "immediate"
+    apply: ViewApply
     wide: boolean
     form: ViewChromeForm | null
     /** Guarded back one level. */

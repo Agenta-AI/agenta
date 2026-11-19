@@ -208,14 +208,69 @@ describe("ViewStackHost", () => {
         fireEvent.click(screen.getByText("crumb:Agent"))
         await screen.findByTestId("unsaved-changes-dialog")
         answer("Save changes")
+        // The failure shows in the dialog, which asks again; the view keeps its edits.
         await screen.findByRole("alert")
-        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        expect(dialog()).toBeTruthy()
+        expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
 
         ok = true
+        answer("Save changes")
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it("a failed Save changes of a parent under a picker shows the error", async () => {
+        saveImpl = async () => false
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("open picker"))
+        await screen.findByText("picker at depth 2")
         fireEvent.click(screen.getByText("crumb:Agent"))
         await screen.findByTestId("unsaved-changes-dialog")
         answer("Save changes")
-        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        await screen.findByRole("alert")
+        answer("Keep editing")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByText("picker at depth 2")).toBeTruthy()
+    })
+
+    it("Save changes before a child form remounts the parent from saved data", async () => {
+        saveImpl = async () => true
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("open child form"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await screen.findByLabelText("field connect")
+        type("connect", "child edit")
+        // Only the child is dirty now, so closing asks about the child.
+        act(() => {
+            void stackRef!.closeAll()
+        })
+        await screen.findByTestId("unsaved-changes-dialog")
+        expect(screen.getByText("leave connect")).toBeTruthy()
+    })
+
+    it("the view takes no input while its Save runs, and a held Escape pops one level", async () => {
+        const pending = deferred()
+        saveImpl = () => pending.promise
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        fireEvent.click(screen.getByText("open child form"))
+        await screen.findByLabelText("field connect")
+        type("connect", "child edit")
+        answer("Save")
+        await screen.findByText("Saving…")
+        expect(screen.getByTestId("panel-view").hasAttribute("inert")).toBe(true)
+        fireEvent.keyDown(screen.getByLabelText("field connect"), {key: "Escape"})
+        await act(async () => pending.resolve(true))
+        // Save closed the child; the held Escape does not also close the parent.
+        await screen.findByText("here:skill")
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
     })
 
     it("Save changes is disabled while the edits are not valid", async () => {
