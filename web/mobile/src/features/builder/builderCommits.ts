@@ -5,11 +5,10 @@ import type {ToolUIPart, UIMessage} from "ai"
 /** The builder tool that saves a new version of another agent. */
 const EDIT_AGENT_CONFIG = "edit_agent_config"
 
-/** The result of `edit_agent_config` (builder-backend spec): the agent and its new revision. */
+/** The fields this reads of an `edit_agent_config` result (builder-backend spec). */
 interface EditAgentConfigResult {
     status?: unknown
     agent?: {id?: unknown}
-    revision?: {id?: unknown; version?: unknown}
 }
 
 const parseResult = (output: unknown): EditAgentConfigResult | null => {
@@ -25,22 +24,26 @@ const parseResult = (output: unknown): EditAgentConfigResult | null => {
 }
 
 /**
- * The agents a builder saved a new version of in `message`, from each `edit_agent_config` result
- * with status "committed" not yet in `seen`. Records each call in `seen`, so each counts once.
+ * The agents a builder saved a new version of in the loaded `messages`, from each
+ * `edit_agent_config` result with status "committed" whose call is not in `seen`. Adds each
+ * settled call to `seen`, so a call counts once. Any message can hold one: a reconnect loads
+ * several turns at once, and a queued message can follow the answer that saved.
  */
-export const takeBuilderCommits = (message: UIMessage, seen: Set<string>): string[] => {
-    const agentIds: string[] = []
-    for (const part of message.parts) {
-        if (!isToolPart(part.type)) continue
-        const tool = part as ToolUIPart
-        if (tool.state !== "output-available" || seen.has(tool.toolCallId)) continue
-        if (canonicalClientToolName(partToolName(tool)) !== EDIT_AGENT_CONFIG) continue
-        seen.add(tool.toolCallId)
-        const result = parseResult(tool.output)
-        const agentId = result?.agent?.id
-        if (result?.status !== "committed" || typeof agentId !== "string" || !agentId) continue
-        if (typeof result.revision?.id !== "string") continue
-        if (!agentIds.includes(agentId)) agentIds.push(agentId)
+export const takeCommittedAgentIds = (messages: UIMessage[], seen: Set<string>): string[] => {
+    const agentIds = new Set<string>()
+    for (const message of messages) {
+        if (message.role !== "assistant") continue
+        for (const part of message.parts) {
+            if (!isToolPart(part.type)) continue
+            const tool = part as ToolUIPart
+            if (tool.state !== "output-available" || seen.has(tool.toolCallId)) continue
+            if (canonicalClientToolName(partToolName(tool)) !== EDIT_AGENT_CONFIG) continue
+            seen.add(tool.toolCallId)
+            const result = parseResult(tool.output)
+            const agentId = result?.agent?.id
+            if (result?.status === "committed" && typeof agentId === "string" && agentId)
+                agentIds.add(agentId)
+        }
     }
-    return agentIds
+    return [...agentIds]
 }

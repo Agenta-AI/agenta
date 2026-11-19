@@ -201,9 +201,7 @@ describe("ChatScreen auto-update gate", () => {
         expect(await told()).toBe(false)
     })
 
-    // QA plan T1: a builder save lands while the Instructions view has a local edit. The session
-    // stays on its version; the header offers "Update to vN" (AgentRevisionStatus with no auto
-    // update); the form keeps its text because nothing remounts.
+    // The gate half of QA plan T1; `builderCommitAdoption` shows the header's offer.
     it("holds while an open view form has edits, and allows it once the form is clean", async () => {
         store.set(viewFormDirtyAtom, true)
         expect(await told()).toBe(false)

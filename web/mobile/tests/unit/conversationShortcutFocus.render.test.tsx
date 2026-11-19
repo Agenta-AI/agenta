@@ -193,8 +193,8 @@ vi.mock("@/features/chat/useApprovalActions", () => ({
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
 // The builder follow reads `@agenta/playground/state`; it has its own test.
-vi.mock("@/features/builder/useFollowBuilderCommits", () => ({
-    useFollowBuilderCommits: () => undefined,
+vi.mock("@/features/builder/useBuilderCommitChecks", () => ({
+    useBuilderCommitChecks: () => undefined,
 }))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 // The scroll memory has its own test; here the scroller only has to be a node that stays.

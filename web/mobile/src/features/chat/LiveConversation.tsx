@@ -65,7 +65,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
-import {useFollowBuilderCommits} from "../builder/useFollowBuilderCommits"
+import {useBuilderCommitChecks} from "../builder/useBuilderCommitChecks"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {
     failPendingTaskAtom,
@@ -296,7 +296,7 @@ export const LiveConversation = ({
             followCommitRef.current(revisionId)
     }, [conversation.messages])
     // A builder in this conversation saved another agent: that agent's open sessions check for it.
-    useFollowBuilderCommits({sessionId, messages: conversation.messages})
+    useBuilderCommitChecks(conversation.messages)
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Session follow in this browser (design D7, task 8.3): a builder `edit_agent_config` result with
+ * The builder side of session follow (design D7, task 8.3): a builder `edit_agent_config` result with
  * status "committed" clears that agent's latest-revision caches and asks its open sessions to run
  * the latest-version check, once per tool call. The result is recorded in the planned shape
  * (builder-backend spec: `status`, `agent`, `revision: {id, version}`); the builder stack is not
@@ -21,8 +21,8 @@ vi.mock("@agenta/entities/workflow", () => ({
 }))
 vi.mock("@agenta/playground/state", () => ({requestLatestVersionCheck: calls.check}))
 
-import {takeBuilderCommits} from "@/features/builder/builderCommits"
-import {useFollowBuilderCommits} from "@/features/builder/useFollowBuilderCommits"
+import {takeCommittedAgentIds} from "@/features/builder/builderCommits"
+import {useBuilderCommitChecks} from "@/features/builder/useBuilderCommitChecks"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -44,21 +44,34 @@ const toolPart = (
 const assistant = (id: string, parts: unknown[]): UIMessage =>
     ({id, role: "assistant", parts}) as UIMessage
 
-describe("takeBuilderCommits", () => {
+const user = (id: string): UIMessage => ({id, role: "user", parts: []}) as UIMessage
+
+describe("takeCommittedAgentIds", () => {
     it("names the agent of a committed result once", () => {
         const seen = new Set<string>()
-        const message = assistant("m1", [toolPart("call-1", committedResult)])
-        expect(takeBuilderCommits(message, seen)).toEqual(["agent-support-triage"])
-        expect(takeBuilderCommits(message, seen)).toEqual([])
+        const messages = [assistant("m1", [toolPart("call-1", committedResult)])]
+        expect(takeCommittedAgentIds(messages, seen)).toEqual(["agent-support-triage"])
+        expect(takeCommittedAgentIds(messages, seen)).toEqual([])
     })
 
     it("reads a result sent as JSON text and an MCP-prefixed tool name", () => {
-        const message = assistant("m1", [
-            toolPart("call-1", JSON.stringify(committedResult), {
-                type: "tool-mcp__agenta-tools__edit_agent_config",
-            }),
-        ])
-        expect(takeBuilderCommits(message, new Set())).toEqual(["agent-support-triage"])
+        const messages = [
+            assistant("m1", [
+                toolPart("call-1", JSON.stringify(committedResult), {
+                    type: "tool-mcp__agenta-tools__edit_agent_config",
+                }),
+            ]),
+        ]
+        expect(takeCommittedAgentIds(messages, new Set())).toEqual(["agent-support-triage"])
+    })
+
+    it("finds a result in an earlier message: a queued message or a later answer follows it", () => {
+        const messages = [
+            assistant("m1", [toolPart("call-1", committedResult)]),
+            user("m2"),
+            assistant("m3", [{type: "text", text: "Done."}]),
+        ]
+        expect(takeCommittedAgentIds(messages, new Set())).toEqual(["agent-support-triage"])
     })
 
     it.each([
@@ -66,23 +79,22 @@ describe("takeBuilderCommits", () => {
         ["a call still running", toolPart("call-1", undefined, {state: "input-available"})],
         ["an error", toolPart("call-1", "boom", {state: "output-error"})],
         ["another tool", toolPart("call-1", committedResult, {type: "tool-read_agent_config"})],
-        ["no revision", toolPart("call-1", {...committedResult, revision: undefined})],
         ["text that is not JSON", toolPart("call-1", "Saved.")],
     ])("ignores %s", (_name, part) => {
-        expect(takeBuilderCommits(assistant("m1", [part]), new Set())).toEqual([])
+        expect(takeCommittedAgentIds([assistant("m1", [part])], new Set())).toEqual([])
     })
 })
 
-describe("useFollowBuilderCommits", () => {
+describe("useBuilderCommitChecks", () => {
     let host: HTMLDivElement
     let root: Root
 
-    const Builder = ({sessionId, messages}: {sessionId: string; messages: UIMessage[]}) => {
-        useFollowBuilderCommits({sessionId, messages})
+    const Builder = ({messages}: {messages: UIMessage[]}) => {
+        useBuilderCommitChecks(messages)
         return null
     }
-    const render = (messages: UIMessage[], sessionId = "builder-chat") =>
-        act(async () => root.render(<Builder sessionId={sessionId} messages={messages} />))
+    const render = (messages: UIMessage[]) =>
+        act(async () => root.render(<Builder messages={messages} />))
 
     beforeEach(() => {
         calls.invalidate.mockReset()
@@ -94,18 +106,19 @@ describe("useFollowBuilderCommits", () => {
         await act(async () => root.unmount())
     })
 
-    it("clears the agent's caches and runs its latest-version check when the result arrives", async () => {
-        const running = assistant("m1", [toolPart("call-1", undefined, {state: "input-available"})])
-        await render([running])
+    it("clears the agent's caches and asks for its check once, when the result arrives", async () => {
+        await render([assistant("m1", [toolPart("call-1", undefined, {state: "input-available"})])])
         expect(calls.check).not.toHaveBeenCalled()
 
-        const settled = assistant("m1", [toolPart("call-1", committedResult)])
-        await render([settled])
+        await render([assistant("m1", [toolPart("call-1", committedResult)])])
         expect(calls.invalidate.mock.calls).toEqual([["agent-support-triage"]])
         expect(calls.check.mock.calls).toEqual([["agent-support-triage"]])
 
-        // A later render of the same message (a streamed text part) does not ask again.
-        await render([assistant("m1", [toolPart("call-1", committedResult), {type: "text"}])])
+        // Later renders (a streamed text part, a queued message) do not ask again.
+        await render([
+            assistant("m1", [toolPart("call-1", committedResult), {type: "text"}]),
+            user("m2"),
+        ])
         expect(calls.check).toHaveBeenCalledOnce()
     })
 
@@ -114,10 +127,7 @@ describe("useFollowBuilderCommits", () => {
         await render([
             assistant("m1", [
                 toolPart("call-1", committedResult),
-                toolPart("call-2", {
-                    ...committedResult,
-                    revision: {id: "revision-6", version: "6"},
-                }),
+                toolPart("call-2", committedResult),
             ]),
         ])
         expect(calls.check).toHaveBeenCalledTimes(2)
