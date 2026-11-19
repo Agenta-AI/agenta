@@ -95,9 +95,9 @@ export class HeroEngine {
         this.wake()
     }
 
-    /** One keystroke. Does nothing under reduced motion. */
+    /** One keystroke. Does nothing while the hero does not animate (reduced motion, hidden, off screen). */
     pulse(): void {
-        if (this.prefersReducedMotion()) return
+        if (!this.canAnimate()) return
         pulseMotion(this.motion)
         this.wake()
     }

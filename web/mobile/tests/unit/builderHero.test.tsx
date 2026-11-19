@@ -219,6 +219,25 @@ describe("hero engine", () => {
         expect(renderer.dispose).toHaveBeenCalled()
     })
 
+    it("ignores keystrokes while off screen, so no bump is stored for later", () => {
+        const pulses: number[] = []
+        const renderer: HeroRenderer = {draw: (m) => pulses.push(m.pulseVelocity), dispose: vi.fn()}
+        const {engine} = makeEngine("typing", renderer)
+        env.io?.cb(
+            [{isIntersecting: false} as IntersectionObserverEntry],
+            {} as IntersectionObserver,
+        )
+        engine.pulse()
+        engine.pulse()
+        env.io?.cb(
+            [{isIntersecting: true} as IntersectionObserverEntry],
+            {} as IntersectionObserver,
+        )
+        flushFrame(1000)
+        expect(pulses.at(-1)).toBe(0)
+        engine.destroy()
+    })
+
     it("draws one still frame per state under reduced motion and never animates", () => {
         env.reduced = true
         const {renderer, draws} = fakeRenderer()

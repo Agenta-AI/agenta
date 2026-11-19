@@ -70,7 +70,7 @@ void main() {
   float nearAvg = dep / max(acc, 1e-4);
   // Thinking: one darker run that travels around the ring.
   float ad = mod(t * 0.5 - a + PI, TAU) - PI;
-  float run = u_think * (ad > 0.0 ? exp(-ad * 1.3) : exp(-pow(ad / 0.15, 2.0)));
+  float run = u_think * (ad > 0.0 ? exp(-ad * 1.3) : exp(-(ad / 0.15) * (ad / 0.15)));
   float al = 1.0 - exp(-acc * 0.85 * (1.0 + 1.3 * run));
   out4(mix(u_ink2, u_ink, clamp(nearAvg + run, 0.0, 1.0)), al);
 }

@@ -41,6 +41,8 @@ export function createStrandRibbonRenderer(canvas: HTMLCanvasElement): HeroRende
     if (program && vs && fs) {
         gl.attachShader(program, vs)
         gl.attachShader(program, fs)
+        // The vertex buffer below feeds attribute 0.
+        gl.bindAttribLocation(program, 0, "a")
         gl.linkProgram(program)
     }
     // The program keeps the compiled code; the shader objects are no longer needed.
