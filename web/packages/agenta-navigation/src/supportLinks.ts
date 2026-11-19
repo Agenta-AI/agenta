@@ -58,29 +58,3 @@ export const buildHelpDocsNavItem = ({
         ...extraItems,
     ],
 })
-
-export interface InviteTeammateItemOptions {
-    /** Project URL base; the item deep-links into the workspace tab with the modal open. */
-    projectURL: string
-    icon?: ReactNode
-    /** Hidden when the viewer cannot invite (no session, no org, or no permission). */
-    isHidden?: boolean
-}
-
-/**
- * The "Invite Teammate" entry, shared by the rail and the drawer: it opens the workspace
- * settings tab with the invite modal open.
- */
-export const buildInviteTeammateNavItem = ({
-    projectURL,
-    icon,
-    isHidden,
-}: InviteTeammateItemOptions): SidebarConfig => ({
-    key: "invite-teammate-link",
-    title: "Invite Teammate",
-    link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-    icon,
-    tooltip: "Invite Teammate",
-    isHidden,
-    disabled: !projectURL,
-})

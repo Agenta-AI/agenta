@@ -15,7 +15,7 @@ import {cn} from "./utils"
 // selectors below carry `[data-sonner-toast]` to win.
 const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["classNames"]> = {
     toast: cn(
-        "group/toast box-border flex w-full items-center gap-3 rounded-xl border border-solid border-border bg-popover px-3.5 py-3 text-sm text-popover-foreground shadow-lg outline-none select-none",
+        "group/toast box-border flex w-full items-center gap-3 rounded-[10px] border border-solid border-border bg-popover px-3.5 py-3 text-sm text-popover-foreground shadow-lg outline-none select-none",
         "[&[data-sonner-toast]:focus-visible]:border-ring [&[data-sonner-toast]:focus-visible]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
         // Enter from the stack's edge on shadcn's ease-out; leave quickly (Sonner unmounts 200ms in).
         "[&[data-y-position=bottom]:not([data-mounted=true])]:[--y:translateY(150%)]",
@@ -34,7 +34,7 @@ const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["cl
     content: "flex min-h-7 min-w-0 flex-1 flex-col justify-center gap-1",
     title: "text-sm font-normal",
     description: "text-sm text-muted-foreground",
-    actionButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
+    actionButton: cn(buttonVariants({variant: "default", size: "sm"}), "shrink-0"),
     cancelButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
     // Sonner renders the close button first; `order-last` seats it after the actions.
     closeButton: cn(

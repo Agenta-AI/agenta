@@ -106,7 +106,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     showAllPath?: string
     /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
      * other (a session's liveness dot, say), where one icon for the whole group says nothing. */
-    getIcon?: (ref: TRef) => ReactElement
+    getIcon?: (ref: TRef) => ReactElement | null
     /** Optional row tooltip for context not shown by the label. */
     getTooltip?: (ref: TRef) => string | undefined
     /** Per-row classes, for state the label cannot carry (an archived session fades). */
@@ -153,7 +153,7 @@ export interface SidebarEntity {
     maxItems: number
     dragZone?: string
     showAllLink?: (projectURL: string) => string
-    getIcon?: (ref: SidebarEntityRef) => ReactElement
+    getIcon?: (ref: SidebarEntityRef) => ReactElement | null
     getTooltip?: (ref: SidebarEntityRef) => string | undefined
     getRowClassName?: (ref: SidebarEntityRef) => string | undefined
     getOnClick?: (ref: SidebarEntityRef) => () => void

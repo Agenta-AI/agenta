@@ -1,4 +1,12 @@
-import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef} from "react"
+import React, {
+    type CSSProperties,
+    memo,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
@@ -16,8 +24,12 @@ import {
 } from "@agenta/navigation"
 import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
+import {useReducedMotion} from "motion/react"
 
 import {NavMenu} from "./NavMenu"
+
+/** Matches the rail's `duration-300` width transition. */
+const RAIL_MS = 300
 
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
@@ -172,6 +184,26 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const railRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const {width, handleProps} = useSidebarResize({railRef, contentRef, collapsed, setCollapsed})
+    const reduced = Boolean(useReducedMotion())
+    // The column's layout leads an expand and trails a collapse, so the moving rail only clips it.
+    const [shown, setShown] = useState(collapsed)
+    const [moving, setMoving] = useState(false)
+    const [prevCollapsed, setPrevCollapsed] = useState(collapsed)
+    if (collapsed !== prevCollapsed) {
+        setPrevCollapsed(collapsed)
+        setMoving(!reduced)
+        if (!collapsed || reduced) setShown(collapsed)
+    }
+    const settle = useCallback(() => {
+        setMoving(false)
+        setShown(collapsed)
+    }, [collapsed])
+    useEffect(() => {
+        if (!moving) return
+        // Fallback for a transition that never ends (a background tab, an interrupted toggle).
+        const timer = setTimeout(settle, RAIL_MS + 100)
+        return () => clearTimeout(timer)
+    }, [moving, settle])
     const openGroupsAtom = useMemo(
         () => openGroupsAtomFamily(scope.id),
         [openGroupsAtomFamily, scope.id],
@@ -255,16 +287,22 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         return (
             <React.Fragment key={section.key}>
                 {section.dividerBefore && (
-                    <hr className="my-1 w-full border-0 border-t border-solid border-colorBorderSecondary" />
+                    <hr
+                        className={clsx(
+                            "w-full shrink-0 border-0 border-t border-solid border-[var(--ag-shell-line)]",
+                            shown ? "my-1" : "my-2",
+                        )}
+                    />
                 )}
-                {renderSlot(section.before, collapsed)}
+                {renderSlot(section.before, shown)}
                 <NavMenu
                     // A bottom section is anchored from below, so it needs the trailing 4px to
                     // hold its own height; a top section must not have it, or it pushes every
                     // section after it down the rail.
                     className={section.placement === "bottom" ? "pb-1" : undefined}
                     items={section.items}
-                    collapsed={collapsed}
+                    arrange={section.arrange}
+                    collapsed={shown}
                     mode={section.mode}
                     selectedKeys={selectedKeys}
                     openKeys={isInlineSection ? openKeys : []}
@@ -321,29 +359,41 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         >
             <aside
                 data-theme={theme}
+                onTransitionEnd={(event) => {
+                    if (
+                        moving &&
+                        event.target === event.currentTarget &&
+                        event.propertyName === "width"
+                    )
+                        settle()
+                }}
                 className={[
                     // The surface fills the sheet, so it still bleeds behind a phone's toolbar.
                     // overflow-hidden clips to those corners; the switcher's panel portals into
                     // the sheet, outside this element, so it is not cut off.
                     isOverlay
-                        ? "h-full w-[var(--ag-sidebar-w)] overflow-hidden rounded-[inherit] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
+                        ? "h-full w-[var(--ag-sidebar-w)] overflow-hidden rounded-[inherit] bg-[var(--ag-sidebar-bg)] transition-[width] duration-300 motion-reduce:transition-none"
                         : // --ag-top-bars-h: the app's fixed top bars would cover the brand row on
                           // document-scrolling routes; 0px everywhere else.
-                          "sticky top-[var(--ag-top-bars-h,0px)] bottom-0 h-[calc(100vh-var(--ag-top-bars-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300 group-data-[snap]/rail:overflow-hidden",
+                          "sticky top-[var(--ag-top-bars-h,0px)] bottom-0 h-[calc(100vh-var(--ag-top-bars-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-[width] duration-300 motion-reduce:transition-none group-data-[snap]/rail:overflow-hidden",
+                    moving ? "overflow-hidden" : "",
                 ].join(" ")}
             >
                 <div
                     ref={contentRef}
+                    // A collapsing column keeps its width and fades; the narrowing rail clips it.
+                    style={moving && !shown ? {width} : undefined}
                     className={clsx(
                         // A drag-collapse pins the column (--ag-snap-w) so the gliding rail clips it.
-                        "flex flex-col w-[var(--ag-sidebar-w)] transition-all duration-300 group-data-[snap]/rail:w-[var(--ag-snap-w)]",
+                        "flex flex-col w-[var(--ag-sidebar-w)] transition-opacity duration-150 motion-reduce:transition-none group-data-[snap]/rail:w-[var(--ag-snap-w)]",
+                        moving && collapsed && "opacity-0",
                         // `vh` is a phone's toolbars-HIDDEN height; the var also narrows for a keyboard.
                         // Capped at the sheet's height: the sheet floats 8px in from the top and
                         // bottom, so a viewport-tall column ran the workspace row off its bottom.
                         isOverlay ? "h-[min(100%,var(--ag-viewport-height,100dvh))]" : "h-full",
                     )}
                 >
-                    {renderSlot(scope.header, collapsed, scope.lastPath, onDismiss)}
+                    {renderSlot(scope.header, shown, scope.lastPath, onDismiss)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
                             <div
@@ -362,13 +412,15 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div
                                 className={clsx(
                                     "w-full flex flex-col shrink-0",
+                                    !shown &&
+                                        "border-0 border-t border-solid border-[var(--ag-shell-line)] pt-2",
                                     // The home indicator sits inside `dvh`; reserve it.
                                     isOverlay && "pb-[env(safe-area-inset-bottom)]",
                                 )}
                             >
-                                {renderSlot(scope.footer, collapsed, scope.lastPath)}
+                                {renderSlot(scope.footer, shown, scope.lastPath)}
                                 {bottomSections.map(renderSection)}
-                                {renderSlot(scope.afterBottom, collapsed, scope.lastPath)}
+                                {renderSlot(scope.afterBottom, shown, scope.lastPath)}
                             </div>
                         </div>
                     </SidebarErrorBoundary>

@@ -216,13 +216,6 @@
     }
 }
 
-/* Fades overflowing one-line text at the box's right edge; give the box its full width. */
-.ag-text-fade {
-    overflow: hidden;
-    white-space: nowrap;
-    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
-}
-
 /* ── Overlay motion ────────────────────────────────────────────────────────────────────────────
    Enter/exit for portalled Radix surfaces (popover, and anything else that opts in). Radix keeps
    a closing element mounted until its animation ends, so this has to be a real, FINITE CSS

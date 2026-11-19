@@ -115,11 +115,13 @@ export const buildSettingsSidebarSections = (
         // Groups are separated by whitespace, not a rule.
         dividerBefore: false,
         before: ({collapsed}: SidebarSlotContext) =>
-            collapsed ? null : (
-                // pl-[22px] = menu items' mx-2 + pl-3 (20px), nudged 2px right.
+            collapsed ? (
+                <div className="my-1 h-px w-full shrink-0 bg-[var(--ag-shell-line)]" />
+            ) : (
+                // pl-5 = the rows' 8px inset + their 12px padding.
                 <div
                     className={[
-                        "pl-[22px] pr-3 pb-1 text-xs font-medium text-colorTextTertiary",
+                        "pl-5 pr-3 pb-1 text-xs text-colorTextSecondary",
                         index === 0 ? "pt-1" : "pt-4",
                     ].join(" ")}
                 >

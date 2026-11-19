@@ -7,7 +7,6 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
-    buildInviteTeammateNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
@@ -25,7 +24,7 @@ import {
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -34,19 +33,15 @@ import {
     type SessionActionTarget,
 } from "@agenta/sessions-ui"
 import {developerModeActiveAtom, userAtom} from "@agenta/shared/state"
-import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
-import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
     ChatsCircleIcon,
-    CircleIcon,
     GearIcon,
     GithubLogoIcon,
     CompassIcon,
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
-    PaperPlaneIcon,
     QuestionIcon,
     RobotIcon,
     ScrollIcon,
@@ -55,6 +50,7 @@ import {
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
+import {MessagesSquare} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {agentEntryHref} from "@/features/agents/agentEntry"
@@ -64,12 +60,11 @@ import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
-import {useProjectPermission} from "../context/useProjectPermission"
-
 import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {SupportActions} from "./SupportActions"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)
@@ -79,8 +74,6 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 // By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
 // that is a date or a status names no agent to start a session with. Reset comes back here.
 setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
-/** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
-const PALETTE_SHORTCUT_ID = "palette.open"
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -103,32 +96,12 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         hideWhenEmpty: true,
         // No "Show all" row: the group's own "Sessions" row already links to the full list, and
         // the headings make a trailing overflow link read as one more session.
-        // No pin glyph: pinned rows sit under their own heading, which says it once.
-        // Amber for a session blocked on you. `--ag-run-status-warning` rather than
-        // `colorWarning`: the semantic token's light step is a muddy #8a6400 that reads as
-        // disabled at 8px, and this one is the palette's bright amber in BOTH themes.
-        getIcon: (session) => {
-            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
-            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
-            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
-            const live = session.waiting || session.alive
-            if (session.running) return createElement(Spinner, {className: "size-3"})
-            if (session.isAutomation)
-                return createElement(LightningIcon, {
-                    size: 12,
-                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
-                    weight: live ? "fill" : "regular",
-                    className: amber,
-                })
-            return createElement(CircleIcon, {
-                size: 8,
-                weight: live ? "fill" : "regular",
-                className: amber,
-            })
-        },
+        // No leading glyph: a row's state shows as a quiet mark on its right (sessionStatusMark).
+        getIcon: () => null,
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
-        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
+        getRowClassName: (session) =>
+            session.archived ? "opacity-60" : session.running ? RUNNING_TITLE : undefined,
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -152,6 +125,20 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         maxItems: SIDEBAR_UNBOUNDED,
     },
 )
+
+/** A running session's title shimmers, the same live-text sweep the chat uses. */
+const RUNNING_TITLE =
+    "[&_span[title]]:bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] [&_span[title]]:bg-clip-text motion-safe:[&_span[title]]:animate-text-shimmer motion-safe:[&_span[title]]:bg-[length:200%_100%] motion-safe:[&_span[title]]:text-transparent"
+
+/** A spinner while a turn runs, amber while it waits on you, dark while the session is live. */
+const sessionStatusMark = (session: SessionSidebarRef): ReactNode => {
+    if (session.running) return createElement(Spinner, {className: "size-2.5"})
+    if (!session.waiting && !session.alive) return null
+    return createElement("span", {
+        "aria-label": session.waiting ? "Waiting on you" : "Live",
+        className: `size-1.5 rounded-full ${session.waiting ? "bg-[var(--ag-run-status-warning)]" : "bg-colorText"}`,
+    })
+}
 
 /**
  * The prompt apps under the Developer Mode Prompts row. The list loads
@@ -177,7 +164,14 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
  */
-export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+export interface MobileNavItems {
+    /** The pages the user arranges, in their default order. */
+    pages: SidebarConfig[]
+    sessions: SidebarConfig
+    defaultHidden: ReadonlySet<string>
+}
+
+export const useMobileNavItems = (projectURL: string): MobileNavItems => {
     const t = useT(navigationCatalog)
     // Sessions this client created ride the shared local seam until the server lists them.
     useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
@@ -222,14 +216,6 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             sharePathFor,
         }),
     )
-    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
-    const mac = useIsMacPlatform()
-    const paletteShortcut = useMemo(() => {
-        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
-        return shortcut
-            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
-            : undefined
-    }, [mac])
     const developerViews = useEnabledDeveloperViews()
     const developerMode = useAtomValue(developerModeActiveAtom)
     const wrapSessionRow = useCallback(
@@ -237,6 +223,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             createElement(SessionRowActions, {
                 session: ref as SessionSidebarRef,
                 chrome,
+                status: sessionStatusMark(ref as SessionSidebarRef),
                 children: node,
             }),
         [chrome],
@@ -257,15 +244,15 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [developerMode, developerViews, projectURL, promptsSource, t],
     )
 
-    return useMemo(
-        () => [
+    const pages = useMemo(() => {
+        const developerRows = [...developerSlots.afterHome, ...developerSlots.afterSessions]
+        const list: SidebarConfig[] = [
             {
                 key: "mobile-home",
                 title: t("navigation.items.home"),
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
-            ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
@@ -282,6 +269,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                         autoFocusSearch: false,
                     }),
             },
+            {
+                key: "mobile-templates",
+                title: "Templates",
+                icon: createElement(SquaresFourIcon, {size: 16}),
+                link: `${projectURL}/templates`,
+            },
             // After Agents: an automation is something an agent has, and Skills is what it uses.
             {
                 key: "automations",
@@ -295,116 +288,75 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 icon: createElement(CompassIcon, {size: 16}),
                 link: `${projectURL}/skills`,
             },
-            {
-                key: SESSIONS_SIDEBAR_KEY,
-                title: t("navigation.items.sessions"),
-                icon: createElement(ChatsCircleIcon, {size: 16}),
-                link: `${projectURL}/sessions`,
-                hideChildrenWhenCollapsed: true,
-                // No collapse caret here: the filter control is this group's affordance, and the
-                // rows are grouped and individually collapsible already.
-                alwaysOpen: true,
-                // The rail does not scroll; THIS group does. Sessions is the only list that grows
-                // without bound, so Observability (and whatever lands after it) stays on screen.
-                scrollChildren: true,
-                onReachEnd: loadMoreSessions,
-                // Search reaches past what the rail lists; the filter narrows it.
-                groupAction: createElement(
-                    "span",
-                    {className: "flex items-center gap-0.5"},
-                    createElement(SessionSearchButton, {
-                        label: t("navigation.items.search"),
-                        shortcut: paletteShortcut,
-                    }),
-                    createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
-                ),
-                submenu: resolveChildren(
-                    mobileSessionsEntity,
-                    source,
-                    projectURL,
-                    undefined,
-                    undefined,
-                    wrapSessionRow,
-                ),
-            },
-            ...developerSlots.afterSessions,
-        ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots, t],
+            ...developerRows,
+        ]
+        // Templates and the developer pages start in "More".
+        const defaultHidden = new Set(["mobile-templates", ...developerRows.map((row) => row.key)])
+        return {pages: list, defaultHidden}
+    }, [developerSlots, projectURL])
+
+    const sessions = useMemo<SidebarConfig>(
+        () => ({
+            key: SESSIONS_SIDEBAR_KEY,
+            title: t("navigation.items.sessions"),
+            icon: createElement(MessagesSquare, {size: 16, strokeWidth: 1.5}),
+            link: `${projectURL}/sessions`,
+            hideChildrenWhenCollapsed: true,
+            // No caret: the filter is this group's control.
+            alwaysOpen: true,
+            // The rail does not scroll; THIS group does, so the footer stays on screen.
+            scrollChildren: true,
+            onReachEnd: loadMoreSessions,
+            groupAction: createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
+            submenu: resolveChildren(
+                mobileSessionsEntity,
+                source,
+                projectURL,
+                undefined,
+                undefined,
+                wrapSessionRow,
+            ),
+        }),
+        [loadMoreSessions, source, projectURL, wrapSessionRow, t],
     )
+
+    return useMemo(() => ({...pages, sessions}), [pages, sessions])
 }
 
 // Lazy-load package.json so its version stays out of the initial bundle.
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
 const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
-export const useMobileVersion = () => useAtomValue(versionAtom)
+const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Templates and Settings (not in the settings scope), plus Invite Teammate in Developer Mode. */
-export const useMobileBottomNavItems = (
-    projectURL: string,
-    {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] => {
+/** The Settings row, with the version and the support buttons. */
+export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog, commonCatalog)
     const version = useMobileVersion()
-    const developerMode = useAtomValue(developerModeActiveAtom)
-    // No project id, no permission request: outside Developer Mode nothing is asked.
     const [, , , , projectId = ""] = projectURL.split("/")
-    const canInvite = useProjectPermission(
-        developerMode ? projectId : "",
-        "add_new_user_to_workspace",
-    )
-    const inviteItems = useMemo(
-        () =>
-            developerMode && canInvite
-                ? [
-                      {
-                          ...buildInviteTeammateNavItem({
-                              projectURL,
-                              icon: createElement(PaperPlaneIcon, {size: 16}),
-                          }),
-                          title: t("navigation.items.inviteTeammate"),
-                          tooltip: t("navigation.items.inviteTeammate"),
-                      },
-                  ]
-                : [],
-        [canInvite, developerMode, projectURL, t],
-    )
-    const items = useMemo(
-        () =>
-            // The settings scope drops them: the rail IS settings there.
-            includeSettingsLink
-                ? [
-                      {
-                          key: "mobile-templates",
-                          title: t("navigation.items.templates"),
-                          icon: createElement(SquaresFourIcon, {size: 16}),
-                          link: `${projectURL}/templates`,
-                      },
-                      {
-                          key: "mobile-settings",
-                          title: t("common.settings"),
-                          icon: createElement(GearIcon, {size: 16}),
-                          link: `${projectURL}/settings`,
-                          suffix: version
-                              ? createElement(
-                                    "span",
-                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
-                                    `v${version}`,
-                                )
-                              : undefined,
-                      },
-                  ]
-                : [],
-        [includeSettingsLink, projectURL, version, t],
-    )
     return useMemo(
-        () => (inviteItems.length ? [...items, ...inviteItems] : items),
-        [inviteItems, items],
+        () => [
+            {
+                key: "mobile-settings",
+                title: t("common.settings"),
+                icon: createElement(GearIcon, {size: 16}),
+                link: `${projectURL}/settings`,
+                suffix: version
+                    ? createElement(
+                          "span",
+                          {className: "text-[10px] leading-none text-colorTextTertiary"},
+                          `v${version}`,
+                      )
+                    : undefined,
+                trailing: createElement(SupportActions, {projectId}),
+            },
+        ],
+        [projectId, projectURL, version, t],
     )
 }
 
 /**
- * Help & Docs as an item the rail renders as an icon button beside the project switcher.
+ * Help & Docs as an item the rail renders as an icon button on the Settings row.
  * It is a menu you reach for, not a place in the product,
  * and the row it held was the widest thing in the rail's footer.
  */

@@ -5,10 +5,8 @@
  */
 export {NavMenu, type NavItem, type NavMenuMode, type NavMenuProps} from "./NavMenu"
 export {default as SidebarShell} from "./SidebarShell"
-export {SidebarLogo} from "./SidebarLogo"
 export {default as SidebarIconMenu} from "./SidebarIconMenu"
 export {buildReleaseNavItems} from "./releaseItems"
-export {default as SessionSearchButton} from "./SessionSearchButton"
 export {default as SessionSearchPalette} from "./SessionSearchPalette"
 export {
     default as CommandPalette,

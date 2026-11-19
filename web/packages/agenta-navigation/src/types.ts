@@ -63,6 +63,8 @@ export interface SidebarConfig {
     groupAction?: ReactNode
     /** A leaf row's trailing control, revealed on hover or focus. Hidden when the rail is collapsed. */
     rowAction?: ReactNode
+    /** A leaf row's trailing controls, always shown. Hidden when the rail is collapsed. */
+    trailing?: ReactNode
     /** Collapsed rail: a leaf's hover flyout in place of its tooltip. The icon still navigates.
      * `close` always closes; `hold(true)` keeps it open against hover-out and outside clicks. */
     hoverFlyout?: (close: () => void, hold: (held: boolean) => void) => ReactNode
@@ -96,9 +98,18 @@ export interface SidebarSlotContext {
 
 export type SidebarSlot = ComponentType<SidebarSlotContext>
 
+/** A section the user arranges: drag rows to reorder, drop one on "More" to hide it there. */
+export interface SidebarArrange {
+    /** The pages in "More", in order. */
+    hidden: SidebarConfig[]
+    onArrange: (visible: string[], hidden: string[]) => void
+    onReset: () => void
+}
+
 export interface SidebarSection {
     key: string
     items: SidebarConfig[]
+    arrange?: SidebarArrange
     before?: SidebarSlot
     dividerBefore?: boolean
     placement?: "top" | "bottom"

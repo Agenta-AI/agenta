@@ -3,9 +3,7 @@ import type {SVGProps} from "react"
 /**
  * The Agenta brand marks as inline SVG, for surfaces that cannot reach `public/`: the mobile
  * app's `/m` basePath breaks a bare `src="/assets/..."`, and a package ships no assets.
- *
- * `packages/agenta-navigation-ui/src/SidebarLogo.tsx` keeps its own copy of these paths;
- * importing them from here would point the navigation package at the auth package.
+
  */
 const MARK_CLASS = "fill-[#1E1C1D] dark:fill-[#F2F25C]"
 

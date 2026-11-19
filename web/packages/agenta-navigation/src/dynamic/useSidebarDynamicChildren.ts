@@ -176,7 +176,6 @@ export const resolveChildren = (
             {
                 key: `${entity.parentKey}-loading`,
                 title: getSidebarSourceStatusLabel("loading"),
-                icon: icon(),
                 disabled: true,
                 isDynamic: true,
                 isLoading: true,
@@ -230,7 +229,7 @@ export const resolveChildren = (
         link: entity.childLink(ref, projectURL),
         // A row can own more routes than it navigates to.
         matchLinks: entity.childMatchLinks?.(ref, projectURL),
-        icon: entity.getIcon?.(ref) ?? icon(),
+        icon: entity.getIcon ? entity.getIcon(ref) : icon(),
         rowClassName: entity.getRowClassName?.(ref),
         isDynamic: true,
         onClick: entity.getOnClick?.(ref),

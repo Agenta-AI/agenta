@@ -3,10 +3,10 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Sidebar, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
+import {PanelLeft, X} from "lucide-react"
 
 export interface SidebarToggleButtonProps {
     /** The rail's collapsed state. Defaults to the shared atom both shells already use. */
@@ -31,24 +31,17 @@ export const SidebarToggleButton = ({
             type="text"
             size="small"
             className={clsx(
-                // A 28px square, the same box the rail's icon rows use, so the one control above
-                // the list is as easy to hit as the rows under it. It was 22 with a -3px ::after
-                // extending only the POINTER area, which left a hover fill visibly smaller than
-                // the thing you were pointing at.
-                "shrink-0 !size-7 !p-0",
-                // 4px nearer the rail's right edge on the expanded rail only; collapsed, it centres.
-                !collapsed && "-mr-1",
+                "shrink-0 !p-0 !text-colorTextSecondary hover:!text-colorText",
+                // 32px on the icon rail, the kit's small square elsewhere.
+                collapsed && !onDismiss ? "!size-8 !rounded-[8px]" : "aspect-square !rounded-[6px]",
                 className,
             )}
             aria-label={onDismiss ? t("navigation.chrome.closeNavigation") : undefined}
             icon={
                 onDismiss ? (
-                    <X size={16} />
+                    <X size={16} strokeWidth={1.75} />
                 ) : (
-                    <Sidebar
-                        size={16}
-                        className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
-                    />
+                    <PanelLeft size={16} strokeWidth={1.75} />
                 )
             }
             onClick={() => (onDismiss ? onDismiss() : setCollapsed((c) => !c))}

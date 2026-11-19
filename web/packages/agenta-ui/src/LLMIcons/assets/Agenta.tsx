@@ -4,9 +4,7 @@ import {IconProps} from "./types"
  * Agenta's own brand mark, for a connection Agenta provisioned — those are not any one vendor's,
  * so no vendor mark is honest for them.
  *
- * Traced from the sidebar's mark (`SidebarLogo`) rather than imported: that lives in
- * `@agenta/navigation-ui`, which sits above `@agenta/ui`. Same path, same theme accent, and the
- * same 171x140 viewBox — so it letterboxes inside a square icon box exactly as the rail's does.
+ * The 171x140 viewBox letterboxes inside a square icon box.
  */
 const Agenta = ({...props}: IconProps) => {
     return (

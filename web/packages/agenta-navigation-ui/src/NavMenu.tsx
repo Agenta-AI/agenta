@@ -2,7 +2,12 @@ import {Fragment, memo, useRef, type KeyboardEvent, type MouseEvent, type ReactN
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import type {SidebarConfig, SidebarDragItem, SidebarMenuMode} from "@agenta/navigation"
+import type {
+    SidebarArrange,
+    SidebarConfig,
+    SidebarDragItem,
+    SidebarMenuMode,
+} from "@agenta/navigation"
 import {HeightCollapse} from "@agenta/ui/components/presentational"
 import {
     DropdownMenu,
@@ -22,9 +27,11 @@ import {CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
+import {ArrangeablePages} from "./ArrangeablePages"
 import {FadeScrollBox} from "./FadeScrollBox"
 import {HoverFlyout} from "./HoverFlyout"
 import {SidebarReorderLayer} from "./reorder"
+import {ROW_BASE, ROW_HEIGHT, ROW_INTERACTIVE, ROW_SELECTED} from "./rowStyles"
 
 /**
  * The antd-free nav renderer: one `@agenta/navigation` model, any shell. Inline mode expands
@@ -43,27 +50,11 @@ export interface NavMenuProps {
     onPopupOpenChange?: (key: string, open: boolean) => void
     /** Controlled scopes (settings): handle the click and suppress navigation. */
     onItemSelect?: (key: string, event: MouseEvent) => void
+    /** Makes the top-level rows arrangeable, with a "More" row for the hidden ones. */
+    arrange?: SidebarArrange
     className?: string
 }
 
-// calc, not 94%: an exact 8px inset each side, so the row's right edge lines up with the
-// 8px-inset collapse toggle in the brand row.
-// h-7/text-sm: the rail's own row, and the reading rhythm ChatGPT and Manus keep. A
-// 26px/13px pass was tried and read as one packed column with no breathing room.
-// gap-[10px], not gap-2: the rail's icon-to-label gap is 10px.
-// leading-7, not leading-none: `truncate` clips to the line box, and a line box equal to the
-// font size slices the descenders off every g, p and y.
-const ROW_HEIGHT = "h-7 text-sm leading-7"
-// shrink-0: the rows are flex children of a `min-h-0 flex-1` nav, so an overflowing rail
-// squeezed them below their own height instead of scrolling. The Sessions group owns the
-// scrolling; every other row holds its size.
-const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-md px-3 select-none`
-const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
-// The rail's own selection tokens, not neutral fills: a raised pill with a hairline in both
-// themes. The ring is inset rather than a border so the row's box never changes size
-// between states.
-const ROW_SELECTED =
-    "bg-[var(--ag-shell-selected-bg)] font-medium !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
 const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
 // Guide line marks the group's extent, the way the old inline menu did.
 const GROUP_CHILDREN =
@@ -176,16 +167,14 @@ const RowLabel = memo(function RowLabel({
     // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
     // and both list groups hide their children there.
     const hover = item.tooltip ?? (typeof item.title === "string" ? item.title : undefined)
-    // `flex-1` pins the fade to the label's right edge, so long rows fade at one line.
     const content = (
         <span className="flex w-full items-center">
-            <span className="ag-text-fade min-w-0 flex-1" title={hover}>
+            <span className="min-w-0 flex-1 truncate" title={hover}>
                 {item.title} <TagChip tag={item.tag} />
             </span>
             {item.suffix ? <span className="ml-auto shrink-0 pl-2">{item.suffix}</span> : null}
         </span>
     )
-    if (item.isLoading) return <SkeletonBlock active className="h-4 min-w-[72px] flex-1" />
     if (!item.link || item.disabled)
         return (
             <span className="min-w-0 flex-1 truncate" data-tour={item.dataTour}>
@@ -226,7 +215,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 {...dragAttrs(item.dragItem)}
                 data-sticky-heading="true"
                 className={clsx(
-                    "m-0 w-full shrink-0 pb-0.5 pl-5 pr-5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none",
+                    "m-0 w-full shrink-0 pb-0.5 pl-5 pr-5 pt-2 text-[12px] uppercase tracking-wide text-colorTextSecondary select-none",
                     STICKY_HEADING,
                 )}
             >
@@ -243,7 +232,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             // ENTITY (an agent), and shouting a proper noun misspells it.
             data-sticky-heading="true"
             className={clsx(
-                "flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
+                "flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextSecondary hover:text-colorText",
                 STICKY_HEADING,
             )}
             onClick={(event) => {
@@ -313,6 +302,23 @@ const PlaceholderRow = ({item}: {item: NavItem}) => (
     </p>
 )
 
+/** Row widths for the loading list, varied so it reads as titles rather than a block. */
+const LOADING_WIDTHS = ["w-[72%]", "w-[58%]", "w-[80%]", "w-[46%]", "w-[66%]", "w-[54%]"]
+
+/** A group's loading state, shaped like the list it stands in for: a caption, then rows. */
+const LoadingRows = () => (
+    <div className="flex shrink-0 flex-col" aria-busy="true" aria-label="Loading">
+        <div className="flex h-6 items-center pl-5 pr-3 pt-2">
+            <SkeletonBlock active className="h-2.5 w-24 rounded-full" />
+        </div>
+        {LOADING_WIDTHS.map((width) => (
+            <div key={width} className={`${ROW_BASE} pointer-events-none`}>
+                <SkeletonBlock active className={`h-3 rounded-full ${width}`} />
+            </div>
+        ))}
+    </div>
+)
+
 const LeafRow = memo(function LeafRow({
     item,
     selected,
@@ -322,6 +328,7 @@ const LeafRow = memo(function LeafRow({
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) {
+    if (item.isLoading) return <LoadingRows />
     if (item.isPlaceholder) return <PlaceholderRow item={item} />
     const onClick = rowClickHandler(item, onItemSelect)
     // A controlled scope (Settings) gives its items `onItemSelect` and no `link`, so the row
@@ -339,6 +346,7 @@ const LeafRow = memo(function LeafRow({
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
                 item.rowAction && "group/row pr-0",
+                item.trailing && "pr-0",
                 item.rowClassName,
                 isControl &&
                     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
@@ -356,10 +364,19 @@ const LeafRow = memo(function LeafRow({
                 onClick?.(event as unknown as MouseEvent)
             }}
         >
-            {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
+            {item.icon ? (
+                <span data-row-icon className="flex shrink-0 items-center">
+                    {item.icon}
+                </span>
+            ) : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
             {/* Above the stretched link anchor, like a group's action. */}
             {item.rowAction ? <span className={ROW_ACTION}>{item.rowAction}</span> : null}
+            {item.trailing ? (
+                <span className="relative z-[1] mr-0.5 flex shrink-0 items-center">
+                    {item.trailing}
+                </span>
+            ) : null}
         </div>
     )
 })
@@ -514,6 +531,7 @@ const NavMenuImpl = ({
     onToggleOpenKey,
     onPopupOpenChange,
     onItemSelect,
+    arrange,
     className,
 }: NavMenuProps) => {
     const t = useT(navigationCatalog)
@@ -536,15 +554,15 @@ const NavMenuImpl = ({
                 const icon = (
                     <div
                         className={clsx(
-                            // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
-                            // side and the icons read as tiles rather than as a nav.
-                            "relative mx-auto flex size-7 items-center justify-center rounded-md",
+                            "relative mx-auto flex size-8 items-center justify-center rounded-[8px]",
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                         )}
                         onClick={rowClickHandler(item, onItemSelect)}
                     >
-                        {item.icon}
+                        <span data-row-icon className="flex">
+                            {item.icon}
+                        </span>
                         {item.link && !item.disabled ? (
                             <RowLabelCollapsed item={item} onItemSelect={onItemSelect} />
                         ) : null}
@@ -574,15 +592,17 @@ const NavMenuImpl = ({
                             className={clsx(
                                 // [font-family:inherit]: preflight is off, so a bare <button>
                                 // renders Arial while the <div> rows around it render Inter.
-                                "mx-auto flex min-w-0 shrink-0 items-center rounded-md border-0 bg-transparent [font-family:inherit]",
+                                "mx-auto flex min-w-0 shrink-0 items-center border-0 bg-transparent [font-family:inherit]",
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 collapsed
-                                    ? "size-7 justify-center"
-                                    : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
+                                    ? "size-8 justify-center rounded-[8px]"
+                                    : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] rounded-[6px] px-3`,
                             )}
                         >
-                            {item.icon}
+                            <span data-row-icon className="flex">
+                                {item.icon}
+                            </span>
                             {/* Allow the flex item to shrink so the title truncates instead of wrapping. */}
                             {!collapsed ? (
                                 <span className="min-w-0 flex-1 truncate text-left">
@@ -635,7 +655,9 @@ const NavMenuImpl = ({
                         )}
                     >
                         {item.icon ? (
-                            <span className="flex shrink-0 items-center">{item.icon}</span>
+                            <span data-row-icon className="flex shrink-0 items-center">
+                                {item.icon}
+                            </span>
                         ) : null}
                         <RowLabel item={item} onItemSelect={onItemSelect} />
                         {/* z-[1] for the same reason as the caret: the link anchor is stretched
@@ -723,13 +745,21 @@ const NavMenuImpl = ({
                 // Collapsed rows carry no margin of their own (ROW_BASE's `mb-1` belongs to the
                 // expanded rail), so without this the icon buttons touch edge to edge.
                 collapsed && "gap-1",
-                // A scrolling group only shrinks if its own line can: claim the section's height
-                // and allow shrinking past the content.
-                items.some((item) => item.scrollChildren) && "min-h-0 flex-1",
+                // Claim the spare height, but keep room for a few rows; past that the rail scrolls.
+                items.some((item) => item.scrollChildren) && "min-h-40 flex-1",
                 className,
             )}
         >
-            {items.map(renderItem)}
+            {arrange ? (
+                <ArrangeablePages
+                    items={items}
+                    arrange={arrange}
+                    collapsed={collapsed}
+                    renderItem={renderItem}
+                />
+            ) : (
+                items.map(renderItem)
+            )}
             {inline ? <SidebarReorderLayer containerRef={navRef} /> : null}
         </nav>
     )

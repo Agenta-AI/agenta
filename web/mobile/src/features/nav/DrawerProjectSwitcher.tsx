@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import {loadWithText} from "@agenta/i18n"
@@ -7,12 +7,10 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import createProjectCatalog from "@agenta/i18n/catalogs/shell.createProject"
 import {
     ProjectOrgSwitcherView,
-    SidebarIconMenu,
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
 import {message} from "@agenta/ui/app-message"
-import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {themeIcon, useThemeMode, useThemeOptions} from "@agenta/ui/theme"
 import {useMutation} from "@tanstack/react-query"
 import dynamic from "next/dynamic"
@@ -20,10 +18,7 @@ import {useRouter} from "next/router"
 
 import {useLogout} from "../auth/useLogout"
 import {switchSettingsContext} from "../settings/switchContext"
-import {LiveChatNavButton} from "../support/LiveChatNavButton"
-import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
-import {useMobileHelpItem} from "./useMobileNavItems"
 import {useOrganizationProjects} from "./useOrganizationProjects"
 
 /** Opens from a menu row, so the dialog and its text load on first use. */
@@ -33,29 +28,31 @@ const CreateProjectSheet = dynamic(
 )
 
 /**
- * The drawer's header switcher: the shared rail component, bound to mobile's project data.
+ * The rail's project switcher: the shared rail component, bound to mobile's project data.
  * Both panels speak organizations, because every org's workspace is named "Default".
  */
 export const DrawerProjectSwitcher = ({
     workspaceId,
     projectId,
     collapsed = false,
+    side = "top",
+    compact,
+    trailing,
 }: {
     workspaceId: string
     projectId: string
     /** The rail's state. False in the drawer, which never collapses. */
     collapsed?: boolean
+    /** Where the panel opens: "bottom" in the rail's header, "top" in its footer. */
+    side?: "top" | "bottom"
+    /** The header's compact trigger; on by default in the header. */
+    compact?: boolean
+    /** Controls beside the trigger, such as the collapse toggle. */
+    trailing?: ReactNode
 }) => {
     const t = useT(navigationCatalog, commonCatalog, createProjectCatalog)
     const router = useRouter()
     const logout = useLogout()
-    // The sheet is a modal, so its state lives with whatever stays mounted after the menu closes.
-    const [shortcutsOpen, setShortcutsOpen] = useState(false)
-    // Help rides on the switcher row rather than taking a nav row of its own.
-    const helpItem = useMobileHelpItem({
-        onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
-    })
-    const liveChatEnabled = useLiveChatEnabled(projectId)
     const {query, groups, currentGroup, currentProject} = useOrganizationProjects(
         workspaceId,
         projectId,
@@ -159,14 +156,10 @@ export const DrawerProjectSwitcher = ({
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
-                trailing={
-                    <>
-                        {liveChatEnabled ? <LiveChatNavButton /> : null}
-                        <SidebarIconMenu item={helpItem} />
-                    </>
-                }
+                side={side}
+                compact={compact}
+                trailing={trailing}
             />
-            <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
                 open={createOpen}
                 onOpenChange={setCreateOpen}
