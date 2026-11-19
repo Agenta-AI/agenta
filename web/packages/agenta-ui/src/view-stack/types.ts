@@ -21,7 +21,7 @@ export type ViewApply = "on_save" | "immediate"
 
 /** A view definition. A module exports it; nothing registers it globally. */
 export interface ViewDef<P> {
-    /** Stable id, for React keys and tests. Never stored. Example: "agent.skill". */
+    /** Stable id that names the view in tests and logs. Never stored. Example: "agent.skill". */
     id: string
     apply: ViewApply
     /** The panel chrome offers "Widen the panel" for this view. Other containers ignore it. */

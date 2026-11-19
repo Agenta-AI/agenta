@@ -218,6 +218,24 @@ describe("ViewStackHost", () => {
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
     })
 
+    it("a second Back while Save changes runs is dropped", async () => {
+        const pending = deferred()
+        saveImpl = () => pending.promise
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await waitFor(() => expect(dialog()).toBeNull())
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await act(async () => pending.resolve(true))
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        await new Promise((r) => setTimeout(r, 20))
+        expect(dialog()).toBeNull()
+    })
+
     it("a failed Save changes of a parent under a picker shows the error", async () => {
         saveImpl = async () => false
         renderHost()
@@ -254,7 +272,7 @@ describe("ViewStackHost", () => {
         expect(screen.getByText("leave connect")).toBeTruthy()
     })
 
-    it("the view takes no input while its Save runs, and a held Escape pops one level", async () => {
+    it("the view takes no input while its Save runs, and a held Escape does not close the parent", async () => {
         const pending = deferred()
         saveImpl = () => pending.promise
         renderHost()

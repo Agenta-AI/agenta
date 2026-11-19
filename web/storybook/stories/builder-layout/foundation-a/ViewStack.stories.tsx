@@ -13,8 +13,8 @@ import {
 } from "@agenta/ui/view-stack"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// The view stack of D2 in a bare container: a breadcrumb, the top view and its action row. The
-// panel, page and phone chromes of later milestones draw the same props their own way.
+// The view stack in a bare container: a breadcrumb, the top view and its action row. The panel,
+// page and phone chromes draw the same props their own way.
 const DemoChrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
     <div className="flex h-[520px] w-[440px] flex-col border border-solid border-border bg-colorBgContainer">
         <nav className="flex items-center gap-1 border-0 border-b border-solid border-border px-4 py-3 text-sm">
@@ -92,7 +92,7 @@ type Story = StoryObj<typeof meta>
 /** A view at depth 1 with its breadcrumb and Cancel and Save. */
 export const View: Story = {globals: {theme: "light"}}
 
-/** F06 f1: the generic unsaved-changes dialog, with the description of an agent view. */
+/** The generic unsaved-changes dialog, with the description of an agent view. */
 export const UnsavedDialog: Story = {
     globals: {theme: "light"},
     render: () => (
