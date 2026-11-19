@@ -49,6 +49,8 @@ export const SkillUsedBy = ({
                     <Link
                         key={agent.id || agent.name}
                         href={agentEntryHref(base, agent.id)}
+                        // The card portals out, but React still bubbles the click to the row.
+                        onClick={(event) => event.stopPropagation()}
                         className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-foreground no-underline hover:bg-accent"
                     >
                         <span

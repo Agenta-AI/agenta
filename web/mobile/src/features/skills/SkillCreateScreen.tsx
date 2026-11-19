@@ -55,7 +55,7 @@ export const SkillCreateScreen = ({
         [listHref],
     )
     const flow = useSkillCreateFlow({projectId, onCreated: showAdded})
-    const {leave, modal} = useSkillLeaveGuard(flow.dirty && !flow.busy)
+    const {leave, modal, discardThen} = useSkillLeaveGuard(flow.dirty && !flow.busy)
     leaveRef.current = leave
 
     const start = typeof router.query.start === "string" ? router.query.start : ""
@@ -79,7 +79,7 @@ export const SkillCreateScreen = ({
                 label="Add a skill"
                 onClick={(event) => {
                     event.preventDefault()
-                    flow.setStep("choose")
+                    discardThen(flow.reset)
                 }}
             />
         )

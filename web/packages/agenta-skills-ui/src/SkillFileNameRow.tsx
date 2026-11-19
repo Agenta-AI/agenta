@@ -14,6 +14,7 @@ const cleanPath = (raw: string) =>
 /** Why a path cannot be used, or null when it can. */
 export const filePathProblem = (path: string, taken: ReadonlySet<string>): string | null => {
     if (!path) return "Name the file."
+    if (path.includes("\\")) return "Use / between folders."
     if (path.split("/").some((part) => part === "." || part === "..")) return "Use a plain name."
     if (path.toLowerCase() === "skill.md") return "SKILL.md holds the instructions."
     if (path.length > 255) return "Use a shorter name."

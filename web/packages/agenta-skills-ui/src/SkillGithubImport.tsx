@@ -3,6 +3,7 @@ import {useRef, useState} from "react"
 import {extractApiErrorMessage, formatCount, skillDisplayName} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {message} from "@agenta/ui/app-message"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {Button, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {GithubLogo, WarningCircle} from "@phosphor-icons/react"
@@ -117,6 +118,13 @@ export function SkillGithubImport({
                 setError("None of the chosen skills could be imported.")
                 return
             }
+            const skipped = response?.skipped ?? []
+            if (skipped.length)
+                message.warning(
+                    `${formatCount(skipped.length, "skill")} could not be imported: ${skipped
+                        .map((entry) => entry.path_in_repo.split("/").pop() || entry.path_in_repo)
+                        .join(", ")}.`,
+                )
             onImported(imported)
         } catch (err) {
             setError(errorText(err, "Import failed"))

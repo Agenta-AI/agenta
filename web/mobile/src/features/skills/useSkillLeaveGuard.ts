@@ -11,12 +11,14 @@ export const useSkillLeaveGuard = (dirty: boolean) => {
             confirm({...request, okText: "Discard", cancelText: "Keep editing", danger: true}),
         [confirm],
     )
-    const leave = useUnsavedGuard({
-        dirty,
-        confirm: ask,
-        title: "Discard unsaved changes?",
-        message: "This skill has changes that are not saved. They will be lost.",
-    })
+    const title = "Discard unsaved changes?"
+    const message = "This skill has changes that are not saved. They will be lost."
+    const leave = useUnsavedGuard({dirty, confirm: ask, title, message})
+    /** For a step inside the page, which no route change guards. */
+    const discardThen = useCallback(
+        (go: () => void) => (dirty ? ask({title, message, onOk: go}) : go()),
+        [ask, dirty],
+    )
 
     useEffect(() => {
         if (!dirty) return
@@ -28,5 +30,5 @@ export const useSkillLeaveGuard = (dirty: boolean) => {
         return () => window.removeEventListener("beforeunload", onBeforeUnload)
     }, [dirty])
 
-    return {leave, modal}
+    return {leave, modal, discardThen}
 }
