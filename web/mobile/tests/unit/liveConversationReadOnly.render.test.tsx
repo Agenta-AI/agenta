@@ -303,6 +303,10 @@ vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: calls.steerRespond}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
+// The builder follow reads `@agenta/playground/state`; it has its own test.
+vi.mock("@/features/builder/useFollowBuilderCommits", () => ({
+    useFollowBuilderCommits: () => undefined,
+}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 vi.mock("@/features/chat/useTranscriptAutoScroll", () => ({
     useTranscriptAutoScroll: () => ({ref: {current: null}, onScroll: vi.fn(), edgeMask: ""}),

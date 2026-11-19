@@ -108,6 +108,7 @@ vi.mock("@/features/chat/useTranscriptAutoScroll", () => ({
 }))
 
 import {ChatScreen} from "@/features/chat/ChatScreen"
+import {viewFormDirtyAtom} from "@/features/chat/viewFormDirty"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const SESSION = "session-1"
@@ -116,10 +117,11 @@ describe("ChatScreen auto-update gate", () => {
     let host: HTMLDivElement
     let root: Root
 
+    let store: ReturnType<typeof createStore>
     const told = async () => {
         await act(async () =>
             root.render(
-                <Provider store={createStore()}>
+                <Provider store={store}>
                     <ChatScreen sessionId={SESSION} projectId="proj-1" workspaceId="ws-1" />
                 </Provider>,
             ),
@@ -132,6 +134,7 @@ describe("ChatScreen auto-update gate", () => {
         world.liveness = {data: [], isLoading: false}
         world.runStatus = "idle"
         world.autoUpdate = []
+        store = createStore()
         host = document.createElement("div")
         document.body.append(host)
         root = createRoot(host)
@@ -196,5 +199,16 @@ describe("ChatScreen auto-update gate", () => {
         await told()
         world.entity = {entityId: "rev-2", agentId: null, followsAgent: false}
         expect(await told()).toBe(false)
+    })
+
+    // QA plan T1: a builder save lands while the Instructions view has a local edit. The session
+    // stays on its version; the header offers "Update to vN" (AgentRevisionStatus with no auto
+    // update); the form keeps its text because nothing remounts.
+    it("holds while an open view form has edits, and allows it once the form is clean", async () => {
+        store.set(viewFormDirtyAtom, true)
+        expect(await told()).toBe(false)
+
+        await act(async () => store.set(viewFormDirtyAtom, false))
+        expect(world.autoUpdate.at(-1)).toBe(true)
     })
 })
