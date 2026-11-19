@@ -340,6 +340,10 @@ class OAuthGrantSettingsDTO(BaseModel):
     # registered by hand, or from the identity document, has no registration row to
     # name, so this is what keeps its renewal on the same client.
     client_id: Optional[str] = None
+    # The account the grant signs in as, as the server named it at sign-in (an email or a
+    # user name). A label for a person's own sign-in, shown to that person only; None
+    # when the server gave no name.
+    account_name: Optional[str] = None
 
 
 class OAuthGrantDTO(BaseModel):
