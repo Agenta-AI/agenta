@@ -23,5 +23,32 @@
         "height": 500,
         "theme": "dark",
         "selector": "[data-testid=\"unsaved-changes-dialog\"]"
+    },
+    {
+        "id": "foundation-a-panel-view-light",
+        "story": "builderlayout-foundation-a-panel-view-chrome--desktop",
+        "width": 600,
+        "height": 760,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=AGENTS.md"
+    },
+    {
+        "id": "foundation-a-panel-view-dark",
+        "story": "builderlayout-foundation-a-panel-view-chrome--desktop-dark",
+        "width": 600,
+        "height": 760,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=AGENTS.md"
+    },
+    {
+        "id": "foundation-a-panel-view-phone",
+        "story": "builderlayout-foundation-a-panel-view-chrome--phone",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=AGENTS.md"
     }
 ]

@@ -5,10 +5,12 @@ import {AgentIdentity, useAgentActions} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
+import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -35,6 +37,7 @@ import {useRouter} from "next/router"
 import {sharingCopy} from "@/lib/sharingCopy"
 
 import {heldCommitAtomFamily} from "../chat/selectedRevision"
+import {SessionInspectorSheet} from "../chat/SessionInspectorSheet"
 import {SessionSharingControl} from "../chat/SessionSharingControl"
 import {useSessionHeader} from "../chat/useSessionHeader"
 import {useStartBlankSession} from "../chat/useStartBlankSession"
@@ -251,6 +254,11 @@ const SessionMenu = ({
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
     const [open, setOpen] = useState(false)
+    // "Inspect session" lives in this menu while the debug preference is on; the sheet stays
+    // outside the popover, which closes when it opens.
+    const tSessions = useT(chatMobileSessionsCatalog)
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    const [inspecting, setInspecting] = useState(false)
     // A second "New session" while the first navigation runs starts nothing.
     const starting = useRef(false)
     const newSession = useCallback(() => {
@@ -298,6 +306,18 @@ const SessionMenu = ({
                     <Button variant="ghost" className="justify-start" onClick={newSession}>
                         {t("agentLayout.header.newSession")}
                     </Button>
+                    {inspectorEnabled ? (
+                        <Button
+                            variant="ghost"
+                            className="justify-start"
+                            onClick={() => {
+                                setOpen(false)
+                                setInspecting(true)
+                            }}
+                        >
+                            {tSessions("chat.mobileSessions.inspectSession")}
+                        </Button>
+                    ) : null}
                     <Button variant="ghost" className="justify-start" asChild>
                         <Link
                             href={`${base}/agents/${agentId}?view=sessions`}
@@ -308,6 +328,13 @@ const SessionMenu = ({
                     </Button>
                 </div>
             </PopoverContent>
+            {inspectorEnabled ? (
+                <SessionInspectorSheet
+                    sessionId={sessionId}
+                    open={inspecting}
+                    onOpenChange={setInspecting}
+                />
+            ) : null}
         </Popover>
     )
 }

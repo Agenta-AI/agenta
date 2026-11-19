@@ -5,11 +5,9 @@
     "exportAgent": "Export agent",
     "files": "Files",
     "history": "History",
-    "loadFailed": "Could not load sessions",
     "newSession": "New session",
     "rename": "Rename",
     "sessions": "Sessions",
     "shareConversation": "Share the conversation",
-    "tryAgain": "Try again",
     "untitledSession": "Untitled session"
 }
