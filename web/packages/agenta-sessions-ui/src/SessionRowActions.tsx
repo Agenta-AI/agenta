@@ -78,28 +78,13 @@ const SessionRowActions = ({
         setArmed(true)
         setOpen(true)
     }, [])
-    // Navigation is held for one double-click window so a rename doesn't also open the session.
-    const navTimerRef = useRef<number | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
-
-    const cancelPendingNav = useCallback(() => {
-        if (navTimerRef.current === null) return
-        window.clearTimeout(navTimerRef.current)
-        navTimerRef.current = null
-    }, [])
-
-    useEffect(() => cancelPendingNav, [cancelPendingNav])
 
     // A touch long-press opens the context menu, and some browsers still click on release.
     const contextMenuPressRef = useRef(false)
-    const onContextMenuOpenChange = useCallback(
-        (next: boolean) => {
-            if (!next) return
-            contextMenuPressRef.current = true
-            cancelPendingNav()
-        },
-        [cancelPendingNav],
-    )
+    const onContextMenuOpenChange = useCallback((next: boolean) => {
+        if (next) contextMenuPressRef.current = true
+    }, [])
 
     const target = useMemo(
         () => ({
@@ -177,22 +162,20 @@ const SessionRowActions = ({
     }, [])
 
     /**
-     * The row's <Link>, with its navigation put on a short leash.
+     * The row's <Link>. The first click navigates at once; the second click of a double click
+     * does not navigate again, and the double click then renames the session that is now open.
      *
      * next/link calls the `onClick` we pass BEFORE deciding to navigate, and skips navigating if
      * that handler prevented the default (next/dist/client/link.js: `if (e.defaultPrevented)
-     * return`). So a click can be held for one double-click window and replayed by us — no
-     * stopPropagation, and the anchor keeps its href for middle-click, "open in new tab" and
-     * prefetch.
+     * return`). The anchor keeps its href for middle-click, "open in new tab" and prefetch.
      */
-    const linkWithHeldNavigation = useMemo(() => {
+    const link = useMemo(() => {
         if (!isValidElement(children)) return children
-        const link = children as ReactElement<{
-            href?: string
+        const element = children as ReactElement<{
             onClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void
         }>
-        const {href, onClick} = link.props
-        return cloneElement(link, {
+        const {onClick} = element.props
+        return cloneElement(element, {
             onClick: (event: ReactMouseEvent<HTMLAnchorElement>) => {
                 onClick?.(event)
                 if (event.defaultPrevented) return
@@ -210,16 +193,11 @@ const SessionRowActions = ({
                     event.altKey
                 )
                     return
-                event.preventDefault()
-                // Second click of a double-click: the first one's timer is still pending.
-                if (navTimerRef.current !== null || !href) return
-                navTimerRef.current = window.setTimeout(() => {
-                    navTimerRef.current = null
-                    void router.push(href)
-                }, 220)
+                // The second click of a double click: the first one already opened the session.
+                if (event.detail > 1) event.preventDefault()
             },
         })
-    }, [children, router])
+    }, [children])
 
     if (rename.renaming)
         return (
@@ -241,7 +219,6 @@ const SessionRowActions = ({
                 }}
                 onDoubleClick={(event) => {
                     event.preventDefault()
-                    cancelPendingNav()
                     // Archived rows cannot be renamed — the menu drops the verb, so the
                     // double-click shortcut into it has to go too. Nor can someone else's chat.
                     if (!session.archived && entries.some((e) => "key" in e && e.key === "rename"))
@@ -249,9 +226,7 @@ const SessionRowActions = ({
                 }}
             >
                 {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}
-                <span className="min-w-0 flex-1 truncate font-normal">
-                    {linkWithHeldNavigation}
-                </span>
+                <span className="min-w-0 flex-1 truncate font-normal">{link}</span>
                 <span
                     // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
                     // right edge. Only session rows are wrapped, so no other nav row shifts.
