@@ -2051,10 +2051,14 @@ async def handle_preview_agent_change(
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
-    preview = build_change_preview(base=base, result=result, operations=operations)
-    if base_revision is not None:
-        preview["base"] = _revision_summary(base_revision)
-    return PlatformHandlerResult(content=preview)
+    return PlatformHandlerResult(
+        content=build_change_preview(
+            base=base,
+            result=result,
+            operations=operations,
+            base_revision=_revision_summary(base_revision),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -59,6 +59,8 @@ class _ListGroup:
         self.fields: Dict[str, List[List[Segment]]] = {}
         # Keys an operation wrote as a whole item (an add, a replace, a remove).
         self.whole_items: set = set()
+        # An operation wrote the whole list: its items are compared as whole items.
+        self.whole_list = False
 
 
 class _Plain:
@@ -84,6 +86,7 @@ def _groups(operations: Sequence[Dict[str, Any]]) -> List[Any]:
                 group = found.setdefault(
                     json.dumps(path, sort_keys=True), _ListGroup(path)
                 )
+                group.whole_list = True
             else:
                 group = found.setdefault(json.dumps(path, sort_keys=True), _Plain(path))
             group.indexes.append(index)
@@ -169,7 +172,7 @@ def _only_fields_changed(
 ) -> bool:
     """Whether the item's change is shown field by field: every operation on the item
     named a field inside it, and the item differs only at those top-level fields."""
-    if not fields or key in group.whole_items:
+    if not fields or group.whole_list or key in group.whole_items:
         return False
     if not isinstance(old, dict) or not isinstance(new, dict):
         return False
@@ -215,7 +218,10 @@ def _values(old: Any, new: Any) -> Dict[str, Any]:
         and isinstance(new, str)
         and len(old) + len(new) > TEXT_DIFF_MIN_CHARS
     ):
-        return _text_diff(old, new)
+        detail = _text_diff(old, new)
+        # A change of line endings or of the final newline leaves no line in the diff.
+        if detail["diff"]:
+            return detail
     detail: Dict[str, Any] = {}
     for side, value in (("old", old), ("new", new)):
         if value is _MISSING:
@@ -249,10 +255,12 @@ def build_change_preview(
     base: Dict[str, Any],
     result: Dict[str, Any],
     operations: Sequence[Dict[str, Any]],
+    base_revision: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """The preview of operations the engine applied: ``base`` is the revision data they
     start from, ``result`` the data the engine returned for all of them. ``operations``
-    must be the normalized operations the engine ran, so each path is the one it wrote."""
+    must be the normalized operations the engine ran, so each path is the one it wrote.
+    ``base_revision`` (`{id, version}`) names the base revision of an edit."""
     found: List[Dict[str, Any]] = []
     for group in _groups(operations):
         if isinstance(group, _ListGroup):
@@ -271,6 +279,8 @@ def build_change_preview(
         "changes": [],
         "truncated": True,  # counted in the budget; dropped below when nothing is cut
     }
+    if base_revision is not None:
+        preview["base"] = base_revision
     # Each change costs its size and a separator in the serialized preview.
     budget = MAX_PREVIEW_BYTES - _size(preview)
     truncated = False

@@ -22,6 +22,7 @@ from oss.src.core.workflows.change_set import (
 
 AGENTS_MD = ["parameters", "agent", "instructions", "agents_md"]
 SKILLS = ["parameters", "agent", "skills"]
+MCPS = ["parameters", "agent", "mcps"]
 MODEL = ["parameters", "agent", "llm", "model"]
 TRIAGE = {"name": "triage", "description": "Sort tickets.", "body": "Sort."}
 REFUND = {"name": "refund-check", "description": "Check refunds.", "body": "Check."}
@@ -346,6 +347,81 @@ class TestTheWholePreviewIsBounded:
         )
 
         assert preview["truncated"] is True
+        assert (
+            len(json.dumps(preview, ensure_ascii=False).encode()) <= MAX_PREVIEW_BYTES
+        )
+
+
+class TestAWholeListWriteShowsWholeItems:
+    def test_a_nested_change_by_the_list_write_is_not_hidden(self):
+        # The list write changes the server's url; a later operation sets its headers.
+        server = {"name": "files", "connection": {"url": "https://a.example/mcp"}}
+        moved = {"name": "files", "connection": {"url": "https://b.example/mcp"}}
+        base = _base()
+        base["parameters"]["agent"]["mcps"] = [server]
+        preview = _preview(
+            base,
+            [
+                {"operation": "set", "target": MCPS, "value": [moved]},
+                {
+                    "operation": "set",
+                    "target": [
+                        "parameters",
+                        "agent",
+                        {"list": "mcps", "key": "files"},
+                        "connection",
+                        "headers",
+                    ],
+                    "value": {"X": "1"},
+                },
+            ],
+        )
+
+        (change,) = preview["changes"]
+        assert change["path"] == [
+            "parameters",
+            "agent",
+            {"list": "mcps", "key": "files"},
+        ]
+        assert change["old"] == server
+        assert change["new"]["connection"] == {
+            "url": "https://b.example/mcp",
+            "headers": {"X": "1"},
+        }
+
+
+class TestALineEndingChange:
+    def test_a_long_text_whose_line_endings_change_shows_both_texts(self):
+        text = "\n".join(f"Rule {n}." for n in range(60))
+        preview = _preview(
+            _base(text),
+            [{"operation": "set", "target": AGENTS_MD, "value": text + "\n"}],
+        )
+
+        (change,) = preview["changes"]
+        assert change["old"] == text
+        assert change["new"] == text + "\n"
+
+
+class TestTheBaseIsInsideTheBound:
+    def test_the_base_revision_counts(self):
+        skills = [
+            {"name": f"skill-{n:04}", "description": "x" * 40, "body": "x"}
+            for n in range(1_000)
+        ]
+        result = apply_change_set(
+            _base(),
+            {"operations": [{"operation": "set", "target": SKILLS, "value": skills}]},
+            AGENT_COMMIT_SCOPE,
+        ).data
+        preview = build_change_preview(
+            base=_base(),
+            result=result,
+            operations=[{"operation": "set", "target": SKILLS, "value": skills}],
+            base_revision={"id": "r" * 36, "version": "12"},
+        )
+
+        assert preview["base"] == {"id": "r" * 36, "version": "12"}
         assert (
             len(json.dumps(preview, ensure_ascii=False).encode()) <= MAX_PREVIEW_BYTES
         )
