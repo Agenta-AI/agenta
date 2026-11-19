@@ -69,6 +69,7 @@ from agenta.sdk.agents import (
     validate_home_drive,
 )
 from agenta.sdk.agents.config_errors import ConfigEntryError
+from agenta.sdk.agents.dtos import BARE_TEMPLATE_KEYS
 
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -577,6 +578,16 @@ def _reject_unrunnable_agent(data: Any) -> None:
             if name in lists and isinstance(value, dict):
                 paths[name] = [f"{root}.{name}"]
             kept[name] = value
+
+    if (
+        not wrapped
+        and any(name in template for name in BARE_TEMPLATE_KEYS)
+        and not any(name in kept for name in BARE_TEMPLATE_KEYS)
+    ):
+        # Every definition field of the bare template holds an embed. The runtime reads
+        # this template, not the `prompt` fallback, and its content is known only after
+        # the embeds resolve.
+        return
 
     try:
         AgentTemplate.from_params(

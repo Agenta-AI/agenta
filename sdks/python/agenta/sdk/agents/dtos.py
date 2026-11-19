@@ -1803,7 +1803,7 @@ def _section(params: Dict[str, Any], key: str) -> Dict[str, Any]:
 
 
 # The keys that mark a bare template (no `agent` wrapper) as an agent template.
-_BARE_TEMPLATE_KEYS = (
+BARE_TEMPLATE_KEYS = (
     "instructions",
     "llm",
     "tools",
@@ -1822,7 +1822,7 @@ def _has_agent_template(params: Dict[str, Any]) -> bool:
     Mirrors the ``has_template`` branch in :func:`_parse_agent_fields` so shape validation and
     field parsing agree on which requests own an agent template."""
     return isinstance(params.get("agent"), dict) or any(
-        key in params for key in _BARE_TEMPLATE_KEYS
+        key in params for key in BARE_TEMPLATE_KEYS
     )
 
 
@@ -2094,7 +2094,7 @@ def _parse_agent_fields(
     ``tools`` flat on it), and the ``prompt`` prompt-template for a bare chat run. The agent-template
     shape wins when present; the prompt fallback applies only when there is no agent template."""
     has_template = isinstance(params.get("agent"), dict) or any(
-        key in params for key in _BARE_TEMPLATE_KEYS
+        key in params for key in BARE_TEMPLATE_KEYS
     )
     if has_template:
         agent = _template(params)
