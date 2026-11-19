@@ -1965,7 +1965,8 @@ from `list_agents`, not the display name), `base_revision_id` (from that read) a
 
 Write every value inline: `@ag.file` is not resolved here. The change becomes the agent's
 latest version; it is not deployed. Agenta writes the version message, and it names you and
-this session.
+this session. The answer carries the saved `revision` (`id`, `version`) and the
+`base_revision_id` to send with your next edit of this agent.
 
 If the call is refused, read `next_step`. A conflict means the agent changed after your read:
 call `read_agent_config` again and send the edit with the new `base_revision_id`."""
@@ -1979,7 +1980,10 @@ _EDIT_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
         "agent": _AGENT_REF_SCHEMA,
         "base_revision_id": {
             "type": "string",
-            "description": "The `base_revision_id` of your last `read_agent_config` of this agent.",
+            "description": (
+                "The `base_revision_id` of your last `read_agent_config` or "
+                "`edit_agent_config` answer for this agent."
+            ),
         },
         "operations": _AGENT_OPERATIONS_SCHEMA,
         "caller_agent_id": _BOUND_FROM_RUN_SCHEMA,
@@ -2008,8 +2012,8 @@ and targets sit under `["parameters","agent", ...]`:
 Write every value inline: `@ag.file` is not resolved here. If one operation fails, no agent
 is created. The same arguments in the same session make one agent, so a retry after a
 failure finishes that agent and never makes a second one. The answer carries the new agent's
-`id`, `slug` and `base_revision_id`; use them with `read_agent_config` and
-`edit_agent_config` for later changes. Agenta writes the first version's message, and it
+`id` and `slug`, its first `revision` (`id`, `version`), and the `base_revision_id` to send
+with its first `edit_agent_config`. Agenta writes the first version's message, and it
 names you and this session."""
 
 _CREATE_AGENT_INPUT_SCHEMA: Dict[str, Any] = {

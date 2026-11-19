@@ -61,6 +61,7 @@ import {
   relayWritesPausedAnswer,
 } from "./client-tools.ts";
 import { buildExecutableToolGate } from "./executable-tools.ts";
+import { buildAgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
 import { invalidateContinuity } from "./environment.ts";
 import { createHarnessTracePort } from "./harness-trace-port.ts";
 import {
@@ -1365,6 +1366,13 @@ export async function runTurn(
       sessionId,
       log: logger,
     });
+    // The server preview on an agent write's approval card, for both gate paths below.
+    const approvalPreview = buildAgentChangePreviewFetcher({
+      callback: toolCallback.runtime,
+      runContext: request.runContext,
+      toolSpecs: plan.tools.toolSpecs,
+      log: logger,
+    });
 
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
@@ -1428,6 +1436,7 @@ export async function runTurn(
       // Runs only after a non-deny verdict, and only for a gate about to pause: a denied call
       // must perform zero workspace reads.
       onResolveApprovedContent: approvedContent.onResolveApprovedContent,
+      onResolveApprovalPreview: approvalPreview,
       shouldRegateStaleApproval: approvedContent.shouldRegateStaleApproval,
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn
@@ -1522,6 +1531,7 @@ export async function runTurn(
             },
             permissionPlan,
             executionGrants,
+            resolveApprovalPreview: approvalPreview,
             log: logger,
           })
         : undefined;

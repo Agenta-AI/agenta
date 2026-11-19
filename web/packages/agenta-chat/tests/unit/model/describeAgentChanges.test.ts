@@ -81,7 +81,12 @@ describe("describeCreateAgent", () => {
 
 describe("the transcript row", () => {
     it("names the agent from the result once the call has run", () => {
-        const output = JSON.stringify({agent: {id: "1", slug: "x", name: "Invoice helper"}})
+        const output = JSON.stringify({
+            status: "committed",
+            agent: {id: "1", slug: "x", name: "Invoice helper"},
+            revision: {id: "r5", version: "5"},
+            base_revision_id: "r5",
+        })
         expect(summarizeAgentCall({agent: "x", operations}, output)).toBe(
             "Invoice helper: Edited instructions; New skill · pdf-tools",
         )

@@ -5332,6 +5332,7 @@ class SimpleWorkflowsService:
             )
             return SimpleWorkflowCreateResult(
                 workflow=complete,
+                revision=content,
                 replayed=replayed,
             )
 
@@ -5642,6 +5643,7 @@ class SimpleWorkflowsService:
         applied = access.visibility if access is not None else Visibility.PROJECT
         return CreatedAgent(
             workflow=outcome.workflow,
+            revision=outcome.revision,
             message=message,
             warnings=warnings,
             visibility=applied,

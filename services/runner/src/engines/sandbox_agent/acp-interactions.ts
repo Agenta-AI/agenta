@@ -19,6 +19,7 @@ import {
   parsePiGateEnvelope,
   type PiGateEnvelope,
 } from "./pi-gate-envelope.ts";
+import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
 import { redactContextBoundArgs } from "../../tools/relay.ts";
 import { bareToolName } from "./client-tools.ts";
 import {
@@ -182,6 +183,12 @@ export interface AttachPermissionResponderInput {
    * must still resolve inline, while an allow under an `ask` permission can only have come from a
    * stored answer.
    */
+  /**
+   * The server preview of an agent write (`edit_agent_config`, `create_agent`): old and new
+   * value per changed path. It rides the approval event as `preview`. Unlike the approved
+   * content above it never fails the gate: no preview, and the card shows the proposed values.
+   */
+  onResolveApprovalPreview?: AgentChangePreviewFetcher;
   shouldRegateStaleApproval?: (input: {
     gate: GateDescriptor;
     toolCallId: string | undefined;
@@ -226,6 +233,7 @@ export function attachPermissionResponder({
   onPiGateAllowed,
   onExecutableGateAllowed,
   onResolveApprovedContent,
+  onResolveApprovalPreview,
   shouldRegateStaleApproval,
   piToolSpecsByName,
   toolSpecsByName,
@@ -282,6 +290,7 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
     manifest?: unknown,
+    preview?: Record<string, unknown>,
   ): void => {
     // Signal the parkable gate so a keep-alive resume can record the pending permission id and
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
@@ -312,6 +321,9 @@ export function attachPermissionResponder({
         // keeps only the model's own arguments: the resolved content must not be persisted
         // into an interaction row on every gated commit.
         ...(manifest === undefined ? {} : { manifest }),
+        // Live event only, like the manifest: it is derived from the stored configuration,
+        // and the durable row keeps the model's own arguments.
+        ...(preview === undefined ? {} : { preview }),
       },
     });
     createdInteractionIds.add(eventId);
@@ -358,8 +370,14 @@ export function attachPermissionResponder({
     availableReplies: string[],
     toolCallId: string | undefined,
   ): Promise<void> => {
+    const preview = () =>
+      onResolveApprovalPreview?.({
+        toolName: gate.toolName,
+        toolCallId,
+        args: gate.args,
+      });
     if (!onResolveApprovedContent) {
-      pauseUserApproval(req, id, gate, gateType);
+      pauseUserApproval(req, id, gate, gateType, undefined, await preview());
       return;
     }
     const outcome = await onResolveApprovedContent({
@@ -368,7 +386,14 @@ export function attachPermissionResponder({
       args: gate.args,
     });
     if (outcome.ok) {
-      pauseUserApproval(req, id, gate, gateType, outcome.manifest);
+      pauseUserApproval(
+        req,
+        id,
+        gate,
+        gateType,
+        outcome.manifest,
+        await preview(),
+      );
       return;
     }
     // The structured detail, when the failure was an unresolvable marker. `available` is the
