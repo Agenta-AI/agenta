@@ -16,6 +16,7 @@ export {
     phoneViewportAtom,
     revealConfigPaneAtom,
     configPaneRevealRequestAtom,
+    CONFIG_REVEAL_TTL_MS,
     resolveConfigPanelCollapsed,
     PHONE_VIEWPORT_QUERY,
     rightPanelWidthAtom,

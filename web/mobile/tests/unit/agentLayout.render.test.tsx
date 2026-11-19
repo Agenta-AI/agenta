@@ -65,7 +65,7 @@ vi.mock("@agenta/sessions/state", async () => {
 vi.mock("@agenta/playground/state", () => ({registerAgentAutoCommitHandler: () => () => undefined}))
 vi.mock("@agenta/ui/shortcuts", () => ({useSessionShortcuts: () => undefined}))
 
-import {panelStateKey} from "@/features/agent-layout/agentPanelState"
+import {agentPanelStateAtomFamily, panelStateKey} from "@/features/agent-layout/agentPanelState"
 import {SessionWorkspace} from "@/features/chat/SessionWorkspace"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -75,6 +75,8 @@ let root: Root
 
 beforeEach(() => {
     localStorage.clear()
+    // The stored state is read when its atom is created; each case starts from its own storage.
+    agentPanelStateAtomFamily.remove(panelStateKey("anonymous", "proj-1"))
     media.width = 1440
     host = document.createElement("div")
     document.body.append(host)
@@ -161,11 +163,11 @@ describe("the session screen on the agent layout", () => {
 
     it("opens Configuration on a reveal request made before it mounted, and clears it", async () => {
         const store = createStore()
-        store.set(configPaneRevealRequestAtom, true)
+        store.set(configPaneRevealRequestAtom, Date.now())
         await render(store)
         await act(async () => undefined)
         expect(q("configuration")).toHaveLength(1)
-        expect(store.get(configPaneRevealRequestAtom)).toBe(false)
+        expect(store.get(configPaneRevealRequestAtom)).toBeNull()
     })
 
     it("Escape in the panel closes it", async () => {

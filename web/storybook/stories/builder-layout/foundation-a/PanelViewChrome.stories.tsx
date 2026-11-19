@@ -21,6 +21,7 @@ const noopPanel = (phone: boolean): AgentPanelApi => ({
     wide: false,
     setWide: () => undefined,
     phone,
+    available: {files: true, configuration: true, builder: false},
 })
 
 const EditorBody = ({params}: ViewProps<{file: string}>) => {

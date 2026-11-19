@@ -1,5 +1,5 @@
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily, atomWithStorage} from "jotai/utils"
 
 /** What the right panel shows. Only these three. */
 export type PanelContent = "files" | "configuration" | "builder"
@@ -60,32 +60,51 @@ export const parsePanelState = (raw: string | null): AgentPanelState => {
     }
 }
 
-/** Browser storage can be missing or refuse writes (private mode, quota): the panel still works. */
-const readStorage = (key: string): string | null => {
-    try {
-        return typeof window === "undefined" ? null : window.localStorage.getItem(key)
-    } catch {
-        return null
-    }
-}
-const writeStorage = (key: string, value: AgentPanelState) => {
-    try {
-        window.localStorage.setItem(key, JSON.stringify(value))
-    } catch {
-        // Not stored; the state still holds for this page.
-    }
+/**
+ * Browser storage can be missing or refuse reads and writes (private mode, quota): the panel then
+ * opens closed and still works. A stored value is validated field by field.
+ */
+const panelStorage = {
+    getItem: (key: string): AgentPanelState => {
+        try {
+            return parsePanelState(window.localStorage.getItem(key))
+        } catch {
+            return DEFAULT_PANEL_STATE
+        }
+    },
+    setItem: (key: string, value: AgentPanelState) => {
+        try {
+            window.localStorage.setItem(key, JSON.stringify(value))
+        } catch {
+            // Not stored; the state still holds for this page.
+        }
+    },
+    removeItem: (key: string) => {
+        try {
+            window.localStorage.removeItem(key)
+        } catch {
+            // Nothing to remove.
+        }
+    },
+    subscribe: (key: string, callback: (value: AgentPanelState) => void) => {
+        const onStorage = (event: StorageEvent) => {
+            if (event.key === key) callback(parsePanelState(event.newValue))
+        }
+        window.addEventListener("storage", onStorage)
+        return () => window.removeEventListener("storage", onStorage)
+    },
 }
 
 /** The panel state of one user in one project. Keyed by the storage key, so users never share it. */
 export const agentPanelStateAtomFamily = atomFamily((key: string) => {
-    const base = atom<AgentPanelState | null>(null)
+    const stored = atomWithStorage<AgentPanelState>(key, DEFAULT_PANEL_STATE, panelStorage, {
+        getOnInit: true,
+    })
     return atom(
-        (get) => get(base) ?? parsePanelState(readStorage(key)),
+        (get) => get(stored),
         (get, set, update: Partial<AgentPanelState>) => {
-            const next = {...(get(base) ?? parsePanelState(readStorage(key))), ...update}
-            next.width = clampPanelWidth(next.width)
-            set(base, next)
-            writeStorage(key, next)
+            const next = {...get(stored), ...update}
+            set(stored, {...next, width: clampPanelWidth(next.width)})
         },
     )
 })

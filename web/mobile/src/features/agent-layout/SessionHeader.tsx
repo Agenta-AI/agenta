@@ -1,55 +1,29 @@
 import {useCallback, useState} from "react"
 
-import {SAVE_AS_TEMPLATE_MESSAGE, workflowMolecule} from "@agenta/entities/workflow"
-import {AgentIdentity, useAgentActions} from "@agenta/entity-ui/agent"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
-import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
-import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
-import type {SessionRowVm} from "@agenta/sessions/row"
-import {SessionCardList} from "@agenta/sessions-ui"
-import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {cn} from "@agenta/ui/styles"
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
-import {
-    CaretDown,
-    FolderSimple,
-    Hammer,
-    LockSimpleIcon,
-    SlidersHorizontal,
-} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
-import Link from "next/link"
-import {useRouter} from "next/router"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {FolderSimple, Hammer, LockSimpleIcon, SlidersHorizontal} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {sharingCopy} from "@/lib/sharingCopy"
 
 import {heldCommitAtomFamily} from "../chat/selectedRevision"
-import {SessionInspectorSheet} from "../chat/SessionInspectorSheet"
 import {SessionSharingControl} from "../chat/SessionSharingControl"
 import {useSessionHeader} from "../chat/useSessionHeader"
-import {useStartBlankSession} from "../chat/useStartBlankSession"
-import {useProjectPermission} from "../context/useProjectPermission"
-import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 import {NavDrawer} from "../nav/NavDrawer"
-import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {AgentMenu} from "./AgentMenu"
 import {useAgentPanel} from "./agentPanelContext"
 import type {PanelContent} from "./agentPanelState"
+import {SessionMenu} from "./SessionMenu"
 
 interface SessionHeaderProps {
     agentId: string | null
@@ -179,163 +153,5 @@ export const SessionHeader = ({
                 ? icon("builder", t("agentLayout.header.builder"), <Hammer size={16} />)
                 : null}
         </header>
-    )
-}
-
-const AgentMenu = ({
-    agentId,
-    name,
-    sessionId,
-    canSend,
-    projectId,
-}: {
-    agentId: string
-    name: string
-    sessionId: string
-    canSend: boolean
-    projectId: string
-}) => {
-    const t = useT(agentLayoutHeaderCatalog)
-    const canEdit = useProjectPermission(projectId, "edit_workflows")
-    const actions = useAgentActions()
-    const openHistory = useSetAtom(openAgentVersionHistoryAtom)
-    const store = useStore()
-    const pending = useAtomValue(pendingTasksAtom)[sessionId] !== undefined
-    const target = {id: agentId, name}
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label={name} className="shrink-0">
-                    <CaretDown size={12} />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-52">
-                <DropdownMenuItem onSelect={() => openHistory(agentId)}>
-                    {t("agentLayout.header.history")}
-                </DropdownMenuItem>
-                {canEdit ? (
-                    <DropdownMenuItem onSelect={() => actions.rename(target)}>
-                        {t("agentLayout.header.rename")}
-                    </DropdownMenuItem>
-                ) : null}
-                {canSend ? (
-                    <DropdownMenuItem
-                        disabled={pending}
-                        onSelect={() => {
-                            // Production "Save as template": the agent builds the download.
-                            if (store.get(pendingTasksAtom)[sessionId]) return
-                            store.set(stashPendingTaskAtom, {
-                                sessionId,
-                                task: {agentId, text: SAVE_AS_TEMPLATE_MESSAGE},
-                            })
-                        }}
-                    >
-                        {t("agentLayout.header.exportAgent")}
-                    </DropdownMenuItem>
-                ) : null}
-                {canEdit ? (
-                    <DropdownMenuItem onSelect={() => actions.remove(target)}>
-                        {t("agentLayout.header.archiveAgent")}
-                    </DropdownMenuItem>
-                ) : null}
-            </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
-
-const SessionMenu = ({
-    agentId,
-    base,
-    sessionId,
-    title,
-}: {
-    agentId: string
-    base: string
-    sessionId: string
-    title: string
-}) => {
-    const t = useT(agentLayoutHeaderCatalog)
-    const router = useRouter()
-    const menu = useSessionRowMenu(base)
-    const startBlank = useStartBlankSession(base)
-    const [open, setOpen] = useState(false)
-    // "Inspect session" lives in this menu while the debug preference is on; the sheet stays
-    // outside the popover, which closes when it opens.
-    const tSessions = useT(chatMobileSessionsCatalog)
-    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
-    const [inspecting, setInspecting] = useState(false)
-    // `startBlankSession` itself ignores a second start while the first navigation runs.
-    const newSession = useCallback(() => {
-        setOpen(false)
-        startBlank(agentId)
-    }, [agentId, startBlank])
-
-    const openRow = (vm: SessionRowVm) => {
-        setOpen(false)
-        if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
-    }
-
-    return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    variant="ghost"
-                    className="h-8 min-w-0 max-w-[240px] gap-1 px-2 text-sm max-md:h-11"
-                    title={title}
-                >
-                    <span className="truncate">{title}</span>
-                    <CaretDown size={12} className="shrink-0" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
-                <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
-                    <SessionCardList
-                        agentId={agentId}
-                        policy={{origin: "exclude-trigger", expansions: []}}
-                        limit={20}
-                        withPinned
-                        density="compact"
-                        activeRowId={sessionId}
-                        emptyText=""
-                        onOpenRow={openRow}
-                        menuFor={menu.menuFor}
-                        onMenuSelect={menu.onMenuSelect}
-                        onRenameRow={menu.onRenameRow}
-                    />
-                </div>
-                <div className="flex flex-col border-0 border-t border-solid border-colorBorderSecondary pt-1">
-                    <Button variant="ghost" className="justify-start" onClick={newSession}>
-                        {t("agentLayout.header.newSession")}
-                    </Button>
-                    {inspectorEnabled ? (
-                        <Button
-                            variant="ghost"
-                            className="justify-start"
-                            onClick={() => {
-                                setOpen(false)
-                                setInspecting(true)
-                            }}
-                        >
-                            {tSessions("chat.mobileSessions.inspectSession")}
-                        </Button>
-                    ) : null}
-                    <Button variant="ghost" className="justify-start" asChild>
-                        <Link
-                            href={`${base}/agents/${agentId}?view=sessions`}
-                            onClick={() => setOpen(false)}
-                        >
-                            {t("agentLayout.header.sessions")}
-                        </Link>
-                    </Button>
-                </div>
-            </PopoverContent>
-            {inspectorEnabled ? (
-                <SessionInspectorSheet
-                    sessionId={sessionId}
-                    open={inspecting}
-                    onOpenChange={setInspecting}
-                />
-            ) : null}
-        </Popover>
     )
 }
