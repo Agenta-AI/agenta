@@ -6,8 +6,8 @@ Today, an invited person takes this path:
 
 1. The email link is `<web_url>/auth?token&email&organization_id&workspace_id&project_id` (`organization_service.py:139-145`). The invite lasts 7 days (`:202`).
 2. `isDesktopOnlyLink` holds the link on the old app for every kind of user (`mobileGate/index.ts:343`).
-3. The old sign-in sends a new person to `/workspaces/accept?survey=true` and an existing person to `/workspaces/accept` (`web/oss/src/hooks/usePostAuthRedirect.ts:129-157`).
-4. The old accept page posts to the accept endpoint through `acceptWorkspaceInvite` (`web/packages/agenta-entities/src/organization/workspaceApi.ts:122-154`). On the cloud edition a new person then sees the `/post-signup` form, which sends `survey sent` (`web/ee/src/components/PostSignupForm/PostSignupForm.tsx:245`).
+3. The old sign-in sends a new person to `/workspaces/accept?survey=true` and an existing person to `/workspaces/accept` (the old app's `usePostAuthRedirect.ts:129-157`).
+4. The old accept page posts to the accept endpoint through `acceptWorkspaceInvite` (`web/packages/agenta-entities/src/organization/workspaceApi.ts:122-154`). On the cloud edition a new person then sees the `/post-signup` form, which sends `survey sent` (the old app's `PostSignupForm.tsx:245`).
 
 On `/m` today:
 
@@ -87,7 +87,7 @@ The API returns `{url}` when no email service is set up (`organization_service.p
 
 ### Wording
 
-The card strings come from the old page, and the Retry button uses the label `/m` already uses. `/m` cannot import `web/oss`, so the strings are copied into `features/invite/`. The page title "Accept invitation" is the one new string.
+The card strings come from the old page, and the Retry button uses the label `/m` already uses. `/m` cannot import the old app, so the strings are copied into `features/invite/`. The page title "Accept invitation" is the one new string.
 
 ## Risks / Trade-offs
 

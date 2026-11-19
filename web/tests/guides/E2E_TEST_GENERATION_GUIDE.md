@@ -1,5 +1,8 @@
 # Agenta E2E Test Generation Guide
 
+> **Status: disabled.** `web/tests` holds no specs and no workflow runs it. New `/m` specs go in
+> `web/tests/specs/<layer>/` (default layer `acceptance`). `playwright/global-setup.ts` needs a `/m` sign-in before the first spec.
+
 ## Purpose
 This guide describes the repeatable process for converting Playwright codegen output or flow descriptions into robust, maintainable, and dynamic E2E tests for the Agenta Cloud codebase. It should be used by all team members and updated as best practices evolve.
 
@@ -14,7 +17,7 @@ Follow these steps to convert Playwright codegen output or flow descriptions int
    - Identify the relevant React/Next.js components and how data is fetched/rendered.
 
 2. **Determine Test Location and Naming**
-   - Choose the appropriate product/package folder (e.g., `web/ee/tests/app/`, `web/oss/tests/app/`).
+   - Choose a feature folder under `web/tests/specs/<layer>/` (e.g., `web/tests/specs/acceptance/agents/`).
    - Suggest a descriptive folder and file name reflecting the user action, business logic, and components involved. Confirm with the team if needed.
 
 3. **Create Only the Main Test File**
@@ -24,7 +27,7 @@ Follow these steps to convert Playwright codegen output or flow descriptions int
    - Always use the Agenta base fixture:
      ```typescript
      import { test, expect } from "@agenta/web-tests/tests/fixtures/base.fixture";
-     import type { ListAppsItem, ApiVariant } from "@/oss/lib/Types";
+     import type { ListAppsItem, ApiVariant } from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes"; // add missing types here
      ```
    - Never use plain Playwright imports or custom API response types.
    - Assume the user is already logged in (authentication is handled globally).
@@ -32,7 +35,7 @@ Follow these steps to convert Playwright codegen output or flow descriptions int
 5. **Drive Logic with API Data**
    - Use `apiHelpers.waitForApiResponse` to fetch dynamic data (e.g., app names, variant IDs) and drive selectors/assertions.
    - Validate API responses for type and content before interacting with the UI.
-   - Import all API response types from `web/oss/src/lib/Types.ts`.
+   - Import all API response types from `web/tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes.ts` (add a type there when a spec needs it).
 
 6. **Use Robust, Contextual Selectors**
    - Choose selectors based on robustness and clarity:
@@ -61,7 +64,7 @@ Follow these steps to convert Playwright codegen output or flow descriptions int
 
 ```typescript
 import { test, expect } from "@agenta/web-tests/tests/fixtures/base.fixture";
-import type { ListAppsItem, ApiVariant } from "@/oss/lib/Types";
+import type { ListAppsItem, ApiVariant } from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes"; // add missing types here
 
 test.describe('Variant Creation Flow', () => {
   test('should allow user to create a variant', async ({ page, uiHelpers, apiHelpers }) => {

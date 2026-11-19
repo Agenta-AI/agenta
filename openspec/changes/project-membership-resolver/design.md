@@ -36,7 +36,7 @@ Literal inserts select `gen_random_uuid()` per row, because `project_members.id`
 
 ### D4a. The demo feature is deleted
 
-Owner decision, 2026-10-22. M1 deletes `ExtrasConfig.demos` (`AGENTA_EXTRAS_DEMOS`, `AGENTA_DEMOS`), the demo code in `oss/src/services/commoners.py`, `_is_demo_member`, `ProjectsResponse.is_demo`, the web reads of `is_demo`, and the config lines in `hosting/` (docker-compose examples, Kubernetes example values, Helm `_helpers.tpl` and `values.schema.json`). The migration deletes the `project_members` rows with `is_demo = true`, because otherwise a former demo row in an EE organization without the RBAC entitlement would get the no-RBAC shortcut, which allows every action. The column stays; M4 drops it. Organization and workspace rows from demo enrollment cannot be told apart from real rows and stay. Out of scope: `organizations.flags.is_demo` and the `isDemo()` helper of `web/oss`.
+Owner decision, 2026-10-22. M1 deletes `ExtrasConfig.demos` (`AGENTA_EXTRAS_DEMOS`, `AGENTA_DEMOS`), the demo code in `oss/src/services/commoners.py`, `_is_demo_member`, `ProjectsResponse.is_demo`, the web reads of `is_demo`, and the config lines in `hosting/` (docker-compose examples, Kubernetes example values, Helm `_helpers.tpl` and `values.schema.json`). The migration deletes the `project_members` rows with `is_demo = true`, because otherwise a former demo row in an EE organization without the RBAC entitlement would get the no-RBAC shortcut, which allows every action. The column stays; M4 drops it. Organization and workspace rows from demo enrollment cannot be told apart from real rows and stay. Out of scope: `organizations.flags.is_demo` and the `isDemo()` helper of the old desktop app.
 
 ### D5. Legacy endpoints keep their URLs
 

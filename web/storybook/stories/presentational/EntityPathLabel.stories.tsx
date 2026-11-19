@@ -9,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Renders a hierarchical path ("App / Variant / v1") with a configurable separator and optional truncation. Pure @agenta/ui presentational.\n\n**Used in:** nowhere — zero call-sites across `web/oss`, `web/ee` and the packages. Low-risk to change.',
+                    'Renders a hierarchical path ("App / Variant / v1") with a configurable separator and optional truncation. Pure @agenta/ui presentational.\n\n**Used in:** nowhere — zero call-sites across `web/mobile` and the packages. Low-risk to change.',
             },
         },
     },

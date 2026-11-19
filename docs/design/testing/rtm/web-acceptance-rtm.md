@@ -8,7 +8,11 @@
 
 ## Scope
 
-This RTM covers the **existing OSS and EE web acceptance tests**. It is the left side of the
+> **Status**: the suite this RTM maps was deleted with the desktop web app. Each `Feature file`
+> and `Test file` path below is relative to that suite's `tests/playwright/` folder (an `(EE)` mark means the EE copy) and
+> no longer exists. The entries stay as the intent list for future `/m` specs in `web/tests/specs/acceptance/`.
+
+This RTM covers the **former OSS and EE web acceptance tests**. It is the left side of the
 acceptance matrix discussed in the testing meeting:
 
 - The RTM entry is the intent.
@@ -42,8 +46,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/smoke.feature`
-- Test file: `web/oss/tests/playwright/acceptance/smoke.spec.ts`
+- Feature file: `acceptance/features/smoke.feature`
+- Test file: `acceptance/smoke.spec.ts`
 - Playwright title: `smoke: auth works and can navigate to apps`
 
 #### Markers
@@ -64,8 +68,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/app-creation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/app/index.ts`
+- Feature file: `acceptance/features/app-creation.feature`
+- Test file: `acceptance/app/index.ts`
 - Playwright title: `creates new completion prompt app`
 
 #### Markers
@@ -86,8 +90,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/app-creation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/app/index.ts`
+- Feature file: `acceptance/features/app-creation.feature`
+- Test file: `acceptance/app/index.ts`
 - Playwright title: `creates new chat prompt app`
 
 #### Markers
@@ -108,8 +112,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
-- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
+- Feature file: `acceptance/features/app-management.feature`
+- Test file: `acceptance/app/app-management.spec.ts`
 - Playwright title: `App Management > should delete an app`
 
 #### Markers
@@ -130,8 +134,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
-- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
+- Feature file: `acceptance/features/app-management.feature`
+- Test file: `acceptance/app/app-management.spec.ts`
 - Playwright title: `App Management > should rename an app`
 
 #### Markers
@@ -152,8 +156,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
-- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
+- Feature file: `acceptance/features/app-management.feature`
+- Test file: `acceptance/app/app-management.spec.ts`
 - Playwright title: `App Management > should render the app overview page with environment cards and variant list`
 
 #### Markers
@@ -174,8 +178,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
-- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Feature file: `acceptance/features/playground.feature`
+- Test file: `acceptance/playground/index.ts`
 - Playwright title: `Playground: Run Variant > Should run single view variant for completion`
 
 #### Markers
@@ -196,8 +200,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
-- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Feature file: `acceptance/features/playground.feature`
+- Test file: `acceptance/playground/index.ts`
 - Playwright title: `Playground: Run Variant > Should run single view variant for chat`
 
 #### Markers
@@ -218,8 +222,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
-- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Feature file: `acceptance/features/playground.feature`
+- Test file: `acceptance/playground/index.ts`
 - Playwright title: `Playground: Run Variant > Should update the prompt and save the changes`
 
 #### Markers
@@ -240,8 +244,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
-- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Feature file: `acceptance/features/playground.feature`
+- Test file: `acceptance/playground/index.ts`
 - Playwright title: `Playground: Run Variant > should save the current changes as a new variant`
 
 #### Markers
@@ -262,8 +266,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
-- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Feature file: `acceptance/features/playground.feature`
+- Test file: `acceptance/playground/index.ts`
 - Playwright title: `Playground: Run Variant > should open compare mode and display two variants side by side`
 
 #### Markers
@@ -284,8 +288,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
-- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Feature file: `acceptance/features/playground.feature`
+- Test file: `acceptance/playground/index.ts`
 - Playwright title: `Playground: Run Variant > should load the correct variant when opened via a deep link with a revisions param`
 
 #### Markers
@@ -306,8 +310,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
-- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Feature file: `acceptance/features/playground.feature`
+- Test file: `acceptance/playground/index.ts`
 - Playwright title: `Playground: Run Variant > should configure output type and tools and save the changes`
 
 #### Markers
@@ -328,8 +332,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/prompt-registry.feature`
-- Test file: `web/oss/tests/playwright/acceptance/prompt-registry/index.ts`
+- Feature file: `acceptance/features/prompt-registry.feature`
+- Test file: `acceptance/prompt-registry/index.ts`
 - Playwright title: `Prompt Registry: workflow revisions > should open prompt details from prompt registry`
 
 #### Markers
@@ -350,8 +354,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
-- Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
+- Feature file: `acceptance/features/settings.feature`
+- Test file: `acceptance/settings/model-hub.ts`
 - Playwright title: `Settings: Model Hub > should allow full add provider`
 
 #### Markers
@@ -372,8 +376,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
-- Test file: `web/oss/tests/playwright/acceptance/settings/api-keys.ts`
+- Feature file: `acceptance/features/settings.feature`
+- Test file: `acceptance/settings/api-keys.ts`
 - Playwright title: `Settings: API Keys Management > should allow full API key flow`
 
 #### Markers
@@ -394,8 +398,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
-- Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
+- Feature file: `acceptance/features/settings.feature`
+- Test file: `acceptance/settings/model-hub.ts`
 - Playwright title: `Settings: Model Hub > should configure a standard provider key and verify it is listed`
 
 #### Markers
@@ -416,8 +420,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
-- Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
+- Feature file: `acceptance/features/settings.feature`
+- Test file: `acceptance/settings/model-hub.ts`
 - Playwright title: `Settings: Model Hub > should add and delete a custom provider via the UI`
 
 #### Markers
@@ -438,8 +442,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/index.ts`
+- Feature file: `acceptance/features/testsets.feature`
+- Test file: `acceptance/testsset/index.ts`
 - Playwright title: `Testsets: view default testset > should view the default testset`
 
 #### Markers
@@ -460,8 +464,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Feature file: `acceptance/features/testsets.feature`
+- Test file: `acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should create a new testset from scratch`
 
 #### Markers
@@ -482,8 +486,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Feature file: `acceptance/features/testsets.feature`
+- Test file: `acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should upload a testset from CSV`
 
 #### Markers
@@ -504,8 +508,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Feature file: `acceptance/features/testsets.feature`
+- Test file: `acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should edit a testcase inline and persist the change`
 
 #### Markers
@@ -526,8 +530,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Feature file: `acceptance/features/testsets.feature`
+- Test file: `acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should add and delete rows and columns`
 
 #### Markers
@@ -548,8 +552,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Feature file: `acceptance/features/testsets.feature`
+- Test file: `acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should delete a testset`
 
 #### Markers
@@ -570,8 +574,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/deployment.feature`
-- Test file: `web/oss/tests/playwright/acceptance/deployment/index.ts`
+- Feature file: `acceptance/features/deployment.feature`
+- Test file: `acceptance/deployment/index.ts`
 - Playwright title: `Deployment: deploy variant > deploy a variant`
 
 #### Markers
@@ -592,8 +596,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/deployment.feature`
-- Test file: `web/oss/tests/playwright/acceptance/deployment/index.ts`
+- Feature file: `acceptance/features/deployment.feature`
+- Test file: `acceptance/deployment/index.ts`
 - Playwright title: `Deployment: deploy variant > should deploy a variant to staging and production environments`
 
 #### Markers
@@ -614,8 +618,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/deployment.feature`
-- Test file: `web/oss/tests/playwright/acceptance/deployment/index.ts`
+- Feature file: `acceptance/features/deployment.feature`
+- Test file: `acceptance/deployment/index.ts`
 - Playwright title: `Deployment: deploy variant > should show version badge after deploying to Development`
 
 #### Markers
@@ -636,8 +640,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
-- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Feature file: `acceptance/features/observability.feature`
+- Test file: `acceptance/observability/index.ts`
 - Playwright title: `Observability: view traces > view traces`
 
 #### Markers
@@ -658,8 +662,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/prompts.feature`
-- Test file: `web/oss/tests/playwright/acceptance/prompts/index.ts`
+- Feature file: `acceptance/features/prompts.feature`
+- Test file: `acceptance/prompts/index.ts`
 - Playwright title: `OSS Prompts Flow > navigates to the Prompts page and displays it`
 
 #### Markers
@@ -680,8 +684,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/prompts.feature`
-- Test file: `web/oss/tests/playwright/acceptance/prompts/index.ts`
+- Feature file: `acceptance/features/prompts.feature`
+- Test file: `acceptance/prompts/index.ts`
 - Playwright title: `OSS Prompts Flow > creates a new prompt via the Create new dropdown`
 
 #### Markers
@@ -702,8 +706,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/prompts.feature`
-- Test file: `web/oss/tests/playwright/acceptance/prompts/index.ts`
+- Feature file: `acceptance/features/prompts.feature`
+- Test file: `acceptance/prompts/index.ts`
 - Playwright title: `OSS Prompts Flow > creates a new folder via the Create new dropdown`
 
 #### Markers
@@ -724,8 +728,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
-- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Feature file: `acceptance/features/evaluators.feature`
+- Test file: `acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should navigate to the evaluators page and display both automatic and human evaluator tabs`
 
 #### Markers
@@ -746,8 +750,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
-- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Feature file: `acceptance/features/evaluators.feature`
+- Test file: `acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should create an Exact Match evaluator from the template dropdown`
 
 #### Markers
@@ -768,8 +772,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
-- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Feature file: `acceptance/features/evaluators.feature`
+- Test file: `acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should open the evaluator playground, select a completion app, and run the evaluator`
 
 #### Markers
@@ -790,8 +794,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
-- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Feature file: `acceptance/features/evaluators.feature`
+- Test file: `acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should create a human evaluator with a boolean feedback metric`
 
 #### Markers
@@ -812,8 +816,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
-- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Feature file: `acceptance/features/evaluators.feature`
+- Test file: `acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should edit an existing evaluator and save a new version`
 
 #### Markers
@@ -834,8 +838,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
-- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Feature file: `acceptance/features/evaluators.feature`
+- Test file: `acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should delete an evaluator`
 
 #### Markers
@@ -856,8 +860,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `acceptance/features/auto-evaluation.feature`
+- Test file: `acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should run a single evaluation`
 
 #### Markers
@@ -878,8 +882,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `acceptance/features/auto-evaluation.feature`
+- Test file: `acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should show an error when attempting to create an evaluation with a mismatched testset`
 
 #### Markers
@@ -900,8 +904,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `acceptance/features/human-annotation.feature`
+- Test file: `acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should show the human evaluation entry point on the human tab`
 
 #### Markers
@@ -922,8 +926,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `acceptance/features/human-annotation.feature`
+- Test file: `acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should use a deliberately mismatched testset when configuring a human evaluation`
 
 #### Markers
@@ -944,8 +948,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `acceptance/features/human-annotation.feature`
+- Test file: `acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should create a human evaluation and land on the results page`
 
 #### Markers
@@ -966,8 +970,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `acceptance/features/auto-evaluation.feature`
+- Test file: `acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should view results detail on the Scenarios tab`
 
 #### Markers
@@ -988,8 +992,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `acceptance/features/auto-evaluation.feature`
+- Test file: `acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should view results detail on the Configuration tab`
 
 #### Markers
@@ -1010,8 +1014,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `acceptance/features/auto-evaluation.feature`
+- Test file: `acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should delete an evaluation run`
 
 #### Markers
@@ -1032,8 +1036,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `acceptance/features/auto-evaluation.feature`
+- Test file: `acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should re-run an existing evaluation`
 
 #### Markers
@@ -1054,8 +1058,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `acceptance/features/human-annotation.feature`
+- Test file: `acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should create a new evaluator inline and annotate a scenario from the annotate tab`
 
 #### Markers
@@ -1076,8 +1080,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `acceptance/features/human-annotation.feature`
+- Test file: `acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should annotate multiple scenarios and see progress in the Scenarios tab`
 
 #### Markers
@@ -1098,8 +1102,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `acceptance/features/human-annotation.feature`
+- Test file: `acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should submit a partial annotation and resume later`
 
 #### Markers
@@ -1120,8 +1124,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
-- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `acceptance/features/human-annotation.feature`
+- Test file: `acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should view the Overview tab on a human evaluation results page`
 
 #### Markers
@@ -1142,8 +1146,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
-- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Feature file: `acceptance/features/observability.feature`
+- Test file: `acceptance/observability/index.ts`
 - Playwright title: `Observability: view traces > should filter traces by date range and by app`
 
 #### Markers
@@ -1164,8 +1168,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
-- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Feature file: `acceptance/features/observability.feature`
+- Test file: `acceptance/observability/index.ts`
 - Playwright title: `Observability: view traces > should filter traces by span name or attribute`
 
 #### Markers
@@ -1186,8 +1190,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
-- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Feature file: `acceptance/features/observability.feature`
+- Test file: `acceptance/observability/index.ts`
 - Playwright title: `Observability: view traces > should open a span and drill into its attributes`
 
 #### Markers
@@ -1208,8 +1212,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
-- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Feature file: `acceptance/features/observability.feature`
+- Test file: `acceptance/observability/index.ts`
 - Playwright title: `Observability: view traces > should switch between trace tabs and see filtered rows`
 
 #### Markers
@@ -1230,8 +1234,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
-- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Feature file: `acceptance/features/observability.feature`
+- Test file: `acceptance/observability/index.ts`
 - Playwright title: `Observability: view traces > should create a trace after a Playground run`
 
 #### Markers
@@ -1252,8 +1256,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
-- Test file: `web/oss/tests/playwright/acceptance/members/index.ts`
+- Feature file: `acceptance/features/members.feature`
+- Test file: `acceptance/members/index.ts`
 - Playwright title: `Members: invite flow > should invite a member and show the invite link modal`
 
 #### Markers
@@ -1274,8 +1278,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
-- Test file: `web/ee/tests/playwright/acceptance/members/index.ts`
+- Feature file: `acceptance/features/members.feature`
+- Test file: `acceptance/members/index.ts` (EE)
 - Playwright title: `Members: invite flow > should invite a member and verify pending state`
 
 #### Markers
@@ -1296,8 +1300,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
-- Test file: `web/ee/tests/playwright/acceptance/members/index.ts`
+- Feature file: `acceptance/features/members.feature`
+- Test file: `acceptance/members/index.ts` (EE)
 - Playwright title: `Members: invite flow > should resend an invitation and confirm success`
 
 #### Markers
@@ -1318,8 +1322,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
-- Test file: `web/ee/tests/playwright/acceptance/members/index.ts`
+- Feature file: `acceptance/features/members.feature`
+- Test file: `acceptance/members/index.ts` (EE)
 - Playwright title: `Members: invite flow > should remove a pending member from the workspace`
 
 #### Markers
@@ -1340,8 +1344,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Feature file: `acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `acceptance/triggers/schedules.spec.ts` (not yet created)
 - Playwright title: `Trigger Schedules: create > creates a new schedule and it appears active in the table`
 
 #### Markers
@@ -1362,8 +1366,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Feature file: `acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `acceptance/triggers/schedules.spec.ts` (not yet created)
 - Playwright title: `Trigger Schedules: validation > rejects an invalid cron expression with an inline error`
 
 #### Markers
@@ -1384,8 +1388,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Feature file: `acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `acceptance/triggers/schedules.spec.ts` (not yet created)
 - Playwright title: `Trigger Schedules: lifecycle > pauses an active schedule then resumes it`
 
 #### Markers
@@ -1406,8 +1410,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Feature file: `acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `acceptance/triggers/schedules.spec.ts` (not yet created)
 - Playwright title: `Trigger Schedules: lifecycle > edits the cron expression and the table reflects the change`
 
 #### Markers
@@ -1428,8 +1432,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Feature file: `acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `acceptance/triggers/schedules.spec.ts` (not yet created)
 - Playwright title: `Trigger Schedules: lifecycle > deletes a schedule and it disappears from the table`
 
 #### Markers
@@ -1450,8 +1454,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Feature file: `acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `acceptance/triggers/schedules.spec.ts` (not yet created)
 - Playwright title: `Trigger Schedules: dispatch > deliveries appear in the drawer after the schedule fires`
 
 #### Markers
@@ -1472,8 +1476,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Feature file: `acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
 - Playwright title: `MCP Servers: form > Claude shows HTTP connection and credential fields`
 
 #### Markers
@@ -1494,8 +1498,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Feature file: `acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
 - Playwright title: `MCP Servers: capability > Pi does not render the external MCP editor`
 
 #### Markers
@@ -1516,8 +1520,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Feature file: `acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
 - Playwright title: `MCP Servers: runtime > HTTP MCP server tools appear in the Claude Code harness tool list`
 
 #### Markers
@@ -1538,8 +1542,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
-- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Feature file: `acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
 - Playwright title: `MCP Servers: gateway tools > mcp__agenta-tools__* appear in the Claude Code harness tool list`
 
 #### Markers

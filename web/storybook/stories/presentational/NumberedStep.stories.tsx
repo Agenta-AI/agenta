@@ -10,7 +10,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A wizard-style step primitive: a numbered, bordered step card. Stack multiple with a plain `flex flex-col` wrapper.\n\n**Used in:** nowhere — zero call-sites across `web/oss`, `web/ee` and the packages. Low-risk to change.",
+                    "A wizard-style step primitive: a numbered, bordered step card. Stack multiple with a plain `flex flex-col` wrapper.\n\n**Used in:** nowhere — zero call-sites across `web/mobile` and the packages. Low-risk to change.",
             },
         },
     },

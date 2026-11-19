@@ -1,5 +1,8 @@
 # Agenta E2E Utilities & Fixtures Guide
 
+> **Status: disabled.** `web/tests` holds no specs and no workflow runs it. New `/m` specs go in
+> `web/tests/specs/<layer>/` (default layer `acceptance`). `playwright/global-setup.ts` needs a `/m` sign-in before the first spec.
+
 ## Purpose
 This guide documents all reusable test utilities and fixtures available in the `web/tests` setup for Agenta Cloud. It helps engineers:
 - Write robust, maintainable, and DRY E2E tests
@@ -57,7 +60,7 @@ interface ApiHandlerOptions<T> {
 ```
 
 - Supports string and RegExp matching for routes
-- Type safety for all responses (import types from `web/oss/src/lib/Types.ts`)
+- Type safety for all responses (import `web/tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes.ts` (add a type there when a spec needs it))
 - Built-in status and response validation
 
 See full documentation and patterns in [`apiHelpers/README.md`](../tests/fixtures/base.fixture/apiHelpers/README.md)
@@ -66,10 +69,9 @@ See full documentation and patterns in [`apiHelpers/README.md`](../tests/fixture
 
 ## E2E Test Utilities, Fixtures, and Structure
 
-**All new E2E tests must be placed in the appropriate product/package feature folder** (e.g., `web/ee/tests/app/`, `web/oss/tests/app/`). Do not place test specs in `web/tests/`—that folder is for shared Playwright fixtures, utilities, and documentation only.
+**All new E2E tests must be placed in a feature folder under `web/tests/specs/<layer>/`** (e.g., `web/tests/specs/acceptance/agents/`). The rest of `web/tests` holds shared Playwright fixtures, utilities, and documentation.
 
 - **Shared helpers/utilities** (like `uiHelpers`, `apiHelpers`, etc.) are always imported from `web/tests/tests/fixtures/`.
-- **Product-specific tests can import shared logic from OSS** (for example, EE tests can import test logic from `@agenta/oss/tests/app`).
 - **Organize by feature or flow** using subfolders (e.g., `app/`, `prompt-registry/`).
 - **See the [E2E Test Organization Guide](E2E_TEST_ORGANIZATION_GUIDE.md) and the [E2E Test Generation Workflow](../../../.windsurf/workflows/generate-e2e-test-multistep.md) for full details and examples.**
 
@@ -221,7 +223,7 @@ This approach keeps tests fast, reliable, and focused on application logic, redu
 ---
 
 ## Best Practices
-- **Type Safety:** Always import API response types from `web/oss/src/lib/Types.ts` (never use `any` or define custom interfaces for backend types).
+- **Type Safety:** Always import API response types from `web/tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes.ts` (add a type there when a spec needs it) (never use `any` or define custom interfaces for backend types).
 - **API Validation:** Use API helpers to verify server state before asserting DOM state.
 - **API Endpoint Accuracy:** When working with API-driven selectors and type-safe assertions, always verify the actual backend endpoint for a given type. For example, the canonical endpoint for `StandardSecretDTO` is `/api/secrets` (not `/api/secrets`). Do not assume endpoint paths based on type or naming alone—inspect the implementation if unsure.
 - **Authentication:** Assume the user is already logged in (handled by Playwright globalSetup). Do not use deprecated session/user fixtures.

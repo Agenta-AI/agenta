@@ -3,7 +3,7 @@
  *
  * Annotations are stored as SimpleTraces via `/simple/traces/`.
  * This matches how Agenta's own frontend creates annotations
- * (web/oss/src/services/annotations/api/index.ts).
+ * (its annotations API service).
  *
  * The `/preview/annotations/` endpoint also exists but the Agenta
  * observability UI reads annotations through `/simple/traces/`, so

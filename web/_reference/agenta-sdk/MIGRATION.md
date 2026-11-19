@@ -113,7 +113,7 @@ For each domain in `@agenta/entities/src/*/api/`:
 
 ### Phase 4: Migrate OSS/EE app-level API calls
 
-Remaining axios calls in `web/oss/src/lib/` and `web/oss/src/services/` that aren't in entities.
+Remaining axios calls in the old desktop app's `src/lib/` and `src/services/` that aren't in entities.
 
 ## Key Decisions
 

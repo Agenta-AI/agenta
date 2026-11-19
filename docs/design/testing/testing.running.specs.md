@@ -124,13 +124,6 @@ cd web/tests && pnpm test:acceptance:ui
 
 # Acceptance debug mode
 cd web/tests && pnpm test:acceptance:debug
-
-# Data layer tests (from web/)
-cd web && pnpm test:datalayer
-
-# Individual data layer tests
-cd web && pnpm test:apps
-cd web && pnpm test:observability
 ```
 
 ---

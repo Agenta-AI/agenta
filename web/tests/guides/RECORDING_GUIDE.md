@@ -12,7 +12,7 @@ This guide provides best practices and instructions for recording E2E flows usin
    - Update .env file with the PROJECT_DIRECTORY variable, according to the project you want to record the test in.
    - Cascade (the agent) will utilize the playwright mcp server to start a recording and inspect its output and the generated code.
    - **Important:** Only actions performed in the Playwright browser window (which opens automatically) are recorded. Actions in browser previews or regular browsers are NOT captured.
-   - If no window opens, check for errors in the terminal. ENOENT errors usually mean the output path is incorrect for your monorepo; use a relative path from the `web/` directory (e.g., `ee/tests/codegen/...`).
+   - If no window opens, check for errors in the terminal. ENOENT errors usually mean the output path is incorrect for your monorepo; use a relative path from the `web/` directory (e.g., `tests/codegen/...`).
    - You will interact with the Playwright browser window that opens after you approve the command.
 
 2. **Perform the Flow**

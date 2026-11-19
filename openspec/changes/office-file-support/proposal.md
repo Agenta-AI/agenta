@@ -40,4 +40,4 @@ None. The existing specs cover Slack only.
   dependencies in `agenta-entity-ui`: SheetJS CE (from its CDN tarball), `docx-preview`,
   `@aiden0z/pptx-renderer`, all loaded on demand.
 - No change to the API, the runner, storage, the runner images or the system prompt.
-- `web/oss` is not touched.
+- The old desktop app is not touched.

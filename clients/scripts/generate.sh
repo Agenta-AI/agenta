@@ -525,7 +525,7 @@ generate_typescript() {
 
   log "generated TypeScript client in ${target_dir}"
 
-  # Rebuild the compiled dist/ that consumers (@agenta/sdk, web/oss, ...) import
+  # Rebuild the compiled dist/ that consumers (@agenta/sdk, web/mobile, ...) import
   # from. tsc does not delete stale outputs, so wipe dist first — otherwise types
   # dropped from the spec (e.g. a renamed/removed model) linger as orphan .js/.d.ts.
   local pkg_dir="${REPO_ROOT}/web/packages/agenta-api-client"

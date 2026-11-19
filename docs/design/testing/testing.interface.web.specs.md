@@ -13,6 +13,10 @@ For fixtures and utilities, see [testing.fixtures.specs.md](testing.fixtures.spe
 
 ### E2E tests (Playwright)
 
+**Status:** disabled. The desktop specs below were deleted with the desktop web app. `web/tests`
+keeps the runner, config and fixtures, holds no specs, and no workflow runs it. New `/m` specs go
+in `web/tests/specs/<layer>/`; `global-setup.ts` needs a `/m` sign-in before the first one.
+
 **Runner:** `web/tests/` — Playwright v1.57.0
 
 **Configuration (`web/tests/playwright.config.ts`):**
@@ -46,24 +50,13 @@ For fixtures and utilities, see [testing.fixtures.specs.md](testing.fixtures.spe
 **Tag system (`web/tests/playwright/config/testTags.ts`):**
 See [testing.dimensions.specs.md](testing.dimensions.specs.md) for the full taxonomy. Tags use the `@dimension:value` syntax (e.g., `@coverage:smoke`, `@path:happy`).
 
-### Data layer integration tests
+### Unit tests
 
-**Location:** `web/oss/tests/datalayer/`
+**Location:** `web/mobile/tests/unit/` and `web/packages/<package>/tests/unit/` (vitest). A few older package tests still sit in `src/**/__tests__/`.
 
-TypeScript-based tests that exercise Jotai atoms + TanStack Query against a live API:
-- `test-apps.ts` — Application state management
-- `test-observability.ts` — Observability state management
-
-Executed via `tsx` for TypeScript support.
-
-### Component unit tests
-
-**Location:** Colocated `__tests__/` directories near source code.
-
-**Example:** `web/oss/src/components/Playground/state/atoms/__tests__/core.test.ts`
+**Example:** `web/packages/agenta-chat/tests/unit/hooks/useAgentConversation.test.ts`
 - Tests Jotai atoms using `createStore()` for isolated store instances
-- Tests `selectedVariantsAtom`, `viewTypeAtom`, mutation atoms
-- No DOM rendering, no API calls — pure state logic testing
+- No API calls; `*.render.test.tsx` files render components in jsdom
 
 ### Scripts (npm)
 
@@ -71,12 +64,6 @@ Executed via `tsx` for TypeScript support.
 - `pnpm test:acceptance` — Run all acceptance tests
 - `pnpm test:acceptance:ui` — Run with Playwright UI mode
 - `pnpm test:acceptance:debug` — Debug mode
-
-**From `web/package.json`:**
-- `pnpm test:datalayer` — All data layer tests
-- `pnpm test:apps` — App tests
-- `pnpm test:observability` — Observability tests
-- Plus: `test:revision-centric`, `test:environments`, `test:deployments`, `test:orgs`, `test:profile`, `test:workspace`, `test:project`, `test:newPlayground`
 
 ---
 
