@@ -1,5 +1,7 @@
 import {useEffect, useState} from "react"
 
+import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
+import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 import {
     defineView,
     useViewForm,
@@ -9,9 +11,6 @@ import {
     type ViewProps,
 } from "@agenta/ui/view-stack"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-
-import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
-import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 
 const noopPanel = (phone: boolean): AgentPanelApi => ({
     content: "configuration",

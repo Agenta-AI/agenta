@@ -73,13 +73,7 @@ afterEach(async () => {
 
 describe("the config editor host", () => {
     it("The agent config pane still pins the committed revision to the session", async () => {
-        await render(
-            <ConfigPane
-                entityId="rev-1"
-                sessionId="session-1"
-                projectId={projectId}
-            />,
-        )
+        await render(<ConfigPane entityId="rev-1" sessionId="session-1" projectId={projectId} />)
 
         expect(store.get(selectedRevisionAtomFamily("session-1"))).toBe("rev-2")
     })
