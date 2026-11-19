@@ -981,7 +981,8 @@ class SandboxEnvironmentBinding(BaseModel):
 
 
 class SandboxCredentialConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # The input can hold an inline secret value; errors must not echo it.
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     secret: SandboxSecretReference
     binding: SandboxEnvironmentBinding
 
