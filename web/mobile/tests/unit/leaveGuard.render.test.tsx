@@ -48,7 +48,7 @@ const Probe = () => {
 
 const source = (dirty: boolean, answer: boolean) => ({
     isDirty: vi.fn(() => dirty),
-    confirm: vi.fn(async () => answer),
+    ask: vi.fn(async () => answer),
 })
 
 const startRoute = (url: string, shallow = false) => {
@@ -67,7 +67,7 @@ describe("leave guard", () => {
         const first = source(true, true)
         const second = source(true, true)
         render(
-            <LeaveGuardProvider>
+            <LeaveGuardProvider leavesAgent={() => true}>
                 <Source source={clean} />
                 <Source source={first} />
                 <Source source={second} />
@@ -75,51 +75,77 @@ describe("leave guard", () => {
             </LeaveGuardProvider>,
         )
         await expect(confirmLeave("swap")).resolves.toBe(true)
-        expect(clean.confirm).not.toHaveBeenCalled()
-        expect(first.confirm).toHaveBeenCalledWith("swap")
-        expect(second.confirm).toHaveBeenCalledWith("swap")
+        expect(clean.ask).not.toHaveBeenCalled()
+        expect(first.ask).toHaveBeenCalledWith("swap")
+        expect(second.ask).toHaveBeenCalledWith("swap")
     })
 
     it("stops at the first source that keeps the person", async () => {
         const keep = source(true, false)
         const later = source(true, true)
         render(
-            <LeaveGuardProvider>
+            <LeaveGuardProvider leavesAgent={() => true}>
                 <Source source={keep} />
                 <Source source={later} />
                 <Probe />
             </LeaveGuardProvider>,
         )
         await expect(confirmLeave("close")).resolves.toBe(false)
-        expect(later.confirm).not.toHaveBeenCalled()
+        expect(later.ask).not.toHaveBeenCalled()
     })
 
     it("drops a source when it unmounts or passes null", async () => {
         const dirty = source(true, false)
         const view = render(
-            <LeaveGuardProvider>
+            <LeaveGuardProvider leavesAgent={() => true}>
                 <Source source={dirty} />
                 <Probe />
             </LeaveGuardProvider>,
         )
         view.rerender(
-            <LeaveGuardProvider>
+            <LeaveGuardProvider leavesAgent={() => true}>
                 <Source source={null} />
                 <Probe />
             </LeaveGuardProvider>,
         )
         await expect(confirmLeave("close")).resolves.toBe(true)
-        expect(dirty.confirm).not.toHaveBeenCalled()
+        expect(dirty.ask).not.toHaveBeenCalled()
+    })
+
+    it("skips a source that unmounted while an earlier one was asking", async () => {
+        let resolve!: (ok: boolean) => void
+        const first = {
+            isDirty: () => true,
+            ask: vi.fn(() => new Promise<boolean>((r) => (resolve = r))),
+        }
+        const second = source(true, true)
+        const view = render(
+            <LeaveGuardProvider leavesAgent={() => true}>
+                <Source source={first} />
+                <Source source={second} />
+                <Probe />
+            </LeaveGuardProvider>,
+        )
+        const leaving = confirmLeave("close")
+        view.rerender(
+            <LeaveGuardProvider leavesAgent={() => true}>
+                <Source source={first} />
+                <Probe />
+            </LeaveGuardProvider>,
+        )
+        resolve(true)
+        await expect(leaving).resolves.toBe(true)
+        expect(second.ask).not.toHaveBeenCalled()
     })
 
     it("asks one question at a time", async () => {
         let resolve!: (ok: boolean) => void
         const slow = {
             isDirty: () => true,
-            confirm: () => new Promise<boolean>((r) => (resolve = r)),
+            ask: () => new Promise<boolean>((r) => (resolve = r)),
         }
         render(
-            <LeaveGuardProvider>
+            <LeaveGuardProvider leavesAgent={() => true}>
                 <Source source={slow} />
                 <Probe />
             </LeaveGuardProvider>,
@@ -133,8 +159,8 @@ describe("leave guard", () => {
     it("asks the browser before unload only when a source is dirty", () => {
         let dirty = false
         render(
-            <LeaveGuardProvider>
-                <Source source={{isDirty: () => dirty, confirm: async () => true}} />
+            <LeaveGuardProvider leavesAgent={() => true}>
+                <Source source={{isDirty: () => dirty, ask: async () => true}} />
             </LeaveGuardProvider>,
         )
         const clean = new Event("beforeunload", {cancelable: true})
@@ -149,7 +175,7 @@ describe("leave guard", () => {
     it("aborts a route change, asks, and pushes the same URL once the person agrees", async () => {
         const dirty = source(true, true)
         render(
-            <LeaveGuardProvider>
+            <LeaveGuardProvider leavesAgent={() => true}>
                 <Source source={dirty} />
             </LeaveGuardProvider>,
         )
@@ -158,7 +184,7 @@ describe("leave guard", () => {
             aborted = startRoute("/w/1/p/2/sessions/other")
         })
         expect(aborted).toBe(true)
-        expect(dirty.confirm).toHaveBeenCalledWith("route")
+        expect(dirty.ask).toHaveBeenCalledWith("navigate")
         expect(router.push).toHaveBeenCalledWith("/w/1/p/2/sessions/other")
         // The retried navigation passes once.
         expect(startRoute("/w/1/p/2/sessions/other")).toBe(false)
@@ -167,30 +193,33 @@ describe("leave guard", () => {
     it("stays when the person keeps editing", async () => {
         const keep = source(true, false)
         render(
-            <LeaveGuardProvider>
+            <LeaveGuardProvider leavesAgent={() => true}>
                 <Source source={keep} />
             </LeaveGuardProvider>,
         )
+        let aborted = false
         await act(async () => {
-            startRoute("/w/1/p/2/agents")
+            aborted = startRoute("/w/1/p/2/agents")
         })
+        expect(aborted).toBe(true)
+        expect(keep.ask).toHaveBeenCalledWith("navigate")
         expect(router.push).not.toHaveBeenCalled()
     })
 
     it("lets shallow changes, routes inside the agent and clean sources through", () => {
         const dirty = source(true, true)
         render(
-            <LeaveGuardProvider guardRoute={(url) => !url.includes("/agents/a1")}>
+            <LeaveGuardProvider leavesAgent={(url) => !url.includes("/agents/a1")}>
                 <Source source={dirty} />
             </LeaveGuardProvider>,
         )
         expect(startRoute("/w/1/p/2/sessions/s1?tab=x", true)).toBe(false)
         expect(startRoute("/w/1/p/2/agents/a1?view=configuration")).toBe(false)
-        expect(dirty.confirm).not.toHaveBeenCalled()
+        expect(dirty.ask).not.toHaveBeenCalled()
     })
 
     it("leaves at once outside a provider", async () => {
         render(<Probe />)
-        await expect(confirmLeave("route")).resolves.toBe(true)
+        await expect(confirmLeave("navigate")).resolves.toBe(true)
     })
 })

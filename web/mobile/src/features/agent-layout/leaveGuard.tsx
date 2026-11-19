@@ -1,6 +1,5 @@
 /**
- * The one leave guard of the agent layout host (shared contract SC2, design D2 and the
- * agent-panel spec "One leave guard at the agent layout host").
+ * The one leave guard of the agent layout host.
  *
  * Every source of unsaved work registers here: the view stack (an open form with edits), the
  * Files draft guard, the automation guard. A content swap, a panel close and a route change out
@@ -20,13 +19,13 @@ import {
 import {useRouter} from "next/router"
 
 /** Why the person is leaving. A source may word its question by it. */
-export type LeaveReason = "swap" | "close" | "route"
+export type LeaveReason = "swap" | "close" | "navigate"
 
 export interface LeaveSource {
     /** True when this source holds unsaved work. Read at the moment of leaving. */
     isDirty: () => boolean
     /** Ask the person. Resolve true to leave (saved or discarded), false to stay. */
-    confirm: (reason: LeaveReason) => Promise<boolean>
+    ask: (reason: LeaveReason) => Promise<boolean>
 }
 
 interface LeaveGuard {
@@ -43,19 +42,19 @@ const UNGUARDED: LeaveGuard = {
 }
 
 export const LeaveGuardProvider = ({
-    guardRoute = () => true,
+    leavesAgent,
     children,
 }: {
-    /** Whether a route change to `url` leaves the agent and must ask. Default: every one. */
-    guardRoute?: (url: string) => boolean
+    /** Whether a route change to `url` leaves the agent, and so must ask first. */
+    leavesAgent: (url: string) => boolean
     children: ReactNode
 }) => {
     const router = useRouter()
     const sources = useRef(new Set<LeaveSource>())
     const asking = useRef(false)
     const bypass = useRef(false)
-    const guardRouteRef = useRef(guardRoute)
-    guardRouteRef.current = guardRoute
+    const leavesAgentRef = useRef(leavesAgent)
+    leavesAgentRef.current = leavesAgent
 
     const anyDirty = () => [...sources.current].some((source) => source.isDirty())
 
@@ -65,7 +64,9 @@ export const LeaveGuardProvider = ({
         asking.current = true
         try {
             for (const source of [...sources.current]) {
-                if (source.isDirty() && !(await source.confirm(reason))) return false
+                // A source that unmounted while an earlier one was asking has nothing to ask.
+                if (!sources.current.has(source)) continue
+                if (source.isDirty() && !(await source.ask(reason))) return false
             }
             return true
         } finally {
@@ -103,8 +104,8 @@ export const LeaveGuardProvider = ({
                 bypass.current = false
                 return
             }
-            if (!guardRouteRef.current(url) || !anyDirty()) return
-            void confirmLeave("route").then((ok) => {
+            if (!leavesAgentRef.current(url) || !anyDirty()) return
+            void confirmLeave("navigate").then((ok) => {
                 if (!ok) return
                 bypass.current = true
                 void router.push(url).catch(() => undefined)
@@ -133,7 +134,7 @@ export const useConfirmLeave = (): LeaveGuard["confirmLeave"] =>
 
 /**
  * Register a source of unsaved work while the caller is mounted. The latest `isDirty` and
- * `confirm` are read at leave time, so the caller may pass new closures every render.
+ * `ask` are read at leave time, so the caller may pass new closures every render.
  */
 export const useLeaveSource = (source: LeaveSource | null): void => {
     const {register} = useContext(LeaveGuardContext) ?? UNGUARDED
@@ -144,7 +145,7 @@ export const useLeaveSource = (source: LeaveSource | null): void => {
         if (!active) return
         return register({
             isDirty: () => latest.current?.isDirty() ?? false,
-            confirm: (reason) => latest.current?.confirm(reason) ?? Promise.resolve(true),
+            ask: (reason) => latest.current?.ask(reason) ?? Promise.resolve(true),
         })
     }, [active, register])
 }
