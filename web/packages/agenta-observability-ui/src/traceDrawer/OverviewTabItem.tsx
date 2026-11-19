@@ -118,7 +118,7 @@ const OverviewTabItem = ({
                     {spanEntityId ? (
                         <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
-                            title="inputs"
+                            title={t("observabilityUi.traceSpan.panelInputs")}
                             editable={false}
                             rootScope="span"
                             spanDataOverride={panels.inputs.value}
@@ -127,7 +127,7 @@ const OverviewTabItem = ({
                         />
                     ) : (
                         <AccordionTreePanel
-                            label={"inputs"}
+                            label={t("observabilityUi.traceSpan.panelInputs")}
                             value={panels.inputs.value as never}
                             enableFormatSwitcher
                             viewModePreset={panels.inputs.hasMessages ? "message" : "default"}
@@ -141,7 +141,7 @@ const OverviewTabItem = ({
                     {spanEntityId ? (
                         <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
-                            title="parameters"
+                            title={t("observabilityUi.traceSpan.panelParameters")}
                             editable={false}
                             rootScope="span"
                             spanDataOverride={parameters}
@@ -150,7 +150,7 @@ const OverviewTabItem = ({
                         />
                     ) : (
                         <AccordionTreePanel
-                            label={"parameters"}
+                            label={t("observabilityUi.traceSpan.panelParameters")}
                             value={parameters as never}
                             enableFormatSwitcher
                             defaultCollapsed
@@ -164,7 +164,7 @@ const OverviewTabItem = ({
                     {spanEntityId ? (
                         <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
-                            title="outputs"
+                            title={t("observabilityUi.traceSpan.panelOutputs")}
                             editable={false}
                             rootScope="span"
                             spanDataOverride={panels.outputs.value}
@@ -173,7 +173,7 @@ const OverviewTabItem = ({
                         />
                     ) : (
                         <AccordionTreePanel
-                            label={"outputs"}
+                            label={t("observabilityUi.traceSpan.panelOutputs")}
                             value={panels.outputs.value as never}
                             enableFormatSwitcher
                             viewModePreset={panels.outputs.hasMessages ? "message" : "default"}
@@ -189,7 +189,7 @@ const OverviewTabItem = ({
                             {spanEntityId ? (
                                 <TraceSpanDrillInViewSlot
                                     spanId={spanEntityId}
-                                    title="internals"
+                                    title={t("observabilityUi.traceSpan.panelInternals")}
                                     editable={false}
                                     rootScope="span"
                                     spanDataOverride={internals}
@@ -197,7 +197,7 @@ const OverviewTabItem = ({
                                 />
                             ) : (
                                 <AccordionTreePanel
-                                    label={"internals"}
+                                    label={t("observabilityUi.traceSpan.panelInternals")}
                                     value={internals as Record<string, unknown>}
                                     enableFormatSwitcher
                                 />

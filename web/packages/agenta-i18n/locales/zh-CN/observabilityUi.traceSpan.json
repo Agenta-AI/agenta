@@ -44,5 +44,9 @@
     "valueLabel": "值：",
     "totalMean": "总平均值：",
     "true": "是",
-    "false": "否"
+    "false": "否",
+    "panelInputs": "输入",
+    "panelParameters": "参数",
+    "panelOutputs": "输出",
+    "panelInternals": "内部数据"
 }

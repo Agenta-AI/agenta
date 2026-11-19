@@ -8,5 +8,4 @@
  */
 export interface AgentMountQueryRequest {
     artifact_id: string;
-    name?: string;
 }

@@ -1,5 +1,6 @@
 {
     "scanRepository": "Analisar repositório",
     "repositoryUrl": "URL do repositório",
-    "scanFailed": "Falha na análise. Verifique a URL e se o repositório é público."
+    "scanFailed": "Falha na análise. Verifique a URL e se o repositório é público.",
+    "noDescription": "Sem descrição."
 }

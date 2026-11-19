@@ -7,6 +7,7 @@ export {
     createT,
     defineCatalog,
     loadWithText,
+    textVersionAtom,
     useT,
     type CatalogKey,
     type TypedCatalog,

@@ -12,6 +12,7 @@
         "@agenta/chat": "workspace:*",
         "@agenta/entities": "workspace:*",
         "@agenta/entity-ui": "workspace:*",
+        "@agenta/navigation-ui": "workspace:*",
         "@agenta/playground": "workspace:*",
         "@agenta/playground-ui": "workspace:*",
         "@agenta/sessions-ui": "workspace:*",

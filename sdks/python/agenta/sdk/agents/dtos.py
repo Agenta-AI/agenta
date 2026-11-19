@@ -21,8 +21,10 @@ from typing import (
     List,
     Literal,
     Optional,
+    Sequence,
     Tuple,
     Union,
+    get_args,
 )
 
 from pydantic import (
@@ -323,6 +325,195 @@ class SandboxPermission(BaseModel):
         """The nested camelCase ``sandboxPermission`` object for the ``/run`` payload. ``filesystem``
         is dropped when unset (it is declared, not enforced) so an unset field never rides the wire."""
         return self.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+# ---------------------------------------------------------------------------
+# Drives (the durable folders an agent mounts)
+# ---------------------------------------------------------------------------
+
+AgentDriveAccess = Literal["read-write", "read"]
+AGENT_DRIVE_ACCESS_VALUES: Tuple[str, ...] = get_args(AgentDriveAccess)
+MAX_AGENT_DRIVES = 8
+_DRIVE_ENTRY_KEYS = ("slug", "access")
+
+
+class InvalidAgentDrivesError(AgentTemplateShapeError):
+    """``parameters.agent.drives`` breaks a drive rule.
+
+    ``field`` is the path inside the agent configuration (``drives[1].slug``), so the commit
+    route can name it in its envelope; ``value`` is the offending value, safe to echo.
+    """
+
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-drive-entry"
+
+    def __init__(self, *, field: str, value: Any, reason: str) -> None:
+        super().__init__(f"agent template {field}: {reason}")
+        self.field = field
+        self.value = value
+        self.reason = reason
+
+
+class InvalidHomeDriveError(AgentTemplateShapeError):
+    """``parameters.agent.home_drive`` names no read-write entry of ``drives``."""
+
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-home-drive"
+
+    def __init__(self, *, value: Any, reason: str) -> None:
+        super().__init__(f"agent template home_drive: {reason}")
+        self.field = "home_drive"
+        self.value = value
+        self.reason = reason
+
+
+class InvalidSessionDriveError(AgentTemplateShapeError):
+    """``parameters.agent.has_session_drive`` is not a boolean."""
+
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-session-drive"
+
+    def __init__(self, value: Any) -> None:
+        super().__init__("agent template has_session_drive must be true or false")
+        self.value = value
+
+
+# The platform writes `drives/README.md` at every start, so no drive may take that name.
+RESERVED_DRIVES_README = "README.md"
+
+
+def _check_drive_entry(entry: Dict[str, Any], where: str) -> None:
+    """The rules of one entry; :func:`validate_agent_drives` adds the rules across entries."""
+    unknown = sorted(set(entry) - set(_DRIVE_ENTRY_KEYS))
+    if unknown:
+        raise InvalidAgentDrivesError(
+            field=f"{where}.{unknown[0]}",
+            value=unknown[0],
+            reason="is not a drive field; allowed: slug, access",
+        )
+    slug = entry.get("slug")
+    if (
+        not isinstance(slug, str)
+        or not slug.strip()
+        or slug in (".", "..")
+        or any(char in slug for char in ("/", "\\", "\0"))
+    ):
+        raise InvalidAgentDrivesError(
+            field=f"{where}.slug",
+            value=str(slug),
+            reason="must be the slug of a drive: one folder name, without / or \\",
+        )
+    if slug.lower() == RESERVED_DRIVES_README.lower():
+        # `drives/README.md` is the file the platform writes at every start.
+        raise InvalidAgentDrivesError(
+            field=f"{where}.slug",
+            value=slug,
+            reason=f"{RESERVED_DRIVES_README!r} is reserved for the drives README",
+        )
+    access = entry.get("access")
+    if access is not None and access not in AGENT_DRIVE_ACCESS_VALUES:
+        raise InvalidAgentDrivesError(
+            field=f"{where}.access",
+            value=str(access),
+            reason=f"must be one of {list(AGENT_DRIVE_ACCESS_VALUES)}",
+        )
+
+
+class AgentDrive(BaseModel):
+    """One entry of ``parameters.agent.drives``: a drive of the project, named by its slug.
+
+    ``access`` is ``"read-write"`` (the default) or ``"read"``. Every attached drive appears
+    at ``drives/<slug>/``. :func:`validate_agent_drives` owns the rules.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    slug: str
+    access: AgentDriveAccess = "read-write"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _check_entry(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            _check_drive_entry(data, "drives[]")
+        return data
+
+    def to_wire(self) -> Dict[str, Any]:
+        return {"slug": self.slug, "access": self.access}
+
+
+def validate_agent_drives(drives: Any) -> Optional[List[AgentDrive]]:
+    """Parse ``parameters.agent.drives``, the one owner of the drive entry rules.
+
+    ``None`` (absent or null) stays ``None``: the legacy configuration, whose run keeps
+    today's agent drive found by the agent's id. Otherwise: a list of at most 8 entries; each
+    has a ``slug`` that is one path segment, each slug at most once, and ``access`` ``read``
+    or ``read-write``. An empty list means no drive at all.
+    """
+    if drives is None:
+        return None
+    if not isinstance(drives, list):
+        raise InvalidAgentDrivesError(
+            field="drives", value=type(drives).__name__, reason="must be a list"
+        )
+    if len(drives) > MAX_AGENT_DRIVES:
+        raise InvalidAgentDrivesError(
+            field="drives",
+            value=len(drives),
+            reason=f"has {len(drives)} entries; at most {MAX_AGENT_DRIVES} are allowed",
+        )
+    parsed: List[AgentDrive] = []
+    seen_slugs: set = set()
+    for index, entry in enumerate(drives):
+        where = f"drives[{index}]"
+        if isinstance(entry, AgentDrive):
+            entry = entry.model_dump()
+        if not isinstance(entry, dict):
+            raise InvalidAgentDrivesError(
+                field=where,
+                value=type(entry).__name__,
+                reason='must be an object, e.g. {"slug": "team-notes"}',
+            )
+        _check_drive_entry(entry, where)
+        slug = entry["slug"]
+        if slug in seen_slugs:
+            raise InvalidAgentDrivesError(
+                field=f"{where}.slug",
+                value=slug,
+                reason=f"the drive {slug!r} is listed more than once",
+            )
+        seen_slugs.add(slug)
+        parsed.append(AgentDrive(slug=slug, access=entry.get("access") or "read-write"))
+    return parsed
+
+
+def validate_home_drive(
+    home_drive: Any, drives: Optional[Sequence[AgentDrive]]
+) -> Optional[str]:
+    """Parse ``parameters.agent.home_drive``: ``None``, or the slug of a read-write entry."""
+    if home_drive is None:
+        return None
+    if not isinstance(home_drive, str):
+        raise InvalidHomeDriveError(
+            value=type(home_drive).__name__, reason="must be a slug or null"
+        )
+    entry = next((drive for drive in drives or () if drive.slug == home_drive), None)
+    if entry is None:
+        raise InvalidHomeDriveError(
+            value=home_drive, reason=f"names {home_drive!r}, which drives does not list"
+        )
+    if entry.access != "read-write":
+        raise InvalidHomeDriveError(
+            value=home_drive,
+            reason=f"names {home_drive!r}, which is read only; a home drive is read-write",
+        )
+    return home_drive
+
+
+def validate_has_session_drive(value: Any) -> bool:
+    """Parse ``parameters.agent.has_session_drive``; ``None`` (absent or null) reads as ``True``."""
+    if value is None:
+        return True
+    if not isinstance(value, bool):
+        raise InvalidSessionDriveError(str(value))
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -849,6 +1040,28 @@ class AgentTemplate(BaseModel):
     harness_extras: Dict[str, Any] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
     sandbox_credentials: List[SandboxCredentialConfig] = Field(default_factory=list)
+    # The drives the agent attaches, the one that holds its tools and app files, and whether
+    # its session keeps a working folder in the store. ``drives`` None is the legacy
+    # configuration: the run keeps today's agent drive found by the agent's id.
+    drives: Optional[List[AgentDrive]] = None
+    home_drive: Optional[str] = None
+    has_session_drive: bool = True
+
+    @field_validator("drives", mode="before")
+    @classmethod
+    def _check_drives(cls, value: Any) -> Optional[List[AgentDrive]]:
+        return validate_agent_drives(value)
+
+    @field_validator("has_session_drive", mode="before")
+    @classmethod
+    def _check_has_session_drive(cls, value: Any) -> bool:
+        return validate_has_session_drive(value)
+
+    @model_validator(mode="after")
+    def _check_home_drive(self) -> "AgentTemplate":
+        validate_home_drive(self.home_drive, self.drives)
+        return self
+
     # The execution selectors: the coding agent to drive, where it runs, and the runner-enforced
     # default permission mode (sourced from ``runner.permissions.default``).
     harness: str = "pi_core"
@@ -925,9 +1138,17 @@ class AgentTemplate(BaseModel):
         # stale caller gets a named 400 instead of silently running defaults (finding F-016).
         _validate_agent_template_shape(params)
         base = defaults or cls()
-        instructions, model, tools = _parse_agent_fields(params, base)
-        harness, sandbox, permission_default = _parse_run_selection(params, base)
-        harness_permissions, harness_extras = _parse_harness_slice(params, base)
+        try:
+            instructions, model, tools = _parse_agent_fields(params, base)
+            harness, sandbox, permission_default = _parse_run_selection(params, base)
+            harness_permissions, harness_extras = _parse_harness_slice(params, base)
+        except (AttributeError, TypeError) as error:
+            # The field readers expect objects and lists where the template has them; a
+            # value of another type (``prompt.llm_config`` as a string, say) is the
+            # caller's configuration, not a server fault: answer 400.
+            raise AgentTemplateShapeError(
+                f"a field of the agent template has the wrong type: {error}"
+            ) from error
         try:
             return cls(
                 instructions=instructions,
@@ -939,6 +1160,11 @@ class AgentTemplate(BaseModel):
                 harness_extras=harness_extras,
                 sandbox_permission=_parse_sandbox_permission(params, base),
                 sandbox_credentials=_parse_sandbox_credentials(params, base),
+                drives=_drive_field(params, "drives", base.drives),
+                home_drive=_drive_field(params, "home_drive", base.home_drive),
+                has_session_drive=_drive_field(
+                    params, "has_session_drive", base.has_session_drive
+                ),
                 harness=harness,
                 sandbox=sandbox,
                 permission_default=permission_default,
@@ -999,6 +1225,24 @@ class HarnessAgentTemplate(BaseModel):
     # Agenta-owned static and configuration-derived guidance. The runner chooses the existing
     # delivery channel from the harness and keeps this value outside lifecycle fingerprints.
     platform_instructions: Optional[str] = None
+    drives: Optional[List[AgentDrive]] = None
+    home_drive: Optional[str] = None
+    has_session_drive: bool = True
+
+    @field_validator("drives", mode="before")
+    @classmethod
+    def _check_drives(cls, value: Any) -> Optional[List[AgentDrive]]:
+        return validate_agent_drives(value)
+
+    @field_validator("has_session_drive", mode="before")
+    @classmethod
+    def _check_has_session_drive(cls, value: Any) -> bool:
+        return validate_has_session_drive(value)
+
+    @model_validator(mode="after")
+    def _check_home_drive(self) -> "HarnessAgentTemplate":
+        validate_home_drive(self.home_drive, self.drives)
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -1071,6 +1315,18 @@ class HarnessAgentTemplate(BaseModel):
         if self.sandbox_permission is None:
             return {}
         return {"sandboxPermission": self.sandbox_permission.to_wire()}
+
+    def wire_drives(self) -> Dict[str, Any]:
+        """The ``drives``, ``homeDrive`` and ``hasSessionDrive`` fields for the ``/run`` payload.
+        A legacy configuration (no ``drives``) sends only ``hasSessionDrive``, so the runner
+        keeps today's agent drive; otherwise the runner mounts exactly what it names."""
+        if self.drives is None:
+            return {"hasSessionDrive": self.has_session_drive}
+        return {
+            "drives": [drive.to_wire() for drive in self.drives],
+            "homeDrive": self.home_drive,
+            "hasSessionDrive": self.has_session_drive,
+        }
 
     def wire_sandbox_credentials(self) -> Dict[str, Any]:
         if not self.sandbox_credentials:
@@ -1546,6 +1802,19 @@ def _section(params: Dict[str, Any], key: str) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+# The keys that mark a bare template (no `agent` wrapper) as an agent template.
+_BARE_TEMPLATE_KEYS = (
+    "instructions",
+    "llm",
+    "tools",
+    "mcps",
+    "skills",
+    "drives",
+    "home_drive",
+    "has_session_drive",
+)
+
+
 def _has_agent_template(params: Dict[str, Any]) -> bool:
     """True when the request carries an agent template (wrapped at ``agent``, or a bare template
     with definition fields), as opposed to the ``prompt`` chat fallback.
@@ -1553,7 +1822,7 @@ def _has_agent_template(params: Dict[str, Any]) -> bool:
     Mirrors the ``has_template`` branch in :func:`_parse_agent_fields` so shape validation and
     field parsing agree on which requests own an agent template."""
     return isinstance(params.get("agent"), dict) or any(
-        key in params for key in ("instructions", "llm", "tools", "mcps", "skills")
+        key in params for key in _BARE_TEMPLATE_KEYS
     )
 
 
@@ -1802,6 +2071,19 @@ def _parse_sandbox_credentials(
         ) from exc
 
 
+def _drive_field(params: Dict[str, Any], key: str, default: Any) -> Any:
+    """The raw ``drives`` / ``home_drive`` / ``has_session_drive`` value; the model's
+    validators apply the rules. A null reads as absent, except a stated
+    ``home_drive: null``, which means no home drive."""
+    if not _has_agent_template(params):
+        return default
+    template = _template(params)
+    if key == "home_drive" and key in template:
+        return template[key]
+    value = template.get(key)
+    return default if value is None else value
+
+
 def _parse_agent_fields(
     params: Dict[str, Any],
     defaults: AgentTemplate,
@@ -1812,7 +2094,7 @@ def _parse_agent_fields(
     ``tools`` flat on it), and the ``prompt`` prompt-template for a bare chat run. The agent-template
     shape wins when present; the prompt fallback applies only when there is no agent template."""
     has_template = isinstance(params.get("agent"), dict) or any(
-        key in params for key in ("instructions", "llm", "tools", "mcps", "skills")
+        key in params for key in _BARE_TEMPLATE_KEYS
     )
     if has_template:
         agent = _template(params)

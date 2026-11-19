@@ -293,11 +293,13 @@ async def sign_mount_credentials(
     mounts_service: MountsService,
     project_id: UUID,
     mount_id: UUID,
+    read_only: bool = False,
 ) -> MountCredentials:
     """Mint scoped, short-lived credentials for a mount. Shared by both routers."""
     return await mounts_service.sign_mount_credentials(
         project_id=project_id,
         mount_id=mount_id,
+        read_only=read_only,
     )
 
 

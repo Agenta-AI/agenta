@@ -19,140 +19,87 @@ export type AppId =
 /** Brand marks from the same logo CDN the Templates page uses. */
 export const logoUrl = (app: AppId) => `https://logos.composio.dev/api/${app}`
 
+/** The six demo automations. Their text is in the `auth.previewDemo` catalog, keyed by id. */
+export type DemoId =
+    | "supportTriage"
+    | "clientReport"
+    | "adSpend"
+    | "socialPost"
+    | "competitorWatch"
+    | "seoContent"
+
 /** One tool call, as the playground's activity timeline shows it. */
 export interface Step {
+    /** Picks the step's text: `<id>Step<n>Running` and `<id>Step<n>Done`. */
+    n: 1 | 2 | 3
     /** A connected app's logo, or the kind glyph for the agent's own tools. */
     icon: AppId | Icon
-    running: string
-    done: string
 }
 
+/** Past runs, shown as sessions in the sidebar. */
+export type SessionKey =
+    | "supportTriageSession1"
+    | "supportTriageSession2"
+    | "clientReportSession1"
+    | "clientReportSession2"
+    | "adSpendSession1"
+
 export interface Automation {
-    name: string
+    id: DemoId
     apps: AppId[]
     /** Minutes since the last run, before the preview has run it itself. */
     lastRunMinutes: number
-    event: string
     steps: [Step, Step, Step]
-    /** What the run leaves behind for the person. */
-    result: string
-    /** Past runs, shown as sessions in the sidebar. */
-    sessions: string[]
+    sessions: SessionKey[]
 }
+
+const steps = (a: AppId | Icon, b: AppId | Icon, c: AppId | Icon): [Step, Step, Step] => [
+    {n: 1, icon: a},
+    {n: 2, icon: b},
+    {n: 3, icon: c},
+]
 
 export const AUTOMATIONS: Automation[] = [
     {
-        name: "Support triage",
+        id: "supportTriage",
         apps: ["slack"],
         lastRunMinutes: 4,
-        event: "New message in #support",
-        steps: [
-            {icon: "slack", running: "Reading #support", done: "Read a new message in #support"},
-            {icon: Tag, running: "Tagging urgency", done: "Tagged it billing, high urgency"},
-            {icon: "slack", running: "Routing to an owner", done: "Routed it to the billing owner"},
-        ],
-        result: "Routed to billing as high urgency",
-        sessions: ["Refund not received", "Login loop on mobile"],
+        steps: steps("slack", Tag, "slack"),
+        sessions: ["supportTriageSession1", "supportTriageSession2"],
     },
     {
-        name: "Client report agent",
+        id: "clientReport",
         apps: ["google_analytics", "googleads", "gmail"],
         lastRunMinutes: 9,
-        event: "Weekly report for Northwind Dental",
-        steps: [
-            {
-                icon: "google_analytics",
-                running: "Reading site traffic",
-                done: "Pulled 12.4K visits, up 8%",
-            },
-            {
-                icon: "googleads",
-                running: "Reading ad results",
-                done: "Pulled 64 leads at $31 each",
-            },
-            {icon: "gmail", running: "Emailing the client", done: "Sent the report to the client"},
-        ],
-        result: "Report sent to Northwind Dental",
-        sessions: ["Northwind Dental", "Harbor & Co."],
+        steps: steps("google_analytics", "googleads", "gmail"),
+        sessions: ["clientReportSession1", "clientReportSession2"],
     },
     {
-        name: "Ad spend watcher",
+        id: "adSpend",
         apps: ["googleads", "facebook", "slack"],
         lastRunMinutes: 22,
-        event: "Hourly check over 14 campaigns",
-        steps: [
-            {icon: "facebook", running: "Checking Meta Ads", done: "Checked 9 Meta campaigns"},
-            {
-                icon: "googleads",
-                running: "Checking Google Ads",
-                done: "Found one campaign 40% over budget",
-            },
-            {icon: "slack", running: "Alerting the team", done: "Flagged it in #client-ads"},
-        ],
-        result: "1 campaign flagged in #client-ads",
-        sessions: ["Spring promo overspend"],
+        steps: steps("facebook", "googleads", "slack"),
+        sessions: ["adSpendSession1"],
     },
     {
-        name: "Social post agent",
+        id: "socialPost",
         apps: ["linkedin", "twitter", "notion"],
         lastRunMinutes: 95,
-        event: "New blog post: “5 intake form mistakes”",
-        steps: [
-            {icon: "notion", running: "Reading the post", done: "Read the new post in Notion"},
-            {
-                icon: NotePencil,
-                running: "Writing the posts",
-                done: "Wrote a LinkedIn post and an X thread",
-            },
-            {icon: "linkedin", running: "Scheduling", done: "Scheduled both for Tuesday 9:00"},
-        ],
-        result: "2 posts scheduled for Tuesday",
+        steps: steps("notion", NotePencil, "linkedin"),
         sessions: [],
     },
     {
-        name: "Competitor watch",
+        id: "competitorWatch",
         apps: ["composio_search", "notion"],
         lastRunMinutes: 300,
-        event: "Weekly check on 4 competitors",
-        steps: [
-            {
-                icon: "composio_search",
-                running: "Scanning competitor sites",
-                done: "Found 3 new pages and 2 new ads",
-            },
-            {
-                icon: ListChecks,
-                running: "Comparing with last week",
-                done: "Spotted a new pricing page",
-            },
-            {icon: "notion", running: "Writing the digest", done: "Saved the digest to Notion"},
-        ],
-        result: "Digest saved: 1 pricing change",
+        steps: steps("composio_search", ListChecks, "notion"),
         sessions: [],
     },
     {
-        name: "SEO content agent",
+        id: "seoContent",
         apps: ["google_search_console", "composio_search", "notion"],
         lastRunMinutes: 2880,
-        event: "On demand: “patient intake forms”",
-        steps: [
-            {
-                icon: "google_search_console",
-                running: "Checking Search Console",
-                done: "Found 6 queries with room to grow",
-            },
-            {
-                icon: "composio_search",
-                running: "Researching the topic",
-                done: "Read the top 10 results",
-            },
-            {
-                icon: "notion",
-                running: "Writing the brief",
-                done: "Saved the approved brief to Notion",
-            },
-        ],
-        result: "Brief approved, draft in progress",
+        steps: steps("google_search_console", "composio_search", "notion"),
         sessions: [],
     },
 ]

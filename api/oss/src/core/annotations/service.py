@@ -258,7 +258,7 @@ class AnnotationsService:
             data=annotation_create.data,
             #
             references=annotation_references,
-            links=annotation_create.links,
+            links=general_fields.links,
         )
 
         return annotation

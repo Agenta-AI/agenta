@@ -390,7 +390,11 @@ export const SessionWorkspace = ({
             {/* Drive surfaces need the AGENT here, not just the session: without it the per-agent
                 mount query stays disabled and `agent-files/…` falls back to the cwd mount, 404s,
                 and the row opens nothing (#6270). Desktop mounts this; /m did not. */}
-            <DriveSessionProvider sessionId={sessionId} artifactId={agentId ?? null}>
+            <DriveSessionProvider
+                sessionId={sessionId}
+                artifactId={agentId ?? null}
+                revisionId={configEntityId}
+            >
                 {/* The workspace column: the shared playground top bar, then the panes under it. The
                     column owns the top safe-area inset (the bar is the topmost chrome). */}
                 <div className="ag-app-ground flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] min-w-0 flex-col pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]">

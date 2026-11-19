@@ -113,6 +113,13 @@
               ],
               "description": "AGENTA_ACCESS_EMAIL_DISABLED \u2014 disable email/password auth."
             },
+            "personalAccountsEnabled": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "description": "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED \u2014 default true. People can store their own accounts (custom secrets, Composio connections, MCP sign-ins) and an agent's `user` items use them. Set false to turn it off; during an upgrade keep it false until every API, services and runner pod runs a release that supports personal accounts."
+            },
             "defaultPlan": {
               "type": "string",
               "description": "AGENTA_ACCESS_DEFAULT_PLAN."

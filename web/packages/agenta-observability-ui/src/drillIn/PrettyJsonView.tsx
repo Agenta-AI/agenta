@@ -490,6 +490,8 @@ const tNow = createT(drillInCatalog)
 
 const ScalarValue = ({value}: {value: unknown}) => {
     if (value === null || value === undefined) {
+        // The JSON literal, not a word: it reads the same in every language.
+        // eslint-disable-next-line agenta-i18n/no-hardcoded-text
         return <span className="font-mono text-xs text-colorTextQuaternary italic">null</span>
     }
     if (typeof value === "boolean") {

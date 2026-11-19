@@ -7,7 +7,7 @@
     "statusPending2": "Ihr Arbeitsbereich wird geladen",
     "statusReturning1": "Ihre Agents werden geladen",
     "statusReturning2": "Letzte Sitzungen werden wiederhergestellt",
-    "tip1": "Sie können mit Ihren Agents in Slack, Telegram oder WhatsApp sprechen.",
+    "tip1": "Sie können mit Ihren Agents in Slack, Telegram, WhatsApp, Discord und Microsoft Teams sprechen.",
     "tip2": "Korrigieren Sie einen Agent einmal, und er merkt es sich für das nächste Mal.",
     "tip3": "Jede Sitzung läuft in einer eigenen Sandbox, getrennt von den anderen.",
     "tip4": "Agents können nach einem Zeitplan laufen oder wenn in einer verbundenen App etwas passiert.",

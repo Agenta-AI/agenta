@@ -11,8 +11,9 @@ import {
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import type {FileActivity} from "@agenta/entities/session"
 import {driveQuickLookAtomFamily, useDriveSessionId} from "@agenta/entity-ui/drive"
-import {richText, useT} from "@agenta/i18n"
+import {richText, textVersionAtom, useT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
+import toolActivityCatalog from "@agenta/i18n/catalogs/chat.toolActivity"
 import {ArrowSquareOut, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -45,11 +46,13 @@ import {
     type ActivityState,
 } from "./activityIcons"
 
-// `_skinVersion` only makes the registry's state part of the call, so a memo can key on it.
+// `_skinVersion` and `_textVersion` only make the registry's state and the displayed text part of
+// the call, so a memo can key on them.
 const displayFor = (
     part: ToolUIPart,
     appName?: string,
     _skinVersion?: number,
+    _textVersion?: string,
 ): ResolvedToolDisplay =>
     resolveToolDisplay(
         partToolName(part),
@@ -101,7 +104,8 @@ const Objct = ({text, onOpen}: {text: string; onOpen?: () => void}) =>
         <strong className="font-medium">{text}</strong>
     )
 
-/** The verb, then the object set apart: "Read **ApprovalDock.tsx**"; a detail replaces the object. */
+/** The verb, then the object set apart: "Read **ApprovalDock.tsx**"; a detail replaces the object.
+ * The language decides the order ("**ApprovalDock.tsx** gelesen"). */
 const Sentence = ({
     part,
     display,
@@ -114,13 +118,20 @@ const Sentence = ({
     /** Set when the detail names a file the reader can open. */
     onOpenFile?: () => void
 }) => {
-    const t = useT(chatActivityCatalog)
+    const t = useT(chatActivityCatalog, toolActivityCatalog)
     const landed = (part.state as string) === "output-available"
     const sentence = landed ? display.activity.done : display.activity.running
-    const verb = display.verb ? (landed ? display.verb.done : display.verb.running) : null
+    const frame = display.frame ? (landed ? display.frame.done : display.frame.running) : null
+    // The text around the object, e.g. "Read " and "".
+    const [before, after = ""] = frame ? frame.split("{{object}}") : []
     const object =
         display.detail ??
-        (verb && sentence.startsWith(`${verb} `) ? sentence.slice(verb.length + 1) : null)
+        (before !== undefined &&
+        sentence.length > before.length + after.length &&
+        sentence.startsWith(before) &&
+        sentence.endsWith(after)
+            ? sentence.slice(before.length, sentence.length - after.length)
+            : null)
     const action = inSentence(display.activity.running)
     const withAction = (text: string) =>
         richText(text, {
@@ -133,10 +144,12 @@ const Sentence = ({
     if (state === "denied") return <>{withAction(t("chat.activity.youDenied", {action}))}</>
     if (state === "responded") return <>{withAction(t("chat.activity.youAnswered", {action}))}</>
     const opens = display.detail ? onOpenFile : undefined
-    if (verb && object) {
+    if (before !== undefined && object) {
         return (
             <>
-                {verb} <Objct text={object} onOpen={opens} />
+                {before}
+                <Objct text={object} onOpen={opens} />
+                {after}
             </>
         )
     }
@@ -330,6 +343,7 @@ const CatalogToolStep = ({
 }) => {
     const {integration} = useToolIntegrationDetail(base.sourceKey ?? "")
     const name = integration?.name
+    // `base` changes with the language and with each catalog load, so this follows them too.
     const display = useMemo(() => (name ? displayFor(part, name) : base), [part, base, name])
     return (
         <ActivityToolStepView
@@ -359,7 +373,12 @@ export const ActivityToolStep = ({
         getChatSkinVersion,
         getChatSkinVersion,
     )
-    const base = useMemo(() => displayFor(part, undefined, skinVersion), [part, skinVersion])
+    // The language, and each catalog that finishes loading, even after its timeout.
+    const textVersion = useAtomValue(textVersionAtom)
+    const base = useMemo(
+        () => displayFor(part, undefined, skinVersion, textVersion),
+        [part, skinVersion, textVersion],
+    )
     if (base.sourceKey) {
         return <CatalogToolStep part={part} files={files} base={base} live={live} />
     }

@@ -37,5 +37,16 @@
     "youSkippedSecret": "你已跳过 <name>{{name}}</name>",
     "waitingToAddSecretBelow": "等待你在下方添加 <name>{{name}}</name>",
     "couldNotSaveAnswer": "无法保存回答。请重试。",
-    "theService": "该服务"
+    "theService": "该服务",
+    "keepSavedValue": "保留已保存的值",
+    "changeValue": "更改值",
+    "moreOptions": "更多选项",
+    "secretValue": "密钥值",
+    "pasteNewValue": "粘贴新值",
+    "pasteValue": "粘贴值",
+    "save": "保存",
+    "environmentVariable": "环境变量",
+    "onlyYou": "· 仅你可见",
+    "checking": "正在检查...",
+    "secretOptions": "密钥选项"
 }

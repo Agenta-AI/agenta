@@ -38,7 +38,7 @@ The spec section 7 glossary applies. The names that every layer uses:
 | Run person | none | `run_person_id(envelope)` | none | none |
 | Run accounts | none | `RunAccount`, `RequestAccess.run_accounts` | claim `run_accounts` | none |
 | Sign-in | `secrets` rows of kind `OAUTH_GRANT` and `MCP_TOKEN` | `SecretKind.MCP_TOKEN`, `grant_slug`, `token_slug` | `owner_kind=user` on `connect`; `account_source=user` on the MCP gateway route; `user_sign_in` on the MCP endpoint response | the MCP texts of spec 5.1 and 5.4 |
-| Deployment switch | none | `env.access.personal_accounts_enabled` | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | none |
+| Deployment switch | none | `env.agenta.access.personal_accounts_enabled` | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (on by default) | none |
 
 The interface labels come from spec section 5 and `UX-DECISIONS.md`; this column only points to them.
 
@@ -400,7 +400,7 @@ Errors use the shipped shape: `{"detail": {"code": "<code>", "message": "<text a
 Three checks that the tables below name:
 
 - **Person.** The caller's principal is a human, the request carries no run envelope, and the request has an organization (the build's `require_person`, in `apis/fastapi/shared/personal.py`). Otherwise `403`, code `user_required`.
-- **Switch.** With `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` off, every route that reads or writes a person's rows or account choices answers `403`, code `personal_accounts_disabled`. The screens read the switch from that answer (section 12), the same way `organizationConnectionsAccessAtom` reads organization access today. Rows created while the switch was on stay stored, hidden and unused, until it is on again or the person leaves the organization.
+- **Switch.** The switch is on by default; an installation can set `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` to false. With it off, every route that reads or writes a person's rows or account choices answers `403`, code `personal_accounts_disabled`. The screens read the switch from that answer (section 12), the same way `organizationConnectionsAccessAtom` reads organization access today. Rows created while the switch was on stay stored, hidden and unused, until it is on again or the person leaves the organization.
 - **May run the agent.** `Permission.RUN_SESSIONS` on the project, and `allow_agent(request, action=Permission.RUN_SESSIONS, artifact_id=workflow_id)` (`apis/fastapi/sharing/utils.py`). A hidden or unknown agent answers `404`, code `not_found`.
 
 ### 7.1 Account choices (new, builder A)
