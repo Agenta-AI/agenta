@@ -171,12 +171,26 @@ describe("leave the session for an agent page and come back", () => {
         expect({firstRow: firstRow(), scrollTop: scroller()?.scrollTop}).toEqual(before)
     })
 
+    it("keeps the place when a fresher history with many more turns arrives after the return", async () => {
+        await mount("session-g")
+        await readerScrollsTo(0)
+        await readerScrollsTo(700)
+        const before = {firstRow: firstRow(), scrollTop: scroller()?.scrollTop}
+        await leave()
+
+        // The cached history first, then the server's, 20 turns longer.
+        await mount("session-g", 40)
+        await mount("session-g", 60)
+        expect({firstRow: firstRow(), scrollTop: scroller()?.scrollTop}).toEqual(before)
+    })
+
     it("lands on the latest message again when the reader was there", async () => {
         await mount("session-c")
         await leave()
+        // The tail of the longer transcript, pinned to its latest message.
         await mount("session-c", 41)
-        expect(firstRow()).toBe("28")
-        expect(scroller()?.scrollTop).toBe(600)
+        expect(firstRow()).toBe("29")
+        expect(scroller()?.scrollTop).toBe(500)
     })
 
     it("waits for the transcript to load before it puts the position back", async () => {

@@ -12,11 +12,14 @@ import {
 } from "./transcriptWindow"
 import {NEAR_BOTTOM_PX} from "./useTranscriptAutoScroll"
 
-/** The window a remount opens: the tail, widened to the older turns the reader had loaded. */
-const keptWindow = (sessionId: string, total: number): TranscriptWindow => {
-    const tail = openWindow(total)
-    const kept = readTranscriptPosition(sessionId)?.windowStart
-    return kept == null ? tail : {start: Math.min(kept, tail.start), total}
+/**
+ * The window a remount opens: the tail, or, for a reader who had scrolled away from the latest
+ * message, the tail widened to the older turns they had loaded.
+ */
+const keptWindow = (sessionId: string, total: number): TranscriptWindow | null => {
+    const kept = readTranscriptPosition(sessionId)
+    if (kept?.scrollTop == null || kept.windowStart == null) return null
+    return {start: Math.min(kept.windowStart, openWindow(total).start), total}
 }
 
 /**
@@ -31,8 +34,12 @@ export const useTranscriptWindow = (
     scrollerRef: RefObject<HTMLDivElement | null>,
     sessionId: string,
 ): number => {
-    const [held, setHeld] = useState(() => keptWindow(sessionId, total))
-    const settled = settleWindow(held, total)
+    const [kept] = useState(() => keptWindow(sessionId, total))
+    const [held, setHeld] = useState(() => kept ?? openWindow(total))
+    // A kept window holds its first turn when a fresher history arrives with many more turns;
+    // otherwise a load of that size opens at the tail again and the kept position is lost.
+    const settled =
+        kept && total > held.total ? {start: held.start, total} : settleWindow(held, total)
     if (settled !== held) setHeld(settled)
     const {start} = settled
     const hasOlder = start > 0

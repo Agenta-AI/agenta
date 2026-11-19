@@ -315,16 +315,10 @@ const ReplayScreen = ({
         approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
     const nextPollMs = watchAwarePollMs(basePollMs, watch.connected)
     if (nextPollMs !== pollMs) setPollMs(nextPollMs)
-    // One identity cache per session — the dep does that, and must, since the screen is no longer
-    // remounted per session.
-
-    // Both factories take no argument, so the linter reads `sessionId` as unused. It is the point:
-    // the dep is what discards the previous session's cache on a screen that never remounts.
-
-    const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
+    // One identity cache per session: the screen is mounted per session (`key` in `ChatScreen`).
+    const [executedFor] = useState(createExecutedToolIdentityCache)
     // Without this every view model is a fresh object per poll, so TurnRow's memo never hits.
-
-    const turnCache = useMemo(() => createTurnViewModelCache(), [sessionId])
+    const [turnCache] = useState(createTurnViewModelCache)
     const turns = useMemo(
         () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),
         [messages, executedFor, turnCache],
@@ -347,8 +341,6 @@ const ReplayScreen = ({
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <TranscriptTurns
-                    // This screen stays mounted across sessions; the window must not.
-                    key={sessionId}
                     turns={visibleTurns}
                     scrollerRef={autoScroll.ref}
                     sessionId={sessionId}
