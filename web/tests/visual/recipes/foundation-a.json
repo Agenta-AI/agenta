@@ -1,0 +1,27 @@
+[
+    {
+        "id": "foundation-a-view-stack-view-light",
+        "story": "builderlayout-foundation-a-view-stack--view",
+        "width": 600,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"panel-view\"]",
+        "ready": "text=AGENTS.md"
+    },
+    {
+        "id": "foundation-a-unsaved-dialog-light",
+        "story": "builderlayout-foundation-a-view-stack--unsaved-dialog",
+        "width": 600,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"unsaved-changes-dialog\"]"
+    },
+    {
+        "id": "foundation-a-unsaved-dialog-dark",
+        "story": "builderlayout-foundation-a-view-stack--unsaved-dialog-dark",
+        "width": 600,
+        "height": 500,
+        "theme": "dark",
+        "selector": "[data-testid=\"unsaved-changes-dialog\"]"
+    }
+]
