@@ -7,7 +7,10 @@ from the SDK's own wire DTOs (`mcp.shared.auth`) and PKCE generator
 two-separate-HTTP-requests callback cannot satisfy.
 """
 
+import asyncio
 import base64
+import binascii
+import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote_plus, urlencode, urljoin, urlparse
@@ -48,6 +51,57 @@ _TIMEOUT_SECONDS = 15.0
 # RFC 9728's protected-resource metadata are both a handful of fields. Generous against
 # that, and small enough that a candidate URL cannot spend the process's memory.
 _MAX_METADATA_BYTES = 256 * 1024
+
+# The account name is a label for the sign-in, read after the token exchange. Its read
+# may cost the person a short wait before the sign-in is written, never a failed one.
+_ACCOUNT_NAME_TIMEOUT_SECONDS = 5.0
+_ACCOUNT_NAME_MAX_LENGTH = 200
+# Best first. An address names one account, where a display name can be shared by a
+# person's work and private accounts at one server.
+_ACCOUNT_NAME_CLAIMS = ("email", "preferred_username", "name")
+
+
+class MCPOAuthTokenResponse(OAuthToken):
+    """A token response with the OpenID Connect `id_token` the SDK model drops.
+
+    A server returns one when the granted scopes include `openid`. It is read for the
+    account name only, and never stored.
+    """
+
+    id_token: Optional[str] = None
+
+
+def account_name_from_claims(claims: Any) -> Optional[str]:
+    """The account name in an ID token's claims or a user info response, if any."""
+    if not isinstance(claims, dict):
+        return None
+    for claim in _ACCOUNT_NAME_CLAIMS:
+        value = claims.get(claim)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:_ACCOUNT_NAME_MAX_LENGTH]
+    return None
+
+
+def account_name_from_id_token(id_token: Optional[str]) -> Optional[str]:
+    """The account name in an ID token's claims, unverified.
+
+    The token came straight from the token endpoint over the egress boundary, and the
+    name is only a label for the person who signed in, so its signature is not checked
+    (OpenID Connect Core s3.1.3.7 allows TLS in place of the signature on this path).
+    """
+    if not id_token:
+        return None
+    parts = id_token.split(".")
+    if len(parts) != 3:
+        return None
+    payload = parts[1]
+    try:
+        claims = json.loads(
+            base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+        )
+    except (binascii.Error, ValueError):
+        return None
+    return account_name_from_claims(claims)
 
 
 def _authorization_base_url(url: str) -> str:
@@ -340,7 +394,12 @@ class MCPOAuthClient:
     # which resolves the name, refuses a blocked address and pins the connection (OD26).
 
     @staticmethod
-    async def _get(client: httpx.AsyncClient, url: str) -> Optional[httpx.Response]:
+    async def _get(
+        client: httpx.AsyncClient,
+        url: str,
+        *,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Optional[httpx.Response]:
         """One guarded GET. `None` when the target was refused or unreachable.
 
         Discovery walks a list of candidate URLs and moves on when one does not answer, so
@@ -349,7 +408,7 @@ class MCPOAuthClient:
         blocked address is never dialled.
         """
         try:
-            target = await open_egress(url)
+            target = await open_egress(url, above_caller=headers)
         except EgressRefusedError:
             return None
         try:
@@ -617,7 +676,7 @@ class MCPOAuthClient:
         redirect_uri: str,
         client_info: OAuthClientInformationFull,
         resource: Optional[str] = None,
-    ) -> OAuthToken:
+    ) -> MCPOAuthTokenResponse:
         data: Dict[str, Any] = {
             "grant_type": "authorization_code",
             "code": code,
@@ -665,7 +724,7 @@ class MCPOAuthClient:
         token_endpoint: str,
         data: Dict[str, Any],
         client_info: OAuthClientInformationFull,
-    ) -> OAuthToken:
+    ) -> MCPOAuthTokenResponse:
         try:
             data, authorization = client_authentication(client_info, data)
         except ValueError as e:
@@ -711,9 +770,81 @@ class MCPOAuthClient:
                 temporary=response.status_code == 429 or response.status_code >= 500,
             )
         try:
-            return OAuthToken.model_validate_json(response.content)
+            return MCPOAuthTokenResponse.model_validate_json(response.content)
         except ValidationError as e:
             raise MCPOAuthTokenExchangeError(
                 token_endpoint=token_endpoint,
                 detail=f"malformed token response from {_origin(token_endpoint)}",
             ) from e
+
+    async def read_account_name(
+        self, *, issuer: str, access_token: str
+    ) -> Optional[str]:
+        """The account name from the user info endpoint the issuer's metadata names.
+
+        None when the issuer names no endpoint, the read fails, or it takes longer than
+        `_ACCOUNT_NAME_TIMEOUT_SECONDS`: a sign-in without a name is still a sign-in.
+        """
+        try:
+            return await asyncio.wait_for(
+                self._read_account_name(issuer=issuer, access_token=access_token),
+                timeout=_ACCOUNT_NAME_TIMEOUT_SECONDS,
+            )
+        except Exception as e:  # noqa: BLE001: a failed read stores no name, nothing more
+            log.info(
+                "[gateways] the MCP account name could not be read",
+                issuer=_origin(issuer),
+                error=type(e).__name__,
+            )
+            return None
+
+    async def _read_account_name(
+        self, *, issuer: str, access_token: str
+    ) -> Optional[str]:
+        async with self._client() as client:
+            userinfo_endpoint = await self._userinfo_endpoint(client, issuer=issuer)
+            if userinfo_endpoint is None:
+                return None
+            response = await self._get(
+                client,
+                userinfo_endpoint,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if response is None or response.status_code != 200:
+            return None
+        return account_name_from_claims(response.json())
+
+    async def _userinfo_endpoint(
+        self, client: httpx.AsyncClient, *, issuer: str
+    ) -> Optional[str]:
+        """The user info endpoint the issuer's own metadata names, if any.
+
+        Read from the issuer's well-known URLs, as discovery reads the token endpoint, so
+        the access token is only ever sent where the issuer itself points. Every
+        candidate is walked: an issuer often names the endpoint only in its OpenID
+        document, which discovery does not reach when the OAuth one answers first.
+        """
+        for url in _authorization_server_metadata_urls(issuer):
+            response = await self._get(client, url)
+            if response is None or response.status_code != 200:
+                continue
+            try:
+                metadata = response.json()
+            except ValueError:
+                continue
+            if not isinstance(metadata, dict):
+                continue
+            endpoint = metadata.get("userinfo_endpoint")
+            document_issuer = metadata.get("issuer")
+            if (
+                not isinstance(endpoint, str)
+                or not isinstance(document_issuer, str)
+                or not same_issuer(document_issuer, issuer)
+            ):
+                continue
+            try:
+                _check_https(endpoint, label="user info endpoint", server_url=issuer)
+            except MCPOAuthDiscoveryError:
+                continue
+            return endpoint
+        return None

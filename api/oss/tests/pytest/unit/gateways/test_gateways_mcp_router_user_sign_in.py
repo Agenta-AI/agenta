@@ -21,6 +21,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPOAuthData,
 )
 from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPUserSignIn,
     MCPOAuthAttemptOutcome,
     MCPOAuthAttemptStatus,
 )
@@ -532,10 +533,11 @@ def test_the_list_says_the_callers_own_sign_in_per_server(
     signed, unsigned = _server(MCPAuthScheme.OAUTH), _server(MCPAuthScheme.API_KEY)
     open_server = _server(MCPAuthScheme.NONE)
     service.list_return = [signed, unsigned, open_server]
-    oauth_service.sign_ins_return = {signed.id: True}
+    oauth_service.sign_ins_return = {signed.id: MCPUserSignIn(is_ready=True)}
 
     endpoints = client.get("/endpoints/").json()["endpoints"]
 
+    # No account name: the field is left out, as every other null field is.
     assert endpoints[0]["user_sign_in"] == {"is_ready": True}
     # Present and null: the caller has no sign-in row for this server.
     assert "user_sign_in" in endpoints[1] and endpoints[1]["user_sign_in"] is None
@@ -551,13 +553,30 @@ def test_query_and_fetch_say_the_callers_sign_in(
     server = _server(MCPAuthScheme.OAUTH)
     service.query_return = [server]
     service.fetch_return = server
-    oauth_service.sign_ins_return = {server.id: False}
+    oauth_service.sign_ins_return = {server.id: MCPUserSignIn(is_ready=False)}
 
     queried = client.post("/endpoints/query", json={}).json()["endpoints"][0]
     fetched = client.get(f"/endpoints/{server.id}").json()["endpoint"]
 
     assert queried["user_sign_in"] == {"is_ready": False}
     assert fetched["user_sign_in"] == {"is_ready": False}
+
+
+def test_the_sign_in_carries_the_account_name_the_server_gave(
+    client, service, oauth_service, allow, person
+):
+    server = _server(MCPAuthScheme.OAUTH)
+    service.list_return = [server]
+    oauth_service.sign_ins_return = {
+        server.id: MCPUserSignIn(is_ready=True, account_name="lena@acme.io")
+    }
+
+    endpoints = client.get("/endpoints/").json()["endpoints"]
+
+    assert endpoints[0]["user_sign_in"] == {
+        "is_ready": True,
+        "account_name": "lena@acme.io",
+    }
 
 
 def test_no_person_gets_no_sign_in_field_and_no_read(

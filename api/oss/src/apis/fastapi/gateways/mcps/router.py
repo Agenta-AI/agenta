@@ -44,6 +44,7 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.core.gateways.mcps.oauth.sign_ins import sign_in_slug
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttemptStatus,
+    MCPUserSignIn,
 )
 from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
     entitled_agenta_tools,
@@ -104,19 +105,22 @@ def _refusal(status_code: int, code: str, message: str) -> HTTPException:
 
 
 def _endpoint_json(
-    endpoint: MCPEndpoint, sign_ins: Optional[Dict[UUID, bool]]
+    endpoint: MCPEndpoint, sign_ins: Optional[Dict[UUID, MCPUserSignIn]]
 ) -> Dict[str, Any]:
     """One endpoint as the routes answer it, with the caller's own sign-in.
 
-    `user_sign_in` is `{"is_ready": bool}`, or `null` when the caller has no sign-in row
-    for the server. It is left out when `sign_ins` is None (the caller is no person, or
-    the switch is off) and for a server that takes no sign-in. Built here because the
-    routes drop every other null field, and this one's null means something.
+    `user_sign_in` is `{"is_ready": bool, "account_name"?: str}`, or `null` when the
+    caller has no sign-in row for the server. It is left out when `sign_ins` is None (the
+    caller is no person, or the switch is off) and for a server that takes no sign-in.
+    Built here because the routes drop every other null field, and this one's null means
+    something.
     """
     data = endpoint.model_dump(mode="json", exclude_none=True)
     if sign_ins is not None and sign_in_slug(endpoint) is not None:
-        is_ready = sign_ins.get(endpoint.id)
-        data["user_sign_in"] = None if is_ready is None else {"is_ready": is_ready}
+        sign_in = sign_ins.get(endpoint.id)
+        data["user_sign_in"] = (
+            None if sign_in is None else sign_in.model_dump(exclude_none=True)
+        )
     return data
 
 
@@ -282,7 +286,7 @@ class MCPGatewayRouter:
 
     async def _sign_ins(
         self, request: Request, endpoints: List[MCPEndpoint]
-    ) -> Optional[Dict[UUID, bool]]:
+    ) -> Optional[Dict[UUID, MCPUserSignIn]]:
         """The caller's own sign-ins to these servers, or None when the caller is no
         person or personal accounts are off. One read for the whole list."""
         person = signed_in_person(request) if personal_accounts_enabled() else None
