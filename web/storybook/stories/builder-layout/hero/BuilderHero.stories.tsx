@@ -2,10 +2,10 @@ import {useEffect, useRef} from "react"
 
 import {
     BuilderHero,
-    BuilderHeroFallback,
     type BuilderHeroHandle,
     type HeroState,
 } from "@/features/builder-page/hero/BuilderHero"
+import {BuilderHeroFallback} from "@/features/builder-page/hero/BuilderHeroFallback"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
