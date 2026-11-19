@@ -143,6 +143,16 @@ def test_from_params_refuses_a_field_of_the_wrong_type(prompt):
         AgentTemplate.from_params({"prompt": prompt})
 
 
+def test_a_refused_sandbox_credential_does_not_echo_its_value():
+    # The refusal reaches the API log and the 422 body; an inline value must not.
+    with pytest.raises(AgentTemplateShapeError) as caught:
+        AgentTemplate.from_params(
+            {"agent": {"sandbox": {"credentials": [{"value": "TEST_INLINE_SECRET"}]}}}
+        )
+
+    assert "TEST_INLINE_SECRET" not in str(caught.value)
+
+
 def test_from_params_falls_back_to_defaults():
     config = AgentTemplate.from_params({}, defaults=_DEFAULTS)
     assert config.instructions == "default-md"
