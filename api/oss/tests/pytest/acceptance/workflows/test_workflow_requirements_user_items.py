@@ -4,7 +4,7 @@
 callers here use an API key, which is not a person: every "user" item has no account and
 no fix, and only a "user" model login blocks a run.
 
-With `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` off (the default), the run leaves every
+With `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` off (an installation sets it to false), the run leaves every
 "user" item out and a "user" model login is a model to change. Tests for one mode skip
 on a deployment in the other.
 

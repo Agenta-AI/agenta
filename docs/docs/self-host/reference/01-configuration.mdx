@@ -106,6 +106,7 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
+| `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | `agenta.access.personal_accounts_enabled` | not set by the chart |
 | `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
 | `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
 | `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
@@ -117,6 +118,12 @@ client adds itself. The bundled Traefik and nginx setups need `1`. When it is un
 uses the first `X-Forwarded-For` entry, which a client can set. The API reads `CF-Connecting-IP`
 only when `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` is `true`. Turn it on only when Cloudflare proxies
 every request to the API.
+
+`AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` defaults to `true`. People can then store their own
+accounts (custom secrets, Composio connections, MCP sign-ins), and an agent's `user` items use
+them. Set it to `false` to turn this off. While it is `false`, the API refuses person-owned writes and account
+choices, and a run leaves every `user` item out. Turn it on only when every API pod and runner runs a
+release that supports personal accounts.
 
 ## Agenta AI services
 

@@ -585,7 +585,7 @@ _Avoid_: bindings, gateway bindings.
 | Personal account missing | | | | `AgentRequirementReason.NEEDS_PERSONAL_ACCOUNT` | | `reason: "needs_personal_account"` | "Connect your Gmail account" and the other texts in 5.3 | the value describes the item, like the shipped `not_chosen` and `needs_sign_in`; "your" stays in the label |
 | Sign-in | `secrets` | kinds `oauth_grant` (shipped) and `mcp_token` (new, person rows); slugs from `grant_slug(server id)` and `token_slug(server id)`; a project token is `mcps_endpoints.secret_id` | `SecretsDBE` | `SecretKind.MCP_TOKEN` | `/gateways/mcps/endpoints/{endpoint_id}/connect`, parameter `owner_kind` | | "Signed in as you", "Sign in again" | shipped `connect` verb; `owner_kind`, not `scope`, beside the shipped OAuth `scopes` |
 | Slug list of an organization secret | | | | `SandboxSecretReference.namespace: Optional[Literal["organization"]]`; left out means the project's list | | `namespace: "organization"` | not shown | the shipped model `Connection.scope` is not copied (exception below) |
-| Deployment switch | | | | | | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | | renamed from the build's `AGENTA_ACCESS_PERSONAL_CREDENTIALS_ENABLED` before merge: "credentials" is on the Avoid list |
+| Deployment switch | | | | | | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | | on by default; renamed from the build's `AGENTA_ACCESS_PERSONAL_CREDENTIALS_ENABLED` before merge: "credentials" is on the Avoid list |
 
 ### 7.3 Item kinds against the template
 
@@ -692,7 +692,7 @@ The folder goes. `api/oss/src/core/accounts/` cannot take its place: on main it 
 One release carries the schema and the code. Runners and services can lag the API, so the order is:
 
 1. The SDK and the services accept `account_source` on every reference. The SDK models that refuse unknown fields (`SandboxSecretReference`, `MCPGatewayConnection`) need the new field before any revision carries it.
-2. The deployment switch `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (the build's `AGENTA_ACCESS_PERSONAL_CREDENTIALS_ENABLED`, renamed) stays off until every API pod, services pod and runner runs the release. While it is off, the API refuses person-owned writes and account choices, and the interface hides "Each person's own account".
+2. The deployment switch `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (the build's `AGENTA_ACCESS_PERSONAL_CREDENTIALS_ENABLED`, renamed) is on by default; an installation can set it to false. Turn it on only when every API pod, services pod and runner runs the release. While it is off, the API refuses person-owned writes and account choices, and the interface hides "Each person's own account".
 3. An item without `account_source` reads as `"agent"`, so no stored revision changes meaning at any step.
 
 ### 8.6 Code size
