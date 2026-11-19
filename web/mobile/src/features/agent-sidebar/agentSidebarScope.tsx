@@ -91,7 +91,9 @@ const useAgentSessions = (projectId: string, agentId: string) => {
         [pending, query.data?.sessions],
     )
     const status = query.isPending ? "loading" : query.isError ? "error" : "ready"
-    return {sessions, total: query.data?.total ?? null, status} as const
+    const {refetch} = query
+    const retry = useCallback(() => void refetch(), [refetch])
+    return {sessions, total: query.data?.total ?? null, status, retry} as const
 }
 
 /**
@@ -180,7 +182,7 @@ export const createAgentSidebarScope = (
         const t = useT(agentSidebarCatalog)
         const bottomItems = useMobileBottomNavItems(projectURL)
         const wrapSessionRow = useRailSessionRowWrapper(projectURL)
-        const {sessions, total, status} = useAgentSessions(projectId, agentId)
+        const {sessions, total, status, retry} = useAgentSessions(projectId, agentId)
 
         return useMemo(
             () => [
@@ -192,6 +194,7 @@ export const createAgentSidebarScope = (
                         sessions,
                         total,
                         status,
+                        onRetry: retry,
                         t,
                         newSessionHref: agentEntryHref(projectURL, agentId),
                         onNewSession: (event) => {
@@ -212,7 +215,7 @@ export const createAgentSidebarScope = (
                 },
                 {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
             ],
-            [bottomItems, sessions, status, t, total, wrapSessionRow],
+            [bottomItems, retry, sessions, status, t, total, wrapSessionRow],
         )
     }
 

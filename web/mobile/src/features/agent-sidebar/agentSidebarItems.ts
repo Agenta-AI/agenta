@@ -1,11 +1,12 @@
 import {createElement, type MouseEvent, type ReactElement, type ReactNode} from "react"
 
 import {formatNumber} from "@agenta/i18n"
-import {getSidebarSourceStatusLabel, type SidebarConfig} from "@agenta/navigation"
+import type {SidebarConfig} from "@agenta/navigation"
 import type {SessionRowStatus} from "@agenta/sessions/row"
 import type {SessionRowTarget} from "@agenta/sessions-ui"
 import {Spinner} from "@agenta/ui/ui"
 import {
+    ArrowClockwiseIcon,
     ChartLineIcon,
     CircleIcon,
     LightningIcon,
@@ -37,7 +38,10 @@ export type AgentSidebarText = (
         | "agentSidebar.today"
         | "agentSidebar.yesterday"
         | "agentSidebar.earlier"
-        | "agentSidebar.showOlderSessions",
+        | "agentSidebar.showOlderSessions"
+        | "agentSidebar.loading"
+        | "agentSidebar.loadError"
+        | "agentSidebar.retry",
     values?: {count: number},
 ) => string
 
@@ -83,6 +87,7 @@ export const agentSidebarItems = ({
     sessions,
     total,
     status = "ready",
+    onRetry,
     t,
     newSessionHref,
     onNewSession,
@@ -92,9 +97,10 @@ export const agentSidebarItems = ({
     agentId: string
     sessions: AgentSidebarSession[]
     total: number | null
-    /** The session list's state. Loading and a failed first load show the main sidebar's rows;
-     * a failed refresh keeps the sessions it had. */
+    /** The session list's state. A failed refresh keeps the sessions it had. */
     status?: "loading" | "error" | "ready"
+    /** Reads the session list again after a failed first load. */
+    onRetry?: () => void
     t: AgentSidebarText
     /** What "New session" opens in a new tab; a plain click runs `onNewSession`. */
     newSessionHref: string
@@ -132,14 +138,28 @@ export const agentSidebarItems = ({
             ),
         ],
     )
-    if (sessions.length === 0 && status !== "ready")
+    if (sessions.length === 0 && status === "loading")
         rows.push({
-            key: `agent-sidebar-sessions-${status}`,
-            title: getSidebarSourceStatusLabel(status),
+            key: "agent-sidebar-sessions-loading",
+            title: t("agentSidebar.loading"),
             disabled: true,
-            isLoading: status === "loading",
-            isPlaceholder: status === "error",
+            isLoading: true,
         })
+    if (sessions.length === 0 && status === "error")
+        rows.push(
+            {
+                key: "agent-sidebar-sessions-error",
+                title: t("agentSidebar.loadError"),
+                disabled: true,
+                isPlaceholder: true,
+            },
+            {
+                key: "agent-sidebar-sessions-retry",
+                title: t("agentSidebar.retry"),
+                icon: createElement(ArrowClockwiseIcon, {size: 16}),
+                onClick: () => onRetry?.(),
+            },
+        )
     const older = total !== null ? total - sessions.length : 0
     if (older > 0)
         rows.push({

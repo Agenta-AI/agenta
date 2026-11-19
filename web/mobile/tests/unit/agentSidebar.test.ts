@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import {afterEach, describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
+import {agentSidebarItems} from "../../src/features/agent-sidebar/agentSidebarItems"
 import {sidebarAfterRoute} from "../../src/features/agent-sidebar/agentSidebarRoute"
 import {groupByDay} from "../../src/features/agent-sidebar/dayGroups"
 import {
@@ -124,5 +125,49 @@ describe("the agent switcher's target", () => {
                 latestSessionId: async () => null,
             }),
         ).toBeNull()
+    })
+})
+
+describe("the agent sidebar's session rows", () => {
+    const t = ((key: string, values?: {count: number}) =>
+        values ? `${key}:${values.count}` : key) as never
+    const base = {
+        projectURL: "/w/w1/p/p1",
+        agentId: "a1",
+        sessions: [],
+        total: null,
+        t,
+        newSessionHref: "/w/w1/p/p1/agents/a1",
+        onNewSession: () => undefined,
+    }
+    const sessionsGroup = (items: ReturnType<typeof agentSidebarItems>) =>
+        items.find((item) => item.key === "agent-sidebar-sessions")!
+
+    it("shows the error and a Retry row after a failed first load, and Retry reads again", () => {
+        const onRetry = vi.fn()
+        const group = sessionsGroup(agentSidebarItems({...base, status: "error", onRetry}))
+        expect(group.submenu!.map((row) => row.title)).toEqual([
+            "agentSidebar.loadError",
+            "agentSidebar.retry",
+        ])
+        group.submenu![1].onClick!({} as never)
+        expect(onRetry).toHaveBeenCalledOnce()
+    })
+
+    it("shows Sessions without a number until the count loads, then the older sessions row", () => {
+        expect(sessionsGroup(agentSidebarItems(base)).groupAction).toBeUndefined()
+        const session = {
+            sessionId: "s1",
+            appId: "a1",
+            name: "One",
+            archived: false,
+            title: "One",
+            activityAt: new Date().toISOString(),
+            status: "idle" as const,
+            isAutomation: false,
+        }
+        const group = sessionsGroup(agentSidebarItems({...base, sessions: [session], total: 42}))
+        expect(group.groupAction).toBeDefined()
+        expect(group.submenu!.at(-1)!.title).toBe("agentSidebar.showOlderSessions:41")
     })
 })
