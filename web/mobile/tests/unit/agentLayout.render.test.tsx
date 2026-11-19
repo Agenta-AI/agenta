@@ -6,11 +6,13 @@
 import {act} from "react"
 
 import {configPaneRevealRequestAtom} from "@agenta/chat/state"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const media = vi.hoisted(() => ({width: 1440}))
+const files = vi.hoisted(() => ({toggle: vi.fn()}))
 vi.mock("@agenta/ui/hooks", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     useMediaQuery: (query: string) => media.width >= Number(/(\d+)px/.exec(query)?.[1] ?? 0),
@@ -36,7 +38,6 @@ vi.mock("@/features/nav/AppShell", () => ({
 vi.mock("@/features/agent-layout/SessionHeader", () => ({
     SessionHeader: () => <header data-testid="session-header" />,
 }))
-vi.mock("@/features/chat/useSessionTabClose", () => ({useSessionTabClose: () => () => undefined}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({
     useStartBlankSession: () => () => undefined,
 }))
@@ -49,7 +50,7 @@ vi.mock("@agenta/entity-ui/drive", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entity-ui/drive")>()),
     DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
     SessionFilesPane: () => <div data-testid="files" />,
-    useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: () => undefined}),
+    useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: files.toggle}),
 }))
 vi.mock("@agenta/sessions-ui", () => ({
     useRequestSessionTabRename: () => () => undefined,
@@ -178,5 +179,28 @@ describe("the session screen on the agent layout", () => {
         expect(
             JSON.parse(localStorage.getItem(panelStateKey("anonymous", "proj-1"))!).content,
         ).toBeNull()
+    })
+
+    it("opens Files again after a reload when Files was the stored content", async () => {
+        files.toggle.mockClear()
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 440, configTab: "agent"}),
+        )
+        await render(createStore())
+        expect(files.toggle).toHaveBeenCalledTimes(1)
+    })
+
+    it("hands the screen back to the composer on a phone when a prompt is prefilled", async () => {
+        openConfiguration()
+        media.width = 390
+        const store = createStore()
+        await render(store)
+        const panel = q("agent-panel")[0]?.parentElement as HTMLElement
+        expect(panel.className).not.toContain("hidden")
+        await act(async () => {
+            store.set(composerPrefillRequestAtom, {id: 1, text: "Add a skill"})
+        })
+        expect(panel.className).toContain("hidden")
     })
 })

@@ -129,16 +129,19 @@ const AgentLayoutBody = ({
             ? "builder"
             : null
 
-    // A stored Files content opens Files again after a reload, through its own open state.
-    const restoredFiles = useRef(false)
-    useEffect(() => {
-        if (restoredFiles.current) return
-        restoredFiles.current = true
-        if (stored === "files" && !files.open) files.toggle()
-    }, [stored, files])
-
     // The Files pane's own close (and a deep link) moves the panel with it.
     const filesWasOpen = useRef(files.open)
+    // A stored Files content opens Files again after a reload, through its own open state. Files
+    // is scoped by agent, and the scope changes once the agent resolves: each new scope restores
+    // again, and a scope change is never read as a close.
+    const restoredScope = useRef<string | null>(null)
+    useEffect(() => {
+        if (restoredScope.current === filesScope) return
+        restoredScope.current = filesScope
+        filesWasOpen.current = files.open
+        if (stored === "files" && !files.open) files.toggle()
+    }, [filesScope, stored, files])
+
     useEffect(() => {
         if (files.open && !filesWasOpen.current) setState({content: "files"})
         if (!files.open && filesWasOpen.current && stored === "files") setState({content: null})
@@ -159,13 +162,16 @@ const AgentLayoutBody = ({
     const panelRef = useRef<HTMLDivElement>(null)
     const toggle = useCallback(
         async (clicked: PanelContent) => {
+            // A content this screen cannot show (a hidden agent, no builder yet) is not offered.
+            if (clicked === "configuration" && !canConfigure) return false
+            if (clicked === "builder" && !(builder && agentId)) return false
             const next = nextPanelContent(content, clicked)
             if (!(await confirmLeave(next ? "swap" : "close"))) return false
             setContent(next)
             if (next) requestAnimationFrame(() => panelRef.current?.focus())
             return true
         },
-        [confirmLeave, content, setContent],
+        [confirmLeave, content, setContent, canConfigure, builder, agentId],
     )
     const close = useCallback(async () => {
         if (!(await confirmLeave("close"))) return false
@@ -181,7 +187,7 @@ const AgentLayoutBody = ({
     useEffect(() => {
         if (!revealRequest || !canConfigure) return
         setRevealRequest(false)
-        if (content === "configuration") return
+        // Also when Configuration is open on another tab: the request is for the Agent tab.
         void confirmLeave("swap").then((ok) => {
             if (!ok) return
             setContent("configuration")

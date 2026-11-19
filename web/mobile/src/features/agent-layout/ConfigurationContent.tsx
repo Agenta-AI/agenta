@@ -53,7 +53,6 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
         <ViewStackHost
             chrome={PanelViewChrome}
             rootTitle={t(`agentLayout.panel.${panel.configTab}`)}
-            onEscapeAtRoot={() => void panel.close()}
         >
             <StackGuards />
             <ConfigurationRoot {...props} />
@@ -131,11 +130,7 @@ const ConfigurationRoot = ({
             </div>
             <div role="tabpanel" className="min-h-0 flex-1">
                 {panel.configTab === "agent" ? (
-                    <ConfigPane
-                        entityId={revisionId}
-                        sessionId={sessionId}
-                        projectId={projectId}
-                    />
+                    <ConfigPane entityId={revisionId} sessionId={sessionId} projectId={projectId} />
                 ) : panel.configTab === "automations" ? (
                     <AutomationsTab
                         revisionId={revisionId}
