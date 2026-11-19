@@ -275,6 +275,24 @@ async def test_fetch_channel_connection_setup_delegates_and_builds_the_request_u
     assert kwargs["request_url"].endswith("/channels/slack/events/")
 
 
+async def test_fetch_channel_connection_setup_names_the_app_after_the_connection():
+    connection = _connection()
+    connection.name = "Support bot"
+    service = AsyncMock()
+    service.fetch_connection.return_value = connection
+    service.get_connection_setup.return_value = ChannelSetup()
+    router = _router(service)
+    request = _make_request(uuid4(), uuid4(), method="GET")
+
+    with _patched_access(True):
+        await router.fetch_channel_connection_setup(
+            request, connection_id=connection.id
+        )
+
+    _, kwargs = service.get_connection_setup.await_args
+    assert kwargs["identity"].name == "Support bot"
+
+
 async def test_fetch_channel_connection_setup_404s_on_a_missing_connection():
     service = AsyncMock()
     service.fetch_connection.return_value = None

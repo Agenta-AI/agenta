@@ -1172,6 +1172,7 @@ class ChannelsService:
         #
         connection_id: UUID,
         request_url: str,
+        identity: Optional[ChannelSetupIdentity] = None,
     ) -> ChannelSetup:
         """The declaration, plus the generated document. `instructions` and
         `fields` come straight off the capability declaration; `document` is
@@ -1190,6 +1191,7 @@ class ChannelsService:
         locator = data.get("connection_locator")
         document = await adapter.build_setup_document(
             request_url=request_url,
+            identity=identity,
             locator=locator if isinstance(locator, dict) else None,
         )
 

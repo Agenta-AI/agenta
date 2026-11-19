@@ -5,5 +5,8 @@
     "expand": "Expandir",
     "collapse": "Recolher",
     "goBack": "Voltar",
-    "noItems": "Nenhum item para exibir"
+    "noItems": "Nenhum item para exibir",
+    "itemCount_one": "{{count}} item",
+    "itemCount_many": "{{count}} itens",
+    "itemCount_other": "{{count}} itens"
 }

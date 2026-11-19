@@ -2,6 +2,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
+import previewDemoCatalog from "@agenta/i18n/catalogs/auth.previewDemo"
 import previewCatalog from "@agenta/i18n/catalogs/auth.productPreview"
 import {
     CaretDown,
@@ -83,7 +84,7 @@ const NAV: [Icon, NavId][] = [
 const SESSION_GROUPS = AUTOMATIONS.filter((automation) => automation.sessions.length).slice(0, 3)
 
 const Sidebar = () => {
-    const t = useT(previewCatalog)
+    const t = useT(previewCatalog, previewDemoCatalog)
     return (
         <aside className="auth-preview-sidebar flex w-[232px] flex-none flex-col gap-[18px] overflow-hidden px-2.5 pb-3 pt-4">
             <div className="flex items-center justify-between px-1.5">
@@ -105,11 +106,11 @@ const Sidebar = () => {
                 ))}
             </nav>
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-                {SESSION_GROUPS.map(({name, sessions}) => (
-                    <div key={name} className="flex flex-col gap-0.5">
+                {SESSION_GROUPS.map(({id, sessions}) => (
+                    <div key={id} className="flex flex-col gap-0.5">
                         <div className="auth-preview-faint flex h-[26px] items-center justify-between px-2.5 text-xs">
                             <span className="inline-flex items-center gap-1">
-                                {name}
+                                {t(`auth.previewDemo.${id}Name`)}
                                 <CaretDown size={10} />
                             </span>
                             <Plus size={12} />
@@ -120,7 +121,7 @@ const Sidebar = () => {
                                 className="flex h-7 items-center gap-2.5 overflow-hidden whitespace-nowrap px-2.5 text-[13px]"
                             >
                                 <span className="auth-preview-ring-dot size-1.5 flex-none rounded-full" />
-                                <span className="truncate">{session}</span>
+                                <span className="truncate">{t(`auth.previewDemo.${session}`)}</span>
                             </div>
                         ))}
                     </div>
@@ -192,7 +193,8 @@ const Activity = ({
     shown: number
     seconds: number
 }) => {
-    const t = useT(previewCatalog)
+    const t = useT(previewCatalog, previewDemoCatalog)
+    const {id} = automation
     const current = automation.steps[Math.max(0, shown - 1)]
     return (
         <div className="flex flex-col pl-[50px] pt-3">
@@ -201,7 +203,7 @@ const Activity = ({
                     {finished
                         ? t("auth.productPreview.workedFor", {seconds})
                         : shown
-                          ? current.running
+                          ? t(`auth.previewDemo.${id}Step${current.n}Running`)
                           : t("auth.productPreview.starting")}
                 </span>
                 {finished ? null : (
@@ -226,7 +228,7 @@ const Activity = ({
                     const running = !finished && i === shown - 1
                     return (
                         <div
-                            key={step.done}
+                            key={step.n}
                             className={clsx(
                                 "flex min-w-0 items-center gap-3.5 pt-3.5 transition-opacity duration-300",
                                 i < shown ? "opacity-100" : "opacity-0",
@@ -234,7 +236,9 @@ const Activity = ({
                         >
                             <StepNode icon={step.icon} running={running} />
                             <span className={clsx("truncate text-[13px]", running && LIVE_TEXT)}>
-                                {running ? step.running : step.done}
+                                {running
+                                    ? t(`auth.previewDemo.${id}Step${step.n}Running`)
+                                    : t(`auth.previewDemo.${id}Step${step.n}Done`)}
                             </span>
                         </div>
                     )
@@ -246,14 +250,14 @@ const Activity = ({
                     finished ? "opacity-100" : "opacity-0",
                 )}
             >
-                {automation.result}.
+                {t("auth.previewDemo.sentence", {text: t(`auth.previewDemo.${id}Result`)})}
             </p>
         </div>
     )
 }
 
 export const ProductPreview = () => {
-    const t = useT(previewCatalog)
+    const t = useT(previewCatalog, previewDemoCatalog)
     const {runningIndex, finished, shown, seconds, rows} = frameAt(usePreviewTick())
     const ago = (minutes: number) =>
         minutes < 60
@@ -285,7 +289,7 @@ export const ProductPreview = () => {
                         const active = index === runningIndex
                         return (
                             <div
-                                key={automation.name}
+                                key={automation.id}
                                 className={clsx(
                                     "auth-preview-row flex flex-col rounded-xl px-4 py-3 transition-shadow duration-300",
                                     active && "auth-preview-open",
@@ -295,11 +299,13 @@ export const ProductPreview = () => {
                                     <AppTile app={automation.apps[0]} />
                                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                         <span className="truncate text-sm font-medium">
-                                            {automation.name}
+                                            {t(`auth.previewDemo.${automation.id}Name`)}
                                         </span>
                                         <span className="auth-preview-muted flex items-center gap-1.5 text-[13px]">
                                             <span className="truncate">
-                                                {active ? automation.event : automation.result}
+                                                {active
+                                                    ? t(`auth.previewDemo.${automation.id}Event`)
+                                                    : t(`auth.previewDemo.${automation.id}Result`)}
                                             </span>
                                             <span className="auth-preview-faint flex-none">
                                                 ·{" "}

@@ -5,5 +5,6 @@
     "expand": "展開",
     "collapse": "折りたたむ",
     "goBack": "戻る",
-    "noItems": "表示する項目がありません"
+    "noItems": "表示する項目がありません",
+    "itemCount_other": "{{count}} 項目"
 }

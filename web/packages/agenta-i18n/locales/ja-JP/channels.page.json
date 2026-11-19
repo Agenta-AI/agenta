@@ -13,6 +13,7 @@
     "noAgentYet": "エージェントはまだありません",
     "notLinkedYet": "未連携",
     "slackDescription": "Slack でエージェントにメンションまたは DM を送信",
+    "teamsDescription": "Microsoft Teams でエージェントとチャット",
     "telegramDescription": "ホスト型ボットまたは独自のボットでエージェントとチャット",
     "title": "チャネル",
     "unknownAgent": "不明なエージェント",

@@ -616,6 +616,16 @@ class CommitWarning(BaseModel):
     operation_index: Optional[int] = None
 
 
+class CreatedAgent(BaseModel):
+    """What `SimpleWorkflowsService.create_agent` made: the agent, the message of its first
+    configured revision, the engine's warnings, and the agent's stored visibility."""
+
+    workflow: SimpleWorkflow
+    message: str
+    warnings: List[CommitWarning] = Field(default_factory=list)
+    visibility: Visibility
+
+
 class DeltaResolution(BaseModel):
     """The resolved commit, the head it was built on, and the response's warnings.
 

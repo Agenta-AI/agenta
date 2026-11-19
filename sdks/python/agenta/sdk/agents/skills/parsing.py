@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import ValidationError
 
+from ..config_errors import config_issues
 from .errors import SkillValidationError
 from .models import SkillTemplate
 
@@ -72,6 +73,7 @@ def parse_skill_template(value: SkillTemplate | Mapping[str, Any]) -> SkillTempl
             "Invalid skill configuration: "
             f"{exc.errors(include_url=False, include_input=False)}",
             value=value,
+            issues=config_issues(exc),
         ) from exc
 
 
@@ -87,5 +89,6 @@ def parse_skill_templates(
                 str(exc),
                 index=index,
                 value=value,
+                issues=exc.issues,
             ) from exc
     return parsed

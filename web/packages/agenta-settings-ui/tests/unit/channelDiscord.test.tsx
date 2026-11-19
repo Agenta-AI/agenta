@@ -278,9 +278,9 @@ describe("Discord actions", () => {
         expect(unnamed.map((space) => space?.name)).toEqual(["Channel 111", "Channel 222"])
     })
 
-    it("answers in channels with the group switch, and lists Discord last", () => {
+    it("answers in channels with the group switch, and lists Discord after WhatsApp", () => {
         expect(groupKindsOf("discord")).toEqual(["group", "topic"])
-        expect(CHANNEL_PLATFORMS.at(-1)).toBe("discord")
+        expect(CHANNEL_PLATFORMS.indexOf("discord")).toBe(CHANNEL_PLATFORMS.indexOf("whatsapp") + 1)
         const out = connectionsForAgent([CONNECTED], "agent")
         expect(out.discord).toBe(CONNECTED)
         expect(out.agentConnections?.discord).toEqual([CONNECTED])

@@ -46,6 +46,7 @@ from oss.src.core.channels.types import (
     ChannelLocatorIncomplete,
     ChannelNotSupported,
     ChannelSignatureInvalid,
+    ChannelSignatureUnavailable,
 )
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.adapters.embed.adapter import (
@@ -93,8 +94,9 @@ _embed_live_streams: Counter = Counter()
 def handle_channel_adapter_exceptions():
     """Map adapter/registry failures to HTTP. Mirrors triggers'
     handle_adapter_exceptions: unregistered channel -> 404, bad signature ->
-    401 with no diagnostic detail (ChannelSignatureInvalid carries none),
-    failed enqueue -> 503 so the platform retries the delivery."""
+    401 with no diagnostic detail (ChannelSignatureInvalid carries none), a
+    key source on our side that failed -> 503, failed enqueue -> 503, so the
+    platform retries the delivery."""
 
     def decorator(func):
         @wraps(func)
@@ -110,6 +112,12 @@ def handle_channel_adapter_exceptions():
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"status": "error"},
+                )
+            except ChannelSignatureUnavailable:
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"status": "error"},
+                    headers={"Retry-After": "60"},
                 )
             except ChannelInboxEnqueueFailed as e:
                 raise HTTPException(
@@ -185,6 +193,17 @@ class ChannelsIngressRouter:
             self.ingest_whatsapp_event,
             methods=["POST"],
             operation_id="ingest_whatsapp_event",
+            response_model=ChannelEventAck,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+
+        # Teams: one messaging endpoint for every bot. The activity names the
+        # bot, and the signed token proves it.
+        self.router.add_api_route(
+            "/teams/events/",
+            self.ingest_teams_event,
+            methods=["POST"],
+            operation_id="ingest_teams_event",
             response_model=ChannelEventAck,
             status_code=status.HTTP_202_ACCEPTED,
         )
@@ -602,6 +621,11 @@ class ChannelsIngressRouter:
 
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
+    async def ingest_teams_event(self, request: Request) -> Any:
+        return await self._ingest(channel="teams", request=request)
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
     async def ingest_bridge_event(self, request: Request) -> Any:
         # Every bridge shares this literal channel key; the credential (not
         # this path) resolves which installation is calling, and the adapter
@@ -703,7 +727,9 @@ class ChannelsIngressRouter:
         project_id, connection_id, connection = candidate
 
         # Raises ChannelSignatureInvalid on failure -- caught by the decorator,
-        # which answers 401 with no verification detail.
+        # which answers 401 with no verification detail -- or
+        # ChannelSignatureUnavailable when the check cannot run now, which
+        # answers 503.
         external_id = await adapter.verify_signature(
             request=request_context,
             connection=connection,

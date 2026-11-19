@@ -65,6 +65,7 @@ const PLATFORM_DESCRIPTIONS: Record<
     telegram: "channels.page.telegramDescription",
     whatsapp: "channels.page.whatsappDescription",
     discord: "channels.page.discordDescription",
+    teams: "channels.page.teamsDescription",
 }
 
 type Translate = ReturnType<typeof useT>

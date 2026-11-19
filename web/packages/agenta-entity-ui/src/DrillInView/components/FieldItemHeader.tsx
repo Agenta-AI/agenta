@@ -147,7 +147,7 @@ export function FieldItemHeader({
             {/* Meta (item count) */}
             {childCount !== undefined && (
                 <span className={classNames.fieldHeaderMeta} style={styles?.fieldHeaderMeta}>
-                    ({childCount} {childCount === 1 ? "item" : "items"})
+                    ({t("entityUi.drillIn.itemCount", {count: childCount})})
                 </span>
             )}
         </div>

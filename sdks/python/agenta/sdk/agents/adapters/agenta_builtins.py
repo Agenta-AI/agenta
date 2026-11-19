@@ -12,7 +12,10 @@ went with it.
 
 from __future__ import annotations
 
+import textwrap
+
 from ..skills import SkillFile, SkillTemplate
+from ..tools.models import AGENTA_TOOLS
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -70,7 +73,8 @@ it: a misplaced or misspelled field inside an entry commits fine and only bites 
 next runs. Get the shape right from this reference before you commit.
 """
 
-_CONFIG_SCHEMA_FIELDS = """\
+_CONFIG_SCHEMA_FIELDS = (
+    """\
 
 ## The whole object
 
@@ -185,7 +189,12 @@ read it when a revision carries one, never write a new one:
 - `agenta_tools` — which Agenta tools the agent gets in every run, not only here:
   `{ "type": "agenta_tools", "tools": { "get_current_session": "allow", "rename_session":
   "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
-  you edit `tools`; the author manages it in the Agenta tools section.
+  you edit `tools`; the author manages it in the Agenta tools section. Its selector key is
+  `agenta_tools`, so one tool is one `set` on
+  `[..., {"list":"tools","key":"agenta_tools"}, "tools", "<tool>"]`. The Agenta tools:
+"""
+    + textwrap.indent(textwrap.fill(", ".join(AGENTA_TOOLS) + ".", width=94), "  ")
+    + """
 
 ### mcps
 
@@ -268,6 +277,7 @@ the run:
   `home_drive` names the drive that holds your tools and app files, also at `agent-files/`.
   Your own commit cannot change these; a person changes them.
 """
+)
 
 # The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the
 # contracts (docs/design/agent-config-editing/contracts/) actually produce. Every example
@@ -515,6 +525,11 @@ Don't forget:
 
 _CONFIG_SCHEMA_REFERENCE = (
     _CONFIG_SCHEMA_INTRO_ORDERED + _CONFIG_SCHEMA_FIELDS + _CONFIG_SCHEMA_COMMIT_ORDERED
+)
+
+# The field chapter alone, without the self-edit commit steps.
+AGENT_CONFIG_FIELDS_REFERENCE = (
+    "# The agent config, field by field\n" + _CONFIG_SCHEMA_FIELDS
 )
 
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime

@@ -22,7 +22,7 @@ import { shellQuote, type MountCredentials } from "../sandbox_agent/mount.ts";
 import { CommandSandbox, type SandboxRequirements, type SandboxUse } from "./sandbox/command-sandbox.ts";
 import { abortedError, DaytonaCallTimeoutError } from "./sandbox/daytona-api.ts";
 import { AttemptUndecidedError, CommandNotStartedError, DriveNotMountedError, runRemoteCommand, settleAttempt, type OutputSink, type RemoteOutcome } from "./sandbox/remote-command.ts";
-import { DriveUnreachableError, MountLostError, type SandboxDrive } from "./sandbox/sandbox-drive.ts";
+import { driveLinkBlockedMessage, DriveUnreachableError, MountLostError, type SandboxDrive } from "./sandbox/sandbox-drive.ts";
 import { SandboxFileError } from "./sandbox/sandbox-files.ts";
 import type { DaytonaSandbox } from "./sandbox/daytona-api.ts";
 import { SerialQueue } from "./sandbox/serial-queue.ts";
@@ -83,6 +83,8 @@ export class ConversationWorkspace {
   private viewTurn = 0;
   /** The refresh in progress, for the turn it serves: concurrent tool calls share it. */
   private viewRefresh: { turn: number; done: Promise<void> } | undefined;
+  /** The turn in which the agent was last told that each blocked link is blocked. */
+  private readonly linkNoticeTurn = new Map<string, number>();
   /** Holds and parks so far: a park's barrier removes the signer only when nothing came after it. */
   private generation = 0;
 
@@ -142,6 +144,16 @@ export class ConversationWorkspace {
   /** The start of a turn: the next tool call refreshes the sandbox's view of the drive first. Starts nothing. */
   startTurn(): void {
     this.turns += 1;
+  }
+
+  /**
+   * What the agent is told about drive links that a folder blocks, once per turn while they stay
+   * blocked; undefined when there is nothing new to tell this turn.
+   */
+  takeDriveNotice(): string | undefined {
+    const due = this.drive.blockedLinks.filter((name) => this.linkNoticeTurn.get(name) !== this.turns);
+    for (const name of due) this.linkNoticeTurn.set(name, this.turns);
+    return due.length ? due.map(driveLinkBlockedMessage).join("\n\n") : undefined;
   }
 
   // ---- Tool calls --------------------------------------------------------------------------- //
@@ -371,6 +383,9 @@ export class ConversationWorkspace {
     const turn = this.turns;
     if (this.viewRefresh?.turn === turn) return this.viewRefresh.done;
     const done = (async () => {
+      // A new turn on a standing mount: a drive link may have been replaced since the last one.
+      // Repaired here so concurrent calls share one repair, as they share the refresh.
+      if (this.viewTurn < turn) await this.drive.link(use.sandbox);
       const failure = await use.sandbox.run(this.drive.refreshCommand, { timeoutSeconds: REFRESH_SECONDS }).then(
         (r) => (r.exitCode === 0 ? undefined : `${r.output.trim().slice(0, 80)} root(s) not refreshed`),
         (err) => String(err).slice(0, 120),

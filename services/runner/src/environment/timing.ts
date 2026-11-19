@@ -35,7 +35,7 @@ export const ACQUIRE_STAGES = [
   "local_mounts",
   "sandbox_start",
   "mounts",
-  "agent_mount",
+  "drive_mounts",
   "agent_tools_setup",
   "prepare_workspace",
   "probe_capabilities",

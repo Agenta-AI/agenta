@@ -1,0 +1,22 @@
+{
+    "appSection": "Teams アプリ",
+    "connected": "接続しました。Teams で残り 2 ステップです。",
+    "download": "Teams アプリをダウンロード",
+    "endpointBody": "Developer Portal でボットを開き、Configure を開いて、これをエンドポイント アドレスとして貼り付けます。",
+    "endpointLabel": "メッセージング エンドポイント",
+    "endpointTitle": "メッセージング エンドポイントを貼り付ける",
+    "installTitle": "Teams にアプリをインストールする",
+    "loadError": "Teams アプリを読み込めませんでした。",
+    "noUpload": "Upload an app が表示されない場合は、Teams 管理者にカスタム アプリを許可するよう依頼してください。",
+    "pasteBody": "Microsoft で確認した後、シークレットはマスクされたまま保持されます。",
+    "pasteTitle": "3 つの値を貼り付ける",
+    "registerBody": "Teams Developer Portal で Tools を開き、Bot management を開いて、New bot を選択します。",
+    "registerLink": "Developer Portal を開く",
+    "registerTitle": "ボットを登録する",
+    "secretBody": "ボットの Client secrets ページでクライアントシークレットを追加し、その値をコピーします。アプリ ID はボットのページにあります。",
+    "secretTitle": "クライアントシークレットを追加する",
+    "tenantBody": "Microsoft Entra 管理センターの Overview ページにあります。",
+    "tenantLink": "Microsoft Entra を開く",
+    "tenantTitle": "テナント ID をコピーする",
+    "upload": "Teams で Apps を開き、Manage your apps、Upload an app の順に開いて、ダウンロードしたファイルを選択します。"
+}

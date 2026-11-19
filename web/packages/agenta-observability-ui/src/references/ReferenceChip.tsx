@@ -162,7 +162,8 @@ export const ReferenceChip = ({
             <span className={clsx("min-w-0 truncate", deleted && "line-through")}>{label}</span>
             {version != null ? (
                 <span className="shrink-0 rounded-sm bg-colorBgContainer px-1 text-[11px] leading-4">
-                    v{version}
+                    {/* A version tag ("v3"), the same in every language. */}
+                    {`v${version}`}
                 </span>
             ) : null}
             {linked ? <ArrowSquareOut size={12} className="shrink-0" /> : null}

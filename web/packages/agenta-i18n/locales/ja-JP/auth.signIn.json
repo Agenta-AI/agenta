@@ -17,5 +17,6 @@
     "ssoSubheading": "このメールアドレスのサインインは組織が管理しています。",
     "subheadingNew": "サインインするか、アカウントを作成します。",
     "subheadingReturning": "サインインしてワークスペースに進みます。",
-    "termsNotice": "続行すると、Agenta の<terms>利用規約</terms>と<privacy>プライバシーポリシー</privacy>に同意したことになります。"
+    "termsNotice": "続行すると、Agenta の<terms>利用規約</terms>と<privacy>プライバシーポリシー</privacy>に同意したことになります。",
+    "or": "または"
 }

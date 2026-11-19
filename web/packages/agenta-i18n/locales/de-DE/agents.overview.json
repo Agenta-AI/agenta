@@ -6,7 +6,7 @@
     "automationsLoadError": "Automatisierungen konnten nicht geladen werden.",
     "automationsTitle": "Automatisierungen",
     "channelsLoadError": "Kanäle konnten nicht geladen werden.",
-    "channelsLogosLabel": "Slack, Telegram, WhatsApp und Discord",
+    "channelsLogosLabel": "Slack, Telegram, WhatsApp, Discord und Microsoft Teams",
     "channelsManage": "Verwalten",
     "channelsPanelLoadError": "Kanäle konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
     "channelsPublish": "Veröffentlichen",

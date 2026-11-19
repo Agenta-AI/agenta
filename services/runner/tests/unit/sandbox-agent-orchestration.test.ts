@@ -1185,7 +1185,8 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     assert.equal(
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
-      `${cwd}-agent`,
+      undefined,
+      "the mount folder variable is not set any more",
     );
     assert.match(
       calls.createSessionOptions.sessionInit._meta.systemPrompt.append,
@@ -1194,7 +1195,7 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("removes a safe failed agent mountpoint without advertising it to Pi", async () => {
+  it("removes a safe failed agent mountpoint and tells Pi the home drive is not available", async () => {
     const cwd = join(
       tmpdir(),
       `agenta-agent-mount-failure-${process.pid}-${Date.now()}`,
@@ -1230,7 +1231,11 @@ describe("runSandboxAgent orchestration", () => {
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
-    assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
+    assert.match(
+      calls.workspacePlan.prompt.appendSystemPrompt ?? "",
+      /durable agent folder is not available/,
+    );
+    assert.doesNotMatch(calls.workspacePlan.prompt.appendSystemPrompt ?? "", /absolute path/);
     assert.equal(existsSync(`${cwd}-agent`), false);
     rmSync(cwd, { recursive: true, force: true });
   });
@@ -1270,9 +1275,9 @@ describe("runSandboxAgent orchestration", () => {
     const guidance = platformGuidanceAppendix({
       acpAgent: "codex",
       isPi: false,
-      agentMountedPath: undefined,
-      agentMountSkipped: false,
+      homeDrive: undefined,
       toolNames: ["commit_revision"],
+      // No artifact id, so the run has no home drive and the citation sentence leaves out agent-files.
     });
     assert.ok(guidance);
     assert.equal(

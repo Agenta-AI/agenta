@@ -13,6 +13,7 @@
     "noAgentYet": "Noch kein Agent",
     "notLinkedYet": "Noch nicht verknüpft",
     "slackDescription": "Einen Agenten in Slack erwähnen oder per DM schreiben",
+    "teamsDescription": "In Microsoft Teams mit einem Agenten chatten",
     "telegramDescription": "Mit einem Agenten über einen gehosteten oder eigenen Bot chatten",
     "title": "Kanäle",
     "unknownAgent": "Unbekannter Agent",

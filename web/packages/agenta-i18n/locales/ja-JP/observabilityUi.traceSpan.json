@@ -44,5 +44,9 @@
     "valueLabel": "値：",
     "totalMean": "全体の平均：",
     "true": "True",
-    "false": "False"
+    "false": "False",
+    "panelInputs": "入力",
+    "panelParameters": "パラメータ",
+    "panelOutputs": "出力",
+    "panelInternals": "内部データ"
 }

@@ -41,7 +41,7 @@ vi.mock("../../src/features/agents/useAgentPublishPanel", () => ({
         return {
             openHub: vi.fn(),
             reload: vi.fn().mockResolvedValue(undefined),
-            connections: {slack: null, telegram: null, whatsapp: null},
+            connections: {slack: null, telegram: null, whatsapp: null, teams: null},
             panel: null,
         }
     },
@@ -153,7 +153,8 @@ describe("the privacy control's channel state", () => {
         telegram: null,
         whatsapp: null,
         discord: null,
-        agentConnections: {slack: rows, telegram: [], whatsapp: [], discord: []},
+        teams: null,
+        agentConnections: {slack: rows, telegram: [], whatsapp: [], discord: [], teams: []},
         allConnections: rows,
     })
     const render = (rows: ChannelConnection[]) =>
