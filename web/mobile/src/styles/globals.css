@@ -55,7 +55,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-    --radius: 0.625rem;
+    --radius: 0.5rem;
     /* The composer's send takes the primary fill here, not the desktop's lime accent. The button
        reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values:
        the glyph is the container colour, so it reads white on the light theme's ink and ink on
@@ -63,9 +63,38 @@
     --ag-composer-send-bg: var(--colorPrimary);
     --ag-composer-send-fg: var(--colorBgContainer);
     --ag-composer-send-hover-bg: color-mix(in srgb, var(--colorPrimary) 85%, transparent);
+    /* Heading steps shrink below desktop; body steps (xs, sm, base) stay the same everywhere. */
+    --ag-text-lg: 16px;
+    --ag-text-xl: 18px;
+    --ag-text-2xl: 20px;
+    --ag-text-3xl: 24px;
+    --ag-text-4xl: 28px;
+}
+
+@media (width >= 40rem) {
+    :root {
+        --ag-text-lg: 18px;
+        --ag-text-xl: 20px;
+        --ag-text-2xl: 22px;
+        --ag-text-3xl: 28px;
+        --ag-text-4xl: 32px;
+    }
+}
+
+@media (width >= 64rem) {
+    :root {
+        --ag-text-2xl: 24px;
+        --ag-text-3xl: 30px;
+        --ag-text-4xl: 36px;
+    }
 }
 
 @theme inline {
+    --text-lg: var(--ag-text-lg);
+    --text-xl: var(--ag-text-xl);
+    --text-2xl: var(--ag-text-2xl);
+    --text-3xl: var(--ag-text-3xl);
+    --text-4xl: var(--ag-text-4xl);
     /* The kit's preset tag colours (`Badge` variants `blue`, `green`, ...), from @agenta/ui's
        theme variables. Without them a type tag renders as plain text. */
     --color-tag-blue: var(--ag-preset-blue-text);
@@ -238,11 +267,11 @@
     --spacing-control-dot: 8px;
     --spacing-switch-thumb: 18px;
     --spacing-switch-thumb-sm: 12px;
-    --radius-control-xs: 8px;
-    --radius-control-sm: 8px;
+    --radius-control-xs: 6px;
+    --radius-control-sm: 6px;
     --radius-control-check: 4px;
-    --radius-control: 10px;
-    --radius-control-lg: 10px;
+    --radius-control: 8px;
+    --radius-control-lg: 8px;
     --radius-control-round: 50%;
     --text-btn-xs: 12px;
     --text-btn-xs--line-height: 16px;

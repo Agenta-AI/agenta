@@ -225,6 +225,8 @@ export function InputNumber({
                 onKeyDown={handleKeyDown}
                 className={cn(
                     "min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-inherit outline-none placeholder:text-placeholder disabled:cursor-not-allowed",
+                    // 16px below md so iOS Safari does not zoom on focus; the 20px line keeps the height.
+                    "max-md:text-base/5",
                     innerBySize[size],
                 )}
                 {...rest}

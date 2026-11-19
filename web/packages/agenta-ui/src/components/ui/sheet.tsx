@@ -83,7 +83,7 @@ const sheetVariants = cva(
                 // bottom sheet below `lg`, the floating right-edge drawer from `lg` up. The literal
                 // edges stay literal.
                 responsive: [
-                    "inset-x-0 bottom-0 h-auto max-h-[85vh] w-full rounded-t-2xl border-t max-lg:shadow-drawer-bottom",
+                    "inset-x-0 bottom-0 h-auto max-h-[85vh] w-full rounded-t-xl border-t max-lg:shadow-drawer-bottom",
                     "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
                     // Every bottom-sheet property is unset explicitly: Tailwind would otherwise
                     // keep the narrower rule. The width reads a variable so a caller's `width`

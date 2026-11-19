@@ -58,13 +58,13 @@ export const controlScale = {
         "control-dot": "8px",
         "control-check-dash": "7px",
     },
-    // shadcn radii at --radius 0.625rem: xs/sm 8px, the rest 10px.
+    // Radii at --radius 0.5rem: xs/sm 6px, the rest 8px.
     borderRadius: {
-        "control-xs": "8px",
-        "control-sm": "8px",
-        control: "10px",
-        "control-lg": "10px",
-        // The checkbox box's own corner: control-sm (8px) would round a 16px box into a circle.
+        "control-xs": "6px",
+        "control-sm": "6px",
+        control: "8px",
+        "control-lg": "8px",
+        // The checkbox box's own corner: control-sm (6px) is too round for a 16px box.
         "control-check": "4px",
         // antd shape="circle". 50%, not 9999px — they render identically on a square but
         // the parity gate compares computed values.
