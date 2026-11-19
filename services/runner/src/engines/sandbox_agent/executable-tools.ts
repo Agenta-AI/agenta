@@ -47,7 +47,7 @@ export interface BuildExecutableToolGateInput {
    */
   executionGrants?: ApprovedExecutionGrants;
   /** The server preview of an agent write; it never fails the gate (see the fetcher). */
-  resolveApprovalPreview?: AgentChangePreviewFetcher;
+  resolveChangePreview?: AgentChangePreviewFetcher;
   log?: (message: string) => void;
 }
 
@@ -60,7 +60,7 @@ export function buildExecutableToolGate({
   onNonParkablePause,
   permissionPlan,
   executionGrants,
-  resolveApprovalPreview,
+  resolveChangePreview,
   log = () => {},
 }: BuildExecutableToolGateInput): ExecutableToolGate {
   return {
@@ -104,7 +104,7 @@ export function buildExecutableToolGate({
         };
       }
 
-      const preview = await resolveApprovalPreview?.({
+      const preview = await resolveChangePreview?.({
         toolName: request.spec.name,
         toolCallId: request.toolCallId,
         args: request.input,

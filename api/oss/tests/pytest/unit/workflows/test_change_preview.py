@@ -69,8 +69,8 @@ class TestATextEdit:
         assert preview["changes"] == [
             {
                 "path": AGENTS_MD,
-                "operations": [0],
-                "change": "changed",
+                "operation_indexes": [0],
+                "kind": "changed",
                 "old": "Answer invoice questions.",
                 "new": "Answer billing questions.",
             }
@@ -118,8 +118,8 @@ class TestATextEdit:
         assert preview["changes"] == [
             {
                 "path": AGENTS_MD,
-                "operations": [0, 1],
-                "change": "changed",
+                "operation_indexes": [0, 1],
+                "kind": "changed",
                 "old": "Answer invoice questions.",
                 "new": "Answer refund questions.",
             }
@@ -150,16 +150,77 @@ class TestAListAddAndRemove:
                     "agent",
                     {"list": "skills", "key": "refund-check"},
                 ],
-                "operations": [0],
-                "change": "added",
+                "operation_indexes": [0],
+                "kind": "added",
                 "new": REFUND,
             },
             {
                 "path": ["parameters", "agent", {"list": "skills", "key": "triage"}],
-                "operations": [1],
-                "change": "removed",
+                "operation_indexes": [1],
+                "kind": "removed",
                 "old": TRIAGE,
             },
+        ]
+
+
+class TestAnItemThatChangesItsKey:
+    """An item whose key changes is found on one side only, so the list is the path."""
+
+    def test_a_renamed_skill_shows_the_list_before_and_after(self):
+        renamed = {**TRIAGE, "name": "billing"}
+        preview = _preview(
+            _base(),
+            [
+                {
+                    "operation": "set",
+                    "target": [
+                        "parameters",
+                        "agent",
+                        {"list": "skills", "key": "triage"},
+                        "name",
+                    ],
+                    "value": "billing",
+                }
+            ],
+        )
+
+        assert preview["changes"] == [
+            {
+                "path": SKILLS,
+                "operation_indexes": [0],
+                "kind": "changed",
+                "old": [TRIAGE],
+                "new": [renamed],
+            }
+        ]
+
+    def test_an_added_skill_renamed_by_a_later_operation_is_not_lost(self):
+        draft = {"name": "draft", "description": "Draft.", "body": "Draft."}
+        preview = _preview(
+            _base(),
+            [
+                {"operation": "add_item", "target": SKILLS, "value": draft},
+                {
+                    "operation": "set",
+                    "target": [
+                        "parameters",
+                        "agent",
+                        {"list": "skills", "key": "draft"},
+                        "name",
+                    ],
+                    "value": "final",
+                },
+            ],
+        )
+
+        assert preview["changes"] == [
+            {
+                "path": SKILLS,
+                "operation_indexes": [0, 1],
+                "kind": "changed",
+                "old": [TRIAGE],
+                "new": [TRIAGE, {**draft, "name": "final"}],
+            }
         ]
 
 
@@ -173,8 +234,8 @@ class TestAValueChange:
         assert preview["changes"] == [
             {
                 "path": MODEL,
-                "operations": [0],
-                "change": "changed",
+                "operation_indexes": [0],
+                "kind": "changed",
                 "old": "claude-sonnet-5-5",
                 "new": "claude-opus-5-5",
             }
@@ -196,7 +257,7 @@ class TestAValueChange:
         )
 
         (change,) = preview["changes"]
-        assert change["change"] == "added"
+        assert change["kind"] == "added"
         assert change["truncated"] is True
         assert "new" not in change
 
@@ -250,8 +311,8 @@ class TestTheBound:
                 "agent",
                 {"list": "skills", "key": "skill-39"},
             ],
-            "operations": [39],
-            "change": "added",
+            "operation_indexes": [39],
+            "kind": "added",
         }
         with_values = [change for change in preview["changes"] if "new" in change]
         assert 0 < len(with_values) < 40

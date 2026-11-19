@@ -365,10 +365,10 @@ class TestListAgents:
             "slug",
             "name",
             "description",
-            "version",
+            "revision",
             "updated_at",
         }
-        assert agents[0]["version"] == "3"
+        assert agents[0]["revision"] == {"id": str(HEAD), "version": "3"}
         assert result.content["cursor"] is None
 
     async def test_each_row_links_its_agent(self, listing, monkeypatch):
@@ -476,8 +476,8 @@ class TestListAgents:
         result = await _call(handle_list_agents, listing, include_archived=True)
 
         assert listing.query_workflows.await_args.kwargs["include_archived"] is True
-        assert result.content["agents"][0]["archived"] is True
-        assert "archived" not in result.content["agents"][1]
+        assert result.content["agents"][0]["is_archived"] is True
+        assert "is_archived" not in result.content["agents"][1]
 
     @pytest.mark.parametrize(
         "arguments",
@@ -760,7 +760,7 @@ class TestEditAgentConfig:
         assert result.content["message"] == commit.message
         # Another agent's write: the caches are cleared, and no self-commit signal goes
         # to the caller's playground.
-        assert result.wrote_other_agent_revision is True
+        assert result.committed_other_agent_revision is True
         assert result.committed_revision is None
 
     async def test_the_target_agent_decision_is_asked_for_that_agent(
@@ -1088,7 +1088,7 @@ class TestCreateAgent:
         assert content["agent"]["slug"] == "invoice-helper-0a1b2c3d"
         assert content["revision"]["version"] == "1"
         assert content["base_revision_id"] == content["revision"]["id"]
-        assert result.wrote_other_agent_revision is True
+        assert result.committed_other_agent_revision is True
         # Without operations the agent keeps placeholder instructions; the answer says so.
         assert [w["code"] for w in content["warnings"]] == ["template_instructions"]
 
@@ -1432,8 +1432,18 @@ class TestCreateAgentRetry:
             return variant
 
         async def fetch_workflow_revision(
-            *, project_id, workflow_variant_ref, workflow_revision_ref
+            *, project_id, workflow_variant_ref, workflow_revision_ref=None
         ):
+            if workflow_revision_ref is None:
+                # The variant's head: its latest revision.
+                return next(
+                    (
+                        revision
+                        for (variant_id, _), revision in reversed(revisions.items())
+                        if variant_id == workflow_variant_ref.id
+                    ),
+                    None,
+                )
             return revisions.get((workflow_variant_ref.id, workflow_revision_ref.slug))
 
         async def commit_workflow_revision(
@@ -1594,11 +1604,18 @@ class TestCreateAgentRetry:
         assert content["revision"]["id"] == str(first.id)
         assert first.message.startswith(f'Created by agent "Support Triage" {CALLER}')
 
-        # A third call with the same arguments returns the same agent, in the same shape.
+        # The agent is edited after the create.
+        edited = WorkflowRevision(
+            id=uuid4(), workflow_variant_id=first.workflow_variant_id
+        )
+        store[(first.workflow_variant_id, "edited")] = edited
+
+        # A third call with the same arguments returns the same agent and its first
+        # revision; the next edit starts from the head, not from that first revision.
         again = await _call(handle_create_agent, service, **arguments)
         assert again.content["agent"] == content["agent"]
-        assert again.content["base_revision_id"] == content["base_revision_id"]
         assert again.content["revision"] == content["revision"]
+        assert again.content["base_revision_id"] == str(edited.id)
         service.create_workflow.assert_awaited_once()
 
     async def test_a_retry_that_finds_a_now_hidden_agent_reads_and_writes_nothing(
@@ -1651,9 +1668,9 @@ class TestCreateAgentRetry:
 class TestPreviewAgentChange:
     """The runner asks for it when the approval gate of an agent write opens."""
 
-    def _preview(self, service, tool, **arguments):
+    def _preview(self, service, call_ref, **arguments):
         return handle_preview_agent_change(
-            arguments={"tool": tool, "arguments": arguments},
+            arguments={"call_ref": call_ref, "arguments": arguments},
             project_id=PROJECT,
             user_id=USER,
             workflows_service=service,
@@ -1673,15 +1690,15 @@ class TestPreviewAgentChange:
         assert result.content["changes"] == [
             {
                 "path": INSTRUCTIONS,
-                "operations": [0],
-                "change": "changed",
+                "operation_indexes": [0],
+                "kind": "changed",
                 "old": "Answer invoice questions.",
                 "new": "Answer billing questions.",
             }
         ]
         service.commit_workflow_revision.assert_not_awaited()
         service.commit_workflow_revision_checked.assert_not_awaited()
-        assert result.wrote_other_agent_revision is False
+        assert result.committed_other_agent_revision is False
 
     async def test_an_operation_that_does_not_apply(self, service):
         result = await self._preview(
@@ -1752,6 +1769,19 @@ class TestPreviewAgentChange:
         assert f"-{first_line}" in change["diff"]
         assert "base" not in result.content
         service.commit_workflow_revision.assert_not_awaited()
+
+    async def test_a_create_without_operations_previews_the_template(self, service):
+        # `operations` is optional on a create: the template is saved as it is.
+        result = await self._preview(
+            service,
+            CREATE_AGENT_CALL_REF,
+            name="Invoice helper",
+            caller_agent_id=str(CALLER),
+            caller_session_id=SESSION,
+        )
+
+        assert result.ok, result.content
+        assert result.content == {"applies": True, "operations": [], "changes": []}
 
     async def test_another_tool_is_refused(self, service):
         result = await self._preview(service, "tools.agenta.commit_revision")

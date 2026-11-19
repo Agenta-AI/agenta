@@ -625,6 +625,8 @@ class CreatedAgent(BaseModel):
 
     workflow: SimpleWorkflow
     revision: Optional[WorkflowRevision] = None
+    # The agent's head now: the revision above, unless a replay finds later edits.
+    head: Optional[WorkflowRevision] = None
     message: str
     warnings: List[CommitWarning] = Field(default_factory=list)
     visibility: Visibility
