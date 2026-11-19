@@ -1,10 +1,11 @@
 /**
  * The Advanced section's body: Agenta tools, the build kit, the execution environment and the
  * custom secrets, as a rail of panels (or a narrowed stack under a focus filter).
- * `useModelHarness` owns the config state and passes it in.
+ * `useModelHarness` passes the config state in; the group open, revert and rail state live here.
  */
 import {useState, type ReactNode} from "react"
 
+import type {AgentSecretBinding} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {Cube, Hammer, Toolbox, Vault} from "@phosphor-icons/react"
@@ -39,7 +40,7 @@ export interface AdvancedSectionBodyParams {
     agentaToolsSection: ReactNode
     buildKitSection: ReactNode
     hasBuildKitOverlay: boolean
-    secretBindings: unknown[]
+    secretBindings: AgentSecretBinding[]
     secretsSummary: string
     secretsBody: ReactNode
     setSecretsHeaderSlot: (element: HTMLElement | null) => void

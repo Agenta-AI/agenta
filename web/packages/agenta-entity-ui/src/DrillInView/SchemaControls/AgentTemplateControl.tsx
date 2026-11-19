@@ -1057,7 +1057,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // is clean, which is what keeps it a plain drawer-opening row.
     const advancedChangeBody = changeBodyFor("advanced")
 
-    // The props every inline Model, Permissions and Advanced body passes on: the live config.
+    // The props the Model and Permissions section bodies pass on: the live config.
     const bodyProps = {schema, config, onChange, disabled, withTooltip, revisionId}
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
