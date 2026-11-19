@@ -42,6 +42,15 @@ export interface SessionRowTarget {
 
 const RENAME = "rename"
 
+/**
+ * A double click opens the session with its first click and renames it with the second. That
+ * navigation can replace the whole rail (a move from another page to the session page remounts
+ * the shell), and with it the row that was asked to rename. The request waits here for a short
+ * time, so the row of that session starts the rename when it mounts.
+ */
+let renameOnMount: {sessionId: string; at: number} | null = null
+const RENAME_ON_MOUNT_MS = 3000
+
 // [font-family:inherit]: preflight is off, so a bare <button> renders Arial, not Inter.
 // Themed focus ring, not the UA blue: Radix returns focus to the trigger on close.
 const KEBAB_CLASS =
@@ -161,6 +170,30 @@ const SessionRowActions = ({
         event.stopPropagation()
     }, [])
 
+    // Archived rows cannot be renamed — the menu drops the verb, so the double-click shortcut into
+    // it has to go too. Nor can someone else's chat.
+    const canRename = !session.archived && entries.some((e) => "key" in e && e.key === RENAME)
+    const startRenameFromDoubleClick = useCallback(() => {
+        if (!canRename) return
+        renameOnMount = {sessionId: session.sessionId, at: Date.now()}
+        rename.start()
+    }, [canRename, rename, session.sessionId])
+
+    // The row that a double click's navigation mounted takes over the rename it asked for.
+    const {start: startRename} = rename
+    useEffect(() => {
+        const pending = renameOnMount
+        if (pending?.sessionId !== session.sessionId) return
+        renameOnMount = null
+        if (canRename && Date.now() - pending.at < RENAME_ON_MOUNT_MS) startRename()
+        // Mount only: a later change of the row's verbs is not a new double click.
+    }, [session.sessionId])
+
+    // The row was not replaced: its rename has ended, so no other row may take it over.
+    useEffect(() => {
+        if (!rename.renaming && renameOnMount?.sessionId === session.sessionId) renameOnMount = null
+    }, [rename.renaming, session.sessionId])
+
     /**
      * The row's <Link>. The first click navigates at once; the second click of a double click
      * does not navigate again, and the double click then renames the session that is now open.
@@ -184,7 +217,8 @@ const SessionRowActions = ({
                     event.preventDefault()
                     return
                 }
-                // Let the browser own modifier- and middle-clicks (new tab, new window).
+                // A modifier- or middle-click is the browser's (new tab, new window), also when
+                // it is the second click of a double click.
                 if (
                     event.button !== 0 ||
                     event.metaKey ||
@@ -193,11 +227,16 @@ const SessionRowActions = ({
                     event.altKey
                 )
                     return
-                // The second click of a double click: the first one already opened the session.
-                if (event.detail > 1) event.preventDefault()
+                // The second click of a double click: the first one already opened the session,
+                // so this one renames it. It is handled here and not on `dblclick`, because when
+                // the first click's navigation replaced the row, the new row gets this click only.
+                if (event.detail > 1) {
+                    event.preventDefault()
+                    if (event.detail === 2) startRenameFromDoubleClick()
+                }
             },
         })
-    }, [children])
+    }, [children, startRenameFromDoubleClick])
 
     if (rename.renaming)
         return (
@@ -216,13 +255,6 @@ const SessionRowActions = ({
                 className="group/row flex w-full min-w-0 items-center"
                 onPointerDown={() => {
                     contextMenuPressRef.current = false
-                }}
-                onDoubleClick={(event) => {
-                    event.preventDefault()
-                    // Archived rows cannot be renamed — the menu drops the verb, so the
-                    // double-click shortcut into it has to go too. Nor can someone else's chat.
-                    if (!session.archived && entries.some((e) => "key" in e && e.key === "rename"))
-                        rename.start()
                 }}
             >
                 {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}

@@ -87,7 +87,9 @@ const FakeLink = ({
 
 const HREF = "/w/w1/p/p1/sessions/s1"
 
-const renderRow = () => {
+// The rename a double click asks for outlives its row for a few seconds (the rail can remount),
+// so each test uses its own session.
+const renderRow = (sessionId: string) => {
     const chrome = {
         menuItems: vi.fn(() => [{key: "rename", label: "Rename"}]),
         onMenuClick: vi.fn(() => () => undefined),
@@ -96,7 +98,7 @@ const renderRow = () => {
     act(() =>
         root.render(
             createElement(SessionRowActions, {
-                session: {sessionId: "s1", appId: "a1", name: "Chat", archived: false},
+                session: {sessionId, appId: "a1", name: "Chat", archived: false},
                 chrome: chrome as never,
                 children: createElement(FakeLink, {href: HREF, children: "Chat"}),
             }),
@@ -112,7 +114,7 @@ const click = (target: Element, detail: number) =>
 
 describe("a click on the rail's session row", () => {
     it("opens the session at once", () => {
-        const anchor = renderRow()
+        const anchor = renderRow("s-open")
         act(() => {
             click(anchor, 1)
         })
@@ -121,18 +123,48 @@ describe("a click on the rail's session row", () => {
     })
 
     it("renames the open session on a double click, with no second navigation", () => {
-        const anchor = renderRow()
+        const anchor = renderRow("s-double")
         act(() => {
             click(anchor, 1)
             click(anchor, 2)
-            anchor.dispatchEvent(
-                new MouseEvent("dblclick", {bubbles: true, cancelable: true, detail: 2}),
-            )
         })
         expect(push).toHaveBeenCalledTimes(1)
         expect(push).toHaveBeenCalledWith(HREF)
         const input = host.querySelector("input") as HTMLInputElement | null
         expect(input).not.toBeNull()
         expect(input!.value).toBe("Chat")
+    })
+
+    it("renames on the second click when the first click's navigation replaced the row", () => {
+        const anchor = renderRow("s-replaced")
+        act(() => {
+            click(anchor, 1)
+        })
+        // The new page mounts a new rail: a new row gets only the second click.
+        act(() => root.unmount())
+        root = createRoot(host)
+        const next = renderRow("s-replaced")
+        act(() => {
+            click(next, 2)
+        })
+        expect(push).toHaveBeenCalledTimes(1)
+        expect(host.querySelector("input")).not.toBeNull()
+    })
+
+    it("keeps the rename when the navigation replaces the row after the double click", () => {
+        const anchor = renderRow("s-after")
+        act(() => {
+            click(anchor, 1)
+            click(anchor, 2)
+        })
+        act(() => root.unmount())
+        root = createRoot(host)
+        renderRow("s-after")
+        expect(host.querySelector("input")).not.toBeNull()
+    })
+
+    it("does not rename a row that mounts later without a double click", () => {
+        renderRow("s-later")
+        expect(host.querySelector("input")).toBeNull()
     })
 })
