@@ -309,10 +309,7 @@ export const ProjectOrgSwitcherView = ({
         <div
             ref={rowRef}
             className={clsx(
-                // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
-                // collapsed geometry on the first frame while the rail is still sliding, and the
-                // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 transition-all duration-300",
+                "flex gap-1 px-2",
                 side === "bottom" ? "h-12 shrink-0" : "pb-1.5",
                 compact && "justify-between",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
@@ -328,10 +325,8 @@ export const ProjectOrgSwitcherView = ({
                         type="button"
                         data-project-org-switcher
                         className={clsx(
-                            // Borderless at rest; the hover fill is the affordance. `transition-all`
-                            // (not just colors) so the width/padding swap below travels with the
-                            // rail rather than snapping ahead of it.
-                            "flex cursor-pointer items-center rounded-[6px] border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
+                            // Borderless at rest; the hover fill is the affordance.
+                            "flex cursor-pointer items-center rounded-[6px] border-0 bg-transparent transition-colors duration-150 hover:bg-colorFillTertiary",
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"

@@ -114,7 +114,7 @@ const SortableRow = ({
             initial={reduced ? false : {opacity: 0, height: 0}}
             animate={{opacity: dropping ? 0.55 : 1, height: "auto"}}
             exit={reduced ? {opacity: 0} : {opacity: 0, height: 0, overflow: "hidden"}}
-            whileDrag={{scale: 1.02}}
+            whileDrag={reduced ? undefined : {scale: 1.02}}
             data-page-key={value}
             className={cn("relative flex flex-col [-webkit-touch-callout:none]", lifted && LIFTED)}
             onPointerDown={(event) => {
