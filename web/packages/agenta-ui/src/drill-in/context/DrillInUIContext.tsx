@@ -225,6 +225,8 @@ export interface SkillsPickerHostProps {
     onAdd: (entries: Record<string, unknown>[]) => void
     /** Remove the embed entries whose referenced slug matches. */
     onRemove: (slugs: string[]) => void
+    /** "create" opens straight on the new-skill chooser. */
+    startWith?: "list" | "create"
 }
 
 /**
@@ -240,12 +242,6 @@ export interface SkillsBridge {
      * it for the "vN available" nudge. A hook (required, not optional: hook order) that
      * may answer {} while the registry list loads. */
     useHeadVersions: () => Record<string, string>
-    /** Publish an INLINE skill package to the registry. Resolves with the `@ag.embed`
-     * entry that replaces the inline entry in place, or an error the caller surfaces.
-     * The migration path for pre-registry configs; runtime keeps accepting inline. */
-    publishInlineSkill: (
-        skill: Record<string, unknown>,
-    ) => Promise<{entry: Record<string, unknown>} | {error: string}>
     /** Registry detail drawer for one skill, addressed by its embed slug. The panel opens
      * it for project-owned embed refs instead of the raw JSON editor; absent (or an
      * unresolvable slug) falls back to the JSON round-trip. */

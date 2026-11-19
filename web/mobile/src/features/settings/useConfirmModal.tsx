@@ -10,6 +10,7 @@ interface ConfirmRequest {
     message: ReactNode
     /** Names the act on the button. Absent falls back to the generic answer. */
     okText?: string
+    cancelText?: string
     danger?: boolean
     onOk: () => void | Promise<void>
 }
@@ -42,6 +43,7 @@ export const useConfirmModal = () => {
             title={request?.title ?? ""}
             body={request?.message}
             confirmLabel={request?.okText ?? t("common.confirm")}
+            cancelLabel={request?.cancelText}
             destructive={request?.danger}
             pending={pending}
             error={error}

@@ -1,37 +1,15 @@
-/**
- * @agenta/skills-ui — presentational skill-registry surfaces (gallery, drawers, save
- * dialog content). Options in, callbacks out; data comes from @agenta/skills via the host.
- */
+/** @agenta/skills-ui: the skill editor, create flow, skill page view and playground drawer. */
 export * from "./types"
-export {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
-export {SkillCard, type SkillCardProps} from "./SkillCard"
 export {skillTitle} from "./skillTitle"
-export {
-    SkillsGalleryPage,
-    type SkillsGalleryPageProps,
-    type SkillSourceNavEntry,
-} from "./SkillsGalleryPage"
-export {
-    SkillGallerySections,
-    type SkillGallerySectionsProps,
-    type SkillGallerySection,
-} from "./SkillGallerySections"
-export {
-    SkillPickerDrawer,
-    type SkillPickerDrawerProps,
-    type SkillAddChoice,
-} from "./SkillPickerDrawer"
-export {buildRegistrySections, toSkillListItem, type RegistrySections} from "./registrySections"
-export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
-export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
-export {useSkillCreateEntry} from "./useSkillCreateEntry"
-export {
-    SkillDetailDrawer,
-    skillRevisionsQueryKey,
-    type SkillDetailDrawerProps,
-} from "./SkillDetailDrawer"
-export {SkillAgentPicker} from "./SkillAgentPicker"
-export {SkillPickerHost} from "./SkillPickerHost"
-export {SkillDetailHost} from "./SkillDetailHost"
-export {SourceRefreshButton} from "./SourceRefreshButton"
+export {buildRegistrySections} from "./registrySections"
+export {SkillEditor} from "./SkillEditor"
+export {EMPTY_SKILL_DRAFT, type SkillDraft} from "./skillDraft"
+export {SkillCreateChooser, SKILL_UPLOAD_ACCEPT} from "./SkillCreateChooser"
+export {SkillCandidateList} from "./SkillCandidateList"
+export {SkillCheckTile} from "./SkillCheckTile"
+export {SkillGithubImport} from "./SkillGithubImport"
+export {useSkillCreateFlow} from "./useSkillCreateFlow"
+export {SkillArchiveDialog, type ArchiveTarget} from "./SkillArchiveDialog"
+export {SkillDetailView} from "./SkillDetailView"
+export {skillRevisionsQueryKey, useSkillUsage, restoreSkills} from "./skillQueries"
 export {useSkillsBridge} from "./bridge"

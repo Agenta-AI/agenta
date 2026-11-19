@@ -46,6 +46,9 @@ const SKELETON_WIDTHS = ["w-4/5", "w-3/5", "w-2/3", "w-1/2", "w-3/4"]
  */
 const STICKY = {height: "h-9", groupTop: "top-9"} as const
 
+/** Paints a pinned bar 12px past each side, over a row's bled hover fill. */
+const STICKY_EDGES = "shadow-[-12px_0_0_var(--color-background),12px_0_0_var(--color-background)]"
+
 /** With no visible header, a stuck group heading sits at the scroller's own top. */
 const groupTop = (hideHeader: boolean) => (hideHeader ? "top-0" : STICKY.groupTop)
 
@@ -190,7 +193,7 @@ export const ListTable = <Row,>({
                                       // stuck directly beneath it without measuring anything — and the margin
                                       // goes, or a 4px slot of rows would show through the gap.
                                       stickyHeader
-                                          ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
+                                          ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background ${STICKY_EDGES}`
                                           : "mb-1 py-2",
                                   ],
                         )}
@@ -220,11 +223,12 @@ export const ListTable = <Row,>({
                                     role="columnheader"
                                     className={column.headerClassName}
                                 >
-                                    {column.srOnly ? (
-                                        <span className="sr-only">{column.label}</span>
-                                    ) : (
-                                        column.label
-                                    )}
+                                    {column.header ??
+                                        (column.srOnly ? (
+                                            <span className="sr-only">{column.label}</span>
+                                        ) : (
+                                            column.label
+                                        ))}
                                 </span>
                             ))
                         )}
@@ -329,10 +333,12 @@ export const ListTable = <Row,>({
                                     <div
                                         className={cn(
                                             "flex items-center gap-2 pb-1.5 pt-3.5",
+                                            // A grid has no column header above its first heading.
+                                            isGrid && groupIndex === 0 && "pt-0",
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
                                             stickyHeader &&
-                                                `sticky ${headingTop} z-10 bg-background`,
+                                                `sticky ${headingTop} z-10 bg-background ${STICKY_EDGES}`,
                                         )}
                                     >
                                         {group.label === null ? null : onToggleGroup ? (

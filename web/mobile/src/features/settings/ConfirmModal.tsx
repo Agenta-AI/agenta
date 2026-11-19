@@ -24,6 +24,7 @@ export const ConfirmModal = ({
     description,
     body,
     confirmLabel,
+    cancelLabel,
     pending = false,
     error,
     destructive = true,
@@ -38,6 +39,8 @@ export const ConfirmModal = ({
     /** Detail above the buttons: the name being deleted, what goes with it. */
     body?: ReactNode
     confirmLabel: string
+    /** Names the way back; absent falls back to Cancel. */
+    cancelLabel?: string
     pending?: boolean
     /** Shown above the buttons when the action failed; this app has no toasts. */
     error?: string | null
@@ -71,7 +74,7 @@ export const ConfirmModal = ({
                 <AlertDialogFooter>
                     <AlertDialogCancel asChild>
                         <Button variant="outline" onClick={onClose} disabled={pending}>
-                            {t("common.cancel")}
+                            {cancelLabel ?? t("common.cancel")}
                         </Button>
                     </AlertDialogCancel>
                     {/* preventDefault keeps the alert open: it closes itself on success, and stays

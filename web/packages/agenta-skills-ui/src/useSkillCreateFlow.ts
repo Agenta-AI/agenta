@@ -1,0 +1,206 @@
+import {useCallback, useMemo, useRef, useState} from "react"
+
+import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
+import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
+import {invalidateSkillsListCache, skillsResolveDataAtom} from "@agenta/skills/state"
+import {message} from "@agenta/ui/app-message"
+import {useAtomValue} from "jotai"
+
+import type {SkillCandidate} from "./SkillCandidateList"
+import {
+    descriptionTooLong,
+    draftSkillName,
+    EMPTY_SKILL_DRAFT,
+    isSkillDraftEmpty,
+    skillDraftProblem,
+    toSkillContent,
+    toSkillDraft,
+    type SkillDraft,
+} from "./skillDraft"
+import {useClearOnNextPress} from "./useClearOnNextPress"
+
+export type SkillCreateStep = "choose" | "write" | "upload" | "github"
+
+export interface CreatedSkill {
+    workflowId?: string
+    slug: string
+    name: string
+    description?: string
+}
+
+const failure = (err: unknown, what: string) => extractApiErrorMessage(err) || `${what} failed.`
+
+/** The create flow's state: which step, the draft, an upload's picks, and the writes. */
+export function useSkillCreateFlow({
+    projectId,
+    onCreated,
+}: {
+    projectId: string
+    onCreated: (created: CreatedSkill[]) => void
+}) {
+    const [step, setStep] = useState<SkillCreateStep>("choose")
+    const [draft, setDraft] = useState<SkillDraft>(EMPTY_SKILL_DRAFT)
+    const [fromUpload, setFromUpload] = useState(false)
+    const [attempted, setAttempted] = useState(false)
+    useClearOnNextPress(attempted, setAttempted)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [scan, setScan] = useState<SkillUploadScan | null>(null)
+    const [picked, setPicked] = useState<Set<string>>(new Set())
+    const registry = useAtomValue(skillsResolveDataAtom)
+    // Bumped by reset, so a scan that ends after the user left is ignored.
+    const run = useRef(0)
+
+    const reset = useCallback(() => {
+        run.current += 1
+        setStep("choose")
+        setDraft(EMPTY_SKILL_DRAFT)
+        setFromUpload(false)
+        setAttempted(false)
+        setBusy(false)
+        setError(null)
+        setScan(null)
+        setPicked(new Set())
+    }, [])
+
+    const write = useCallback((title = "") => {
+        setDraft({...EMPTY_SKILL_DRAFT, title})
+        setFromUpload(false)
+        setAttempted(false)
+        setError(null)
+        setStep("write")
+    }, [])
+
+    const upload = useCallback((pending: Promise<SkillUploadScan>) => {
+        const id = ++run.current
+        setError(null)
+        setBusy(true)
+        pending
+            .then((result) => {
+                if (id !== run.current) return
+                const [first] = result.candidates
+                if (!first) {
+                    setError("No SKILL.md found in the upload.")
+                    return
+                }
+                if (result.candidates.length === 1) {
+                    setDraft(toSkillDraft(first.skill as unknown as Record<string, unknown>))
+                    setFromUpload(true)
+                    setAttempted(false)
+                    setStep("write")
+                    return
+                }
+                setScan(result)
+                setPicked(new Set(result.candidates.map((c) => c.dir)))
+                setStep("upload")
+            })
+            .catch(() => id === run.current && setError("Could not read the upload."))
+            .finally(() => id === run.current && setBusy(false))
+    }, [])
+
+    const createOne = useCallback(
+        async (skill: Record<string, unknown>): Promise<CreatedSkill> => {
+            const result = skillContentSchema.safeParse(skill)
+            if (!result.success) {
+                const field = result.error.issues[0]?.path.join(".") || "content"
+                throw new Error(`the ${field} is not valid`)
+            }
+            const parsed = result.data
+            const created = await createSkillWorkflow({projectId, skill: parsed})
+            return {
+                workflowId: created.workflowId,
+                slug: created.slug,
+                name: parsed.name,
+                description: parsed.description,
+            }
+        },
+        [projectId],
+    )
+
+    const create = useCallback(async () => {
+        setAttempted(true)
+        const problem = skillDraftProblem(draft)
+        setError(problem)
+        if (problem) return
+        setBusy(true)
+        setError(null)
+        try {
+            const created = await createOne(toSkillContent(draft))
+            invalidateSkillsListCache()
+            onCreated([created])
+        } catch (err) {
+            setError(failure(err, "Create"))
+        } finally {
+            setBusy(false)
+        }
+    }, [createOne, draft, onCreated])
+
+    const importUploads = useCallback(async () => {
+        if (!scan) return
+        setBusy(true)
+        setError(null)
+        const created: CreatedSkill[] = []
+        try {
+            for (const candidate of scan.candidates.filter((c) => picked.has(c.dir))) {
+                const skill = candidate.skill as unknown as Record<string, unknown>
+                created.push(await createOne(toSkillContent(toSkillDraft(skill))))
+            }
+            onCreated(created)
+        } catch (err) {
+            if (created.length) {
+                message.error(failure(err, "Import"))
+                onCreated(created)
+            } else setError(failure(err, "Import"))
+        } finally {
+            if (created.length) invalidateSkillsListCache()
+            setBusy(false)
+        }
+    }, [createOne, onCreated, picked, scan])
+
+    const togglePick = useCallback(
+        (key: string) =>
+            setPicked((current) => {
+                const next = new Set(current)
+                if (!next.delete(key)) next.add(key)
+                return next
+            }),
+        [],
+    )
+
+    const uploadCandidates: SkillCandidate[] = (scan?.candidates ?? []).map((c) => ({
+        key: c.dir,
+        title: toSkillDraft(c.skill as unknown as Record<string, unknown>).title || c.dir,
+        description: c.skill.description,
+    }))
+
+    const duplicate = useMemo(() => {
+        const name = draftSkillName(draft)
+        if (!name) return undefined
+        return registry.find((item) => (item.skill_name ?? item.name) === name && !item.archived)
+    }, [draft, registry])
+
+    return {
+        step,
+        setStep,
+        draft,
+        setDraft,
+        fromUpload,
+        attempted,
+        busy,
+        error,
+        reset,
+        write,
+        upload,
+        create,
+        importUploads,
+        uploadCandidates,
+        picked,
+        togglePick,
+        duplicate,
+        dirty: step === "write" && !isSkillDraftEmpty(draft),
+        canCreate: Boolean(draft.title.trim()) && !descriptionTooLong(draft) && !busy,
+    }
+}
+
+export type SkillCreateFlow = ReturnType<typeof useSkillCreateFlow>

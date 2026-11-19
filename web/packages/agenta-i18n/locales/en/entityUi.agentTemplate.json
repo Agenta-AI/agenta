@@ -21,7 +21,6 @@
     "editedNotSaved": "Edited — not saved yet.",
     "unresolved": "Unresolved",
     "unresolvedTip": "Couldn't resolve this tool — the action may have been renamed or removed. Open it to inspect the raw definition.",
-    "publishedRowChanged": "The skill was published to the registry, but this row changed while publishing — add it from the picker.",
     "updateAvailable": "Update available",
     "updateAvailableTip": "This skill is pinned and the registry has a newer version. Re-add it pinned to update, or switch the reference to Latest.",
     "noModelSelected": "No model is selected.",
@@ -44,15 +43,10 @@
     "mcpServers": "MCP servers",
     "addMcpServer": "Add MCP server",
     "skills": "Skills",
-    "addSkill": "Add skill",
-    "skillStarter": "I want a skill that",
-    "addManually": "Add manually",
-    "addManuallyHint": "From your library, or write one",
     "permissions": "Permissions",
     "advanced": "Advanced",
-    "publishing": "Publishing…",
-    "publishToRegistry": "Publish to registry",
-    "publishToRegistryHint": "Move this inline skill to the registry; the agent will reference it (following the latest version).",
     "subagent": "Subagent",
-    "changesApply": "Changes apply to this agent configuration"
+    "changesApply": "Changes apply to this agent configuration",
+    "manageSkills": "Manage",
+    "newSkill": "New skill"
 }

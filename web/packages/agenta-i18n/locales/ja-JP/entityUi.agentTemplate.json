@@ -21,7 +21,6 @@
     "editedNotSaved": "編集済み。まだ保存されていません。",
     "unresolved": "未解決",
     "unresolvedTip": "このツールを解決できませんでした。アクションの名前が変更されたか、削除された可能性があります。開いて元の定義を確認してください。",
-    "publishedRowChanged": "スキルはレジストリに公開されましたが、公開中にこの行が変更されました。ピッカーから追加してください。",
     "updateAvailable": "更新があります",
     "updateAvailableTip": "このスキルは固定されていますが、レジストリに新しいバージョンがあります。更新するには固定したまま追加し直すか、参照を最新に切り替えてください。",
     "noModelSelected": "モデルが選択されていません。",
@@ -44,15 +43,10 @@
     "mcpServers": "MCP サーバー",
     "addMcpServer": "MCP サーバーを追加",
     "skills": "スキル",
-    "addSkill": "スキルを追加",
-    "skillStarter": "次のようなスキルがほしい:",
-    "addManually": "手動で追加",
-    "addManuallyHint": "ライブラリから選ぶか、自分で書きます",
     "permissions": "権限",
     "advanced": "詳細設定",
-    "publishing": "公開しています…",
-    "publishToRegistry": "レジストリに公開",
-    "publishToRegistryHint": "このインラインのスキルをレジストリに移動します。エージェントはそれを参照します（最新バージョンに追従）。",
     "subagent": "サブエージェント",
-    "changesApply": "変更はこのエージェントの設定に適用されます"
+    "changesApply": "変更はこのエージェントの設定に適用されます",
+    "manageSkills": "管理",
+    "newSkill": "新しいスキル"
 }

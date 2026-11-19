@@ -3,16 +3,7 @@ import {useMemo} from "react"
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
-import {
-    Archive,
-    Folder,
-    GitBranch,
-    Minus,
-    Robot,
-    Rows,
-    SquaresFour,
-    Stack,
-} from "@phosphor-icons/react"
+import {Folder, GitBranch, Minus, Robot, Rows, SquaresFour, Stack} from "@phosphor-icons/react"
 
 import {
     ALL_SOURCES,
@@ -93,14 +84,6 @@ export const SkillFilterMenu = ({
                 onChange: (value) => onChange({...view, usedBy: value as SkillUsedByFilter}),
             },
             {
-                kind: "toggle",
-                key: "archived",
-                label: t("skills.list.filterOnlyArchived"),
-                icon: <Archive size={ICON} />,
-                checked: view.archived,
-                onChange: (checked) => onChange({...view, archived: checked}),
-            },
-            {
                 key: "group",
                 label: t("skills.list.filterGroupBy"),
                 icon: <Rows size={ICON} />,
@@ -132,15 +115,17 @@ export const SkillFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the list beside it is already the subject, as on the agents toolbar.
-            label={null}
-            triggerAriaLabel={t("skills.list.filterAria")}
+            label="Filter"
+            triggerAriaLabel="Filter skills"
             size="default"
-            // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
-            triggerClassName="size-8"
             active={!isDefaultSkillFilters(view)}
             onReset={() =>
-                onChange({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode})
+                onChange({
+                    ...DEFAULT_SKILL_LIST_VIEW,
+                    group: view.group,
+                    mode: view.mode,
+                    archived: view.archived,
+                })
             }
             resetDisabled={isDefault}
         />

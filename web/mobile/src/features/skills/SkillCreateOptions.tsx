@@ -1,12 +1,28 @@
-import {useRef} from "react"
+import {useRef, type ReactNode} from "react"
 
 import {scanSkillFromFileList, type SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
+import {SKILL_UPLOAD_ACCEPT} from "@agenta/skills-ui"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
-import {FileText, Folder, GithubLogo, PencilSimple} from "@phosphor-icons/react"
+import {GithubLogo, PencilSimple, UploadSimple} from "@phosphor-icons/react"
+
+import {cn} from "@/lib/utils"
 
 import {FeatureActionCard} from "../education/FeatureActionCard"
 import {FeatureSection} from "../education/FeatureSection"
+
+/** The same colored tiles as the New skill chooser. */
+const tile = (className: string, icon: ReactNode) => (
+    <span
+        aria-hidden
+        className={cn(
+            "box-border inline-flex size-[30px] shrink-0 items-center justify-center rounded-[9px]",
+            className,
+        )}
+    >
+        {icon}
+    </span>
+)
 
 /** The empty Skills page's starting points: the New skill menu's three entries, as cards. */
 export const SkillCreateOptions = ({
@@ -25,7 +41,7 @@ export const SkillCreateOptions = ({
         <FeatureSection title={t("skills.list.waysToAdd")} hint={t("skills.list.waysToAddHint")}>
             <div className="grid gap-3 @2xl:grid-cols-3">
                 <FeatureActionCard
-                    icons={[<PencilSimple key="write" size={15} />]}
+                    media={tile("bg-colorInfoBg text-colorInfo", <PencilSimple size={15} />)}
                     title={t("skills.list.writeTitle")}
                     description={t("skills.list.writeDescription")}
                     actionLabel={t("skills.list.writeAction")}
@@ -33,7 +49,7 @@ export const SkillCreateOptions = ({
                     onClick={onWrite}
                 />
                 <FeatureActionCard
-                    icons={[<GithubLogo key="github" size={15} />]}
+                    media={tile("bg-foreground text-background", <GithubLogo size={15} />)}
                     title={t("skills.list.importTitle")}
                     description={t("skills.list.importDescription")}
                     actionLabel={t("skills.list.importAction")}
@@ -41,7 +57,7 @@ export const SkillCreateOptions = ({
                     onClick={onImport}
                 />
                 <FeatureActionCard
-                    icons={[<FileText key="file" size={15} />, <Folder key="folder" size={15} />]}
+                    media={tile("bg-tag-green-bg text-tag-green", <UploadSimple size={15} />)}
                     title={t("skills.list.uploadTitle")}
                     description={t("skills.list.uploadDescription")}
                     actionLabel={t("skills.list.uploadAction")}
@@ -54,7 +70,7 @@ export const SkillCreateOptions = ({
                 ref={fileInput}
                 type="file"
                 multiple
-                accept=".zip,.skill,.md,text/markdown,text/plain"
+                accept={SKILL_UPLOAD_ACCEPT}
                 className="hidden"
                 aria-hidden
                 tabIndex={-1}

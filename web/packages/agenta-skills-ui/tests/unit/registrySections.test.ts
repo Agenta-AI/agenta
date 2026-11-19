@@ -65,7 +65,7 @@ describe("toSourceInfo", () => {
 
 describe("buildRegistrySections", () => {
     it("groups imported skills by repository and leaves the rest in This project", () => {
-        const {sections} = buildRegistrySections([
+        const sections = buildRegistrySections([
             skill({name: "brainstorming", origin: origin()}),
             skill({
                 name: "executing-plans",
@@ -83,13 +83,12 @@ describe("buildRegistrySections", () => {
     })
 
     it("has no Agenta section — built-in skills are not surfaced", () => {
-        const {sections, sources} = buildRegistrySections([skill({name: "locally-made"})])
+        const sections = buildRegistrySections([skill({name: "locally-made"})])
         expect(sections.some((s) => s.key === "agenta")).toBe(false)
-        expect(sources.some((s) => s.key === "agenta")).toBe(false)
     })
 
     it("moves a detached import back to This project but keeps its provenance", () => {
-        const {sections} = buildRegistrySections([
+        const sections = buildRegistrySections([
             skill({name: "brainstorming", origin: origin({detached: true})}),
         ])
 
@@ -99,21 +98,5 @@ describe("buildRegistrySections", () => {
         expect(project.skills[0].source?.label).toBe("obra/superpowers")
         expect(project.skills[0].source?.detached).toBe(true)
         expect(sections.some((s) => s.key.startsWith("source:"))).toBe(false)
-    })
-
-    it("carries the section's skill ids so update checks address them", () => {
-        const {sections} = buildRegistrySections([skill({workflow_id: "wf-1", origin: origin()})])
-        const repo = sections.find((s) => s.key === "source:obra/superpowers")!
-        expect(repo.skillIds).toEqual(["wf-1"])
-        expect(repo.repository).toBe("obra/superpowers")
-    })
-
-    it("counts every section in the rail and filters to the selected one", () => {
-        const skills = [skill({origin: origin()}), skill({name: "local"})]
-        const {sources} = buildRegistrySections(skills)
-        expect(sources.find((s) => s.key === "all")?.count).toBe(2)
-
-        const {sections} = buildRegistrySections(skills, "source:obra/superpowers")
-        expect(sections.map((s) => s.key)).toEqual(["source:obra/superpowers"])
     })
 })

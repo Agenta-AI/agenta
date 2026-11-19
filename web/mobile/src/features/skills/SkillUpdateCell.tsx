@@ -43,14 +43,18 @@ export const SkillUpdateCell = ({
                 <ArrowCircleUp aria-hidden className="size-4" weight="fill" />
             </Button>
         ) : (
-            <Button
-                size="sm"
-                variant="outline"
-                className="h-6 px-2 text-[11.5px] font-normal"
-                onClick={() => void apply([workflowId])}
+            <button
+                type="button"
+                title="Update to the latest version"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    void apply([workflowId])
+                }}
+                className="relative z-[1] inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 font-[inherit] text-[13px] text-tag-orange"
             >
-                {t("skills.list.update")}
-            </Button>
+                <span aria-hidden className="size-1.5 rounded-full bg-tag-orange" />
+                Update available
+            </button>
         )
     if (status === "updated")
         return compact ? (

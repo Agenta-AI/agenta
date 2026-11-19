@@ -1,18 +1,18 @@
-/**
- * ONE mapping from the registry response to gallery sections + source-rail entries:
- * "This project" (skills with no origin), one section per imported repo (grouped
- * client-side by `origin.repository`), and the Agenta built-ins.
- */
+/** Registry response → list sections: "This project", then one section per imported repo. */
 import {createT} from "@agenta/i18n"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {timeAgo} from "@agenta/shared/utils"
 import type {SkillOriginInfo, SkillRegistryItem} from "@agenta/skills"
 
-import type {SkillGallerySection} from "./SkillGallerySections"
-import type {SkillSourceNavEntry} from "./SkillsGalleryPage"
 import type {SkillListItem, SkillSourceInfo} from "./types"
 
 const tNow = createT(skillsGalleryCatalog)
+
+export interface SkillGallerySection {
+    key: string
+    label: string
+    skills: SkillListItem[]
+}
 
 const toUnixMs = (value?: string | null): number | undefined => {
     if (!value) return undefined
@@ -40,7 +40,7 @@ export const toSkillListItem = (
     archived: item.archived ?? undefined,
 })
 
-/** Provenance the drawer and picker rows show for an imported skill. */
+/** Provenance shown for an imported skill. */
 export const toSourceInfo = (origin: SkillOriginInfo): SkillSourceInfo => ({
     label: origin.repository ?? tNow("skills.gallery.sourceImported"),
     repoUrl: origin.repository ? `https://github.com/${origin.repository}` : undefined,
@@ -48,22 +48,12 @@ export const toSourceInfo = (origin: SkillOriginInfo): SkillSourceInfo => ({
     detached: origin.detached ?? undefined,
 })
 
-export interface RegistrySections {
-    sections: SkillGallerySection[]
-    /** Rail entries: All / This project / one per repo, with counts. */
-    sources: SkillSourceNavEntry[]
-}
+/** A detached import is the project's own again for grouping. */
+export const fromSource = (item: SkillRegistryItem): boolean =>
+    Boolean(item.origin?.repository && !item.origin.detached)
 
-export function buildRegistrySections(
-    projectSkills: SkillRegistryItem[],
-    /** Rail selection; "all" shows everything. */
-    selectedSource = "all",
-): RegistrySections {
-    /** An item's list form with provenance attached, wherever it ends up grouped. */
-    const withSource = (
-        item: SkillRegistryItem,
-        origin: SkillListItem["origin"],
-    ): SkillListItem => {
+export function buildRegistrySections(projectSkills: SkillRegistryItem[]): SkillGallerySection[] {
+    const withSource = (item: SkillRegistryItem, origin: SkillListItem["origin"]) => {
         const mapped = toSkillListItem(item, origin)
         return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
     }
@@ -71,54 +61,22 @@ export function buildRegistrySections(
     const byRepository = new Map<string, SkillRegistryItem[]>()
     const unsourced: SkillRegistryItem[] = []
     for (const item of projectSkills) {
-        // A detached import is project-owned again for GROUPING; its provenance still
-        // rides the item so the drawer can say "modified locally".
-        const repository = item.origin?.repository
-        if (repository && !item.origin?.detached) {
-            const list = byRepository.get(repository) ?? []
-            list.push(item)
-            byRepository.set(repository, list)
-        } else {
-            unsourced.push(item)
-        }
+        const repository = fromSource(item) ? item.origin?.repository : undefined
+        if (repository)
+            byRepository.set(repository, [...(byRepository.get(repository) ?? []), item])
+        else unsourced.push(item)
     }
 
-    const sourceSections: SkillGallerySection[] = [...byRepository.entries()].map(
-        ([repository, items]) => ({
-            key: `source:${repository}`,
-            label: repository,
-            repository,
-            skillIds: items.map((item) => item.workflow_id ?? "").filter(Boolean) as string[],
-            skills: items.map((item) => withSource(item, "imported")),
-        }),
-    )
-
-    const allSections: SkillGallerySection[] = [
+    return [
         {
             key: "project",
             label: tNow("skills.gallery.sectionThisProject"),
             skills: unsourced.map((item) => withSource(item, "project")),
         },
-        ...sourceSections,
-    ]
-
-    const sources: SkillSourceNavEntry[] = [
-        {
-            key: "all",
-            label: tNow("skills.gallery.sectionAllSkills"),
-            count: allSections.reduce((n, s) => n + s.skills.length, 0),
-        },
-        ...allSections.map((section) => ({
-            key: section.key,
-            label: section.label,
-            count: section.skills.length,
+        ...[...byRepository.entries()].map(([repository, items]) => ({
+            key: `source:${repository}`,
+            label: repository,
+            skills: items.map((item) => withSource(item, "imported")),
         })),
     ]
-
-    const sections =
-        selectedSource === "all"
-            ? allSections
-            : allSections.filter((section) => section.key === selectedSource)
-
-    return {sections, sources}
 }

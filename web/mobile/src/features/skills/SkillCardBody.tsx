@@ -1,64 +1,70 @@
-import {useT} from "@agenta/i18n"
-import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
-import {SkillMark} from "@agenta/ui/agent-icon"
+import {GithubLogo, Robot} from "@phosphor-icons/react"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
-import {SkillArchivedTag} from "./SkillArchivedTag"
-import {
-    lastUpdatedLabel,
-    noDescriptionLabel,
-    provenanceLabel,
-    type SkillGrouping,
-    type SkillListRow,
-} from "./skillListView"
+import {SkillAvatarCheck} from "./SkillAvatarCheck"
+import type {SkillRowProps} from "./SkillRowCells"
+import {lastUpdatedLabel, noDescriptionLabel} from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
+import {SkillUsedBy} from "./SkillUsedBy"
+import {useSkillUpdateStatus} from "./useSkillUpdates"
 
-/**
- * What a skill's card holds — the frame draws the tile around it.
- *
- * The same facts as the row, stacked: identity on top, three lines of description, and the
- * source and date along the bottom, where a reader scanning cards looks last.
- */
+/** A skill as a card: the tile and menu on top, name and description, usage and age below. */
 export const SkillCardBody = ({
     row,
-    group,
+    checked,
+    onToggle,
     onOpen,
-}: {
-    row: SkillListRow
-    group: SkillGrouping
-    onOpen: (row: SkillListRow) => void
-}) => {
-    useT(skillsListCatalog)
+    onArchive,
+}: Omit<SkillRowProps, "group">) => {
+    const update = useSkillUpdateStatus(row.id)
     return (
-        <>
-            <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-                <SkillMark />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-                    {row.title}
-                </span>
+        <div className="flex min-h-[148px] flex-col gap-3.5">
+            <div className="flex items-start justify-between gap-2">
+                <SkillAvatarCheck
+                    title={row.title}
+                    checked={checked}
+                    onToggle={() => onToggle(row)}
+                    size={40}
+                />
                 <span
-                    className="flex shrink-0 items-center gap-1.5"
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                 >
-                    <SkillUpdateCell workflowId={row.id} />
-                    <SkillActionsMenu row={row} onOpen={onOpen} />
+                    <SkillActionsMenu row={row} onOpen={onOpen} onArchive={onArchive} />
                 </span>
-            </span>
-            <span
-                className={`line-clamp-3 min-h-[3.75rem] text-[12.5px] leading-5 ${
-                    row.description ? "text-muted-foreground" : "text-placeholder"
-                }`}
-            >
-                {row.description || noDescriptionLabel()}
-            </span>
-            {/* Source on the left, date on the right — the card's two corners, the way the row's
-            columns read. */}
-            <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-[11.5px] text-placeholder">
-                <span className="min-w-0 truncate">{provenanceLabel(row, group)}</span>
-                {row.archived ? <SkillArchivedTag /> : null}
-                <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>
-            </span>
-        </>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-[15px] font-medium leading-[22px]">
+                        {row.title}
+                    </span>
+                    {row.origin === "imported" ? (
+                        <GithubLogo
+                            size={13}
+                            aria-label="From GitHub"
+                            className="shrink-0 text-muted-foreground"
+                        />
+                    ) : null}
+                </span>
+                <span className="line-clamp-2 min-h-10 text-[13px] leading-5 text-muted-foreground">
+                    {row.description || noDescriptionLabel()}
+                </span>
+            </div>
+            <div className="mt-auto flex items-center gap-2 text-xs text-muted-foreground">
+                <span
+                    aria-hidden
+                    className="inline-flex size-[22px] items-center justify-center rounded-[5px] border border-solid border-border bg-accent"
+                >
+                    <Robot size={13} />
+                </span>
+                <SkillUsedBy workflowId={row.id} count={row.usedByCount} className="min-w-0" />
+                <span className="flex-1" />
+                {update === "available" ? (
+                    <SkillUpdateCell workflowId={row.id} />
+                ) : (
+                    <span>{lastUpdatedLabel(row.age)}</span>
+                )}
+            </div>
+        </div>
     )
 }

@@ -778,6 +778,113 @@ pre::-webkit-scrollbar-thumb {
 }
 
 /* ------------------------------------------------------------------------- *
+ * Document look (skill editor): opt in with `md-doc` on an ancestor of `md-prose`.
+ * ------------------------------------------------------------------------- */
+.md-doc .md-prose .editor-input:not(.markdown-view) {
+    font-size: 14px;
+    line-height: 22px;
+}
+.md-doc .md-prose .editor-paragraph {
+    margin: 0 0 14px;
+    line-height: inherit;
+}
+.md-doc .md-prose .editor-heading-h1,
+.md-doc .md-prose .editor-heading-h2,
+.md-doc .md-prose .editor-heading-h3 {
+    color: var(--foreground);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.md-doc .md-prose .editor-heading-h1 {
+    font-size: 22px;
+    line-height: 30px;
+    margin: 0 0 12px;
+}
+.md-doc .md-prose .editor-heading-h2 {
+    font-size: 17px;
+    line-height: 26px;
+    margin: 26px 0 10px;
+}
+.md-doc .md-prose .editor-heading-h3 {
+    font-size: 15px;
+    line-height: 24px;
+    margin: 20px 0 6px;
+}
+.md-doc .md-prose .editor-list-ol,
+.md-doc .md-prose .editor-list-ul {
+    margin: 0 0 16px;
+}
+.md-doc .md-prose .editor-list-item {
+    margin: 4px 0;
+}
+.md-doc .md-prose .editor-quote {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border-left: 3px solid color-mix(in srgb, var(--foreground) 35%, transparent);
+    border-radius: 0 10px 10px 0;
+    background: var(--muted);
+    color: color-mix(in srgb, var(--foreground) 80%, transparent);
+    font-size: inherit;
+    font-style: normal;
+}
+.md-doc .md-prose .editor-text-code {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.86em;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: var(--muted);
+    border: 1px solid var(--ag-colorBorderSecondary);
+}
+.md-doc .md-prose .editor-input:not(.markdown-view) .editor-code {
+    border: 1px solid var(--ag-colorBorderSecondary);
+    border-radius: 10px;
+    background: var(--muted);
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 13px;
+    line-height: 21px;
+    margin: 0 0 16px;
+}
+.md-doc .md-prose .editor-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--foreground) 30%, transparent);
+    text-underline-offset: 3px;
+}
+.md-doc .md-prose .editor-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--ag-colorBorderSecondary);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 20px;
+}
+.md-doc .md-prose .editor-tableCell {
+    border: 0;
+    border-top: 1px solid var(--ag-colorBorderSecondary);
+    padding: 10px 14px;
+}
+.md-doc .md-prose tr:first-child > .editor-tableCell {
+    border-top: 0;
+}
+.md-doc .md-prose .editor-tableCellHeader {
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    padding: 9px 14px;
+}
+.md-doc .md-prose tr:hover > .editor-tableCell:not(.editor-tableCellHeader) {
+    background: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+.md-doc .md-prose .editor-tableCell .editor-paragraph {
+    margin: 0;
+}
+
+
+/* ------------------------------------------------------------------------- *
  * Document prose ("Option B — comfortable")
  *
  * Scoped to the Markdown document editors (Instructions / Skill) via the
@@ -790,6 +897,11 @@ pre::-webkit-scrollbar-thumb {
 .md-prose .editor-paragraph {
     margin-bottom: 10px;
     line-height: 1.6;
+}
+/* Blank lines in the markdown become empty paragraphs; render them as a small gap, not a full line. */
+.md-prose .editor-input:not(.markdown-view) > .editor-paragraph:has(> br:only-child) {
+    margin: 0;
+    line-height: 8px;
 }
 .md-prose .editor-heading-h1,
 .md-prose .editor-heading-h2,
