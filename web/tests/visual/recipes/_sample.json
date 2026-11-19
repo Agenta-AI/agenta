@@ -1,0 +1,18 @@
+[
+    {
+        "id": "sample-agent-tab-light",
+        "story": "builderlayout-sample-agent-tab--light",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"panel-view\"]"
+    },
+    {
+        "id": "sample-login",
+        "route": "/m/auth",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": []
+    }
+]
