@@ -138,7 +138,14 @@ export const configPanelCollapsedAtom = atom(
 export const revealConfigPaneAtom = atom(null, (_get, set) => {
     set(chatPanelMaximizedAtom, false)
     set(configPanelCollapsedAtom, false)
+    set(configPaneRevealRequestAtom, true)
 })
+
+/**
+ * A "show me the configuration" the agent panel of `/m` has not handled yet. The panel opens its
+ * Configuration content on it and clears it, also when it mounts after the request (a new agent).
+ */
+export const configPaneRevealRequestAtom = atom(false)
 
 /** Persisted width of the pane docked beside the chat (the desktop Inspector, /m's config rail). */
 export const rightPanelWidthAtom = atomWithStorage<number>(

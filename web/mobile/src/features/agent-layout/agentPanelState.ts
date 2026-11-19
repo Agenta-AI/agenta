@@ -98,7 +98,3 @@ export const nextPanelContent = (
     open: PanelContent | null,
     clicked: PanelContent,
 ): PanelContent | null => (open === clicked ? null : clicked)
-
-/** How the panel sits beside the conversation at this window width. */
-export const panelMode = (windowWidth: number): "phone" | "overlay" | "push" =>
-    windowWidth < PHONE_BELOW ? "phone" : windowWidth < OVERLAY_BELOW ? "overlay" : "push"

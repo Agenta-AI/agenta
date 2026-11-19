@@ -77,7 +77,6 @@ describe("the config editor host", () => {
             <ConfigPane
                 entityId="rev-1"
                 sessionId="session-1"
-                filesScope="session"
                 projectId={projectId}
             />,
         )

@@ -15,6 +15,7 @@ export {
     configPanelCollapsedViewportPreferenceAtom,
     phoneViewportAtom,
     revealConfigPaneAtom,
+    configPaneRevealRequestAtom,
     resolveConfigPanelCollapsed,
     PHONE_VIEWPORT_QUERY,
     rightPanelWidthAtom,

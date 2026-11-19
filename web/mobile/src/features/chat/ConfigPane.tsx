@@ -3,7 +3,6 @@ import {useCallback} from "react"
 import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {ModelSetupBanner} from "@agenta/chat/components"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
-import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {useSetAtom} from "jotai"
@@ -28,16 +27,11 @@ import {useOpenModelSetup} from "./useOpenModelSetup"
 export const ConfigPane = ({
     entityId,
     sessionId,
-    filesScope,
     projectId,
-    operations,
 }: {
     entityId: string
     sessionId: string
-    filesScope: string
     projectId: string
-    /** False leaves out automations and files: the panel shows them in their own places. */
-    operations?: boolean
 }) => {
     const openModelSetup = useOpenModelSetup()
     // A commit made here pins the new revision to this session.
@@ -61,7 +55,8 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     disabled={!editAccess.pending && !editAccess.allowed}
-                    operations={operations}
+                    // Automations and files have their own places in the panel.
+                    operations={false}
                     stickyHeaderTop={48}
                     banner={
                         <div className="px-4">
@@ -71,20 +66,6 @@ export const ConfigPane = ({
                                 onSetUp={openModelSetup}
                             />
                         </div>
-                    }
-                    storage={
-                        <StorageSection
-                            revisionId={entityId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
-                    }
-                    storageHeader={
-                        <StorageFilesHeader
-                            revisionId={entityId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
                     }
                     // `SessionWorkspace` mounts the drawers: a linked one must open with this pane collapsed.
                     automationDrawer={null}

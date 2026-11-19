@@ -1,17 +1,14 @@
-import {useCallback, useEffect, useMemo, type ReactNode} from "react"
+import {useCallback, useEffect, type ReactNode} from "react"
 
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import type {SessionStream} from "@agenta/entities/session"
 import {sharingKeys, type SessionSharingResponse} from "@agenta/entities/sharing"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
-import {sessionRoutePath} from "@agenta/sessions/link"
-import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
-import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
+import {useSessionActions} from "@agenta/sessions-ui"
 import {getHostQueryClient} from "@agenta/shared/api"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
-import {useAtomValue, useSetAtom} from "jotai"
-import {useRouter} from "next/router"
+import {useSetAtom} from "jotai"
 
 import {AgentLayout} from "../agent-layout/AgentLayout"
 import {useAgentPanel} from "../agent-layout/agentPanelContext"
@@ -23,7 +20,6 @@ import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {SessionWorkspaceDrawers} from "./SessionWorkspaceDrawers"
 import {useLeaveSession} from "./useLeaveSession"
 import {sessionHeaderKey} from "./useSessionHeader"
-import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
 
@@ -163,9 +159,11 @@ export const SessionWorkspace = ({
 }
 
 /**
- * The session shortcuts the desktop playground binds. They live inside the agent layout, where
- * the panel toggles are, and map the panel shortcuts to the panel contents.
+ * The session shortcuts the header still offers: archive, new session and the two panel toggles.
+ * The tab-strip shortcuts (jump, step, close, rename a tab) went with the strip.
  */
+const NO_SESSIONS: {id: string}[] = []
+const ignore = () => undefined
 const SessionWorkspaceShortcuts = ({
     agentId,
     sessionId,
@@ -177,13 +175,8 @@ const SessionWorkspaceShortcuts = ({
     base: string
     projectId: string
 }) => {
-    const router = useRouter()
     const panel = useAgentPanel()
-    const tabScope = sessionTabScope(agentId)
-    const openTabIds = useAtomValue(renderedSessionTabsAtomFamily(tabScope))
-    const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
     const startBlank = useStartBlankSession(base)
-    const closeTabs = useSessionTabClose({agentId, sessionId, base})
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
     // Read from the session row the screen already caches (it carries the reader's sharing
@@ -200,17 +193,11 @@ const SessionWorkspaceShortcuts = ({
         },
         [projectId],
     )
-    const requestTabRename = useRequestSessionTabRename()
     useSessionShortcuts({
-        sessions: shortcutSessions,
+        sessions: NO_SESSIONS,
         activeId: sessionId,
-        onJump: useCallback(
-            (id: string) => {
-                if (id !== sessionId) void router.push(sessionRoutePath(base, id))
-            },
-            [base, router, sessionId],
-        ),
-        onRename: requestTabRename,
+        onJump: ignore,
+        onRename: ignore,
         onArchive: useCallback(
             (id: string) => {
                 // Archiving an owned chat is its owner's verb; the shortcut follows the menu.
@@ -226,12 +213,8 @@ const SessionWorkspaceShortcuts = ({
         onNewSession: useCallback(() => {
             if (agentId) startBlank(agentId)
         }, [agentId, startBlank]),
-        onCloseSession: useCallback(
-            (id: string) => closeTabs([id], openTabIds),
-            [closeTabs, openTabIds],
-        ),
-        // No search box here; the session menu is in the header.
-        onSearch: useCallback(() => undefined, []),
+        onCloseSession: ignore,
+        onSearch: ignore,
         onToggleConfigPanel: useCallback(() => void panel.toggle("configuration"), [panel]),
         onToggleFilesPane: useCallback(() => void panel.toggle("files"), [panel]),
     })

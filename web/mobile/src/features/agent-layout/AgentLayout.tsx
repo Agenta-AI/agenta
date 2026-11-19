@@ -14,11 +14,13 @@ import {
     filesPaneWidthAtom,
     useFilesPaneLayout,
 } from "@agenta/chat/state"
+import {configPaneRevealRequestAtom} from "@agenta/chat/state"
 import {DriveLinkContext, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {userAtom} from "@agenta/shared/state"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {atom, useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {ConfigPaneLoading} from "../chat/states/ConfigPaneLoading"
@@ -37,26 +39,13 @@ import {
     type PanelContent,
 } from "./agentPanelState"
 import {LeaveGuardProvider, useConfirmLeave} from "./leaveGuard"
+import {builderPanelSlotAtom} from "./panelSlots"
 
 // Each content loads on first use, so the session page does not carry it.
 const ConfigurationContent = dynamic(
     () => import("./ConfigurationContent").then((m) => m.ConfigurationContent),
     {ssr: false, loading: ConfigPaneLoading},
 )
-
-/**
- * The Builder content. Wave 2 (the builder panel) registers it; until then the Builder icon is
- * hidden and there is nothing to show.
- */
-export const builderPanelContentAtom = atom<
-    | ((props: {
-          agentId: string
-          sessionId: string
-          workspaceId: string
-          projectId: string
-      }) => ReactNode)
-    | null
->(null)
 
 interface AgentLayoutProps {
     agentId: string | null
@@ -111,7 +100,7 @@ const AgentLayoutBody = ({
         agentPanelStateAtomFamily(panelStateKey(user?.id ?? "anonymous", projectId)),
     )
     const twoPane = useMediaQuery(`(min-width: ${PHONE_BELOW}px)`)
-    const wideWindow = useMediaQuery(`(min-width: ${OVERLAY_BELOW}px)`)
+    const pushWidth = useMediaQuery(`(min-width: ${OVERLAY_BELOW}px)`)
     const phone = !twoPane
     const [wide, setWide] = useState(false)
 
@@ -128,7 +117,7 @@ const AgentLayoutBody = ({
     const [filesWidth, setFilesWidth] = useState(storedFilesWidth)
     useEffect(() => setFilesWidth(storedFilesWidth), [storedFilesWidth])
 
-    const builder = useAtomValue(builderPanelContentAtom)
+    const builder = useAtomValue(builderPanelSlotAtom)
     const canConfigure = Boolean(revisionId && agentId)
     // A content the screen cannot show (no configuration, no builder) stays closed.
     const stored = state.content
@@ -139,6 +128,14 @@ const AgentLayoutBody = ({
           : stored === "builder" && builder && agentId
             ? "builder"
             : null
+
+    // A stored Files content opens Files again after a reload, through its own open state.
+    const restoredFiles = useRef(false)
+    useEffect(() => {
+        if (restoredFiles.current) return
+        restoredFiles.current = true
+        if (stored === "files" && !files.open) files.toggle()
+    }, [stored, files])
 
     // The Files pane's own close (and a deep link) moves the panel with it.
     const filesWasOpen = useRef(files.open)
@@ -158,11 +155,14 @@ const AgentLayoutBody = ({
         [files, setState],
     )
 
+    // The panel takes the focus when it opens, so Escape reaches it.
+    const panelRef = useRef<HTMLDivElement>(null)
     const toggle = useCallback(
         async (clicked: PanelContent) => {
             const next = nextPanelContent(content, clicked)
             if (!(await confirmLeave(next ? "swap" : "close"))) return false
             setContent(next)
+            if (next) requestAnimationFrame(() => panelRef.current?.focus())
             return true
         },
         [confirmLeave, content, setContent],
@@ -175,6 +175,28 @@ const AgentLayoutBody = ({
         if (was) document.getElementById(`agent-panel-icon-${was}`)?.focus()
         return true
     }, [confirmLeave, content, setContent])
+
+    // "Show me the configuration" from elsewhere (model setup, the agent overview, a new agent).
+    const [revealRequest, setRevealRequest] = useAtom(configPaneRevealRequestAtom)
+    useEffect(() => {
+        if (!revealRequest || !canConfigure) return
+        setRevealRequest(false)
+        if (content === "configuration") return
+        void confirmLeave("swap").then((ok) => {
+            if (!ok) return
+            setContent("configuration")
+            setState({configTab: "agent"})
+        })
+    }, [revealRequest, canConfigure, content, confirmLeave, setContent, setState, setRevealRequest])
+
+    // "Create with AI" fills the composer. On a phone the panel covers it, so hand the screen back.
+    const prefillRequest = useAtomValue(composerPrefillRequestAtom)
+    const lastPrefill = useRef(prefillRequest)
+    useEffect(() => {
+        if (prefillRequest === lastPrefill.current) return
+        lastPrefill.current = prefillRequest
+        if (prefillRequest && phone && content) void close()
+    }, [prefillRequest, phone, content, close])
 
     const api = useMemo<AgentPanelApi>(
         () => ({
@@ -205,8 +227,21 @@ const AgentLayoutBody = ({
 
     const panelBody = (
         <div
+            ref={panelRef}
+            tabIndex={-1}
             data-testid="agent-panel"
-            className="ag-panel-raised flex h-full min-h-0 w-full flex-col"
+            className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
+            onKeyDown={(event) => {
+                // A view goes back first (the view stack handles it); a menu or dialog closes
+                // itself. What is left closes the panel.
+                if (event.key !== "Escape" || event.defaultPrevented) return
+                const layer = (event.target as HTMLElement).closest?.(
+                    '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
+                )
+                if (layer && layer !== event.currentTarget) return
+                event.preventDefault()
+                void close()
+            }}
         >
             {mounted.has("files") || isFiles ? (
                 <div className={isFiles ? "h-full min-h-0" : "hidden"}>
@@ -249,7 +284,7 @@ const AgentLayoutBody = ({
     // One tree at every width, so neither a resize nor a mode change remounts the conversation:
     // push = side by side; overlay = the panel lies over the conversation; full = it covers it.
     const mode =
-        phone || filesExpanded ? "full" : !wideWindow || (wide && !isFiles) ? "overlay" : "push"
+        phone || filesExpanded ? "full" : !pushWidth || (wide && !isFiles) ? "overlay" : "push"
     const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
         const startX = event.clientX
         const startWidth = panelWidth

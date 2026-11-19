@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useState} from "react"
 
 import {SAVE_AS_TEMPLATE_MESSAGE, workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity, useAgentActions} from "@agenta/entity-ui/agent"
@@ -46,9 +46,9 @@ import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
-import {builderPanelContentAtom} from "./AgentLayout"
 import {useAgentPanel} from "./agentPanelContext"
 import type {PanelContent} from "./agentPanelState"
+import {builderPanelSlotAtom} from "./panelSlots"
 
 interface SessionHeaderProps {
     agentId: string | null
@@ -89,7 +89,7 @@ export const SessionHeader = ({
     const name = artifactName || tScreen("chat.mobileScreen.agent")
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const session = useSessionHeader(projectId, sessionId)
-    const builder = useAtomValue(builderPanelContentAtom)
+    const builder = useAtomValue(builderPanelSlotAtom)
     const showAgentActions = Boolean(agentId) && !agentHidden
 
     const icon = (content: PanelContent, label: string, glyph: React.ReactNode) => (
@@ -259,14 +259,10 @@ const SessionMenu = ({
     const tSessions = useT(chatMobileSessionsCatalog)
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const [inspecting, setInspecting] = useState(false)
-    // A second "New session" while the first navigation runs starts nothing.
-    const starting = useRef(false)
+    // `startBlankSession` itself ignores a second start while the first navigation runs.
     const newSession = useCallback(() => {
-        if (starting.current) return
-        starting.current = true
         setOpen(false)
         startBlank(agentId)
-        setTimeout(() => (starting.current = false), 1000)
     }, [agentId, startBlank])
 
     const openRow = (vm: SessionRowVm) => {

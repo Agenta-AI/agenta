@@ -4,7 +4,6 @@ import {
     clampPanelWidth,
     DEFAULT_PANEL_STATE,
     nextPanelContent,
-    panelMode,
     panelStateKey,
     parsePanelState,
 } from "@/features/agent-layout/agentPanelState"
@@ -36,13 +35,5 @@ describe("agent panel state", () => {
         expect(nextPanelContent(null, "files")).toBe("files")
         expect(nextPanelContent("configuration", "builder")).toBe("builder")
         expect(nextPanelContent("builder", "builder")).toBeNull()
-    })
-
-    it("pushes at 1100 px and wider, overlays below, and goes full screen under 768 px", () => {
-        expect(panelMode(1440)).toBe("push")
-        expect(panelMode(1100)).toBe("push")
-        expect(panelMode(1099)).toBe("overlay")
-        expect(panelMode(768)).toBe("overlay")
-        expect(panelMode(767)).toBe("phone")
     })
 })

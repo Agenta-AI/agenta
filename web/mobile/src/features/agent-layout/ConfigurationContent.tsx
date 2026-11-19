@@ -1,15 +1,16 @@
-import {useCallback, useEffect, useMemo, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {AgentOperationsSections, type TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
+import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import {cn} from "@agenta/ui/styles"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
 import {ArrowLeft, X} from "@phosphor-icons/react"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {AgentChannelsCard} from "../agents/AgentChannelsCard"
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
@@ -22,15 +23,8 @@ import {useProjectPermissionState} from "../context/useProjectPermission"
 import {useAgentPanel} from "./agentPanelContext"
 import type {ConfigTab} from "./agentPanelState"
 import {useLeaveSource} from "./leaveGuard"
+import {channelsTabSlotAtom} from "./panelSlots"
 import {PanelViewChrome} from "./PanelViewChrome"
-
-/**
- * The Channels tab body of the panel. Task 23.3 (agent pages) fills it; until then the panel
- * shows the production Channels card.
- */
-export const configurationChannelsSlotAtom = atom<
-    ((props: {agentId: string; workspaceId: string; projectId: string}) => ReactNode) | null
->(null)
 
 const TABS: {key: ConfigTab; label: "agent" | "automations" | "channels" | "access"}[] = [
     {key: "agent", label: "agent"},
@@ -140,12 +134,15 @@ const ConfigurationRoot = ({
                     <ConfigPane
                         entityId={revisionId}
                         sessionId={sessionId}
-                        filesScope={filesScope}
                         projectId={projectId}
-                        operations={false}
                     />
                 ) : panel.configTab === "automations" ? (
-                    <AutomationsTab revisionId={revisionId} projectId={projectId} />
+                    <AutomationsTab
+                        revisionId={revisionId}
+                        sessionId={sessionId}
+                        filesScope={filesScope}
+                        projectId={projectId}
+                    />
                 ) : panel.configTab === "channels" ? (
                     <ChannelsTab
                         agentId={agentId}
@@ -160,7 +157,17 @@ const ConfigurationRoot = ({
     )
 }
 
-const AutomationsTab = ({revisionId, projectId}: {revisionId: string; projectId: string}) => {
+const AutomationsTab = ({
+    revisionId,
+    sessionId,
+    filesScope,
+    projectId,
+}: {
+    revisionId: string
+    sessionId: string
+    filesScope: string
+    projectId: string
+}) => {
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
     const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
     const openRunHistory = useCallback(
@@ -175,6 +182,20 @@ const AutomationsTab = ({revisionId, projectId}: {revisionId: string; projectId:
                     revisionId={revisionId}
                     disabled={!editAccess.pending && !editAccess.allowed}
                     sticky={false}
+                    storage={
+                        <StorageSection
+                            revisionId={revisionId}
+                            sessionId={sessionId}
+                            scope={filesScope}
+                        />
+                    }
+                    storageHeader={
+                        <StorageFilesHeader
+                            revisionId={revisionId}
+                            sessionId={sessionId}
+                            scope={filesScope}
+                        />
+                    }
                     // The session workspace mounts the automation drawers.
                     automationDrawer={null}
                     onOpenRunHistory={openRunHistory}
@@ -207,7 +228,7 @@ const ChannelsTab = ({
     workspaceId: string
     projectId: string
 }) => {
-    const Slot = useAtomValue(configurationChannelsSlotAtom)
+    const Slot = useAtomValue(channelsTabSlotAtom)
     if (Slot) return <>{Slot({agentId, workspaceId, projectId})}</>
     return <ProductionChannels agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
 }

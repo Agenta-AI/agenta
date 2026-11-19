@@ -5,6 +5,7 @@
 // gone; a hidden agent never mounts its configuration.
 import {act} from "react"
 
+import {configPaneRevealRequestAtom} from "@agenta/chat/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -155,5 +156,27 @@ describe("the session screen on the agent layout", () => {
         expect(chatWrapper.className).toContain("hidden")
         // Still mounted once, so a running answer goes on.
         expect(q("chat-column")).toHaveLength(1)
+    })
+
+    it("opens Configuration on a reveal request made before it mounted, and clears it", async () => {
+        const store = createStore()
+        store.set(configPaneRevealRequestAtom, true)
+        await render(store)
+        await act(async () => undefined)
+        expect(q("configuration")).toHaveLength(1)
+        expect(store.get(configPaneRevealRequestAtom)).toBe(false)
+    })
+
+    it("Escape in the panel closes it", async () => {
+        openConfiguration()
+        await render(createStore())
+        const panel = q("agent-panel")[0] as HTMLElement
+        await act(async () => {
+            panel.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        expect(panel.parentElement?.className).toContain("hidden")
+        expect(
+            JSON.parse(localStorage.getItem(panelStateKey("anonymous", "proj-1"))!).content,
+        ).toBeNull()
     })
 })
