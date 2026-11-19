@@ -441,6 +441,16 @@ class TestTheTemplateIsFoundTheWayTheRuntimeFindsIt:
                 }
             )
 
+    def test_a_bare_template_whose_only_field_is_embedded_does_not_fall_back(self):
+        # The runtime resolves the embed, finds `llm`, and ignores `prompt`. The check must
+        # not read the `prompt` fallback because the embed was left out.
+        _reject_unrunnable_agent(
+            {
+                "uri": AGENT_URI,
+                "parameters": {"llm": SKILL_EMBED, "prompt": {"llm_config": "gpt-5.5"}},
+            }
+        )
+
     def test_a_runnable_prompt_fallback_passes(self):
         _reject_unrunnable_agent(
             {
