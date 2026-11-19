@@ -4,6 +4,7 @@ import {sessionListQueryOptions} from "@agenta/entities/session"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
+import {livePollInterval} from "@agenta/navigation"
 import type {
     SidebarScope,
     SidebarSection,
@@ -15,7 +16,7 @@ import {sessionRowVm} from "@agenta/sessions/row"
 import {pendingBySessionId, useActionableInteractions} from "@agenta/sessions/state"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
+import Router, {useRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
 import {startBlankSession} from "../chat/useStartBlankSession"
@@ -30,11 +31,11 @@ import {
     type AgentSidebarSession,
 } from "./agentSidebarItems"
 import {AgentSidebarSwitcher} from "./AgentSidebarSwitcher"
-import {openAgentSidebar, showMainSidebar, useSelectedSidebar} from "./selectedSidebar"
+import {openAgentSidebar, openMainSidebar, useSelectedSidebar} from "./selectedSidebar"
 import {switchTarget} from "./switchAgent"
 
 /** How many latest sessions the agent sidebar lists; "Show N older sessions" opens the rest. */
-export const AGENT_SIDEBAR_SESSIONS = 10
+export const AGENT_SIDEBAR_SESSION_LIMIT = 10
 
 /** The first page of one agent's session list, with the total. Under the list's own key prefix,
  * so renames, archives and new turns refresh it too. */
@@ -50,9 +51,11 @@ const agentSessionsQuery = (projectId: string, agentId: string, limit: number) =
 /** The agent's latest sessions and the count of all its sessions, in one request. */
 const useAgentSessions = (projectId: string, agentId: string) => {
     const query = useQuery({
-        ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSIONS),
+        ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSION_LIMIT),
         enabled: Boolean(projectId),
         refetchOnWindowFocus: true,
+        // The main sidebar's cadence: faster while a session runs or is alive.
+        refetchInterval: (query) => livePollInterval(query.state.data?.sessions),
     })
     const interactions = useActionableInteractions(projectId)
     const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
@@ -80,6 +83,9 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     return {sessions, total: query.data?.total ?? null}
 }
 
+/** The newest switcher pick; an older pick whose lookup lands late does not navigate. */
+let latestPick = 0
+
 /**
  * The switcher, connected: the agents the person can see, and a pick that keeps the same kind
  * of page (see `switchTarget`) and shows the picked agent's sidebar.
@@ -101,17 +107,30 @@ const ConnectedSwitcher = ({
     const agents = useAtomValue(agentWorkflowsListQueryStateAtom).data
     const onPick = useCallback(
         async (pickedAgentId: string) => {
+            const pick = ++latestPick
+            const fromPath = router.asPath
             openAgentSidebar(pickedAgentId, selected.kind === "agent" ? selected.from : "main")
-            const href = await switchTarget({
-                projectURL,
-                pathname: router.pathname,
-                query: router.query,
-                pickedAgentId,
-                latestSessionId: async (id) => {
-                    const page = await queryClient.fetchQuery(agentSessionsQuery(projectId, id, 1))
-                    return page?.sessions[0]?.session_id ?? null
-                },
-            })
+            let href: string | null
+            try {
+                href = await switchTarget({
+                    projectURL,
+                    pathname: router.pathname,
+                    query: router.query,
+                    pickedAgentId,
+                    latestSessionId: async (id) => {
+                        const page = await queryClient.fetchQuery(
+                            agentSessionsQuery(projectId, id, 1),
+                        )
+                        if (!page) throw new Error("The session list did not load")
+                        return page.sessions[0]?.session_id ?? null
+                    },
+                })
+            } catch {
+                // The lookup failed: the agent sidebar shows, and the page stays.
+                return
+            }
+            // A later pick, or a move to another page, replaced this one.
+            if (pick !== latestPick || Router.asPath !== fromPath) return
             if (href) void router.push(href)
             else startBlankSession(projectURL, pickedAgentId)
         },
@@ -189,7 +208,7 @@ export const createAgentSidebarScope = (
                         onBack={() => {
                             const fromAgents =
                                 selected.kind === "agent" && selected.from === "agents"
-                            showMainSidebar()
+                            openMainSidebar()
                             if (fromAgents) void router.push(`${projectURL}/agents`)
                         }}
                     />
@@ -203,7 +222,7 @@ export const createAgentSidebarScope = (
                         collapsed={collapsed}
                     />
                 }
-                onFold={showMainSidebar}
+                onFold={openMainSidebar}
             />
         )
     }

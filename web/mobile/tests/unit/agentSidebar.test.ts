@@ -8,7 +8,7 @@ import {
     SELECTED_SIDEBAR_KEY,
     openAgentSidebar,
     parseSelectedSidebar,
-    showMainSidebar,
+    openMainSidebar,
 } from "../../src/features/agent-sidebar/selectedSidebar"
 import {switchTarget} from "../../src/features/agent-sidebar/switchAgent"
 
@@ -32,7 +32,7 @@ describe("which sidebar a browser tab shows", () => {
             agentId: "a1",
             from: "agents",
         })
-        showMainSidebar()
+        openMainSidebar()
         expect(window.sessionStorage.getItem(SELECTED_SIDEBAR_KEY)).toBeNull()
     })
 

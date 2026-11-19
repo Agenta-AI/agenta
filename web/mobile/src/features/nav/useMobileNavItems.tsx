@@ -79,7 +79,7 @@ const tNow = createT(navigationCatalog)
 const tAgentSections = createT(agentSectionsCatalog)
 
 /** How many sessions an agent section of the main sidebar lists. */
-export const AGENT_SECTION_SESSIONS = 4
+export const AGENT_SECTION_SESSION_LIMIT = 4
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -154,7 +154,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
                   }
                 : undefined,
         // The open button shows that agent's sidebar in place of this one; the page stays.
-        groupOpen: (group) =>
+        groupEnter: (group) =>
             group.agentId
                 ? {
                       label: tAgentSections("nav.agentSections.openAgent", {agent: group.label}),
@@ -162,10 +162,11 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
                   }
                 : undefined,
         // Each agent section lists its latest sessions; the Sessions page lists them all.
-        groupMaxItems: (group) => (group.agentId ? AGENT_SECTION_SESSIONS : undefined),
+        groupMaxItems: (group) => (group.agentId ? AGENT_SECTION_SESSION_LIMIT : undefined),
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
-        // No visible cap: the rail renders every row it fetched, so nothing is dropped between
-        // the request and the render. The server window is the only bound.
+        // No cap on the whole list: the server window bounds it. Each agent section shows its
+        // latest sessions only (`groupMaxItems`); pinned rows and the date or status headings
+        // show every row they fetched.
         maxItems: SIDEBAR_UNBOUNDED,
     },
 )

@@ -1,6 +1,7 @@
 import {createElement, type MouseEvent, type ReactElement, type ReactNode} from "react"
 
 import type {SidebarConfig} from "@agenta/navigation"
+import type {SessionRowStatus} from "@agenta/sessions/row"
 import type {SessionRowTarget} from "@agenta/sessions-ui"
 import {Spinner} from "@agenta/ui/ui"
 import {
@@ -12,7 +13,7 @@ import {
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 
-import {agentPageHref, type AgentPageView} from "./agentPages"
+import {AGENT_PAGE_VIEWS, agentPageHref, type AgentPageView} from "./agentPages"
 import {groupByDay} from "./dayGroups"
 
 /** One session row of the agent sidebar: what the row draws and what its menu needs. */
@@ -20,7 +21,7 @@ export interface AgentSidebarSession extends SessionRowTarget {
     title: string
     /** ISO time of the last activity, for the day groups. */
     activityAt: string | null
-    status: "running" | "waiting" | "alive" | "idle" | string
+    status: SessionRowStatus
     isAutomation: boolean
 }
 
@@ -42,13 +43,9 @@ export type AgentSidebarText = (
 export const AGENT_SIDEBAR_SESSIONS_KEY = "agent-sidebar-sessions"
 export const agentSidebarSessionKey = (sessionId: string) => `agent-sidebar-session-${sessionId}`
 
-/** The agent pages the sidebar links to, and the key that marks each as the current row. */
-const PAGE_ROWS: {view: AgentPageView; key: string}[] = [
-    {view: "configuration", key: "agent-sidebar-configuration"},
-    {view: "channels", key: "agent-sidebar-channels"},
-    {view: "analytics", key: "agent-sidebar-analytics"},
-    {view: "sessions", key: AGENT_SIDEBAR_SESSIONS_KEY},
-]
+/** The row that marks an agent page as the current one. */
+const pageRowKey = (view: AgentPageView) =>
+    view === "sessions" ? AGENT_SIDEBAR_SESSIONS_KEY : `agent-sidebar-${view}`
 
 /** The current row: the agent page on screen, else the open session. */
 export const agentSidebarSelectedKey = (
@@ -56,7 +53,9 @@ export const agentSidebarSelectedKey = (
     agentId: string,
 ): string | undefined => {
     if (query.agent_id === agentId && typeof query.view === "string")
-        return PAGE_ROWS.find((row) => row.view === query.view)?.key
+        return AGENT_PAGE_VIEWS.includes(query.view as AgentPageView)
+            ? pageRowKey(query.view as AgentPageView)
+            : undefined
     return typeof query.session_id === "string"
         ? agentSidebarSessionKey(query.session_id)
         : undefined
@@ -102,7 +101,7 @@ export const agentSidebarItems = ({
 }): SidebarConfig[] => {
     const sessionsHref = agentPageHref(projectURL, agentId, "sessions")
     const pageRow = (view: AgentPageView, title: string, icon: ReactNode): SidebarConfig => ({
-        key: PAGE_ROWS.find((row) => row.view === view)!.key,
+        key: pageRowKey(view),
         title,
         icon,
         link: agentPageHref(projectURL, agentId, view),

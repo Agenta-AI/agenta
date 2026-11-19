@@ -78,7 +78,7 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     groupsAtom: config.groupsAtom,
     toggleGroupAtom: config.toggleGroupAtom,
     groupAddLink: config.groupAdd,
-    groupOpen: config.groupOpen,
+    groupEnter: config.groupEnter,
     groupMaxItems: config.groupMaxItems,
 })
 

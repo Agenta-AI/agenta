@@ -6,7 +6,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useSelectedSidebar} from "../agent-sidebar/selectedSidebar"
-import {useAgentSidebarSync} from "../agent-sidebar/useAgentSidebarSync"
 
 import {appScopeAppId, lastMainRailPathAtom} from "./appRoute"
 import {useMobileNavScope} from "./mobileNavScope"
@@ -18,44 +17,29 @@ const useAppMenuAppId = (): string | null => {
     return developerMode ? appScopeAppId(router.pathname, router.query) : null
 }
 
-type AppMenuModule = typeof import("./appNavScope")
-
 /**
- * The app menu's code, loaded the first time a page needs it: pages without an app (and every
- * page outside beta developer mode) never download it.
+ * A module loaded the first time `needed` turns true, and kept after. Pages that never need it
+ * never download it: the app menu (beta developer mode, inside an app) and the agent sidebar.
  */
-const useAppMenuModule = (needed: boolean): AppMenuModule | null => {
-    const [loaded, setLoaded] = useState<AppMenuModule | null>(null)
+const useLazyModule = <T>(needed: boolean, load: () => Promise<T>): T | null => {
+    const [loaded, setLoaded] = useState<T | null>(null)
     useEffect(() => {
         if (!needed || loaded) return
         let live = true
-        void import("./appNavScope").then((module) => {
+        void load().then((module) => {
             if (live) setLoaded(module)
         })
         return () => {
             live = false
         }
+        // `load` is a fixed import per call site.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loaded, needed])
     return loaded
 }
 
-type AgentSidebarModule = typeof import("../agent-sidebar/agentSidebarScope")
-
-/** The agent sidebar's code, loaded the first time this tab shows an agent sidebar. */
-const useAgentSidebarModule = (needed: boolean): AgentSidebarModule | null => {
-    const [loaded, setLoaded] = useState<AgentSidebarModule | null>(null)
-    useEffect(() => {
-        if (!needed || loaded) return
-        let live = true
-        void import("../agent-sidebar/agentSidebarScope").then((module) => {
-            if (live) setLoaded(module)
-        })
-        return () => {
-            live = false
-        }
-    }, [loaded, needed])
-    return loaded
-}
+const loadAppMenu = () => import("./appNavScope")
+const loadAgentSidebar = () => import("../agent-sidebar/agentSidebarScope")
 
 /**
  * The rail for the docked rail and the drawer: the screen's scope, else the agent sidebar this
@@ -67,10 +51,9 @@ export const useRailScope = (
     scopeOverride?: SidebarScope,
 ): SidebarScope => {
     const mainScope = useMobileNavScope(workspaceId, projectId)
-    useAgentSidebarSync(projectId)
     const selected = useSelectedSidebar()
     const agentId = selected.kind === "agent" ? selected.agentId : null
-    const agentSidebar = useAgentSidebarModule(agentId !== null)
+    const agentSidebar = useLazyModule(agentId !== null, loadAgentSidebar)
     const agentScope = useMemo(
         () =>
             agentId && agentSidebar
@@ -79,7 +62,7 @@ export const useRailScope = (
         [agentId, agentSidebar, projectId, workspaceId],
     )
     const appId = useAppMenuAppId()
-    const appMenu = useAppMenuModule(appId !== null)
+    const appMenu = useLazyModule(appId !== null, loadAppMenu)
     const appScope = useMemo(
         () =>
             appId && appMenu

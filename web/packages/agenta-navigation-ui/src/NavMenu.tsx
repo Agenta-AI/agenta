@@ -294,7 +294,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     title={item.groupAdd.label}
                     className={clsx(
                         "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-md !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
-                        item.groupOpen ? HEADING_HOVER_ACTION : "mr-1",
+                        item.groupEnter ? HEADING_HOVER_ACTION : "mr-1",
                     )}
                     onClick={(event) => {
                         // A modified click opens the bare page in another tab; the click work
@@ -308,17 +308,17 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     <Plus size={12} />
                 </Link>
             ) : null}
-            {item.groupOpen ? (
+            {item.groupEnter ? (
                 <button
                     type="button"
-                    aria-label={item.groupOpen.label}
-                    title={item.groupOpen.label}
+                    aria-label={item.groupEnter.label}
+                    title={item.groupEnter.label}
                     className={clsx(
                         "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText",
                         !item.groupAdd && "ml-auto",
                         HEADING_HOVER_ACTION,
                     )}
-                    onClick={() => item.groupOpen?.onClick()}
+                    onClick={() => item.groupEnter?.onClick()}
                     // Enter on the button is its own activation; the heading must not also toggle.
                     onKeyDown={(event) => event.stopPropagation()}
                 >

@@ -66,7 +66,7 @@ export interface SidebarEntityGroup {
 }
 
 /** A heading's open button: what it reads as, and what it does. It does not navigate. */
-export interface SidebarGroupOpen {
+export interface SidebarGroupEnter {
     /** Accessible name and tooltip, e.g. "Open Demo shoot". */
     label: string
     onClick: () => void
@@ -139,7 +139,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
      * the add's own click may need to build a route. */
     groupAdd?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
     /** A heading's open button, beside the "+", or nothing for a heading that gets none. */
-    groupOpen?: (group: SidebarEntityGroup) => SidebarGroupOpen | undefined
+    groupEnter?: (group: SidebarEntityGroup) => SidebarGroupEnter | undefined
     /** How many rows a heading shows at most, or undefined for no cap of its own. The entity's
      * `maxItems` still bounds the whole list. */
     groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
@@ -180,6 +180,6 @@ export interface SidebarEntity {
     }>
     toggleGroupAtom?: WritableAtom<string[], [string], void>
     groupAddLink?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
-    groupOpen?: (group: SidebarEntityGroup) => SidebarGroupOpen | undefined
+    groupEnter?: (group: SidebarEntityGroup) => SidebarGroupEnter | undefined
     groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
 }

@@ -760,7 +760,7 @@ describe("heading open button and per-heading cap", () => {
         listAtom: null as never,
         getLabel: (r: SidebarEntityRef) => r.name ?? r.id,
         childPath: (r: SidebarEntityRef) => `/sessions/${r.id}`,
-        groupOpen: (group) =>
+        groupEnter: (group) =>
             group.agentId
                 ? {label: `Open ${group.label}`, onClick: () => opened.push(group.agentId!)}
                 : undefined,
@@ -768,7 +768,7 @@ describe("heading open button and per-heading cap", () => {
     })
     const grouped = entity({
         getGroupKey: (r) => (r.id.startsWith("p") ? "pinned" : "agent:a1"),
-        groupOpen: withOpen.groupOpen,
+        groupEnter: withOpen.groupEnter,
         groupMaxItems: withOpen.groupMaxItems,
     })
     const refs = [
@@ -785,11 +785,11 @@ describe("heading open button and per-heading cap", () => {
         const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
         const headings = children.filter((child) => child.isGroupLabel)
 
-        expect(headings.map((h) => [h.title, h.groupOpen?.label])).toEqual([
+        expect(headings.map((h) => [h.title, h.groupEnter?.label])).toEqual([
             ["Pinned", undefined],
             ["Demo shoot", "Open Demo shoot"],
         ])
-        headings[1].groupOpen?.onClick()
+        headings[1].groupEnter?.onClick()
         expect(opened).toEqual(["a1"])
     })
 

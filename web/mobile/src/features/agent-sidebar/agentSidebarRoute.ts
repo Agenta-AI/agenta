@@ -1,12 +1,12 @@
+import {AGENT_ROUTE} from "./agentPages"
 import type {SelectedSidebar} from "./selectedSidebar"
 
 type Query = Record<string, string | string[] | undefined>
 
 const SESSION_ROUTE = /\/sessions\/\[session_id\]$/
-const AGENT_ROUTE = /\/agents\/\[agent_id\]$/
 
-/** The agent pages: a session, and the agent route with its views (Configuration, Channels, ...). */
-export const isAgentPage = (pathname: string): boolean =>
+/** The routes that belong to one agent: a session, and the agent route with its pages. */
+export const isAgentScopedRoute = (pathname: string): boolean =>
     SESSION_ROUTE.test(pathname) || AGENT_ROUTE.test(pathname)
 
 /** The session id of a session page, else null. */
@@ -37,7 +37,7 @@ export const sidebarAfterRoute = (
     pageAgentId: string | null,
 ): SelectedSidebar | null => {
     if (current.kind === "main") return null
-    if (!isAgentPage(pathname)) return {kind: "main"}
+    if (!isAgentScopedRoute(pathname)) return {kind: "main"}
     if (pageAgentId && pageAgentId !== current.agentId)
         return {kind: "agent", agentId: pageAgentId, from: current.from}
     return null

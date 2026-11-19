@@ -1,4 +1,5 @@
-import {useSyncExternalStore} from "react"
+import {getDefaultStore, useAtomValue} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 
 /**
  * Which sidebar this browser tab shows: the main one, or the agent sidebar of one agent. It is
@@ -17,7 +18,7 @@ export type AgentSidebarOrigin = "main" | "agents"
 export const MAIN_SIDEBAR: SelectedSidebar = {kind: "main"}
 
 /** sessionStorage key. */
-export const SELECTED_SIDEBAR_KEY = "agenta:sidebar"
+export const SELECTED_SIDEBAR_KEY = "agenta:nav:selectedSidebar"
 
 /** The stored value, or the main sidebar when it names nothing valid. */
 export const parseSelectedSidebar = (raw: string | null): SelectedSidebar => {
@@ -37,56 +38,45 @@ export const parseSelectedSidebar = (raw: string | null): SelectedSidebar => {
     return MAIN_SIDEBAR
 }
 
-const serialize = (sidebar: SelectedSidebar): string | null =>
-    sidebar.kind === "main" ? null : JSON.stringify(sidebar)
-
-const listeners = new Set<() => void>()
-let cachedRaw: string | null | undefined
-let cached: SelectedSidebar = MAIN_SIDEBAR
-
-const readRaw = (): string | null => {
-    try {
-        return window.sessionStorage.getItem(SELECTED_SIDEBAR_KEY)
-    } catch {
-        return null
-    }
+/** sessionStorage, read through the parser. A refused write keeps the choice in memory only. */
+const tabStorage = {
+    getItem: (key: string): SelectedSidebar => {
+        try {
+            return parseSelectedSidebar(window.sessionStorage.getItem(key))
+        } catch {
+            return MAIN_SIDEBAR
+        }
+    },
+    setItem: (key: string, value: SelectedSidebar) => {
+        try {
+            if (value.kind === "main") window.sessionStorage.removeItem(key)
+            else window.sessionStorage.setItem(key, JSON.stringify(value))
+        } catch {
+            // Storage refused: the choice does not survive a reload.
+        }
+    },
+    removeItem: (key: string) => {
+        try {
+            window.sessionStorage.removeItem(key)
+        } catch {
+            // Storage refused.
+        }
+    },
 }
 
-const snapshot = (): SelectedSidebar => {
-    const raw = readRaw()
-    // One object per stored value, so `useSyncExternalStore` sees a stable snapshot.
-    if (raw !== cachedRaw) {
-        cachedRaw = raw
-        cached = parseSelectedSidebar(raw)
-    }
-    return cached
-}
+export const selectedSidebarAtom = atomWithStorage<SelectedSidebar>(
+    SELECTED_SIDEBAR_KEY,
+    MAIN_SIDEBAR,
+    tabStorage,
+)
 
-export const setSelectedSidebar = (sidebar: SelectedSidebar) => {
-    const raw = serialize(sidebar)
-    try {
-        if (raw) window.sessionStorage.setItem(SELECTED_SIDEBAR_KEY, raw)
-        else window.sessionStorage.removeItem(SELECTED_SIDEBAR_KEY)
-    } catch {
-        // Storage refused: the sidebar does not change.
-    }
-    listeners.forEach((listener) => listener())
-}
+export const setSelectedSidebar = (sidebar: SelectedSidebar) =>
+    getDefaultStore().set(selectedSidebarAtom, sidebar)
 
 /** Show the agent sidebar of `agentId`. "Back" returns to `from`. */
 export const openAgentSidebar = (agentId: string, from: AgentSidebarOrigin = "main") =>
     setSelectedSidebar({kind: "agent", agentId, from})
 
-export const showMainSidebar = () => setSelectedSidebar(MAIN_SIDEBAR)
+export const openMainSidebar = () => setSelectedSidebar(MAIN_SIDEBAR)
 
-const subscribe = (listener: () => void) => {
-    listeners.add(listener)
-    return () => {
-        listeners.delete(listener)
-    }
-}
-
-const serverSnapshot = () => MAIN_SIDEBAR
-
-export const useSelectedSidebar = (): SelectedSidebar =>
-    useSyncExternalStore(subscribe, snapshot, serverSnapshot)
+export const useSelectedSidebar = (): SelectedSidebar => useAtomValue(selectedSidebarAtom)

@@ -35,7 +35,7 @@ import {
     SUPPORT_TRIAGE_TOTAL,
 } from "../../../fixtures/builderLayout/sidebars"
 
-/** The main sidebar's agent sections list this many sessions (`AGENT_SECTION_SESSIONS`). */
+/** The main sidebar's agent sections list this many sessions (`AGENT_SECTION_SESSION_LIMIT`). */
 const SECTION_SESSIONS = 4
 
 const collapsedAtom = atom(false)
@@ -81,7 +81,7 @@ const mainScope = {
                         link: `${P}/agents/${agent.id}`,
                         label: t("navigation.items.newSessionWith", {agent: agent.name}),
                     },
-                    groupOpen: {
+                    groupEnter: {
                         label: t("nav.agentSections.openAgent", {agent: agent.name}),
                         onClick: noop,
                     },

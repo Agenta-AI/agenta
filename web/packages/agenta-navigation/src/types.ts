@@ -45,7 +45,7 @@ export interface SidebarConfig {
     groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
     /** Collapsible heading only: a trailing open button beside the "+". It runs `onClick` and
      * does not navigate (an agent heading opens that agent's sidebar). */
-    groupOpen?: {label: string; onClick: () => void}
+    groupEnter?: {label: string; onClick: () => void}
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
