@@ -12,7 +12,7 @@ const SUFFIXED = {
 
 describe("toPickerItem", () => {
     it("keys by the workflow slug and names by the SKILL.md name", () => {
-        const item = toPickerItem(SUFFIXED, "project", new Map())
+        const item = toPickerItem(SUFFIXED)
         expect(item?.slug).toBe("laptop-replacement-policy-3f2a")
         expect(item?.name).toBe("laptop-replacement-policy")
     })
@@ -20,7 +20,7 @@ describe("toPickerItem", () => {
 
 describe("pickerEmbedEntry", () => {
     it("stores the SKILL.md name as the sibling name, so the command token has no suffix", () => {
-        const item = toPickerItem(SUFFIXED, "project", new Map())!
+        const item = toPickerItem(SUFFIXED)!
         const entry = pickerEmbedEntry(item, "latest")
         expect(entry.name).toBe("laptop-replacement-policy")
         const embed = entry["@ag.embed"] as {"@ag.references": Record<string, {slug?: string}>}
@@ -29,7 +29,7 @@ describe("pickerEmbedEntry", () => {
 })
 
 describe("filterSkillOptions", () => {
-    const options = [toPickerItem(SUFFIXED, "project", new Map())!]
+    const options = [toPickerItem(SUFFIXED)!]
 
     it("matches the displayed title", () => {
         expect(filterSkillOptions(options, "Replacement Policy")).toHaveLength(1)

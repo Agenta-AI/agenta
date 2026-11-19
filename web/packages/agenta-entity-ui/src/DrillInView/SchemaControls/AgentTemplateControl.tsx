@@ -1257,11 +1257,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                 handleAddSkill("list")
                             }}
                         >
-                            Manage
+                            {t("entityUi.agentTemplate.manageSkills")}
                         </Button>
                     ) : null}
                     <SectionAddButton
-                        label="New skill"
+                        label={t("entityUi.agentTemplate.newSkill")}
                         onClick={(event) => {
                             event.stopPropagation()
                             handleAddSkill("create")
@@ -1366,7 +1366,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const bareChrome =
                           shownEditing.kind === "skill" || shownEditing.kind === "mcp"
                       const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
-                      const editorDisabled = readOnly
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
@@ -1397,7 +1396,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               footerNote={
                                   shownEditing.kind === "skill" || shownEditing.kind === "mcp"
                                       ? undefined
-                                      : "Changes apply to this agent configuration"
+                                      : t("entityUi.agentTemplate.changesApply")
                               }
                               error={commitError}
                               saving={committing}
@@ -1415,13 +1414,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               jsonOnly={def.jsonOnly(draft)}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
-                              disabled={editorDisabled}
+                              disabled={readOnly}
                               form={
                                   <Form
                                       key={`form-${itemKey}`}
                                       value={draft}
                                       onChange={(v) => setDraft(v)}
-                                      disabled={editorDisabled}
+                                      disabled={readOnly}
                                       // Save is inert while the draft is invalid, so there is
                                       // no press to wait for: an edited draft that is missing
                                       // a required field says so in the fields.
@@ -1434,7 +1433,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       value={draft}
                                       onChange={(v) => setDraft(v as Record<string, unknown>)}
                                       onValidityChange={(valid) => setJsonInvalid(!valid)}
-                                      disabled={editorDisabled}
+                                      disabled={readOnly}
                                   />
                               }
                           />

@@ -84,7 +84,7 @@ export const SkillListScreen = ({
             projectSkills.map((item) => [item.workflow_id ?? item.id ?? "", item.created_by_id]),
         )
         return buildRegistrySections(projectSkills)
-            .sections.flatMap((section) => section.skills)
+            .flatMap((section) => section.skills)
             .map((item) => toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")))
     }, [ownerNames, projectSkills])
     const repositories = useMemo(() => listRepositories(rows), [rows])
@@ -217,9 +217,7 @@ export const SkillListScreen = ({
                                 use it in any agent.
                             </p>
                             {/* Outside the scroller, so search and filters stay in reach. */}
-                            {projectEmpty ? null : (
-                                <div className="mt-4 [&>*]:mb-0">{toolbar}</div>
-                            )}
+                            {projectEmpty ? null : <div className="mt-4 [&>*]:mb-0">{toolbar}</div>}
                         </div>
                     }
                 >

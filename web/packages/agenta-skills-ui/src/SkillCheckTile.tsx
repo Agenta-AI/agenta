@@ -6,22 +6,17 @@ const LAYER =
     "[transition:translate_240ms_cubic-bezier(0.2,0.8,0.2,1),scale_240ms_cubic-bezier(0.2,0.8,0.2,1),opacity_180ms] " +
     "motion-reduce:transition-none"
 
-/**
- * The skill tile that turns into a check. Its hover state follows the nearest `group/check`,
- * so the host decides what counts as hovering: the tile itself or the whole row.
- */
-export const SkillCheckTile = ({
-    checked,
-    size = 32,
-}: {
-    checked: boolean
-    size?: 28 | 32 | 40
-}) => (
+/** A skill tile that turns into a check; it hovers with the nearest `group/check`. */
+export const SkillCheckTile = ({checked, size = 32}: {checked: boolean; size?: 28 | 32 | 40}) => (
     <span
         aria-hidden
         className={cn(
             "relative box-border block shrink-0 overflow-hidden transition-[background-color,color] duration-200 motion-reduce:transition-none",
-            size === 40 ? "size-10 rounded-[9px]" : size === 32 ? "size-8 rounded-[7px]" : "size-7 rounded-[6px]",
+            size === 40
+                ? "size-10 rounded-[9px]"
+                : size === 32
+                  ? "size-8 rounded-[7px]"
+                  : "size-7 rounded-[6px]",
             checked
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground group-hover/check:bg-background group-hover/check:text-foreground",

@@ -21,7 +21,6 @@
     "editedNotSaved": "已编辑，尚未保存。",
     "unresolved": "未解析",
     "unresolvedTip": "无法解析此工具：该操作可能已被重命名或移除。打开它可查看原始定义。",
-    "publishedRowChanged": "Skill 已发布到注册表，但此行在发布期间发生了变化，请从选择器中添加它。",
     "updateAvailable": "有可用更新",
     "updateAvailableTip": "此 Skill 已固定，且注册表中有更新的版本。请重新以固定方式添加以更新，或将引用切换为最新版本。",
     "noModelSelected": "未选择模型。",
@@ -44,15 +43,10 @@
     "mcpServers": "MCP 服务器",
     "addMcpServer": "添加 MCP 服务器",
     "skills": "Skill",
-    "addSkill": "添加 Skill",
-    "skillStarter": "我想要一个 Skill，它能",
-    "addManually": "手动添加",
-    "addManuallyHint": "从你的库中选择，或自己编写",
     "permissions": "权限",
     "advanced": "高级",
-    "publishing": "正在发布…",
-    "publishToRegistry": "发布到注册表",
-    "publishToRegistryHint": "将此内联 Skill 移至注册表；Agent 将引用它（跟随最新版本）。",
     "subagent": "子 Agent",
-    "changesApply": "更改将应用于此 Agent 配置"
+    "changesApply": "更改将应用于此 Agent 配置",
+    "manageSkills": "管理",
+    "newSkill": "新建 Skill"
 }

@@ -8,6 +8,9 @@ import {
 import {cn} from "@agenta/ui/styles"
 import {CaretRight, GithubLogo, PencilSimple, UploadSimple} from "@phosphor-icons/react"
 
+/** What a skill upload accepts, wherever it is offered. */
+export const SKILL_UPLOAD_ACCEPT = ".zip,.skill,.md,text/markdown,text/plain"
+
 export interface SkillCreateChooserProps {
     onWrite: () => void
     /** The picked or dropped upload, still being read. */
@@ -20,8 +23,7 @@ const OPTION =
     "border border-solid border-[color:var(--ag-colorBorderSecondary)] bg-card px-3 text-left font-[inherit] text-foreground " +
     "transition-colors hover:border-border hover:bg-accent/50 focus-visible:outline-none " +
     "focus-visible:ring-[3px] focus-visible:ring-ring/30"
-const TILE =
-    "box-border flex size-8 shrink-0 items-center justify-center rounded-lg"
+const TILE = "box-border flex size-8 shrink-0 items-center justify-center rounded-lg"
 
 function Option({
     tile,
@@ -57,7 +59,7 @@ function Option({
     )
 }
 
-/** The three ways to add a skill; the list's empty state, the create page and the drawer use it. */
+/** The three ways to add a skill, on the create page and in the playground drawer. */
 export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateChooserProps) {
     const inputRef = useRef<HTMLInputElement>(null)
     const [dragging, setDragging] = useState(false)
@@ -90,9 +92,7 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                     onUpload(scanSkillFromDataTransfer(event.dataTransfer))
                 }}
                 tile={
-                    <span
-                        className={cn(TILE, "bg-tag-green-bg text-tag-green")}
-                    >
+                    <span className={cn(TILE, "bg-tag-green-bg text-tag-green")}>
                         <UploadSimple size={15} />
                     </span>
                 }
@@ -111,7 +111,8 @@ export function SkillCreateChooser({onWrite, onUpload, onImport}: SkillCreateCho
                 ref={inputRef}
                 type="file"
                 hidden
-                accept=".md,.zip,.skill"
+                multiple
+                accept={SKILL_UPLOAD_ACCEPT}
                 onChange={(event) => {
                     const files = event.target.files
                     if (files?.length) onUpload(scanSkillFromFileList(files))

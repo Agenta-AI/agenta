@@ -7,9 +7,7 @@ import {
     checkSkillUpdate,
     commitSkillRevision,
     fetchSkillRevisions,
-    querySkillReferencedBy,
     skillContentSchema,
-    unarchiveSkill,
 } from "@agenta/skills"
 import {invalidateSkillsListCache, skillsResolveDataAtom} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
@@ -57,7 +55,6 @@ import {useAtomValue} from "jotai"
 import Link from "next/link"
 
 import {SkillArchiveDialog, type ArchiveTarget} from "./SkillArchiveDialog"
-import {skillUsageQueryKey} from "./SkillAgentPicker"
 import {
     descriptionTooLong,
     EMPTY_SKILL_DRAFT,
@@ -68,10 +65,8 @@ import {
     type SkillDraft,
 } from "./skillDraft"
 import {SkillEditor} from "./SkillEditor"
+import {restoreSkills, skillRevisionsQueryKey, useSkillUsage} from "./skillQueries"
 import {useClearOnNextPress} from "./useClearOnNextPress"
-
-export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
-    ["skills", "revisions", projectId, workflowId] as const
 
 export interface SkillDetailViewProps {
     projectId: string
@@ -178,12 +173,7 @@ export function SkillDetailView({
         enabled: Boolean(projectId && workflowId),
         staleTime: 15_000,
     })
-    const usage = useQuery({
-        queryKey: skillUsageQueryKey(projectId, workflowId),
-        queryFn: () => querySkillReferencedBy({projectId, workflowId}),
-        enabled: Boolean(projectId && workflowId),
-        staleTime: 15_000,
-    })
+    const {agents} = useSkillUsage(projectId, workflowId)
     const head = revisions.data?.[0]
     const headDraft = useMemo(() => (head ? toSkillDraft(head.skill) : EMPTY_SKILL_DRAFT), [head])
 
@@ -240,15 +230,7 @@ export function SkillDetailView({
         }
     }
 
-    const restore = async () => {
-        try {
-            await unarchiveSkill({projectId, workflowId})
-            invalidateSkillsListCache()
-            message.success(`${draft.title} is restored. Agents can use it again.`)
-        } catch {
-            message.error("Could not restore this skill")
-        }
-    }
+    const restore = () => void restoreSkills(projectId, [workflowId], draft.title)
 
     const check = async () => {
         setUpdate("checking")
@@ -266,6 +248,10 @@ export function SkillDetailView({
     }
 
     const applyUpdate = async () => {
+        if (dirty) {
+            message.error("Save or discard your changes before you update.")
+            return
+        }
         const result = await applySkillUpdate({projectId, workflowId}).catch(() => null)
         if (result?.status !== "updated") {
             message.error("Could not update this skill")
@@ -283,10 +269,6 @@ export function SkillDetailView({
             message.error("Could not download this skill")
     }
 
-    const agents = (usage.data?.referenced_by ?? []).map((entry) => ({
-        id: entry.agent_workflow_id ?? entry.agent_slug ?? "",
-        name: entry.agent_name ?? entry.agent_slug ?? "Unnamed agent",
-    }))
     const usedText = agents.length
         ? `Used by ${agents.length === 1 ? agents[0].name : `${agents.length} agents`}`
         : "Not used by any agent yet"
@@ -316,7 +298,11 @@ export function SkillDetailView({
                             Used by {agents.length} agents
                         </span>
                         {agents.map((agent) => (
-                            <AgentLink key={agent.id} agent={agent} href={agentHref} />
+                            <AgentLink
+                                key={agent.id || agent.name}
+                                agent={agent}
+                                href={agentHref}
+                            />
                         ))}
                     </HoverCardContent>
                 </HoverCard>
@@ -423,7 +409,7 @@ export function SkillDetailView({
                     ) : null}
                     <DropdownMenuSeparator />
                     {archived ? (
-                        <DropdownMenuItem onSelect={() => void restore()}>
+                        <DropdownMenuItem onSelect={restore}>
                             <ArrowUUpLeft size={14} />
                             Restore
                         </DropdownMenuItem>
@@ -457,7 +443,7 @@ export function SkillDetailView({
                     <span className="flex-1">
                         This skill is archived. Agents do not use it, and you cannot edit it.
                     </span>
-                    <Button variant="outline" size="sm" onClick={() => void restore()}>
+                    <Button variant="outline" size="sm" onClick={restore}>
                         Restore
                     </Button>
                 </div>
@@ -465,7 +451,7 @@ export function SkillDetailView({
         </>
     )
 
-    if (revisions.isError) {
+    if (revisions.isError || (revisions.isSuccess && !head)) {
         return (
             <div className="flex flex-col gap-4">
                 {top}
@@ -503,7 +489,10 @@ export function SkillDetailView({
                         <div className="flex flex-1 flex-col gap-1 rounded-[10px] border border-solid border-input p-1.5">
                             {[0, 1, 2, 3].map((row) => (
                                 <div key={row} className="flex h-10 items-center gap-2.5 px-2">
-                                    <SkeletonBlock active className="size-7 shrink-0 rounded-[6px]" />
+                                    <SkeletonBlock
+                                        active
+                                        className="size-7 shrink-0 rounded-[6px]"
+                                    />
                                     <SkeletonBlock active className="h-3.5 w-32 rounded" />
                                 </div>
                             ))}
@@ -518,7 +507,6 @@ export function SkillDetailView({
         <div className="flex flex-1 animate-skill-enter flex-col gap-4 lg:min-h-0">
             {top}
             <SkillEditor
-                key={base?.id}
                 fill
                 draft={draft}
                 onChange={edit}
@@ -555,9 +543,7 @@ export function SkillDetailView({
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Keep editing</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => void save()}>
-                            Save
-                        </AlertDialogAction>
+                        <AlertDialogAction onClick={() => void save()}>Save</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

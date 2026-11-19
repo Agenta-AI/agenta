@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from "react"
+import {useRef, useState} from "react"
 
 import {extractApiErrorMessage, formatCount, skillDisplayName} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
@@ -15,6 +15,8 @@ export interface ImportedSkill {
 }
 
 interface Found {
+    /** The link that was scanned; the import uses it, not the edited field. */
+    url: string
     repo: string
     candidates: SkillCandidate[]
     unavailable: UnavailableSkill[]
@@ -36,7 +38,7 @@ const repoLabel = (url: string) =>
     url
         .trim()
         .replace(/^https?:\/\/(www\.)?github\.com\//, "")
-        .replace(/\.git$|\/$/g, "")
+        .replace(/(\.git)?\/?$/, "")
 
 /** Paste a repo link, pick the skills it holds, import them into the registry. */
 export function SkillGithubImport({
@@ -57,17 +59,15 @@ export function SkillGithubImport({
     const [error, setError] = useState<string | null>(null)
 
     const find = async () => {
-        if (!GITHUB_REPO.test(url.trim())) {
+        const repoUrl = url.trim()
+        if (!GITHUB_REPO.test(repoUrl)) {
             setError(NOT_A_REPO)
             return
         }
         setBusy("scan")
         setError(null)
         try {
-            const response = await scanSkillSource({
-                projectId,
-                repoUrl: url.trim(),
-            })
+            const response = await scanSkillSource({projectId, repoUrl})
             const already = new Set(response?.already_imported_paths ?? [])
             const candidates: SkillCandidate[] = []
             const unavailable: UnavailableSkill[] = []
@@ -89,7 +89,7 @@ export function SkillGithubImport({
                         description: c.skill?.description,
                     })
             }
-            setFound({repo: repoLabel(url), candidates, unavailable})
+            setFound({url: repoUrl, repo: repoLabel(repoUrl), candidates, unavailable})
             setPicked(new Set(candidates.slice(0, 1).map((c) => c.key)))
         } catch (err) {
             setError(errorText(err, "Could not read the repository"))
@@ -99,12 +99,13 @@ export function SkillGithubImport({
     }
 
     const runImport = async () => {
+        if (!found) return
         setBusy("import")
         setError(null)
         try {
             const response = await importSkillSource({
                 projectId,
-                repoUrl: url.trim(),
+                repoUrl: found.url,
                 paths: [...picked],
             })
             invalidateSkillsListCache()
@@ -131,11 +132,9 @@ export function SkillGithubImport({
             if (!next.delete(key)) next.add(key)
             return next
         })
-    const importLabel = useMemo(
-        () =>
-            picked.size ? `Import ${formatCount(picked.size, "skill")}` : "Choose skills to import",
-        [picked.size],
-    )
+    const importLabel = picked.size
+        ? `Import ${formatCount(picked.size, "skill")}`
+        : "Choose skills to import"
 
     return (
         <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1">
@@ -195,10 +194,7 @@ export function SkillGithubImport({
                 <div aria-busy className="flex flex-col gap-0.5 pt-1">
                     <SkeletonBlock active className="mb-1.5 h-4 w-48 rounded" />
                     {[0, 1, 2, 3, 4].map((row) => (
-                        <div
-                            key={row}
-                            className="flex h-[54px] items-center gap-2.5 px-2"
-                        >
+                        <div key={row} className="flex h-[54px] items-center gap-2.5 px-2">
                             <SkeletonBlock active className="size-8 shrink-0 rounded-[7px]" />
                             <span className="flex flex-1 flex-col gap-1.5">
                                 <SkeletonBlock active className="h-3.5 w-32 rounded" />

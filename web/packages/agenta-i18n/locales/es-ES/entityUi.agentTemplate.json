@@ -21,7 +21,6 @@
     "editedNotSaved": "Editado: aún no se ha guardado.",
     "unresolved": "Sin resolver",
     "unresolvedTip": "No se pudo resolver esta herramienta: es posible que la acción se haya renombrado o quitado. Ábrela para revisar la definición sin procesar.",
-    "publishedRowChanged": "El skill se publicó en el registro, pero esta fila cambió durante la publicación: añádelo desde el selector.",
     "updateAvailable": "Actualización disponible",
     "updateAvailableTip": "Este skill está fijado y el registro tiene una versión más reciente. Vuelve a añadirlo fijado para actualizarlo o cambia la referencia a la más reciente.",
     "noModelSelected": "No hay ningún modelo seleccionado.",
@@ -44,15 +43,10 @@
     "mcpServers": "Servidores MCP",
     "addMcpServer": "Añadir servidor MCP",
     "skills": "Skills",
-    "addSkill": "Añadir skill",
-    "skillStarter": "Quiero un skill que",
-    "addManually": "Añadir manualmente",
-    "addManuallyHint": "Desde tu biblioteca, o escribe uno",
     "permissions": "Permisos",
     "advanced": "Avanzado",
-    "publishing": "Publicando…",
-    "publishToRegistry": "Publicar en el registro",
-    "publishToRegistryHint": "Mueve este skill en línea al registro; el agente lo referenciará (siguiendo la versión más reciente).",
     "subagent": "Subagente",
-    "changesApply": "Los cambios se aplican a la configuración de este agente"
+    "changesApply": "Los cambios se aplican a la configuración de este agente",
+    "manageSkills": "Gestionar",
+    "newSkill": "Nuevo skill"
 }

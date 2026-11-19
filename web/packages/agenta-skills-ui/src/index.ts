@@ -1,33 +1,15 @@
-/**
- * @agenta/skills-ui — skill-registry surfaces: the editor, the create flow, the skill page
- * view and the playground drawer. Data comes from @agenta/skills.
- */
+/** @agenta/skills-ui: the skill editor, create flow, skill page view and playground drawer. */
 export * from "./types"
 export {skillTitle} from "./skillTitle"
-export {
-    buildRegistrySections,
-    toSkillListItem,
-    type RegistrySections,
-    type SkillGallerySection,
-    type SkillSourceNavEntry,
-} from "./registrySections"
-export {SkillEditor, type SkillEditorProps} from "./SkillEditor"
-export {
-    EMPTY_SKILL_DRAFT,
-    toSkillDraft,
-    toSkillContent,
-    skillDraftProblem,
-    type SkillDraft,
-} from "./skillDraft"
-export {SkillCreateChooser, type SkillCreateChooserProps} from "./SkillCreateChooser"
-export {SkillCandidateList, type SkillCandidate} from "./SkillCandidateList"
+export {buildRegistrySections} from "./registrySections"
+export {SkillEditor} from "./SkillEditor"
+export {EMPTY_SKILL_DRAFT, type SkillDraft} from "./skillDraft"
+export {SkillCreateChooser, SKILL_UPLOAD_ACCEPT} from "./SkillCreateChooser"
+export {SkillCandidateList} from "./SkillCandidateList"
 export {SkillCheckTile} from "./SkillCheckTile"
-export {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
-export {useSkillCreateFlow, type CreatedSkill, type SkillCreateFlow} from "./useSkillCreateFlow"
+export {SkillGithubImport} from "./SkillGithubImport"
+export {useSkillCreateFlow} from "./useSkillCreateFlow"
 export {SkillArchiveDialog, type ArchiveTarget} from "./SkillArchiveDialog"
-export {SkillDetailView, skillRevisionsQueryKey, type SkillDetailViewProps} from "./SkillDetailView"
-export {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
-export {SkillPickerHost} from "./SkillPickerHost"
-export {SkillDetailHost} from "./SkillDetailHost"
-export {SourceRefreshButton} from "./SourceRefreshButton"
+export {SkillDetailView} from "./SkillDetailView"
+export {skillRevisionsQueryKey, useSkillUsage, restoreSkills} from "./skillQueries"
 export {useSkillsBridge} from "./bridge"

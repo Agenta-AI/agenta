@@ -1,10 +1,6 @@
+import {slugifySkillName} from "@agenta/entity-ui/drill-in"
 import {skillDisplayName} from "@agenta/shared/utils"
-import {
-    SKILL_DESCRIPTION_MAX,
-    SKILL_NAME_MAX,
-    SKILL_NAME_PATTERN,
-    type SkillFile,
-} from "@agenta/skills"
+import {SKILL_DESCRIPTION_MAX, SKILL_NAME_PATTERN, type SkillFile} from "@agenta/skills"
 
 /** What the skill editor edits. `name` is the stored SKILL.md name the draft was loaded with. */
 export interface SkillDraft {
@@ -25,16 +21,6 @@ export const EMPTY_SKILL_DRAFT: SkillDraft = {
     files: [],
     allowExecutable: false,
 }
-
-export const slugifySkillName = (title: string): string =>
-    title
-        .normalize("NFKD")
-        .replace(/[̀-ͯ]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, SKILL_NAME_MAX)
-        .replace(/-+$/g, "")
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "")
 
@@ -81,6 +67,10 @@ export const skillDraftProblem = (draft: SkillDraft): string | null => {
     if (!draft.body.trim()) return "Write the instructions."
     return null
 }
+
+/** Nothing typed or added yet: leaving loses nothing. */
+export const isSkillDraftEmpty = (draft: SkillDraft): boolean =>
+    !draft.title.trim() && !draft.description.trim() && !draft.body.trim() && !draft.files.length
 
 export const sameSkillDraft = (a: SkillDraft, b: SkillDraft): boolean =>
     JSON.stringify(toSkillContent(a)) === JSON.stringify(toSkillContent(b))

@@ -1,33 +1,26 @@
 import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {buildSkillEmbedEntry, querySkills, type SkillRegistryItem} from "@agenta/skills"
-import {skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
+import {querySkills, type SkillRegistryItem} from "@agenta/skills"
+import {
+    invalidateSkillsListCache,
+    skillsResolveDataAtom,
+    skillsResolveQueryAtom,
+} from "@agenta/skills/state"
 import type {SkillsPickerHostProps} from "@agenta/ui/drill-in"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn} from "@agenta/ui/styles"
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    Button,
-    SearchInput,
-    Spinner,
-} from "@agenta/ui/ui"
+import {LoadError} from "@agenta/ui/components/presentational"
+import {Button, SearchInput, Spinner} from "@agenta/ui/ui"
 import {ArrowLeft, Check, CheckCircle, Compass, PencilSimple, Plus, X} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {SkillCandidateList} from "./SkillCandidateList"
 import {SkillCreateChooser} from "./SkillCreateChooser"
+import {SkillDiscardDialog} from "./SkillDiscardDialog"
 import {SkillEditor} from "./SkillEditor"
 import {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
 import {filterSkillOptions, pickerEmbedEntry, toPickerItem} from "./pickerOptions"
-import {toSourceInfo} from "./registrySections"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 import {useSkillCreateFlow, type CreatedSkill} from "./useSkillCreateFlow"
@@ -39,12 +32,8 @@ const ROW =
 const TILE =
     "flex size-8 shrink-0 items-center justify-center rounded-[7px] bg-muted text-muted-foreground"
 
-const entryFor = (created: {
-    slug: string
-    workflowId?: string
-    name: string
-    description?: string
-}) => buildSkillEmbedEntry({...created, mode: "latest"}) as unknown as Record<string, unknown>
+const entryFor = (created: CreatedSkill) =>
+    pickerEmbedEntry({...created, id: created.workflowId}, "latest")
 
 function Header({
     title,
@@ -109,8 +98,8 @@ export function SkillPickerHost({
     startWith = "list",
 }: SkillsPickerHostProps) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    const query = useAtomValue(skillsListQueryAtom)
-    const registry = useAtomValue(skillsListDataAtom)
+    const query = useAtomValue(skillsResolveQueryAtom)
+    const registry = useAtomValue(skillsResolveDataAtom)
 
     const [view, setView] = useState<View>(startWith)
     const [search, setSearch] = useState("")
@@ -121,7 +110,7 @@ export function SkillPickerHost({
     const [importing, setImporting] = useState(false)
 
     const finishCreate = useCallback(
-        (created: CreatedSkill[]) => {
+        (created: CreatedSkill[], verb = "created") => {
             onAdd(created.map(entryFor))
             const slugs = created.map((skill) => skill.slug)
             setOnAgent((current) => new Set([...current, ...slugs]))
@@ -129,8 +118,8 @@ export function SkillPickerHost({
             setFresh(new Set(slugs))
             setNotice(
                 created.length === 1
-                    ? `${skillTitle({name: created[0].name, slug: created[0].slug})} is created and added to this agent.`
-                    : `${created.length} skills are created and added to this agent.`,
+                    ? `${skillTitle({name: created[0].name, slug: created[0].slug})} is ${verb} and added to this agent.`
+                    : `${created.length} skills are ${verb} and added to this agent.`,
             )
             setView("list")
         },
@@ -169,10 +158,10 @@ export function SkillPickerHost({
             try {
                 const latest = await querySkills({projectId})
                 const byId = new Map(
-                    latest.skills.map((item: SkillRegistryItem) => [item.workflow_id ?? "", item]),
+                    latest.skills.map((item: SkillRegistryItem) => [item.workflow_id, item]),
                 )
-                const added = imported.flatMap((skill) => {
-                    const item = byId.get(skill.workflowId ?? "")
+                const picked = imported.flatMap((skill) => {
+                    const item = skill.workflowId ? byId.get(skill.workflowId) : undefined
                     if (!item?.workflow_slug) return []
                     return [
                         {
@@ -183,13 +172,8 @@ export function SkillPickerHost({
                         },
                     ]
                 })
-                if (!added.length) throw new Error("not found")
-                finishCreate(added)
-                setNotice(
-                    added.length === 1
-                        ? `${skillTitle({name: added[0].name, slug: added[0].slug})} is imported and added to this agent.`
-                        : `${added.length} skills are imported and added to this agent.`,
-                )
+                if (!picked.length) throw new Error("not found")
+                finishCreate(picked, "imported")
             } catch {
                 setView("list")
                 setNotice(
@@ -202,20 +186,10 @@ export function SkillPickerHost({
         [finishCreate, projectId],
     )
 
-    const options = useMemo<SkillListItem[]>(() => {
-        const none = new Map<string, {pinnedVersion?: string}>()
-        return registry
-            .filter((item) => !item.archived)
-            .map((item) => {
-                const mapped = toPickerItem(item, item.origin ? "imported" : "project", none)
-                if (!mapped) return null
-                // A detached import is the project's own again, as the registry groups it.
-                return item.origin && !item.origin.detached
-                    ? {...mapped, source: toSourceInfo(item.origin)}
-                    : mapped
-            })
-            .filter((item): item is SkillListItem => item !== null)
-    }, [registry])
+    const options = useMemo<SkillListItem[]>(
+        () => registry.flatMap((item) => (item.archived ? [] : (toPickerItem(item) ?? []))),
+        [registry],
+    )
 
     const visible = filterSkillOptions(options, search)
     const groups = search.trim()
@@ -241,15 +215,7 @@ export function SkillPickerHost({
     }
 
     const writing = view === "create" && flow.step === "write"
-    const draftTouched =
-        writing &&
-        Boolean(
-            flow.draft.title.trim() ||
-                flow.draft.description.trim() ||
-                flow.draft.body.trim() ||
-                flow.draft.files.length,
-        )
-    /** Leaving a written draft asks first, as the create page does. */
+    const draftTouched = view === "create" && flow.dirty
     const [leaving, setLeaving] = useState<(() => void) | null>(null)
     const guard = (go: () => void) => () => (draftTouched ? setLeaving(() => go) : go())
     const close = guard(onClose)
@@ -296,6 +262,12 @@ export function SkillPickerHost({
                         </div>
                     ) : null}
                     <div className="-mx-2.5 flex flex-col gap-0.5">
+                        {query.isError ? (
+                            <LoadError
+                                title="Could not load skills"
+                                onRetry={invalidateSkillsListCache}
+                            />
+                        ) : null}
                         {query.isPending ? (
                             <div className="flex justify-center py-8">
                                 <Spinner size="small" />
@@ -373,7 +345,7 @@ export function SkillPickerHost({
                                 })}
                             </div>
                         ))}
-                        {!query.isPending && !visible.length ? (
+                        {query.isSuccess && !visible.length ? (
                             <div className="flex flex-col items-center gap-2.5 px-2.5 py-8 text-center text-sm text-muted-foreground">
                                 {search.trim()
                                     ? `No skill matches “${search.trim()}”.`
@@ -449,9 +421,7 @@ export function SkillPickerHost({
                     <span
                         className={cn(
                             "flex-1 text-[13px]",
-                            flow.error
-                                ? "text-destructive"
-                                : "text-muted-foreground max-sm:hidden",
+                            flow.error ? "text-destructive" : "text-muted-foreground max-sm:hidden",
                         )}
                     >
                         {flow.error ?? "Saved to the registry and added to this agent."}
@@ -542,32 +512,16 @@ export function SkillPickerHost({
             >
                 {body}
             </div>
-            <AlertDialog open={leaving !== null} onOpenChange={(next) => !next && setLeaving(null)}>
-                <AlertDialogContent className="sm:max-w-[400px]">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Discard this skill?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            It is not created yet. What you wrote will be lost.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel asChild>
-                            <Button variant="outline">Keep editing</Button>
-                        </AlertDialogCancel>
-                        <AlertDialogAction asChild>
-                            <Button
-                                variant="destructive"
-                                onClick={() => {
-                                    leaving?.()
-                                    setLeaving(null)
-                                }}
-                            >
-                                Discard
-                            </Button>
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <SkillDiscardDialog
+                open={leaving !== null}
+                title="Discard this skill?"
+                description="It is not created yet. What you wrote will be lost."
+                onCancel={() => setLeaving(null)}
+                onDiscard={() => {
+                    leaving?.()
+                    setLeaving(null)
+                }}
+            />
         </EnhancedDrawer>
     )
 }

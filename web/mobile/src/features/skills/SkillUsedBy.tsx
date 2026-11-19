@@ -1,10 +1,8 @@
 import {projectIdAtom} from "@agenta/shared/state"
-import {querySkillReferencedBy} from "@agenta/skills"
-import {skillUsageQueryKey} from "@agenta/skills-ui"
+import {useSkillUsage} from "@agenta/skills-ui"
 import {cn} from "@agenta/ui/styles"
 import {HoverCard, HoverCardContent, HoverCardTrigger} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
-import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -25,16 +23,7 @@ export const SkillUsedBy = ({
 }) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const {query} = useRouter()
-    const usage = useQuery({
-        queryKey: skillUsageQueryKey(projectId, workflowId),
-        queryFn: () => querySkillReferencedBy({projectId, workflowId}),
-        enabled: Boolean(projectId) && count > 0,
-        staleTime: 60_000,
-    })
-    const agents = (usage.data?.referenced_by ?? []).map((entry) => ({
-        id: entry.agent_workflow_id ?? "",
-        name: entry.agent_name ?? entry.agent_slug ?? "Unnamed agent",
-    }))
+    const {agents} = useSkillUsage(projectId, workflowId, count > 0)
     const text = cn("truncate", count ? "text-foreground" : "text-muted-foreground", className)
 
     if (agents.length === 1) return <span className={text}>{agents[0].name}</span>

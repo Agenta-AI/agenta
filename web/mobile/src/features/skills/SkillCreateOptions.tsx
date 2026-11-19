@@ -2,6 +2,7 @@ import {useRef, type ReactNode} from "react"
 
 import {scanSkillFromFileList, type SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
+import {SKILL_UPLOAD_ACCEPT} from "@agenta/skills-ui"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {GithubLogo, PencilSimple, UploadSimple} from "@phosphor-icons/react"
 
@@ -56,10 +57,7 @@ export const SkillCreateOptions = ({
                     onClick={onImport}
                 />
                 <FeatureActionCard
-                    media={tile(
-                        "bg-tag-green-bg text-tag-green",
-                        <UploadSimple size={15} />,
-                    )}
+                    media={tile("bg-tag-green-bg text-tag-green", <UploadSimple size={15} />)}
                     title={t("skills.list.uploadTitle")}
                     description={t("skills.list.uploadDescription")}
                     actionLabel={t("skills.list.uploadAction")}
@@ -72,7 +70,7 @@ export const SkillCreateOptions = ({
                 ref={fileInput}
                 type="file"
                 multiple
-                accept=".zip,.skill,.md,text/markdown,text/plain"
+                accept={SKILL_UPLOAD_ACCEPT}
                 className="hidden"
                 aria-hidden
                 tabIndex={-1}

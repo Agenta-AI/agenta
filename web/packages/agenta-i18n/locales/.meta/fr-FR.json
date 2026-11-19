@@ -2020,7 +2020,6 @@
         "editedNotSaved": "f369c8adebc4",
         "unresolved": "36afca802c4d",
         "unresolvedTip": "3ee3d4890b98",
-        "publishedRowChanged": "e0673ea2c69c",
         "updateAvailable": "ff8b555d818f",
         "updateAvailableTip": "e7d58cc8f729",
         "noModelSelected": "0a62cbc3ee1c",
@@ -2043,17 +2042,12 @@
         "mcpServers": "22a7559f09bf",
         "addMcpServer": "0e3e58f90d67",
         "skills": "66d0f523a379",
-        "addSkill": "bc4db5d33761",
-        "skillStarter": "7fc2954f941e",
-        "addManually": "c1bc31e43240",
-        "addManuallyHint": "4d6fc2484674",
         "permissions": "abccc78cc93c",
         "advanced": "9f088dbebd6c",
-        "publishing": "582e0f1abad4",
-        "publishToRegistry": "41851b1e120d",
-        "publishToRegistryHint": "f55aadfbc542",
         "subagent": "d6cb4188b8fa",
-        "changesApply": "3f01bc7562e0"
+        "changesApply": "3f01bc7562e0",
+        "manageSkills": "5a23444828db",
+        "newSkill": "9bf06a86c934"
     },
     "entityUi.buildKit": {
         "listChannelDestinationsName": "b95cf071faa5",

@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {extractApiErrorMessage} from "@agenta/shared/utils"
-import {archiveSkill, querySkillReferencedBy} from "@agenta/skills"
+import {archiveSkill} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -18,7 +18,7 @@ import {
 } from "@agenta/ui/ui"
 import {useQueries} from "@tanstack/react-query"
 
-import {skillUsageQueryKey} from "./SkillAgentPicker"
+import {skillUsageQuery, usageAgents} from "./skillQueries"
 
 export interface ArchiveTarget {
     workflowId: string
@@ -45,31 +45,27 @@ export function SkillArchiveDialog({
 
     const usage = useQueries({
         queries: skills.map((skill) => ({
-            queryKey: skillUsageQueryKey(projectId, skill.workflowId),
-            queryFn: () => querySkillReferencedBy({projectId, workflowId: skill.workflowId}),
+            ...skillUsageQuery(projectId, skill.workflowId),
             enabled: open,
             staleTime: 15_000,
         })),
     })
     const agents = [
-        ...new Set(
-            usage.flatMap((query) =>
-                (query.data?.referenced_by ?? []).map(
-                    (entry) => entry.agent_name ?? entry.agent_slug ?? "Unnamed agent",
-                ),
-            ),
-        ),
+        ...new Set(usage.flatMap((query) => usageAgents(query.data).map((agent) => agent.name))),
     ]
     const loadingUsage = usage.some((query) => query.isPending)
+    const usageFailed = usage.some((query) => query.isError)
 
     const title = many ? `Archive ${skills.length} skills?` : `Archive ${skills[0]?.title ?? ""}?`
-    const text = agents.length
-        ? many
-            ? "The agents below stop using them. You can restore any skill later from Archived."
-            : "The agents below stop using it. You can restore it later from Archived."
-        : many
-          ? "No agent uses these skills. You can restore them later from Archived."
-          : "No agent uses it. You can restore it later from Archived."
+    const text = usageFailed
+        ? "We could not check which agents use this. Agents that do stop using it."
+        : agents.length
+          ? many
+              ? "The agents below stop using them. You can restore any skill later from Archived."
+              : "The agents below stop using it. You can restore it later from Archived."
+          : many
+            ? "No agent uses these skills. You can restore them later from Archived."
+            : "No agent uses it. You can restore it later from Archived."
 
     const run = async () => {
         setBusy(true)

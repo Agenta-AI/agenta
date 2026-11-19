@@ -6,8 +6,6 @@ import {
     SkillEditor,
     SkillGithubImport,
     useSkillCreateFlow,
-    type CreatedSkill,
-    type ImportedSkill,
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {Button, Spinner} from "@agenta/ui/ui"
@@ -43,20 +41,21 @@ export const SkillCreateScreen = ({
     const [pendingUpload, setPendingUpload] = useAtom(pendingSkillUploadAtom)
 
     const leaveRef = useRef<(url: string) => void>(() => undefined)
-    const onCreated = useCallback(
-        (created: CreatedSkill[]) => {
-            const ids = created.map((skill) => skill.workflowId).filter(Boolean)
+    const showAdded = useCallback(
+        (skills: {workflowId?: string}[]) => {
+            const ids = skills.flatMap((skill) => (skill.workflowId ? [skill.workflowId] : []))
             leaveRef.current(
-                ids.length === 1 ? `${listHref}/${ids[0]}` : `${listHref}?added=${ids.join(",")}`,
+                ids.length === 1
+                    ? `${listHref}/${ids[0]}`
+                    : ids.length
+                      ? `${listHref}?added=${ids.join(",")}`
+                      : listHref,
             )
         },
         [listHref],
     )
-    const flow = useSkillCreateFlow({projectId, onCreated})
-    const dirty =
-        flow.step === "write" &&
-        Boolean(flow.draft.title || flow.draft.description || flow.draft.body)
-    const {leave, modal} = useSkillLeaveGuard(dirty && !flow.busy)
+    const flow = useSkillCreateFlow({projectId, onCreated: showAdded})
+    const {leave, modal} = useSkillLeaveGuard(flow.dirty && !flow.busy)
     leaveRef.current = leave
 
     const start = typeof router.query.start === "string" ? router.query.start : ""
@@ -69,15 +68,6 @@ export const SkillCreateScreen = ({
             setPendingUpload(null)
         }
     }, [pendingUpload, setPendingUpload, setStep, start, upload, write])
-
-    const onImported = (imported: ImportedSkill[]) =>
-        onCreated(
-            imported.map((skill) => ({
-                workflowId: skill.workflowId,
-                slug: "",
-                name: skill.name ?? "",
-            })),
-        )
 
     const back =
         flow.step === "choose" ? (
@@ -131,12 +121,14 @@ export const SkillCreateScreen = ({
                                     You already have a skill called “{flow.draft.title}”. Creating
                                     this one makes a second copy.
                                 </span>
-                                <Link
-                                    href={`${listHref}/${flow.duplicate.workflow_id}`}
-                                    className="font-medium text-tag-orange"
-                                >
-                                    Open it
-                                </Link>
+                                {flow.duplicate.workflow_id ? (
+                                    <Link
+                                        href={`${listHref}/${flow.duplicate.workflow_id}`}
+                                        className="font-medium text-tag-orange"
+                                    >
+                                        Open it
+                                    </Link>
+                                ) : null}
                             </div>
                         ) : null}
                         {flow.error ? (
@@ -151,7 +143,7 @@ export const SkillCreateScreen = ({
     } else if (flow.step === "github") {
         body = (
             <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col pt-2 lg:min-h-0">
-                <SkillGithubImport projectId={projectId} onImported={onImported} />
+                <SkillGithubImport projectId={projectId} onImported={showAdded} />
             </div>
         )
     } else if (flow.step === "upload") {
@@ -220,7 +212,9 @@ export const SkillCreateScreen = ({
                 >
                     <div
                         className={`flex min-h-full min-w-0 flex-col gap-4 px-4 pb-12 pt-3 lg:pt-8 ${PAGE_FRAME} ${
-                            flow.step === "write" || flow.step === "github" ? "flex-1 lg:min-h-0 lg:pb-8" : ""
+                            flow.step === "write" || flow.step === "github"
+                                ? "flex-1 lg:min-h-0 lg:pb-8"
+                                : ""
                         }`}
                     >
                         {back}

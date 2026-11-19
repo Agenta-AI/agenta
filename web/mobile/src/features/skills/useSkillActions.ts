@@ -2,9 +2,8 @@ import {useCallback} from "react"
 
 import {downloadSkill} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
-import {fetchSkillRevisions, unarchiveSkill} from "@agenta/skills"
-import {invalidateSkillsListCache} from "@agenta/skills/state"
-import {skillRevisionsQueryKey} from "@agenta/skills-ui"
+import {fetchSkillRevisions} from "@agenta/skills"
+import {restoreSkills, skillRevisionsQueryKey} from "@agenta/skills-ui"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -15,20 +14,7 @@ export const useSkillActions = () => {
     const queryClient = useQueryClient()
 
     const restore = useCallback(
-        async (workflowIds: string[]) => {
-            const results = await Promise.allSettled(
-                workflowIds.map((workflowId) => unarchiveSkill({projectId, workflowId})),
-            )
-            invalidateSkillsListCache()
-            const done = results.filter((result) => result.status === "fulfilled").length
-            if (done < workflowIds.length) message.error("Could not restore every skill")
-            else
-                message.success(
-                    done === 1
-                        ? "The skill is restored. Agents can use it again."
-                        : `${done} skills are restored. Agents can use them again.`,
-                )
-        },
+        (workflowIds: string[]) => restoreSkills(projectId, workflowIds),
         [projectId],
     )
 

@@ -21,10 +21,7 @@ export const filePathProblem = (path: string, taken: ReadonlySet<string>): strin
     return null
 }
 
-/**
- * Name a new file, or rename or move one, as one path field in the file list.
- * Like the session rename: Enter or a click elsewhere saves, Escape abandons.
- */
+/** One path field to name, rename or move a file. Enter or blur saves; Escape cancels. */
 export function SkillFileNameRow({
     initialPath = "",
     isNew,
@@ -60,7 +57,7 @@ export function SkillFileNameRow({
     const finish = (fromBlur: boolean) => {
         if (done.current) return
         const path = cleanPath(value)
-        if (!path || path === initialPath) {
+        if (!path || path === initialPath || path === cleanPath(initialPath)) {
             done.current = true
             onCancel()
             return
@@ -110,12 +107,16 @@ export function SkillFileNameRow({
                     aria-invalid={error ? true : undefined}
                     className={cn(
                         "-ml-1 h-7 min-w-0 flex-1 rounded-md border border-solid border-input bg-background px-1.5 font-[inherit] text-sm text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-placeholder focus:border-ring focus:ring-[3px] focus:ring-ring/30",
-                        error && "border-destructive focus:border-destructive focus:ring-destructive/20",
+                        error &&
+                            "border-destructive focus:border-destructive focus:ring-destructive/20",
                     )}
                 />
             </div>
             {error ? (
-                <span role="alert" className="animate-skill-enter pl-[46px] text-xs text-destructive">
+                <span
+                    role="alert"
+                    className="animate-skill-enter pl-[46px] text-xs text-destructive"
+                >
                     {error}
                 </span>
             ) : null}

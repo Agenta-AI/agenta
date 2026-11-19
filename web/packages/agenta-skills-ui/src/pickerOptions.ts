@@ -5,34 +5,21 @@ import {
     type SkillRegistryItem,
 } from "@agenta/skills"
 
+import {fromSource, toSkillListItem, toSourceInfo} from "./registrySections"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
 /** Embed identity is the WORKFLOW slug (builtins: `__ag__…`); display is the skill name. */
-export const toPickerItem = (
-    item: SkillRegistryItem,
-    origin: SkillListItem["origin"],
-    added: Map<string, {pinnedVersion?: string}>,
-): SkillListItem | null => {
-    const slug = item.workflow_slug ?? undefined
-    if (!slug) return null
-    const addedEntry = added.get(slug)
-    return {
-        id: item.workflow_id ?? item.id ?? slug,
-        slug,
-        // The SKILL.md name: the title, and the sibling `name` the embed stores (the command token).
-        name: item.skill_name ?? item.name ?? slug,
-        description: item.description ?? item.skill_description ?? undefined,
-        origin,
-        version: item.version?.replace(/^v/, "") ?? undefined,
-        added: Boolean(addedEntry),
-        pinnedVersion: addedEntry?.pinnedVersion,
-    }
+export const toPickerItem = (item: SkillRegistryItem): SkillListItem | null => {
+    if (!item.workflow_slug) return null
+    const origin = item.origin ? "imported" : "project"
+    const mapped = {...toSkillListItem(item, origin), slug: item.workflow_slug}
+    return fromSource(item) && item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
 }
 
 /** The `@ag.embed` entry a picked row adds. The bridge speaks plain records. */
 export const pickerEmbedEntry = (
-    skill: SkillListItem,
+    skill: Pick<SkillListItem, "slug" | "name" | "description" | "version"> & {id?: string},
     mode: SkillEmbedMode,
 ): Record<string, unknown> =>
     buildEntry({

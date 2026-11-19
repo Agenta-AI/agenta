@@ -3,16 +3,7 @@ import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {skillTitle, type SkillListItem} from "@agenta/skills-ui"
 import type {ListTableGroup, ListTableView} from "@agenta/ui/list-table"
 
-/**
- * How the skills registry is CUT and NARROWED — the half of the view the filter menu owns, kept
- * out of the screen so the screen renders what these return rather than deriving it mid-render.
- * The same split `agentListView.ts` makes next door.
- *
- * Search is the one narrowing that is NOT here: the registry query takes it server-side, so by
- * the time rows reach these predicates they already match it. `archived` is half and half — it
- * decides whether the query fetches archived skills at all, and the predicate then keeps only
- * the ones that are.
- */
+/** How the filter menu groups and narrows the registry rows; search runs server-side. */
 
 /** `all` is every source, `project` the unsourced skills; anything else is a repository. */
 export type SkillSourceFilter = string
@@ -59,8 +50,6 @@ export interface SkillListRow {
     creatorName: string
     usedByCount: number
     archived: boolean
-    /** The list item the shared drawers take. */
-    item: SkillListItem
 }
 
 export type SkillListGroup = ListTableGroup<SkillListRow>
@@ -87,11 +76,7 @@ export const usedByLabel = (count: number): string =>
 /** The "Last updated" cell. Empty rows read as an em dash, not as "just now". */
 export const lastUpdatedLabel = (age: string | null): string => age || "—"
 
-/**
- * The one place a list item becomes a row. The item is what `buildRegistrySections` already
- * resolved, so a detached import is
- * project-owned and the drawer gets the item it knows.
- */
+/** The one place a list item becomes a row. */
 export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillListRow => {
     const repository = item.origin === "imported" ? (item.source?.label ?? "") : ""
     return {
@@ -104,7 +89,6 @@ export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillList
         creatorName,
         usedByCount: item.usedByCount ?? 0,
         archived: Boolean(item.archived),
-        item,
     }
 }
 

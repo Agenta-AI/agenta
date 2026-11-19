@@ -21,7 +21,6 @@
     "editedNotSaved": "Bearbeitet – noch nicht gespeichert.",
     "unresolved": "Nicht aufgelöst",
     "unresolvedTip": "Dieses Werkzeug konnte nicht aufgelöst werden – die Aktion wurde möglicherweise umbenannt oder entfernt. Öffnen Sie es, um die Rohdefinition zu prüfen.",
-    "publishedRowChanged": "Der Skill wurde in der Registry veröffentlicht, aber diese Zeile hat sich währenddessen geändert. Fügen Sie ihn über die Auswahl hinzu.",
     "updateAvailable": "Update verfügbar",
     "updateAvailableTip": "Dieser Skill ist angeheftet und die Registry hat eine neuere Version. Fügen Sie ihn angeheftet erneut hinzu, um zu aktualisieren, oder stellen Sie die Referenz auf die neueste Version um.",
     "noModelSelected": "Es ist kein Modell ausgewählt.",
@@ -44,15 +43,10 @@
     "mcpServers": "MCP-Server",
     "addMcpServer": "MCP-Server hinzufügen",
     "skills": "Skills",
-    "addSkill": "Skill hinzufügen",
-    "skillStarter": "Ich möchte einen Skill, der",
-    "addManually": "Manuell hinzufügen",
-    "addManuallyHint": "Aus Ihrer Bibliothek oder selbst schreiben",
     "permissions": "Berechtigungen",
     "advanced": "Erweitert",
-    "publishing": "Wird veröffentlicht…",
-    "publishToRegistry": "In Registry veröffentlichen",
-    "publishToRegistryHint": "Verschiebt diesen Inline-Skill in die Registry; der Agent verweist dann darauf (folgt der neuesten Version).",
     "subagent": "Subagent",
-    "changesApply": "Änderungen gelten für diese Agent-Konfiguration"
+    "changesApply": "Änderungen gelten für diese Agent-Konfiguration",
+    "manageSkills": "Verwalten",
+    "newSkill": "Neuer Skill"
 }

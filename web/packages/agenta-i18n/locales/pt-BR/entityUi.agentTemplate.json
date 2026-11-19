@@ -21,7 +21,6 @@
     "editedNotSaved": "Editado: ainda não salvo.",
     "unresolved": "Não resolvida",
     "unresolvedTip": "Não foi possível resolver esta ferramenta: a ação pode ter sido renomeada ou removida. Abra-a para inspecionar a definição bruta.",
-    "publishedRowChanged": "A habilidade foi publicada no registro, mas esta linha mudou durante a publicação: adicione-a pelo seletor.",
     "updateAvailable": "Atualização disponível",
     "updateAvailableTip": "Esta habilidade está fixada e o registro tem uma versão mais recente. Adicione-a novamente fixada para atualizar ou mude a referência para a mais recente.",
     "noModelSelected": "Nenhum modelo selecionado.",
@@ -44,15 +43,10 @@
     "mcpServers": "Servidores MCP",
     "addMcpServer": "Adicionar servidor MCP",
     "skills": "Habilidades",
-    "addSkill": "Adicionar habilidade",
-    "skillStarter": "Quero uma habilidade que",
-    "addManually": "Adicionar manualmente",
-    "addManuallyHint": "Da sua biblioteca, ou escreva uma",
     "permissions": "Permissões",
     "advanced": "Avançado",
-    "publishing": "Publicando…",
-    "publishToRegistry": "Publicar no registro",
-    "publishToRegistryHint": "Mova esta habilidade em linha para o registro; o agente vai referenciá-la (seguindo a versão mais recente).",
     "subagent": "Subagente",
-    "changesApply": "As alterações se aplicam à configuração deste agente"
+    "changesApply": "As alterações se aplicam à configuração deste agente",
+    "manageSkills": "Gerenciar",
+    "newSkill": "Nova habilidade"
 }
