@@ -238,6 +238,32 @@ class TestAnItemThatChangesItsKey:
             }
         ]
 
+    @pytest.mark.parametrize("list_first", [True, False])
+    def test_a_whole_list_write_and_an_item_edit_in_one_call(self, list_first):
+        write = {"operation": "set", "target": SKILLS, "value": [TRIAGE, REFUND]}
+        edit = {
+            "operation": "set",
+            "target": [
+                "parameters",
+                "agent",
+                {"list": "skills", "key": "triage"},
+                "description",
+            ],
+            "value": "Sort and tag tickets.",
+        }
+        preview = _preview(_base(), [write, edit] if list_first else [edit, write])
+
+        changes = {json.dumps(change["path"]): change for change in preview["changes"]}
+        refund = changes[
+            json.dumps(
+                ["parameters", "agent", {"list": "skills", "key": "refund-check"}]
+            )
+        ]
+        assert refund["kind"] == "added"
+        assert refund["new"] == REFUND
+        # Written after the edit, the list puts the old description back.
+        assert len(preview["changes"]) == (2 if list_first else 1)
+
     def test_an_edit_inside_a_skill_shows_that_field(self):
         preview = _preview(
             _base(),
@@ -307,6 +333,22 @@ class TestAValueChange:
         assert change["kind"] == "added"
         assert change["truncated"] is True
         assert "new" not in change
+
+
+class TestTheWholePreviewIsBounded:
+    def test_a_large_list_replacement_stays_within_the_bound(self):
+        skills = [
+            {"name": f"skill-{n:04}", "description": "中" * 40, "body": "x"}
+            for n in range(1_000)
+        ]
+        preview = _preview(
+            _base(), [{"operation": "set", "target": SKILLS, "value": skills}]
+        )
+
+        assert preview["truncated"] is True
+        assert (
+            len(json.dumps(preview, ensure_ascii=False).encode()) <= MAX_PREVIEW_BYTES
+        )
 
 
 class TestTheBoundsAreBytes:
