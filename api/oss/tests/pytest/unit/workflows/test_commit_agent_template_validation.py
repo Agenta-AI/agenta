@@ -403,6 +403,23 @@ class TestTheRoutesAnswer422:
         assert caught.value.status_code == 422
         assert caught.value.detail["code"] == "invalid_harness_kind"
 
+    @pytest.mark.asyncio
+    async def test_a_field_of_the_wrong_type_is_422_not_500(self):
+        # `prompt.llm_config` as a string made the parse raise an AttributeError, which
+        # the route answered with a 500.
+        @handle_workflow_exceptions()
+        async def route():
+            _reject_unrunnable_agent(
+                {"uri": AGENT_URI, "parameters": {"prompt": {"llm_config": "gpt-5.5"}}}
+            )
+
+        with pytest.raises(HTTPException) as caught:
+            await route()
+
+        assert caught.value.status_code == 422
+        assert caught.value.detail["code"] == "invalid_agent_configuration"
+        assert "wrong type" in caught.value.detail["details"]["issues"][0]
+
 
 class TestTheTemplateIsFoundTheWayTheRuntimeFindsIt:
     """The runtime reads the bare template, or the `prompt` fallback, when the parameters

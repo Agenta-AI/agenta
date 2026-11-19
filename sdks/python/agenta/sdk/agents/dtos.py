@@ -1138,9 +1138,17 @@ class AgentTemplate(BaseModel):
         # stale caller gets a named 400 instead of silently running defaults (finding F-016).
         _validate_agent_template_shape(params)
         base = defaults or cls()
-        instructions, model, tools = _parse_agent_fields(params, base)
-        harness, sandbox, permission_default = _parse_run_selection(params, base)
-        harness_permissions, harness_extras = _parse_harness_slice(params, base)
+        try:
+            instructions, model, tools = _parse_agent_fields(params, base)
+            harness, sandbox, permission_default = _parse_run_selection(params, base)
+            harness_permissions, harness_extras = _parse_harness_slice(params, base)
+        except (AttributeError, TypeError) as error:
+            # The field readers expect objects and lists where the template has them; a
+            # value of another type (``prompt.llm_config`` as a string, say) is the
+            # caller's configuration, not a server fault: answer 400.
+            raise AgentTemplateShapeError(
+                f"a field of the agent template has the wrong type: {error}"
+            ) from error
         try:
             return cls(
                 instructions=instructions,
