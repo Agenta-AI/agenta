@@ -143,7 +143,14 @@ class TestAListAddAndRemove:
             ],
         )
 
+        # Items in the order of the list: the base's first, then the new ones.
         assert preview["changes"] == [
+            {
+                "path": ["parameters", "agent", {"list": "skills", "key": "triage"}],
+                "operation_indexes": [1],
+                "kind": "removed",
+                "old": TRIAGE,
+            },
             {
                 "path": [
                     "parameters",
@@ -154,43 +161,52 @@ class TestAListAddAndRemove:
                 "kind": "added",
                 "new": REFUND,
             },
-            {
-                "path": ["parameters", "agent", {"list": "skills", "key": "triage"}],
-                "operation_indexes": [1],
-                "kind": "removed",
-                "old": TRIAGE,
-            },
         ]
 
 
 class TestAnItemThatChangesItsKey:
-    """An item whose key changes is found on one side only, so the list is the path."""
+    """Items of a keyed list are compared by key across the whole list, so a rename reads
+    as one item removed and one added, and nothing is lost."""
 
-    def test_a_renamed_skill_shows_the_list_before_and_after(self):
-        renamed = {**TRIAGE, "name": "billing"}
+    RENAME = {
+        "operation": "set",
+        "target": ["parameters", "agent", {"list": "skills", "key": "triage"}, "name"],
+        "value": "billing",
+    }
+
+    def test_a_renamed_skill_is_removed_under_its_old_key_and_added_under_the_new(
+        self,
+    ):
+        preview = _preview(_base(), [self.RENAME])
+
+        assert preview["changes"] == [
+            {
+                "path": ["parameters", "agent", {"list": "skills", "key": "triage"}],
+                "operation_indexes": [0],
+                "kind": "removed",
+                "old": TRIAGE,
+            },
+            {
+                "path": ["parameters", "agent", {"list": "skills", "key": "billing"}],
+                "operation_indexes": [0],
+                "kind": "added",
+                "new": {**TRIAGE, "name": "billing"},
+            },
+        ]
+
+    def test_a_rename_then_a_restored_copy_still_shows_the_new_item(self):
+        # The selector `triage` finds an equal item on both sides; the list still grew.
         preview = _preview(
             _base(),
-            [
-                {
-                    "operation": "set",
-                    "target": [
-                        "parameters",
-                        "agent",
-                        {"list": "skills", "key": "triage"},
-                        "name",
-                    ],
-                    "value": "billing",
-                }
-            ],
+            [self.RENAME, {"operation": "add_item", "target": SKILLS, "value": TRIAGE}],
         )
 
         assert preview["changes"] == [
             {
-                "path": SKILLS,
-                "operation_indexes": [0],
-                "kind": "changed",
-                "old": [TRIAGE],
-                "new": [renamed],
+                "path": ["parameters", "agent", {"list": "skills", "key": "billing"}],
+                "operation_indexes": [0, 1],
+                "kind": "added",
+                "new": {**TRIAGE, "name": "billing"},
             }
         ]
 
@@ -215,11 +231,42 @@ class TestAnItemThatChangesItsKey:
 
         assert preview["changes"] == [
             {
-                "path": SKILLS,
+                "path": ["parameters", "agent", {"list": "skills", "key": "final"}],
                 "operation_indexes": [0, 1],
+                "kind": "added",
+                "new": {**draft, "name": "final"},
+            }
+        ]
+
+    def test_an_edit_inside_a_skill_shows_that_field(self):
+        preview = _preview(
+            _base(),
+            [
+                {
+                    "operation": "set",
+                    "target": [
+                        "parameters",
+                        "agent",
+                        {"list": "skills", "key": "triage"},
+                        "description",
+                    ],
+                    "value": "Sort and tag tickets.",
+                }
+            ],
+        )
+
+        assert preview["changes"] == [
+            {
+                "path": [
+                    "parameters",
+                    "agent",
+                    {"list": "skills", "key": "triage"},
+                    "description",
+                ],
+                "operation_indexes": [0],
                 "kind": "changed",
-                "old": [TRIAGE],
-                "new": [TRIAGE, {**draft, "name": "final"}],
+                "old": "Sort tickets.",
+                "new": "Sort and tag tickets.",
             }
         ]
 
@@ -258,6 +305,19 @@ class TestAValueChange:
 
         (change,) = preview["changes"]
         assert change["kind"] == "added"
+        assert change["truncated"] is True
+        assert "new" not in change
+
+
+class TestTheBoundsAreBytes:
+    def test_a_value_is_measured_in_utf8_bytes(self):
+        # 2,000 characters of Chinese text are about 6,000 bytes: over the value bound.
+        skill = {"name": "zh", "description": "中" * 2_000, "body": "x"}
+        preview = _preview(
+            _base(), [{"operation": "add_item", "target": SKILLS, "value": skill}]
+        )
+
+        (change,) = preview["changes"]
         assert change["truncated"] is True
         assert "new" not in change
 
