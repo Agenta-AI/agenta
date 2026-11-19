@@ -63,9 +63,38 @@
     --ag-composer-send-bg: var(--colorPrimary);
     --ag-composer-send-fg: var(--colorBgContainer);
     --ag-composer-send-hover-bg: color-mix(in srgb, var(--colorPrimary) 85%, transparent);
+    /* Heading steps shrink below desktop; body steps (xs, sm, base) stay the same everywhere. */
+    --ag-text-lg: 16px;
+    --ag-text-xl: 18px;
+    --ag-text-2xl: 20px;
+    --ag-text-3xl: 24px;
+    --ag-text-4xl: 28px;
+}
+
+@media (width >= 40rem) {
+    :root {
+        --ag-text-lg: 18px;
+        --ag-text-xl: 20px;
+        --ag-text-2xl: 22px;
+        --ag-text-3xl: 28px;
+        --ag-text-4xl: 32px;
+    }
+}
+
+@media (width >= 64rem) {
+    :root {
+        --ag-text-2xl: 24px;
+        --ag-text-3xl: 30px;
+        --ag-text-4xl: 36px;
+    }
 }
 
 @theme inline {
+    --text-lg: var(--ag-text-lg);
+    --text-xl: var(--ag-text-xl);
+    --text-2xl: var(--ag-text-2xl);
+    --text-3xl: var(--ag-text-3xl);
+    --text-4xl: var(--ag-text-4xl);
     /* The kit's preset tag colours (`Badge` variants `blue`, `green`, ...), from @agenta/ui's
        theme variables. Without them a type tag renders as plain text. */
     --color-tag-blue: var(--ag-preset-blue-text);
