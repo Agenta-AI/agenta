@@ -181,7 +181,7 @@ The builder agent work SHALL add to the builder tool list of PR 8345 the client 
 
 #### Scenario: User declines
 - **WHEN** the user declines or cancels the form
-- **THEN** the builder gets the decline result and continues without the answers
+- **THEN** the builder gets the decline result, builds nothing, does not send the form again, and asks in one sentence what to change
 
 #### Scenario: Optimized instructions
 - **WHEN** the optimized builder instructions are ported into the catalog entry
