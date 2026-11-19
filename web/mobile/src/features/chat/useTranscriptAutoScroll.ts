@@ -107,9 +107,9 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         // Kept for a later mount, but not while a kept position is still waiting to be put back.
         const session = sessionRef.current
         if (session && restoreRef.current === null) {
-            writeTranscriptPosition(session, {
-                scrollTop: nearBottomRef.current ? null : el.scrollTop,
-            })
+            // Following an anchored answer is following: a return lands on the latest again.
+            const following = nearBottomRef.current || anchorRef.current !== null
+            writeTranscriptPosition(session, {scrollTop: following ? null : el.scrollTop})
         }
     }, [])
 
