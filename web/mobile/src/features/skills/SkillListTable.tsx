@@ -121,7 +121,6 @@ export const SkillListTable = ({
             view={view}
             cardMinWidth={280}
             stickyHeader
-            stickyFade
             density="compact"
             loading={isLoading}
             groups={groups}

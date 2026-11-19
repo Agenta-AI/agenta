@@ -147,8 +147,6 @@ export interface ListTableBaseProps<Row> {
      * beside it rather than only itself.
      */
     stickyHeader?: boolean
-    /** Under `stickyHeader`: fade the rows as they pass under the pinned header and headings. */
-    stickyFade?: boolean
     /**
      * Keep the column names for screen readers only. For a list whose surroundings already say
      * what the rows are — a tab named "Sessions" over a single-column list — where a header row
