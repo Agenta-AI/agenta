@@ -222,6 +222,10 @@ export const ChatScreen = ({
         />
     ) : (
         <ReplayScreen
+            // Per session, as the live conversation: its transcript state is per session, and a
+            // kept screen showed the last session's turns for one render, which the per-session
+            // transcript position would have saved under the new session.
+            key={sessionId}
             embedded
             sessionId={sessionId}
             projectId={projectId}
@@ -248,7 +252,7 @@ export const ChatScreen = ({
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
-            // The session's own conversation. The builder chat beside it is "embedded".
+            // The session's own conversation. The builder panel gives its chat the role "embedded".
             chat={
                 <ConversationRoleContext.Provider value="page">
                     {chat}
