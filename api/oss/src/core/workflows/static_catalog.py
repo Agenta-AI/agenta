@@ -257,6 +257,11 @@ def _request_secret_revision() -> WorkflowRevision:
 REQUEST_INPUT_TOOL_NAME = "request_input"
 
 
+def request_input_tool() -> Dict[str, Any]:
+    """The `request_input` client tool entry, for an agent that lists it inline."""
+    return _request_input_revision().data.parameters["tool"]
+
+
 def _request_input_revision() -> WorkflowRevision:
     """The elicitation client tool (interaction kinds M1): pause and collect typed input.
 

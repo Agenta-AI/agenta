@@ -202,6 +202,9 @@ changed it. Keep each file short: when it grows long, merge old entries.
 
 
 def _builder_agent_parameters() -> dict[str, Any]:
+    # Imported here: the static catalog imports this module.
+    from oss.src.core.workflows.static_catalog import request_input_tool
+
     # The model, harness, runner and sandbox are the ones a new agent starts with, so the
     # builder runs where a person's own agent would on this deployment.
     template = new_agent_revision_data()["parameters"]["agent"]
@@ -210,8 +213,13 @@ def _builder_agent_parameters() -> dict[str, Any]:
             "instructions": {"agents_md": BUILDER_AGENT_INSTRUCTIONS},
             "llm": template["llm"],
             "tools": [
-                {"type": "platform", "op": op, "permission": permission}
-                for op, permission in BUILDER_AGENT_TOOLS.items()
+                *(
+                    {"type": "platform", "op": op, "permission": permission}
+                    for op, permission in BUILDER_AGENT_TOOLS.items()
+                ),
+                # The choice form ("Decisions for you"): the elicitation client tool, inline,
+                # so the builder does not depend on resolving an embed.
+                request_input_tool(),
             ],
             "mcps": [],
             "skills": [

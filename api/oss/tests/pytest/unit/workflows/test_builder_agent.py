@@ -27,7 +27,10 @@ from oss.src.core.workflows.builder_agent import (
 )
 from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
+from oss.src.core.workflows.static_catalog import (
+    StaticWorkflowCatalog,
+    request_input_tool,
+)
 
 
 def _agent() -> dict:
@@ -89,8 +92,12 @@ async def test_entry_resolves_in_any_project_without_a_database_read(ref):
     workflows_dao.fetch_artifact.assert_not_awaited()
 
 
+def _platform_tools():
+    return [tool for tool in _agent()["tools"] if tool["type"] == "platform"]
+
+
 def test_tool_approvals():
-    tools = {tool["op"]: tool for tool in _agent()["tools"]}
+    tools = {tool["op"]: tool for tool in _platform_tools()}
 
     assert tools["create_agent"]["permission"] == "ask"
     assert tools["edit_agent_config"]["permission"] == "ask"
@@ -142,8 +149,9 @@ def test_runtime_parses_the_entry():
         "manage-project-agents",
         "builder-learning",
     ]
-    assert {tool.op for tool in template.tools} == {
-        tool["op"] for tool in _agent()["tools"]
+    assert {getattr(tool, "op", None) for tool in template.tools} == {
+        *(tool["op"] for tool in _platform_tools()),
+        None,  # the request_input client tool
     }
 
 
@@ -287,7 +295,17 @@ async def test_the_four_agent_tools_resolve_for_a_run(mode):
     assert permissions["edit_agent_config"] == "ask"
     assert permissions["list_agents"] == "allow"
     assert permissions["read_agent_config"] == "allow"
-    assert set(permissions) == set(BUILDER_AGENT_TOOLS)
+    assert set(permissions) == {*BUILDER_AGENT_TOOLS, "request_input"}
+
+
+def test_the_builder_asks_its_decisions_with_the_request_input_form():
+    """The choice form is today's elicitation form: the static `request_input` client
+    tool, the one the build kit offers, listed inline."""
+    (tool,) = [tool for tool in _agent()["tools"] if tool["type"] == "client"]
+
+    assert tool == request_input_tool()
+    assert tool["name"] == "request_input"
+    assert tool["render"] == {"kind": "elicitation"}
 
 
 def test_learning_skill_keeps_private_content_out_of_the_shared_drive():
