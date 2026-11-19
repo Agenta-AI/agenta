@@ -8,6 +8,7 @@ import {
   deniedByPolicyText,
 } from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
+import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
 import type {
   ExecutableToolGate,
   ExecutableToolGateRequest,
@@ -45,6 +46,8 @@ export interface BuildExecutableToolGateInput {
    * seam decides from scratch and an unapproved `ask` still parks — the check is fail closed.
    */
   executionGrants?: ApprovedExecutionGrants;
+  /** The server preview of an agent write; it never fails the gate (see the fetcher). */
+  resolveApprovalPreview?: AgentChangePreviewFetcher;
   log?: (message: string) => void;
 }
 
@@ -57,6 +60,7 @@ export function buildExecutableToolGate({
   onNonParkablePause,
   permissionPlan,
   executionGrants,
+  resolveApprovalPreview,
   log = () => {},
 }: BuildExecutableToolGateInput): ExecutableToolGate {
   return {
@@ -100,6 +104,11 @@ export function buildExecutableToolGate({
         };
       }
 
+      const preview = await resolveApprovalPreview?.({
+        toolName: request.spec.name,
+        toolCallId: request.toolCallId,
+        args: request.input,
+      });
       const raised = raiseApproval({
         run,
         pause,
@@ -109,6 +118,7 @@ export function buildExecutableToolGate({
         toolCallId: request.toolCallId,
         toolName: request.toolName,
         args: request.input,
+        ...(preview === undefined ? {} : { payloadExtras: { preview } }),
       });
       if (!raised) onNonParkablePause?.();
       return { kind: "pendingApproval" };
