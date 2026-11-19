@@ -127,7 +127,7 @@ check_with_repair() {
     return 1
 }
 
-# Follow the 307 hops of one legacy desktop URL until it reaches an /m page that is not
+# Follow the 307 hops of one root URL until it reaches an /m page that is not
 # /m/legacy, and print that page's path and query. Every hop must be a 307: a cached
 # 301 or 308 would outlive a later move of the app (spec legacy-desktop-urls).
 legacy_landing() {

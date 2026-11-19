@@ -7,8 +7,8 @@
  * `["vault", "secrets", user?.id, projectId]` query key).
  *
  * The app is responsible for wiring its own profile/auth state
- * into this atom via `setUserAtom`. See OSS `UserListener` for the
- * canonical wiring pattern (paired with `SessionListener`).
+ * into this atom via `setUserAtom`. See `ContextSync` in `web/mobile` for the
+ * wiring.
  *
  * @example
  * ```typescript

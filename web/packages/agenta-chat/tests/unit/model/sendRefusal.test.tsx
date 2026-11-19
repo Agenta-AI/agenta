@@ -124,9 +124,7 @@ describe("describeRefusedSend", () => {
 })
 
 describe("refusedSendRejections", () => {
-    // Round-4 D98: both apps put `describeRefusedSend` on the rejection in their composer's
-    // catch, and only the mobile call site had a case, so hardcoding the reason on classic left
-    // every suite green. The row is built in one place now, and this is the case over it.
+    // The row is built in one place, and this is the case over it.
     it("carries the refusal's own reason onto the chip's row", () => {
         expect(
             refusedSendRejections(

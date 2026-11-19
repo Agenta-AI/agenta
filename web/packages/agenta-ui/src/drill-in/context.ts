@@ -169,12 +169,12 @@ export const defaultFieldBehaviors: Required<DrillInFieldBehaviors> = {
 // ============================================================================
 
 /**
- * Note: Actual React context is created in the component layer (OSS)
+ * Note: Actual React context is created in the component layer (the app)
  * since this package doesn't have React as a dependency.
  *
  * This file defines the types and default values.
  *
- * Usage in OSS:
+ * Usage in the app:
  * ```typescript
  * import { createContext, useContext } from 'react'
  * import type { DrillInContextValue } from '@agenta/entity-ui'

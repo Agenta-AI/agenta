@@ -34,7 +34,7 @@ export const TracesTable = ({
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const {isRateLimited, rateLimitMessage, filters, setFilters} = useObservability()
 
-    // As in the old app, a rate-limited project gets its own state instead of the table.
+    // A rate-limited project gets its own state instead of the table.
     if (isRateLimited) {
         return <EmptyObservability rateLimited rateLimitMessage={rateLimitMessage ?? undefined} />
     }

@@ -1,9 +1,9 @@
 /**
  * useSecretForm — the single state machine behind every "create/edit named secret" surface.
  *
- * Lifted verbatim from the Settings `ConfigureSecretModal` so the Settings modal and the
- * in-flow MCP `CreateSecretDrawer` render the SAME form with zero duplicated logic. The chrome
- * (antd modal / EnhancedDrawer) owns the Save button and wires it to `submit`/`saving`/`okDisabled`.
+ * Every such surface (the in-flow MCP `CreateSecretDrawer`, for one) renders the SAME form with
+ * zero duplicated logic. The chrome (e.g. EnhancedDrawer) owns the Save button and wires it to
+ * `submit`/`saving`/`okDisabled`.
  */
 import {useEffect, useMemo, useState} from "react"
 

@@ -51,7 +51,7 @@ afterEach(async () => {
 })
 
 describe("RunResult", () => {
-    it("No result shows No output yet and the run hint, as in the old playground", async () => {
+    it("No result shows No output yet and the run hint", async () => {
         await render({})
 
         expect(host.textContent).toBe(

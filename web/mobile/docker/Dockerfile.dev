@@ -18,7 +18,6 @@ RUN npm install -g corepack@0.31.0 && \
     corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc* ./
-COPY patches/ ./patches/
 COPY ./entrypoint.sh /app/entrypoint.sh
 
 RUN PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]") && \

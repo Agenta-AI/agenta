@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import {detectEditorLanguage, getContentLanguage} from '@agenta/shared'
+ * import {detectEditorLanguage, getContentLanguage} from '@agenta/shared/utils'
  *
  * // Detect from value (any type)
  * const lang = detectEditorLanguage({key: "value"}) // "json"

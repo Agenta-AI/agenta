@@ -4,7 +4,7 @@
  * Dropdown for selecting tools to add to a prompt configuration.
  * Supports:
  * - Built-in tools (OpenAI / Anthropic / Google Gemini)
- * - Third-party gateway tools (connections + actions) when injected by OSS
+ * - Third-party gateway tools (connections + actions) when injected by the host
  * - Custom inline function tools
  */
 

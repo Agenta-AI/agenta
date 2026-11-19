@@ -21,7 +21,7 @@ baseline.
 - Keep deployment scriptable and repeatable.
 - Use a single public gateway domain with path routing:
   - `/` and `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`;
-    it redirects `/` to `/m` and old desktop URLs to their `/m` pages)
+    it redirects `/` to `/m` and other root paths to their `/m` pages)
   - `/api/` -> api
   - `/services/` -> services
 
@@ -36,13 +36,14 @@ baseline.
 - `worker-queues/` - list-parameterized worker image for taskiq queue consumers (webhooks, triggers, interactions, evaluations)
 - `cron/` - cron service image
 - `alembic/` - migration runner image
+- `web-mobile/` - web app wrapper image
 - `images/` - prebuilt wrapper image sources (`gateway`, `redis`, `seaweedfs`) pushed to GHCR for preview environments
 - `scripts/bootstrap.sh` - create project, environment, and services
 - `scripts/configure.sh` - set variables and start commands
 - `scripts/deploy-gateway.sh` - deploy gateway image from local Dockerfile
 - `scripts/smoke.sh` - quick health checks
 - `scripts/upgrade.sh` - run full in-place upgrade flow
-- `scripts/build-and-push-images.sh` - build local `api/web/web-mobile/services/runner` images and push tags
+- `scripts/build-and-push-images.sh` - build local `api/web-mobile/services/runner` images and push tags
 - `scripts/deploy-from-images.sh` - deploy Railway services from explicit image tags
 - `scripts/preview-clone-create.sh` - create or update a PR preview environment (issue #5650)
 - `scripts/preview-clone-destroy.sh` - delete a PR preview environment (plus `--stale-hours` sweep)
@@ -253,13 +254,13 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 
 `bootstrap.sh` creates a `web-mobile` service with every environment. It is the
 only frontend: the gateway routes `/`, `/m` and every other path that `/api` and
-`/services` do not claim to it. `web-mobile` redirects `/` to `/m` and old desktop
-URLs to their `/m` pages.
+`/services` do not claim to it. `web-mobile` redirects `/` to `/m` and other
+root paths to their `/m` pages.
 An environment bootstrapped before `web-mobile` became standard has no such
 service; re-run `bootstrap.sh` to add it. `configure.sh` stops when it is
 missing. `deploy-from-images.sh` requires `AGENTA_WEB_MOBILE_IMAGE` and always
-deploys it. `upgrade.sh` does not deploy it; use `deploy-from-images.sh` to move
-its image. `ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
+deploys it. `upgrade.sh` redeploys it from the `latest` image; use `deploy-from-images.sh` to pin
+a tag. `ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
 
 ### Upgrade Existing Deployment
 

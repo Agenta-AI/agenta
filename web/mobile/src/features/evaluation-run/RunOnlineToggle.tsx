@@ -35,7 +35,7 @@ const COPY = {
 } as const
 
 /**
- * Stop or resume a live run, with the words the runs list menu and the old app use. Shown only on a live run that is not closed, and only to a reader
+ * Stop or resume a live run, with the words the runs list menu uses. Shown only on a live run that is not closed, and only to a reader
  * who may edit evaluation runs.
  */
 export const RunOnlineToggle = ({

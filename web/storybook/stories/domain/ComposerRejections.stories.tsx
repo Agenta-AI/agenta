@@ -5,8 +5,8 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
  * **What the composer would not take, docked above it.** A warning, not an error: nothing broke
  * and nothing was lost, and the message still sends with whatever else was picked.
  *
- * Both apps mount it inside the shared composer, so a refused send reads the same on a phone and
- * on a desktop. Each row dismisses on its own, by position: two files can reject with the same
+ * It mounts inside the shared composer, so a refused send reads the same on a phone and on a
+ * desktop. Each row dismisses on its own, by position: two files can reject with the same
  * name for the same reason.
  */
 const meta = {

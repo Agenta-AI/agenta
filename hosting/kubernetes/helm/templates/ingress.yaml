@@ -52,9 +52,8 @@ spec:
                 name: {{ include "agenta.fullname" . }}-web-mobile
                 port:
                   name: http
-          {{- /* The root route keeps its old values key, ingress.paths.web, so a pathType
-                 set for the retired desktop app still applies. web-mobile answers / with a
-                 redirect to /m and maps legacy desktop URLs. */}}
+          {{- /* The root route (ingress.paths.web). web-mobile redirects / to /m and maps
+                 other root paths to their /m pages. */}}
           - path: {{ include "agenta.ingress.paths.web.path" . }}
             pathType: {{ include "agenta.ingress.paths.web.pathType" . }}
             backend:

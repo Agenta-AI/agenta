@@ -4,8 +4,7 @@
  *
  * Two frames, chosen by `layout`, the same split as the templates gallery. The default
  * `"toolbar"` is one surface: the host's page chrome names the page, and create, search and the
- * archived toggle sit in one row above the grid (#5833/#5846 dropped the second sidebar on
- * desktop). `"rail"` is the `FilterRailLayout` variant, where the title, search and facets live
+ * archived toggle sit in one row above the grid. `"rail"` is the `FilterRailLayout` variant, where the title, search and facets live
  * in the rail and cannot scroll away from the results.
  */
 import {useT} from "@agenta/i18n"

@@ -68,7 +68,7 @@ export interface ScenarioStep {
     metrics: Record<string, MetricStats | null>
 }
 
-/** The metrics of one step's own call, in the order the old app shows them: time, tokens, cost. */
+/** The metrics of one step's own call, in order: time, tokens, cost. */
 export const STEP_METRICS = ["duration", "tokens", "cost"].flatMap((id) =>
     INVOCATION_METRICS.filter((metric) => metric.id === id),
 )

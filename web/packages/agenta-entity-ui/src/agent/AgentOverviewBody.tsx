@@ -19,7 +19,7 @@ export interface AgentOverviewBodyProps {
     automationSessionsHref?: string
     /**
      * The start-a-session composer, above the lists. Host-owned because starting a session is:
-     * the desktop opens the playground transport, mobile routes to its chat screen.
+     * mobile routes to its chat screen.
      */
     composer?: ReactNode
     /** Opens configuration for editing; omit on a read-only host and the card stays read-only. */
@@ -43,7 +43,7 @@ export interface AgentOverviewBodyProps {
 }
 
 /**
- * THE agent overview body — one composition for the desktop page and the mobile screen. Activity
+ * THE agent overview body. Activity
  * reads on the left (composer, then sessions and automation runs as co-equal cards); the agent's
  * own state stands in the rail on the right, in one order: what it IS, what it CARRIES, what it
  * WILL DO, what it COST. Hosts supply only what is genuinely theirs — how a session starts, how a

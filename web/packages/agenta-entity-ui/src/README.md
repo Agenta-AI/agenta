@@ -90,7 +90,7 @@ Pure functions for navigating and manipulating nested data structures.
 ### Path Operations
 
 ```typescript
-import {getValueAtPath, setValueAtPath, deleteValueAtPath, hasValueAtPath} from "@agenta/shared"
+import {getValueAtPath, setValueAtPath, deleteValueAtPath, hasValueAtPath} from "@agenta/shared/utils"
 
 const data = {user: {name: "Alice", tags: ["admin", "active"]}}
 
@@ -113,7 +113,7 @@ hasValueAtPath(data, ["user", "email"]) // false
 ### Path Parsing
 
 ```typescript
-import {parsePath} from "@agenta/shared"
+import {parsePath} from "@agenta/shared/utils"
 
 // Parse string path to segments
 parsePath("user.name") // ['user', 'name']
@@ -124,7 +124,7 @@ parsePath("user.tags[1]") // ['user', 'tags', 1]
 ### Inspection Utilities
 
 ```typescript
-import {isExpandable, getChildCount, collectPaths} from "@agenta/shared"
+import {isExpandable, getChildCount, collectPaths} from "@agenta/shared/utils"
 
 // Check if value can be expanded (object/array)
 isExpandable({name: "test"}) // true

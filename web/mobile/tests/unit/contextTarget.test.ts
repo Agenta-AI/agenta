@@ -24,7 +24,6 @@ const input = (overrides: Partial<ContextTargetInput> = {}): ContextTargetInput 
     shortcut: null,
     groups: [],
     groupsLoaded: true,
-    desktopLastUsed: {},
     ...overrides,
 })
 
@@ -47,7 +46,6 @@ describe("selectContextTarget", () => {
                 input({
                     shortcut: {workspaceId: "w1", projectId: "deleted"},
                     groups: [group("w1", ["p1"])],
-                    desktopLastUsed: {},
                 }),
             ),
         ).toEqual({workspaceId: "w1", projectId: "p1"})
@@ -61,7 +59,6 @@ describe("selectContextTarget", () => {
                 input({
                     shortcut: {workspaceId: "gone", projectId: "p1"},
                     groups: [group("w1", ["p1", "p2"])],
-                    desktopLastUsed: {w1: "p2"},
                 }),
             ),
         ).toEqual({workspaceId: "w1", projectId: "p1"})
@@ -80,23 +77,6 @@ describe("selectContextTarget", () => {
             workspaceId: "w1",
             projectId: "p1",
         })
-    })
-
-    it("follows the desktop's last-used pair", () => {
-        expect(
-            selectContextTarget(
-                input({groups: [group("w1", ["p1", "p2"])], desktopLastUsed: {w1: "p2"}}),
-            ),
-        ).toEqual({workspaceId: "w1", projectId: "p2"})
-    })
-
-    it("falls back to the first project when a desktop pair's project is gone", () => {
-        // There is no picker page: land somewhere and let the drawer correct it.
-        expect(
-            selectContextTarget(
-                input({groups: [group("w1", ["p1", "p2"])], desktopLastUsed: {w1: "deleted"}}),
-            ),
-        ).toEqual({workspaceId: "w1", projectId: "p1"})
     })
 
     it("defaults to the first workspace's first project", () => {
@@ -149,22 +129,6 @@ describe("selectContextTarget", () => {
         ).toEqual({workspaceId: "w1", projectId: "p1"})
     })
 
-    it("follows desktop continuity within the named workspace", () => {
-        expect(
-            selectContextTarget(
-                input({
-                    workspaceId: "w2",
-                    groups: [group("w1", ["p1"]), group("w2", ["p2", "p3"])],
-                    desktopLastUsed: {w1: "p1", w2: "p3"},
-                }),
-            ),
-        ).toEqual({workspaceId: "w2", projectId: "p3"})
-    })
-})
-
-describe("selectContextTarget after workspace removal step 2", () => {
-    // Groups route under the organization id; their rows keep the workspace id the API
-    // answered (a legacy id on an older pod, or in a pair saved before the upgrade).
     const orgGroup = (organizationId: string, rows: [string, string][]): WorkspaceGroup => ({
         workspaceId: organizationId,
         projects: rows.map(([id, legacy]) => ({
@@ -184,22 +148,6 @@ describe("selectContextTarget after workspace removal step 2", () => {
                             ["P2", "W2"],
                         ]),
                     ],
-                }),
-            ),
-        ).toEqual({workspaceId: "O1", projectId: "P2"})
-    })
-
-    it("follows a desktop pair keyed by a legacy workspace id", () => {
-        expect(
-            selectContextTarget(
-                input({
-                    groups: [
-                        orgGroup("O1", [
-                            ["P1", "W1"],
-                            ["P2", "W2"],
-                        ]),
-                    ],
-                    desktopLastUsed: {W2: "P2"},
                 }),
             ),
         ).toEqual({workspaceId: "O1", projectId: "P2"})

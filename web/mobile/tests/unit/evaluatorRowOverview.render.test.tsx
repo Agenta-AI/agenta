@@ -14,7 +14,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
     const {atom} = await import("jotai")
     betaAtom.current = atom(false)
-    return {...original, betaDeveloperModeActiveAtom: betaAtom.current}
+    return {...original, developerModeActiveAtom: betaAtom.current}
 })
 vi.mock("next/router", () => ({
     useRouter: () => ({query: {workspace_id: "ws-1", project_id: "proj-1"}}),
@@ -85,12 +85,12 @@ afterEach(() => {
 })
 
 describe("an evaluator row's menu", () => {
-    it("links to the evaluator's Overview in beta developer mode", async () => {
+    it("links to the evaluator's Overview in Developer Mode", async () => {
         await renderRow(true, "automatic")
         expect(overviewItem()?.getAttribute("href")).toBe("/w/ws-1/p/proj-1/apps/eval-1/overview")
     })
 
-    it("has no Overview without beta developer mode", async () => {
+    it("has no Overview without Developer Mode", async () => {
         await renderRow(false, "automatic")
         expect(document.body.textContent).toContain("Copy ID")
         expect(overviewItem()).toBeUndefined()

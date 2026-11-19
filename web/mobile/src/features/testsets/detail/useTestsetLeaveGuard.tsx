@@ -9,7 +9,7 @@ import {LeavePrompt} from "./LeavePrompt"
  *
  * The route change is stopped by `useUnsavedGuard`; this adds the tab close and the prompt. The
  * prompt offers three ways out. "Save" calls `onSave` (the commit step) and keeps the page, so
- * the changes are not lost (the old app also left the page). "Discard changes" calls
+ * the changes are not lost. "Discard changes" calls
  * `onDiscard` and goes on.
  *
  * `leave(url)` goes to a page with no prompt, for the moves that are not a question: after a

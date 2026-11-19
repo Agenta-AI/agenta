@@ -7,9 +7,6 @@ import {refreshSessionOutcome} from "./auth"
 /** Mobile's own last-visited workspace/project, for `/m/` root resolution. */
 export const LAST_CONTEXT_KEY = "agenta:mobile:last-context"
 
-/** Desktop's continuity map ({[workspaceId]: projectId}) — read-only here. */
-const DESKTOP_LAST_USED_KEY = "lastUsedProjectsByWorkspace"
-
 export interface LastContext {
     workspaceId: string
     projectId: string
@@ -63,7 +60,7 @@ export const projectTemplateUrl = ({workspaceId, projectId}: LastContext, templa
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/agents/new?template=${encodeURIComponent(templateKey)}`
 
 const PENDING_TEMPLATE_KEY = "agenta:mobile:pending-template"
-/** Long enough to sign up and verify an email; the desktop capture uses the same window. */
+/** Long enough to sign up and verify an email. */
 const PENDING_TEMPLATE_TTL_MS = 30 * 60 * 1000
 
 /**
@@ -190,20 +187,6 @@ export function readLastContext(): LastContext | null {
     }
 }
 
-export function readDesktopLastUsed(): Record<string, string> {
-    try {
-        const raw = localStorage.getItem(DESKTOP_LAST_USED_KEY)
-        const parsed = raw ? (JSON.parse(raw) as unknown) : null
-        if (!parsed || typeof parsed !== "object") return {}
-        const entries = Object.entries(parsed as Record<string, unknown>).filter(
-            (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1] !== "",
-        )
-        return Object.fromEntries(entries)
-    } catch {
-        return {}
-    }
-}
-
 // Minimal boundary schema: Fern's compile-time types under-declare backend
 // extra="allow" fields, so the local schema is the independent drift check.
 const projectRowSchema = z.object({
@@ -211,9 +194,8 @@ const projectRowSchema = z.object({
     project_name: z.string(),
     workspace_id: z.string().nullish(),
     workspace_name: z.string().nullish(),
-    // The switcher names the ORGANIZATION, as the desktop rail does. Every project in this
-    // account sits in one workspace called "Default", so labelling by workspace showed
-    // "Default" where the desktop showed the org.
+    // The switcher names the ORGANIZATION. Every project in this account sits in one
+    // workspace called "Default", so labelling by workspace showed "Default" on every row.
     organization_id: z.string().nullish(),
     organization_name: z.string().nullish(),
     // Only the settings list reads these two; every other consumer ignores them. They stay

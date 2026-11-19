@@ -61,7 +61,7 @@ const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
  * same groups drawn as tiles, switched from the toolbar.
  *
  * Search and the filter menu sit in one toolbar above the results, the same row the agents list
- * opens with. The drawers — detail, import, create — are the shared ones the desktop page mounts.
+ * opens with. The drawers — detail, import, create — are the shared ones.
  */
 export const SkillListScreen = ({
     workspaceId,
@@ -98,8 +98,8 @@ export const SkillListScreen = ({
     }, [setShowArchived, view.archived])
 
     // The registry query already took the search, so every row here matches it. The shared
-    // sections do the item mapping — provenance, age, origin — so a row and the desktop's card
-    // describe a skill the same way; this screen only re-cuts them.
+    // sections do the item mapping — provenance, age, origin —
+    // and this screen only re-cuts them.
     const rows = useMemo<SkillListRow[]>(() => {
         // The sections drop the raw item, and the author id lives only there.
         const creators = new Map(
@@ -183,7 +183,7 @@ export const SkillListScreen = ({
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                {/* From `sm`, 24px is the desktop page-title rung; on a phone it
+                                {/* From `sm`, 24px is the page-title rung; on a phone it
                                     eats the row, so the title drops to the 16px body ramp. */}
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     {t("skills.list.pageTitle")}

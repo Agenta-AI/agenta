@@ -326,7 +326,7 @@ describe("CSV export", () => {
         "Invocation • Cost,Invocation • Duration,Invocation • Tokens,Invocation • Errors," +
         "Created on,Created by"
     const line = (name: string) =>
-        // "true": the most frequent value, what the old export writes for a true/false metric.
+        // "true": the most frequent value, what the export writes for a true/false metric.
         `success,${name},Capitals,Capital finder,true,$0.0025,—,—,—,2026-03-04T10:15:00.000Z,alex`
 
     it("With nothing selected, Export CSV saves every run with the columns on screen", async () => {

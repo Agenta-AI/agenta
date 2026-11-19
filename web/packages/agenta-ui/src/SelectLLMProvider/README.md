@@ -67,9 +67,9 @@ function ModelSelector() {
 />
 ```
 
-### Extending in OSS with Vault
+### Extending with Vault
 
-In the OSS codebase, you can wrap this component with vault integration:
+In the app, you can wrap this component with vault integration:
 
 ```tsx
 import {SelectLLMProviderBase} from "@agenta/ui"

@@ -16,9 +16,7 @@
     },
     "exports": {
         ".": "./src/index.ts",
-        "./state": "./src/state/index.ts",
         "./filters": "./src/filters/index.ts",
-        "./etl": "./src/etl/adaptiveTracePageFetcher.ts",
         "./trace": "./src/trace/index.ts",
         "./dto": "./src/dto/index.ts",
         "./traceDrawer": "./src/traceDrawer/index.ts",

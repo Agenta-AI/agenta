@@ -62,7 +62,7 @@ import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
 const tNow = createT(channelsConnectCatalog, commonCatalog)
 
 /**
- * The connect flow for one platform, shared by the desktop drawer and the /m sheet.
+ * The connect flow for one platform, shown in the channels panel.
  *
  * Hosted Telegram: mint the one-time link, show it as a QR code and a button, then wait for
  * the /start in Telegram to bind the chat (polled through `actions`). Hosted Slack: open the

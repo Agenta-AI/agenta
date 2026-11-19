@@ -123,7 +123,7 @@ describe("AgentConfigSummaryCard", () => {
         }
     })
 
-    it("preserves desktop Edit and bodyless row click and keyboard callbacks", async () => {
+    it("preserves Edit and bodyless row click and keyboard callbacks", async () => {
         const onEdit = vi.fn()
         await mount({}, onEdit)
         const edit = [...host.querySelectorAll("button")].find(

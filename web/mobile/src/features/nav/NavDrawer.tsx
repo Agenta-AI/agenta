@@ -15,8 +15,8 @@ import {liveChatOpenAtom} from "../support/crispChat"
 import {useRailScope} from "./railScope"
 
 /**
- * The drawer is never collapsed. `sidebarCollapsedAtom` is persisted per origin, which `/m`
- * shares with the desktop app — a rail collapsed there would otherwise open here as a 48px
+ * The drawer is never collapsed. `sidebarCollapsedAtom` is persisted per origin and
+ * shared with the docked rail — a rail collapsed there would otherwise open here as a 48px
  * icon strip inside a 236px sheet, with no toggle on this viewport to undo it.
  */
 const drawerExpandedAtom = atom(false)

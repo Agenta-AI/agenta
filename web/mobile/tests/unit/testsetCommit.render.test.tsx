@@ -242,7 +242,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
         expect(button("Import")?.disabled).toBe(true)
     })
 
-    it("Import stays on while there are unsaved changes, as in the old app", async () => {
+    it("Import stays on while there are unsaved changes", async () => {
         await mount(fakeEditor())
         expect(button("Import")?.disabled).toBe(false)
         await click("Import")

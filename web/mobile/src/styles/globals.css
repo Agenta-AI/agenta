@@ -6,13 +6,13 @@
    Regenerate: pnpm --filter @agenta/mobile generate:tokens */
 @import "./theme.generated.css";
 @import "@agenta/auth-ui/auth.css";
-/* The full `--ag-*` token layer, generated from palette.ts and shared with the desktop.
+/* The full `--ag-*` token layer, generated from palette.ts.
    Shared components reference these vars LITERALLY (`border-[var(--ag-colorBorderSecondary)]`,
    `bg-[var(--ag-c-FFFFFF)]`); an undefined var falls back to its CSS initial value — which for
    a border-color is `currentColor`, i.e. a bright line on a dark surface. 98 of the 115 vars the
    packages use were undefined here before this import. */
 @import "@agenta/ui/theme-variables.css";
-/* The surface ladder the shared panels are painted on — one definition, both apps. In the
+/* The surface ladder the shared panels are painted on. In the
    `components` layer, not bare: unlayered CSS outranks every Tailwind utility, so a utility on
    the same element (`Kbd`'s tooltip re-skin over `ag-surface-chip`) could never win — a cap in
    a light-mode tooltip drew white glyphs on the light chip. */
@@ -56,7 +56,7 @@
 
 :root {
     --radius: 0.625rem;
-    /* The composer's send takes the primary fill here, not the desktop's lime accent. The button
+    /* The composer's send takes the primary fill here, not the default lime accent. The button
        reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values:
        the glyph is the container colour, so it reads white on the light theme's ink and ink on
        the dark theme's yellow — the pairing Home's send already uses. */
@@ -161,8 +161,8 @@
     --color-colorErrorBorder: var(--colorErrorBorder);
     --color-colorInfoBorder: var(--colorInfoBorder);
     /* The rest of the status vocabulary the shared surfaces paint with. Unmapped, Tailwind v4
-       generates no rule at all: a refused field kept its ordinary text colour here while /w
-       painted it red, and the server tile had no fill. */
+       generates no rule at all: a refused field kept its ordinary text colour instead of
+       red, and the server tile had no fill. */
     --color-colorErrorText: var(--colorErrorText);
     --color-colorInfoBg: var(--colorInfoBg);
     /* Preview comments: the hover outline, selected cells and comment pins. */
@@ -171,8 +171,7 @@
     --color-colorWarningBorder: var(--colorWarningBorder);
     --color-colorSuccessBorder: var(--colorSuccessBorder);
     --color-colorBgBase: var(--colorBgBase);
-    /* The tinted panel surface and the single hero action per screen. Both had a value on /w
-       and no class on either side. */
+    /* The tinted panel surface and the single hero action per screen. */
     --color-surface-paper: var(--ag-surface-paper);
     --color-hero-action: var(--hero-action-bg);
     --color-hero-action-hover: var(--hero-action-hover-bg);
@@ -195,7 +194,7 @@
        what every kit overlay (dropdown, popover, tooltip) elevates with. */
     --shadow-overlay: var(--ag-boxShadowSecondary);
     /* The other two elevation steps the kit uses: `shadow-dialog` on modal content and
-       `shadow-tertiary` on cards. Both existed on /w only, so a shared card read flat here. */
+       `shadow-tertiary` on cards. Without them a shared card reads flat. */
     --shadow-dialog: var(--ag-boxShadowSecondary);
     --shadow-tertiary: var(--ag-boxShadowTertiary);
     /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
@@ -323,8 +322,8 @@
 
     /* ── Overlay / drawer motion ──────────────────────────────────────────────────────────────
        The kit's Sheet, Dialog and Accordion animate with NAMED utilities
-       (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live in the desktop's
-       Tailwind config. Tailwind only emits a utility it can resolve, so without these the shared
+       (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes are defined here.
+       Tailwind only emits a utility it can resolve, so without these the shared
        drawers opened with no slide and no mask — the components were right, the keyframes simply
        did not exist here. Values follow antd's own durations and easings. */
     --animate-overlay-in: overlay-in 0.2s ease;
@@ -586,16 +585,16 @@
     }
 }
 
-/* The playground's message and input editors, drawn as /w draws them. Scoped to the playground
+/* The playground's message and input editors. Scoped to the playground
    (`data-playground` on its workspace), a developer view: the agent config and the trace drawer
    use the same editor and stay as they are. The focus drawer renders outside the page and sets
    `data-playground` itself.
-   - Height: `.editor-input` has `min-height: 150px` in the editor theme. On /w the editor's
-     `min-h-[inherit]` utility wins; here the theme is unlayered and outranks every utility, so each
+   - Height: `.editor-input` has `min-height: 150px` in the editor theme. The theme is
+     unlayered and outranks every utility, the editor's `min-h-[inherit]` too, so each
      message was about 210 px tall for one line, and an output left a gap under its text. Every
-     editor in the playground now fits its text, as on /w.
+     editor in the playground now fits its text.
    - Font: Tailwind's preflight gives `code` the monospace face, and the text view renders the
-     message in a `<code>`. /w resets it to the app font at 13 px.
+     message in a `<code>`, so this resets it to the app font at 13 px.
    - Alignment: the text starts at the role label's first letter, the same inset on both. */
 [data-playground] .agenta-chat-message-editor {
     --ag-message-inline-pad: 8px;
@@ -623,9 +622,9 @@
 }
 
 /* Type and status tag colours inside the playground only (a product decision: the rest of /m keeps
-   its neutral palette). The shared tags read the old app's preset variables, which /m does not
-   define globally; a playground surface opts in with this class. Values are the old app's light
-   and dark presets, so the tags match it. */
+   its neutral palette). The shared tags read antd preset variables (`--ant-*`), which /m does not
+   define globally; a playground surface opts in with this class. Values are antd's light
+   and dark presets. */
 .ag-playground-colors {
     --ant-blue-1: #e6f4ff;
     --ant-blue-3: #91caff;
@@ -711,9 +710,9 @@
 }
 
 /* Status and draft colours in the playground. Shared components paint the `success`, `warning`,
-   `error`, `info` and `draft` states and the tag colours with utilities (`bg-success-bg`, `text-draft`, ...) that /w
-   defines from `shadcnTokens.ts` and /m does not, so here "Success" and "Draft" rendered as plain
-   text. Defined for the playground only, with /w's values: the same components elsewhere in /m
+   `error`, `info` and `draft` states and the tag colours with utilities (`bg-success-bg`, `text-draft`, ...) that /m
+   does not define globally, so "Success" and "Draft" rendered as plain
+   text. Defined for the playground only, with the `shadcnTokens.ts` values: the same components elsewhere in /m
    keep their current look. A popover renders outside the page, so the playground's own popovers
    set `data-playground` themselves. */
 [data-playground] .bg-success-bg {

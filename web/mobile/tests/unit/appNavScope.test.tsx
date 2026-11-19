@@ -20,7 +20,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
     const {atom} = await import("jotai")
     betaAtom.current = atom(false)
-    return {...original, betaDeveloperModeActiveAtom: betaAtom.current}
+    return {...original, developerModeActiveAtom: betaAtom.current}
 })
 vi.mock("next/router", () => ({useRouter: () => route}))
 // The two scopes' own hooks are not what this checks: which scope a page gets is.
@@ -58,7 +58,7 @@ describe("the pages that show the app menu", () => {
 })
 
 describe("the app menu", () => {
-    it("lists Overview, Playground, Registry, Evaluations and Observability, like /w", () => {
+    it("lists Overview, Playground, Registry, Evaluations and Observability", () => {
         const items = appNavItems(P, "a1", DEVELOPER_VIEWS)
         expect(items.map(({title, link, prefetch}) => ({title, link, prefetch}))).toEqual([
             {title: "Overview", link: `${P}/apps/a1/overview`, prefetch: false},
@@ -183,13 +183,13 @@ describe("which rail a page shows", () => {
     })
     afterEach(() => act(() => root.unmount()))
 
-    it("beta developer mode shows the app menu inside an app", async () => {
+    it("Developer Mode shows the app menu inside an app", async () => {
         expect(await render(true, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-app")
         expect(await render(true, `${R}/apps/[app_id]/variants`, {app_id: "a1"})).toBe("mobile-app")
         expect(await render(true, `${R}/prompts`, {})).toBe("mobile-main")
     })
 
-    it("without beta developer mode every page keeps the main rail", async () => {
+    it("without Developer Mode every page keeps the main rail", async () => {
         expect(await render(false, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe(
             "mobile-main",
         )

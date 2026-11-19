@@ -105,7 +105,7 @@ const savedColumns = async (
 const UNSAFE_PARTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"])
 
 /**
- * The first row of a new test set, as in the old app: the columns `input` and `correct_answer`,
+ * The first row of a new test set: the columns `input` and `correct_answer`,
  * empty. Columns come from row data, so without a row a new test set has no column to fill in.
  */
 export const NEW_TESTSET_STARTER_ROW: Readonly<Record<string, string>> = {
@@ -203,7 +203,7 @@ export function useTestsetEditor({
     }, [clearChanges, notFound, routeId, setRevisionContext, setServerIds])
 
     // A new test set opens with the starter columns and row. The columns are in the column list
-    // too, as in the old app, so they stay when every row is deleted. It runs after the effect
+    // too, so they stay when every row is deleted. It runs after the effect
     // above, so a change of page, which clears the session first, still ends with them in place.
     const addRowAtom = useSetAtom(testcaseMolecule.actions.add)
     const addColumnReducer = useSetAtom(revisionMolecule.tableReducers.addColumn)

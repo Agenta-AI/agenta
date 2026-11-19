@@ -1,5 +1,5 @@
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {FormattedDate, Tag} from "@agenta/ui/components/presentational"
 import {Badge} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -9,8 +9,8 @@ const CARD_CLASS =
     "flex min-w-0 flex-col gap-2 rounded-lg border border-solid bg-card p-3 text-left text-sm"
 
 const CardBody = ({environment}: {environment: AppEnvironmentDeployment}) => {
-    // Beta developer mode matches /w: an environment with nothing deployed has no date.
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    // Developer Mode: an environment with nothing deployed has no date.
+    const beta = useAtomValue(developerModeActiveAtom)
     const undeployed = beta && !environment.deployedVariantName
     return (
         <>

@@ -1,6 +1,5 @@
 /**
- * The sessions PAGE body — the grouped, filterable, paged list from the desktop sessions page,
- * extracted so desktop and mobile render the same organisation (groups, pins, filter semantics,
+ * The sessions PAGE body — the grouped, filterable, paged list (groups, pins, filter semantics,
  * paging are `useSessionsList`'s decisions). The host supplies only its verbs: how a row opens
  * and its menu entries; everything else — rows, group headers, skeleton/error/empty states,
  * load-more, the enter/exit motion — lives here.

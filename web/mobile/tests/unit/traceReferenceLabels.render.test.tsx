@@ -32,7 +32,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
         ...actual,
-        betaDeveloperModeActiveAtom: atom(() => fixture.developerMode),
+        developerModeActiveAtom: atom(() => fixture.developerMode),
         projectIdAtom: atom(() => "proj-1"),
     }
 })
@@ -118,7 +118,7 @@ describe("trace drawer references on /m", () => {
         )
     })
 
-    it("A playground run's trace links its app and its variant revision, as on /w", async () => {
+    it("A playground run's trace links its app and its variant revision", async () => {
         configureTraceDrawerReferences({
             ApplicationReferenceLabel: (props) => (
                 <TraceReferenceLabel kind="ApplicationReferenceLabel" {...props} />

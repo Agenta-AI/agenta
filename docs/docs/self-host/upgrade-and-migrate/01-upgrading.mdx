@@ -56,7 +56,7 @@ export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:<new-tag>"
 ./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
 
-`upgrade.sh` does not deploy `web-mobile`, so it leaves the old image in place and its smoke check fails on `/`. Use `deploy-from-images.sh`.
+`upgrade.sh` redeploys `web-mobile` from the `latest` image. Use `deploy-from-images.sh` to pin every service to the same tag.
 
 The gateway now sends `/` to `web-mobile`. The scripts do not delete the `web` service. It keeps running with no route to it. Delete it in the Railway project when you no longer need to roll back.
 
@@ -344,7 +344,7 @@ Containers read the env file at start, so recreate them after editing it:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
   --env-file hosting/docker-compose/oss/.env.oss.gh \
-  --profile with-web --profile with-traefik up -d
+  --profile with-traefik up -d --remove-orphans
 ```
 
 For Helm, set `gatewayEgress.insecureAllowed` and `gatewayEgress.insecureHttpAllowed` in your values file. The chart ships both commented out, so an upgrade that touches no values file keeps the code defaults and both guards stay on. The chart renders each key you do set into the containers that read it. See [Agenta gateways](/self-host/configuration#agenta-gateways).
@@ -404,7 +404,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
 Restart all services with the updated images:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-traefik up -d --remove-orphans
 ```
 
 :::info
@@ -445,7 +445,7 @@ Update each service individually to maintain availability:
 # Update core services one by one
 docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh api
 docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh services
-docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh web
+docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh web-mobile
 # Background workers run as two consolidated kinds by default:
 #   worker-streams = records + events + spans
 #   worker-queues  = webhooks + triggers + interactions + evaluations
@@ -548,7 +548,7 @@ docker volume rm "$POSTGRES_VOLUME"
 Do not remove the backup volume until the upgrade is verified. Start the new Postgres version and restore the dump:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh up -d postgres
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh up -d --remove-orphans postgres
 
 cat agenta-postgres-17-backup.sql | docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh exec -T postgres \
   psql -U username -d postgres
@@ -567,7 +567,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 Start the full stack, then run Agenta migrations if your release requires them:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-traefik up -d --remove-orphans
 
 docker ps | grep api
 docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> \

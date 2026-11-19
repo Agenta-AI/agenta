@@ -61,7 +61,7 @@ export interface SkillListRow {
     creatorName: string
     usedByCount: number
     archived: boolean
-    /** The list item the shared drawers take — the same mapping the desktop registry uses. */
+    /** The list item the shared drawers take. */
     item: SkillListItem
 }
 
@@ -91,8 +91,8 @@ export const lastUpdatedLabel = (age: string | null): string => age || "—"
 
 /**
  * The one place a list item becomes a row. The item is what `buildRegistrySections` already
- * resolved — the same mapping the desktop registry reads — so a detached import is
- * project-owned here for exactly the reason it is there, and the drawer gets the item it knows.
+ * resolved, so a detached import is
+ * project-owned and the drawer gets the item it knows.
  */
 export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillListRow => {
     const repository = item.origin === "imported" ? (item.source?.label ?? "") : ""

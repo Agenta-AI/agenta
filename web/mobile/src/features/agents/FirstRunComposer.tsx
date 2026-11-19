@@ -47,7 +47,7 @@ export const FirstRunComposer = ({
                 placeholder={t("agents.firstRun.placeholder")}
                 disabled={creating}
                 composerDisabled={creating}
-                // The desktop names the action instead of showing a bare send arrow: this composer
+                // A named action instead of a bare send arrow: this composer
                 // CREATES an agent, it does not send a message to one that exists.
                 hideSendButton
                 trailing={

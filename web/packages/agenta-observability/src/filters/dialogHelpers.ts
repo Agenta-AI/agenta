@@ -4,7 +4,7 @@
  * Everything the dialog does that is not rendering: the row model (props ↔ rows ↔ query
  * payload), row validation, the field-menu descriptor tree, the attribute-key tree data,
  * and the annotation collapse/explode pair. Kept free of React and of any UI library so
- * both the desktop dialog and the mobile sheet render the same decisions.
+ * every renderer makes the same decisions.
  *
  * `buildFieldMenuItems` returns a DESCRIPTOR tree, not menu elements — the renderer owns
  * the markup, this owns the shape, the keys and the disabled state.

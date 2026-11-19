@@ -1,9 +1,6 @@
 /**
- * Evaluation runs list filters, copied from the old app as pure functions: the flags per tab
- * (`EvaluationRunsTablePOC/atoms/context.ts`), the reference filters
- * (`EvaluationRunsTablePOC/utils/referencePayload.ts`), the `POST /evaluations/runs/query` body
- * (`usePreviewEvaluations/assets/previewRunsRequest.ts`) and the active filter count
- * (`EvaluationRunsTablePOC/atoms/view.ts`).
+ * Evaluation runs list filters as pure functions: the flags per tab, the reference filters, the
+ * `POST /evaluations/runs/query` body and the active filter count.
  *
  * @packageDocumentation
  */
@@ -35,7 +32,7 @@ export type RunListTab = EvaluationRunKind | "all"
  */
 const NOT_DIRECT_QUEUE: RunFlagsFilter = {has_testcases: false, has_traces: false}
 
-/** The flags each tab sends, as the old app sends them. */
+/** The flags each tab sends. */
 export function runListTabFlags(tab: RunListTab): RunFlagsFilter {
     switch (tab) {
         case "online":

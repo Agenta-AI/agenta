@@ -1,6 +1,6 @@
 /**
  * The billing endpoints the Usage & Billing page needs, for a host with no billing layer of
- * its own. The desktop reaches the same routes through its own jotai atoms.
+ * its own.
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"

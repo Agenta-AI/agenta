@@ -2,7 +2,7 @@
  * Shared cell content renderers for table cells
  *
  * These components provide optimized, consistent rendering for testcase/scenario data
- * across different tables (TestcasesTable, EvalRunDetails scenarios table, etc.)
+ * across different tables.
  *
  * Key optimizations:
  * - Plain text rendering instead of heavy editor components

@@ -28,7 +28,7 @@ const NARROW_COLUMNS: ListTableColumn[] = [REVISION, VARIANT, DATE("104px"), ACT
 const WIDE_QUERY = "(min-width: 640px)"
 
 /**
- * What beta developer mode adds, as /w has it: row selection, the variant as a name and version
+ * What Developer Mode adds: row selection, the variant as a name and version
  * tag, avatars, and the longer row menu.
  */
 export interface DeploymentHistoryDeveloper {
@@ -71,7 +71,7 @@ export const DeploymentHistoryTable = ({
     onOpen: (row: AppDeploymentRow) => void
     onRevert: (row: AppDeploymentRow) => void
     empty: ReactNode
-    /** Beta developer mode only. */
+    /** Developer Mode only. */
     developer?: DeploymentHistoryDeveloper
 }) => {
     const narrow = !useMediaQuery(WIDE_QUERY)

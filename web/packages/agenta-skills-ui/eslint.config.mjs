@@ -1,10 +1,10 @@
 /**
  * @agenta/skills-ui wraps existing entity-ui components (SkillFormView and friends). The
- * shared singleton/barrel bans MUST survive: spreading `restrictedImportPaths` is what
- * keeps them (dropping it silently disables the bans).
+ * shared bans MUST survive: spreading `restrictedImportPaths` and `restrictedImportPatterns`
+ * is what keeps them (dropping either silently disables those bans).
  * The reverse edge is the contract: @agenta/entity-ui must never import this package.
  */
-import base, {restrictedImportPaths} from "../eslint.config.mjs"
+import base, {restrictedImportPaths, restrictedImportPatterns} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -14,6 +14,7 @@ export default [
                 "error",
                 {
                     paths: [...restrictedImportPaths],
+                    patterns: [...restrictedImportPatterns],
                 },
             ],
         },

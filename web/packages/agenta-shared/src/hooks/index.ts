@@ -10,11 +10,3 @@ export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortc
 export {useModifierKey} from "./useModifierKey"
 export {useInView} from "./useInView"
 export {useSettledValue} from "./useSettledValue"
-export {
-    clearClassicModeCookie,
-    desktopEscapeHref,
-    mobileEscapeHref,
-    useClassicModeCookieSync,
-    useClassicModeRedirect,
-    writeClassicModeCookie,
-} from "./useClassicModeGate"

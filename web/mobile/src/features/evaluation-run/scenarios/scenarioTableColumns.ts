@@ -4,7 +4,7 @@ import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
 /**
  * One column of the scenarios table after the first ones (number, status, actions):
  * - `group`: a test set or an app, its values stacked in one cell;
- * - `evaluator`: one metric of one evaluator, as in the old app;
+ * - `evaluator`: one metric of one evaluator;
  * - `metric`: an invocation metric (cost, duration, tokens, errors).
  */
 export type ScenarioTableCell =
@@ -31,7 +31,7 @@ export const COLUMN_MIN_WIDTH = {group: 220, evaluator: 130, metric: 90} as cons
 
 /**
  * The groups the table shows. The run's own metric mappings are left out: the invocation metric
- * columns stand for them, as in the old app.
+ * columns stand for them.
  */
 const tableGroups = (groups: readonly RunColumnGroup[]) =>
     groups.filter(({group}) => group.kind !== "metrics")

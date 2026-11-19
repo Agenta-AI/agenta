@@ -25,8 +25,7 @@ import "@/styles/globals.css"
 // so the package never depends on a host's markdown stack.
 registerDriveMarkdown(DriveMarkdownRenderer)
 
-// Deliberately minimal: no provider fleet (the desktop _app's ~10 providers
-// are the reason this app exists as a separate bundle). AppProviders holds
+// Deliberately minimal: no provider fleet. AppProviders holds
 // only what the data layer needs: query client + jotai default store + SDK
 // host pin + route→project sync.
 export default function App({Component, pageProps, router}: AppProps) {

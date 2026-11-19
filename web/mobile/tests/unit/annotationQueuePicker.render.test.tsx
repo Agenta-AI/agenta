@@ -22,7 +22,6 @@ const fixture = vi.hoisted(() => ({
     error: vi.fn(),
     push: vi.fn(),
     configure: vi.fn(),
-    antdLoaded: vi.fn(),
     viewEnabled: true,
     canEdit: true,
     permissionCalls: [] as string[][],
@@ -73,11 +72,6 @@ vi.mock("@agenta/observability-ui/traceDrawer", () => ({
     configureTraceDrawerReferences: fixture.configure,
 }))
 vi.mock("@/features/observability/TraceSpanPanel", () => ({TraceSpanPanel: () => null}))
-// The default slot of the trace drawer package loads this antd module. It must never load.
-vi.mock("@agenta/annotation-ui/add-to-queue", () => {
-    fixture.antdLoaded()
-    return {default: () => null}
-})
 
 import AddToQueuePicker from "@/features/annotations/AddToQueuePicker"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
@@ -120,7 +114,6 @@ describe("annotation queue picker", () => {
         fixture.permissionCalls = []
         for (const fn of [fixture.add, fixture.success, fixture.error, fixture.push]) fn.mockClear()
         fixture.configure.mockClear()
-        fixture.antdLoaded.mockClear()
         store = createStore()
         host = document.createElement("div")
         document.body.appendChild(host)
@@ -230,7 +223,7 @@ describe("annotation queue picker", () => {
         expect(fixture.add).not.toHaveBeenCalled()
     })
 
-    it("Opening the trace drawer header picker loads no antd module", async () => {
+    it("The trace drawer header slot renders the /m picker", async () => {
         registerTraceDrawerSlots()
         const slots = fixture.configure.mock.calls[0][0] as {
             AddToQueuePopover: ComponentType<React.ComponentProps<typeof AddToQueuePicker>>
@@ -240,6 +233,5 @@ describe("annotation queue picker", () => {
         await vi.waitFor(() =>
             expect(document.body.textContent).toContain("Select annotation queue"),
         )
-        expect(fixture.antdLoaded).not.toHaveBeenCalled()
     })
 })

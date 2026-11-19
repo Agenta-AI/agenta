@@ -9,9 +9,6 @@ import {IconTile} from "../../src/components/ui/icon-tile"
  * The tile leads a server row, a sheet header and the two empty states, at four sizes the spec
  * pairs with four radii. Getting a pair wrong is invisible in code review and obvious on screen,
  * so each pair is pinned here.
- *
- * The radii are literal pixels rather than the control scale because `rounded-md` is 6px on the
- * desktop app and 8px on mobile: a token would draw two different tiles from one component.
  */
 afterEach(cleanup)
 

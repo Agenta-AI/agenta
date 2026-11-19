@@ -89,7 +89,6 @@ export const promptsCopy = {
         intoItself: "Cannot move a folder into itself",
         notFound: "Folder not found",
     },
-    // New copy: the old app showed an empty message or the raw server text for these.
     failure: {
         saveFolder: "Couldn't save the folder",
         moveFolder: "Couldn't move the folder",

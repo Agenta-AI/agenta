@@ -16,9 +16,7 @@ export interface AgentChatAvatarProps {
  * A chat turn's avatar: the agent's chosen mark, or the host's own fallback inside the shared
  * bubble avatar.
  *
- * Shared because both transcripts had copied the same customised/fallback branch and the same
- * 24px chip around the same `ChatBubbleAvatar`; only the fallback glyph differs (the desktop is
- * on Phosphor, mobile on lucide), so that arrives as a prop.
+ * The fallback glyph is the host's icon set, so it arrives as a prop.
  */
 export const AgentChatAvatar = ({workflowId, fallback, size = 16}: AgentChatAvatarProps) => {
     const chrome = useAgentIconChrome(workflowId, {size, fallbackGlyph: null})

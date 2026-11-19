@@ -35,7 +35,7 @@ export interface RunEvaluatorEntry {
 }
 
 /**
- * The old app's "Edit evaluation" form: name, description, and the run's evaluators with "Add
+ * The "Edit evaluation" form: name, description, and the run's evaluators with "Add
  * evaluator". Added evaluators are staged and saved only on Update. Update is off until something
  * changes, and while the name is blank. A failed save keeps the dialog open with the draft.
  */

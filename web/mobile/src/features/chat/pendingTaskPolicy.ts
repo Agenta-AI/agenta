@@ -13,18 +13,16 @@
  * - the project vault holds no provider key, or the agent's model needs setup, so the run would
  *   come back refused.
  *
- * The last one is the parity rule: desktop parks its first-run seed while the connect-model gate
- * is active and sends it the moment a key lands (`useFirstRunSeed`). Mobile holds the same way, so
- * a first message typed before any key exists is not burned on a run that cannot succeed.
+ * The last one holds a first message typed before any key exists until a key lands, so it is not
+ * burned on a run that cannot succeed.
  *
  * Only the VAULT-UNRESOLVED hold is bounded, and the difference is what the user can see. A hold
  * on an active gate is the feature working: the strip explains it and the composer is disabled, so
  * the user knows the message is waiting and what to do about it. A hold on an unresolved vault is
  * invisible — no strip, a usable composer, and a message that silently never goes. The vault query
  * has no retry cap, so an outage would park a first message forever. After
- * `MODEL_KEY_WAIT_LIMIT_MS` the task is released and the failure is stated instead. Same shape as
- * the desktop's bounded waits (`buildRequestWithinDeadline`, and the build-kit wait in
- * `useFirstRunSeed`): wait for the thing you need, but never without end.
+ * `MODEL_KEY_WAIT_LIMIT_MS` the task is released and the failure is stated instead. Wait for the
+ * thing you need, but never without end.
  */
 export type PendingTaskDecision =
     /** Keep the task parked; a later render decides again. */

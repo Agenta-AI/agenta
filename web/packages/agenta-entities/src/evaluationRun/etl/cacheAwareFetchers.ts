@@ -117,7 +117,7 @@ export function buildMoleculeBackedFetchers(
             // envelope shape `{count, traces: {[traceIdNoDashes]: traceData}}`
             // is the documented contract for the shared
             // `["trace-entity", projectId, traceId]` cache key and is what
-            // every other consumer (traceEntityAtomFamily, EvalRunDetails)
+            // every other consumer (traceEntityAtomFamily)
             // expects. `findInTrace` knows how to drill through it
             // (resolveMappings.ts case 3), so the hydrate pipeline doesn't
             // need to pre-unwrap.

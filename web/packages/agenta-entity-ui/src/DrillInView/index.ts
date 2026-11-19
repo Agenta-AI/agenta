@@ -109,7 +109,7 @@ export type {DrillInContextValue, DrillInProviderProps} from "@agenta/ui/drill-i
 
 export {defaultFieldBehaviors} from "@agenta/ui/drill-in"
 
-// UI Injection Context (for OSS component injection)
+// UI Injection Context (for app component injection)
 export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "@agenta/ui/drill-in"
 export type {
     DrillInUIComponents,

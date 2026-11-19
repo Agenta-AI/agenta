@@ -166,7 +166,7 @@ declares `RAILWAY_RUN_UID/GID` on redis and
 | Missing volume | reported | `volumeCreate` (check-then-act) |
 | **Extra service / extra volume** | reported | **never deleted** — destructive; remove manually via a documented PR, then re-run |
 
-Removing the `web` service (the retired desktop app): after `apply.sh` converges
+Removing the `web` service: after `apply.sh` converges
 the template, the drift report keeps `DRIFT service-extra service=web` and the
 drift workflow (47) fails until the service is gone. Delete `web` from the
 template environment by hand once no open PR still needs it. A PR branched
@@ -186,7 +186,7 @@ deployments are irrelevant to clones — clones copy config, not deployments).
 - **Web app:** `web-mobile` is the only frontend. The gateway routes every path
   that `/api` and `/services` do not claim to it with **no** prefix strip,
   because the Next app is built with `basePath: "/m"` and owns the prefix. It
-  redirects `/` to `/m` and old desktop URLs (`/w/...`, `/auth/...`) to their
+  redirects `/` to `/m` and other root paths (`/w/...`, `/auth/...`) to their
   `/m` pages. The service is part of every environment.
 - **Healthchecks:** set only on `api` and `services`, which both serve
   `/health`. Two services have none on purpose, and `../scripts/configure.sh`

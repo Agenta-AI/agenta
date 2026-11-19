@@ -1,8 +1,8 @@
 /**
  * The phone cases are the load-bearing ones. On a phone the pane replaces the conversation, so
  * every rule that turns the pane on also takes the composer off the screen. Both defects this
- * file guards did exactly that: the config pane opened by default, and the maximized flag the
- * desktop stores under the same origin put the sessions rail where the chat belongs.
+ * file guards did exactly that: the config pane opened by default, and a stored maximized flag put
+ * the sessions rail where the chat belongs.
  */
 import {describe, expect, it} from "vitest"
 
@@ -123,7 +123,7 @@ describe("resolveSessionPanes with two panes", () => {
         ).toEqual({showConfig: true, showPane: true, showFiles: true})
     })
 
-    it("keeps the desktop swap: the sessions rail stands in for the config panel", () => {
+    it("keeps the two-pane swap: the sessions rail stands in for the config panel", () => {
         expect(resolveSessionPanes({...phone, twoPane: true, chatMaximized: true})).toEqual({
             showConfig: false,
             showPane: true,

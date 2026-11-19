@@ -74,7 +74,7 @@ const EmptyChart = ({failed}: {failed: boolean}) => (
 )
 
 /**
- * The app's usage over the picked window, as in the old app: Requests, Latency, Cost and Tokens in
+ * The app's usage over the picked window: Requests, Latency, Cost and Tokens in
  * a 2x2 grid with the window picker above. `appId` is any workflow (an app or an evaluator); the
  * window is the one every usage surface shares.
  */

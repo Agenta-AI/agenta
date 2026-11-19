@@ -23,18 +23,16 @@ import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 
 /**
- * The conversation pane's header: this agent's sessions as tabs, the open one active — the same
- * strip the desktop playground carries above its transcript.
+ * The conversation pane's header: this agent's sessions as tabs, the open one active.
  *
  * Selecting a tab is a route change here (a session per URL), not a local tab switch, so the rail
  * only needs the host's routing.
  *
- * In Chat mode at md+ the vertical sessions pane sits beside the transcript and owns the switching
- * — the same call the desktop makes (its tag bar drops its pills in full-screen mode), so the rail
- * steps aside there and stays on the narrow frame, where that pane is not on screen.
+ * In Chat mode at md+ the vertical sessions pane sits beside the transcript and owns the switching,
+ * so the rail steps aside there and stays on the narrow frame, where that pane is not on screen.
  */
-/** The config-panel reveal and the files-pane opener live in the TAB BAR, as they do on the
- * desktop: `leadingExtra` sits where the config panel disappeared from, `extra` hugs the right
+/** The config-panel reveal and the files-pane opener live in the TAB BAR:
+ * `leadingExtra` sits where the config panel disappeared from, `extra` hugs the right
  * edge the pane expands from. Putting them in the page header instead left the files chevron
  * floating in the window's top-right corner, detached from the row it belongs to. */
 export const SessionTabs = ({

@@ -71,8 +71,8 @@ export interface UseUpcomingTriggersArgs {
 }
 
 /**
- * The rows behind the Automations rail card — derived once here so the desktop panel and a host
- * with its own card chrome list the same triggers in the same order.
+ * The rows behind the Automations rail card — derived once here so every host lists the same
+ * triggers in the same order.
  */
 export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersArgs = {}) => {
     const {

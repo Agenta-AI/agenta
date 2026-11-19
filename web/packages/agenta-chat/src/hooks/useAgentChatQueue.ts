@@ -1,4 +1,3 @@
-// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {PendingInputWriteOutcome} from "@agenta/entities/session"

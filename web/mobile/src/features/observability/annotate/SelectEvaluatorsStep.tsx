@@ -3,7 +3,7 @@ import {useState} from "react"
 import type {Workflow} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {Alert, Button, Checkbox, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -48,7 +48,7 @@ export const SelectEvaluatorsStep = ({
 }) => {
     const t = useT(annotateCatalog)
     const [search, setSearch] = useState("")
-    const canCreate = useAtomValue(betaDeveloperModeActiveAtom)
+    const canCreate = useAtomValue(developerModeActiveAtom)
     const [creating, setCreating] = useState(false)
     // A new evaluator is selected at once; the list shows it when it loads again.
     const createFlow = creating ? (

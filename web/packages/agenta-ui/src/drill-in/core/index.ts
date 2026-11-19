@@ -1,7 +1,7 @@
 /**
  * Core DrillInView Components
  *
- * Framework components that have no OSS-specific dependencies.
+ * Framework components that have no app-specific dependencies.
  * These can be used directly or extended with custom renderers.
  */
 

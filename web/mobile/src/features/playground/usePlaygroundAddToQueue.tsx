@@ -11,7 +11,7 @@ const AddToQueuePicker = dynamic(() => import("../annotations/AddToQueuePicker")
 
 /**
  * The focus drawer's "Add to queue" for the open test case. Only a test case of a connected test
- * set can go to a queue: a local row has no id the server knows, so it gets none (as in /w).
+ * set can go to a queue: a local row has no id the server knows, so it gets none.
  */
 export const usePlaygroundAddToQueue = (
     loadableId: string,

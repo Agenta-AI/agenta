@@ -28,7 +28,7 @@ const t = createT(channelsActionsCatalog, channelsLabelsCatalog)
 
 /**
  * Builds the real `ChannelsActions` for one agent page on top of the generated channels
- * client. Both hosts (desktop `web/oss` and `/m`) hand in their client and project id and get
+ * client. The host (`/m`) hands in its client and project id and gets
  * the same behavior: the mapping from backend rows to the design's shapes, the answering-agent
  * resolution, the retarget ("connect here"), and the custom-app create.
  *

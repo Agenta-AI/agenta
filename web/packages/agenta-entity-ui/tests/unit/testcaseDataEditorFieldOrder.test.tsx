@@ -1,7 +1,7 @@
 /**
  * The form of TestcaseDataEditor without a column list, as the test set drawer uses it. By
  * default the fields are sorted and each one can be deleted, as before. A test set editor asks
- * for the row order and no field controls, as in the old app: a field belongs to every row, so
+ * for the row order and no field controls: a field belongs to every row, so
  * it changes only through the column actions.
  */
 import {act} from "react"

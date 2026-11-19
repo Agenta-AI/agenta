@@ -16,7 +16,7 @@ const ICON = 14
 
 /**
  * The list's filter button and, beside it, what it narrows the list to: the Date Created quick
- * ranges, as the old app offers them. "No filters applied" when the list is not narrowed, and the
+ * ranges. "No filters applied" when the list is not narrowed, and the
  * active range with a clear button otherwise, so missing rows always have a visible reason.
  */
 export const TestsetsDateFilter = ({

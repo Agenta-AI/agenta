@@ -38,7 +38,7 @@ const LEADING_COLUMNS: ListTableColumn[] = [
     {key: "index", label: "#", width: "56px"},
     {key: "item", label: "Item", width: "minmax(160px,2fr)"},
 ]
-/** A trace queue shows what each trace was asked and what it answered, as the old app does. */
+/** A trace queue shows what each trace was asked and what it answered. */
 const TRACE_IO_COLUMNS: ListTableColumn[] = [
     {key: "inputs", label: "Inputs", width: "minmax(180px,2fr)"},
     {key: "outputs", label: "Outputs", width: "minmax(180px,2fr)"},

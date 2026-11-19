@@ -220,7 +220,7 @@ describe("an annotation field", () => {
         await typeInto(select, "good")
         expect(onChange).toHaveBeenLastCalledWith("good")
         await typeInto(select, "null")
-        // Stored as the old view stored it: a real null would read as "no value".
+        // Stored as text: a real null would read as "no value".
         expect(onChange).toHaveBeenLastCalledWith("null")
     })
 

@@ -836,7 +836,7 @@ while the api has no value.
 
 ```bash
 docker compose exec api printenv AGENTA_RUNNER_INTERNAL_URL   # empty means this entry
-docker compose up -d --force-recreate api
+docker compose up -d --remove-orphans --force-recreate api
 ```
 
 On a Compose file older than v0.115.3, add both lines to the `api` service's `environment` block,

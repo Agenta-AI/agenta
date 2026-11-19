@@ -28,7 +28,7 @@ const label = ({variants, revisions}: RegistryDeletion) =>
     ].join(", ")
 
 /**
- * Delete whole variants and single revisions, as the old app's Registry does. An app keeps at
+ * Delete whole variants and single revisions. An app keeps at
  * least one revision: the app is the thing to delete then. Mount it only while something is
  * chosen.
  */

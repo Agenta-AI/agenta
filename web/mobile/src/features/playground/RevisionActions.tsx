@@ -92,7 +92,7 @@ export const RevisionActions = ({
     /** The server deleted this revision. The page takes it out after the lists load again. */
     onArchived?: (revisionId: string) => void
     /**
-     * An evaluator revision: no Deploy, as in the old playground, and no Delete, which stays on
+     * An evaluator revision: no Deploy, and no Delete, which stays on
      * the Evaluators page.
      */
     evaluator?: boolean

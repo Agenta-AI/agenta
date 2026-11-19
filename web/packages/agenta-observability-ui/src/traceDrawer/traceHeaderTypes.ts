@@ -4,7 +4,7 @@ import type {Filter, SortResult, TraceSpanNode, TraceTabTypes} from "@agenta/obs
 import type {TracesWithAnnotations} from "@agenta/observability/dto"
 
 export interface TraceHeaderProps {
-    // Original props (ObservabilityDashboard)
+    // Full props: the active trace and the list it sits in
     activeTrace?: TracesWithAnnotations
     traces?: TraceSpanNode[]
     // Lean alternative: pass just the active trace id (TraceDrawer)

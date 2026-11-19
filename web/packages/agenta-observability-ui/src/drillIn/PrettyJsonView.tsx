@@ -10,7 +10,7 @@ import {
     SET_MARKDOWN_VIEW,
 } from "@agenta/ui/editor"
 
-// Theme status tokens, which resolve in both apps (the antd color scale exists only in /w).
+// Theme status tokens.
 const ROLE_COLOR_CLASSES: Record<string, string> = {
     user: "text-colorInfo",
     assistant: "text-colorSuccess",
@@ -43,8 +43,8 @@ const booleanValueColorClass = (value: boolean): string =>
  * matters, use "JSON" (faithful) or "Decoded JSON" (faithful shape with
  * string decoding, see `decodedJsonHelpers.ts`).
  *
- * Built on the shared editor and theme tokens only (no antd), so `/m` registers it as the trace
- * drawer's `PrettyJsonView` slot. The old app still renders its own copy in `DrillInView`.
+ * Built on the shared editor and theme tokens only (no antd); the app registers it as the trace
+ * drawer's `PrettyJsonView` slot.
  */
 
 // Keep in sync with MESSAGE_KEY_HINTS in messagePanels.ts

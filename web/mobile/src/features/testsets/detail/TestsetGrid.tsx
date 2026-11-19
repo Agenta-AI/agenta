@@ -32,7 +32,7 @@ const deletedRowsMessage = (count: number) =>
         : `Deleted ${count} testcase(s). Save to apply changes.`
 
 /**
- * The testcase grid of a test set page, laid out as in the old app: one row with the search on
+ * The testcase grid of a test set page, laid out as one row with the search on
  * the left and the page `actions` on the right, then the table. The last column header holds
  * "Add column" and the table settings, whose menu also has "Delete selected". Every change goes
  * through the editor and stays unsaved until the commit.
@@ -216,7 +216,7 @@ export const TestsetGrid = ({
                 appendColumns={appendColumns}
                 renderColumnHeader={canEdit ? renderColumnHeader : undefined}
                 settingsDelete={settingsDelete}
-                // Export is in the page header, as in the old app.
+                // Export is in the page header.
                 canExportData={false}
                 columnSettings
                 cellPopover

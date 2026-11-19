@@ -27,7 +27,7 @@ export const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
     p.type === "dynamic-tool"
 
 /** A settled assistant turn with no content at all — no answer, reasoning, tool, file, or
- * source part. Mirrors AgentMessage's `!hasContent`; used to collapse a run of "no response"
+ * source part. Used to collapse a run of "no response"
  * bubbles (e.g. repeated failed runs) down to the first one. */
 export const isEmptyAssistantTurn = (m: UIMessage): boolean =>
     m.role === "assistant" && !m.parts.some(isVisiblePart)
@@ -38,7 +38,7 @@ const LEGACY_TOOL_NAMES = new Map([["Preparing file…", "Write"]])
 /** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
  * `tool-<name>`. */
 export const partToolName = (part: ToolUIPart): string => {
-    // `dynamic-tool` parts reach here via the grouping cast in AgentMessage but sit outside
+    // `dynamic-tool` parts reach here via the grouping cast but sit outside
     // ToolUIPart's static union — read `type` as a string.
     const type = part.type as string
     const name =

@@ -79,7 +79,7 @@ SANDBOX_STARTUP_SLACK_S = 0.0
 
 # Set in main() from --client-shape. "full" (default) replays the whole transcript on every
 # send, like this driver always has, so existing results stay comparable. "last-message"
-# reshapes every outbound `messages` list the way the desktop client does — see
+# reshapes every outbound `messages` list the way the web app does — see
 # _client_shape_messages() below.
 CLIENT_SHAPE = "full"
 
@@ -1440,7 +1440,7 @@ def _has_answer(message: dict) -> bool:
 
 
 def _client_shape_messages(messages: list) -> list:
-    """Shape the outbound `messages` list the way the desktop client does (agentRequest.ts),
+    """Shape the outbound `messages` list the way the web app does (agentRequest.ts),
     when `--client-shape last-message` is selected. A no-op under the default `full`.
 
     Strip answer-less assistant turns, then send only the trailing message when it is a fresh
@@ -2532,7 +2532,7 @@ def cell_restart_after_stop(cfg, references, args, hooks: OperatorHooks) -> Cell
     the persisted record log (the `[reconstruct]` / `session/load ... loaded=false` path), and a
     driver that ever sent more than the trailing message could paper over the same gap from the
     client side. So this cell forces its resume onto `--client-shape last-message` (the shape the
-    desktop actually sends) regardless of the run's own `--client-shape`, and requires a SECOND,
+    web app actually sends) regardless of the run's own `--client-shape`, and requires a SECOND,
     independent signal beyond the recalled codeword: either the sandbox id after the restart is
     the SAME one the turn ran on before it (true continuity needs no rebuild), or the runner log
     for the resume shows `session/load ... loaded=true` (a genuine native hydrate, not a
@@ -3375,7 +3375,7 @@ def main() -> int:
         help=(
             "full (default) replays the whole transcript on every send, keeping results "
             "comparable with prior runs. last-message sends only the new user message on "
-            "every resume and follow-up, the way the desktop client does (agentRequest.ts) — "
+            "every resume and follow-up, the way the web app does (agentRequest.ts) — "
             "use it to catch continuity bugs the full transcript masks."
         ),
     )

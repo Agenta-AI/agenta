@@ -1,8 +1,7 @@
 /**
  * Organization SSO discovery (EE). The env flags only describe the deployment's
  * *social* providers; an org's own OIDC/SAML connection is keyed to the user's
- * email domain and only the backend knows it. Same endpoint and payload shape
- * the desktop uses (web/oss/src/pages/auth/[[...path]].tsx → /auth/discover).
+ * email domain and only the backend knows it (`/auth/discover`).
  */
 import {z} from "zod"
 

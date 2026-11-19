@@ -6,9 +6,7 @@
  * env-overridable via `AGENTA_ACCESS_PLANS`, which is exactly what a hardcoded
  * Hobby/Pro/Business allowlist got wrong.
  *
- * For a host with no entitlement layer of its own. The desktop resolves the same two
- * responses through its own jotai atoms, which also gate them behind its idle-boot pass and
- * share the subscription with the billing UI.
+ * For a host with no entitlement layer of its own.
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
@@ -69,7 +67,7 @@ export const fetchCurrentSubscription = async (
 /**
  * Never retry a 4xx, and never hammer a billing service that is answering 502/503/504 —
  * entitlements degrade to "not included" on their own, so failing fast beats three slow
- * attempts competing with render-critical traffic. Same policy the desktop's atoms use.
+ * attempts competing with render-critical traffic.
  */
 const entitlementRetry = (failureCount: number, error: unknown) => {
     const status = (error as {response?: {status?: number}})?.response?.status

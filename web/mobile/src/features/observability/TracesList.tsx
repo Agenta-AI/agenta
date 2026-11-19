@@ -16,8 +16,7 @@ import {
  * The traces tab: the packaged list shell over the packaged trace row.
  *
  * There is no mobile-only rendering here on purpose. Both come from
- * `@agenta/observability-ui`, so a change to how a span reads lands on desktop and here at
- * the same time.
+ * `@agenta/observability-ui`.
  */
 export const TracesList = () => {
     const t = useT(screenCatalog)

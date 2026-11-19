@@ -13,7 +13,7 @@ import {useStartBlankSession} from "./useStartBlankSession"
 /**
  * Chat's left pane: this agent's sessions.
  *
- * The desktop shows exactly this beside the transcript in Chat mode — the config panel collapses
+ * Shown beside the transcript in Chat mode — the config panel collapses
  * and the rail takes its place, so the pane is never empty. Rows are the SHARED session cards, so
  * they carry the same titles, status dots, pins and context menu as every other list.
  */

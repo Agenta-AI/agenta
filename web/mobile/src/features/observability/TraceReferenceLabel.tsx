@@ -1,5 +1,5 @@
 import {createReferenceLabels} from "@agenta/observability-ui/traceDrawer"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
 const routes = createReferenceLabels({
@@ -15,14 +15,14 @@ const routes = createReferenceLabels({
 export type TraceReferenceKind = keyof typeof routes
 
 /**
- * One trace drawer reference slot on /m. Developer mode shows the named, linked chips of the old
- * app; otherwise the plain label stays, as before.
+ * One trace drawer reference slot on /m. Developer mode shows the named, linked
+ * chips; otherwise the plain label stays.
  */
 export const TraceReferenceLabel = ({
     kind,
     ...props
 }: {kind: TraceReferenceKind} & Record<string, unknown>) => {
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     if (!developerMode) {
         const label = typeof props.label === "string" ? props.label : null
         return <span className="text-colorText">{label ?? "—"}</span>

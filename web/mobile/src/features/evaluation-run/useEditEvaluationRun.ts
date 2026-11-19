@@ -19,8 +19,8 @@ export interface RunEditValues {
 
 /**
  * The run's saved name and description, and `save`, which changes them and adds evaluators. With
- * new evaluators it then asks the API to run them on every scenario (old results stay), as the
- * old app does. It reloads every query of this run and the runs list. `save` throws when a request
+ * new evaluators it then asks the API to run them on every scenario (old results stay).
+ * It reloads every query of this run and the runs list. `save` throws when a request
  * fails.
  */
 export const useEditEvaluationRun = (projectId: string, runId: string) => {

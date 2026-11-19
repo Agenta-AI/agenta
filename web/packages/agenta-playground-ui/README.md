@@ -20,77 +20,11 @@ This is an internal workspace package. Add it to your `package.json`:
 }
 ```
 
-## Usage
-
-### Basic Setup
-
-```typescript
-import { PlaygroundUIProvider } from '@agenta/playground-ui'
-
-function PlaygroundPage() {
-  return (
-    <PlaygroundUIProvider providers={uiProviders}>
-      {children}
-    </PlaygroundUIProvider>
-  )
-}
-```
-
-### Component Examples
-
-#### Using EntitySelector
-
-Entity selection modal for choosing app revisions or evaluators.
-
-```tsx
-import { EntitySelector, EntitySelectorProvider } from '@agenta/playground-ui'
-
-<EntitySelectorProvider>
-  <EntitySelector />
-</EntitySelectorProvider>
-```
-
-### Context Providers
-
-#### PlaygroundUIProvider
-
-Injects app-layer components:
-
-```typescript
-const uiProviders = {
-  EntityDrillInView: MyDrillInComponent,
-  SharedGenerationResultUtils: MyResultUtils,
-  CommitVariantChangesButton: MyCommitButton,
-}
-
-<PlaygroundUIProvider providers={uiProviders}>
-  {children}
-</PlaygroundUIProvider>
-```
-
 ## Exports
 
-### Main Export
-
-```typescript
-import {
-  // Context
-  PlaygroundUIProvider,
-  usePlaygroundUI,
-
-  // Components
-  EntitySelector,
-  EntitySelectorProvider,
-  ControlsBar,
-  PlaygroundOutputs,
-  ToolCallView,
-} from '@agenta/playground-ui'
-```
-
-### Subpath Exports
-
-See `package.json` `exports` for the full list (e.g. `@agenta/playground-ui/execution-items`,
-`@agenta/playground-ui/commit`, `@agenta/playground-ui/agent-page-header`).
+Import by subpath; there is no root export. See `package.json` `exports` for the full list
+(for example `@agenta/playground-ui/panels/*`, `@agenta/playground-ui/commit`,
+`@agenta/playground-ui/agent-page-header`).
 
 ## Architecture
 
@@ -127,20 +61,12 @@ const nodes = useAtomValue(playgroundController.selectors.nodes())
 
 ```text
 src/
-├── index.ts          # Main exports
-├── context/          # UI context for app-layer injection (PlaygroundUIContext.tsx)
-├── components/       # Execution items, outputs, entity selector, agent headers, ...
+├── panels/           # The playground panels /m renders
+├── components/       # Agent headers, commit, version history, ...
 ├── hooks/            # Execution cell, layout, loading hooks
 ├── state/            # UI-only atoms (feature flags, focus drawer)
 └── utils/
 ```
-
-## Main Components
-
-### EntitySelector
-
-Modal for selecting playground entities (workflow revisions, evaluator revisions, testcases,
-spans). Uses `EntityPicker` from `@agenta/entity-ui` for hierarchical selection.
 
 ## Component Composition Patterns
 
@@ -209,14 +135,6 @@ const { nodes, connections } = usePlaygroundState() // Object ref changes on any
 
 **Rule:** Keep fine-grained atom subscriptions. Never consolidate subscriptions into a single hook that returns an object.
 
-### Injectable UI Context
-
-App-layer components are injected via context:
-
-```typescript
-const { EntityDrillInView, CommitVariantChangesButton } = usePlaygroundUI()
-```
-
 ## Dependencies
 
 - `@agenta/playground` - State management (controllers, hooks)
@@ -224,7 +142,6 @@ const { EntityDrillInView, CommitVariantChangesButton } = usePlaygroundUI()
 - `@agenta/entity-ui` - Entity-specific UI components
 - `@agenta/ui` - Shared UI components and styling tokens
 - `@agenta/shared` - Shared utilities (formatters, API)
-- `antd` - UI component library
 - `jotai` - State management
 
 ## Related Packages

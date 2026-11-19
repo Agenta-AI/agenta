@@ -2,8 +2,8 @@ import {RunFailureCallout} from "@agenta/chat/components"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
- * **What a turn says when the run failed.** One component for both apps: it was written twice,
- * once per app, with its own clamp threshold and its own retry rule in each.
+ * **What a turn says when the run failed.** One component, with one clamp threshold and one
+ * retry rule.
  *
  * The recovery verb is the interesting part. It comes from the failure class, and the two escapes
  * that leave the chat are props, so an app with nowhere to send the reader draws neither.

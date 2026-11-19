@@ -98,8 +98,8 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-describe("mobile PostHog parity", () => {
-    it("loads once in Strict Mode, uses desktop settings and captures the initial /m URL once", async () => {
+describe("mobile PostHog", () => {
+    it("loads once in Strict Mode, uses the shared settings and captures the initial /m URL once", async () => {
         await render()
         expect(state.init).toHaveBeenCalledTimes(1)
         expect(state.init).toHaveBeenCalledWith(
@@ -124,7 +124,7 @@ describe("mobile PostHog parity", () => {
         expect(state.listeners.size).toBe(1)
     })
 
-    it("identifies a hydrated cloud profile and reuses desktop identity and properties", async () => {
+    it("identifies a hydrated cloud profile and reuses the stored identity and properties", async () => {
         await render()
         state.user = {email: "person@example.test", username: "Person"}
         await render()
@@ -139,7 +139,7 @@ describe("mobile PostHog parity", () => {
         expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
     })
 
-    it("keeps the desktop visitor ID for self-hosted users", async () => {
+    it("keeps the stored visitor ID for self-hosted users", async () => {
         state.cloud = false
         state.user = {email: "person@example.test", username: "Person"}
         await render()
@@ -213,7 +213,7 @@ describe("mobile PostHog parity", () => {
         expect(localStorage.getItem("hasCapturedTheme")).toBeNull()
     })
 
-    it("does not emit the theme event a second time after desktop already captured it", async () => {
+    it("does not emit the theme event a second time after it was already captured", async () => {
         localStorage.setItem("hasCapturedTheme", "true")
         await render()
         expect(state.capture.mock.calls.some(([event]) => event === "user_device_theme")).toBe(

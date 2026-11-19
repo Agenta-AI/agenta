@@ -12,7 +12,7 @@ export const SHEET_FRAME = {
 
 /**
  * The new evaluation sheet's frame: the same sheet, but from `lg` up wide enough for the step
- * list and the step tables side by side, as in the /w modal (at most 90% of the window).
+ * list and the step tables side by side (at most 90% of the window).
  */
 export const WIDE_SHEET_FRAME = {
     ...SHEET_FRAME,

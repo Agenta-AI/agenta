@@ -137,8 +137,7 @@ export function makeRealScenarioSource(
                 //      Skip the heuristic fallback; no extra RTT.
                 //   3. Server omitted `windowing` entirely (current local Agenta
                 //      behavior for /evaluations/scenarios/query): we don't know.
-                //      Use last-row-id heuristic when items.length === limit,
-                //      matching the OSS fallback in fetchEvaluationScenarioWindow.
+                //      Use last-row-id heuristic when items.length === limit.
                 //      Costs one extra RTT at end-of-stream (the "phantom chunk").
                 const windowingPresent = data?.windowing !== undefined
                 const apiNext = data?.windowing?.next ?? null

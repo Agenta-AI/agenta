@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -102,10 +102,10 @@ export const EvaluatorsScreen = ({
     const navigationIds = rows.map((row) => row.id)
 
     const [, setRevisionId] = useRevisionParam()
-    // Beta developer mode creates and edits automatic evaluators in the editable drawer, as /w
-    // does. Without it the Automatic tab keeps the read-only drawer and has no create.
-    const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
-    const editable = betaDeveloperMode && category === "automatic"
+    // Developer Mode creates and edits automatic evaluators in the editable drawer.
+    // Without it the Automatic tab keeps the read-only drawer and has no create.
+    const developerMode = useAtomValue(developerModeActiveAtom)
+    const editable = developerMode && category === "automatic"
     const editor = useEvaluatorEditor(editable)
     const [pickerOpen, setPickerOpen] = useState(false)
     const template = useCreateEvaluatorFromTemplate(
@@ -122,7 +122,7 @@ export const EvaluatorsScreen = ({
     const [inUseRunCount, setInUseRunCount] = useState<number | null>(null)
     const {archive, archiving} = useArchiveEvaluators(projectId)
     const sheets = useEvaluatorSheets()
-    // Automatic evaluators are created in the editable drawer (beta developer mode), human ones in
+    // Automatic evaluators are created in the editable drawer (Developer Mode), human ones in
     // their form.
     const openCreate = !canEdit
         ? undefined

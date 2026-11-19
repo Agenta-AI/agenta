@@ -7,7 +7,7 @@ import {ScenarioCellValue} from "./ScenarioCellValue"
 import type {ScenarioCell} from "./scenarioColumns"
 
 /**
- * A metric value as the old app prints it: a flag as a chip, a number or a stat blob as text
+ * A metric value: a flag as a chip, a number or a stat blob as text
  * (cost in dollars, duration in ms or s, tokens with K and M), no value as a dash. A value that
  * is not a metric (an object) is drawn as data.
  */

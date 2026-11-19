@@ -2,8 +2,7 @@
  * The link a session is shared, bookmarked and reloaded as. Pure string work, so every surface
  * that builds or reads one agrees.
  *
- * Two host shapes, because the two apps show a session differently: the desktop opens it as a tab
- * on its agent's playground (`playgroundSessionPath`), the mobile app gives it a page of its own
+ * Two shapes: a tab on its agent's playground (`playgroundSessionPath`), or a page of its own
  * (`sessionRoutePath`). Both name the session `session_id`.
  */
 import {SESSION_QUERY_PARAM} from "@agenta/shared/utils"

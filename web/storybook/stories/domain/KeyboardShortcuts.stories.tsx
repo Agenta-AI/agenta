@@ -22,7 +22,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Forty-three keyboard shortcuts already ship in the agent playground, and six of them tell you they exist. This adds two more, the files pane and the sheet itself, so the registry lists forty-five.\n\n`/m` renders the same `ApprovalCard` with `touch` set, so its keycaps are suppressed; see the **On mobile** story. The shortcut layer itself is desktop-only today, but every piece of it now lives in a package `/m` already depends on: the registry and the overlay guard in `@agenta/shared/utils`, and `useSessionShortcuts`, `ShortcutKeys`, `KeyboardShortcutsSheet` and `ShortcutsHelpButton` in `@agenta/ui/shortcuts`. A mobile host wires the same callbacks; nothing needs reimplementing. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
+                    "Forty-three keyboard shortcuts already ship in the agent playground, and six of them tell you they exist. This adds two more, the files pane and the sheet itself, so the registry lists forty-five.\n\nOn touch, `ApprovalCard` renders with `touch` set, so its keycaps are suppressed; see the **On mobile** story. Every piece of the shortcut layer lives in a package: the registry and the overlay guard in `@agenta/shared/utils`, and `useSessionShortcuts`, `ShortcutKeys`, `KeyboardShortcutsSheet` and `ShortcutsHelpButton` in `@agenta/ui/shortcuts`. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
             },
         },
     },
@@ -87,7 +87,7 @@ export const OnMobile: Story = {
         <div className="flex flex-col">
             <Frame
                 title="Approval card, at phone width"
-                note="The same ApprovalCard the desktop renders, with touch set. The keycaps are gone because a phone has no keyboard, and the tap target extends invisibly instead. A keycap appearing here is a regression."
+                note="The ApprovalCard with touch set. The keycaps are gone because a phone has no keyboard, and the tap target extends invisibly instead. A keycap appearing here is a regression."
             >
                 <div className="w-full max-w-[390px] rounded-xl border border-solid border-colorBorderSecondary p-3">
                     <ApprovalCard

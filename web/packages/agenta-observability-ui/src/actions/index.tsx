@@ -8,7 +8,7 @@ import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui
 import {DatabaseIcon, ListChecks, ListPlus, PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import {getTraceDrawerReferences} from "../traceDrawer/referenceSlots"
+import {getTraceDrawerReferences, hasAddToQueuePicker} from "../traceDrawer/referenceSlots"
 
 import {AddActionsDropdownProps} from "./types"
 
@@ -24,10 +24,14 @@ const AddActionsDropdown = ({
     dataTour,
     testsetAction,
     additionalActions,
-    queueAction,
-    queueAllMatchingAction,
+    queueAction: queueActionProp,
+    queueAllMatchingAction: queueAllMatchingActionProp,
 }: AddActionsDropdownProps) => {
     const t = useT(actionsCatalog)
+    // A queue action needs the host's picker; without one it would open nothing.
+    const pickerRegistered = hasAddToQueuePicker()
+    const queueAction = pickerRegistered ? queueActionProp : undefined
+    const queueAllMatchingAction = pickerRegistered ? queueAllMatchingActionProp : undefined
     const [dropdownOpen, setDropdownOpen] = useState(false)
     // `null` = picker closed; otherwise which queue action opened it.
     const [queueScope, setQueueScope] = useState<QueueScope | null>(null)

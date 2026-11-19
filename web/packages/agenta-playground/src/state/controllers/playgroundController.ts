@@ -1873,7 +1873,7 @@ let _onSelectionChange: SelectionChangeCallback | null = null
 
 /**
  * Register a callback for selection change side-effects (URL sync, drawer state, etc.).
- * Call from the OSS/EE layer during initialization.
+ * Call from the app layer during initialization.
  */
 export function setOnSelectionChangeCallback(cb: SelectionChangeCallback | null): void {
     _onSelectionChange = cb

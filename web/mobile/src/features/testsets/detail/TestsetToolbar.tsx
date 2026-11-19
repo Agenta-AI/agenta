@@ -145,7 +145,7 @@ export const TestsetToolbar = ({
                     />
                     <Button
                         size="sm"
-                        // Outlined while there is nothing to commit, as in the old app: a filled
+                        // Outlined while there is nothing to commit: a filled
                         // grey button reads as active.
                         variant={hasUnsavedChanges ? "default" : "outline"}
                         disabled={!hasUnsavedChanges || isSaving}

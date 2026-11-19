@@ -204,9 +204,8 @@
         position: relative;
 
         z-index: 1;
-        /* Plain CSS, not `@apply scrollbar-*`: that plugin exists only in the desktop app's
-           Tailwind v3 config, and one unknown utility makes the WHOLE stylesheet unparsable
-           wherever it is imported. Same rendering, no plugin dependency. */
+        /* Plain CSS, not `@apply scrollbar-*`: one unknown utility makes the WHOLE stylesheet
+           unparsable wherever it is imported. Same rendering, no plugin dependency. */
         &::-webkit-scrollbar {
             height: 0;
         }

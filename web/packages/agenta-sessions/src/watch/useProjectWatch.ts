@@ -20,9 +20,8 @@ export const projectWatchUrl = (projectId: string): string =>
  *
  * `invalidateWorkflowsListCache` covers the keys the packages own (`["workflows", "apps"]` and
  * `["workflows", "artifact"]`) — the sidebar, `/m`'s agents list, and the artifact metadata a
- * rename changes. The desktop agents TABLE predates them and keys on `agents-workflows`, which
- * exists only there; a token match reaches it without importing an app module into a package,
- * and matches nothing on `/m`.
+ * rename changes. The `agents-workflows` token match reaches a host list keyed outside the
+ * packages without importing an app module into a package.
  */
 const invalidateProjectWorkflowQueries = (workflowId?: string): void => {
     invalidateWorkflowsListCache()

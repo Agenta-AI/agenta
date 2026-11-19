@@ -16,7 +16,7 @@ function formatCreatedAt(value: string | null): string {
     return date && !Number.isNaN(date.getTime()) ? CREATED_AT.format(date) : MISSING
 }
 
-/** The old app's short id: the first 8 and the last 4 characters. */
+/** The short id: the first 8 and the last 4 characters. */
 const shortId = (id: string) => (id.length > 14 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id)
 
 /**

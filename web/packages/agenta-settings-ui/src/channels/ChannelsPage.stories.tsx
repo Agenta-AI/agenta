@@ -23,7 +23,7 @@ import {
  *
  * The stories are wired to fake actions over an in-memory fixture, so the rows are clickable and
  * the flows behind them end in a real state. The panel is the story's own bordered box, because
- * the host supplies the container: a drawer on desktop, a bottom sheet on /m.
+ * the host supplies the container.
  */
 const meta = {
     title: "@agenta/settings-ui/Channels/ChannelsPage",

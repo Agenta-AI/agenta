@@ -1,6 +1,5 @@
 /**
- * THE session chip — one tab in a session strip. Extracted from the desktop playground's
- * `SessionTagBar` (which now renders this), so the chip geometry, the active treatment and the
+ * THE session chip — one tab in a session strip. The chip geometry, the active treatment and the
  * hover-actions behaviour exist once for every surface that shows sessions as tabs.
  *
  * What the chip owns: geometry, the active/inactive skin, keyboard select, and the hover/focus
@@ -8,10 +7,10 @@
  * keep every chip's tooltip + icon subtree alive).
  *
  * What the host owns, as slots: the status dot (each surface derives status from its own source),
- * the label (the desktop's is an inline-rename input), and the actions themselves.
+ * the label (e.g. an inline-rename input), and the actions themselves.
  *
- * Rest props land on the root, so a host can wrap it in a Radix `asChild` trigger (the desktop's
- * context menu does).
+ * Rest props land on the root, so a host can wrap it in a Radix `asChild` trigger (e.g. a
+ * context menu).
  */
 import {useCallback, useState, type ComponentProps, type CSSProperties, type ReactNode} from "react"
 
@@ -34,7 +33,7 @@ const LABEL_MASK_HOVER = maskStyle(
 export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
     /** The session on screen: primary text on the `colorFill` chip. */
     active: boolean
-    /** Text, or the host's own label element (inline rename on the desktop). */
+    /** Text, or the host's own label element (e.g. an inline rename). */
     label: ReactNode
     /** Off while the label is an editor: the fade would dim the input's own right edge. */
     maskLabel?: boolean

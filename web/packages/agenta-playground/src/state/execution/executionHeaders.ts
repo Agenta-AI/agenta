@@ -16,9 +16,9 @@ import {atom} from "jotai"
  *
  * @example
  * ```ts
- * import { getJWT } from "@/oss/services/api"
+ * import { getAccessToken } from "@/lib/auth"
  * store.set(executionHeadersAtom, async () => {
- *     const jwt = await getJWT()
+ *     const jwt = await getAccessToken()
  *     return jwt ? { Authorization: `Bearer ${jwt}` } : {}
  * })
  * ```

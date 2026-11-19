@@ -170,7 +170,7 @@ const RunningElsewhereAdmissionHarness = ({
     )
 
     const submit = async (text: string, policy: "queue" | "steer" = "queue") => {
-        // Mirrors the desktop/mobile submit guard that exposed the original loss: the initial
+        // Mirrors the host submit guard that exposed the original loss: the initial
         // fresh-run response must release this before any busy action can be admitted.
         if (sending.current) return
         sending.current = true
@@ -179,7 +179,7 @@ const RunningElsewhereAdmissionHarness = ({
             else await queue.submit({text})
         } catch (error) {
             inputRef.current?.setMarkdown(text)
-            // The same reader both apps put on this line (AgentConversation, mobile Composer):
+            // The same reader the mobile Composer puts on this line:
             // the refusal's own sentence when it stated one, the standing wording when it did
             // not. Hardcoding the standing wording here would hide whether the send path read
             // the refusal body at all.

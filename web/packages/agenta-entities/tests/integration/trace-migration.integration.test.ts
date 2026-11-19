@@ -171,11 +171,10 @@ describe.skipIf(!hasBackend)("AGE-3788 smoke — Fern client reaches the backend
 })
 
 // --- Phase 6: /spans/analytics/query end-to-end (the generation dashboard) ---
-// This is the function the observability dashboard atom chain ultimately calls:
-//   useObservabilityDashboard → observabilityDashboardQueryAtom
-//     → fetchGenerationsDashboardData → fetchSpansAnalytics (this) → analyticsToGeneration
+// This is the function the observability dashboard ultimately calls
+// (useObservabilityDashboard → … → fetchSpansAnalytics).
 // Asserting it here proves the migrated Fern wiring + the metric-path contract
-// the OSS transform reads (buckets[].metrics keyed by dotted MetricSpec path).
+// the dashboard transform reads (buckets[].metrics keyed by dotted MetricSpec path).
 
 const DURATION_PATH = "attributes.ag.metrics.duration.cumulative"
 const COST_PATH = "attributes.ag.metrics.costs.cumulative.total"

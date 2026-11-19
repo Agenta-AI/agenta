@@ -738,7 +738,7 @@ describe("heading add (+)", () => {
         expect(children[0].groupAdd?.link).toBe("/w/w1/p/p1/agents/a1")
     })
 
-    // The desktop rail registers no seam: its headings stay bare, whatever the grouping says.
+    // A rail that registers no seam keeps its headings bare, whatever the grouping says.
     it("gives an entity without the seam no add on any heading", () => {
         expect(SIDEBAR_ENTITIES[SESSIONS_SIDEBAR_KEY].groupAddLink).toBeUndefined()
 

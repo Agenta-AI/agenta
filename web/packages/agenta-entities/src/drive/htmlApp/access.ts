@@ -1,4 +1,4 @@
-/** Agent HTML apps — the access gate both hosts share; one question at a time raises it. */
+/** Agent HTML apps — the shared access gate; one question at a time raises it. */
 import type {AppAccess, GrantLevel} from "./protocol"
 
 /** True when `have` lets a call that needs `need` through. */

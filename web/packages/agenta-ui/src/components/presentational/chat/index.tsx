@@ -1,6 +1,6 @@
 /**
- * Chat message chrome, antd-free — the drop-in replacements for the @ant-design/x pieces the
- * desktop chat used (`Bubble`, `Actions` items, `FileCard`). Metrics mirror antd-x so the swap
+ * Chat message chrome, antd-free — the drop-in replacements for the @ant-design/x pieces
+ * (`Bubble`, `Actions` items, `FileCard`). Metrics mirror antd-x so the swap
  * is invisible: content 16/12 padding with a 12px radius, `filled` on the fill-content token,
  * `borderless` flush on the canvas, a 32px avatar column + 12px gap, and the 4px three-dot
  * typing loader.
@@ -71,7 +71,7 @@ export const ChatBubble = ({
         )}
     >
         {/* 32px slot, not shrink-to-fit: antd-x reserves a 32px avatar column around its 24px
-            avatar, so shrink-wrapping moved every message body 8px inboard of the desktop app. */}
+            avatar. */}
         {avatar ? <div className="w-8 shrink-0">{avatar}</div> : null}
         {/* A header widens this column, and a flex child stretches to it — so with one present the
             bubble is pinned to its own side and left to hug its text. Without one the column is
@@ -154,7 +154,7 @@ export const turnToolbarRevealClass =
  * the response text does, `right-11` ends where the user bubble does.
  */
 /** The user turn's bubble geometry, tighter than the antd-x default it inherits. Geometry only:
- * the tint stays on the desktop, since `--ag-user-bubble-*` is not bridged into /m's tokens. */
+ * `--ag-user-bubble-*` is not bridged into /m's tokens. */
 export const userBubbleContentClass = "min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2"
 
 export const turnToolbarClass = "absolute bottom-0 z-10 flex items-center gap-1"

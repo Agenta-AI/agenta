@@ -9,6 +9,6 @@ export const AGENT_CHIP_BOX = "flex h-5 w-5 shrink-0 items-center justify-center
 /** What the chip wears when nobody picked an icon. */
 export const AGENT_CHIP_FALLBACK = "bg-colorFillSecondary text-[var(--ag-preset-cyan-text)]"
 
-/** One keyboard-focus ring for both controls; `--color-focus-ring` resolves on desktop and on /m. */
+/** One keyboard-focus ring for both controls. */
 export const AGENT_FOCUS_RING =
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"

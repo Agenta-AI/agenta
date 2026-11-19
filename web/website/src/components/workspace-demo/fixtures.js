@@ -345,7 +345,7 @@ const AREAS = [
         meta: "1d ago · 4m 12s · 1.2M tokens · $0.084",
         steps: [
           S("GitHub", "Read", "61 open issues"),
-          S("GitHub", "Searched", "web/oss/src/components"),
+          S("GitHub", "Searched", "web/mobile/src/components"),
           S("GitHub", "Wrote", "triage/playground-bugs.md"),
           S("Linear", "Updated", "task list"),
         ],

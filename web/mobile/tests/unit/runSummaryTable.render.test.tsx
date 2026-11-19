@@ -69,7 +69,7 @@ afterEach(() => {
 })
 
 describe("run summary table", () => {
-    it("Summary rows follow the /w order and hide Test set when no run has one", () => {
+    it("Summary rows keep their order and hide Test set when no run has one", () => {
         render(input())
         expect(rowKeys()).toEqual([
             "testset",
@@ -100,7 +100,7 @@ describe("run summary table", () => {
         expect(labelText("queries")).toBe("Filters / Queries")
     })
 
-    it("A live run's query row shows the filter and the sampling rate, like the old app", () => {
+    it("A live run's query row shows the filter and the sampling rate", () => {
         render(
             input({
                 references: references({queries: [{queryId: "q-1", revisionId: "qr-1"}]}),
@@ -215,7 +215,7 @@ describe("run summary table", () => {
         expect(dot()?.className).toContain("bg-success")
     })
 
-    it("Metric names are in title case, as in /w", () => {
+    it("Metric names are in title case", () => {
         render(
             input({
                 metrics: [

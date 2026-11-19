@@ -8,7 +8,7 @@ import {
 import {CaretDown} from "@phosphor-icons/react"
 
 /**
- * Picks any number of the listed values. Unlike the old tags select it takes no free text, so a
+ * Picks any number of the listed values. It takes no free text, so a
  * stored value is always one the evaluator schema allows. Emptying the selection sets `null`.
  */
 export const AnnotationMultiSelect = ({

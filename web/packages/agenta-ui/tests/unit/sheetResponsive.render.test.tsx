@@ -6,7 +6,7 @@ import {Sheet, SheetContent, SheetTitle} from "../../src/components/ui/sheet"
 import {EnhancedDrawer} from "../../src/drawer/EnhancedDrawer"
 
 /**
- * `responsive` is the one prop that keeps a configuration panel correct in both apps: a bottom
+ * `responsive` is the one prop that keeps a configuration panel correct at every width: a bottom
  * sheet on a phone, the right-edge drawer from `lg` up. The mobile app had invented it locally
  * and the shared kit had only the four literal edges, so every shared drawer was a right-edge
  * drawer on a phone.

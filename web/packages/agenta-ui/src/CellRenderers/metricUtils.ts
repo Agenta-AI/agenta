@@ -1,8 +1,7 @@
 /**
  * Shared metric utilities for rendering metric cell values.
  *
- * Consolidates metric formatting, type detection, and value extraction
- * used by both EvalRunDetails and annotation session tables.
+ * Consolidates metric formatting, type detection, and value extraction.
  *
  * @packageDocumentation
  */

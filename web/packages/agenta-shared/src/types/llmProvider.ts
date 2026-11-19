@@ -3,7 +3,7 @@
  *
  * Cross-cutting type used by the secret entity (`@agenta/entities/secret`),
  * provider-selection UI components (`@agenta/ui/select-llm-provider`),
- * and OSS feature pages (ModelRegistry, settings/Secrets, prompts, evaluations).
+ * and app feature pages.
  *
  * The `type` field is typed as `string` rather than the secret-domain enum
  * (`SecretDTOKind`) to keep this package independent of `@agenta/entities/secret`

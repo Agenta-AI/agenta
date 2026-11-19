@@ -378,7 +378,7 @@ describe("live evaluation sheet", () => {
         expect(text()).toContain("3 filters • Sampling 25% • Live traffic")
     })
 
-    it("Run on historical data is shown off and disabled, with its dates, as in the old app", async () => {
+    it("Run on historical data is shown off and disabled, with its dates", async () => {
         await mount()
         const toggle = host.ownerDocument.querySelector("[aria-label='Run on historical data']")
         expect(toggle?.getAttribute("aria-checked")).toBe("false")

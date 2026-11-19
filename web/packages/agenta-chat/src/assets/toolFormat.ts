@@ -1,4 +1,3 @@
-// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 /**
  * Shared formatting for tool input/output display (inline step log + Turn Inspector), so both
  * render a payload identically.

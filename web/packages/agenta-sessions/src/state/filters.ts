@@ -22,9 +22,8 @@ export const sessionShowArchivedAtom = atom(false)
 /**
  * The archive INSTEAD of the list, where `sessionShowArchivedAtom` shows it alongside.
  *
- * Two atoms rather than a tri-state, because the two surfaces ask different questions: the
- * desktop toolbar has a switch that widens the set, and the mobile list has a Type choice that
- * replaces it. Server-side `archived_only` wins over `include_archived`, so setting both is not
+ * Two atoms rather than a tri-state, because surfaces ask different questions: a switch widens
+ * the set, and a Type choice replaces it. Server-side `archived_only` wins over `include_archived`, so setting both is not
  * ambiguous.
  */
 export const sessionArchivedOnlyAtom = atom(false)

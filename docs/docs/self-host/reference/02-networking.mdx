@@ -72,7 +72,7 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 ### External Access Flow
 ```
 Internet → Traefik (80/443) → Internal Services
-├── / → web:3000 (Frontend)
+├── / → web-mobile:3000 (Frontend)
 ├── /api/ → api:8000 (Backend API)
 └── /services/ → services:8080 (includes completion/chat endpoints)
 ```
@@ -157,9 +157,9 @@ These variables control external port exposure for direct access:
 
 #### Frontend Routing
 ```yaml
-# Route: / → web:3000
+# Route: / → web-mobile:3000
 Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/`)
-Target: web:3000
+Target: web-mobile:3000
 Processing: Direct forwarding
 SSL: Automatic (production)
 ```

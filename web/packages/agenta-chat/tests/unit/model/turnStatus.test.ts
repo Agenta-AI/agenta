@@ -32,7 +32,7 @@ describe("deriveTurnStatus", () => {
 
     it("counts a server notice as the turn's answer", () => {
         // Without this the turn is answer-less, which makes it a "no response" turn: the
-        // desktop then renders the bubble as a failure and, after another empty turn, drops
+        // bubble then renders as a failure and, after another empty turn, drops
         // the row entirely — losing the one sentence that says what to do.
         const message = {
             id: "a1",

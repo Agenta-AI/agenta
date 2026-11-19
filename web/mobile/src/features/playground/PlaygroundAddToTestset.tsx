@@ -7,7 +7,7 @@ import {atom, useAtomValue} from "jotai"
 import {AddToTestsetSheet} from "../observability/addToTestset/AddToTestsetSheet"
 
 /**
- * "Add to test set" from the playground, as in /w: every finished run goes to the sheet as the
+ * "Add to test set" from the playground: every finished run goes to the sheet as the
  * root span of its trace, which holds the run's inputs and outputs. The sheet opens when every
  * run's span is known. If one is missing,
  * nothing opens: a sheet with some of the runs would add fewer rows than the page shows.

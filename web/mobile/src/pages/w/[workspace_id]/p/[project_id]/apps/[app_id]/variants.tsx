@@ -3,7 +3,7 @@ import {useRouter} from "next/router"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
 import {VariantsScreen} from "@/features/variants/VariantsScreen"
 
-/** The app's Registry, as in the old app. The screen reads the app from the path. */
+/** The app's Registry. The screen reads the app from the path. */
 export default function AppVariantsPage() {
     const router = useRouter()
     const read = (key: string) => (typeof router.query[key] === "string" ? router.query[key] : "")
@@ -11,7 +11,7 @@ export default function AppVariantsPage() {
     const projectId = read("project_id")
     if (!workspaceId || !projectId || !read("app_id")) return null
     return (
-        <DeveloperViewGate viewId="variants" betaOnly>
+        <DeveloperViewGate viewId="variants" developerModeOnly>
             <VariantsScreen workspaceId={workspaceId} projectId={projectId} />
         </DeveloperViewGate>
     )

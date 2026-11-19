@@ -20,7 +20,7 @@ export const VariantRowCells = ({
 }: {
     row: AppRevisionRow
     narrow: boolean
-    /** The Registry table's cells: the full model name and the time. Beta developer mode only. */
+    /** The Registry table's cells: the full model name and the time. Developer Mode only. */
     detailed?: boolean
     isLatest: boolean
     canDeploy: boolean

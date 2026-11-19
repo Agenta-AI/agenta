@@ -240,8 +240,8 @@ export const templateBuilderMessage = (template: AgentStarterTemplate): string =
  * What picking a template MEANS, for every surface that offers one: create an agent under the
  * template's name, seeded with its builder instruction.
  *
- * Only the seed's DELIVERY is per-app (the desktop stashes a first-run seed and lands in the
- * playground; mobile stashes a pending task and lands in the session), so that stays with the host.
+ * Only the seed's DELIVERY is per-host (mobile stashes a pending task and lands in the session),
+ * so that stays with the host.
  * Deciding what the new agent is called and what it is told must not.
  */
 export const agentTemplateSeed = (
@@ -253,7 +253,7 @@ export const agentTemplateSeed = (
 
 /**
  * The one chat message Save as template sends; the create-template skill handles it. Shared so
- * the desktop playground and mobile send the same request; only its delivery is per-app.
+ * every surface sends the same request; only its delivery is per-host.
  */
 export const SAVE_AS_TEMPLATE_MESSAGE =
     "Save this agent as a template I can share. Use the create-template skill."

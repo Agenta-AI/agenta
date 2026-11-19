@@ -2,10 +2,6 @@
 /**
  * Which recovery verb a failed run offers, per failure class.
  *
- * The callout was written twice, as the desktop's `RunErrorBody` and the mobile app's private
- * `RunErrorCallout`, and only the desktop copy had this coverage. These cases moved here with the
- * component, so both apps are held to them.
- *
  * The two escapes that leave the chat are props, so a case that expects one has to wire it: that
  * is the distinction between "this failure class is clearable by adding a key" and "this app has
  * somewhere to add one".

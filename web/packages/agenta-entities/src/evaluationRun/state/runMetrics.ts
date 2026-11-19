@@ -28,7 +28,7 @@ import {
 
 import {evaluationRunQueryAtomFamily} from "./molecule"
 
-/** Same cadence as the old app's live refresh. */
+/** The live refresh cadence. */
 export const RUN_METRICS_REFRESH_MS = 5_000
 
 export const runLevelMetricsQueryKey = (projectId: string, runId: string) =>
@@ -290,7 +290,7 @@ export function buildRunMetricCatalog(
         const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
         const stepKey = stepKeys[0] ?? null
         // Several evaluators: errors add up as totals, and cost, time and tokens per trace. Several
-        // app steps report cost, time and tokens from the first one, as the old app does.
+        // app steps report cost, time and tokens from the first one.
         const combined = stepKeys.length > 1 && (id === "errors" || fromEvaluators)
         const combine = id === "errors" ? sumCounts : sumPerTrace
         const temporal = combined

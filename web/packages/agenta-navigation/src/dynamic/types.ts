@@ -3,7 +3,7 @@ import type {MouseEvent, ReactElement, ReactNode} from "react"
 import type {ListQueryState} from "@agenta/entities/shared"
 import type {Atom, WritableAtom} from "jotai"
 
-/** Entity kind for icon/tone selection. Mirrors oss ReferenceTone — keep the literals in sync. */
+/** Entity kind for icon/tone selection. */
 export type SidebarEntityKind =
     | "app"
     | "variant"

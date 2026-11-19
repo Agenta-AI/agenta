@@ -1,10 +1,7 @@
 /**
  * The scenario table filter: which conditions count, which columns can be filtered, what type a
  * column holds, how typed text becomes a condition value, and when the table must read more pages
- * to find matches.
- *
- * Copied from the old app (web/oss `EvalRunDetails/etl/scenarioFilterState.ts`,
- * `ScenarioFilterBar.tsx`, `useScenarioFilter.ts`) as pure functions.
+ * to find matches, as pure functions.
  *
  * @packageDocumentation
  */
@@ -17,8 +14,8 @@ import {unwrapStatsForCompare, type PredicateGroup, type RowPredicate} from "./r
 export const EMPTY_SCENARIO_FILTER: PredicateGroup = {op: "and", conditions: []}
 
 /**
- * The column kinds the filter offers: evaluator outputs and metrics. The old app withholds test
- * set and application columns too.
+ * The column kinds the filter offers: evaluator outputs and metrics. Test set and application
+ * columns are withheld.
  */
 export const FILTERABLE_COLUMN_KINDS: ReadonlySet<ColumnGroup["kind"]> = new Set([
     "evaluator",

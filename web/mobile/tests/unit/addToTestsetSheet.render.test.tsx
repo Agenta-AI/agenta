@@ -228,7 +228,7 @@ describe("add to test set sheet", () => {
     it("Opening with two spans shows the auto mappings for inputs and outputs", async () => {
         await render()
         expect(text()).toContain("2 spans selected")
-        // As in the old app, mapping and preview follow the test set choice.
+        // Mapping and preview follow the test set choice.
         expect(text()).not.toContain("2. Map fields")
         expect(text()).not.toContain("3. Preview")
 

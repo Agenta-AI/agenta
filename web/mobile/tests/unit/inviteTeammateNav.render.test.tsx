@@ -15,7 +15,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
     const {atom: makeAtom} = await import("jotai")
     betaAtom.current = makeAtom(false)
-    return {...original, betaDeveloperModeActiveAtom: betaAtom.current}
+    return {...original, developerModeActiveAtom: betaAtom.current}
 })
 
 vi.mock("@/features/context/useProjectPermission", () => ({
@@ -61,7 +61,7 @@ describe("Invite Teammate in the rail", () => {
 
     afterEach(() => act(() => root.unmount()))
 
-    it("beta developer mode adds Invite Teammate after Settings, opening the invite dialog", () => {
+    it("Developer Mode adds Invite Teammate after Settings, opening the invite dialog", () => {
         expect(render(true)).toEqual([
             {key: "mobile-templates", link: `${P}/templates`},
             {key: "mobile-settings", link: `${P}/settings`},
@@ -73,7 +73,7 @@ describe("Invite Teammate in the rail", () => {
         expect(permission).toHaveBeenCalledWith("proj-1", "add_new_user_to_workspace")
     })
 
-    it("beta developer mode keeps Invite Teammate in the settings rail", () => {
+    it("Developer Mode keeps Invite Teammate in the settings rail", () => {
         expect(render(true, false).map(({key}) => key)).toEqual(["invite-teammate-link"])
     })
 
@@ -82,7 +82,7 @@ describe("Invite Teammate in the rail", () => {
         expect(render(true).map(({key}) => key)).toEqual(["mobile-templates", "mobile-settings"])
     })
 
-    it("without beta developer mode the bottom rail is unchanged and asks no permission", () => {
+    it("without Developer Mode the bottom rail is unchanged and asks no permission", () => {
         expect(render(false).map(({key}) => key)).toEqual(["mobile-templates", "mobile-settings"])
         expect(render(false, false)).toEqual([])
         expect(permission.mock.calls.every(([projectId]) => projectId === "")).toBe(true)

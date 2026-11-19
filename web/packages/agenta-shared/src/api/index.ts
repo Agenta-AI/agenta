@@ -4,7 +4,6 @@
 
 export {
     getEnv,
-    isBetaDeveloperModeEnabled,
     isBillingEnabled,
     isEE,
     isEmailInvitationsEnabled,

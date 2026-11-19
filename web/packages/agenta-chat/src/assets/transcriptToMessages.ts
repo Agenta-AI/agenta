@@ -1,14 +1,7 @@
-// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-// (Was a copy of web/oss/src/components/AgentChatSlice/assets/transcriptToMessages.ts.)
-//
-// Re-synced 2026-08-03 to full parity with the original: the approval-resume handling (pause
-// folding, the resumed settle pass, tool-call dedup, re-raise under a new toolCallId) — without
-// which a resumed turn replays as still parked and the reload keeps the approval dock up — and
-// user-attachment parts + `filename` on file parts, without which a message that carried files
-// replays as bare text.
-//
-// `attachmentContentUrl` is the package's own copy of the original's `attachmentMedia.ts`
-// builder, on `@agenta/shared/api` rather than the OSS app layer.
+// Handles approval resume (pause folding, the resumed settle pass, tool-call dedup, re-raise
+// under a new toolCallId) — without which a resumed turn replays as still parked and the reload
+// keeps the approval dock up — and user-attachment parts + `filename` on file parts, without
+// which a message that carried files replays as bare text.
 import type {
     SessionInteractionRowState,
     SessionInteractionRowStates,
@@ -37,7 +30,7 @@ import {getDefaultStore} from "jotai"
 
 type Part = Record<string, unknown>
 
-/** Content URL for one durable attachment. Mirrors the OSS original's `attachmentMedia.ts`. */
+/** Content URL for one durable attachment. */
 export function attachmentContentUrl(
     sessionId: string,
     attachmentId: string,
@@ -288,9 +281,9 @@ const isRunnerSentinelError = (part: Part): boolean => {
     return (
         errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
         // Prefix, not equality: the code is the contract and the explanation after the colon
-        // is prose. `toolSummary` and the desktop's ToolActivity already match this way, so an
-        // exact compare here is the odd one out and would silently stop reopening the approval
-        // gate if the runner ever appended context.
+        // is prose. `toolSummary` already matches this way, so an exact compare here would be the
+        // odd one out and would silently stop reopening the approval gate if the runner ever
+        // appended context.
         errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX)
     )
 }

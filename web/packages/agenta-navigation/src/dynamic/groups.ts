@@ -8,8 +8,7 @@ import type {
 /**
  * Folds an entity's heading descriptor onto its source.
  *
- * Only while the source is `ready`: a heading over a loading or empty group says nothing, and
- * shared by both hosts so the desktop registry and the mobile drawer cannot drift on the rule.
+ * Only while the source is `ready`: a heading over a loading or empty group says nothing.
  */
 export const withEntityGroups = (
     source: SidebarEntitySource,

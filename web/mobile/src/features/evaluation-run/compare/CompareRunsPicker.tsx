@@ -21,7 +21,7 @@ import {CompareRunsSkeleton} from "./states/CompareRunsSkeleton"
 import {useCompareCandidates} from "./useCompareCandidates"
 
 /**
- * The runs that can be compared with `base`, as in the old app: the shared test set, "Selected:
+ * The runs that can be compared with `base`: the shared test set, "Selected:
  * n/4" with Clear all, a search on the name, status filters with counts, and a checkbox per run.
  * A fifth run is not added; a message says why.
  */

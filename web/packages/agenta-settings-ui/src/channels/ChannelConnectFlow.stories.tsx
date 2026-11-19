@@ -26,7 +26,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The connect flow, shared by the desktop drawer and the /m sheet. The methods " +
+                    "The connect flow, shown in the channels panel. The methods " +
                     "are the Agenta-hosted app or bot and the customer's own.",
             },
         },

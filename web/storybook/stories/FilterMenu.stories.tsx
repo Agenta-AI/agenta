@@ -16,8 +16,7 @@ import {
 } from "lucide-react"
 
 /**
- * `@agenta/ui/filter-menu` is entity-free, so it renders identically in `/m` and
- * the desktop app. Nothing type-checks the storybook package in CI — these stories are the only
+ * `@agenta/ui/filter-menu` is entity-free. Nothing type-checks the storybook package in CI — these stories are the only
  * place the component's prop shape is exercised outside its two call-sites.
  */
 const meta = {

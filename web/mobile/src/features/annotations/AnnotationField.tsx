@@ -117,7 +117,7 @@ export const AnnotationField = ({
                 <div inert={readOnly}>
                     <Select
                         value={isEmptyValue(value) ? "" : String(value)}
-                        // The null option saves the text "null", as the old view did: a real null
+                        // The null option saves the text "null": a real null
                         // reads as "no value" in the form, so it could never complete an item.
                         onValueChange={onChange}
                     >

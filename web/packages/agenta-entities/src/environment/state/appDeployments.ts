@@ -2,7 +2,7 @@
  * App-Scoped Environment Deployment Atoms
  *
  * Derives per-app deployment info from the entity environment system.
- * Accepts appId as a parameter so consumers (OSS/EE) provide the resolved ID.
+ * Accepts appId as a parameter so consumers provide the resolved ID.
  */
 
 import deepEqual from "fast-deep-equal"

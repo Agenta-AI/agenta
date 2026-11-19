@@ -56,9 +56,8 @@ export interface AgentBuildPanelProps {
  * An agent's Build surface: its committable configuration, then the operational sections
  * (Triggers, Subscriptions, Schedules, Files) that are never part of the committed config.
  *
- * One panel for every viewport. The desktop playground and the mobile agent screen render THIS —
- * the config editors, their schema-driven controls and the hydration gates are identical, and
- * what differs (the header's variant picker, where Files comes from) arrives as a slot.
+ * One panel for every viewport. What is host-specific (the header's variant picker, where Files
+ * comes from) arrives as a slot.
  */
 export const AgentBuildPanel = memo(
     ({

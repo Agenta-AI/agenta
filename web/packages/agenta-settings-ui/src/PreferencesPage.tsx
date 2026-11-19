@@ -3,7 +3,7 @@ import settingsPreferencesCatalog from "@agenta/i18n/catalogs/settings.preferenc
 import {
     agentaChannelSurfaceEnabledAtom,
     channelDebugEnabledAtom,
-    classicModeEnabledAtom,
+    developerModeEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
 import {Switch} from "@agenta/ui/ui"
@@ -15,7 +15,7 @@ import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
-    | "classic-mode"
+    | "developer-mode"
     | "playground-inspector"
     | "channel-debug"
     | "agenta-channel-surface"
@@ -35,8 +35,7 @@ export interface PreferenceSection {
 }
 
 /**
- * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host decides
- * how each row is bound, and may add rows of its own through `hostItems`.
+ * The page's sections, rows and copy. A host decides how each row is bound, and may add rows of its own through `hostItems`.
  */
 export const PREFERENCE_SECTIONS: PreferenceSection[] = [
     {
@@ -44,7 +43,7 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
         title: "settings.preferences.featureFlags",
         items: [
             {
-                key: "classic-mode",
+                key: "developer-mode",
                 title: "settings.preferences.developerMode",
                 description: "settings.preferences.developerModeDescription",
             },
@@ -83,13 +82,13 @@ export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding
 
 /** Every row bound to its shared atom. A host replaces a binding only where its behavior differs. */
 export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding> => {
-    const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
+    const [developerMode, setDeveloperMode] = useAtom(developerModeEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
     const [channelProbe, setChannelProbe] = useAtom(agentaChannelSurfaceEnabledAtom)
 
     return {
-        "classic-mode": {enabled: classicMode, onChange: setClassicMode},
+        "developer-mode": {enabled: developerMode, onChange: setDeveloperMode},
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},
         "agenta-channel-surface": {enabled: channelProbe, onChange: setChannelProbe},
@@ -98,7 +97,7 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
 
 /**
  * A row only one host shows, placed after the shared rows of a {@link PREFERENCE_SECTIONS}
- * section. `/m` lists its developer views in preview this way; `/w` passes none.
+ * section. `/m` lists its developer views in preview this way.
  */
 export interface HostPreferenceItem {
     /** The `key` of the section it joins. */
@@ -120,9 +119,6 @@ export interface PreferencesPageProps {
 
 /**
  * The Preferences tab: Appearance, then the shared {@link PREFERENCE_SECTIONS}.
- *
- * Theme is a per-viewer choice both apps show the same way; the switches share storage across
- * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
 export const PreferencesPage = ({
     theme,

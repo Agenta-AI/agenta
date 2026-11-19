@@ -172,8 +172,8 @@ export const useNewAgentAction = (base: string) => {
 
     /**
      * The first-run hero's submit: what the user typed IS the agent's first instruction. The name
-     * is left to the create core's own default ("New agent"), the same default desktop onboarding
-     * mints its ephemeral with — naming from the prompt is the agent's job, not the composer's.
+     * is left to the create core's own default ("New agent") — naming from the prompt is the
+     * agent's job, not the composer's.
      */
     const createFromPrompt = useCallback(
         (input: {

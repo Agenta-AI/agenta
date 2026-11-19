@@ -20,7 +20,7 @@ export const RUN_STATUS_OPTIONS = [
     {value: "cancelled", label: "Cancelled"},
 ] as const
 
-/** The kinds the Type filter offers, as the old app's. */
+/** The kinds the Type filter offers. */
 export const RUN_TYPE_OPTIONS: readonly {value: EvaluationRunKind; label: string}[] = [
     {value: "auto", label: "Auto"},
     {value: "human", label: "Human"},
@@ -28,7 +28,7 @@ export const RUN_TYPE_OPTIONS: readonly {value: EvaluationRunKind; label: string
     {value: "custom", label: "SDK"},
 ]
 
-/** The quick date ranges, the old app's presets without "all time" (no range is all time). */
+/** The quick date ranges, without "all time" (no range is all time). */
 export const RUN_DATE_RANGES: readonly AnalyticsRangeLabel[] = ANALYTICS_RANGE_PRESETS.map(
     (preset) => preset.label,
 ).filter((label) => label !== "all time")

@@ -96,7 +96,7 @@ export const RevisionDetails = ({
             {kind === "deployment" && (
                 <VariantRow revisionId={revisionId} version={revision.version} />
             )}
-            {/* The entity flag too, as /w does: a wrong kind from a host never fetches the catalog. */}
+            {/* The entity flag too: a wrong kind from a host never fetches the catalog. */}
             {kind === "evaluator" && isEvaluator && <EvaluatorTypeRow uri={revision.data?.uri} />}
             {kind === "evaluator" && <EvaluatorSlugRow revisionId={revisionId} />}
             <DetailRow label={t("entityUi.revisionDrawer.dateCreated")}>

@@ -31,7 +31,7 @@ export const RowSyncTag = ({rowId}: {rowId: string}) => {
     if (isNew) return <Tag sync="new" />
     if (!isDirty) return null
     // The discard control is a native button, so the keyboard reaches it. Preflight is off, so
-    // it is reset here. The shared Tag's own dismiss is a span the old app still renders.
+    // it is reset here. The shared Tag's own dismiss is a span.
     return (
         <Tag
             sync="modified"

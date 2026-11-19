@@ -13,7 +13,7 @@ import {Copy, DotsThreeVertical, ListChecks, PencilSimple, Trash} from "@phospho
 import {TestcaseQueuePicker} from "./TestcaseQueuePicker"
 
 /**
- * The kebab on a testcase row, in the old app's order: Edit, Add annotation queue, Copy ID,
+ * The kebab on a testcase row, in this order: Edit, Add annotation queue, Copy ID,
  * Delete. "Add annotation queue" and "Delete" show only to a reader who may edit, and Delete
  * is off while a save runs. A row that is not saved yet has no id to copy or to queue.
  */

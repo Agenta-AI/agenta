@@ -2,7 +2,7 @@
  * Enriched Evaluator Adapter Hooks
  *
  * Package-level hooks that provide evaluator-aware browse/select adapters
- * with colored type tags. Replaces the OSS-only `useEvaluatorBrowseAdapter.ts`.
+ * with colored type tags.
  *
  * Data sources (all from `@agenta/entities/workflow`):
  * - `evaluatorKeyMapAtom` — Map<workflowId, evaluatorKey> derived from batch-fetched revisions

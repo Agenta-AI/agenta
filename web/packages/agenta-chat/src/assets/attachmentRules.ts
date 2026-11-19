@@ -1,6 +1,5 @@
-// Canonical since the desktop re-plumb: the OSS copy (assets/attachments.ts) is deleted and
-// both apps import this. Named attachmentRules.ts because src/model/attachments.ts already
-// holds the `PendingAttachment` staged-file type.
+// Named attachmentRules.ts because src/model/attachments.ts already holds the
+// `PendingAttachment` staged-file type.
 import {createT, formatLocale} from "@agenta/i18n"
 import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 

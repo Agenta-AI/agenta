@@ -92,8 +92,8 @@ export const useUpdateAgentDescription = () => {
  * Everything you can do to an agent from its own surfaces, defined once — the same shape
  * [[useSessionActions]] gives sessions.
  *
- * A host with a richer flow of its own (the desktop's app-management modals, which also refresh
- * its apps cache) overrides `rename`/`remove` at the menu; a host without one gets these.
+ * A host with a richer flow of its own overrides `rename`/`remove` at the menu; a host without one
+ * gets these.
  */
 export const useAgentActions = () => {
     const queryClient = useQueryClient()

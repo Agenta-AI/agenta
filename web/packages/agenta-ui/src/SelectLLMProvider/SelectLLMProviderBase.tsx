@@ -57,7 +57,7 @@ const SINGLE_COLUMN_QUERY = "(max-width: 639.98px)"
  * cascade, and the panel width is decoupled from the trigger width. The trigger still reuses
  * `selectTriggerVariants`, so it stays dimensionally identical to Select/Combobox.
  *
- * This is a presentational component that can be extended in OSS with
+ * This is a presentational component that can be extended in the app with
  * vault integration and other features.
  *
  * @example Basic Usage

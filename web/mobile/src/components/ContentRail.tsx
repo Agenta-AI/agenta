@@ -11,9 +11,8 @@ import {cn} from "@/lib/utils"
  * the cap never bites (`w-full`), so the phone layout is untouched by construction; on tablet
  * and desktop the reading surfaces stop stretching edge-to-edge.
  *
- * Default cap is the shared `CHAT_COLUMN` (880px), the same reading width the desktop chat uses
- * — a local literal drifted a step narrower. Screens with a wider composition (Home's two-column
- * grid) pass their own cap via className.
+ * Default cap is the shared `CHAT_COLUMN` (880px). Screens with a wider composition (Home's
+ * two-column grid) pass their own cap via className.
  */
 export const ContentRail = ({className, ...props}: ComponentProps<"div">) => (
     <div className={cn(CHAT_COLUMN, className)} {...props} />

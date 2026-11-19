@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-// The add-to-queue picker is a host slot: /m registers a shadcn picker, /w keeps the antd one.
+// The add-to-queue picker is a host slot: /m registers its picker; unregistered, there is none.
 import {act, type ReactNode} from "react"
 
 import {atom} from "jotai"
@@ -17,13 +17,6 @@ vi.mock("next/dynamic", async () => {
         },
     }
 })
-
-// The antd popover the default slot loads. A stub marks it, so no antd is needed here.
-vi.mock("@agenta/annotation-ui/add-to-queue", () => ({
-    default: ({children}: {children: ReactNode}) => (
-        <div data-testid="default-picker">{children}</div>
-    ),
-}))
 
 vi.mock("@agenta/entities/trace", () => ({
     fetchAllPreviewTraces: vi.fn(),
@@ -130,7 +123,6 @@ it("The trace header renders the registered add to queue picker", async () => {
     expect(picker?.getAttribute("data-type")).toBe("traces")
     expect(picker?.getAttribute("data-ids")).toBe("trace-1")
     expect(picker?.textContent).toContain("Add annotation queue")
-    expect(node.querySelector('[data-testid="default-picker"]')).toBeNull()
 })
 
 it("The observability actions render the registered add to queue picker", async () => {
@@ -141,11 +133,10 @@ it("The observability actions render the registered add to queue picker", async 
     const picker = node.querySelector('[data-testid="registered-picker"]')
     expect(picker).not.toBeNull()
     expect(picker?.getAttribute("data-ids")).toBe("a,b")
-    expect(node.querySelector('[data-testid="default-picker"]')).toBeNull()
 })
 
-it("Without a registration the default picker is used", async () => {
+it("Without a registration the header shows no queue picker", async () => {
     const header = await mount(<TraceHeader {...headerProps} />)
-    expect(header.querySelector('[data-testid="default-picker"]')).not.toBeNull()
     expect(header.querySelector('[data-testid="registered-picker"]')).toBeNull()
+    expect(header.textContent).not.toContain("Add annotation queue")
 })

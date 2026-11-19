@@ -85,10 +85,10 @@ function cellLabel(cell: ScenarioTableCell, labels: Record<string, string>): str
  * The Scenarios tab: every scenario of the run as a table row (cards on a phone), with its status,
  * the values of each test set and app, one column per evaluator metric, and the cost, duration,
  * tokens and errors of the app call. A filter narrows the rows and the column settings hide
- * columns, as in the old app. Opening a row sets `focusScenarioId` in the address. On a human run
+ * columns. Opening a row sets `focusScenarioId` in the address. On a human run
  * each row also has Annotate, next to its status, which opens the annotate sheet on that scenario.
  * While runs are compared, each scenario is followed by the scenario of every compared run for the
- * same test case, as in the old app; the filter applies to the base run's rows.
+ * same test case; the filter applies to the base run's rows.
  */
 export const ScenariosTab = ({
     runId,

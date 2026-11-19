@@ -1,5 +1,5 @@
 /**
- * Destructive confirmation, supplied by the host — the desktop's `AlertPopup`, a sheet on `/m`.
+ * Destructive confirmation, supplied by the host.
  *
  * One definition rather than one per section: the shape was copied into four files and had
  * already drifted (`onOk` typed as `Promise<void>` in one of them, so a synchronous handler was

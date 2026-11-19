@@ -18,15 +18,14 @@ export interface HelpDocsItemOptions {
     icons?: SupportLinkIcons
     /** Appended after the destinations (the Live Chat toggle, keyboard shortcuts, releases). */
     extraItems?: SidebarConfig[]
-    /** Right-aligned content on the row (desktop's app version); hidden when the rail collapses. */
+    /** Right-aligned content on the row (the app version); hidden when the rail collapses. */
     suffix?: ReactNode
 }
 
 /**
- * The "Help & Docs" entry, shared by the desktop rail and the mobile drawer: the same
- * destinations in the same order. Host-specific rows (Live Chat, which needs Crisp; the
- * shortcuts sheet, which the host mounts) arrive through `extraItems` rather than being
- * reproduced per app.
+ * The "Help & Docs" entry, shared by the rail and the drawer: the same destinations in the same
+ * order. Host-specific rows (Live Chat, which needs Crisp; the shortcuts sheet, which the host
+ * mounts) arrive through `extraItems`.
  */
 export const buildHelpDocsNavItem = ({
     icons = {},
@@ -69,11 +68,8 @@ export interface InviteTeammateItemOptions {
 }
 
 /**
- * The "Invite Teammate" entry, shared by the desktop rail and the mobile drawer.
- *
- * It lives here rather than in either app because the destination is the same on both: the
- * workspace settings tab with the invite modal open. The mobile drawer omitted it while that
- * tab did not exist there yet; it does now.
+ * The "Invite Teammate" entry, shared by the rail and the drawer: it opens the workspace
+ * settings tab with the invite modal open.
  */
 export const buildInviteTeammateNavItem = ({
     projectURL,

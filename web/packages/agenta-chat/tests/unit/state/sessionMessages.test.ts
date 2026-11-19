@@ -61,9 +61,8 @@ describe("sessionMessages state", () => {
         expect(store.get(sessionMessagesAtom)["s2"]).toHaveLength(1)
     })
 
-    // The OSS original deliberately strips jotai's cross-tab `storage` subscribe: an incoming
+    // The store deliberately strips jotai's cross-tab `storage` subscribe: an incoming
     // replacement unmounted a streaming conversation and orphaned its `useChat` stream mid-turn.
-    // Both copies write the SAME key, so the package must not re-enable it.
     it("does not sync across browser tabs — a foreign storage event never replaces the store", () => {
         const store = createStore()
         const unsub = store.sub(sessionMessagesAtom, () => {})

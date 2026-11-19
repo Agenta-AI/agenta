@@ -64,8 +64,7 @@ const stableIds = (values: string[] | undefined): string[] | undefined =>
  * Query key and fetcher for one page of the project's session list.
  *
  * An options factory, not a mounted query: query-client policy (stale times, refetch cadence,
- * suspense) belongs to the app that mounts it, and desktop and mobile do not agree on it. What
- * they must agree on is the key and the request, which is what lives here.
+ * suspense) belongs to the app that mounts it. The key and the request live here.
  *
  * Every filter is a server predicate on purpose. Narrowing a fetched page in the browser filters
  * the window rather than the set, which gets counts and empty states wrong.

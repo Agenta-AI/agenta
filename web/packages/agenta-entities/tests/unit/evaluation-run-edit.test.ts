@@ -216,7 +216,7 @@ describe("editEvaluationRun", () => {
 })
 
 describe("humanizeMetricLabel", () => {
-    it("Prints the old app's title case metric names", () => {
+    it("Prints title case metric names", () => {
         expect(humanizeMetricLabel("success")).toBe("Success")
         expect(humanizeMetricLabel("score")).toBe("Score")
         expect(humanizeMetricLabel("is_json")).toBe("Is JSON")

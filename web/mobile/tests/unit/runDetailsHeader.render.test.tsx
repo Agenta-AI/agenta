@@ -499,7 +499,7 @@ describe("run header: chips and Compare", () => {
         expect(document.body.textContent).not.toContain("Capitals: in progress")
     })
 
-    it("A finished run with nothing to compare shows the old app's empty message", async () => {
+    it("A finished run with nothing to compare shows the empty message", async () => {
         serveRun()
         await mount()
         await act(async () => button("Compare")?.click())

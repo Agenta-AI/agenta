@@ -3,11 +3,8 @@
  * or an MCP server the tool plane refused. The sibling `ConnectToolWidget` answers the other
  * shape of the same tool, an external integration named by key.
  *
- * It lives in this package, next to that sibling, rather than in the desktop app, because both
- * apps render one client-tool set: a widget only the desktop registers is a feature /m never
- * shows, and the surfaces it opens (the provider drawer, the MCP connect journey, the tool
- * catalog) are package-level and already mounted on both. It is styled with the shared kit for
- * the same reason.
+ * It lives in this package, next to that sibling, because the surfaces it opens (the provider
+ * drawer, the MCP connect journey, the tool catalog) are package-level too.
  */
 import {mcpReconnectTarget} from "@agenta/entities/mcpEndpoint"
 import {providerConnectionsAtom} from "@agenta/entities/secret"

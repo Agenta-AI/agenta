@@ -1,8 +1,7 @@
 /**
  * One labeled monospace payload block (tool / input / output / error) under an expanded tool row.
  *
- * Extracted from the desktop's inline `IOBlock` so both chat surfaces render a payload the same
- * way. Height-capped with its own scroller, so a megabyte of JSON can never grow the transcript —
+ * Height-capped with its own scroller, so a megabyte of JSON can never grow the transcript —
  * and `overscroll-contain` keeps a touch scroll inside the block instead of dragging the transcript
  * with it.
  */

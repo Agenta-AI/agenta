@@ -23,7 +23,7 @@ export const archiveDisabledReason = (
 
 /**
  * Archives the revision on screen after a confirm, then opens the newest other revision, or
- * the list when there is none. The only saved revision stays, as in the old app.
+ * the list when there is none. The only saved revision stays.
  *
  * Render `modal` next to the menu that calls `request`.
  */

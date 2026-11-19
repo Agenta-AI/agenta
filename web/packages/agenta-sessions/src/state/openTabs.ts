@@ -6,8 +6,7 @@ import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 /**
- * WHICH sessions are open as tabs, per project + scope — an explicit, local, persisted set, the
- * same idea the desktop playground's `openIdsByAppAtom` carries.
+ * WHICH sessions are open as tabs, per project + scope — an explicit, local, persisted set.
  *
  * A surface that derives its tabs straight from the server list has no way to say "close this
  * tab": every session in scope is a chip, forever. The set is what makes closing sayable, and it
@@ -114,7 +113,7 @@ export const closedSessionTabs = (
 
 /**
  * The tab that takes over when the active one closes: the first survivor at or after its slot,
- * else the closest one before it, else nothing. The desktop's rule, on the RENDERED order.
+ * else the closest one before it, else nothing. Applied to the RENDERED order.
  */
 export const nearestSurvivingTab = (
     ordered: readonly string[],

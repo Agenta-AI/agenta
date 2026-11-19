@@ -1,7 +1,6 @@
 /**
- * The sectioned skill-card grids plus the empty state — the gallery's BODY, shared by the
- * desktop registry page (inside FilterRailLayout) and mobile's skills screen (inside its
- * own scaffold), so both hosts render the same cards.
+ * The sectioned skill-card grids plus the empty state — the gallery's BODY, inside either
+ * `FilterRailLayout` or the host's own scaffold.
  */
 import {useMemo} from "react"
 

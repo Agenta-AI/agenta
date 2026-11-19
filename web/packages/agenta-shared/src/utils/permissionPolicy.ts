@@ -9,11 +9,11 @@ export interface PermissionPolicyOption {
 
 /**
  * The four policies, in the order the selector shows them. `help` is the sub-line under each label
- * on both hosts, so this list is the only place the wording lives.
+ * on every surface, so this list is the only place the wording lives.
  *
  * No option claims to be the default, because "the default" is two different policies here (#6662).
  * The standard template creates an agent on `allow`, while an agent whose config names no policy
- * runs on {@link DEFAULT_PERMISSION_POLICY}, and both surfaces show that fallback as the applied
+ * runs on {@link DEFAULT_PERMISSION_POLICY}, and every surface shows that fallback as the applied
  * value. A sub-line has no room to say which one it means, so it says neither.
  */
 export const PERMISSION_POLICY_OPTIONS: PermissionPolicyOption[] = [

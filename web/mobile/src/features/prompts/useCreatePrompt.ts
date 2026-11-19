@@ -22,7 +22,7 @@ export interface NewPromptAction {
 }
 
 /**
- * The New prompt flow, as in /w: a local draft app from the type's template, then the editable
+ * The New prompt flow: a local draft app from the type's template, then the editable
  * revision drawer, whose Create names it and makes the app (`CreatePromptDrawer`), then the
  * playground of the new app.
  *

@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -50,7 +50,7 @@ export const ArchivedTestsetsScreen = ({
     const actions = useTestsetRowActions({projectId, base, includeArchived: true})
     const canRestore = useProjectPermission(projectId, "edit_testsets")
     // Copy ID is a developer-mode addition, as on the Test sets list.
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
 
     return (
         <>

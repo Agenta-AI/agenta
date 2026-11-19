@@ -8,7 +8,7 @@ const DOT: Record<RunStatusTone, string> = {
     default: "bg-muted-foreground",
 }
 
-/** A run status as the old app's summary shows it: a colored dot and the status in words. */
+/** A run status: a colored dot and the status in words. */
 export const RunStatusDot = ({status}: {status: string | null}) => {
     if (!status) return <span className="text-muted-foreground">—</span>
     return (

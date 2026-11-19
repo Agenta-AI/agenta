@@ -7,9 +7,9 @@ import {WarningCircle} from "@phosphor-icons/react"
 import RevealCollapse from "./RevealCollapse"
 
 /**
- * Mic permission / recording-failure notice above the composer. Mirrors `ConnectModelBanner`: it
- * enters and leaves through `RevealCollapse` (the shared composer-chrome idiom) instead of
- * popping, and latches its message so the text survives the leave transition.
+ * Mic permission / recording-failure notice above the composer. It enters and leaves through
+ * `RevealCollapse` (the shared composer-chrome idiom) instead of popping, and latches its message
+ * so the text survives the leave transition.
  */
 const MicPermissionNotice = ({
     message,

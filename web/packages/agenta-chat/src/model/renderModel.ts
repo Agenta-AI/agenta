@@ -9,10 +9,7 @@ import {
 } from "./mcpServerNotice"
 import {isToolPart, partToolName, toolIdentity} from "./parts"
 
-// The one fold both apps render from: the desktop turn (AgentMessage.tsx) and the mobile turn
-// (TurnRow, through buildTurnViewModels) call into this file. It began as a hand-copied twin of
-// the desktop original, which meant a change to when the reconnect notice appears could land on
-// one app and not the other; the copy is gone.
+// The one fold the turn renders from (TurnRow, through buildTurnViewModels).
 // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
 // into one ToolActivity group (a run of calls reads as a single "Used N tools" line).
 export type RenderItem =
@@ -51,12 +48,12 @@ export const isSupersededGate = (part: ToolUIPart, executed: Set<string>): boole
 
 export interface BuildTurnRenderItemsOptions {
     executed: Set<string>
-    /** Registry-backed check; the desktop closes over {isStreaming, isLastMessage} + renderMap — see AgentMessage.tsx. */
+    /** Registry-backed check. */
     isClientToolPart: (part: ToolUIPart) => boolean
 }
 
 // Takes `parts` and the registry-backed client-tool predicate as parameters, so this layer stays
-// registry-free and each app supplies its own registry.
+// registry-free and the app supplies its own registry.
 export const buildTurnRenderItems = (
     parts: UIMessage["parts"],
     {executed, isClientToolPart}: BuildTurnRenderItemsOptions,

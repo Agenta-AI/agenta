@@ -131,8 +131,7 @@ describe("skillNames", () => {
 })
 
 describe("mcpSummaryDetail", () => {
-    // The mobile card is a fork of the shared one and drifted back to "connected" once
-    // already. Both now call this, so the wording cannot differ between the two apps.
+    // Every card calls this, so the wording cannot drift back to "connected".
     it("counts servers and never claims they are connected", () => {
         expect(mcpSummaryDetail(2)).toBe("2 configured")
         expect(mcpSummaryDetail(1)).toBe("1 configured")

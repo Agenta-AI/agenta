@@ -78,7 +78,7 @@ export const AgentOverviewScreen = ({
     // Edit opens this agent's playground with the configuration showing. `/m` has no `/playground`
     // route — a session IS the playground here — so it opens a BLANK one: the id is client-side
     // and nothing reaches the backend until a message lands, so reading the config costs no
-    // session. The reveal is shared with the desktop's Edit so both mean the same thing (#6381).
+    // session (#6381).
     const revealConfigPane = useSetAtom(revealConfigPaneAtom)
     const onEditConfig = useCallback(() => {
         revealConfigPane()

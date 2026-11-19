@@ -15,7 +15,7 @@ import {evaluatorPlaygroundHref, playgroundHref, withSnapshot} from "../playgrou
  * The trace drawer's "Playground" action. Loaded on the first click, so the drawer, which every
  * page carries, holds none of this code.
  *
- * /w seeds the playground store from the span and then navigates. /m does not touch the store:
+ * This does not touch the playground store:
  * the agent session screen shares it. The span's inputs travel in the address instead, as one
  * local test case in the `#pgSnapshot` hash, so the link is also one a reload or a colleague
  * opens the same way.
@@ -69,8 +69,8 @@ export const tracePlaygroundTarget = ({
     refs: {appId: string | null; revisionId: string | null}
 }): TracePlaygroundTarget => {
     const {appId, revisionId} = refs
-    // The drawer's button allows a chat span, which /w replays as a copy in its revision drawer.
-    // /m has no such drawer, and the span's prompt inputs do not fit the app's inputs.
+    // The drawer's button allows a chat span, but /m has no revision drawer to replay it in,
+    // and the span's prompt inputs do not fit the app's inputs.
     if (span.span_type === "chat") return {kind: "span-type", spanType: span.span_type}
     if (!appId) return {kind: "no-app"}
     // An agent run replays in the agent chat (decision F-D4).

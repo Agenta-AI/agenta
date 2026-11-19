@@ -88,7 +88,7 @@ export interface UseChannelPanelOptions {
     loading?: boolean
     loadError?: string | null
     actions?: ChannelsActions
-    /** Host-provided sliding container: a drawer on desktop, a Sheet on /m. */
+    /** Host-provided sliding container. */
     renderPanel: (props: ChannelsPanelRenderProps) => React.ReactNode
     hostedHandle?: string
     /** The API view's content; the hub lists API only when it is given. */

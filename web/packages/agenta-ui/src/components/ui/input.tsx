@@ -7,14 +7,10 @@ import {cn} from "./utils"
 /**
  * Input / Textarea — the shadcn input. Text is 16px below `md` so iOS Safari does not zoom the
  * page on focus. The ring uses `focus-within` so the affix wrapper in ./input-composed rings too.
- *
- * Every class here must compile under both apps: /w is Tailwind 3 with preflight off, /m is
- * Tailwind 4 with preflight on. So the control resets are explicit, and the ring width, ring
- * colors and the invalid variant use arbitrary values that both versions generate.
  */
 const inputVariants = cva(
     [
-        // CONTROL_RESET — see button.tsx. Without preflight (/w), `border` sets only the width,
+        // CONTROL_RESET — see button.tsx. Without preflight, `border` sets only the width,
         // an <input> keeps the UA font and a <textarea> keeps monospace.
         "box-border border-solid font-[inherit]",
         "w-full min-w-0 border text-base text-foreground transition-colors outline-none md:text-sm",

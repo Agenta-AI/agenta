@@ -1,8 +1,6 @@
 /**
- * Pure auth-configuration derivation. Mirrors the desktop's
- * getEffectiveAuthConfig (web/oss/src/lib/helpers/dynamicEnv.ts) and the
- * provider metadata table in web/oss/src/pages/auth/[[...path]].tsx, so both
- * apps offer exactly the methods a deployment enabled.
+ * Pure auth-configuration derivation, so the sign-in page offers exactly the
+ * methods a deployment enabled.
  *
  * No SuperTokens import on purpose: this is the unit-tested half.
  */

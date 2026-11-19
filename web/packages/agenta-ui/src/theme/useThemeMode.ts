@@ -2,10 +2,10 @@ import {useCallback, useEffect, useState} from "react"
 
 export type ThemeModeValue = "light" | "dark" | "system"
 
-/** Shared with the boot script in each app's document, which reads the same key. */
+/** Shared with the boot script in the app's document, which reads the same key. */
 export const THEME_STORAGE_KEY = "agenta-theme"
 
-/** usehooks-ts JSON-encodes its values; the desktop wrote this key that way first. */
+/** usehooks-ts JSON-encodes its values, so a stored value may be quoted. */
 const read = (): ThemeModeValue => {
     if (typeof window === "undefined") return "system"
     try {
@@ -23,10 +23,6 @@ const DARK_QUERY = "(prefers-color-scheme: dark)"
 /**
  * THE theme-mode controller: the stored preference, the theme it resolves to, and the `.dark`
  * class that carries it.
- *
- * Extracted from the desktop's ThemeContextProvider, which additionally configures antd — that
- * part stays there. Everything here is what both apps need, keyed off the same storage entry so
- * a viewer's choice follows them between the desktop and /m.
  */
 export const useThemeMode = () => {
     const [themeMode, setThemeMode] = useState<ThemeModeValue>("system")

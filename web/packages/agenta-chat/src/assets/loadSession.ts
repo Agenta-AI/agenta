@@ -1,8 +1,3 @@
-// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-// Adaptations: none — `fetchSessionRecordsAtom`/`fetchSessionInteractionStatesAtom` already read
-// `projectIdAtom` internally from `@agenta/entities/session` (an allowed package dep), so no
-// OSS-app-only import is involved and no signature change was needed.
-// Re-synced 2026-08-10: interaction rows now provide replay lifecycle and saved outcomes.
 import {
     fetchSessionInteractionStatesAtom,
     fetchSessionRecordsAtom,

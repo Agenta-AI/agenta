@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// A new test set opens as in the old app: the columns `input` and `correct_answer` and one empty
+// A new test set opens with the columns `input` and `correct_answer` and one empty
 // row. Without a row the grid has no column, no "Add column" and no field to fill in.
 import {StrictMode, createElement, act} from "react"
 

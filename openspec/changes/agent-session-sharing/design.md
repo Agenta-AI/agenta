@@ -109,7 +109,7 @@ One schema revision (`oss000000048`, `down_revision = "oss000000047"`) and one d
 
 ## Rollout
 
-M3 ships in one release (CONTRACT.md section 7): enforcement, admission, private writes, the owner default for an omitted visibility, the `/m` sharing UI, the disclosure, and the audit events. `/w` creates project-visible chats and agents until it is retired; its edits were an explicit exception to the rule against editing the old desktop app. Accepted risk: rolling back to pre-M3 code, or an old pod during the rolling deploy, makes private items visible to their project.
+M3 ships in one release (CONTRACT.md section 7): enforcement, admission, private writes, the owner default for an omitted visibility, the `/m` sharing UI, the disclosure, and the audit events. Accepted risk: rolling back to pre-M3 code, or an old pod during the rolling deploy, makes private items visible to their project.
 
 ## Risks
 

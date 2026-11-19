@@ -5,9 +5,7 @@ import type {ProjectsResponse} from "./types"
 /**
  * Projects, in one place.
  *
- * All five calls go through the shared axios instance, which carries auth via its interceptor —
- * the desktop previously split GETs onto a separate fetch client for no behavioural reason, and
- * a package cannot reach that client anyway.
+ * All five calls go through the shared axios instance, which carries auth via its interceptor.
  */
 
 /**

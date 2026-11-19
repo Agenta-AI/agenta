@@ -31,15 +31,14 @@ export interface AgentActionsMenuProps {
     /** Opens the agent's Publish panel. Absent means no item. */
     onPublish?: () => void
     /**
-     * Host overrides. The desktop has its own app-management modals (which also refresh its apps
-     * cache), so it passes them; a host without one falls through to [[useAgentActions]].
+     * Host overrides. A host without one falls through to [[useAgentActions]].
      */
     onRename?: () => void
-    /** Edits the description in place. Absent means no item: the desktop edits it in its rename modal. */
+    /** Edits the description in place. Absent means no item. */
     onEditDescription?: () => void
     /** Named for the prop's history; the verb it stands for is Archive. */
     onDelete?: () => void
-    /** Custom-workflow "Configure" — only the desktop has that flow, so absent means no item. */
+    /** Custom-workflow "Configure". Absent means no item. */
     onConfigure?: () => void
     /** Opens a chat with the agent. Absent means no item. */
     onOpenPlayground?: () => void
@@ -57,8 +56,9 @@ export interface AgentActionsMenuProps {
 }
 
 /**
- * THE agent kebab: open, open in playground, rename, copy slug, archive, and restore for an archived agent. One definition for the desktop overview
- * header and the mobile screens, so they can't offer different verbs for the same object.
+ * THE agent kebab: open, open in playground, rename, copy slug, archive, and restore for an
+ * archived agent. One definition for every screen, so they can't offer different verbs for the same
+ * object.
  * Copying is entirely the menu's business; open, rename and archive defer to the host — and an
  * entry whose handler is missing is dropped rather than offered dead.
  */

@@ -22,7 +22,7 @@ import {useLogout} from "../auth/useLogout"
 
 /**
  * Mobile binding: the shared account page, with this app's delete call and its confirm as an
- * alert dialog — the same typed-email gate the desktop uses.
+ * alert dialog: a typed-email gate.
  */
 export const AccountTab = () => {
     const t = useT(commonCatalog, settingsAccountTabCatalog)

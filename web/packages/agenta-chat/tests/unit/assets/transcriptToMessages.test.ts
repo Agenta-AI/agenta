@@ -525,7 +525,7 @@ describe("transcriptToMessages approval resume", () => {
         // Real shape of an approval answered on ANOTHER device (verified against `records`): the
         // paused turn carries the request, the resume turn carries only thought/usage/message/done —
         // no `interaction_response`, no re-emitted call, no `tool_result`. The gate must NOT replay
-        // as pending, or the desktop reload keeps showing "Approval needed to continue".
+        // as pending, or the reload keeps showing "Approval needed to continue".
         const messages = transcriptToMessages([
             record("r-user", {type: "message", text: "create hello.md"}, "user"),
             record("r-call", {
@@ -692,7 +692,7 @@ describe("transcriptToMessages cold approval resume (re-raised tool call id)", (
     })
 })
 
-/** Parity with the OSS original: a parked client tool replays with its `data-render` sibling, the
+/** A parked client tool replays with its `data-render` sibling, the
  * only thing the client-tool registry can dispatch on. Without it a reload settles the call as
  * "not handled by this client" instead of showing the widget. */
 describe("transcriptToMessages parked client tool", () => {
@@ -1308,7 +1308,7 @@ describe("transcriptToMessages tool input unwrapping", () => {
     })
 })
 
-/** Parity with the OSS original: the durable record keeps codex-acp's `{tool, server, arguments}`
+/** The durable record keeps codex-acp's `{tool, server, arguments}`
  * wrapper while the live stream hands the FE the bare ACP `rawInput`. Unwrap it, but only when
  * every sibling of `arguments` is a string-valued envelope key. */
 describe("transcriptToMessages MCP argument wrapper", () => {

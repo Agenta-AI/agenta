@@ -11,7 +11,6 @@ import {
     useState,
 } from "react"
 
-import type {TableProps} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {cn} from "../../utils/styles"
@@ -37,7 +36,7 @@ import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import useVirtualTableRowSelection from "../hooks/useVirtualTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
 import {AVT, DOM_SELECTOR, stampTableDom} from "../tableDom"
-import type {InfiniteVirtualTableProps} from "../types"
+import type {InfiniteVirtualTableProps, TableProps} from "../types"
 import {
     buildColumnDescendantMap,
     collectFixedColumnKeys,

@@ -133,7 +133,7 @@ function EnhancedButton({
     // `iconPosition="end"` was dropped here as "rare / unused". It is neither: five call sites pass
     // it (the shared EmptyState's Learn-More, the agent composer, the template strip's intent
     // actions, the annotation session nav), and every one of them rendered its arrow on the WRONG
-    // SIDE — "→ Learn More" against the desktop app's "Learn More →".
+    // SIDE ("→ Learn More").
     const content =
         iconPosition === "end" ? (
             <>

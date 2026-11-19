@@ -2,7 +2,7 @@ import {useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -75,7 +75,7 @@ const toDraftEvaluator = (row: EvaluatorRevisionRow): DraftEvaluator => ({
 /**
  * Pick the evaluators that score the run: a table of the project's automatic evaluators (auto
  * run) or human evaluators (human run), each with its older versions under it, and a way to
- * create a new evaluator. In beta developer mode it is created here and picked (human: the form;
+ * create a new evaluator. In Developer Mode it is created here and picked (human: the form;
  * automatic: the editable drawer, where the host allows it); else a link opens the Evaluators page
  * in a new tab, so the draft stays.
  */
@@ -121,7 +121,7 @@ export const EvaluatorsSection = ({
     const groups = useMemo(() => [{key: "all", label: null, rows: tree}], [tree])
     const selectedIds = useMemo(() => new Set(selected.map((item) => item.revisionId)), [selected])
     const createHref = evaluatorsHref ? `${evaluatorsHref}?tab=${category}` : null
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const beta = useAtomValue(developerModeActiveAtom)
     const [creating, setCreating] = useState(false)
     const onCreate = beta && (human || allowAutomaticCreate) ? () => setCreating(true) : undefined
     const createFlow = creating ? (

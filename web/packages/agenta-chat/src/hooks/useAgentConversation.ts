@@ -1,19 +1,7 @@
-// Assembled from web/oss/src/components/AgentChatSlice/AgentConversation.tsx (2026-07-25) —
-// the headless conversation host for one agent session. Copy-faithful on the shared engine
-// behavior: transport wiring, resume predicate, hydration + revalidate-on-open, queue release,
-// approvals, run-status publish, error stamping, persist-on-settle + expand-prune, stop/rewind.
-// The desktop host keeps its own inline implementation until the re-plumb.
-//
-// Deliberately omitted (desktop-only): onboarding, template strips, and the IDE hand-off — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): the committed-revision switch and playground-controller self-commit handling — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): the run-in-playground seam (trigger drawer pending runs) — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): turn-capture and the Turn/Session Inspector wiring — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): scroll engineering (stick-to-bottom, anchors, jump pill) and list windowing — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): the kill-session-on-stop env flag and its query invalidations — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): drive surfaces and mid-stream file-activity detection — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): first-seen timestamp stamping (display metadata for the desktop rows) — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): session auto-titling and the first-run seed auto-send — the desktop host keeps its own implementation until the re-plumb.
-// Deliberately omitted (desktop-only): the model-key composer gate — compose `useAgentModelKeyStatus` in the skin instead.
+// The headless conversation host for one agent session: transport wiring, resume predicate,
+// hydration + revalidate-on-open, queue release, approvals, run-status publish, error stamping,
+// persist-on-settle + expand-prune, stop/rewind.
+// Not handled here: the model-key composer gate — compose `useAgentModelKeyStatus` in the skin.
 import {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {

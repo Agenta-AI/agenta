@@ -41,7 +41,7 @@ export const RevisionConfig = ({
     onRefinePrompt: (revisionId: string, promptKey: string) => void
     onClose?: (revisionId: string) => void
 }) => (
-    // `{{$.inputs.` in a prompt offers its variables and the test case columns, as in /w.
+    // `{{$.inputs.` in a prompt offers its variables and the test case columns.
     <PromptTokenPathProvider revisionId={revisionId}>
         <ConfigPanel
             revisionId={revisionId}

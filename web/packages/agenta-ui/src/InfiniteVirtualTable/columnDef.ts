@@ -1,9 +1,7 @@
 import type {CSSProperties, HTMLAttributes, Key, ReactNode, TdHTMLAttributes} from "react"
 
 /**
- * The table's own column model. It is structurally the shape `<Table>` consumes but owns no
- * antd types, so the rest of the table can be ported off antd one piece at a time. The antd
- * bridge lives in `./antdColumns`.
+ * The table's own column model. `./tanstackColumns` maps it onto the TanStack engine.
  *
  * Function-valued props are declared with METHOD syntax on purpose: method params are checked
  * bivariantly, so a column may annotate `render(value: string, …)` and still be assignable

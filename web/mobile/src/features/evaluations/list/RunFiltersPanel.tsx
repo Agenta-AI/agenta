@@ -28,7 +28,7 @@ import type {FilterOption} from "./useRunFilterOptions"
 const ALL_TIME = "all"
 
 /**
- * The old app's filter panel: Status, Type, Queries, Evaluators, Test sets, Variants and Date
+ * The filter panel: Status, Type, Queries, Evaluators, Test sets, Variants and Date
  * range. Changes are a draft until Apply; Reset clears the draft. Type shows on the All tab only,
  * Variants need an app picked first.
  */

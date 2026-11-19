@@ -17,7 +17,7 @@
  *
  * Adding a new custom provider (Azure/Bedrock/Vertex AI/OpenAI-compatible) opens the host's
  * "Configure provider" drawer via `openConfigureProvider` (from `DrillInUIContext.llmProviderConfig`)
- * instead of an inline form — this package can't import the OSS drawer directly.
+ * instead of an inline form — this package can't import the host's drawer directly.
  *
  * Design: docs/design/connect-model-drawer/design.md §3, §7, §8.
  */

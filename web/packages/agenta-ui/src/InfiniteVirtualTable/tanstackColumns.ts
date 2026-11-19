@@ -8,8 +8,8 @@ import type {VirtualTableFeatures} from "./tableFeatures"
  * The one place the table's public column model meets TanStack's.
  *
  * `ColumnDef` stays the shape every call site writes — `dataIndex` / `title` / `render`, the
- * antd vocabulary 82 files already speak. TanStack's model lives behind this function, exactly
- * the way antd's lived behind `toAntdColumns`. Swapping the engine must not reach the callers.
+ * antd vocabulary the call sites already speak. TanStack's model lives behind this function, so
+ * swapping the engine does not reach the callers.
  */
 
 /** What the renderer needs that TanStack has no opinion about. */

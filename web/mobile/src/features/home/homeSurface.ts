@@ -3,7 +3,7 @@
  *
  * Home is the surface for EVERY project now, empty or not: with no agents it opens on the
  * templates tab with the composer ready to describe one, which is the same job the first-run hero
- * did with one fewer page to learn. Two rules from the desktop original still matter:
+ * did with one fewer page to learn. Two rules still matter:
  *
  * - **An error is not evidence of emptiness.** A failed fetch must never be read as "no agents",
  *   so it falls through to Home, which is the retryable surface.

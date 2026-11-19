@@ -101,8 +101,8 @@ const Bot = ({size = 34, workflowId}: {size?: number; workflowId?: string | null
  * an error state and must not read as one — /m rendered nothing at all there, and before that told
  * you its history was unavailable, which is a different and alarming claim.
  *
- * Resolved from `entityId` rather than taking a config prop, so both hosts feed it the one thing
- * they both have and cannot disagree about the shape underneath.
+ * Resolved from `entityId` rather than taking a config prop, so a host cannot get the shape
+ * underneath wrong.
  */
 export const AgentIntroCard = ({entityId, className}: {entityId: string; className?: string}) => {
     const t = useT(agentIntroCatalog)

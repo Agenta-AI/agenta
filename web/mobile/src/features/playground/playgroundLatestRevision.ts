@@ -17,7 +17,7 @@ export const playgroundLatestRevisionKey = (appId: string, projectId: string | n
  * version 0 that holds a config opens, and an empty one is skipped.
  *
  * The shared latest-revision query skips every version 0, so an app whose only revision left is a
- * real version 0 has no latest revision there. That query also serves /w, so the playground asks
+ * real version 0 has no latest revision there. That query is shared, so the playground asks
  * here instead.
  */
 export const playgroundLatestRevisionIdAtomFamily = atomFamily((appId: string) =>

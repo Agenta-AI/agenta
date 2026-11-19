@@ -12,11 +12,11 @@ export interface HomeOverviewProps {
     title: string
     /** The standing action beside the hero — "+ New agent". */
     action?: ReactNode
-    /** Start a task: the app's composer. Both apps render the same chat composer beneath it. */
+    /** Start a task: the app's composer. */
     composer?: ReactNode
     /** Where the session cards' "View all" lands. */
     sessionsHref: string
-    /** Host verbs for a session row — identical contract on both apps. */
+    /** Host verbs for a session row. */
     onOpenSession: (vm: SessionRowVm) => void
     sessionMenuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onSessionMenuSelect?: (vm: SessionRowVm, key: string) => void
@@ -30,8 +30,8 @@ export interface HomeOverviewProps {
     usagePanel?: ReactNode
     /**
      * The page frame — the shared column cap and gutters (`pageContentWidthClass` /
-     * `pageGutterClass`). It is the HOST's, because each app already has one: desktop's
-     * `PageLayout` applies it to every page, and mobile's screens apply it themselves.
+     * `pageGutterClass`). It is the HOST's, because the app's screens apply it
+     * themselves.
      */
     className?: string
 }
@@ -40,7 +40,7 @@ const SESSIONS_LIMIT = 6
 const AUTOMATIONS_LIMIT = 5
 
 /**
- * Home, for every viewport and both apps.
+ * Home, for every viewport.
  *
  * ONE composition: the hero and the composer, then what is in flight (your sessions, then the
  * automation runs) in the main column, with what you could start (agents, next triggers, usage)
@@ -51,10 +51,8 @@ const AUTOMATIONS_LIMIT = 5
  * one screen size — it read as a third on a large display and as a slab on a laptop.
  *
  * The page frame — the centred column cap and the gutters — is the HOST's `className`, not this
- * component's own. Hand-tuned insets here made Home the only page in either app that did not sit
- * in the shared column (`pageContentWidthClass` + `pageGutterClass`): 300px wider than Sessions
- * and Agents beside it, and the workaround that cancelled the desktop page frame to make room
- * for them is what took Home out of the column in the first place.
+ * component's own, so Home sits in the same shared column (`pageContentWidthClass` +
+ * `pageGutterClass`) as Sessions and Agents.
  */
 export const HomeOverview = ({
     title,

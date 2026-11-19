@@ -96,7 +96,7 @@ If the optimization is remote (Agenta-managed, not local), then poll with:
 
 3. **Empty states** — Agenta components handle empty/error/loading. Every SDK component should too — especially the trace browser ("no traces found for this app").
 
-4. **Drawer pattern** — The `AnnotateDrawer` component in the old Agenta desktop app is the closest existing pattern to what the SDK's annotation panel needs. Study its metrics form design.
+4. **Drawer pattern** — The Agenta annotate drawer is the closest existing pattern to what the SDK's annotation panel needs. Study its metrics form design.
 
 ### Don't copy Ant Design dependency
 

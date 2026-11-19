@@ -1,6 +1,5 @@
 /**
- * THE template detail view — one starter template in full. Extracted from the desktop page (which
- * now renders this), so every app shows the same fields, in the same order, with the same claims.
+ * THE template detail view — one starter template in full.
  *
  * Everything here is a field the template already declares: its connections and their scopes, the
  * tools it calls, its AGENTS.md, when it fires. The design's usage counter, "saves ~2h/week" and
@@ -13,8 +12,8 @@
  * `layout` (see the prop): the default `"toolbar"` joins the shared page shape, `"rail"` keeps
  * the `FilterRailLayout` where identity and the decision live beside the reading half.
  *
- * The host supplies its markdown renderer — AGENTS.md is markdown, and each app already has one
- * (the desktop's chat renderer, mobile's Streamdown) that the package must not duplicate.
+ * The host supplies its markdown renderer — AGENTS.md is markdown, and the app already has one
+ * (Streamdown) that the package must not duplicate.
  */
 import type {ReactNode} from "react"
 

@@ -8,12 +8,13 @@ const FORBIDDEN = ["antd", "@ant-design/x", "@ant-design/icons", "react-virtuoso
 describe("@agenta/chat package contract", () => {
     const pkg = JSON.parse(readFileSync(join(__dirname, "../../package.json"), "utf8"))
 
-    it("is named @agenta/chat with a src entry", () => {
+    it("is named @agenta/chat with subpath entries only", () => {
         expect(pkg.name).toBe("@agenta/chat")
-        expect(pkg.main).toBe("./src/index.ts")
+        expect(pkg.exports["."]).toBeUndefined()
+        expect(pkg.exports["./components"]).toBe("./src/components/index.ts")
     })
 
-    it("never depends on desktop UI toolkits", () => {
+    it("never depends on the forbidden UI toolkits", () => {
         const all = {...pkg.dependencies, ...pkg.peerDependencies, ...pkg.devDependencies}
         for (const dep of FORBIDDEN) expect(all[dep], dep).toBeUndefined()
     })

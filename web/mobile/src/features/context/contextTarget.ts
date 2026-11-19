@@ -14,8 +14,6 @@ export interface ContextTargetInput {
      * shortcut's fast path must survive the former.
      */
     groupsLoaded: boolean
-    /** Desktop's last-used project per workspace. */
-    desktopLastUsed: Record<string, string>
     /**
      * Set by the `/w/:workspace_id[/p]` gates: confine resolution to the workspace the URL
      * names, so a link into a workspace lands in THAT workspace rather than the remembered
@@ -26,8 +24,8 @@ export interface ContextTargetInput {
 
 /**
  * Whether a group is the one an id names: its route segment (the organization id), or a
- * workspace id an API pod answered for one of its projects (a saved pair, a desktop key or a
- * link from before workspace removal step 2).
+ * workspace id an API pod answered for one of its projects (a saved pair or a link from before
+ * workspace removal step 2).
  */
 const names = (group: WorkspaceGroup, id: string) =>
     group.workspaceId === id || group.projects.some((project) => project.legacy_workspace_id === id)
@@ -43,17 +41,15 @@ const locate = (groups: WorkspaceGroup[], {workspaceId, projectId}: LastContext)
 }
 
 /**
- * Which project `/m/` forwards to. Mirrors the desktop: remembered pair, then desktop
- * continuity, then the first project — switching happens in the drawer, never on a page,
- * so there is no picker to fall back to. `null` only while unresolvable (not ready, or the
- * account has no projects).
+ * Which project `/m/` forwards to: the remembered pair, then the first project. Switching
+ * happens in the drawer, never on a page, so there is no picker to fall back to. `null` only
+ * while unresolvable (not ready, or the account has no projects).
  */
 export const selectContextTarget = ({
     ready,
     shortcut,
     groups,
     groupsLoaded,
-    desktopLastUsed,
     workspaceId,
 }: ContextTargetInput): LastContext | null => {
     if (!ready) return null
@@ -76,19 +72,6 @@ export const selectContextTarget = ({
     const located = usable && shortcut ? locate(pool, shortcut) : null
     if (located) return located
     if (pool.length === 0) return null
-    // Desktop continuity: the desktop's last-used pair, when it still exists in the fetched tree.
-    for (const group of pool) {
-        const keys = [
-            group.workspaceId,
-            ...group.projects.map((p) => p.legacy_workspace_id).filter(Boolean),
-        ] as string[]
-        for (const key of keys) {
-            const projectId = desktopLastUsed[key]
-            if (projectId && group.projects.some((p) => p.project_id === projectId)) {
-                return {workspaceId: group.workspaceId, projectId}
-            }
-        }
-    }
     const first = pool[0]
     return {workspaceId: first.workspaceId, projectId: first.projects[0]?.project_id ?? ""}
 }

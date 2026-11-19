@@ -2,12 +2,12 @@
 /**
  * The Configuration tab: read-only general fields, the evaluator cards, the collaborators and the
  * delete card. The queue and evaluator stores are atoms keyed by id and the editor is a stub, so
- * no request is sent. In beta developer mode the name and description become fields; the save
+ * no request is sent. In Developer Mode the name and description become fields; the save
  * itself is covered in annotationQueueDetails.render.test.tsx.
  */
 import {act, lazy, Suspense} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {Provider, type PrimitiveAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -26,7 +26,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
         ...(await importOriginal<typeof import("@agenta/shared/state")>()),
-        betaDeveloperModeActiveAtom: atom(false),
+        developerModeActiveAtom: atom(false),
     }
 })
 vi.mock("@agenta/annotation", async (importOriginal) => {
@@ -142,7 +142,7 @@ const button = (scope: ParentNode, label: string) =>
     Array.from(scope.querySelectorAll("button")).find((b) => b.textContent === label)
 
 const setBeta = (on: boolean) =>
-    fakeStore.set(betaDeveloperModeActiveAtom as PrimitiveAtom<boolean>, on)
+    fakeStore.set(developerModeActiveAtom as PrimitiveAtom<boolean>, on)
 
 beforeEach(() => {
     vi.clearAllMocks()
@@ -186,7 +186,7 @@ describe("the Configuration tab", () => {
         expect(host.textContent).toContain("Number of reviews per run")
     })
 
-    it("In beta developer mode an editor sees the name and description as fields", async () => {
+    it("In Developer Mode an editor sees the name and description as fields", async () => {
         setBeta(true)
         await render()
         expect((host.querySelector("input") as HTMLInputElement | null)?.value).toBe(
@@ -198,7 +198,7 @@ describe("the Configuration tab", () => {
         expect(button(host, "Save")).toBeUndefined()
     })
 
-    it("In beta developer mode a user without edit rights reads the name and description", async () => {
+    it("In Developer Mode a user without edit rights reads the name and description", async () => {
         setBeta(true)
         await render(false)
         expect(host.querySelector("input, textarea")).toBeNull()

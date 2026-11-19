@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Editing a queue's name and description in the Configuration tab (beta developer mode). The
+// Editing a queue's name and description in the Configuration tab (Developer Mode). The
 // form runs over the real queue store and its real save action; only the HTTP client is
 // replaced, so each case checks the exact request that reaches the server.
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"

@@ -1,11 +1,11 @@
 /**
- * CR12, second half: every app that renders a transcript must get the gateway-target widget.
+ * CR12, second half: every transcript must get the gateway-target widget.
  *
  * `request_connection` arrives with either an integration key or a gateway target, and only the
- * default widget set decides which surface answers it. That set is what /w and /m both resolve
- * through, so the split has to live here. While it lived in the desktop app's own skin, a target
- * on mobile fell through to the integration widget, which has no provider drawer, no MCP journey
- * and no catalog to open, and the person was left with a row that could not be answered.
+ * default widget set decides which surface answers it. Every transcript resolves through that set,
+ * so the split has to live here. Without it, a target fell through to the integration widget, which
+ * has no provider drawer, no MCP journey and no catalog to open, and the person was left with a row
+ * that could not be answered.
  */
 import {act, createElement} from "react"
 

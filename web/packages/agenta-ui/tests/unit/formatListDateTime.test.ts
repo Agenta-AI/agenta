@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import {formatListDateTime} from "../../src/list-table/formatListDateTime"
 
 describe("list date and time", () => {
-    it("shows the date and the time like the classic app", () => {
+    it("shows the date and the time", () => {
         // Local time, so the expected text holds in every time zone.
         expect(formatListDateTime(new Date(2026, 10, 5, 19, 32), "en-US")).toBe(
             "Nov 5, 2026, 7:32 PM",

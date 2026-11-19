@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The focus drawer's "Add to queue": shown for a test case of a connected test set, as in /w,
+ * The focus drawer's "Add to queue": shown for a test case of a connected test set,
  * and absent for local rows, which no queue can hold. Real loadable state; the picker is a stub.
  */
 import {act, type ReactNode} from "react"

@@ -14,7 +14,7 @@ import {useEvaluatorConfigs} from "./useEvaluatorConfigs"
 /**
  * The Configuration tab: what the run was set up with. On a wide screen the summary card and the
  * section links sit in a rail that stays in view; on a phone the card comes first, then the
- * sections. "Edit" and "Add evaluator" open the run's edit dialog, as in the old app.
+ * sections. "Edit" and "Add evaluator" open the run's edit dialog.
  */
 export const ConfigurationTab = ({
     projectId,

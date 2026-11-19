@@ -826,7 +826,7 @@ class TestResolverMiddlewareHydrationIntent:
 
     @pytest.mark.asyncio
     async def test_inline_parameters_skip_hydration(self):
-        """Desktop parity: an inline config is caller intent, so references are not
+        """An inline config is caller intent, so references are not
         hydrated and the inline parameters drive the run untouched."""
         from agenta.sdk.models.workflows import (
             WorkflowInvokeRequest,

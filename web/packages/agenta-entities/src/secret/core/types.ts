@@ -11,7 +11,7 @@
  *     (rendering, slug normalization). No wire equivalent.
  *   - `STANDARD_PROVIDER_KINDS` — the standard provider list minus the
  *     legacy `"mistralai"` alias (kept in Fern for backwards compat but
- *     not shown in OSS provider pickers).
+ *     not shown in provider pickers).
  *   - `VaultMigrationStatus` — UI state for the one-time localStorage
  *     migration; not a wire shape.
  */
@@ -181,10 +181,10 @@ export const PROVIDER_KINDS: Record<string, string> = {
 }
 
 /**
- * Standard provider kinds shown in the OSS provider picker.
+ * Standard provider kinds shown in the provider picker.
  *
  * Fern includes both `"mistral"` and `"mistralai"` in `StandardProviderKind`
- * for backwards compatibility, but the OSS LLM picker only shows the canonical
+ * for backwards compatibility, but the LLM picker only shows the canonical
  * `"mistral"` entry — filter the alias out here.
  *
  * `"mock"` is filtered for a different reason: it is the gateway's test double,

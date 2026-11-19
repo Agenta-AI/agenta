@@ -1,6 +1,5 @@
-import type {Key, ReactNode} from "react"
+import type {CSSProperties, HTMLAttributes, Key, ReactNode} from "react"
 
-import type {TableProps} from "antd/es/table"
 import type {Getter} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
@@ -351,6 +350,30 @@ export interface TypeChipConfig<RecordType> {
     enableStateChips?: boolean
 }
 
+/** Props spread onto a row: handlers, className, tabIndex and `data-*` hooks. */
+export type TableRowProps = HTMLAttributes<HTMLElement> & Record<string, unknown>
+
+export type TableRowKey<RecordType> =
+    | string
+    | keyof RecordType
+    | ((record: RecordType, index?: number) => Key)
+
+/** The table props callers pass. The names follow the antd table this engine replaced. */
+export interface TableProps<RecordType> {
+    rowKey?: TableRowKey<RecordType>
+    className?: string
+    style?: CSSProperties
+    bordered?: boolean
+    size?: "small" | "middle" | "large"
+    loading?: boolean
+    sticky?: boolean
+    scroll?: {x?: number | string | true; y?: number | string}
+    locale?: {emptyText?: ReactNode | (() => ReactNode)}
+    components?: {header?: Record<string, unknown>; body?: Record<string, unknown>}
+    onRow?: (record: RecordType, index?: number) => TableRowProps
+    rowClassName?: string | ((record: RecordType, index: number, indent: number) => string)
+}
+
 export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unknown> {
     columns: ColumnDefs<RecordType>
     dataSource: RecordType[]
@@ -360,7 +383,7 @@ export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unkno
     scrollThreshold?: number
     containerClassName?: string
     tableClassName?: string
-    tableProps?: Omit<TableProps<RecordType>, "columns" | "dataSource" | "onScroll" | "pagination">
+    tableProps?: TableProps<RecordType>
     rowSelection?: InfiniteVirtualTableRowSelection<RecordType>
     resizableColumns?: boolean | ResizableColumnsConfig
     columnVisibility?: ColumnVisibilityConfig<RecordType>
@@ -388,7 +411,7 @@ export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unkno
      */
     expandable?: ExpandableRowConfig<RecordType, ExpandedChildType>
     /**
-     * Ref to access the underlying Ant Design Table instance.
+     * Ref to the underlying table.
      * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
      */
     tableRef?: React.RefObject<{

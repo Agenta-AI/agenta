@@ -4,9 +4,7 @@
  * With popups blocked, authorizing navigates the tab away: the app is destroyed, the dialog with
  * it, and what comes back is the API's callback page. That page knows the deployment's web origin
  * and nothing else, so it used to send everyone to a bare `/settings`, which is not where the
- * connections list lives. Classic forwards a bare settings path on to the scoped one, so it only
- * looked slow; /m has no such route at all, and a person who started there came back into the
- * desktop app (UI QA round 3, D1).
+ * connections list lives.
  *
  * The tab that is about to be navigated away knows exactly where it stands, so it writes that down
  * first. `sessionStorage` is per tab and survives a cross-origin round trip, which is precisely the

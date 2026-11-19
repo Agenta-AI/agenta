@@ -17,7 +17,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
     const {atom: makeAtom} = await import("jotai")
     betaAtom.current = makeAtom(false)
-    return {...original, betaDeveloperModeActiveAtom: betaAtom.current}
+    return {...original, developerModeActiveAtom: betaAtom.current}
 })
 vi.mock("@agenta/navigation", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
@@ -68,7 +68,7 @@ import {useCommandPaletteGroups} from "@/features/nav/useCommandPaletteGroups"
 
 const P = "/w/ws-1/p/proj-1"
 
-describe("the command palette in beta developer mode", () => {
+describe("the command palette in Developer Mode", () => {
     let root: Root
     let host: HTMLDivElement
     let store: ReturnType<typeof createStore>
@@ -131,7 +131,7 @@ describe("the command palette in beta developer mode", () => {
         expect(reads).toEqual({prompts: 0, evaluators: 0})
     })
 
-    it("without beta developer mode it lists no developer page, prompt app or evaluator", () => {
+    it("without Developer Mode it lists no developer page, prompt app or evaluator", () => {
         const {keys, byKey} = render(false, true, "")
         expect(keys).toEqual(["sessions", "agents", "pages", "settings", "actions"])
         expect(byKey.pages.map((entry) => entry.label)).toEqual([

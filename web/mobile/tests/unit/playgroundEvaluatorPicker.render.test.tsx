@@ -120,7 +120,7 @@ describe("Playground EvaluatorPicker", () => {
         })
     })
 
-    it("ticks a connected revision, and a second pick takes it off, as in /w", async () => {
+    it("ticks a connected revision, and a second pick takes it off", async () => {
         fake.nodes = [
             {id: "n-app", entityId: "app-r1", depth: 0},
             {id: "n-eval", entityId: "eval-r2", depth: 1},

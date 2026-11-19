@@ -3,7 +3,7 @@
  *
  * The host maps backend rows (connections, channel agents, setup declarations) to these
  * shapes and supplies the actions in `ChannelsActions`. The components never call an
- * api-client themselves, so the same UI runs on desktop, on /m, and in Storybook.
+ * api-client themselves, so the same UI runs in the app and in Storybook.
  */
 
 export type ChannelPlatform = "slack" | "telegram" | "whatsapp"

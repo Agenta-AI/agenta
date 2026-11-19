@@ -1,11 +1,10 @@
 /**
  * THE templates gallery — the category rail, the search box and the sectioned card grid over the
- * shared starter catalogue. Extracted from the desktop's gallery page (which now renders this), so
- * every app browses templates with the same filtering, the same sections and the same cards.
+ * shared starter catalogue.
  *
  * The host keeps what only it can decide: its page chrome (breadcrumbs, layout), whether the active
- * category lives in the URL, and what selecting a template DOES — the desktop opens a detail page,
- * a surface without one creates from it directly.
+ * category lives in the URL, and what selecting a template DOES — open a detail page, or create
+ * from it directly.
  *
  * Two frames, chosen by `layout`. The default `"toolbar"` is one surface: the host's page chrome
  * names the page, and categories are a narrow column beside the search box and the grid, with no
@@ -32,7 +31,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {TemplateCard} from "./TemplateCard"
 
 export interface TemplateGalleryProps {
-    /** Controlled so a host can keep it in the URL (the desktop does). */
+    /** Controlled so a host can keep it in the URL. */
     category: string
     onCategoryChange: (category: string) => void
     onSelectTemplate: (template: AgentStarterTemplate) => void

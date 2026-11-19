@@ -20,7 +20,7 @@ const labelsOf = (options: readonly FilterOption[], ids: readonly string[]) =>
     ids.map((id) => options.find((option) => option.value === id)?.label ?? id).join(", ")
 
 /**
- * The applied filters as chips next to the Filters button, as in the old app. Each chip removes
+ * The applied filters as chips next to the Filters button. Each chip removes
  * its own filter.
  */
 export const RunFilterChips = ({

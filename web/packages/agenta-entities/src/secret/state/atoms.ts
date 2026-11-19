@@ -6,11 +6,10 @@
  * it has no revision lineage; the molecule shape would only contribute
  * dead methods.
  *
- * Important invariants preserved from OSS:
+ * Important invariants:
  *
- *   1. Query key MUST stay byte-identical with the OSS legacy path so
- *      that any transitional state (e.g. multiple consumers being
- *      swept) hits one cache entry, not two:
+ *   1. Query key MUST stay byte-identical across consumers so they hit
+ *      one cache entry, not two:
  *
  *          ["vault", "secrets", user?.id, projectId]
  *
@@ -23,9 +22,9 @@
  *      sign-in in the same session can re-run the migration.
  *
  *   3. Project scoping comes from `@agenta/shared/state.projectIdAtom`,
- *      which OSS hydrates from the URL via the existing
- *      `setProjectIdAtom` wiring. User identity comes from
- *      `@agenta/shared/state.userAtom`, hydrated by OSS `UserListener`.
+ *      which the app hydrates from the URL via `setProjectIdAtom`.
+ *      User identity comes from `@agenta/shared/state.userAtom`, which
+ *      the app hydrates.
  */
 
 import {getHostQueryClient} from "@agenta/shared/api"
@@ -112,7 +111,7 @@ export const providerKeySetupDoneAtom = atomWithStorage<boolean>(
 const vaultSecretsQueryOptions = (get: Getter) => {
     const user = get(userAtom)
     // Read migration status to keep this atom subscribed to migration changes
-    // (matches OSS behavior — migration completion can trigger a refetch).
+    // (migration completion can trigger a refetch).
     const _migrationStatus = get(vaultMigrationAtom)
     const projectId = get(projectIdAtom)
 

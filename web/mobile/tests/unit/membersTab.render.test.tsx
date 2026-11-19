@@ -29,7 +29,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
     const {atom} = await import("jotai")
     state.betaAtom = atom(false)
-    return {...original, betaDeveloperModeActiveAtom: state.betaAtom}
+    return {...original, developerModeActiveAtom: state.betaAtom}
 })
 
 vi.mock("@agenta/auth", async (importOriginal) => ({
@@ -323,7 +323,7 @@ describe("MembersTab invite link", () => {
         getDefaultStore().set(state.betaAtom!, false)
     })
 
-    it("beta developer mode opens the invite dialog from inviteModal=open and drops it", async () => {
+    it("Developer Mode opens the invite dialog from inviteModal=open and drops it", async () => {
         openInviteLink(true)
         await mount()
         expect(document.querySelector('input[type="email"]')).not.toBeNull()
@@ -334,7 +334,7 @@ describe("MembersTab invite link", () => {
         )
     })
 
-    it("without beta developer mode the parameter changes nothing", async () => {
+    it("without Developer Mode the parameter changes nothing", async () => {
         openInviteLink(false)
         await mount()
         expect(document.querySelector('input[type="email"]')).toBeNull()

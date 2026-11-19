@@ -8,6 +8,7 @@
  */
 import {act, type ReactNode} from "react"
 
+import {configureTraceDrawerReferences} from "@agenta/observability-ui/traceDrawer"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider} from "@tanstack/react-query"
@@ -16,7 +17,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
-// The queue picker is an antd Popover, which measures itself.
+// The queue picker is a Radix Popover, which measures itself.
 globalThis.ResizeObserver ??= class {
     observe = vi.fn()
     unobserve = vi.fn()
@@ -131,6 +132,7 @@ vi.mock("@/features/observability/TracesTable", () => ({
     ),
 }))
 
+import AddToQueuePicker from "@/features/annotations/AddToQueuePicker"
 import {ObservabilityScreen} from "@/features/observability/ObservabilityScreen"
 import {queryClient} from "@/lib/queryClient"
 
@@ -159,6 +161,8 @@ describe("ObservabilityScreen selection actions", () => {
     const selected = () => host.querySelector("[data-testid='selected']")?.textContent
 
     beforeEach(() => {
+        // The app shell registers this picker at boot (`registerTraceDrawerSlots`).
+        configureTraceDrawerReferences({AddToQueuePopover: AddToQueuePicker})
         deleteTrace.mockReset().mockResolvedValue({count: 1, trace_id: "x"})
         fetchTraces.mockReset()
         store = createStore()
@@ -217,7 +221,7 @@ describe("ObservabilityScreen selection actions", () => {
             )
 
         await click("Select spans")
-        // The menu sits inside the queue picker, which the package loads with `next/dynamic`.
+        // The menu sits inside the queue picker that /m registers at boot.
         const addButton = await vi.waitFor(() => {
             const found = document.querySelector<HTMLButtonElement>("button[aria-label='Add']")
             expect(found).not.toBeNull()

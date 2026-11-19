@@ -11,7 +11,7 @@ import {DotsThreeVertical, PencilSimple} from "@phosphor-icons/react"
 import {useRunEditDialog} from "./useRunEditDialog"
 
 /**
- * The run's "⋮" menu next to its name, with "Edit evaluation". As in the old app, a live run and
+ * The run's "⋮" menu next to its name, with "Edit evaluation". A live run and
  * a closed run have no menu; a reader who may not edit runs gets none either.
  */
 export const RunActionsMenu = ({

@@ -19,17 +19,17 @@ import {FirstRunTemplatesSkeleton} from "./states/FirstRunTemplatesSkeleton"
 import {TemplatePagerButton} from "./TemplatePagerButton"
 import {templatesHiddenAtom} from "./templatesHidden"
 
-/** Matches the desktop strip's `PAGE_SIZE`, and the `lg:grid-cols-3` the cards page through. */
+/** Matches the `lg:grid-cols-3` the cards page through. */
 const TEMPLATE_PAGE_SIZE = 3
 
 /**
- * The templates offer on first run, aligned with the desktop's strip: real template CARDS with
+ * The templates offer on first run: real template CARDS with
  * their monogram, description and the connections they need — not three text chips that fill the
  * composer and teach nothing about what a template is.
  *
- * At `lg` it pages 3-at-a-time behind the desktop's arrows; narrower, where there is no width for
+ * At `lg` it pages 3-at-a-time behind arrows; narrower, where there is no width for
  * a page, the same cards scroll horizontally and the pager hides. The category filter above them
- * is the desktop's tab row, wrapped into chips.
+ * is a tab row, wrapped into chips.
  */
 export const FirstRunTemplates = ({
     onPick,
@@ -64,7 +64,7 @@ export const FirstRunTemplates = ({
     const atStart = safePage === 0
     const atEnd = safePage >= pageCount - 1
 
-    // Dismissed: one line that says where they went and takes them back, same as the desktop.
+    // Dismissed: one line that says where they went and takes them back.
     if (hidden) {
         return (
             <div className="text-muted-foreground text-xs">
@@ -83,7 +83,7 @@ export const FirstRunTemplates = ({
     return (
         <div className="flex flex-col gap-3">
             {/*
-             * One header row from `lg`, like the desktop strip: label, then the chips, then the
+             * One header row from `lg`: label, then the chips, then the
              * controls. Below `lg` there is no width for that, so it stays two rows — and the
              * `lg:contents` wrapper is what lets the chips sit BETWEEN label and controls at `lg`
              * while those two still share a row of their own on a phone.
@@ -95,7 +95,7 @@ export const FirstRunTemplates = ({
                     </span>
                     <div className="flex items-center gap-3 lg:order-3 lg:ml-auto lg:shrink-0">
                         {/*
-                         * The desktop's pager, and `lg`-only on purpose: below that the cards are a
+                         * The pager, `lg`-only on purpose: below that the cards are a
                          * snap scroller with no discrete pages, so a "1–3 of 28" counter would name a
                          * window the user is not in.
                          */}
@@ -131,8 +131,8 @@ export const FirstRunTemplates = ({
                                 ? t("agents.firstRun.browseAll", {total: templates.length})
                                 : t("agents.firstRun.browseAllUncounted")}
                         </button>
-                        {/* The desktop hides this behind a `⋯` menu holding exactly one item; on touch
-                        that is two taps for one action, so it is a labelled button here. */}
+                        {/* A labelled button, not a `⋯` menu holding exactly one item: on touch
+                        that is two taps for one action. */}
                         <button
                             type="button"
                             onClick={() => setHidden(true)}

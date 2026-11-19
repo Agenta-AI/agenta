@@ -33,7 +33,7 @@ const CreateProjectSheet = dynamic(
 )
 
 /**
- * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
+ * The drawer's header switcher: the shared rail component, bound to mobile's project data.
  * Both panels speak organizations, because every org's workspace is named "Default".
  */
 export const DrawerProjectSwitcher = ({
@@ -51,7 +51,7 @@ export const DrawerProjectSwitcher = ({
     const logout = useLogout()
     // The sheet is a modal, so its state lives with whatever stays mounted after the menu closes.
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
-    // Help rides on the switcher row rather than taking a nav row of its own, as on the desktop.
+    // Help rides on the switcher row rather than taking a nav row of its own.
     const helpItem = useMobileHelpItem({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
@@ -93,7 +93,7 @@ export const DrawerProjectSwitcher = ({
     )
 
     const [createOpen, setCreateOpen] = useState(false)
-    // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
+    // The shared mutation; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
     const createProject = useMutation({
         mutationFn: async (name: string) => {
@@ -125,8 +125,8 @@ export const DrawerProjectSwitcher = ({
         [],
     )
 
-    // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
-    // them too, but the switcher is where you already are when you want to flip the lights.
+    // The theme fly-out, over the same three choices Preferences offers — but the switcher is
+    // where you already are when you want to flip the lights.
     const {themeMode, setMode} = useThemeMode()
     const themeOptions = useThemeOptions()
     const theme = useMemo<SwitcherThemeControl>(

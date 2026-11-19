@@ -49,8 +49,8 @@ const inFlight = new Set<string>()
 /**
  * Host reactions to an auto-commit. Distinct from `registerWorkflowCommitCallbacks` in
  * `@agenta/entities`, which is single-slot and fires for EVERY commit: this one is
- * multi-subscriber, unsubscribable, and agent-auto-commit only — which is what lets each app
- * add its own follow-up work.
+ * multi-subscriber, unsubscribable, and agent-auto-commit only — which is what lets the app add
+ * its own follow-up work.
  *
  * Keyed so a module re-evaluation (HMR) replaces its handler instead of stacking a second one.
  */

@@ -106,13 +106,13 @@ import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 const tNow = createT(chatMobileLiveCatalog)
 
 /**
- * The LIVE conversation screen — the same engine the desktop chat runs on
+ * The LIVE conversation screen — the shared chat engine
  * (`useAgentConversation`: transport, streaming, hydration from records, localStorage cache,
  * queue, approvals, persistence), with mobile's skin: TurnRow transcript, the bottom approval
  * dock, and the pinned composer. Mount with `key={sessionId}`.
  *
  * Approvals route through the ENGINE (approve/deny ride the stream transport and auto-resume,
- * for live and restored gates alike — desktop parity). Steer (deny + redirect note) keeps
+ * for live and restored gates alike). Steer (deny + redirect note) keeps
  * mobile's detached resume path; after it fires, the records change and the watch relay's
  * `revalidate()` folds the resumed turn in.
  */
@@ -290,7 +290,7 @@ export const LiveConversation = ({
             followCommitRef.current(revisionId)
     }, [conversation.messages])
 
-    // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
+    // The connect-model gate. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
     // send, not shown a raw 422 after it. Blocks the composer, holds the parked task, and raises
     // the strip below.
@@ -755,7 +755,7 @@ export const LiveConversation = ({
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
 
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
-    // run can't scroll out of reach. Gated the same way desktop gates it.
+    // run can't scroll out of reach.
     // Parked question forms → the docked card owns the questions and the answers; the transcript
     // rows are passive markers.
     const elicits = useElicitationDock({
@@ -811,7 +811,7 @@ export const LiveConversation = ({
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
-    // the composer, are this surface's job — same division the desktop uses. `composerRef` is
+    // the composer, are this surface's job. `composerRef` is
     // declared above, with the parked task that also refills the input.
     const {rewind} = conversation
     const handleRewind = useCallback(
@@ -843,7 +843,7 @@ export const LiveConversation = ({
         [rewind],
     )
 
-    // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
+    // The run-level shortcuts, with their guards — what makes Stop's `Escape` true here.
     const scrollerRef = autoScroll.ref
     // Read through a ref: `pendingApprovals` is rebuilt every streamed commit, so depending on it
     // would re-register the listener on the hot path.
@@ -908,7 +908,7 @@ export const LiveConversation = ({
                     </div>
                 ) : null}
                 {conversation.isEmpty ? (
-                    // The SAME card the desktop shows a conversation with no messages: who you are
+                    // The shared card for a conversation with no messages: who you are
                     // about to talk to. A blank session is not an error state — /m rendered nothing
                     // here, and for a freshly minted one it claimed the history was unavailable,
                     // which is a different and much more alarming thing to say.
@@ -1003,7 +1003,7 @@ export const LiveConversation = ({
                             />
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
-                        desktop, and the same order as the keyboard precedence. */}
+                        the keyboard precedence. */}
                         {secrets.front ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
@@ -1058,8 +1058,7 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
-                        {/* Docked with the other strips, directly above the composer it disables —
-                        the same place the desktop banner sits. */}
+                        {/* Docked with the other strips, right above the composer it disables. */}
                         <ContentRail>
                             <ConnectModelStrip gateActive={modelBlocked} />
                             {modelBlocked ? null : (

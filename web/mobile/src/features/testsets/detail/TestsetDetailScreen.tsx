@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -77,7 +77,7 @@ export const TestsetDetailScreen = ({
     const revisionId = isNew || editor.notFound ? null : routeId
 
     // Developer mode: an archived test set shows its name, reads only, and offers Restore.
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const archivedTestset = useArchivedTestset({
         projectId,
         header: editor.header,
@@ -90,7 +90,7 @@ export const TestsetDetailScreen = ({
 
     const mayEdit = useProjectPermission(projectId, "edit_testsets")
     const canEdit = mayEdit && !archivedTestset.isArchived
-    // Same rule as the list: the old app gated exports on API key rights.
+    // Same rule as the list: exports are gated on API key rights.
     const mayViewKeys = useProjectPermission(projectId, "view_api_keys")
     const mayEditKeys = useProjectPermission(projectId, "edit_api_keys")
     const canExport = mayViewKeys && mayEditKeys

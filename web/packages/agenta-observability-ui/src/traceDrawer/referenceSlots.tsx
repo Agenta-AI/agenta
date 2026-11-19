@@ -1,13 +1,12 @@
 import type {ComponentType, ReactNode} from "react"
 
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
-import dynamic from "next/dynamic"
 
 /**
  * Host slots for the reference labels the trace drawer renders.
  *
- * `@/oss/components/References` is 20 files and ~3.5k lines of app-coupled lookup UI, so the
- * drawer takes the components as slots rather than dragging that closure into the package. Same
+ * The reference lookup UI is app-coupled, so the drawer takes the components as slots rather
+ * than dragging it into the package. Same
  * contract as `configureUserReference` in `@agenta/ui`: the host registers once at boot, the
  * package renders whatever it was given, and a host that registers nothing gets a plain label
  * instead of a crash.
@@ -71,11 +70,7 @@ export interface TraceDrawerReferenceSlots {
  * (`TraceDrawerReferenceSlots[keyof TraceDrawerReferenceSlots]`) is not forced to widen them.
  */
 export interface TraceDrawerPickerSlots {
-    /**
-     * The "add to annotation queue" picker. The default is the antd popover, loaded on first
-     * render only. A host that cannot ship antd (`/m`) registers its own picker, and its bundle
-     * then never requests the antd chunk.
-     */
+    /** The "add to annotation queue" picker. Absent until the host registers one. */
     AddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps>
 }
 
@@ -89,17 +84,14 @@ const PlainReference: ComponentType<ReferenceLabelProps> = ({label}) => (
 /** Renders nothing — an unregistered action is absent, not broken. */
 const NoSlot: ComponentType<ActionSlotProps> = () => null
 
-const DefaultAddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps> = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
-)
+const NoPicker: ComponentType<AddToQueuePopoverSlotProps> = () => null
 
 const slots: TraceDrawerSlots = {
     TraceSpanDrillInView: NoSlot,
     PrettyJsonView: NoSlot,
     AddToTestsetButton: NoSlot,
     AnnotateDrawerButton: NoSlot,
-    AddToQueuePopover: DefaultAddToQueuePopover,
+    AddToQueuePopover: NoPicker,
     ApplicationReferenceLabel: PlainReference,
     EnvironmentReferenceLabel: PlainReference,
     EvaluatorReferenceLabel: PlainReference,
@@ -120,3 +112,6 @@ export const configureTraceDrawerReferences = (next: Partial<TraceDrawerSlots>) 
 
 /** The registered slots. Read at render time so a late registration still takes effect. */
 export const getTraceDrawerReferences = (): TraceDrawerSlots => slots
+
+/** Whether the host registered an add-to-queue picker; without one, queue actions are absent. */
+export const hasAddToQueuePicker = () => slots.AddToQueuePopover !== NoPicker

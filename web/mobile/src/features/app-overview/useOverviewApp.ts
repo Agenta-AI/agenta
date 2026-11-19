@@ -7,7 +7,7 @@ import {
     workflowDetailQueryAtomFamily,
     type Workflow,
 } from "@agenta/entities/workflow"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {useQuery} from "@tanstack/react-query"
 import {atom, useAtomValue} from "jotai"
 
@@ -53,13 +53,13 @@ const fetchArchivedApp = async (projectId: string, appId: string): Promise<Workf
  * load, an agent can sit in the prompts list, and the page would flash prompt sections for it.
  *
  * An id in neither list may be an archived app. Only then does a second request look for it, so
- * an active app costs nothing extra. In beta developer mode an id that is no app at all may be an
- * evaluator, which has an overview as in the old app; its detail loads only then.
+ * an active app costs nothing extra. In Developer Mode an id that is no app at all may be an
+ * evaluator, which has an overview; its detail loads only then.
  */
 export const useOverviewApp = (projectId: string, appId: string): OverviewApp => {
     const prompts = useAtomValue(promptWorkflowsListQueryStateAtom)
     const agents = useAtomValue(agentWorkflowsListQueryStateAtom)
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const beta = useAtomValue(developerModeActiveAtom)
     const listsSettled =
         !prompts.isError && !agents.isError && !prompts.isPending && !agents.isPending
     const isAgent = listsSettled && agents.data.some((entry) => entry.id === appId)

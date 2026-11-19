@@ -105,7 +105,7 @@ describe("windowed transcripts", () => {
 
 describe("shouldRevealJump", () => {
     it("stays hidden for a nudge", () => {
-        // The old desktop rule fired here (>24px past the edge). It must not now.
+        // A >24px-past-the-edge rule would fire here. It must not.
         const el = scroller({clientHeight: 800, lastTurnBottom: 860})
         expect(shouldRevealJump(el)).toBe(false)
     })

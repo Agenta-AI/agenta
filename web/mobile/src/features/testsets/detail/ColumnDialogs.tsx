@@ -164,7 +164,7 @@ export const ColumnDialog = ({
 
 /**
  * The "Add column" button. It is off while a save runs, and its tooltip says why. `compact` is
- * the icon-only form for the table header, as in the old app.
+ * the icon-only form for the table header.
  */
 export const AddColumnButton = ({
     blockedReason,

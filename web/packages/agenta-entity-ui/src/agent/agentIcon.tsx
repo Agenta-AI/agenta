@@ -13,7 +13,7 @@ export type {AgentIconChrome} from "@agenta/ui/agent-icon"
 /**
  * Bind an agent's persisted icon to the presentation layer. Lives here rather than in the app so
  * package-level surfaces (AgentCard, and whatever comes next) can reach it — `@agenta/entity-ui` is
- * exactly the "entity-specific UI" layer, and a package can never import from `@/oss`.
+ * exactly the "entity-specific UI" layer, and a package can never import from the app.
  *
  * Keep this module free of the picker: the sidebar imports it on every route, and the picker pulls
  * the virtualizer and the popover with it.

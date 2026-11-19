@@ -22,7 +22,7 @@ const shape = (items: SidebarConfig[]): Row[] =>
     }))
 
 describe("the developer rows of the main rail", () => {
-    it("beta developer mode lays them out like the old app: Prompts, Evaluation, Observability", () => {
+    it("Developer Mode lays them out as Prompts, Evaluation, Observability", () => {
         const slots = developerNavSlots(P, DEVELOPER_VIEWS, true)
         expect(shape(slots.afterHome)).toEqual([
             {key: "developer-view-prompts", title: "Prompts", link: `${P}/prompts`},
@@ -54,7 +54,7 @@ describe("the developer rows of the main rail", () => {
         ])
     })
 
-    it("beta developer mode lists no Endpoints, Archived apps or Registry row, as the old app", () => {
+    it("Developer Mode lists no Endpoints, Archived apps or Registry row", () => {
         const {afterHome, afterSessions} = developerNavSlots(P, DEVELOPER_VIEWS, true)
         const links = JSON.stringify(shape([...afterHome, ...afterSessions]))
         expect(links).not.toContain("/endpoints")
@@ -62,20 +62,20 @@ describe("the developer rows of the main rail", () => {
         expect(links).not.toContain("/variants")
     })
 
-    it("beta developer mode turns off prefetch on every developer link", () => {
+    it("Developer Mode turns off prefetch on every developer link", () => {
         const {afterHome, afterSessions} = developerNavSlots(P, DEVELOPER_VIEWS, true)
         const rows = [...afterHome, ...afterSessions].flatMap((item) => item.submenu ?? [item])
         expect(rows.every((row) => row.prefetch === false)).toBe(true)
     })
 
-    it("beta developer mode leaves out the Evaluation group when none of its views is on", () => {
+    it("Developer Mode leaves out the Evaluation group when none of its views is on", () => {
         const prompts = DEVELOPER_VIEWS.filter((view) => view.id === "prompts")
         expect(shape(developerNavSlots(P, prompts, true).afterSessions)).toEqual([
             {key: "mobile-observability", title: "Observability", link: `${P}/observability`},
         ])
     })
 
-    it("without beta developer mode the rail keeps today's flat Developer section, unchanged", () => {
+    it("without Developer Mode the rail keeps today's flat Developer section, unchanged", () => {
         const slots = developerNavSlots(P, DEVELOPER_VIEWS, false)
         expect(slots.afterHome).toEqual([])
         expect(shape(slots.afterSessions)).toEqual([
@@ -113,18 +113,18 @@ describe("the developer rows of the main rail", () => {
         expect(slots.afterSessions[0].alwaysOpen).toBe(true)
     })
 
-    it("without beta developer mode and no view on, the rail adds nothing", () => {
+    it("without Developer Mode and no view on, the rail adds nothing", () => {
         expect(developerNavSlots(P, [], false)).toEqual({afterHome: [], afterSessions: []})
     })
 
-    it("beta developer mode puts the prompt apps under Prompts; the collapsed rail opens the page", () => {
+    it("Developer Mode puts the prompt apps under Prompts; the collapsed rail opens the page", () => {
         const apps = [{key: "app-1", title: "Capital finder", link: `${P}/apps/app-1/playground`}]
         const [prompts] = developerNavSlots(P, DEVELOPER_VIEWS, true, apps).afterHome
         expect(prompts.submenu).toEqual(apps)
         expect(prompts.hideChildrenWhenCollapsed).toBe(true)
     })
 
-    it("without beta developer mode no prompt apps are added anywhere", () => {
+    it("without Developer Mode no prompt apps are added anywhere", () => {
         const apps = [{key: "app-1", title: "Capital finder", link: `${P}/apps/app-1/playground`}]
         expect(developerNavSlots(P, DEVELOPER_VIEWS, false, apps)).toEqual(
             developerNavSlots(P, DEVELOPER_VIEWS, false),

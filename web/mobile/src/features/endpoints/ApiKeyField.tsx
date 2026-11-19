@@ -7,7 +7,7 @@ import {Button, Input} from "@agenta/ui/ui"
 import {useProjectPermission} from "../context/useProjectPermission"
 
 /**
- * "Create or enter your API key", as in the old app's Use API drawers. The key goes into the
+ * "Create or enter your API key" for the Use API drawers. The key goes into the
  * snippets. Generating one needs the key permission, so a reader without it can only paste one.
  */
 export const ApiKeyField = ({

@@ -116,7 +116,7 @@ export interface TriggerExecutionItemPayload {
 /**
  * Injectable worker bridge used by execution atoms.
  *
- * OSS/EE should set this at app init via provider code.
+ * The app sets this at init via provider code.
  */
 export const executionWorkerBridgeAtom = atom<ExecutionWorkerBridge | null>(null)
 

@@ -16,7 +16,7 @@ interface ConfirmRequest {
 
 /**
  * Adapts `ConfirmModal` (controlled) to the imperative `confirm({title, message, onOk})` the
- * shared settings sections expect — the desktop passes antd's AlertPopup, which is imperative.
+ * shared settings sections expect.
  *
  * Returns the modal to render; a section given no `confirm` hides its destructive actions.
  */

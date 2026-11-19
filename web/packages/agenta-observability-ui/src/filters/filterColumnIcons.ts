@@ -1,5 +1,5 @@
 /**
- * The icon set for the filter field menu, by node label. The same icons the old app shows.
+ * The icon set for the filter field menu, by node label.
  *
  * The column table itself lives in `@agenta/observability/filters` as pure
  * metadata; each host overlays its own icons by node label so the table can be

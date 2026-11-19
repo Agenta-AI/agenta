@@ -1,9 +1,7 @@
 /**
- * The columns of the evaluation runs list, copied from the old app's list
- * (web/oss `EvaluationRunsTablePOC/hooks/useEvaluationRunsColumns` and `utils/referenceSchema.ts`)
- * as pure functions.
+ * The columns of the evaluation runs list, as pure functions.
  *
- * The old list picks its columns from the runs on screen: a reference column (test set, query,
+ * The list picks its columns from the runs on screen: a reference column (test set, query,
  * application) for each kind of reference a run points at, one metric column per evaluator
  * metric (grouped under the evaluator), and the four invocation metrics. The Kind column shows on
  * the All tab only. With no runs to read, the tab decides the reference columns.
@@ -14,7 +12,7 @@
 import type {MetricStats} from "./metricStats"
 import type {RunListTab} from "./runFilters"
 
-/** A reference column, in the old list's order. */
+/** A reference column, in the list's order. */
 export type RunListReferenceColumn = "testset" | "query" | "application"
 
 const REFERENCE_ORDER: readonly RunListReferenceColumn[] = ["testset", "query", "application"]
@@ -121,7 +119,7 @@ const humanizeWord = (raw: string) => {
 }
 
 /**
- * A metric path as a column label, the old app's `humanizeMetricPath`:
+ * A metric path as a column label:
  * `attributes.ag.data.outputs.score` -> "Score", `outputs.is_valid` -> "Is Valid".
  */
 export function humanizeMetricPath(metricPath: string): string {

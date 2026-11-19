@@ -89,7 +89,7 @@ export const EvaluationsScreen = ({
         scope: appId ? "app" : "project",
         columnsKey: "evaluations",
     })
-    // Export needs the API key permissions, as in the old list.
+    // Export needs the API key permissions.
     const canViewKeys = useProjectPermission(projectId, "view_api_keys")
     const canEditKeys = useProjectPermission(projectId, "edit_api_keys")
     const canExport = canViewKeys && canEditKeys

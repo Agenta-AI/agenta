@@ -53,13 +53,13 @@ const noMembersAtom = atom<{data?: {members: SharingPerson[]}}>({})
  * The session row's context menu, bound to this app.
  *
  * The verbs are the SHARED ones — rename, pin, archive, delete, with their confirms — so a
- * session behaves the same here as on the desktop list. No local cache adapter: every action goes
+ * session behaves the same in every list. No local cache adapter: every action goes
  * straight to the server, and the open-tab set only learns of it afterwards (`useLeaveSession`).
  */
 export const useSessionRowMenu = (base: string) => {
     const router = useRouter()
-    // The automation verbs — "Open automation", "View delivery" — from the same shared factory the
-    // desktop sessions page uses. They only appear on trigger-created rows, so a list that
+    // The automation verbs — "Open automation", "View delivery" — from the shared factory.
+    // They only appear on trigger-created rows, so a list that
     // excludes those never shows them. `SessionAutomationDrawers` is what they open.
     const openSchedule = useSetAtom(triggerScheduleDrawerAtom)
     const openSubscription = useSetAtom(triggerSubscriptionDrawerAtom)
@@ -74,7 +74,7 @@ export const useSessionRowMenu = (base: string) => {
         [openDelivery, openSchedule, openSubscription],
     )
     // Every session has its own page here, so no agent is needed for a link. The app's `/m`
-    // prefix is part of it: without it the link opened the old app.
+    // prefix is part of it.
     const sharePathFor = useCallback(
         ({sessionId}: SessionActionTarget) =>
             `${router.basePath}${sessionRoutePath(base, sessionId)}`,
@@ -133,7 +133,7 @@ export const useSessionRowMenu = (base: string) => {
     )
 
     // Automation verbs slot above the destructive divider — a trigger row IS its automation, so
-    // those read first (#5927), exactly as the desktop list orders them.
+    // those read first (#5927).
     const menuFor = useCallback(
         (vm: SessionRowVm) =>
             withOwnerNote(

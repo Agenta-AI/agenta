@@ -17,7 +17,7 @@ export interface SessionLivePreviewExecution {
 
 /**
  * Display-only frame state for a session. `@agenta/chat` owns reduction semantics; the entity
- * layer owns the per-session lifetime so desktop and mobile share one source without touching the
+ * layer owns the per-session lifetime so every surface shares one source without touching the
  * sender's durable transcript or `useChat` state.
  */
 export interface SessionLivePreviewState {

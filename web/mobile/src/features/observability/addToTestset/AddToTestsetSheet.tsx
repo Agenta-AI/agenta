@@ -83,7 +83,7 @@ export const AddToTestsetSheet = ({
                     newName={form.newName}
                     onNewNameChange={form.setNewName}
                 />
-                {/* As in the old app, mapping and preview follow once a test set is chosen. */}
+                {/* Mapping and preview follow once a test set is chosen. */}
                 {form.target ? (
                     <>
                         <MappingRows

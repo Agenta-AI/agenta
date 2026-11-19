@@ -12,7 +12,7 @@ import {
     useEnsureEvaluatorEnrichment,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {Field} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
@@ -132,7 +132,7 @@ export const QueueEvaluatorField = ({
         },
         [onChange],
     )
-    const canCreate = useAtomValue(betaDeveloperModeActiveAtom)
+    const canCreate = useAtomValue(developerModeActiveAtom)
     const [creating, setCreating] = useState(false)
     const remove = useCallback(
         (revisionId: string) =>

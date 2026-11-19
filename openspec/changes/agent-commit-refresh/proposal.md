@@ -24,9 +24,8 @@ parts from `conversation.messages`. Only the direct `useChat` stream put that pa
 (`83ac7ccdc1`) removed the direct send path. A durable send's stream goes to `readRunAdmission`
 (`useServerSessionInputs.ts:398`), which drops the part, and the transcript is rebuilt from records.
 
-`/w` survived because `bda6a6edad` gave the desktop host a records-based trigger:
-`useSessionLivePreview` derives committed revisions from the tool records and calls
-`onCommittedRevision` (`AgentConversation.tsx:188-199`). The shared engine `/m` uses,
+`bda6a6edad` added a records-based trigger: `useSessionLivePreview` derives committed
+revisions from the tool records and calls `onCommittedRevision`. The shared engine `/m` uses,
 `useAgentConversation.ts:1053-1063`, does not pass `onCommittedRevision`.
 
 ## What Changes

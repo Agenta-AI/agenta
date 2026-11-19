@@ -72,7 +72,7 @@ export type {DrillInContextValue, DrillInProviderProps} from "./context"
 
 export {defaultFieldBehaviors} from "./context"
 
-// UI Injection Context (for OSS component injection)
+// UI Injection Context (for app component injection)
 export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "./context"
 export type {
     DrillInUIComponents,

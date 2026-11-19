@@ -429,18 +429,13 @@ export ENV_FILE="$ENV_FILE"
 # Always append --env-file flag to COMPOSE_CMD
 COMPOSE_CMD+=" --env-file $ENV_FILE_PATH"
 
-# The dev web-mobile container runs as uid 10001 and entrypoint.sh writes __env.js into the
-# mobile/public directory that compose bind-mounts from this checkout. A fresh clone leaves it
-# mode 755 owned by the host user, so uid 10001 cannot write and the container crash-loops in
-# the entrypoint before Next.js ever starts. Widen them here instead of making every contributor rediscover that. They
-# hold public static assets only, and the gh images bind-mount no source, so this is dev-only.
+# The dev web-mobile container (uid 10001) writes __env.js into the bind-mounted public dir.
 if [[ "$IMAGE_MODE" == "dev" && "$WEB_MODE" == "docker" ]]; then
     for _public_dir in ./web/mobile/public; do
         [[ -d "$_public_dir" ]] || continue
         chmod o+rwx "$_public_dir" 2>/dev/null ||
             echo "Warning: could not make $_public_dir writable by the web container (uid 10001)." >&2
-        # An __env.js left behind by a host-side `pnpm dev` is owned by the host user, and the
-        # container overwrites it in place, so widen it as well.
+        # A host-side `pnpm dev` may have left __env.js owned by the host user.
         if [[ -f "$_public_dir/__env.js" ]]; then
             chmod o+rw "$_public_dir/__env.js" 2>/dev/null || true
         fi
@@ -457,10 +452,7 @@ if $WITH_TUNNEL; then
     COMPOSE_CMD+=" --profile with-tunnel"
 fi
 
-# A backend-only run (--web-mode none) starts no web app, and a local run (--web-mode local)
-# serves web/mobile from this checkout instead. web-mobile has no profile, and scaling it to 0
-# is not enough, because `pull` and `up` still fetch its image. So name every other service
-# explicitly for `build`, `pull` and `up`. `down` keeps the full model.
+# web-mode none/local: list every service except web-mobile, since it has no profile to skip.
 declare -a STACK_SERVICES=()
 if [[ "$WEB_MODE" != "docker" ]]; then
     _all_services="$($COMPOSE_CMD config --services)" \

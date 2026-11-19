@@ -80,7 +80,7 @@ export interface SettingsSidebarTab {
 }
 
 export interface SettingsSidebarSectionsOptions {
-    /** A tab's href. Omit for a rail that is purely controlled (the desktop's). */
+    /** A tab's href. Omit for a rail that is purely controlled. */
     getLink?: (key: SettingsTabKey) => string
 }
 

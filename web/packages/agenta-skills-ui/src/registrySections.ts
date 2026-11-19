@@ -1,6 +1,5 @@
 /**
- * ONE mapping from the registry response to gallery sections + source-rail entries,
- * shared by the desktop page and /m so grouping can never drift between hosts:
+ * ONE mapping from the registry response to gallery sections + source-rail entries:
  * "This project" (skills with no origin), one section per imported repo (grouped
  * client-side by `origin.repository`), and the Agenta built-ins.
  */

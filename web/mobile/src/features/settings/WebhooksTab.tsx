@@ -25,8 +25,7 @@ import {WebhookFormSheet} from "./WebhookFormSheet"
 
 /**
  * Mobile binding: the shared webhooks table with this app's subscribe/edit sheet, its delete
- * confirm, and the one-time secret reveal. All three drive the same entity atoms the desktop
- * drawer and modals do.
+ * confirm, and the one-time secret reveal. All three drive the shared entity atoms.
  */
 export const WebhooksTab = () => {
     const t = useT(commonCatalog, settingsWebhooksTabCatalog)

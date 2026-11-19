@@ -5,10 +5,10 @@ import type {ReactNode, SVGProps} from "react"
  *
  * Inline SVG rather than `next/image` over `public/assets/logos/*`: a bare asset path misses the
  * mobile app's `/m` basePath, and inlining lets the mark carry the theme accent through a class
- * (`dark:` — both apps toggle `.dark` on `<html>`) instead of swapping two files per theme.
+ * (`dark:` — the app toggles `.dark` on `<html>`) instead of swapping two files per theme.
  *
- * Geometry matches the desktop rail exactly: a 32px row, an 80x18 wordmark, a 20x20 mark. The
- * mark's own viewBox is 171x140, so at 20x20 it letterboxes exactly as the `<img>` did.
+ * Geometry: a 32px row, an 80x18 wordmark, a 20x20 mark. The mark's own viewBox is 171x140,
+ * so at 20x20 it letterboxes.
  */
 const MARK_CLASS = "fill-[#1E1C1D] dark:fill-[#F2F25C]"
 

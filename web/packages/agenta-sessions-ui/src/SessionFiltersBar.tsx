@@ -80,7 +80,7 @@ export const SessionFiltersBar = ({
             >
                 {leading}
                 {title ? (
-                    // From `sm`, 24px is heading-3 — the rung `PageLayout` gives a desktop page
+                    // From `sm`, 24px is heading-3 — the rung `PageLayout` gives a page
                     // title, and this bar IS the page header where there is no `PageLayout`. On a
                     // phone that rung eats the row, so the title drops to the 16px body ramp.
                     <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-colorText sm:text-[24px] sm:leading-[1.3333333333333333]">

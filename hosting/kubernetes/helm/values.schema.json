@@ -1218,7 +1218,7 @@
             },
             "web": {
               "$ref": "#/$defs/ingressPath",
-              "description": "Root route (default path /). It routes to the web-mobile service, which redirects / to /m and maps old desktop URLs. The key keeps its name from the retired desktop app so an existing pathType still applies."
+              "description": "Root route (default path /). It routes to the web-mobile service, which redirects / to /m and maps other root paths to their /m pages."
             }
           }
         },

@@ -57,9 +57,8 @@ export interface AgentRevisionStatusProps {
  *
  * The dot reports auto-commit; there is no Save button, so a failed save makes the dot the retry.
  *
- * Rendered by every surface that shows an agent's header — the desktop playground's revision
- * selector and the mobile session workspace's top bar — so the two can never disagree about
- * what "saved" looks like.
+ * Rendered by every surface that shows an agent's header, so they can never disagree about what
+ * "saved" looks like.
  */
 export const AgentRevisionStatus = ({
     revisionId,
@@ -71,12 +70,11 @@ export const AgentRevisionStatus = ({
 }: AgentRevisionStatusProps) => {
     const t = useT(headerCatalog)
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
-    // the same agent is driven from another surface (the desktop playground and `/m` share one
-    // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
-    // surface has none, so on return the revision queries were still inside their staleTime and
-    // this chip named the superseded version (#6380). Revalidate once on mount, where the
-    // observers ARE active. It lives here, in the shared chip, because every host that shows a
-    // revision has the problem — putting it in one app's wrapper fixed only that app.
+    // the same agent is driven from another surface. The invalidation that follows a commit
+    // refetches ACTIVE observers only, and a closed surface has none, so on return the revision
+    // queries were still inside their staleTime and this chip named the superseded version
+    // (#6380). Revalidate once on mount, where the observers ARE active. It lives here, in the
+    // shared chip, because every surface that shows a revision has the problem.
     useEffect(() => {
         revalidateAgentRevisionReads(historyWorkflowId)
     }, [historyWorkflowId])

@@ -9,7 +9,6 @@ import {useAtomValue} from "jotai"
 
 import {SimpleTable} from "../primitives/SimpleTable"
 
-// Mirrors `AnnotateDrawer/assets/constants`; duplicated rather than reaching into that drawer.
 const USEABLE_METRIC_TYPES = ["string", "number", "integer", "float", "boolean"]
 const NUMERIC_METRIC_TYPES = ["number", "integer", "float"]
 import EvaluatorDetailsPopover from "./EvaluatorDetailsPopover"

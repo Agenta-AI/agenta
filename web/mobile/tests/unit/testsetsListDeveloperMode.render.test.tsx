@@ -92,7 +92,7 @@ const stubFetchJson = (reply: (request: SentJson) => unknown): SentJson[] => {
     return sent
 }
 
-describe("Testsets list in beta developer mode", () => {
+describe("Testsets list in Developer Mode", () => {
     let root: Root
     let host: HTMLDivElement
     let runsUsingTestsets: string[]
@@ -252,7 +252,7 @@ describe("Testsets list in beta developer mode", () => {
         expect(menuItem("Archive")).toBeDefined()
     })
 
-    it("In developer mode the columns follow the classic order and the date shows the time", async () => {
+    it("In developer mode the columns follow the developer order and the date shows the time", async () => {
         await mount(true)
 
         const text = host.textContent ?? ""

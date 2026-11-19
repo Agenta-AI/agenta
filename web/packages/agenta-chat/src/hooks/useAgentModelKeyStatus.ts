@@ -1,4 +1,3 @@
-// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useMemo} from "react"
 
 import {hasStoredKey, standardSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"

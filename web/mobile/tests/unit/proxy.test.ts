@@ -1,10 +1,8 @@
 import {NextRequest} from "next/server"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {describe, expect, it, vi} from "vitest"
 
 import {config, proxy} from "../../src/proxy"
 
-const MOBILE_UA =
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 const DESKTOP_UA =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 
@@ -17,98 +15,7 @@ const doc = (ua: string, extra: Record<string, string> = {}) => ({
     ...extra,
 })
 
-const CLASSIC_ON = {cookie: "agenta-classic-mode=1"}
-
-/** The retired env keys. A stale value in an env file must change nothing. */
-const RETIRED_KEYS = [
-    "AGENTA_MOBILE_GATE",
-    "AGENTA_MOBILE_REVERSE_GATE",
-    "AGENTA_MOBILE_ENABLED",
-] as const
-const saved: Partial<Record<(typeof RETIRED_KEYS)[number], string | undefined>> = {}
-
-beforeEach(() => {
-    for (const key of RETIRED_KEYS) {
-        saved[key] = process.env[key]
-        delete process.env[key]
-    }
-})
-
-afterEach(() => {
-    for (const key of RETIRED_KEYS) {
-        if (saved[key] === undefined) delete process.env[key]
-        else process.env[key] = saved[key]
-    }
-})
-
-describe("mobile reverse gate proxy", () => {
-    it("lets a desktop browser stay on /m", () => {
-        expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBeNull()
-        expect(
-            proxy(req("/m/w/ws1/p/pr1/sessions/abc", doc(DESKTOP_UA))).headers.get("location"),
-        ).toBeNull()
-    })
-
-    it("lets a phone stay on /m", () => {
-        expect(proxy(req("/m/", doc(MOBILE_UA))).headers.get("location")).toBeNull()
-    })
-
-    it("never sends a Classic-mode-on user to the desktop, phone included", () => {
-        for (const ua of [DESKTOP_UA, MOBILE_UA]) {
-            for (const path of ["/m", "/m/", "/m/auth", "/m/w/ws1/p/pr1/sessions/abc"]) {
-                expect(proxy(req(path, doc(ua, CLASSIC_ON))).headers.get("location")).toBeNull()
-            }
-        }
-    })
-
-    it("keeps a Classic-mode-on user on /m when they opted in", () => {
-        const res = proxy(
-            req("/m/", doc(DESKTOP_UA, {cookie: "agenta-classic-mode=1; agenta-mobile-optin=1"})),
-        )
-        expect(res.headers.get("location")).toBeNull()
-    })
-
-    it("ignores stale AGENTA_MOBILE_GATE, AGENTA_MOBILE_REVERSE_GATE and AGENTA_MOBILE_ENABLED values", () => {
-        for (const value of ["false", "true"]) {
-            for (const key of RETIRED_KEYS) process.env[key] = value
-            expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBeNull()
-            expect(proxy(req("/m", doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBeNull()
-        }
-    })
-
-    it("does not redirect non-document requests", () => {
-        const res = proxy(
-            req("/m/", {"user-agent": DESKTOP_UA, "sec-fetch-dest": "empty", ...CLASSIC_ON}),
-        )
-        expect(res.headers.get("location")).toBeNull()
-    })
-
-    it("?view=mobile sets the opt-in cookie and stays in /m", () => {
-        const res = proxy(req("/m/?view=mobile", doc(DESKTOP_UA)))
-        expect(res.status).toBe(307)
-        expect(res.headers.get("location")).toBe("http://localhost:3000/m/")
-        const setCookie = res.headers.get("set-cookie") ?? ""
-        expect(setCookie).toContain("agenta-mobile-optin=1")
-        expect(setCookie).toContain("Path=/")
-    })
-
-    it("never bounces an OAuth callback landing off /m", () => {
-        const res = proxy(req("/m/auth/callback/google?code=abc", doc(DESKTOP_UA, CLASSIC_ON)))
-        expect(res.headers.get("location")).toBeNull()
-    })
-})
-
-describe("mobile reverse gate proxy with an invite", () => {
-    it("keeps a Classic mode user on /m", () => {
-        const invite =
-            "/m/auth?token=t&email=a%40b.c&organization_id=o1&workspace_id=w1&project_id=p1"
-        for (const path of [invite, "/m/invite"]) {
-            expect(proxy(req(path, doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBeNull()
-        }
-    })
-})
-
-describe("legacy desktop URLs at /legacy", () => {
+describe("root URLs at /legacy", () => {
     const legacy = (path: string, headers: Record<string, string> = doc(DESKTOP_UA)) =>
         proxy(req(`/m/legacy${path}`, headers))
 
@@ -135,11 +42,11 @@ describe("legacy desktop URLs at /legacy", () => {
     it("sends an unknown path to the /m root and logs the path without the query", () => {
         const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
         try {
-            const res = legacy("/no/such/page?token=secret")
+            const res = legacy("/w/ws1/p/pr1/apps/archived?token=secret")
             expect(res.status).toBe(307)
-            expect(res.headers.get("location")).toBe("http://localhost:3000/m/")
+            expect(res.headers.get("location")).toBe("http://localhost:3000/m")
             expect(warn).toHaveBeenCalledTimes(1)
-            expect(String(warn.mock.calls[0][0])).toContain("/no/such/page")
+            expect(String(warn.mock.calls[0][0])).toContain("/w/ws1/p/pr1/apps/archived")
             expect(String(warn.mock.calls[0][0])).not.toContain("secret")
         } finally {
             warn.mockRestore()
@@ -158,7 +65,7 @@ describe("legacy desktop URLs at /legacy", () => {
 })
 
 describe("proxy matcher", () => {
-    it("matches entry routes and legacy URLs only, so client navigations skip the proxy", () => {
-        expect(config.matcher).toEqual(["/", "/auth/:path*", "/invite", "/legacy/:path*"])
+    it("matches legacy URLs only, so client navigations skip the proxy", () => {
+        expect(config.matcher).toEqual(["/legacy/:path*"])
     })
 })

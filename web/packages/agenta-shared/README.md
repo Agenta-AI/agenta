@@ -2,6 +2,9 @@
 
 Shared utilities and primitives for Agenta packages and apps.
 
+> There is no root export. Import each symbol from its subpath (`@agenta/shared/utils`,
+> `@agenta/shared/api`, `@agenta/shared/state`, ...); the root imports below name the module only.
+
 ## Installation
 
 This is an internal workspace package. Add it to your package's dependencies:
@@ -28,7 +31,7 @@ This package requires the following peer dependencies:
 ### API Utilities
 
 ```typescript
-import { axios, getAgentaApiUrl, getEnv, configureAxios } from '@agenta/shared'
+import { axios, getAgentaApiUrl, getEnv, configureAxios } from '@agenta/shared/api'
 
 // Get environment variables (supports runtime override via window.__env)
 const apiUrl = getEnv('NEXT_PUBLIC_AGENTA_API_URL')
@@ -53,7 +56,7 @@ configureAxios({
 ### State Atoms
 
 ```typescript
-import { projectIdAtom, setProjectIdAtom } from '@agenta/shared'
+import { projectIdAtom, setProjectIdAtom } from '@agenta/shared/state'
 import { useAtom, useSetAtom } from 'jotai'
 
 // Read project ID
@@ -76,7 +79,7 @@ import {
 ### Validation Utilities
 
 ```typescript
-import { isValidHttpUrl, isValidRegex, isValidUUID, validateUUID } from '@agenta/shared'
+import { isValidHttpUrl, isValidRegex, isValidUUID, validateUUID } from '@agenta/shared/utils'
 
 isValidHttpUrl('https://example.com') // true
 isValidRegex('^[a-z]+$') // true
@@ -89,7 +92,7 @@ validateUUID(id, 'projectId')
 ### Date/Time Utilities
 
 ```typescript
-import { dayjs, parseEntityDate, normalizeTimestamps } from '@agenta/shared'
+import { dayjs, parseEntityDate, normalizeTimestamps } from '@agenta/shared/utils'
 
 // Parse dates with WebKit-compatible fallback formats
 const date = parseEntityDate('2024-01-15T10:30:00.000000Z')
@@ -105,7 +108,7 @@ dayjs('2024-01-15').format('YYYY-MM-DD')
 ### Batch Fetcher
 
 ```typescript
-import { createBatchFetcher } from '@agenta/shared'
+import { createBatchFetcher } from '@agenta/shared/utils'
 
 const fetchUser = createBatchFetcher({
   batchFn: async (ids) => {
@@ -131,7 +134,7 @@ import {
   setValueAtPath,
   deleteValueAtPath,
   parsePath,
-} from '@agenta/shared'
+} from '@agenta/shared/utils'
 
 const data = { user: { profile: { name: 'Alice' } } }
 
@@ -159,7 +162,7 @@ Extract paths with type information for UI selection components:
 import {
   extractTypedPaths,
   type TypedPathInfo,
-} from '@agenta/shared'
+} from '@agenta/shared/utils'
 
 // Extract paths from nested data with type info
 const data = { user: { name: 'Alice', age: 25 }, items: [1, 2, 3] }
@@ -183,7 +186,7 @@ import {
   validateMappings,
   isMappingError,
   type MappingStatus,
-} from '@agenta/shared'
+} from '@agenta/shared/utils'
 
 // Determine status of a single mapping
 const status = determineMappingStatus(mapping, isRequired)
@@ -223,7 +226,7 @@ import {
   formatSignificant,
   formatPercent,
   createFormatter,
-} from '@agenta/shared'
+} from '@agenta/shared/utils'
 
 // Preset formatters
 formatNumber(1234.567)      // "1,234.57"
@@ -248,7 +251,7 @@ See [formatters/README.md](./src/utils/formatters/README.md) for full documentat
 Dereference OpenAPI specifications:
 
 ```typescript
-import { dereferenceSchema } from '@agenta/shared'
+import { dereferenceSchema } from '@agenta/shared/utils'
 
 const rawSpec = await fetchOpenApiSpec(uri)
 const { schema, errors } = await dereferenceSchema(rawSpec)
@@ -328,7 +331,9 @@ If you have code importing from `@agenta/shared`:
 
 ```typescript
 // Before (pulls entire package)
-import {axios, SimpleChatMessage, MESSAGE_CONTENT_SCHEMA} from "@agenta/shared"
+import {axios} from "@agenta/shared/api"
+import {SimpleChatMessage} from "@agenta/shared/types"
+import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared/schemas"
 
 // After (tree-shakeable)
 import {axios} from "@agenta/shared/api"

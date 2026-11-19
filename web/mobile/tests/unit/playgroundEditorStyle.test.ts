@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The playground's message editors: they fit their text and use the app font, as on /w. The
+ * The playground's message editors: they fit their text and use the app font. The
  * agent config and the trace drawer render the same editor outside the playground, so the rules
  * apply only under `[data-playground]` and those surfaces keep the editor theme as it is.
  *

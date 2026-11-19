@@ -71,8 +71,8 @@ vi.mock("@agenta/entities/workflow", async () => {
 
 vi.mock("@agenta/shared/state", async () => {
     const {atom: makeAtom} = await import("jotai")
-    // Beta developer mode off: the picker offers no create here.
-    return {projectIdAtom: makeAtom("proj-1"), betaDeveloperModeActiveAtom: makeAtom(false)}
+    // Developer Mode off: the picker offers no create here.
+    return {projectIdAtom: makeAtom("proj-1"), developerModeActiveAtom: makeAtom(false)}
 })
 
 vi.mock("@agenta/entity-ui/selection", () => ({

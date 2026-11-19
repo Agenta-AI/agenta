@@ -117,7 +117,7 @@ export const ChatScreen = ({
     }, [access.rowAgentHidden, refetchLatest])
     const agentHidden = access.agentHidden
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
-    // invocation target, as on the desktop.
+    // invocation target.
     const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))
     const setHeldCommit = useSetAtom(heldCommitAtomFamily(sessionId))
     // A hidden agent shows no configuration at all: no revision of it is held, pinned or mounted,

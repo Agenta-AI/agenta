@@ -1,8 +1,6 @@
-// Assembled from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx and
-// AgentConversation.tsx (2026-07-25): the per-turn derivations the desktop computes inline —
-// the tool-parts signature memo key, the executed-identity dedup set, the render-item folding,
-// the status derivation, the empty-turn collapse gate, and the borrowed turn trace for user
-// rows. Pure so the conversation hook can memoize the whole list per commit.
+// The per-turn derivations: the tool-parts signature memo key, the executed-identity dedup set,
+// the render-item folding, the status derivation, the empty-turn collapse gate, and the borrowed
+// turn trace for user rows. Pure so the conversation hook can memoize the whole list per commit.
 import type {ToolUIPart, UIMessage} from "ai"
 
 import {displayMessage, getDisplayContent} from "../assets/displayContent"
@@ -15,7 +13,7 @@ import {buildTurnRenderItems, executedToolIdentities, type RenderItem} from "./r
 import {deriveTurnStatus, type TurnStatus} from "./turnStatus"
 
 /**
- * The cheap signature the desktop memoizes `executedToolIdentities` on: tool-call id + state
+ * The cheap signature `executedToolIdentities` is memoized on: tool-call id + state
  * per tool part. It stays STABLE while text streams, so the tool-input JSON.stringify behind
  * the identity set doesn't re-run on every streamed token of a tool-heavy turn.
  */
@@ -26,9 +24,9 @@ export const toolPartsSignature = (parts: UIMessage["parts"]): string =>
         .join("|")
 
 /**
- * Recreates the desktop's per-message `useMemo(executedToolIdentities, [toolSignature])`
- * outside a component: one cache instance per conversation mount, keyed by message id and
- * invalidated only when that message's tool signature changes.
+ * A per-message `useMemo(executedToolIdentities, [toolSignature])` outside a component: one cache
+ * instance per conversation mount, keyed by message id and invalidated only when that message's
+ * tool signature changes.
  */
 export const createExecutedToolIdentityCache = (): ((message: UIMessage) => Set<string>) => {
     const cache = new Map<string, {sig: string; executed: Set<string>}>()
@@ -93,7 +91,7 @@ export const createTurnViewModelCache = () => {
 export type TurnViewModelCache = ReturnType<typeof createTurnViewModelCache>
 
 /** Registry-backed client-tool predicate, parameterized: the skin closes over its widget
- * registry + render map the way the desktop message component does. */
+ * registry + render map. */
 export type ClientToolPartPredicate = (
     part: ToolUIPart,
     ctx: {isStreaming: boolean; isLastMessage: boolean},

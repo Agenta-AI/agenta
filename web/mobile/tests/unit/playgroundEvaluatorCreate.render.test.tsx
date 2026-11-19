@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Create new evaluator from the app playground's evaluator picker (beta developer mode only).
+// Create new evaluator from the app playground's evaluator picker (Developer Mode only).
 import {act, createElement} from "react"
 
 import {createStore, Provider} from "jotai"
@@ -18,7 +18,7 @@ const fake = vi.hoisted(() => ({
 
 vi.mock("@agenta/shared/state", async () => {
     const {atom} = await import("jotai")
-    return {betaDeveloperModeActiveAtom: atom(() => fake.beta)}
+    return {developerModeActiveAtom: atom(() => fake.beta)}
 })
 vi.mock("@agenta/playground", async () => {
     const {atom} = await import("jotai")
@@ -94,7 +94,7 @@ afterEach(() => {
 })
 
 describe("PlaygroundEvaluatorPicker", () => {
-    it("offers no create without beta developer mode", async () => {
+    it("offers no create without Developer Mode", async () => {
         await mount()
         expect(fake.onCreateNew).toBeUndefined()
     })

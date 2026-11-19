@@ -46,7 +46,7 @@ export const PromptRowCells = ({
         row.kind === "folder"
             ? row.folder.name || promptsCopy.deleteDialog.fallbackName
             : row.prompt.name || row.prompt.slug || ""
-    // The list flags carry no chat flag, so the type comes from the latest revision, as in /w.
+    // The list flags carry no chat flag, so the type comes from the latest revision.
     // A folder row passes no id, and the query stays off.
     const appType = useAtomValue(
         workflowAppTypeAtomFamily(row.kind === "prompt" ? row.prompt.id : ""),

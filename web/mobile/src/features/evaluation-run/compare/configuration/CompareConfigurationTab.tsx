@@ -1,7 +1,7 @@
 import {CompareConfigColumn} from "./CompareConfigColumn"
 
 /**
- * The Configuration tab while runs are compared, as in the old app: one column per run, base run
+ * The Configuration tab while runs are compared: one column per run, base run
  * first, each with its summary, test set, application with its prompt, and evaluators. Each
  * compared run marks what differs from the base run.
  */

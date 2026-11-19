@@ -236,7 +236,7 @@ describe("buildTurnViewModels", () => {
         })
         expect(turns[1].items.map((i) => i.kind)).toEqual(["tools", "clientTool", "tools"])
         expect(turns[1].hadGate).toBe(true)
-        // The predicate receives the desktop's context shape (streaming + last-message flags).
+        // The predicate receives the context shape (streaming + last-message flags).
         expect(isClientToolPart).toHaveBeenCalledWith(
             expect.objectContaining({toolCallId: "ct-1"}),
             {isStreaming: false, isLastMessage: true},

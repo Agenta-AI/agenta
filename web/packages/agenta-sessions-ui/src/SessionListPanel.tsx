@@ -38,7 +38,7 @@ export interface SessionListPanelProps {
 }
 
 /**
- * A session list inside the panel chrome — the SAME card both apps render on Home: title, the
+ * A session list inside the panel chrome — the card Home renders: title, the
  * waiting badge, "View all", and the shared `SessionCardList` rows beneath it. The host injects
  * only what it alone owns: how a row opens and its context menu.
  */

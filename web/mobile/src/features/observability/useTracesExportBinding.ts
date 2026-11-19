@@ -7,7 +7,7 @@ import {useAtomValue} from "jotai"
 import {useProjectPermission} from "@/features/context/useProjectPermission"
 
 /**
- * CSV export, on the shared hook. Like the old app, export needs the API key permissions, and a
+ * CSV export, on the shared hook. Export needs the API key permissions, and a
  * page scoped to one app names the file after it.
  *
  * The evaluator slugs come from the shared hook rather than an empty literal: hardcoding `[]`

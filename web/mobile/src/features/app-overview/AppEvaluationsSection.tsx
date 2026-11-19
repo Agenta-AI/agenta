@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
@@ -32,7 +32,7 @@ const TITLES: Record<AppRunKind, string> = {
  * The five newest runs of one kind for the app, in the runs list table without its Application
  * column. With no runs it shows the kind's empty state and no start button.
  *
- * Beta developer mode shows the runs as /w does: the kind's metric columns, the Application
+ * Developer Mode shows the runs: the kind's metric columns, the Application
  * column with the variant version, and a New evaluation button.
  */
 export const AppEvaluationsSection = ({
@@ -50,7 +50,7 @@ export const AppEvaluationsSection = ({
     const actions = useRunRowActions({projectId, base})
     const evaluationsEnabled = useDeveloperViewEnabled("evaluations") === true
     const title = TITLES[kind]
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const beta = useAtomValue(developerModeActiveAtom)
     const [creating, setCreating] = useState(false)
 
     return (

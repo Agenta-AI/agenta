@@ -1,8 +1,7 @@
 /**
  * useTestsetSelection Hook
  *
- * Manages the picked test set and revision of a test set selection dialog (the old app's
- * TestsetSelectionModal and the /m LoadTestsetDialog).
+ * Manages the picked test set and revision of a test set selection dialog (LoadTestsetDialog).
  * Handles loading revision info and tracking selection state.
  *
  * Note: The testsetName comes from the testset entity, not the revision.

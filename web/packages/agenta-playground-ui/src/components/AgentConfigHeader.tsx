@@ -15,12 +15,10 @@ export interface AgentConfigHeaderProps {
     onAfterCommit?: () => void
     onCommitted?: () => void
     /**
-     * The bar's trailing control, after Commit. On the desktop that is the collapse («)
-     * control; the host owns it because the collapsed state is app-layer.
+     * The bar's trailing control, after Commit; the host owns it because its state is app-layer.
      *
      * NOT a Deploy button and NOT a kebab: PR #5943 removed both from the AGENT header by
-     * design ("the kebab menu is gone — Revert lives on the Draft tag … per Mahmoud"), keeping
-     * them on the classic prompt playground only.
+     * design ("the kebab menu is gone — Revert lives on the Draft tag … per Mahmoud").
      */
     trailing?: ReactNode
     /** The surface saves itself (#6126), so drop the manual commit control. */
@@ -35,7 +33,7 @@ export interface AgentConfigHeaderProps {
  *
  * The revision selector lives up in the page header on this surface, so this bar reads as the
  * config panel's "Configuration" header and carries just the primary Commit plus the host's
- * trailing control. Deploy and the kebab belong to the CLASSIC prompt header, not this one.
+ * trailing control.
  *
  * Agent config below is a borderless summary, so the bar needs to read as a header. It gets a
  * subtly tinted surface (vs the plain content): an opaque container base (background-color) with

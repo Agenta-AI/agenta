@@ -66,8 +66,8 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
 })
 
 /**
- * The playground's two-pane frame, on the SAME kit `SplitPane` the desktop drives it with and the
- * SAME `chatPanelMaximizedAtom` that decides the mode: "chat" maximizes the conversation (config
+ * The playground's two-pane frame, on the kit `SplitPane`, with the
+ * `chatPanelMaximizedAtom` that decides the mode: "chat" maximizes the conversation (config
  * collapsed to 0, session rail in its place), "build" is the two-panel edit view.
  *
  * The conversation is ALWAYS mounted EXACTLY ONCE — the mode only decides what sits beside it, and
@@ -76,7 +76,7 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
  * node rendered in two containers mounts twice even when one is CSS-hidden, which ran two chat
  * engines at once.
  *
- * Pane geometry is the desktop's, shared from `@agenta/chat/state`. Below `md` there is no room
+ * Pane geometry is shared from `@agenta/chat/state`. Below `md` there is no room
  * for two panes, so the split collapses to one visible pane and the mode picks which.
  */
 export const SessionWorkspace = ({
@@ -148,12 +148,12 @@ export const SessionWorkspace = ({
         scope: sessionId,
     })
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
-    // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
+    // Collapsing the config panel is separate from the Build/Chat mode: you stay in
     // Build with the panel out of the way, and the top bar's "»" brings it back.
     // Follow the revision an auto-commit produced. Pin it rather than unpinning: unpinning falls
     // back to the latest-revision query, which is stale for a beat, so a commit made FROM an
-    // older revision would land the pane on whatever that query last cached. The desktop gets
-    // this switch from the workflow bridge's onNewRevision; mobile registers none.
+    // older revision would land the pane on whatever that query last cached. No workflow
+    // bridge `onNewRevision` is registered here.
     //
     // It lives HERE and not in `ConfigPane` because a commit can land while the config pane is
     // off screen — the pane is swapped out on a phone whenever the conversation has the width.
@@ -191,7 +191,7 @@ export const SessionWorkspace = ({
     const configCollapsed =
         configOverride ??
         resolveConfigPanelCollapsed(configPreference, phoneViewport, collapseConfigByDefault)
-    // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
+    // Files dock as a resizable right-edge pane rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
     const filesScope = agentId ?? sessionId
@@ -234,7 +234,7 @@ export const SessionWorkspace = ({
     const [filesPaneSize, setFilesPaneSize] = useState(storedFilesWidth)
     useEffect(() => setFilesPaneSize(storedFilesWidth), [storedFilesWidth])
 
-    // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
+    // Both panes slide rather than snap, on the shared `usePaneSlide`. Without
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
     // opening and hiding either panel jumped instead of moving.
     const configSlide = usePaneSlide(showPane || filesExpanded)
@@ -249,7 +249,7 @@ export const SessionWorkspace = ({
         if (composerPrefillRequest && !twoPane) setConfigCollapsed(true)
     }, [composerPrefillRequest, twoPane, setConfigCollapsed])
 
-    // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
+    // Too narrow for both side panes, so they take turns.
     // Edge-triggered, so they cannot evict each other in a loop.
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
@@ -272,7 +272,7 @@ export const SessionWorkspace = ({
         prevAlternateRef.current = panesMustAlternate
     }, [panesMustAlternate, filesOpen, configCollapsed, setConfigCollapsed])
 
-    // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
+    // The shared session shortcuts. The rail publishes the tabs it
     // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
     // mounting this on a touch surface is inert rather than harmful.
     const router = useRouter()
@@ -329,8 +329,7 @@ export const SessionWorkspace = ({
             (id: string) => closeTabs([id], openTabIds),
             [closeTabs, openTabIds],
         ),
-        // No search box in the sessions pane yet — reveal the pane, which is the half of the
-        // desktop's binding that exists here.
+        // No search box in the sessions pane yet — reveal the pane instead.
         onSearch: useCallback(
             () => setChatMaximized(!chatMaximized),
             [chatMaximized, setChatMaximized],
@@ -342,7 +341,7 @@ export const SessionWorkspace = ({
         onToggleFilesPane: toggleFilesPane,
     })
 
-    // The same surface treatment the desktop layout applies: the workspace is a recessed ground,
+    // The surface treatment: the workspace is a recessed ground,
     // the config panel is raised above it, the conversation is the recessed canvas. Without these
     // the shared panels render flat — identical components, missing surface ladder.
     // Kept mounted and `display:none` after first use: unmounting this schema form put ~100ms
@@ -389,7 +388,7 @@ export const SessionWorkspace = ({
         <>
             {/* Drive surfaces need the AGENT here, not just the session: without it the per-agent
                 mount query stays disabled and `agent-files/…` falls back to the cwd mount, 404s,
-                and the row opens nothing (#6270). Desktop mounts this; /m did not. */}
+                and the row opens nothing (#6270). */}
             <DriveSessionProvider sessionId={sessionId} artifactId={agentId ?? null}>
                 {/* The workspace column: the shared playground top bar, then the panes under it. The
                     column owns the top safe-area inset (the bar is the topmost chrome). */}
@@ -414,7 +413,7 @@ export const SessionWorkspace = ({
                             paneSize={twoPane && showPane ? paneSize : 0}
                             paneMin={RIGHT_PANEL_MIN}
                             paneMax={RIGHT_PANEL_MAX}
-                            // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
+                            // Not a 460 chat floor: `md` is 768, and 768-460 leaves
                             // the pane under its own min.
                             fillMin={420}
                             // Phone: no divider, no drag, and the visible half takes the full width.
@@ -444,7 +443,7 @@ export const SessionWorkspace = ({
                                     }
                                     paneMin={FILES_PANE_MIN}
                                     paneMax={FILES_PANE_MAX}
-                                    // Lower than the desktop's chat floor for the same reason the
+                                    // Lower than 460 for the same reason the
                                     // config split's is.
                                     fillMin={360}
                                     animate={filesSlide.animate}

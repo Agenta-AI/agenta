@@ -13,11 +13,10 @@ import {useStore} from "jotai"
 import {useSessionColumns, type SessionRow} from "../columns/getSessionColumns"
 
 /**
- * The sessions table both surfaces render.
+ * The observability sessions table.
  *
- * Same story as the traces table: `/m` and web/oss each had their own, so the same change had
- * to be made twice. This owns what they agree on — the columns, the row shape derived from
- * `useSessions`, and paging — and forwards everything else.
+ * This owns the columns, the row shape derived from `useSessions`, and paging, and forwards
+ * everything else.
  */
 export interface ObservabilitySessionsTableProps extends Omit<
     InfiniteVirtualTableFeatureProps<SessionRow>,

@@ -8,7 +8,7 @@
  * The module now holds two things, both about which link targets the chat will render. The
  * respelling above gets a bare relative path THROUGH harden. {@link isProtocolRelativeHref} is the
  * opposite: the one shape harden lets through that it should not, a target that resolves to a host
- * instead of a path. Both hosts' anchors call it first.
+ * instead of a path. The chat's anchors call it first.
  */
 
 /** True for a `scheme:` URL, a protocol-relative `//host` or a `#fragment`; false for a path. */

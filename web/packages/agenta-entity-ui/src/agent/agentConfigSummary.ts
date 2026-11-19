@@ -108,13 +108,13 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
 }
 
 /**
- * What the MCP servers row says, on every summary card in both apps.
+ * What the MCP servers row says, on every summary card.
  *
  * "configured", not "connected": this counts the servers on the agent, and whether each one
  * is authorized is a live fact no summary card holds. Saying "connected" claimed the
  * authorized state for a disconnected server, in the one word the rest of the product now
- * reserves for it (round 4, D5). The rule lives here because the mobile card is a fork of
- * the shared one and drifted back to the wrong word once already.
+ * reserves for it (round 4, D5). The rule lives here so no card can drift back to the wrong
+ * word.
  */
 export const mcpSummaryDetail = (mcps: number, {canEdit = false} = {}): string =>
     mcps
@@ -215,12 +215,8 @@ export const DEFAULT_TOOLS_COPY: AgentConfigToolsCopy = {
 /**
  * The rows every agent summary card shows, in order, with the title each one carries.
  *
- * The two cards are not one component: the desktop one renders the playground panel's
- * accordion sections and the mobile one renders the overview rail's own shell, which its two
- * sibling cards share so the three read as one column. What must not differ is WHICH rows there
- * are and what they are called. The mobile card was missing `permissions` entirely and had
- * drifted on the MCP row's wording, which is the same failure twice, so the vocabulary lives
- * here and both cards read it.
+ * What must not differ between cards is WHICH rows there are and what they are called, so the
+ * vocabulary lives here and every card reads it.
  *
  * The tools row's noun is the one variable: the mobile card calls it Integrations.
  */

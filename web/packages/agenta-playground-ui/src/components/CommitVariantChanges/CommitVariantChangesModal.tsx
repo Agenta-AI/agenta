@@ -49,7 +49,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId || ""))
     const isApplication = useAtomValue(workflowMolecule.selectors.isApplication(variantId || ""))
 
-    // The host supplies it: the desktop from its selected app, an agent-scoped surface directly.
+    // The host supplies `appId`.
     const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
     const createVariant = useSetAtom(playgroundController.actions.createVariant)
     const createFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)

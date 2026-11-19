@@ -22,11 +22,11 @@ import {registerExecutionHeaders} from "./executionHeaders"
 import {LanguageSync} from "./LanguageSync"
 import {PostAuthLoader} from "./PostAuthLoader"
 
-// Module scope, like the desktop _app: __env.js is beforeInteractive, so
+// Module scope: __env.js is beforeInteractive, so
 // window.__env is already populated when this module first evaluates.
 configureAgentaSdk({host: getApiUrl()})
 // Install the SuperTokens fetch interceptor before any API call — it is what
-// transparently refreshes an expired access token on 401 (desktop parity);
+// transparently refreshes an expired access token on 401;
 // without it only fetchProjects' explicit retry path could heal a 401.
 // Not on the embed widget: it has no login, and its 401s must not refresh a session.
 if (typeof window === "undefined" || !isEmbedPath(window.location.pathname)) ensureAuthInit()

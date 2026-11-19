@@ -6,11 +6,8 @@
  * props do not reach, and remounting on a COMMIT tears down whatever is open over it — which is
  * how a drawer nobody had touched closed itself seconds after an auto-commit (D94).
  *
- * The hosts differ in a way that makes this reachable on one and not the other. Classic switches
- * to the new revision inside the commit, through the `onNewRevision` callback, so by the time the
- * draft is cleared the screen is already on the new revision and the clearing is invisible. `/m`
- * registers no such callback and follows the switch from the auto-commit handler afterwards, so
- * the clearing lands while the old revision is still on screen.
+ * `/m` registers no `onNewRevision` callback and follows the switch from the auto-commit handler
+ * afterwards, so the clearing lands while the old revision is still on screen.
  */
 import {createStore} from "jotai"
 import {beforeEach, describe, expect, it} from "vitest"

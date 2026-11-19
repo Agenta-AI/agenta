@@ -24,7 +24,7 @@ export const ROLE_COLOR_CLASSES: Record<string, string> = {
 }
 
 // The same roles on the theme status tokens. Opt-in through `RoleColorClassesProvider`: /m has no
-// antd color scale, and the old app keeps the map above.
+// antd color scale.
 export const THEME_ROLE_COLOR_CLASSES: Record<string, string> = {
     ...ROLE_COLOR_CLASSES,
     user: "text-colorInfo",

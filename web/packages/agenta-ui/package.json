@@ -34,7 +34,6 @@
         "./components/selection": "./src/components/selection/index.ts",
         "./copy-tooltip": "./src/CopyTooltip/index.ts",
         "./create-menu": "./src/create-menu/index.ts",
-        "./custom-resize-handle.css": "./src/styles/custom-resize-handle.css",
         "./diff": "./src/Editor/utils/diffUtils.ts",
         "./drawer": "./src/drawer/index.ts",
         "./drill-in": "./src/drill-in/index.ts",
@@ -80,7 +79,6 @@
         "@lexical/selection": ">=0.38.0",
         "@lexical/table": ">=0.38.0",
         "@lexical/utils": ">=0.38.0",
-        "antd": ">=5.0.0",
         "jotai": ">=2.9.0",
         "js-yaml": ">=4.0.0",
         "lexical": ">=0.38.0",
@@ -92,7 +90,6 @@
     "dependencies": {
         "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/shared": "workspace:../agenta-shared",
-        "@ant-design/icons": "^6.1.0",
         "@cloudflare/stream-react": "^1.9.3",
         "@floating-ui/react": "^0.27.13",
         "@lexical/code": "^0.46.0",

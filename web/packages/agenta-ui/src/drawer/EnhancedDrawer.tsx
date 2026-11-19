@@ -76,7 +76,7 @@ interface DrawerProps {
     extra?: React.ReactNode
     /**
      * antd's four edges, plus `responsive`: a bottom sheet below `lg` and the right-edge drawer
-     * from `lg` up, which is the one prop that makes a configuration panel correct in both apps.
+     * from `lg` up, which is the one prop that makes a configuration panel correct at every width.
      */
     placement?: "top" | "right" | "bottom" | "left" | "responsive"
     width?: string | number

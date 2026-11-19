@@ -17,8 +17,7 @@ import type {InfiniteTableRowBase} from "../../shared/tableTypes"
 
 /**
  * `EventType` / `RequestType` are re-exported as runtime enums (const + type)
- * so consumers — notably the audit-log filter dropdowns in `web/oss`, which
- * does not depend on `@agentaai/api-client` directly — can build option lists
+ * so consumers that do not depend on `@agentaai/api-client` directly can build option lists
  * without reaching into the generated client.
  */
 export const EventType = AgentaApi.EventType
@@ -47,7 +46,7 @@ export type EventsQueryResponse = AgentaApi.EventsQueryResponse
  * without duplicating event data per row.
  *
  * `__isSkeleton` is required (not optional as on the base) so the row type
- * also satisfies the stricter `InfiniteTableRowBase` of the OSS table shell.
+ * also satisfies the stricter `InfiniteTableRowBase` of the table shell.
  */
 export interface EventTableRow extends InfiniteTableRowBase {
     id: string

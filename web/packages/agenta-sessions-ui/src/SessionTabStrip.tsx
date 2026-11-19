@@ -1,14 +1,12 @@
 /**
- * THE session tab strip — the 48px bar a row of `SessionTab` chips lives in. Extracted from the
- * desktop playground's `SessionTagBar` (which now renders this), so the scroller behaviour that is
- * genuinely fiddly exists once: vertical wheel mapped to horizontal scroll (React registers
+ * THE session tab strip — the 48px bar a row of `SessionTab` chips lives in. It owns the scroller
+ * behaviour that is genuinely fiddly: vertical wheel mapped to horizontal scroll (React registers
  * `onWheel` passive, so it has to be a native non-passive listener), and the per-side edge fade
  * that only appears on an edge the content is actually scrolled past.
  *
- * The chips are children, NOT a data prop: the two surfaces disagree about what a session is (the
- * desktop's local tab set vs a backend-listed session), and only the strip is the same. Chips stay
- * DIRECT children of the scroller — the desktop's enter-animation reads `chip.parentElement` as the
- * visible strip box.
+ * The chips are children, NOT a data prop: surfaces disagree about what a session is (a local tab
+ * set vs a backend-listed session), and only the strip is the same. Chips stay DIRECT children of
+ * the scroller — a chip's enter-animation reads `chip.parentElement` as the visible strip box.
  *
  * The bar's height and bottom border align its edge with the config panel's header beside it.
  */
@@ -56,8 +54,8 @@ export interface SessionTabStripProps {
     /** The chips — `SessionTab`s, each in its own `shrink-0` wrapper. */
     children?: ReactNode
     /**
-     * Show the scrolling chips at all. Off where another control owns switching (the desktop's
-     * full-screen mode hands it to the vertical session rail) — the bar then keeps only `extra`.
+     * Show the scrolling chips at all. Off where another control owns switching — the bar then
+     * keeps only `extra`.
      */
     showTabs?: boolean
     /** New session. Omit where the surface has nothing to start one with. */
@@ -65,10 +63,9 @@ export interface SessionTabStripProps {
     addDisabled?: boolean
     /** Overrides the New session tooltip (e.g. why it is disabled). */
     addTooltip?: React.ReactNode
-    /** Right-aligned extras, pinned outside the scroller (the desktop's history menu). */
+    /** Right-aligned extras, pinned outside the scroller (e.g. a history menu). */
     extra?: ReactNode
-    /** Leading extra, pinned before the scroller — the desktop's config-panel reveal control,
-     * rendered at the spot the config panel disappeared from. */
+    /** Leading extra, pinned before the scroller (e.g. a config-panel reveal control). */
     leadingExtra?: ReactNode
     /**
      * Changes when the tab SET changes. A ResizeObserver watches the strip's own box, not its
@@ -235,7 +232,7 @@ export const SessionTabStrip = ({
             {showTabs ? (
                 reorder ? (
                     // The scroller IS the group, so chips stay DIRECT children of the scroll box
-                    // (both the fade measuring and the desktop's reveal-on-enter read that box).
+                    // (both the fade measuring and a chip's reveal-on-enter read that box).
                     // `layoutScroll` keeps motion's layout projection honest inside a scroller.
                     <Reorder.Group
                         as="div"

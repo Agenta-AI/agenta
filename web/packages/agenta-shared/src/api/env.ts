@@ -124,8 +124,8 @@ export const getEnabledSandboxProviders = (): string[] => {
 /**
  * Edition and feature gates, read from the same env on every host.
  *
- * These decide which settings tabs exist, so the desktop and /m have to agree — a second
- * copy of `=== "ee"` somewhere is how one surface ends up showing a tab the other hides.
+ * These decide which settings tabs exist — a second copy of `=== "ee"` somewhere is how one
+ * surface ends up showing a tab the other hides.
  */
 
 /** Enterprise or any cloud tier. Note `cloud*` counts: cloud runs the EE feature set. */
@@ -161,14 +161,6 @@ export const isMcpGatewayEnabled = (): boolean =>
  */
 export const isWalletsEnabled = (): boolean =>
     parseBoolEnv("NEXT_PUBLIC_AGENTA_WALLETS_ENABLED", false)
-
-/**
- * Whether this deployment offers beta developer mode. Read at runtime: `entrypoint.sh` writes
- * the container's `AGENTA_BETA_DEVELOPER_MODE` into `__env.js`. Anything but `"true"` is off,
- * and off hides the switch and reads every user's stored beta switch as off.
- */
-export const isBetaDeveloperModeEnabled = (): boolean =>
-    getEnv("NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE") === "true"
 
 export const isEmailInvitationsEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED") === "true"

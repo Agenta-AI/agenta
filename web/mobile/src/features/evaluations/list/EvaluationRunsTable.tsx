@@ -55,7 +55,7 @@ export const RunsTable = ({
 )
 
 /**
- * The runs of the list with the old list's columns for the tab and the runs on screen, and no
+ * The runs of the list with the columns for the tab and the runs on screen, and no
  * column menu. The app overview uses it.
  */
 export const EvaluationRunsTable = ({

@@ -27,9 +27,8 @@ export const checkOrganizationAccess = async (organizationId: string) => {
 }
 
 /**
- * Both reads go through the shared axios instance, which carries auth via its interceptor — the
- * desktop split them onto a separate fetch client for no behavioural reason, and a package cannot
- * reach that client anyway. Each still answers empty rather than throwing, as its callers expect.
+ * Both reads go through the shared axios instance, which carries auth via its interceptor. Each
+ * still answers empty rather than throwing, as its callers expect.
  */
 export const fetchAllOrgsList = async (): Promise<Org[]> => {
     try {

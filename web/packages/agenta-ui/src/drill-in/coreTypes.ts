@@ -1,9 +1,9 @@
 /**
  * Core Types for DrillInView
  *
- * These types are used by both the package framework and OSS renderers.
+ * These types are used by both the package framework and app renderers.
  * Keeping them separate allows the package to define the interface while
- * OSS provides the implementations.
+ * the app provides the implementations.
  */
 
 import type {ComponentType, ReactNode} from "react"

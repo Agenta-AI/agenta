@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar, type ListTableSelection} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -59,8 +59,8 @@ type OpenDialog = {projectId: string} & (
  * The create button, Clone and Rename show only to a reader who may edit test sets. Each opens
  * its dialog on this page.
  *
- * Beta developer mode adds what the classic list has: the Date Created filter, row checkboxes
- * with bulk export and bulk archive, Copy ID, and the classic column order. Without it the list
+ * Developer Mode adds the Date Created filter, row checkboxes
+ * with bulk export and bulk archive, Copy ID, and the developer column order. Without it the list
  * stays as it was.
  */
 export const TestsetsListScreen = ({
@@ -74,7 +74,7 @@ export const TestsetsListScreen = ({
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const router = useRouter()
     const openRevision = useMemo(
         () => ({
@@ -90,8 +90,8 @@ export const TestsetsListScreen = ({
     const actions = useTestsetRowActions({projectId, base})
 
     const canEdit = useProjectPermission(projectId, "edit_testsets")
-    // The download endpoint needs only view_testsets; the old app gated it on API key rights and
-    // this view keeps that rule until the product decides otherwise.
+    // The download endpoint needs only view_testsets; this view also gates it on API key rights
+    // until the product decides otherwise.
     const mayViewKeys = useProjectPermission(projectId, "view_api_keys")
     const mayEditKeys = useProjectPermission(projectId, "edit_api_keys")
     const canExport = mayViewKeys && mayEditKeys

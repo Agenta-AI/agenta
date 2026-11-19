@@ -7,8 +7,8 @@ import {AutomationRunHistoryDrawerHost} from "../automations/AutomationRunHistor
 import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 
 /**
- * The trigger drawers a session row's automation verbs open — the same ones the desktop sessions
- * page mounts: one unified automation editor covering both schedules and event subscriptions, plus
+ * The trigger drawers a session row's automation verbs open:
+ * one unified automation editor covering both schedules and event subscriptions, plus
  * the deliveries drawer. Atom-driven, so "Open automation" and "View delivery" land on the same
  * surfaces.
  *

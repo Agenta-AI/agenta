@@ -2,7 +2,7 @@
  * FieldRenderers barrel export
  *
  * Field renderer components for displaying different data types in DrillInView.
- * These components use context injection for OSS-specific UI components.
+ * These components use context injection for app-specific UI components.
  */
 
 // Components

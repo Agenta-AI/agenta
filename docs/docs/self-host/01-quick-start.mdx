@@ -47,7 +47,7 @@ See [Configuration](/self-host/configuration#agenta-core) for what the key does.
 
 4. Start Agenta:
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-traefik up -d --remove-orphans
 ```
 
 5. Access Agenta at `http://localhost`.
@@ -74,7 +74,7 @@ Updating your local Agenta installation to the latest version, requires pulling 
 
 1. Pull the latest version:
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh  --profile with-web --profile with-traefik up -d --pull always
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-traefik up -d --remove-orphans --pull always
 ```
 
 2. Run migrations if needed:

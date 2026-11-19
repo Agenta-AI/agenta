@@ -17,7 +17,7 @@ export const PlaygroundHeader = ({
     workspaceId: string
     projectId: string
     appName: string | null
-    /** "New Evaluation", first and set apart from the rest, as in the old playground. */
+    /** "New Evaluation", first and set apart from the rest. */
     newEvaluation?: ReactNode
     actions?: ReactNode
 }) => (

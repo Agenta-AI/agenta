@@ -16,7 +16,7 @@ export interface SessionRowChrome {
  * verbs — each with its own query client, project id and eight callbacks — none of which differ
  * by row. Only the open/renaming/draft state is genuinely per-row, and that stays there.
  *
- * The ACTIONS come from the host, not from here: the desktop binding wraps them with its local
+ * The ACTIONS come from the host, not from here: a host may wrap them with its local
  * tab cache, and a rail must act on a session the same way the surface it sits beside does.
  */
 export const useSessionRowChrome = ({

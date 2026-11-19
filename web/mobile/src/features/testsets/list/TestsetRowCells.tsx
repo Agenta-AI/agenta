@@ -10,7 +10,7 @@ import type {TestsetRow, TestsetRowActions} from "./testsetRowTypes"
 /**
  * One testset's cells, in column order. A phone has only the Name and Date Created cells.
  *
- * In developer mode the cells follow the classic app: Date Created (with the time) before
+ * In developer mode the cells put Date Created (with the time) before
  * Created by. Outside it the list keeps its earlier order and short date.
  */
 export const TestsetRowCells = ({

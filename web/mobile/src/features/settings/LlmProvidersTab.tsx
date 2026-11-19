@@ -53,7 +53,7 @@ const useProvidersOrganization = (
 }
 
 /**
- * Mobile binding: the same AI-providers page the desktop renders, with this app's bottom
+ * Mobile binding: the shared AI-providers page, with this app's bottom
  * modal as the removal confirmation, the project switch heading the project's group, and the
  * organization's group.
  */

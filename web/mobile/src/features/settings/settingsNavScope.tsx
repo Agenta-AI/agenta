@@ -32,9 +32,8 @@ import {
 } from "./settingsTabs"
 
 /**
- * Settings TAKES OVER the rail, the way oss/ee do it: the main nav is replaced by the settings
- * groups, its header becomes "← Back", and the page carries no top bar. Same shared builder as
- * the desktop scope, so the two rails cannot drift; only routing and the bottom section differ.
+ * Settings TAKES OVER the rail: the main nav is replaced by the settings
+ * groups, its header becomes "← Back", and the page carries no top bar.
  *
  * Built per workspace/project like `mobileNavScope`, so the slot components keep stable
  * identities across renders.

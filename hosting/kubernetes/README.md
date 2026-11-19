@@ -165,8 +165,8 @@ webMobile:
 ```
 
 `services.service.annotations` works the same way. The `web-mobile` Service
-backs both `/` and `/m`, so a `web.service` block from the retired desktop app
-does nothing; move its annotations to `webMobile.service`. The BackendConfig
+backs both `/` and `/m`, so a `web.service` block does nothing; put the
+annotations on `webMobile.service`. The BackendConfig
 objects themselves are yours to create; put them in `extraObjects` if you want
 the release to own them.
 

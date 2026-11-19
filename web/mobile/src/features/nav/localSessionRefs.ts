@@ -12,8 +12,8 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 /**
- * Mobile's binding for `@agenta/navigation`'s local-session seam — the desktop feeds it from its
- * playground tab cache; mobile has no tab cache, so it feeds it from the sessions this client
+ * Mobile's binding for `@agenta/navigation`'s local-session seam: there is no tab cache, so it
+ * is fed from the sessions this client
  * created and sent into (`localSessionsAtom`, written by the chat screen on a fresh session's
  * first send).
  *

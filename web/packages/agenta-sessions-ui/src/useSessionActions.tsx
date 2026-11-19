@@ -62,7 +62,7 @@ export const sessionMenuAccess = (
 }
 
 /**
- * A host's optimistic local session cache (the desktop playground's open tabs).
+ * A host's optimistic local session cache (e.g. a playground's open tabs).
  *
  * Where a session is already in it, the action goes through the host, whose store write is
  * optimistic AND calls the API. Where it isn't — a row on the project-wide list for an agent
@@ -109,8 +109,8 @@ export interface UseSessionActionsOptions {
 /**
  * Everything you can do to a session, defined once.
  *
- * Several surfaces act on sessions — the desktop sessions list, the playground's session bar, the
- * mobile lists — and they must not drift into offering different verbs, or the same verb with
+ * Several surfaces act on sessions — the sessions list, the session tab rail, the row menus —
+ * and they must not drift into offering different verbs, or the same verb with
  * different effects.
  */
 export const useSessionActions = ({

@@ -91,8 +91,8 @@ def terminal_turns_in_batch(events: List[Any]) -> List[Tuple[str, str]]:
     records of two turns of one session (a park and its continuation), and a
     dict on session_id would keep only the later one, so the earlier turn's
     outbox result would never render. The channels outbox folds and renders a
-    turn only on a turn-ended signal; `complete_turn` emits one for a turn the
-    desktop completes, but a PARKED turn (never completes) and an approval
+    turn only on a turn-ended signal; `complete_turn` emits one for a turn that
+    completes, but a PARKED turn (never completes) and an approval
     CONTINUATION (a detached run) both miss it, so the channels card would
     never draw. Publishing from here is post-commit, so the record is durable
     before the outbox reads it; `streams:sessions` is consumed only by the

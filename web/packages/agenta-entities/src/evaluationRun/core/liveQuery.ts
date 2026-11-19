@@ -120,7 +120,7 @@ const valueText = (value: unknown): string => {
 }
 
 /**
- * A query's filtering as one line, as the old app's overview prints it:
+ * A query's filtering as one line:
  * `trace_type is invocation AND references in [...]`. Groups are in parentheses. "—" for none.
  */
 export function formatQueryFiltering(filtering: QueryFilteringText | null | undefined): string {
@@ -154,7 +154,7 @@ const isConditionNode = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * The conditions of a stored query, depth first: nested condition groups flatten into one list,
- * the way the old app's query preview reads them. A condition with neither field nor key is
+ * the way the query preview reads them. A condition with neither field nor key is
  * skipped; an empty operator reads as "is".
  */
 export function flattenQueryConditions(filtering: unknown): StoredQueryCondition[] {

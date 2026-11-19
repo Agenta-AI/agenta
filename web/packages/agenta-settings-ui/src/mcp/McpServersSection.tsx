@@ -1,9 +1,5 @@
 /**
- * The project's MCP connections, as one settings section both hosts mount.
- *
- * It lives here rather than in `web/oss` so the desktop and the mobile app render the same
- * surface from the same code. That is the whole reason the integrations section next door
- * takes a copy override, and this follows it.
+ * The project's MCP connections, as one settings section.
  *
  * The list shows stored connections only. Provider-managed rows belong with the
  * integrations they come from, not under a heading about MCP servers.
@@ -136,7 +132,7 @@ const ACTIONS_COLUMN: ListTableColumn & {
 const PHONE_KEYS = ["name", "status", "actions"]
 
 export interface McpServersSectionProps {
-    /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
+    /** Destructive confirmation, supplied by the host. */
     confirm?: ConfirmDestructive
     /** Hides every write affordance. */
     readOnly?: boolean

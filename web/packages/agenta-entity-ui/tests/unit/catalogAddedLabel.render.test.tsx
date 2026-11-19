@@ -2,7 +2,7 @@
  * The "Added" label on the integrations catalog, and the token it is painted with.
  *
  * It read `text-[var(--ag-colorSuccessText)]`, and `--ag-colorSuccessText` is declared in no
- * stylesheet in either app. A custom property that nothing declares produces an invalid
+ * stylesheet. A custom property that nothing declares produces an invalid
  * declaration rather than a wrong colour, so the label inherited the row's text colour and
  * nothing looked broken enough to notice: the MCP row's own success state rendered green
  * beside one that did not. This is the `--ag-colorLink` bug WP6 found on the tool row, and the

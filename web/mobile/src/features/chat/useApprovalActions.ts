@@ -138,7 +138,7 @@ export const useApprovalActions = ({
                         return
                     }
                 } catch (err) {
-                    // Someone (desktop, another tab) already answered this gate — benign.
+                    // Someone (another tab or device) already answered this gate — benign.
                     if (!isInteractionConflict(err)) throw new Error(respondErrorText(err))
                     answered = 0
                 }

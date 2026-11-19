@@ -11,7 +11,7 @@ import {useAtomValue} from "jotai"
 import {Lock} from "lucide-react"
 
 /**
- * Mobile skin of the desktop `ConnectModelBanner` — the set-up-your-key prompt above the composer
+ * The set-up-your-key prompt above the composer
  * while the project vault holds no provider connection (`gateActive` on `useAgentModelKeyStatus`,
  * which is project-wide, not per-provider). The composer is disabled alongside it, and the task
  * parked by Home waits instead of being spent on a run that would fail (see `pendingTaskPolicy`).
@@ -21,7 +21,7 @@ import {Lock} from "lucide-react"
  * raw backend reason and nothing to click. The vault lived only in Settings, which a new user has
  * no reason to open.
  *
- * The button opens the shared model-providers drawer at its catalog, matching desktop and Settings.
+ * The button opens the shared model-providers drawer at its catalog, as Settings does.
  * The user chooses the provider instead of being sent directly to the current model's key form.
  *
  * Always mounted so it can animate IN (gate activates) and OUT (key saved) through `RevealCollapse`

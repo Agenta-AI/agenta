@@ -2,7 +2,7 @@
  * @agenta/sessions-ui — antd-free components over `@agenta/sessions`.
  *
  * The package exports controls, rows, and BOTH filter shells over the same atoms —
- * `SessionFiltersBar` (a toolbar above the results, the desktop default) and
+ * `SessionFiltersBar` (a toolbar above the results) and
  * `SessionFiltersPanel` (a rail beside them, what mobile renders at `lg`). The host picks; no
  * component here reads an env flag. Anything not yet portable — the agent roster — arrives as a
  * prop the app supplies, never an antd import here (eslint-enforced, see eslint.config.mjs).

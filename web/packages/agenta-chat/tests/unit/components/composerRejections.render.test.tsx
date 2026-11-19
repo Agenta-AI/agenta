@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The refused-send chip, docked above the composer, as both apps draw it.
+ * The refused-send chip, docked above the composer.
  *
- * One component mounted inside the shared `ChatComposer`, so the desktop and the mobile app cannot
- * say different things about a message that was not sent. The copy a gateway refusal produces is
+ * One component mounted inside the shared `ChatComposer`. The copy a gateway refusal produces is
  * pinned in `sendRefusal.test.tsx`; what is pinned here is the strip itself: what it announces,
  * what each row offers, and that a row dismisses itself rather than its twin.
  */

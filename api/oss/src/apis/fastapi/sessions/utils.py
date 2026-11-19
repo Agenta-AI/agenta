@@ -56,8 +56,7 @@ def current_session_response(
         if not valid_url:
             result.url_unavailable_reason = "web_url_unavailable"
         else:
-            # Link the `/m` session page. `?agent=` lets the mobile gate send a Classic mode
-            # user to the agent's playground (web/packages/agenta-shared/src/utils/mobileGate).
+            # Link the `/m` session page; `?agent=` names the session's agent.
             path = "/".join(
                 quote(str(part), safe="")
                 for part in (

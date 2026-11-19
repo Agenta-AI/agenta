@@ -11,8 +11,7 @@ import {useDropFilterField, useUpdateFilter} from "./filterControls"
 /**
  * The observability search box. Typing only stages the query; Enter commits it as a `content`
  * filter. Emptying the box (typing back to "" or the clear button) drops that filter
- * immediately — the antd original got the clear path via `Input.Search`'s `onSearch`
- * `{source: "clear"}`, we get it because `onValueChange` fires on clear too.
+ * immediately, because `onValueChange` fires on clear too.
  */
 export const ToolbarSearch = () => {
     const t = useT(toolbarCatalog)

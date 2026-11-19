@@ -71,7 +71,7 @@ export const sidebarPopupGroupsAtomFamily = atomFamily((_scopeId: string) => ato
  * Whether the shell is rendering this scope as a collapsed icon rail, published per scope.
  *
  * Per scope rather than read off a global: each host hands `SidebarShell` its OWN collapsed atom
- * (the mobile drawer passes an expanded flag that is never the desktop rail's), so only the shell
+ * (the drawer passes an expanded flag that is never the rail's), so only the shell
  * knows which state a given scope is in.
  */
 export const sidebarCollapsedScopeAtomFamily = atomFamily((_scopeId: string) => atom(false))
@@ -91,7 +91,7 @@ export const sidebarDefaultOpenGroupsAtomFamily = atomFamily((_scopeId: string) 
  * Separate from the `defaultOpen` set on purpose: the gate reads persisted keys `??` defaults, so
  * once a scope has any persisted record the defaults stop applying. An `alwaysOpen` group cannot
  * be collapsed, so its key is never in the persisted set, and it has to be ORed in rather than
- * fall back to. Without this the desktop rail showed "Open to load" forever.
+ * fall back to. Without this the group shows "Open to load" forever.
  */
 export const sidebarAlwaysOpenGroupsAtomFamily = atomFamily((_scopeId: string) =>
     atom<string[]>([]),

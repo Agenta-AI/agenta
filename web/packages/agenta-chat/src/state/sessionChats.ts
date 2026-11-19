@@ -8,9 +8,8 @@ import {AgentChatTransport} from "../transport/AgentChatTransport"
  * owned by the runner and survives the client disconnect, so binding the SSE read to the component
  * meant a route change threw away the live view of a run still producing (#5724).
  *
- * Shared by both hosts: the desktop slice keeps an instance for as long as its session TAB is open,
- * mobile (which has no tab model — the active session is the URL) keeps one only while its run is
- * streaming. Each host passes that verdict to `releaseSessionChat`; the registry itself has no
+ * The host (which has no tab model — the active session is the URL) keeps an instance only while
+ * its run is streaming, and passes that verdict to `releaseSessionChat`; the registry itself has no
  * opinion. Same module-scope-`Map` shape and lifetime as `sessionEphemera`.
  */
 
@@ -130,7 +129,7 @@ export const dropSessionChat = (sessionId: string): void => {
 
 /**
  * Drop this mount's claim. `preserve` is the host's verdict on whether the session outlives the
- * mount — the desktop's "its tab is still open", mobile's "its run is still streaming". A preserved
+ * mount: "its run is still streaming". A preserved
  * chat means a remount re-binds to the SAME instance; handing `useChat` a fresh instance under the
  * same id would leave it subscribed to the old one.
  *

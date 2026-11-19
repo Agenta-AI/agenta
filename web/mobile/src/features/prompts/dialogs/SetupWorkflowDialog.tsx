@@ -33,7 +33,7 @@ const isHttpUrl = (value: string): boolean => {
 }
 
 /**
- * The /w "Set up workflow" form: an app backed by the user's own service. The URL is tested
+ * The "Set up workflow" form: an app backed by the user's own service. The URL is tested
  * against its `/health` route as it is typed, and Create waits for a test that passed. The new
  * app goes in the open folder, then opens in the playground.
  */

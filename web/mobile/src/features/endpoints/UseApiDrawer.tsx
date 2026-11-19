@@ -89,7 +89,7 @@ const Snippet = ({
     )
 }
 
-/** The choices of the Variant picker: each variant's latest revision, as the old app lists them. */
+/** The choices of the Variant picker: each variant's latest revision. */
 export interface UseApiVariantChoice {
     rows: readonly AppRevisionRow[]
     initialRevisionId: string | null

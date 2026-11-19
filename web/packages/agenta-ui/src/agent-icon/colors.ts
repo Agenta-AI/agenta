@@ -20,7 +20,7 @@ export const AGENT_ICON_COLORS: readonly (readonly [solid: string, tint: string]
     ["#7C3AED", "#F1EBFD"],
 ] as const
 
-/** The custom-colour swatch on both apps — one gradient, so the two controls cannot drift. */
+/** The custom-colour swatch — one gradient, so the controls cannot drift. */
 export const AGENT_ICON_CONIC =
     "conic-gradient(#d61010,#faad14,#389e0d,#0e7490,#1668dc,#7c3aed,#d61010)"
 

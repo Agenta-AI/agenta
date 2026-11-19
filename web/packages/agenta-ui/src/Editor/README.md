@@ -391,13 +391,13 @@ const handleUndo = () => {
 
 ## Known Issues
 
-The following type issues exist in the Editor module (inherited from OSS codebase):
+The following type issues exist in the Editor module:
 
 1. **Antd Dropdown API** - Uses deprecated `overlay` prop instead of `menu`. Needs migration to antd v5 API.
 2. **Language type narrowing** - Some places need explicit type narrowing for language unions.
 3. **Error handling** - Some catch blocks use `unknown` without proper type narrowing.
 
-These issues don't affect runtime behavior but will cause TypeScript errors in strict mode. They should be fixed in the original OSS codebase first.
+These issues don't affect runtime behavior but will cause TypeScript errors in strict mode.
 
 ## Best Practices
 

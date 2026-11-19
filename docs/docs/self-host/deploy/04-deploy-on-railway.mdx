@@ -116,7 +116,7 @@ If you want to re-run health checks manually:
 ./hosting/railway/oss/scripts/smoke.sh
 ```
 
-The smoke script checks three endpoints through the gateway: `/m`, `/api/health`, and `/services/health`. It retries with backoff until all three respond with HTTP 200. It also follows a table of old desktop URLs and checks that each one lands on its `/m` page.
+The smoke script checks three endpoints through the gateway: `/m`, `/api/health`, and `/services/health`. It retries with backoff until all three respond with HTTP 200. It also follows a table of root URLs (`/w/...`, `/auth/...`) and checks that each one lands on its `/m` page.
 
 ## Upgrading an Existing Deployment
 

@@ -1,9 +1,8 @@
 /**
- * The old app's metric cell text, copied from `@agenta/ui/cell-renderers` (`formatMetricByKey`,
- * `formatEvaluatorMetricValue`) so /m can use it without that barrel, which loads antd.
+ * The metric cell text. Kept apart from the `@agenta/ui/cell-renderers` barrel, which loads antd.
  *
- * The list cells and the CSV export of the old app both print a metric with these rules, so the two
- * apps print the same text for the same stats.
+ * The list cells and the CSV export both print a metric with these rules, so they print the same
+ * text for the same stats.
  *
  * @packageDocumentation
  */
@@ -15,8 +14,7 @@ import type {MetricFrequency, MetricStats} from "./metricStats"
 export const METRIC_PLACEHOLDER = "—"
 
 /**
- * The old app's 3 significant digits: 1234.5 -> "1235", 0.012345 -> "0.0123", 100 -> "100". The old
- * helper also stripped zeros from whole numbers (100 -> "1"); that bug is not copied.
+ * 3 significant digits: 1234.5 -> "1235", 0.012345 -> "0.0123", 100 -> "100".
  */
 export function formatMetricNumber(value: number): string {
     if (!Number.isFinite(value)) return String(value)
@@ -134,7 +132,7 @@ const humanizeWord = (raw: string) => {
 }
 
 /**
- * The old app's metric name (`humanizeMetricPath`): the last two parts of the path, in title case.
+ * The metric name: the last two parts of the path, in title case.
  * "success" -> "Success", "outputs.is_json" -> "Output Is JSON".
  */
 export function humanizeMetricLabel(label: string): string {

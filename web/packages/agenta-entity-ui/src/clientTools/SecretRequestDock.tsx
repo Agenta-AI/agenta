@@ -89,7 +89,7 @@ export const SecretRequestDock = ({
     const t = useT(clientToolsCatalog)
     const [targetId, setTargetId] = useState(revisionId)
     const [typing, setTyping] = useState(false)
-    // The dock outlives a revision switch on both hosts, so it follows the prop when it moves.
+    // The dock outlives a revision switch, so it follows the prop when it moves.
     const [seenRevisionId, setSeenRevisionId] = useState(revisionId)
     if (seenRevisionId !== revisionId) {
         setSeenRevisionId(revisionId)

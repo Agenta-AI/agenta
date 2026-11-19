@@ -96,7 +96,7 @@ def main() -> int:
     mobile_deployment = component(docs, "Deployment", "web-mobile")
     mobile_container = container(mobile_deployment)
     mobile_service = component(docs, "Service", "web-mobile")
-    assert components(docs, "web") == [], "the desktop web workload is gone"
+    assert components(docs, "web") == [], "no web workload renders"
 
     assert mobile_deployment["spec"]["replicas"] == 1
     assert mobile_container["image"].startswith("ghcr.io/agenta-ai/agenta-web-mobile:")
@@ -191,8 +191,8 @@ def main() -> int:
 
 
 def assert_stale_web_values_are_ignored() -> None:
-    """An upgrade keeps the values of the retired desktop app. They must not fail the
-    render, bring back a `web` workload, or lose the root route's pathType."""
+    """Stale `web.*` values must not fail the render, add a `web` workload, or lose the
+    root route's pathType."""
     docs = render(
         [
             "--set",

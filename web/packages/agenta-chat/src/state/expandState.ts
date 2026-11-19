@@ -1,4 +1,3 @@
-// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {UIMessage} from "ai"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"

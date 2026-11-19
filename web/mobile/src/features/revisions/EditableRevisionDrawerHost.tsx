@@ -27,7 +27,7 @@ const RefinePromptDialog = dynamic(
 )
 
 /**
- * The editable revision drawer bound to the URL, for beta developer mode: edit the config,
+ * The editable revision drawer bound to the URL, for Developer Mode: edit the config,
  * Commit, Test, Open in playground. A page must load this file with `next/dynamic` and
  * `{ssr: false}`, and render it only once `revisionId` is set, so the drawer code costs nothing
  * until a user opens a revision. The page must have no playground of its own.

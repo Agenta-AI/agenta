@@ -62,7 +62,7 @@ the same way — `/new` hides itself under the host's `newSessionLocked`, matchi
 2. A panel here using `useRovingList`, with `onDismiss(reason)` and `onBackToCommands`.
 3. A pure config patcher in `@agenta/entity-ui`'s `agentConfigPatch.ts` — the write must preserve
    everything it does not own — plus its unit tests.
-4. Mount it in BOTH hosts' composers beside the others, wired to `dismissPicker` and
-   `backToCommands`. A row whose action only one host can perform takes an optional callback and
-   hides itself when the host omits it — that is how `/new` stays desktop-only.
+4. Mount it in the host's composer beside the others, wired to `dismissPicker` and
+   `backToCommands`. A row whose action the host may not perform takes an optional callback and
+   hides itself when the host omits it.
 5. Add it to the Storybook `SlashCommands` story and drive the flow keyboard-only.

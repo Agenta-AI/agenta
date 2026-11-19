@@ -90,8 +90,7 @@ export interface AuditLogFiltersProps {
      */
     registerRefresh: (refresh: () => void) => void
     /**
-     * The date-range control. The desktop's picker carries its own presets and calendar; a
-     * host without one simply gets the default 24-hour window.
+     * The date-range control. A host without one simply gets the default 24-hour window.
      */
     renderDateRange?: (state: {
         value: EventTimestampRange | null

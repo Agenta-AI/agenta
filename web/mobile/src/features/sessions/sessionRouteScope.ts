@@ -3,9 +3,6 @@ import {sessionScopeFromRouteQuery, type SessionScope} from "@agenta/sessions/st
 /**
  * The scope a `/sessions` link asks for: `?mode=automation` and, behind a developer view,
  * `?agent=<id>`.
- *
- * It lives here, not in the package, because the package function also serves the old agent
- * sessions page, which hands it the whole route query.
  */
 export const sessionScopeFromRoute = (
     query: {mode?: string; agent?: string},

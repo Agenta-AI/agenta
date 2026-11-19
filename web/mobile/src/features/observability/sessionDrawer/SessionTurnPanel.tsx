@@ -6,7 +6,7 @@ import type {TraceSpanNode} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {StatusRenderer} from "@agenta/observability-ui"
 import {getTraceDrawerReferences, TraceAnnotations} from "@agenta/observability-ui/traceDrawer"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {
@@ -59,7 +59,7 @@ interface SessionTurnPanelProps {
 
 /**
  * The turn's messages in developer mode: the trace drawer's message panel (view modes, the
- * readable view with copy and collapse per message), as the old app shows them.
+ * readable view with copy and collapse per message).
  */
 const MessagesPanel = ({messages}: {messages: TurnMessage[]}) => {
     const {TraceSpanDrillInView: Panel} = getTraceDrawerReferences()
@@ -75,7 +75,7 @@ export const SessionTurnPanel = ({
 }: SessionTurnPanelProps) => {
     const t = useT(sessionCatalog)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const [showHidden, setShowHidden] = useState(false)
     const messages = useMemo(() => extractTurnMessages(trace), [trace])
     const hidden = hiddenMessageCount(messages, index)
@@ -143,7 +143,7 @@ export const SessionTurnPanel = ({
                                             <span className="truncate"># {trace.span_id}</span>
                                         </Badge>
                                     </CopyTooltip>
-                                    {/* Each turn's own actions, as in the old app. Each button
+                                    {/* Each turn's own actions. Each button
                                         checks its developer view and permission itself. */}
                                     {developerMode ? (
                                         <span className="ml-auto flex items-center gap-2">

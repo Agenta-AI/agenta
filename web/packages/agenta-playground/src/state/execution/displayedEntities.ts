@@ -60,7 +60,7 @@ export const playgroundRevisionsReadyAtom = atom((get) => {
 /**
  * Whether the playground has completed its initial entity selection.
  *
- * Set to `true` by the OSS/EE layer (via `playgroundSyncAtom`) once
+ * Set to `true` by the app layer (via `playgroundSyncAtom`) once
  * `ensurePlaygroundDefaults` has either applied a default selection or
  * determined that no default is available.
  *
