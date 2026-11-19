@@ -233,12 +233,62 @@ async def test_a_user_info_endpoint_from_another_issuer_is_not_called():
     assert "/userinfo" not in seen
 
 
+@pytest.mark.asyncio
+async def test_an_unusable_id_token_does_not_fail_the_sign_in():
+    grant = await _sign_in(_handler(id_token={"not": "a token"}))
+
+    assert grant.account_name is None
+    assert grant.access_token == "tok-xyz"
+
+
 # --- keeping and returning the name ----------------------------------------------- #
 
 
 @pytest.mark.asyncio
 async def test_a_renewal_keeps_the_account_name():
     service, vault, _ = _service_with(_refreshing_as_handler(calls=[]))
+    organization_id, person, endpoint_id = uuid4(), uuid4(), uuid4()
+    owner = SecretOwner.for_user(organization_id=organization_id, user_id=person)
+    await SecretsTokenStorage(
+        vault_service=vault,
+        project_id=PROJECT,
+        server_url=_SERVER_URL,
+        endpoint_id=endpoint_id,
+        authorization_server="https://auth.acme.io/",
+        owner=owner,
+    ).write_tokens(
+        OAuthToken(
+            access_token="stale",
+            token_type="Bearer",
+            expires_in=-60,
+            refresh_token="renew-me",
+        ),
+        account_name="lena@acme.io",
+    )
+
+    await service.refresh_grant(
+        project_id=PROJECT,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        owner=owner,
+    )
+
+    renewed = vault.person_rows[(organization_id, person, grant_slug(endpoint_id))]
+    assert renewed.data.grant.access_token == "renewed-1"
+    assert renewed.data.grant.account_name == "lena@acme.io"
+
+
+@pytest.mark.asyncio
+async def test_a_renewal_with_an_unusable_id_token_keeps_the_grant():
+    refreshing = _refreshing_as_handler(calls=[])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        response = refreshing(request)
+        if request.url.path == "/token":
+            return httpx.Response(200, json={**response.json(), "id_token": 42})
+        return response
+
+    service, vault, _ = _service_with(handler)
     organization_id, person, endpoint_id = uuid4(), uuid4(), uuid4()
     owner = SecretOwner.for_user(organization_id=organization_id, user_id=person)
     await SecretsTokenStorage(

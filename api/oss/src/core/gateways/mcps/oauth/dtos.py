@@ -120,7 +120,7 @@ class MCPUserSignIn(BaseModel):
 
     `is_ready` has the meaning of `ItemAccount.is_ready`. `account_name` is the account
     the person signed in as, when an OAuth server named it at sign-in; a token sign-in
-    has none.
+    has none. It is not `ItemAccount.name`, which is the stored row's own label.
     """
 
     is_ready: bool

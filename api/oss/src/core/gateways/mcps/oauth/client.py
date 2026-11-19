@@ -24,7 +24,7 @@ from mcp.shared.auth import (
     OAuthToken,
     ProtectedResourceMetadata,
 )
-from pydantic import ValidationError
+from pydantic import ValidationError, field_validator
 
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
@@ -69,6 +69,13 @@ class MCPOAuthTokenResponse(OAuthToken):
     """
 
     id_token: Optional[str] = None
+
+    @field_validator("id_token", mode="before")
+    @classmethod
+    def _ignore_unusable_id_token(cls, value: Any) -> Optional[str]:
+        # Optional label data must never refuse the tokens beside it: an exchange or a
+        # renewal with a usable access token goes on without a name.
+        return value if isinstance(value, str) else None
 
 
 def account_name_from_claims(claims: Any) -> Optional[str]:
@@ -400,7 +407,9 @@ class MCPOAuthClient:
         *,
         headers: Optional[Dict[str, str]] = None,
     ) -> Optional[httpx.Response]:
-        """One guarded GET. `None` when the target was refused or unreachable.
+        """One guarded GET of a small JSON document: a discovery candidate, or the user
+        info answer (with `headers` carrying its bearer token). `None` when the target was
+        refused or unreachable.
 
         Discovery walks a list of candidate URLs and moves on when one does not answer, so
         a refused candidate is skipped the same way; the walk ends in the discovery error
@@ -434,7 +443,7 @@ class MCPOAuthClient:
                 body.extend(chunk)
                 if len(body) > _MAX_METADATA_BYTES:
                     log.warning(
-                        "[gateways] discovery candidate exceeded the metadata size cap",
+                        "[gateways] an OAuth document exceeded the metadata size cap",
                         url=target.original_url,
                     )
                     return None
@@ -790,7 +799,8 @@ class MCPOAuthClient:
                 self._read_account_name(issuer=issuer, access_token=access_token),
                 timeout=_ACCOUNT_NAME_TIMEOUT_SECONDS,
             )
-        except Exception as e:  # noqa: BLE001: a failed read stores no name, nothing more
+        # Any failure: a failed read stores no name, nothing more.
+        except Exception as e:  # noqa: BLE001
             log.info(
                 "[gateways] the MCP account name could not be read",
                 issuer=_origin(issuer),
