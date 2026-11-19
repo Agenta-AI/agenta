@@ -22,7 +22,7 @@ export interface BuilderHeroProps {
 
 /**
  * The hero above the title of a new builder chat: the "Strand ribbon", drawn with WebGL.
- * It shows the still fallback when WebGL is missing or lost. The page that mounts it loads it
+ * It shows a fallback picture when WebGL is missing or lost. The page that mounts it loads it
  * with next/dynamic, so the shader stays out of the route bundle.
  */
 export function BuilderHero({state, className, ref}: BuilderHeroProps) {
@@ -63,13 +63,13 @@ export function BuilderHero({state, className, ref}: BuilderHeroProps) {
                 ref={canvasRef}
                 className={cn("absolute inset-0 size-full", fallback && "invisible")}
             />
-            {fallback ? <BuilderHeroStill /> : null}
+            {fallback ? <BuilderHeroFallback /> : null}
         </div>
     )
 }
 
-/** The still fallback: the app's three activity dots, at rest, in the text ink. */
-export function BuilderHeroStill({className}: {className?: string}) {
+/** The fallback when WebGL is missing or lost: the app's three activity dots, at rest, in the text ink. */
+export function BuilderHeroFallback({className}: {className?: string}) {
     return (
         <svg
             data-hero-fallback=""

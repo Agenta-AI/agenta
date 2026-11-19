@@ -2,7 +2,7 @@ import {useEffect, useRef} from "react"
 
 import {
     BuilderHero,
-    BuilderHeroStill,
+    BuilderHeroFallback,
     type BuilderHeroHandle,
     type HeroState,
 } from "@/features/builder-page/hero/BuilderHero"
@@ -42,12 +42,12 @@ export const Thinking: Story = {args: {state: "thinking"}}
 export const Done: Story = {args: {state: "done"}}
 
 /** What the hero shows when the browser has no WebGL or loses it. */
-export const StillFallback: Story = {
+export const Fallback: Story = {
     args: {state: "idle"},
     render: () => (
         <div data-testid="builder-hero" className="flex bg-background p-4">
             <div className="relative size-[220px]">
-                <BuilderHeroStill />
+                <BuilderHeroFallback />
             </div>
         </div>
     ),

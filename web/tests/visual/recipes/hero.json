@@ -64,16 +64,16 @@
         "selector": "[data-testid=\"builder-hero\"]"
     },
     {
-        "id": "hero-still-fallback-light",
-        "story": "builderlayout-hero-builder-hero--still-fallback",
+        "id": "hero-fallback-light",
+        "story": "builderlayout-hero-builder-hero--fallback",
         "width": 400,
         "height": 400,
         "theme": "light",
         "selector": "[data-testid=\"builder-hero\"]"
     },
     {
-        "id": "hero-still-fallback-dark",
-        "story": "builderlayout-hero-builder-hero--still-fallback",
+        "id": "hero-fallback-dark",
+        "story": "builderlayout-hero-builder-hero--fallback",
         "width": 400,
         "height": 400,
         "theme": "dark",

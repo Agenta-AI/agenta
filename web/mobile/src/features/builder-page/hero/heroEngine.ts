@@ -1,17 +1,23 @@
 import {
     createMotion,
-    kickMotion,
+    pulseMotion,
     snapMotion,
     stepMotion,
     type HeroMotion,
     type HeroState,
 } from "./heroMotion"
 import {readHeroInks, type HeroInks} from "./heroTheme"
-import type {HeroRenderer} from "./strandRibbonRenderer"
 
 const MAX_PIXEL_RATIO = 2
 // A long frame (a busy tab, a breakpoint) moves the springs at most this far.
 const MAX_STEP = 1 / 20
+
+export interface HeroRenderer {
+    /** Draws one frame at the canvas size. */
+    draw(motion: HeroMotion, inks: HeroInks): void
+    /** Frees the GPU objects. */
+    dispose(): void
+}
 
 export interface HeroEngineOptions {
     state: HeroState
@@ -50,11 +56,11 @@ export class HeroEngine {
         this.listen(canvas, "webglcontextlost", this.onContextLost)
         this.listen(canvas, "webglcontextrestored", this.onContextRestored)
 
-        // The app switches theme with the class (and data-theme) of <html>.
+        // The app switches theme with the "dark" class of <html>.
         const themeObserver = new MutationObserver(this.onThemeChange)
         themeObserver.observe(document.documentElement, {
             attributes: true,
-            attributeFilter: ["class", "data-theme"],
+            attributeFilter: ["class"],
         })
         this.cleanups.push(() => themeObserver.disconnect())
 
@@ -78,10 +84,6 @@ export class HeroEngine {
         this.wake()
     }
 
-    get state(): HeroState {
-        return this.motion.state
-    }
-
     /** Whether the loop runs now. */
     get running(): boolean {
         return this.raf !== 0
@@ -95,8 +97,8 @@ export class HeroEngine {
 
     /** One keystroke. Does nothing under reduced motion. */
     pulse(): void {
-        if (this.isStill()) return
-        kickMotion(this.motion)
+        if (this.prefersReducedMotion()) return
+        pulseMotion(this.motion)
         this.wake()
     }
 
@@ -108,16 +110,16 @@ export class HeroEngine {
         this.renderer = null
     }
 
-    private isStill(): boolean {
+    private prefersReducedMotion(): boolean {
         return this.reducedMotion.matches
     }
 
     private canAnimate(): boolean {
-        return !!this.renderer && this.onScreen && !document.hidden && !this.isStill()
+        return !!this.renderer && this.onScreen && !document.hidden && !this.prefersReducedMotion()
     }
 
     private readonly wake = (): void => {
-        if (this.isStill()) {
+        if (this.prefersReducedMotion()) {
             this.stop()
             snapMotion(this.motion)
             this.draw()
@@ -161,7 +163,7 @@ export class HeroEngine {
     }
 
     private readonly onThemeChange = (): void => {
-        this.inks = readHeroInks(this.canvas, this.inks)
+        this.inks = readHeroInks(this.canvas)
         if (!this.raf) this.draw()
     }
 

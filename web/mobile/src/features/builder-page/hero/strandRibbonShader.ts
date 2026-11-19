@@ -4,13 +4,14 @@
  * The engine feeds the uniforms; see heroEngine.ts for what each one means.
  */
 
-export const HERO_VERTEX_SHADER = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}"
+export const STRAND_RIBBON_VERTEX_SHADER =
+    "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}"
 
 // Shared shader code: coordinates, a hash, and the dithered output.
 const PRELUDE = `
 precision highp float;
 uniform vec2 u_res;
-uniform float u_phase, u_time, u_energy, u_think, u_done, u_kick;
+uniform float u_phase, u_time, u_energy, u_think, u_done, u_pulse;
 uniform vec3 u_ink, u_ink2;
 #define PI 3.14159265
 #define TAU 6.2831853
@@ -29,7 +30,7 @@ void out4(vec3 col, float a) {
 
 // The ring shape is a sum of smooth waves, so it has soft corners but no sharp kinks.
 // Each line has its own depth: lines nearer the viewer are darker, lines further away are lighter.
-const STRAND_RIBBON = `
+const STRAND_RIBBON_MAIN = `
 void main() {
   vec2 p = P();
   float r = length(p);
@@ -42,7 +43,7 @@ void main() {
   float f5 = 5.0 * (a + t * 0.18), f6 = 6.0 * (a - t * 0.13 + 0.4);
   float A = 0.026 * calm;
   float R = 0.56 + A * ((1.0 - bl) * (cos(f5) + 0.22 * cos(2.0 * f5)) + bl * (cos(f6) + 0.22 * cos(2.0 * f6)))
-          + 0.018 * sin(3.0 * a + t * 0.41) * calm + 0.012 * u_kick;
+          + 0.018 * sin(3.0 * a + t * 0.41) * calm + 0.012 * u_pulse;
   float dR = -A * ((1.0 - bl) * 5.0 * (sin(f5) + 0.44 * sin(2.0 * f5)) + bl * 6.0 * (sin(f6) + 0.44 * sin(2.0 * f6)))
            + 0.054 * cos(3.0 * a + t * 0.41) * calm;
   // Twist: two folds that slide along the ring.
@@ -75,4 +76,4 @@ void main() {
 }
 `
 
-export const HERO_FRAGMENT_SHADER = PRELUDE + STRAND_RIBBON
+export const STRAND_RIBBON_FRAGMENT_SHADER = PRELUDE + STRAND_RIBBON_MAIN

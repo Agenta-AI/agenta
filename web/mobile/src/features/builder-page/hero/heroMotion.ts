@@ -17,7 +17,7 @@ export interface HeroParams {
     done: number
 }
 
-export const HERO_STATES: Record<HeroState, HeroParams> = {
+export const HERO_STATE_PARAMS: Record<HeroState, HeroParams> = {
     idle: {speed: 0.22, energy: 0.3, think: 0, done: 0},
     typing: {speed: 0.42, energy: 0.55, think: 0, done: 0},
     thinking: {speed: 0.75, energy: 0.75, think: 1, done: 0},
@@ -29,9 +29,9 @@ const KEYS = ["speed", "energy", "think", "done"] as const
 // A spring with this period gets most of the way in about 0.45 s.
 const SPRING_W = (2 * Math.PI) / 0.9
 // The keystroke bump: a small, quick spring with some bounce.
-const KICK_W = (2 * Math.PI) / 0.35
-const KICK_DAMPING = 1.2
-const KICK_IMPULSE = 6
+const PULSE_W = (2 * Math.PI) / 0.35
+const PULSE_DAMPING = 1.2
+const PULSE_IMPULSE = 6
 // The phase of the first frame. It shows the ribbon with one fold in view.
 const START_PHASE = 3.7
 
@@ -39,8 +39,9 @@ export interface HeroMotion {
     state: HeroState
     params: HeroParams
     velocity: HeroParams
-    kick: number
-    kickVelocity: number
+    /** The keystroke bump (see pulseMotion). */
+    pulse: number
+    pulseVelocity: number
     phase: number
     time: number
 }
@@ -48,10 +49,10 @@ export interface HeroMotion {
 export function createMotion(state: HeroState): HeroMotion {
     return {
         state,
-        params: {...HERO_STATES[state]},
+        params: {...HERO_STATE_PARAMS[state]},
         velocity: {speed: 0, energy: 0, think: 0, done: 0},
-        kick: 0,
-        kickVelocity: 0,
+        pulse: 0,
+        pulseVelocity: 0,
         phase: START_PHASE,
         time: 0,
     }
@@ -59,28 +60,28 @@ export function createMotion(state: HeroState): HeroMotion {
 
 /** Advances the motion by dt seconds. */
 export function stepMotion(m: HeroMotion, dt: number): void {
-    const target = HERO_STATES[m.state]
+    const target = HERO_STATE_PARAMS[m.state]
     for (const k of KEYS) {
         const a = SPRING_W * SPRING_W * (target[k] - m.params[k]) - 2 * SPRING_W * m.velocity[k]
         m.velocity[k] += a * dt
         m.params[k] += m.velocity[k] * dt
     }
-    const ak = -KICK_W * KICK_W * m.kick - KICK_DAMPING * KICK_W * m.kickVelocity
-    m.kickVelocity += ak * dt
-    m.kick += m.kickVelocity * dt
+    const ap = -PULSE_W * PULSE_W * m.pulse - PULSE_DAMPING * PULSE_W * m.pulseVelocity
+    m.pulseVelocity += ap * dt
+    m.pulse += m.pulseVelocity * dt
     m.phase += dt * m.params.speed
     m.time += dt
 }
 
 /** Puts the motion at rest on its state, for the still frame of reduced motion. */
 export function snapMotion(m: HeroMotion): void {
-    m.params = {...HERO_STATES[m.state]}
+    m.params = {...HERO_STATE_PARAMS[m.state]}
     m.velocity = {speed: 0, energy: 0, think: 0, done: 0}
-    m.kick = 0
-    m.kickVelocity = 0
+    m.pulse = 0
+    m.pulseVelocity = 0
 }
 
 /** One keystroke: a small bump that fades out by itself. */
-export function kickMotion(m: HeroMotion): void {
-    m.kickVelocity += KICK_IMPULSE
+export function pulseMotion(m: HeroMotion): void {
+    m.pulseVelocity += PULSE_IMPULSE
 }

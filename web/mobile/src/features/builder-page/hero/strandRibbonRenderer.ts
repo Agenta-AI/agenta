@@ -1,15 +1,17 @@
-import type {HeroMotion} from "./heroMotion"
-import type {HeroInks} from "./heroTheme"
-import {HERO_FRAGMENT_SHADER, HERO_VERTEX_SHADER} from "./strandRibbonShader"
+import type {HeroRenderer} from "./heroEngine"
+import {STRAND_RIBBON_FRAGMENT_SHADER, STRAND_RIBBON_VERTEX_SHADER} from "./strandRibbonShader"
 
-export interface HeroRenderer {
-    /** Draws one frame at the canvas size. */
-    draw(motion: HeroMotion, inks: HeroInks): void
-    /** Frees the GPU objects. */
-    dispose(): void
-}
-
-const UNIFORMS = ["res", "phase", "time", "energy", "think", "done", "kick", "ink", "ink2"] as const
+const UNIFORMS = [
+    "res",
+    "phase",
+    "time",
+    "energy",
+    "think",
+    "done",
+    "pulse",
+    "ink",
+    "ink2",
+] as const
 
 /**
  * Compiles the Strand ribbon shader on the canvas. Returns null when the browser has no WebGL
@@ -29,18 +31,25 @@ export function createStrandRibbonRenderer(canvas: HTMLCanvasElement): HeroRende
         if (!s) return null
         gl.shaderSource(s, src)
         gl.compileShader(s)
-        return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null
+        if (gl.getShaderParameter(s, gl.COMPILE_STATUS)) return s
+        gl.deleteShader(s)
+        return null
     }
-    const vs = compile(gl.VERTEX_SHADER, HERO_VERTEX_SHADER)
-    const fs = compile(gl.FRAGMENT_SHADER, HERO_FRAGMENT_SHADER)
-    const program = gl.createProgram()
-    if (!vs || !fs || !program) return null
-    gl.attachShader(program, vs)
-    gl.attachShader(program, fs)
-    gl.linkProgram(program)
+    const vs = compile(gl.VERTEX_SHADER, STRAND_RIBBON_VERTEX_SHADER)
+    const fs = compile(gl.FRAGMENT_SHADER, STRAND_RIBBON_FRAGMENT_SHADER)
+    const program = vs && fs ? gl.createProgram() : null
+    if (program && vs && fs) {
+        gl.attachShader(program, vs)
+        gl.attachShader(program, fs)
+        gl.linkProgram(program)
+    }
+    // The program keeps the compiled code; the shader objects are no longer needed.
     gl.deleteShader(vs)
     gl.deleteShader(fs)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null
+    if (!program || !gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        gl.deleteProgram(program)
+        return null
+    }
     gl.useProgram(program)
 
     // One triangle that covers the whole canvas.
@@ -66,7 +75,7 @@ export function createStrandRibbonRenderer(canvas: HTMLCanvasElement): HeroRende
             gl.uniform1f(u.energy, m.params.energy)
             gl.uniform1f(u.think, m.params.think)
             gl.uniform1f(u.done, m.params.done)
-            gl.uniform1f(u.kick, m.kick)
+            gl.uniform1f(u.pulse, m.pulse)
             gl.uniform3f(u.ink, inks.ink[0] / 255, inks.ink[1] / 255, inks.ink[2] / 255)
             gl.uniform3f(u.ink2, inks.ink2[0] / 255, inks.ink2[1] / 255, inks.ink2[2] / 255)
             gl.drawArrays(gl.TRIANGLES, 0, 3)

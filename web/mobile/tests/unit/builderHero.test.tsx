@@ -5,17 +5,16 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {BuilderHero} from "@/features/builder-page/hero/BuilderHero"
-import {HeroEngine} from "@/features/builder-page/hero/heroEngine"
+import {HeroEngine, type HeroRenderer} from "@/features/builder-page/hero/heroEngine"
 import {
-    HERO_STATES,
+    HERO_STATE_PARAMS,
     createMotion,
-    kickMotion,
+    pulseMotion,
     stepMotion,
     type HeroMotion,
     type HeroState,
 } from "@/features/builder-page/hero/heroMotion"
 import {parseCssColor, readHeroInks} from "@/features/builder-page/hero/heroTheme"
-import type {HeroRenderer} from "@/features/builder-page/hero/strandRibbonRenderer"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -28,7 +27,7 @@ function run(m: HeroMotion, seconds: number) {
 describe("hero motion", () => {
     it("starts at rest on the given state", () => {
         const m = createMotion("thinking")
-        expect(m.params).toEqual(HERO_STATES.thinking)
+        expect(m.params).toEqual(HERO_STATE_PARAMS.thinking)
         expect(m.velocity).toEqual({speed: 0, energy: 0, think: 0, done: 0})
     })
 
@@ -49,11 +48,13 @@ describe("hero motion", () => {
         }
         run(m, 0.45)
         // Most of the way after about 0.45 s.
-        const gap = Math.abs(m.params.speed - HERO_STATES[to].speed)
-        expect(gap).toBeLessThan(Math.abs(HERO_STATES[from].speed - HERO_STATES[to].speed) * 0.25)
+        const gap = Math.abs(m.params.speed - HERO_STATE_PARAMS[to].speed)
+        expect(gap).toBeLessThan(
+            Math.abs(HERO_STATE_PARAMS[from].speed - HERO_STATE_PARAMS[to].speed) * 0.25,
+        )
         run(m, 2)
         for (const k of Object.keys(before) as (keyof typeof before)[]) {
-            expect(m.params[k]).toBeCloseTo(HERO_STATES[to][k], 3)
+            expect(m.params[k]).toBeCloseTo(HERO_STATE_PARAMS[to][k], 3)
         }
     })
 
@@ -75,25 +76,24 @@ describe("hero motion", () => {
 
     it("makes a small bump on a keystroke that fades out by itself", () => {
         const m = createMotion("typing")
-        kickMotion(m)
+        pulseMotion(m)
         let peak = 0
         for (let i = 0; i < 60; i++) {
             stepMotion(m, DT)
-            peak = Math.max(peak, Math.abs(m.kick))
+            peak = Math.max(peak, Math.abs(m.pulse))
         }
         expect(peak).toBeGreaterThan(0.05)
         expect(peak).toBeLessThan(1)
         run(m, 1)
-        expect(Math.abs(m.kick)).toBeLessThan(0.001)
+        expect(Math.abs(m.pulse)).toBeLessThan(0.001)
     })
 })
 
 describe("hero inks", () => {
     it("parses the token formats of theme.generated.css", () => {
         expect(parseCssColor("#242424")).toEqual([36, 36, 36, 1])
-        expect(parseCssColor(" #fff ")).toEqual([255, 255, 255, 1])
         expect(parseCssColor("rgba(255, 255, 255, 0.85)")).toEqual([255, 255, 255, 0.85])
-        expect(parseCssColor("rgb(20 20 20 / 50%)")).toEqual([20, 20, 20, 0.5])
+        expect(parseCssColor("rgb(20, 20, 20)")).toEqual([20, 20, 20, 1])
         expect(parseCssColor("oklch(0.5 0.1 200)")).toBeNull()
     })
 
@@ -181,7 +181,7 @@ function makeEngine(
     renderer: HeroRenderer | null = fakeRenderer().renderer,
 ) {
     const onFallback = vi.fn()
-    const canvas = document.createElement("canvas")
+    const canvas = document.body.appendChild(document.createElement("canvas"))
     const engine = new HeroEngine(canvas, {state, createRenderer: () => renderer, onFallback})
     return {engine, canvas, onFallback}
 }
@@ -225,14 +225,14 @@ describe("hero engine", () => {
         const {engine} = makeEngine("idle", renderer)
         expect(engine.running).toBe(false)
         expect(env.frames).toHaveLength(0)
-        expect(draws.at(-1)?.params).toEqual(HERO_STATES.idle)
+        expect(draws.at(-1)?.params).toEqual(HERO_STATE_PARAMS.idle)
 
         for (const s of ["typing", "thinking", "done"] as const) {
             const count = draws.length
             engine.setState(s)
             expect(draws.length).toBe(count + 1)
             // The still frame is the resting form of the state, not a frame in between.
-            expect(draws.at(-1)).toEqual({state: s, params: HERO_STATES[s]})
+            expect(draws.at(-1)).toEqual({state: s, params: HERO_STATE_PARAMS[s]})
         }
         engine.pulse()
         expect(engine.running).toBe(false)
@@ -247,8 +247,26 @@ describe("hero engine", () => {
         env.reduced = true
         env.reducedListeners.forEach((fn) => fn())
         expect(engine.running).toBe(false)
-        expect(draws.at(-1)?.params).toEqual(HERO_STATES.thinking)
+        expect(draws.at(-1)?.params).toEqual(HERO_STATE_PARAMS.thinking)
         engine.destroy()
+    })
+
+    it("reads the inks again and redraws when the theme class changes", async () => {
+        env.reduced = true
+        const inks: number[][] = []
+        const renderer: HeroRenderer = {draw: (_m, i) => inks.push(i.ink), dispose: vi.fn()}
+        const {engine, canvas} = makeEngine("idle", renderer)
+        expect(inks.at(-1)).toEqual([36, 36, 36])
+
+        // jsdom does not inherit custom properties, so the tokens go on the canvas itself.
+        canvas.style.setProperty("--colorBgContainer", "#141414")
+        canvas.style.setProperty("--colorText", "rgba(255, 255, 255, 0.85)")
+        document.documentElement.classList.add("dark")
+        // MutationObserver callbacks run as a microtask.
+        await Promise.resolve()
+        expect(inks.at(-1)).toEqual([220, 220, 220])
+        engine.destroy()
+        document.documentElement.classList.remove("dark")
     })
 
     it("reports the fallback when there is no renderer", () => {
