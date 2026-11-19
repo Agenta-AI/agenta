@@ -1,0 +1,11 @@
+{
+    "cancel": "Cancel",
+    "discard": "Discard",
+    "done": "Done",
+    "keepEditing": "Keep editing",
+    "save": "Save",
+    "saveChanges": "Save changes",
+    "saveFailed": "Couldn't save the change. Try again.",
+    "saving": "Saving…",
+    "unsavedChanges": "You have unsaved changes"
+}
