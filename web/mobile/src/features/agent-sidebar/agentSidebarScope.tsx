@@ -48,7 +48,12 @@ const agentSessionsQuery = (projectId: string, agentId: string, limit: number) =
     const options = sessionListQueryOptions({projectId, agentId, includeTotal: true, limit})
     return {
         queryKey: [...options.queryKey, "first-page"],
-        queryFn: ({signal}: {signal?: AbortSignal}) => options.queryFn({pageParam: null, signal}),
+        queryFn: async ({signal}: {signal?: AbortSignal}) => {
+            const page = await options.queryFn({pageParam: null, signal})
+            // An error, not an empty list: a failed refresh keeps the rows it had.
+            if (!page) throw new Error("The session list did not load")
+            return page
+        },
         staleTime: 30_000,
     }
 }
@@ -85,7 +90,8 @@ const useAgentSessions = (projectId: string, agentId: string) => {
             }),
         [pending, query.data?.sessions],
     )
-    return {sessions, total: query.data?.total ?? null}
+    const status = query.isPending ? "loading" : query.isError ? "error" : "ready"
+    return {sessions, total: query.data?.total ?? null, status} as const
 }
 
 /**
@@ -125,7 +131,6 @@ const ConnectedSwitcher = ({
                         const page = await queryClient.fetchQuery(
                             agentSessionsQuery(projectId, id, 1),
                         )
-                        if (!page) throw new Error("The session list did not load")
                         return page.sessions[0]?.session_id ?? null
                     },
                 })
@@ -175,7 +180,7 @@ export const createAgentSidebarScope = (
         const t = useT(agentSidebarCatalog)
         const bottomItems = useMobileBottomNavItems(projectURL)
         const wrapSessionRow = useRailSessionRowWrapper(projectURL)
-        const {sessions, total} = useAgentSessions(projectId, agentId)
+        const {sessions, total, status} = useAgentSessions(projectId, agentId)
 
         return useMemo(
             () => [
@@ -186,6 +191,7 @@ export const createAgentSidebarScope = (
                         agentId,
                         sessions,
                         total,
+                        status,
                         t,
                         newSessionHref: agentEntryHref(projectURL, agentId),
                         onNewSession: (event) => {
@@ -197,7 +203,7 @@ export const createAgentSidebarScope = (
                 },
                 {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
             ],
-            [bottomItems, sessions, t, total, wrapSessionRow],
+            [bottomItems, sessions, status, t, total, wrapSessionRow],
         )
     }
 

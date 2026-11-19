@@ -8,7 +8,13 @@ import {useRouter} from "next/router"
 import {useSessionHeader} from "../chat/useSessionHeader"
 
 import {routeAgentId, routeSessionId, sidebarAfterRoute} from "./agentSidebarRoute"
-import {openMainSidebar, setSelectedSidebar, useSelectedSidebar} from "./selectedSidebar"
+import {
+    currentSidebar,
+    openMainSidebar,
+    setSelectedSidebar,
+    useSelectedSidebar,
+    type SelectedSidebar,
+} from "./selectedSidebar"
 
 /** The last path the sync saw in this tab; null until the first page (a load or a reload). */
 let lastSeenPath: string | null = null
@@ -45,7 +51,7 @@ export const useAgentSidebarSync = (projectId: string) => {
     // A page change, with the page's agent if it is already known. If it is not, the effect
     // below applies it when it arrives. Each screen mounts its own app shell, so the last path
     // lives outside the component: a new screen's first run still sees the page change.
-    const awaitingAgent = useRef(false)
+    const awaitingAgent = useRef<SelectedSidebar | null>(null)
     useEffect(() => {
         if (lastSeenPath === null) {
             lastSeenPath = router.asPath
@@ -53,14 +59,18 @@ export const useAgentSidebarSync = (projectId: string) => {
         }
         if (lastSeenPath === router.asPath) return
         lastSeenPath = router.asPath
-        awaitingAgent.current = pageAgentRef.current === null
         const next = sidebarAfterRoute(selectedRef.current, router.pathname, pageAgentRef.current)
         if (next) setSelectedSidebar(next)
+        // Wait for the agent only while the choice stays the one this page change left.
+        awaitingAgent.current = pageAgentRef.current === null ? currentSidebar() : null
     }, [router.asPath, router.pathname])
 
     useEffect(() => {
         if (!pageAgentId || !awaitingAgent.current) return
-        awaitingAgent.current = false
+        const waitingFor = awaitingAgent.current
+        awaitingAgent.current = null
+        // A choice the person made meanwhile (an open button, a switcher pick) wins.
+        if (currentSidebar() !== waitingFor) return
         const next = sidebarAfterRoute(selectedRef.current, router.pathname, pageAgentId)
         if (next) setSelectedSidebar(next)
     }, [pageAgentId, router.pathname])

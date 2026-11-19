@@ -78,7 +78,8 @@ afterEach(() => {
     host.remove()
 })
 
-describe("the sidebar sync", () => {
+// The first test loads the modules fresh, which is slow on a busy machine.
+describe("the sidebar sync", {timeout: 30_000}, () => {
     it("keeps the agent sidebar on a reload, on any page", () => {
         go(HOME, "/w/w1/p/p1/apps")
         store.openAgentSidebar("a1")
@@ -106,6 +107,18 @@ describe("the sidebar sync", () => {
         // The same shell renders again when the row arrives.
         act(() => root.render(createElement(Shell)))
         expect(selected()).toMatchObject({kind: "agent", agentId: AGENT_2})
+    })
+
+    it("keeps a choice made before the session's row arrives", () => {
+        go(HOME, "/w/w1/p/p1/apps")
+        mountScreen()
+        store.openAgentSidebar("a1")
+        go(SESSION, "/w/w1/p/p1/sessions/s3", {session_id: "s3"})
+        mountScreen()
+        act(() => store.openAgentSidebar("a1", "agents"))
+        header.data = {session_id: "s3", references: [{key: "workflow", id: AGENT_2}]}
+        act(() => root.render(createElement(Shell)))
+        expect(selected()).toEqual({kind: "agent", agentId: "a1", from: "agents"})
     })
 
     it("keeps the open button's choice while the page stays", () => {

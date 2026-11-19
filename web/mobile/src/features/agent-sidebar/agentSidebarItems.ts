@@ -1,6 +1,6 @@
 import {createElement, type MouseEvent, type ReactElement, type ReactNode} from "react"
 
-import type {SidebarConfig} from "@agenta/navigation"
+import {getSidebarSourceStatusLabel, type SidebarConfig} from "@agenta/navigation"
 import type {SessionRowStatus} from "@agenta/sessions/row"
 import type {SessionRowTarget} from "@agenta/sessions-ui"
 import {Spinner} from "@agenta/ui/ui"
@@ -13,7 +13,7 @@ import {
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 
-import {AGENT_PAGE_VIEWS, agentPageHref, type AgentPageView} from "./agentPages"
+import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
 import {groupByDay} from "./dayGroups"
 
 /** One session row of the agent sidebar: what the row draws and what its menu needs. */
@@ -53,9 +53,7 @@ export const agentSidebarSelectedKey = (
     agentId: string,
 ): string | undefined => {
     if (query.agent_id === agentId && typeof query.view === "string")
-        return AGENT_PAGE_VIEWS.includes(query.view as AgentPageView)
-            ? pageRowKey(query.view as AgentPageView)
-            : undefined
+        return isAgentPageView(query.view) ? pageRowKey(query.view) : undefined
     return typeof query.session_id === "string"
         ? agentSidebarSessionKey(query.session_id)
         : undefined
@@ -83,6 +81,7 @@ export const agentSidebarItems = ({
     agentId,
     sessions,
     total,
+    status = "ready",
     t,
     newSessionHref,
     onNewSession,
@@ -92,6 +91,9 @@ export const agentSidebarItems = ({
     agentId: string
     sessions: AgentSidebarSession[]
     total: number | null
+    /** The session list's state. Loading and a failed first load show the main sidebar's rows;
+     * a failed refresh keeps the sessions it had. */
+    status?: "loading" | "error" | "ready"
     t: AgentSidebarText
     /** What "New session" opens in a new tab; a plain click runs `onNewSession`. */
     newSessionHref: string
@@ -129,6 +131,14 @@ export const agentSidebarItems = ({
             ),
         ],
     )
+    if (sessions.length === 0 && status !== "ready")
+        rows.push({
+            key: `agent-sidebar-sessions-${status}`,
+            title: getSidebarSourceStatusLabel(status),
+            disabled: true,
+            isLoading: status === "loading",
+            isPlaceholder: status === "error",
+        })
     const older = total !== null ? total - sessions.length : 0
     if (older > 0)
         rows.push({
