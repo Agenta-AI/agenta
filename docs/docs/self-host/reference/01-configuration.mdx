@@ -106,7 +106,7 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
-| `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | `agenta.access.personal_accounts_enabled` | not set by the chart |
+| `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | `agenta.access.personal_accounts_enabled` | n/a |
 | `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
 | `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
 | `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
@@ -123,7 +123,8 @@ every request to the API.
 accounts (custom secrets, Composio connections, MCP sign-ins), and an agent's `user` items use
 them. Set it to `false` to turn this off. While it is `false`, the API refuses person-owned
 writes and account choices, and a run leaves every `user` item out. During an upgrade, set it to
-`false` until every API pod and runner runs a release that supports personal accounts.
+`false` until every API pod, services pod and runner runs a release that supports personal accounts.
+On Kubernetes, set it through `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
 
 ## Agenta AI services
 
