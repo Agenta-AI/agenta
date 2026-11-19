@@ -18,8 +18,7 @@ import {cn} from "./utils"
  *  - box: small 24 / default 28 / large 34  → `size-avatar-sm/-/-lg`, plus antd's
  *    `border: 1px solid transparent` (avatar/style/index.js L61) — it insets the image by
  *    1px and shrinks the content box the initials centre in.
- *  - radius: SCALES with size —
- *    small 6 / default 8 / large 10 (`rounded-control-sm/-/-lg`), numeric→8.
+ *  - radius: 25% of the box (small 6 / default 7 / large 8.5px), never a circle.
  *  - fill: antd default avatar bg = `colorTextPlaceholder` (#bdc7d1 light /
  *    rgba(255,255,255,.38) dark — matches both). text = `colorTextLightSolid` (white both).
  *  - font: antd base per size then a scale-to-fit; string 12/18/20 (numeric→18), icon
@@ -35,16 +34,16 @@ export type AvatarSize = "small" | "default" | "large"
 const avatarVariants = cva(
     // `border-solid` is load-bearing (preflight OFF): without it the width computes to 0 and
     // the 1px inset antd gets from `border: 1px solid transparent` disappears.
-    "relative box-border inline-flex shrink-0 select-none items-center justify-center overflow-hidden border border-solid border-transparent bg-colorTextPlaceholder text-colorTextLightSolid font-portal leading-[1.6666666666666667]",
+    // 25% radius keeps every box square-ish; a fixed px radius turns boxes under ~20px into circles.
+    "relative box-border inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[25%] border border-solid border-transparent bg-colorTextPlaceholder text-colorTextLightSolid font-portal leading-[1.6666666666666667]",
     {
         variants: {
             // Dims + default string font per size (AvatarBox overrides font inline for
             // icon/numeric precision). Arbitrary px: no control-scale font key fits.
-            // Square only; the radius scales with size (numeric sizes get the default 8px).
             size: {
-                small: "size-avatar-sm text-[12px] rounded-control-sm",
-                default: "size-avatar text-[18px] rounded-control",
-                large: "size-avatar-lg text-[20px] rounded-control-lg",
+                small: "size-avatar-sm text-[12px]",
+                default: "size-avatar text-[18px]",
+                large: "size-avatar-lg text-[20px]",
             },
         },
         defaultVariants: {size: "default"},
