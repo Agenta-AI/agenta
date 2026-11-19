@@ -1,0 +1,20 @@
+{
+    "agent": "Agent",
+    "agents": "Agents",
+    "analytics": "Analytics",
+    "backToMainSidebar": "Back to the main sidebar",
+    "channels": "Channels",
+    "configuration": "Configuration",
+    "earlier": "Earlier",
+    "loadError": "Could not load sessions",
+    "loading": "Loading",
+    "newSession": "New session",
+    "retry": "Retry",
+    "searchAgents": "Search agents",
+    "seeAllSessions": "See all sessions in a table",
+    "sessions": "Sessions",
+    "showOlderSessions_one": "Show {{count}} older session",
+    "showOlderSessions_other": "Show {{count}} older sessions",
+    "today": "Today",
+    "yesterday": "Yesterday"
+}

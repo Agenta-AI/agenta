@@ -65,6 +65,13 @@ export interface SidebarEntityGroup {
     agentId?: string
 }
 
+/** A heading's open button: what it reads as, and what it does. It does not navigate. */
+export interface SidebarGroupEnter {
+    /** Accessible name and tooltip, e.g. "Open Demo shoot". */
+    label: string
+    onClick: () => void
+}
+
 /** A heading's "+": where it goes, what it reads as, and any extra click work. */
 export interface SidebarGroupAdd {
     /** Followed on a plain click unless `onClick` prevents it; a modified click opens it as is. */
@@ -131,6 +138,11 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     /** A heading's "+", or nothing for a heading that gets none. Given the project URL, since
      * the add's own click may need to build a route. */
     groupAdd?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
+    /** A heading's open button, beside the "+", or nothing for a heading that gets none. */
+    groupEnter?: (group: SidebarEntityGroup) => SidebarGroupEnter | undefined
+    /** How many rows a heading shows at most, or undefined for no cap of its own. The entity's
+     * `maxItems` still bounds the whole list. */
+    groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
     /** `ref.id -> last used, in ms`. Ranked rows lead newest-first; the rest keep source order. */
     ranksAtom?: Atom<ReadonlyMap<string, number>>
 }
@@ -168,4 +180,6 @@ export interface SidebarEntity {
     }>
     toggleGroupAtom?: WritableAtom<string[], [string], void>
     groupAddLink?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
+    groupEnter?: (group: SidebarEntityGroup) => SidebarGroupEnter | undefined
+    groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
 }

@@ -2766,6 +2766,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:*
         version: link:../packages/agenta-entity-ui
+      '@agenta/navigation-ui':
+        specifier: workspace:*
+        version: link:../packages/agenta-navigation-ui
       '@agenta/playground':
         specifier: workspace:*
         version: link:../packages/agenta-playground
