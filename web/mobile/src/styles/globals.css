@@ -55,7 +55,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-    --radius: 0.625rem;
+    --radius: 0.5rem;
     /* The composer's send takes the primary fill here, not the desktop's lime accent. The button
        reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values:
        the glyph is the container colour, so it reads white on the light theme's ink and ink on
@@ -238,11 +238,11 @@
     --spacing-control-dot: 8px;
     --spacing-switch-thumb: 18px;
     --spacing-switch-thumb-sm: 12px;
-    --radius-control-xs: 8px;
-    --radius-control-sm: 8px;
+    --radius-control-xs: 6px;
+    --radius-control-sm: 6px;
     --radius-control-check: 4px;
-    --radius-control: 10px;
-    --radius-control-lg: 10px;
+    --radius-control: 8px;
+    --radius-control-lg: 8px;
     --radius-control-round: 50%;
     --text-btn-xs: 12px;
     --text-btn-xs--line-height: 16px;

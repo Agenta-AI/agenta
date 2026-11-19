@@ -19,10 +19,10 @@ const tile = () => screen.getByTestId("tile")
 
 describe("IconTile", () => {
     it.each([
-        [24, "size-6", "rounded-[5px]", "[&_svg]:size-[14px]"],
-        [28, "size-7", "rounded-[6px]", "[&_svg]:size-4"],
-        [32, "size-8", "rounded-[6px]", "[&_svg]:size-4"],
-        [44, "size-11", "rounded-[10px]", "[&_svg]:size-[22px]"],
+        [24, "size-6", "rounded-[3px]", "[&_svg]:size-[14px]"],
+        [28, "size-7", "rounded-sm", "[&_svg]:size-4"],
+        [32, "size-8", "rounded-sm", "[&_svg]:size-4"],
+        [44, "size-11", "rounded-lg", "[&_svg]:size-[22px]"],
     ] as const)("size %i is a %s box with %s and a %s glyph", (size, box, radius, glyph) => {
         render(
             <IconTile data-testid="tile" size={size}>
