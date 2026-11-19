@@ -1,5 +1,3 @@
-import type {ConversationRole} from "./conversationRole"
-
 /** Marks the root element of a mounted conversation; its value is the conversation's role. */
 export const CONVERSATION_ROLE_ATTR = "data-conversation-role"
 
@@ -10,11 +8,10 @@ export const CONVERSATION_ROLE_ATTR = "data-conversation-role"
  */
 export const ownsConversationShortcut = (
     root: Element | null,
-    role: ConversationRole,
     active: Element | null = typeof document === "undefined" ? null : document.activeElement,
 ): boolean => {
     if (!root) return false
     const focused = active?.closest(`[${CONVERSATION_ROLE_ATTR}]`)
     if (focused) return focused === root
-    return role === "page"
+    return root.getAttribute(CONVERSATION_ROLE_ATTR) === "page"
 }

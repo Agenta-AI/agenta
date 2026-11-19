@@ -164,7 +164,10 @@ export const LiveConversation = ({
     canSend?: boolean
     /** The session row read has not answered yet. */
     accessPending?: boolean
-    /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
+    /**
+     * Rendered inside a workspace pane — the shell and its rail belong to the parent. Layout only:
+     * the conversation's role ("page" or "embedded" builder chat) comes from `ConversationRoleContext`.
+     */
     embedded?: boolean
 }) => {
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
@@ -851,8 +854,6 @@ export const LiveConversation = ({
     // The role comes from the container as a value, so a role change keeps this mount and its
     // state. Two conversations can be on screen; a shortcut acts on the focused one only.
     const role = useConversationRole()
-    const roleRef = useRef(role)
-    roleRef.current = role
     const conversationRootRef = useRef<HTMLDivElement>(null)
     // Read through a ref: `pendingApprovals` is rebuilt every streamed commit, so depending on it
     // would re-register the listener on the hot path.
@@ -866,7 +867,7 @@ export const LiveConversation = ({
             // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
             if (e.defaultPrevented || isOverlayOpen()) return
             if (!isOnScreen(scrollerRef.current)) return
-            if (!ownsConversationShortcut(conversationRootRef.current, roleRef.current)) return
+            if (!ownsConversationShortcut(conversationRootRef.current)) return
             const current = shortcutRef.current
             if (stopKey && current.streamingHere) {
                 e.preventDefault()

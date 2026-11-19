@@ -2,18 +2,20 @@
 /**
  * The conversation lifetime (design D6, task 7.2, QA plan T4): a move from a session to an agent
  * page changes the page file, so the conversation unmounts. When the person comes back, the remount
- * puts back the composer text, the scroll position and an open quick action, keyed by session id.
+ * puts back the composer text, the transcript position and an open quick action, by session id.
  *
- * The probe mounts the three real pieces the conversation uses for that state: the composer draft
- * (`@agenta/chat`), the transcript auto-scroll and the quick action memory. A running answer is the
- * chat registry's job (`@agenta/chat` keeps a streaming `Chat` across a remount, tested there).
+ * The probe mounts the real pieces the conversation uses for that state: the composer draft
+ * (`@agenta/chat`), the transcript window with the auto-scroll, and the quick action atom, on a
+ * scroller whose height is its rendered rows. A running answer is the chat registry's job
+ * (`@agenta/chat` keeps a streaming `Chat` across a remount, tested there).
  */
-import {act, useEffect} from "react"
+import {act, type RefObject, useMemo} from "react"
 
 import {useComposerDraft} from "@agenta/chat/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {createStore, Provider, useAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@/lib/motion/presets", () => ({useMotionPresets: () => ({reduced: true})}))
 // The real draft hook, loaded from its own file: the `@agenta/chat/hooks` barrel pulls the whole
@@ -24,61 +26,78 @@ vi.mock("@agenta/chat/hooks", async () => ({
 }))
 vi.mock("@agenta/entities/session", () => ({isSessionFresh: () => false}))
 
-import {useConversationQuickAction} from "@/features/chat/conversationMemory"
+import {conversationQuickActionAtomFamily} from "@/features/chat/conversationQuickAction"
 import {useTranscriptAutoScroll} from "@/features/chat/useTranscriptAutoScroll"
+import {useTranscriptWindow} from "@/features/chat/useTranscriptWindow"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-beforeAll(() => {
-    // jsdom has no ResizeObserver; the hook only needs one to exist.
-    globalThis.ResizeObserver ??= class {
-        observe = vi.fn()
-        unobserve = vi.fn()
-        disconnect = vi.fn()
-    } as unknown as typeof ResizeObserver
-})
-
-/** The transcript's size; jsdom lays nothing out. */
-const geometry = {scrollHeight: 2000, clientHeight: 500}
+const ROW_PX = 100
+const VIEWPORT_PX = 700
 
 let composerText = ""
-let quick: ReturnType<typeof useConversationQuickAction>
 let initialDraft: string | undefined
-let scroller: HTMLDivElement | null = null
-const measured = new WeakSet<HTMLDivElement>()
+let quickAction: string | null = null
+let setQuickAction: (next: string | null) => void = () => undefined
 
-const Conversation = ({sessionId, turns}: {sessionId: string; turns: string[]}) => {
-    const inputRef = {
-        current: {getMarkdown: () => composerText} as unknown as RichChatInputHandle,
-    }
-    const draft = useComposerDraft({sessionId, richInputRef: inputRef})
-    initialDraft = draft.initialDraft
-    quick = useConversationQuickAction(sessionId)
+const Conversation = ({sessionId, count}: {sessionId: string; count: number}) => {
+    const turns = useMemo(() => Array.from({length: count}, (_, i) => i), [count])
+    const inputRef = useMemo(
+        () => ({current: {getMarkdown: () => composerText} as unknown as RichChatInputHandle}),
+        [],
+    )
+    initialDraft = useComposerDraft({sessionId, richInputRef: inputRef}).initialDraft
+    ;[quickAction, setQuickAction] = useAtom(conversationQuickActionAtomFamily(sessionId))
     const autoScroll = useTranscriptAutoScroll(turns, sessionId)
-    useEffect(() => () => void (scroller = null), [])
     return (
-        <div
-            ref={(el) => {
-                if (el && !measured.has(el)) {
-                    measured.add(el)
-                    Object.defineProperty(el, "scrollHeight", {get: () => geometry.scrollHeight})
-                    Object.defineProperty(el, "clientHeight", {get: () => geometry.clientHeight})
-                }
-                autoScroll.ref.current = el
-                scroller = el
-            }}
-            onScroll={autoScroll.onScroll}
-        />
+        <div ref={autoScroll.ref} onScroll={autoScroll.onScroll} data-testid="scroller">
+            {/* As in the app: the transcript mounts once the turns are loaded. */}
+            {count > 0 ? (
+                <Rows turns={turns} sessionId={sessionId} scrollerRef={autoScroll.ref} />
+            ) : null}
+        </div>
+    )
+}
+
+const Rows = ({
+    turns,
+    sessionId,
+    scrollerRef,
+}: {
+    turns: number[]
+    sessionId: string
+    scrollerRef: RefObject<HTMLDivElement | null>
+}) => {
+    const start = useTranscriptWindow(turns.length, scrollerRef, sessionId)
+    return (
+        <div>
+            {turns.slice(start).map((turn) => (
+                <div key={turn} data-row={turn} />
+            ))}
+        </div>
     )
 }
 
 let host: HTMLDivElement
 let root: Root
+let store: ReturnType<typeof createStore>
 
 beforeEach(() => {
     composerText = ""
-    geometry.scrollHeight = 2000
-    geometry.clientHeight = 500
+    store = createStore()
+    vi.stubGlobal(
+        "ResizeObserver",
+        class {
+            observe = vi.fn()
+            disconnect = vi.fn()
+        },
+    )
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+        this: HTMLElement,
+    ) {
+        return this.querySelectorAll("[data-row]").length * ROW_PX
+    })
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(VIEWPORT_PX)
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -87,83 +106,104 @@ beforeEach(() => {
 afterEach(async () => {
     await act(async () => root.unmount())
     host.remove()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
 })
 
-const mount = (sessionId: string, turns = ["t1", "t2"]) =>
-    act(async () => root.render(<Conversation sessionId={sessionId} turns={turns} />))
+const scroller = () => host.querySelector<HTMLDivElement>("[data-testid=scroller]")
+const firstRow = () => host.querySelector("[data-row]")?.getAttribute("data-row")
+const mount = (sessionId: string, count = 40) =>
+    act(async () =>
+        root.render(
+            <Provider store={store}>
+                <Conversation sessionId={sessionId} count={count} />
+            </Provider>,
+        ),
+    )
 const leave = () => act(async () => root.render(<div data-testid="agent-page" />))
-/** The reader scrolls up: input first (it ends the follow), then the new position. */
-const readerScrollsTo = (top: number) =>
-    act(async () => {
-        scroller?.dispatchEvent(new WheelEvent("wheel"))
-        if (scroller) scroller.scrollTop = top
-        scroller?.dispatchEvent(new Event("scroll"))
+/** The reader scrolls: input first (it ends the follow), then the new position. */
+const readerScrollsTo = async (top: number) => {
+    await act(async () => {
+        const el = scroller()!
+        el.dispatchEvent(new WheelEvent("wheel"))
+        el.scrollTop = top
+        el.dispatchEvent(new Event("scroll"))
     })
+    // A browser fires a scroll event for a programmatic move too (the window keeps the reader's
+    // place when it adds older turns); jsdom does not.
+    await act(async () => {
+        scroller()!.dispatchEvent(new Event("scroll"))
+    })
+}
 
 describe("leave the session for an agent page and come back", () => {
-    it("restores the composer text, the scroll position and the open quick action", async () => {
+    it("restores the composer text, the transcript position and the open quick action", async () => {
         await mount("session-a")
-        // A new session lands on its latest message.
-        expect(scroller?.scrollTop).toBe(1500)
+        // The tail of 12 turns, pinned to the latest.
+        expect(firstRow()).toBe("28")
+        expect(scroller()?.scrollTop).toBe(500)
 
+        // The reader scrolls up past the tail: 12 older turns load, then they park in them.
+        await readerScrollsTo(0)
+        expect(firstRow()).toBe("16")
+        await readerScrollsTo(700)
         composerText = "make the greeting shorter"
-        await readerScrollsTo(600)
-        await act(async () => quick[1]("test"))
+        await act(async () => setQuickAction("test"))
 
         await leave()
-        expect(scroller).toBeNull()
+        expect(scroller()).toBeNull()
 
         await mount("session-a")
         expect(initialDraft).toBe("make the greeting shorter")
-        expect(scroller?.scrollTop).toBe(600)
-        expect(quick[0]).toBe("test")
+        expect(firstRow()).toBe("16")
+        expect(scroller()?.scrollTop).toBe(700)
+        expect(quickAction).toBe("test")
     })
 
-    it("keeps the place from the end when the transcript grew while away", async () => {
+    it("keeps the same turns on screen when an answer arrived while away", async () => {
         await mount("session-b")
-        await readerScrollsTo(600)
+        await readerScrollsTo(200)
+        const before = {firstRow: firstRow(), scrollTop: scroller()?.scrollTop}
         await leave()
 
-        // A finished answer added 300 px below the place the reader was reading.
-        geometry.scrollHeight = 2300
-        await mount("session-b", ["t1", "t2", "t3"])
-        expect(scroller?.scrollTop).toBe(600 + 300)
+        // One more turn below the place the reader was reading.
+        await mount("session-b", 41)
+        expect({firstRow: firstRow(), scrollTop: scroller()?.scrollTop}).toEqual(before)
     })
 
     it("lands on the latest message again when the reader was there", async () => {
         await mount("session-c")
         await leave()
-        geometry.scrollHeight = 2600
-        await mount("session-c", ["t1", "t2", "t3"])
-        expect(scroller?.scrollTop).toBe(2100)
+        await mount("session-c", 41)
+        expect(firstRow()).toBe("28")
+        expect(scroller()?.scrollTop).toBe(600)
     })
 
     it("waits for the transcript to load before it puts the position back", async () => {
         await mount("session-d")
-        await readerScrollsTo(400)
+        await readerScrollsTo(300)
+        const before = {firstRow: firstRow(), scrollTop: scroller()?.scrollTop}
         await leave()
 
-        // Loading: nothing to scroll yet.
-        geometry.scrollHeight = 500
-        await mount("session-d", [])
-        expect(scroller?.scrollTop).toBe(0)
+        // Loading: no turns yet.
+        await mount("session-d", 0)
+        expect(scroller()?.scrollTop).toBe(0)
 
-        geometry.scrollHeight = 2000
-        await mount("session-d", ["t1", "t2"])
-        expect(scroller?.scrollTop).toBe(400)
+        await mount("session-d", 40)
+        expect({firstRow: firstRow(), scrollTop: scroller()?.scrollTop}).toEqual(before)
     })
 
     it("keeps each session's state apart", async () => {
         await mount("session-e")
         composerText = "text for e"
         await readerScrollsTo(300)
-        await act(async () => quick[1]("improve"))
+        await act(async () => setQuickAction("improve"))
         await leave()
 
         composerText = ""
         await mount("session-f")
         expect(initialDraft).toBeUndefined()
-        expect(scroller?.scrollTop).toBe(1500)
-        expect(quick[0]).toBeNull()
+        expect(scroller()?.scrollTop).toBe(500)
+        expect(quickAction).toBeNull()
     })
 })

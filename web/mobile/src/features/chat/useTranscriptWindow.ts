@@ -2,23 +2,43 @@ import {type RefObject, useEffect, useLayoutEffect, useRef, useState} from "reac
 
 import {flushSync} from "react-dom"
 
-import {openWindow, settleWindow, wantsOlderTurns, widenWindow} from "./transcriptWindow"
+import {readTranscriptPosition, writeTranscriptPosition} from "./transcriptPosition"
+import {
+    openWindow,
+    settleWindow,
+    type TranscriptWindow,
+    wantsOlderTurns,
+    widenWindow,
+} from "./transcriptWindow"
 import {NEAR_BOTTOM_PX} from "./useTranscriptAutoScroll"
+
+/** The window a remount opens: the tail, widened to the older turns the reader had loaded. */
+const keptWindow = (sessionId: string, total: number): TranscriptWindow => {
+    const tail = openWindow(total)
+    const kept = readTranscriptPosition(sessionId)?.windowStart
+    return kept == null ? tail : {start: Math.min(kept, tail.start), total}
+}
 
 /**
  * The index of the first turn to render: the tail at first, older turns as the reader scrolls up.
  * Added rows never move what is on screen. `useTranscriptAutoScroll` keys on content, which a
  * widening does not change, so it neither follows nor reads the reader as leaving.
+ * The older turns the reader loaded are kept per session, so a remount renders them again and the
+ * kept scroll position points at the same turn (design D6).
  */
 export const useTranscriptWindow = (
     total: number,
     scrollerRef: RefObject<HTMLDivElement | null>,
+    sessionId: string,
 ): number => {
-    const [held, setHeld] = useState(() => openWindow(total))
+    const [held, setHeld] = useState(() => keptWindow(sessionId, total))
     const settled = settleWindow(held, total)
     if (settled !== held) setHeld(settled)
     const {start} = settled
     const hasOlder = start > 0
+    useEffect(() => {
+        writeTranscriptPosition(sessionId, {windowStart: start})
+    }, [sessionId, start])
     const distanceFromBottomRef = useRef<number | null>(null)
 
     useEffect(() => {

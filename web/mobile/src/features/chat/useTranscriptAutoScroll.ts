@@ -9,7 +9,7 @@ import {
 
 import {useMotionPresets} from "@/lib/motion/presets"
 
-import {readConversationMemory, writeConversationMemory} from "./conversationMemory"
+import {readTranscriptPosition, writeTranscriptPosition} from "./transcriptPosition"
 
 /** Follow keeps tracking appends from this close to the bottom. Deliberately small and NOT the
  * pill's threshold: auto-scrolling someone who has scrolled up to read is the worse failure. */
@@ -28,11 +28,12 @@ const ANCHOR_GAP_PX = SCROLL_FADE_TOP_PX + 8
 /** Past this many viewports a glide reads as slow, so the pin jumps instead. */
 const GLIDE_MAX_VIEWPORTS = 2
 
-/** The saved distance from the end to restore, or null when the session opens at its latest. */
-const savedScroll = (sessionId: string | undefined): number | null => {
-    const memory = sessionId ? readConversationMemory(sessionId) : undefined
-    return memory && !memory.atLatest ? memory.scrollFromBottom : null
-}
+/** The kept position to put back, or null when the session opens at its latest message. */
+const savedScrollTop = (sessionId: string | undefined): number | null =>
+    sessionId ? (readTranscriptPosition(sessionId)?.scrollTop ?? null) : null
+
+/** Content with nothing in it yet: the transcript is still loading. */
+const isEmptyContent = (content: unknown) => Array.isArray(content) && content.length === 0
 
 /** Keys that scroll the transcript; one is the reader taking over. */
 const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "])
@@ -66,13 +67,10 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
     const pinnedRef = useRef(false)
     // Where a glide is heading; while set, the glide's own scroll events are not the reader leaving.
     const glideToRef = useRef<number | null>(null)
-    // A position kept from an earlier mount of this session, waiting for content tall enough.
-    const restoreRef = useRef<number | null>(null)
-    const restoreReadRef = useRef(false)
-    if (!restoreReadRef.current) {
-        restoreReadRef.current = true
-        restoreRef.current = savedScroll(sessionId)
-    }
+    // A position kept from an earlier mount of this session, waiting for the transcript to load.
+    const restoreRef = useRef(savedScrollTop(sessionId))
+    const contentRef = useRef(content)
+    contentRef.current = content
     const sessionRef = useRef(sessionId)
 
     const scrollTo = useCallback((el: HTMLDivElement, top: number) => {
@@ -109,9 +107,8 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         // Kept for a later mount, but not while a kept position is still waiting to be put back.
         const session = sessionRef.current
         if (session && restoreRef.current === null) {
-            writeConversationMemory(session, {
-                scrollFromBottom: Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight),
-                atLatest: nearBottomRef.current,
+            writeTranscriptPosition(session, {
+                scrollTop: nearBottomRef.current ? null : el.scrollTop,
             })
         }
     }, [])
@@ -121,13 +118,14 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         (el: HTMLDivElement) => {
             const restore = restoreRef.current
             if (restore !== null) {
-                // Nothing to scroll yet (the transcript is still loading): hold the kept position.
-                const overflow = el.scrollHeight - el.clientHeight
-                if (el.clientHeight === 0 || overflow <= 0) return
+                // Still loading, or a hidden pane: hold the kept position until there is a layout.
+                if (el.clientHeight === 0 || isEmptyContent(contentRef.current)) return
                 restoreRef.current = null
                 pinnedRef.current = true
                 glideToRef.current = null
-                el.scrollTop = Math.max(0, overflow - restore)
+                // From the top: the transcript window renders the same older turns again, and
+                // turns added while away are below. Clamped when the content is now shorter.
+                el.scrollTop = Math.max(0, Math.min(restore, el.scrollHeight - el.clientHeight))
                 return
             }
             if (!nearBottomRef.current && !anchorRef.current) return
@@ -195,7 +193,7 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         anchorRef.current = null
         pinnedRef.current = false
         glideToRef.current = null
-        restoreRef.current = savedScroll(sessionId)
+        restoreRef.current = savedScrollTop(sessionId)
     }, [sessionId])
 
     useLayoutEffect(() => {

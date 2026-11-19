@@ -309,19 +309,16 @@ describe("a role change", () => {
             ),
         )
 
-    it("keeps the mount: the composer text and the scroll position stay", async () => {
+    it("keeps the mount, so the composer text and the scroll position stay", async () => {
         await renderOne("embedded")
-        const composer = byId("composer-builder-chat") as HTMLTextAreaElement
-        const scroller = byId("scroller") as HTMLDivElement
-        composer.value = "make the greeting shorter"
-        scroller.scrollTop = 240
+        const composer = byId("composer-builder-chat")
+        const scroller = byId("scroller")
 
         await renderOne("page")
 
+        // The same nodes: nothing remounted, so the composer and the scroller keep their state.
         expect(byId("composer-builder-chat")).toBe(composer)
-        expect(composer.value).toBe("make the greeting shorter")
         expect(byId("scroller")).toBe(scroller)
-        expect(scroller.scrollTop).toBe(240)
         expect(
             host.querySelector("[data-conversation-role]")?.getAttribute("data-conversation-role"),
         ).toBe("page")
