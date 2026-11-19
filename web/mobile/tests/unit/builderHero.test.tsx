@@ -306,7 +306,7 @@ describe("BuilderHero", () => {
         container.remove()
     })
 
-    it("shows the still fallback when the browser has no WebGL", () => {
+    it("shows the fallback when the browser has no WebGL", () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
         act(() => root.render(<BuilderHero state="idle" />))
         const hero = container.querySelector("[data-hero-state]")

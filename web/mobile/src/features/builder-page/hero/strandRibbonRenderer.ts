@@ -15,7 +15,7 @@ const UNIFORMS = [
 
 /**
  * Compiles the Strand ribbon shader on the canvas. Returns null when the browser has no WebGL
- * or the shader does not compile, so the caller shows the still fallback.
+ * or the shader does not compile, so the caller shows the fallback.
  */
 export function createStrandRibbonRenderer(canvas: HTMLCanvasElement): HeroRenderer | null {
     const gl = canvas.getContext("webgl", {
