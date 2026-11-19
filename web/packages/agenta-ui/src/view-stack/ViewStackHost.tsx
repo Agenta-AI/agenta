@@ -138,7 +138,7 @@ export const ViewStackHost = ({
             let saveFailed = false
             for (;;) {
                 const form = formsRef.current[dirty.key]
-                // The view left while the dialog was open: nothing is left to settle.
+                // Defensive: the navigation lock keeps the view in place while the dialog asks.
                 if (!form) return "clean"
                 const answer = await ask(form, saveFailed)
                 if (answer === "keep") return false
