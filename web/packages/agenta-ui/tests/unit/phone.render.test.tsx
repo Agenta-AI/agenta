@@ -138,6 +138,19 @@ describe("PhoneScreenHeader", () => {
         expect(onBack).toHaveBeenCalledOnce()
     })
 
+    it("reads its own back label when one is given, and still shows the screen name", () => {
+        render(
+            <PhoneScreenHeader
+                title="Chat history"
+                onBack={() => undefined}
+                backTitle="Chat"
+                backLabel="Back to the chat"
+            />,
+        )
+        const back = screen.getByRole("button", {name: "Back to the chat"})
+        expect(back.textContent).toContain("Chat")
+    })
+
     it("has no back arrow without onBack", () => {
         render(<PhoneScreenHeader title="Files" />)
         expect(screen.queryByRole("button")).toBeNull()

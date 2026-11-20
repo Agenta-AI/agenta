@@ -227,9 +227,17 @@ export const AgentVersionHistoryDrawer = ({
                               paddingBottom: "env(safe-area-inset-bottom)",
                           },
                       }
-                    : // Flush to the right edge, full height, square (canvas S06).
+                    : // Flush to the right edge, full height, square, with the right drawer's
+                      // shadow at its left edge (canvas S06).
                       {
-                          content: {top: 0, right: 0, bottom: 0, height: "100%", borderRadius: 0},
+                          content: {
+                              top: 0,
+                              right: 0,
+                              bottom: 0,
+                              height: "100%",
+                              borderRadius: 0,
+                              boxShadow: "var(--shadow-drawer-right)",
+                          },
                           header: {paddingLeft: 24},
                       }
             }

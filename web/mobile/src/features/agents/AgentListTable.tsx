@@ -112,7 +112,7 @@ export const AgentListTable = ({
             // As drawn (A03): quiet 12 px column names between two lines, 56 px rows with a light
             // line under each that stays inside the table, and the cells 8 px in from its edge.
             headerClassName="border-t border-colorBorderSecondary px-2 text-[12px] font-normal text-colorTextTertiary"
-            rowClassName="mx-0 min-h-14 w-full border-b border-solid border-colorSplit px-2 py-0"
+            rowClassName="mx-0 min-h-14 w-full rounded-[6px] border-b border-solid border-colorSplit px-2 py-0"
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.id}
