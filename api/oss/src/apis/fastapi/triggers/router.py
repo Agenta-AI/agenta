@@ -58,6 +58,7 @@ from oss.src.core.triggers.exceptions import (
     TriggerScheduleInvalid,
 )
 from oss.src.core.triggers.providers.composio.adapter import normalize_webhook_event
+from oss.src.core.triggers.dtos import TriggerScheduleData
 from oss.src.core.triggers.service import TriggersService
 
 
@@ -150,6 +151,17 @@ def _editor_principal(request: Request) -> PrincipalRef:
             ).model_dump(exclude_none=True),
         )
     return principal
+
+
+def _refuse_server_only_schedule_fields(data: TriggerScheduleData) -> None:
+    """A one-time schedule (`run_at`) is for server code only; the public create and
+    edit routes refuse it."""
+
+    if data.run_at is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="A schedule with run_at cannot be created or edited through this route.",
+        )
 
 
 def _resume_refused(refusal, *, project_id) -> HTTPException:
@@ -1351,6 +1363,7 @@ class TriggersRouter:
         body: TriggerScheduleCreateRequest,
     ) -> TriggerScheduleResponse:
         await self._check(request, Permission.EDIT_TRIGGERS)
+        _refuse_server_only_schedule_fields(body.schedule.data)
 
         try:
             schedule = await self.triggers_service.create_schedule(
@@ -1449,6 +1462,7 @@ class TriggersRouter:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Path schedule_id does not match body id",
             )
+        _refuse_server_only_schedule_fields(body.schedule.data)
 
         try:
             schedule = await self.triggers_service.edit_schedule(

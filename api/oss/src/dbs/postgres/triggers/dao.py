@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import Boolean, cast, delete, func, literal, select, update
+from sqlalchemy import Boolean, String, cast, delete, func, literal, select, update
 from sqlalchemy.dialects.postgresql import JSON, JSONB, insert
 from sqlalchemy.exc import IntegrityError
 
@@ -54,6 +54,29 @@ from oss.src.dbs.postgres.triggers.upsert_utils import (
 )
 
 log = get_module_logger(__name__)
+
+
+def _map_schedule_rows(
+    dbes: List[TriggerScheduleDBE],
+) -> List[Tuple[UUID, TriggerSchedule]]:
+    schedules: List[Tuple[UUID, TriggerSchedule]] = []
+    for dbe in dbes:
+        try:
+            schedules.append(
+                (dbe.project_id, map_schedule_dbe_to_dto(schedule_dbe=dbe))
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # One malformed row must not drop every project's active
+            # schedules for the tick; skip it and keep the rest.
+            # Pydantic's ValidationError.__str__ embeds the offending
+            # input_value, so log the exception type only, never {e}.
+            log.error(
+                "[SCHEDULE] Skipping malformed schedule row",
+                schedule_id=str(dbe.id),
+                project_id=str(dbe.project_id),
+                error_type=type(e).__name__,
+            )
+    return schedules
 
 
 def _set_principal(dbe, *, principal: PrincipalRef) -> None:
@@ -1144,9 +1167,11 @@ class TriggersDAO(TriggersDAOInterface):
         project_id: Optional[UUID] = None,
     ) -> List[Tuple[UUID, TriggerSchedule]]:
         async with self.engine.session() as session:
+            # One-time schedules (`run_at` set) have their own pass.
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.flags.contains({"is_active": True}),
                 TriggerScheduleDBE.deleted_at.is_(None),
+                TriggerScheduleDBE.run_at.is_(None),
             )
 
             if project_id is not None:
@@ -1156,22 +1181,54 @@ class TriggersDAO(TriggersDAOInterface):
 
             result = await session.execute(stmt)
 
-            schedules: List[Tuple[UUID, TriggerSchedule]] = []
-            for dbe in result.scalars().all():
-                try:
-                    schedules.append(
-                        (dbe.project_id, map_schedule_dbe_to_dto(schedule_dbe=dbe))
-                    )
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    # One malformed row must not drop every project's active
-                    # schedules for the tick; skip it and keep the rest.
-                    # Pydantic's ValidationError.__str__ embeds the offending
-                    # input_value, so log the exception type only, never {e}.
-                    log.error(
-                        "[SCHEDULE] Skipping malformed schedule row",
-                        schedule_id=str(dbe.id),
-                        project_id=str(dbe.project_id),
-                        error_type=type(e).__name__,
-                    )
+            return _map_schedule_rows(result.scalars().all())
 
-            return schedules
+    async def fetch_due_one_time_schedules(
+        self,
+        *,
+        due_by: datetime,
+        limit: int,
+    ) -> List[Tuple[UUID, TriggerSchedule]]:
+        """Active one-time schedules with `run_at <= due_by` that have not fired,
+        earliest first, at most `limit`. Reads through `ix_trigger_schedules_run_at`.
+
+        "Fired" means a delivery row with the schedule's event id
+        `<schedule id>:<run_at in ISO form>` exists. The service writes `run_at` in
+        whole minutes in UTC, so Python's `isoformat()` of it is
+        `YYYY-MM-DDTHH:MM:00+00:00`, which the expression below renders the same.
+        """
+        event_id = func.concat(
+            cast(TriggerScheduleDBE.id, String),
+            ":",
+            func.to_char(
+                func.timezone("UTC", TriggerScheduleDBE.run_at),
+                'YYYY-MM-DD"T"HH24:MI:SS"+00:00"',
+            ),
+        )
+        fired = (
+            select(TriggerDeliveryDBE.id)
+            .where(
+                TriggerDeliveryDBE.project_id == TriggerScheduleDBE.project_id,
+                TriggerDeliveryDBE.schedule_id == TriggerScheduleDBE.id,
+                TriggerDeliveryDBE.event_id == event_id,
+            )
+            .exists()
+        )
+
+        async with self.engine.session() as session:
+            stmt = (
+                select(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.run_at.is_not(None),
+                    TriggerScheduleDBE.run_at <= due_by,
+                    TriggerScheduleDBE.deleted_at.is_(None),
+                    TriggerScheduleDBE.flags.contains({"is_active": True}),
+                    ~fired,
+                )
+                .order_by(TriggerScheduleDBE.run_at)
+                .limit(limit)
+            )
+
+            result = await session.execute(stmt)
+
+            return _map_schedule_rows(result.scalars().all())

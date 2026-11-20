@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from oss.src.core.tools.dtos import AgentError
 from oss.src.core.access.dtos import PrincipalRef
@@ -326,10 +326,15 @@ class TriggerScheduleFlags(BaseModel):
 class TriggerScheduleData(BaseModel):
     event_key: str
     #
-    # PERIOD — a 5-field cron expression (UTC, 1-minute floor); validated via croniter.
-    schedule: str
+    # PERIOD — exactly one of `schedule` and `run_at`.
+    # `schedule`: a 5-field cron expression (UTC, 1-minute floor); validated via croniter.
+    schedule: Optional[str] = None
+    # `run_at`: fire once, at the first tick at or after this time. Stored in the column
+    # `trigger_schedules.run_at`, not in `data`. Only server code sets it.
+    run_at: Optional[datetime] = None
     #
     # WINDOW — minute-aligned UTC bounds; [start_time, end_time), null = unbounded.
+    # A schedule with `run_at` has no window.
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     #
@@ -340,6 +345,18 @@ class TriggerScheduleData(BaseModel):
     # DESTINATION — the bound workflow, by reference (the /retrieve shape).
     references: Optional[Dict[str, Reference]] = None
     selector: Optional[Selector] = None
+
+    @model_validator(mode="after")
+    def _check_period(self) -> "TriggerScheduleData":
+        if (self.schedule is None) == (self.run_at is None):
+            raise ValueError("A schedule needs exactly one of schedule and run_at.")
+        if self.run_at is not None and (
+            self.start_time is not None or self.end_time is not None
+        ):
+            raise ValueError(
+                "A schedule with run_at cannot have start_time or end_time."
+            )
+        return self
 
 
 class TriggerSchedule(Identifier, Lifecycle, Header, Metadata):

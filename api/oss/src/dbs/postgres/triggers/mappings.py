@@ -135,7 +135,10 @@ def map_schedule_dto_to_dbe_create(
         #
         flags=schedule.flags.model_dump(),
         #
-        data=schedule.data.model_dump(mode="json", exclude_none=True),
+        data=schedule.data.model_dump(
+            mode="json", exclude_none=True, exclude={"run_at"}
+        ),
+        run_at=schedule.data.run_at,
     )
 
 
@@ -159,7 +162,9 @@ def map_schedule_dbe_to_dto(
         tags=schedule_dbe.tags,
         meta=schedule_dbe.meta,
         #
-        data=TriggerScheduleData.model_validate(schedule_dbe.data),
+        data=TriggerScheduleData.model_validate(
+            {**(schedule_dbe.data or {}), "run_at": schedule_dbe.run_at}
+        ),
         #
         flags=TriggerScheduleFlags(**(schedule_dbe.flags or {})),
         #
@@ -186,7 +191,10 @@ def map_schedule_dto_to_dbe_edit(
     schedule_dbe.tags = schedule.tags
     schedule_dbe.meta = schedule.meta
 
-    schedule_dbe.data = schedule.data.model_dump(mode="json", exclude_none=True)
+    schedule_dbe.data = schedule.data.model_dump(
+        mode="json", exclude_none=True, exclude={"run_at"}
+    )
+    schedule_dbe.run_at = schedule.data.run_at
 
     schedule_dbe.flags = schedule.flags.model_dump()
 

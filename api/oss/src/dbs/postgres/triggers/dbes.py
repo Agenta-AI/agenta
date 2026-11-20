@@ -79,6 +79,11 @@ class TriggerScheduleDBE(Base, TriggerScheduleDBA):
             "flags",
             postgresql_using="gin",
         ),
+        Index(
+            "ix_trigger_schedules_run_at",
+            "run_at",
+            postgresql_where=text("run_at IS NOT NULL AND deleted_at IS NULL"),
+        ),
     )
 
 
