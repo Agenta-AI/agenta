@@ -2202,7 +2202,7 @@ def _require_builder(
         if static is not None
         else None
     )
-    if builder is None or caller.agent_id != builder.artifact_id:
+    if builder is None or caller.run_agent_id != builder.artifact_id:
         raise _agent_refusal(
             "agent_not_allowed",
             "Only the builder can read the drives of other agents.",
@@ -2239,7 +2239,7 @@ async def _would_widen(
     from oss.src.core.sharing.service import get_sharing_service
 
     return await get_sharing_service().session_wider_than_drive(
-        project_id=project_id, session_id=caller.session_id, mount_id=mount_id
+        project_id=project_id, session_id=caller.run_session_id, mount_id=mount_id
     )
 
 
@@ -2292,7 +2292,7 @@ async def handle_list_agent_drives(
             project_id=project_id,
             read_scope=read_scope,
             arguments=parsed,
-            caller_id=session_caller.agent_id,
+            caller_id=session_caller.run_agent_id,
             self_step="Your own drives are folders in your working directory.",
         )
         if not await _allowed_on_agent(

@@ -508,8 +508,11 @@ async def test_a_private_drive_read_into_a_project_visible_session_would_widen(w
 
 
 @pytest.mark.parametrize("call_ref", [LIST_AGENT_DRIVES_CALL_REF, READ_DRIVE_CALL_REF])
-async def test_an_agent_that_is_not_the_builder_is_refused(world, call_ref):
-    access = world.access_of(world.ana, session=world.ana_private, agent_id=uuid4())
+@pytest.mark.parametrize("agent_id", [uuid4(), None])
+async def test_an_agent_that_is_not_the_builder_is_refused(world, call_ref, agent_id):
+    """Another agent, or a credential that names no agent (the Agenta MCP credential
+    keeps the session claim but carries no `run_agent_id`)."""
+    access = world.access_of(world.ana, session=world.ana_private, agent_id=agent_id)
     arguments = {"agent": "email-writer", "drive_id": str(world.shared_drive.id)}
 
     content = await _call(world, call_ref, access, arguments)
