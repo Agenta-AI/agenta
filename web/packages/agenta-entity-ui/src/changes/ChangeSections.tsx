@@ -470,7 +470,7 @@ export const summaryLines = (
 }
 
 /** The summary box of a text diff: every changed line, in the body font. The sign has its own
- * column, so a removed Markdown bullet does not read as "− -". */
+ * column, so a removed Markdown bullet does not look like "− -". */
 function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
     return (
         <>
@@ -486,7 +486,8 @@ function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
                                 : "var(--ag-colorError)",
                     }}
                 >
-                    <span aria-hidden className="mr-1.5 w-2.5 shrink-0">
+                    {/* Read out, as in HunkRows: the sign is what says added or removed. */}
+                    <span className="mr-1.5 w-2.5 shrink-0">
                         {line.type === "added" ? "+" : "−"}
                     </span>
                     <span className="min-w-0 whitespace-pre-wrap break-words">{line.content}</span>
