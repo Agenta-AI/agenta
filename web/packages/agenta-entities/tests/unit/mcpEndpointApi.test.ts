@@ -221,6 +221,39 @@ describe("listMcpTools", () => {
         expect(tools).toEqual([{name: "search"}])
     })
 
+    it("reads with the project's sign-in by default: no item keys, no account source", async () => {
+        server({initialize: handshake(), "tools/list": {data: {result: {tools: []}}}})
+
+        await listMcpTools("acme", "project-1")
+
+        const mint = vi
+            .mocked(axios.post)
+            .mock.calls.find(([url]) => String(url).endsWith("/gateways/credentials"))
+        expect(mint?.[1]).toEqual({})
+        for (const [, , config] of sent()) {
+            expect((config as {params?: unknown}).params).toEqual({project_id: "project-1"})
+        }
+    })
+
+    it('reads with the viewer\'s own sign-in for a "user" entry', async () => {
+        server({initialize: handshake(), "tools/list": {data: {result: {tools: []}}}})
+
+        await listMcpTools("acme", "project-1", {accountSource: "user"})
+
+        const mint = vi
+            .mocked(axios.post)
+            .mock.calls.find(([url]) => String(url).endsWith("/gateways/credentials"))
+        // The credential names the item; the server resolves the caller's own account for it.
+        expect(mint?.[1]).toEqual({item_keys: ["mcp_server:user/acme"]})
+        expect(sent()).toHaveLength(3)
+        for (const [, , config] of sent()) {
+            expect((config as {params?: unknown}).params).toEqual({
+                project_id: "project-1",
+                account_source: "user",
+            })
+        }
+    })
+
     it("declares both answer shapes it can read, and carries the negotiated version onward", async () => {
         server({
             initialize: handshake(),

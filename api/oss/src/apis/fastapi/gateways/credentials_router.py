@@ -11,7 +11,7 @@ exchange itself is not a data-plane route, which is what stops the confined cred
 minting another one.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -21,11 +21,11 @@ from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import RequestCredentialKind
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
+from oss.src.core.account_choices.claims import exchange_run_accounts
 from oss.src.apis.fastapi.gateways.flags import require_mcp_gateway_enabled
 from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.types import LLMGatewayDisabledError
 from oss.src.core.gateways.run_claims import (
-    run_accounts,
     gateway_run_id,
     gateway_run_labels,
     gateway_tools,
@@ -60,6 +60,11 @@ class GatewayCredentialsRequest(BaseModel):
     # session also lets the gateway serve a turn the runner admitted to its end.
     session_id: Optional[str] = Field(default=None, max_length=128)
     agent_id: Optional[str] = Field(default=None, max_length=128)
+    # The caller's "user" items whose accounts the credential carries, as in the access
+    # exchange: the server view lists a server's tools with the viewer's own sign-in. The
+    # keys only name items. The person is always the caller's own, from the authenticated
+    # request, and a run credential carries its own claim on unchanged.
+    item_keys: Optional[List[str]] = None
 
 
 class GatewayCredentialsResponse(BaseModel):
@@ -163,8 +168,14 @@ class GatewayCredentialsRouter:
             # how long a turn could reach a gateway rather than a bound on exposure.
             expires_in=env.gateway_credentials.ttl_seconds,
             envelope=envelope,
-            # The run's "user" accounts travel with it, never more.
-            run_accounts=run_accounts(request),
+            # A run's "user" accounts travel with it, never more. A first mint resolves
+            # the caller's own accounts of the items it names.
+            run_accounts=await exchange_run_accounts(
+                request,
+                envelope=envelope,
+                workflow_id=None,
+                item_keys=body.item_keys if body else None,
+            ),
         )
 
         return GatewayCredentialsResponse(credentials=f"Secret {token}")

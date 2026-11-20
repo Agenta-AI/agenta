@@ -11,16 +11,19 @@ never falls back to the agent's account.
 from typing import Any, List, Optional, Sequence, Tuple
 from uuid import UUID
 
+from fastapi import Request
 from pydantic import ValidationError
 
-from agenta.sdk.agents.accounts import UserItem
+from agenta.sdk.agents.accounts import UserItem, user_item_from_key
 
-from oss.src.core.access.dtos import RequestAccess, RunEnvelope
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import RequestAccess, RequestCredentialKind, RunEnvelope
 from oss.src.core.access.types import InvalidRunClaims
-from oss.src.core.account_choices.dtos import ItemAccount, RunAccount
+from oss.src.core.account_choices.dtos import MAX_RUN_ITEM_KEYS, ItemAccount, RunAccount
 from oss.src.core.account_choices.exceptions import AccountDataUnreadable
 from oss.src.core.account_choices.items import run_person_id
 from oss.src.core.account_choices.policy import personal_accounts_enabled
+from oss.src.core.gateways.run_claims import run_accounts
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -98,3 +101,40 @@ async def sign_run_accounts(
         log.error("[accounts] a stored account could not be read; user items left out")
         return None
     return run_accounts_claim(item_accounts)
+
+
+async def exchange_run_accounts(
+    request: Request,
+    *,
+    envelope: RunEnvelope,
+    workflow_id: Optional[UUID],
+    item_keys: Optional[Sequence[str]],
+) -> Optional[List[dict]]:
+    """The `run_accounts` claim of a credential an exchange returns.
+
+    Both exchanges use it: the access exchange (`GET /access/permissions/check`) and the
+    gateway credentials exchange (`POST /gateways/credentials`). A run credential carries
+    its own claim on, unchanged. Otherwise this is a first mint: the item keys name the
+    caller's "user" items (a playground or chat turn, or the server view's tool list), and
+    the accounts resolve in one statement for the run person of the caller's own
+    envelope. The keys only select which of the caller's own accounts to look up, so a
+    caller can never reach another person's account. No keys: no read."""
+    access = get_request_access()
+    if (
+        access is not None
+        and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+    ):
+        # A renewed credential drops the claim once the switch is off.
+        if not personal_accounts_enabled():
+            return None
+        return run_accounts(request) or None
+    items = [
+        item
+        for item in (
+            user_item_from_key(key) for key in (item_keys or ())[:MAX_RUN_ITEM_KEYS]
+        )
+        if item is not None
+    ]
+    return await sign_run_accounts(
+        envelope=envelope, items=items, artifact_id=workflow_id
+    )

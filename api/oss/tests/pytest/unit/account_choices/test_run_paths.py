@@ -7,12 +7,14 @@ import pytest
 from jwt import decode, encode
 from starlette.requests import Request
 
-import oss.src.apis.fastapi.access.router as access_router_module
 import oss.src.core.account_choices.policy as policy_module
 import oss.src.core.account_choices.service as service_module
 import oss.src.core.tools.service as tools_service_module
 from oss.src.core.access.context import reset_request_access, set_request_access
-from oss.src.core.account_choices.claims import run_accounts_from_claim
+from oss.src.core.account_choices.claims import (
+    exchange_run_accounts,
+    run_accounts_from_claim,
+)
 from oss.src.core.account_choices.lifecycle import AccountsLifecycle
 from oss.src.core.gateways.run_claims import run_accounts
 from oss.src.core.memberships.service import MembershipsService
@@ -120,13 +122,13 @@ async def test_the_exchange_reads_nothing_without_item_keys(switch_on, monkeypat
     )
     try:
         assert (
-            await access_router_module._run_accounts_of_exchange(
+            await exchange_run_accounts(
                 _request(), envelope=envelope, workflow_id=uuid4(), item_keys=None
             )
             is None
         )
         assert choices.calls == []
-        await access_router_module._run_accounts_of_exchange(
+        await exchange_run_accounts(
             _request(),
             envelope=envelope,
             workflow_id=uuid4(),
@@ -151,7 +153,7 @@ async def test_the_exchange_carries_a_run_credentials_claim(switch_on, monkeypat
     request.state.run_accounts = access.run_accounts
     token = set_request_access(access)
     try:
-        carried = await access_router_module._run_accounts_of_exchange(
+        carried = await exchange_run_accounts(
             request, envelope=envelope, workflow_id=uuid4(), item_keys=[GMAIL]
         )
     finally:

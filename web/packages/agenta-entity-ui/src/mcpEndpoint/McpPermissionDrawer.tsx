@@ -20,6 +20,7 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref} from "react"
 
+import type {AccountSource} from "@agenta/entities/accountChoice"
 import {
     askWritesPolicy,
     fromGatewayPermissions,
@@ -369,10 +370,15 @@ export type McpPermissionSourceInput = Pick<
     /** Show the login-expired banner. A container that says it in its own title passes false. */
     banner?: boolean
     /**
-     * Read the tool list. Defaults to true. False when the list cannot be read with the project's
-     * credential (a person's own sign-in only): the body then shows no list and no error.
+     * Read the tool list. Defaults to true. False when no sign-in can read it (a person's own
+     * sign-in only, and the viewer has none yet): the body then shows no list and no error.
      */
     listTools?: boolean
+    /**
+     * Whose sign-in reads the tool list: the project's (`"agent"`, the default) or the viewer's
+     * own (`"user"`), for a server the agent uses with each person's own sign-in.
+     */
+    accountSource?: AccountSource
 }
 
 /**
@@ -384,6 +390,7 @@ export function useMcpPermissionSource({
     open = true,
     banner: showBanner = true,
     listTools = true,
+    accountSource = "agent",
     slug,
     connectionName,
     status = "connected",
@@ -412,7 +419,7 @@ export function useMcpPermissionSource({
         try {
             const listed = loadToolsFrom
                 ? await loadToolsFrom(slug)
-                : await listMcpTools(slug, projectId)
+                : await listMcpTools(slug, projectId, {accountSource})
             if (shownFor.current !== slug) return
             setTools({status: "ready", tools: listed})
         } catch (error) {
@@ -420,7 +427,7 @@ export function useMcpPermissionSource({
             console.error("[mcp] the tool list could not be read", error)
             setTools({status: "failed", ...toolListFailure(error)})
         }
-    }, [loadToolsFrom, projectId, slug])
+    }, [accountSource, loadToolsFrom, projectId, slug])
 
     useEffect(() => {
         if (!open || !listTools) return

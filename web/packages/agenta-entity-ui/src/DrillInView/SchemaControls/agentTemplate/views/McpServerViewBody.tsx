@@ -139,9 +139,11 @@ const AgentServer = ({
     const onReconnect = useReconnect(endpoint, nav)
     const projectStatus = endpoint ? getMcpConnectionStatus(endpoint) : undefined
     // Each person's own sign-in: the project's sign-in state is not whose account runs, so the
-    // title says nothing about it, and the tool list (read with the project's credential) shows
-    // only while the project is signed in.
+    // title says nothing about it. The tool list reads with the project's sign-in while there is
+    // one, else with the viewer's own; with neither, it shows no list and no error.
     const personal = readMcpAccountSource(entry) === USER_ACCOUNT_SOURCE
+    const projectSignedIn = projectStatus === "connected"
+    const ownSignIn = endpoint?.user_sign_in?.is_ready === true
     const accountContext = useMemo(
         () => ({revisionId: writer.revisionId, agent: writer.agent}),
         [writer.revisionId, writer.agent],
@@ -158,7 +160,8 @@ const AgentServer = ({
         disabled: writer.readOnly,
         // The title line says it, with "Reconnect".
         banner: false,
-        listTools: !personal || projectStatus === "connected",
+        listTools: !personal || projectSignedIn || ownSignIn,
+        accountSource: personal && !projectSignedIn ? USER_ACCOUNT_SOURCE : "agent",
     })
 
     if (!entry) {
