@@ -39,9 +39,9 @@ const BuilderPanelFrame = ({
     openAction?: QuickAction
 }) => {
     const t = useT(builderPanelCatalog)
-    const chatId = `story-new-chat-${openAction ?? "none"}`
+    const sessionId = `story-new-chat-${openAction ?? "none"}`
     // Before the first render: the quick actions read it when they mount.
-    useState(() => writeOpenQuickAction(chatId, openAction ?? null))
+    useState(() => writeOpenQuickAction(sessionId, openAction ?? null))
     const [search, setSearch] = useState("")
     const rows = BUILDER_CHATS.filter((row) =>
         row.name?.toLowerCase().includes(search.trim().toLowerCase()),
@@ -81,7 +81,7 @@ const BuilderPanelFrame = ({
                             {t("builder.panel.placeholder")}
                         </span>
                     </div>
-                    <QuickActions chatId={chatId} onPick={noop} />
+                    <QuickActions sessionId={sessionId} onPick={noop} />
                     <RecentChats
                         rows={BUILDER_CHATS}
                         failed={false}

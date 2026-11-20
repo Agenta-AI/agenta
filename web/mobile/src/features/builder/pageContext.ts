@@ -123,5 +123,29 @@ export const parseContextLine = (text: string, displayContent: string): PageCont
     if (!isRecord(value) || !isRecord(value.agent)) return null
     const {id, name} = value.agent
     if (typeof id !== "string" || typeof name !== "string") return null
-    return value as unknown as PageContext
+    // A page part of a shape this browser does not know is dropped; the agent part stays.
+    const {page, ...rest} = value
+    return (isPagePart(page) ? {...rest, page} : rest) as unknown as PageContext
+}
+
+const isPagePart = (page: unknown): page is PageContextPage => {
+    if (!isRecord(page)) return false
+    if (page.kind === "session")
+        return isRecord(page.session) && typeof page.session.id === "string"
+    if (page.kind !== "configuration" || typeof page.tab !== "string") return false
+    if (page.item === undefined) return true
+    return isRecord(page.item) && typeof page.item.name === "string"
+}
+
+/**
+ * The context of a sent message: its own line, or for an edited message (its text is the
+ * original text, the line included, then the edit) the line of the original.
+ */
+export const parseSentContextLine = (text: string, displayContent: string): PageContext | null => {
+    const own = parseContextLine(text, displayContent)
+    if (own) return own
+    const end = text.indexOf("\n\n")
+    if (end < 0) return null
+    const rest = text.slice(end + 2)
+    return parseContextLine(text, rest)
 }

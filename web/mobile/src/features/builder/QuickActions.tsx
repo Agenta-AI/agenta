@@ -28,16 +28,16 @@ const ICONS: Record<QuickAction, Icon> = {
  * a pick puts the request in the composer and sends nothing.
  */
 export const QuickActions = ({
-    chatId,
+    sessionId,
     onPick,
 }: {
-    chatId: string
+    sessionId: string
     onPick: (text: string) => void
 }) => {
     const t = useT(builderPanelCatalog)
-    const [open, setOpenState] = useState(() => readOpenQuickAction(chatId))
+    const [open, setOpenState] = useState(() => readOpenQuickAction(sessionId))
     const setOpen = (next: QuickAction | null) => {
-        writeOpenQuickAction(chatId, next)
+        writeOpenQuickAction(sessionId, next)
         setOpenState(next)
     }
     const RowIcon = open ? ICONS[open] : null

@@ -7,23 +7,23 @@ export interface BuilderChatRow {
 }
 
 /** A chat with activity in the last 2 days opens again (design rule 1.3). */
-export const RECENT_CHAT_MS = 48 * 60 * 60 * 1000
+export const REOPEN_WINDOW_MS = 48 * 60 * 60 * 1000
 
 /**
  * The chat the panel opens for an agent: the newest stored chat when its last activity is less
  * than 48 hours old or it still runs; otherwise none, and the panel opens a new chat. `rows` are
  * the stored chats of this agent as the query returns them, newest activity first.
  */
-export const chatToOpen = (
+export const sessionToOpen = (
     rows: readonly BuilderChatRow[],
     now: number,
-    isRunning: (chatId: string) => boolean = () => false,
+    isRunning: (sessionId: string) => boolean = () => false,
 ): string | null => {
     const newest = rows[0]
     if (!newest) return null
     if (newest.flags?.is_running || isRunning(newest.session_id)) return newest.session_id
     const activity = newest.updated_at ? Date.parse(newest.updated_at) : NaN
-    return Number.isFinite(activity) && now - activity < RECENT_CHAT_MS ? newest.session_id : null
+    return Number.isFinite(activity) && now - activity < REOPEN_WINDOW_MS ? newest.session_id : null
 }
 
 /** The age of a chat in whole units, for the "3d" labels of the lists. */

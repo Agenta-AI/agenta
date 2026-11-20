@@ -62,9 +62,10 @@ export const readPagePart = (
         const state = queryClient.getQueryState<SessionStream | null>(
             sessionHeaderKey(projectId, pageSessionId),
         )
+        // The rule of the chip: pending until the first answer; a failed read names no session.
         session = {
             id: pageSessionId,
-            pending: !state || state.data === undefined,
+            pending: !state || state.status === "pending",
             row: state?.data,
         }
     }

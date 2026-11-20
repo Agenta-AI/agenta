@@ -6,13 +6,8 @@
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {
-    builderChatsKey,
-    forgetBuilderChats,
-    readBuilderChats,
-    rememberBuilderChat,
-} from "@/features/builder/builderChatLink"
-import {chatAge, chatToOpen, type BuilderChatRow} from "@/features/builder/openRule"
+import {readBuilderChats, rememberBuilderChat} from "@/features/builder/builderChatLink"
+import {chatAge, sessionToOpen, type BuilderChatRow} from "@/features/builder/openRule"
 import {QUICK_ACTION_LABELS, READY_REQUESTS} from "@/features/builder/quickActions"
 
 const NOW = Date.parse("2026-11-20T12:00:00Z")
@@ -28,27 +23,27 @@ afterEach(() => {
     vi.restoreAllMocks()
 })
 
-describe("chatToOpen", () => {
+describe("sessionToOpen", () => {
     it("opens the newest chat with activity in the last 2 days", () => {
-        expect(chatToOpen([row("a", 30), row("b", 50)], NOW)).toBe("a")
+        expect(sessionToOpen([row("a", 30), row("b", 50)], NOW)).toBe("a")
     })
 
     it("opens a new chat when the newest chat is older than 2 days", () => {
-        expect(chatToOpen([row("a", 72), row("b", 200)], NOW)).toBeNull()
+        expect(sessionToOpen([row("a", 72), row("b", 200)], NOW)).toBeNull()
     })
 
     it("opens an old chat that still runs, by its row or by liveness", () => {
-        expect(chatToOpen([row("a", 72, true)], NOW)).toBe("a")
-        expect(chatToOpen([row("a", 72)], NOW, (id) => id === "a")).toBe("a")
+        expect(sessionToOpen([row("a", 72, true)], NOW)).toBe("a")
+        expect(sessionToOpen([row("a", 72)], NOW, (id) => id === "a")).toBe("a")
     })
 
     it("opens a new chat when no chat is stored or the row has no activity time", () => {
-        expect(chatToOpen([], NOW)).toBeNull()
-        expect(chatToOpen([{session_id: "a"}], NOW)).toBeNull()
+        expect(sessionToOpen([], NOW)).toBeNull()
+        expect(sessionToOpen([{session_id: "a"}], NOW)).toBeNull()
     })
 
     it("treats exactly 48 hours as old", () => {
-        expect(chatToOpen([row("a", 48)], NOW)).toBeNull()
+        expect(sessionToOpen([row("a", 48)], NOW)).toBeNull()
     })
 })
 
@@ -72,16 +67,6 @@ describe("the chat link", () => {
         expect(readBuilderChats("u1", "p2", "agent-1")).toEqual(["other-project"])
     })
 
-    it("drops chats the query no longer returns, but not a chat linked on this page", () => {
-        window.localStorage.setItem(
-            builderChatsKey("u1", "p1"),
-            JSON.stringify({"agent-1": ["gone", "kept"]}),
-        )
-        rememberBuilderChat("u1", "p1", "agent-1", "just-sent")
-        forgetBuilderChats("u1", "p1", "agent-1", ["gone", "just-sent"])
-        expect(readBuilderChats("u1", "p1", "agent-1")).toEqual(["just-sent", "kept"])
-    })
-
     it("reads nothing and throws nothing when storage refuses", () => {
         vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
             throw new Error("denied")
@@ -91,7 +76,6 @@ describe("the chat link", () => {
         })
         expect(readBuilderChats("u1", "p1", "agent-1")).toEqual([])
         expect(() => rememberBuilderChat("u1", "p1", "agent-1", "c1")).not.toThrow()
-        expect(() => forgetBuilderChats("u1", "p1", "agent-1", ["c1"])).not.toThrow()
     })
 })
 

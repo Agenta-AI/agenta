@@ -22,5 +22,10 @@ export interface BuilderPanelProps {
 export const BuilderPanel = memo(function BuilderPanel(props: BuilderPanelProps) {
     // The chat link is per user: read it only once the user is known.
     const userId = useAtomValue(userAtom)?.id
-    return userId ? <BuilderChat key={userId} userId={userId} {...props} /> : <ChatLoading />
+    // Per user and agent: the chat link is per user, and another agent runs the open rule again.
+    return userId ? (
+        <BuilderChat key={`${userId}:${props.agentId}`} userId={userId} {...props} />
+    ) : (
+        <ChatLoading />
+    )
 })

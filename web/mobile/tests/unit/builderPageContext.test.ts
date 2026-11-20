@@ -15,6 +15,7 @@ import {
     CONTEXT_LINE_PREFIX,
     pagePartKey,
     parseContextLine,
+    parseSentContextLine,
     resolvePagePart,
     withContextLine,
     type PageContext,
@@ -178,5 +179,27 @@ describe("the page part", () => {
         expect(parseContextLine(sent, "Why medium?")).toEqual(onSessionPage)
         const removed = withContextLine({agent, has_unsaved_draft: false}, "Why medium?")
         expect(parseContextLine(removed, "Why medium?")?.page).toBeUndefined()
+    })
+})
+
+describe("the sent context line", () => {
+    it("drops a page part of an unknown shape and keeps the agent", () => {
+        const line = `${CONTEXT_LINE_PREFIX} ${JSON.stringify({
+            agent,
+            page: {kind: "session"},
+            has_unsaved_draft: false,
+        })}\n\nHi`
+        expect(parseContextLine(line, "Hi")).toEqual({agent, has_unsaved_draft: false})
+    })
+
+    it("reads the original line of an edited message", () => {
+        const original = withContextLine(onConfiguration, "Make it shorter")
+        const edited = `${original}\n\nUpdated user request (replaces the earlier visible request; retain its supporting context):\nMake it much shorter`
+        expect(parseContextLine(edited, "Make it much shorter")).toBeNull()
+        expect(parseSentContextLine(edited, "Make it much shorter")).toEqual(onConfiguration)
+    })
+
+    it("finds no line in a message with none", () => {
+        expect(parseSentContextLine("Hello\n\nthere", "there")).toBeNull()
     })
 })

@@ -41,10 +41,10 @@ export const READY_REQUESTS: Record<QuickAction, readonly ReadyRequest[]> = {
  */
 const openQuickActionByChat = new Map<string, QuickAction>()
 
-export const readOpenQuickAction = (chatId: string): QuickAction | null =>
-    openQuickActionByChat.get(chatId) ?? null
+export const readOpenQuickAction = (sessionId: string): QuickAction | null =>
+    openQuickActionByChat.get(sessionId) ?? null
 
-export const writeOpenQuickAction = (chatId: string, action: QuickAction | null) => {
-    if (action) openQuickActionByChat.set(chatId, action)
-    else openQuickActionByChat.delete(chatId)
+export const writeOpenQuickAction = (sessionId: string, action: QuickAction | null) => {
+    if (action) openQuickActionByChat.set(sessionId, action)
+    else openQuickActionByChat.delete(sessionId)
 }

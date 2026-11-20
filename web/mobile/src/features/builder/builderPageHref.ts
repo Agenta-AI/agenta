@@ -5,14 +5,14 @@
 export const builderChatHref = ({
     workspaceId,
     projectId,
-    chatId,
+    sessionId,
     agentId,
 }: {
     workspaceId: string
     projectId: string
-    chatId: string
+    sessionId: string
     agentId?: string | null
 }) => {
-    const path = `/w/${workspaceId}/p/${projectId}/builder/${encodeURIComponent(chatId)}`
+    const path = `/w/${workspaceId}/p/${projectId}/builder/${encodeURIComponent(sessionId)}`
     return agentId ? `${path}?tab=${encodeURIComponent(`agent:${agentId}`)}` : path
 }

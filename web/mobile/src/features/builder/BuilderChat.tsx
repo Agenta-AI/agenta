@@ -30,14 +30,14 @@ import {ChatHistory} from "./ChatHistory"
 import {RecentChats} from "./ChatRows"
 import {ContextChip, SentContextChip} from "./ContextChip"
 import {NewChatIntro} from "./NewChatIntro"
-import {chatToOpen} from "./openRule"
-import {parseContextLine, withContextLine, type PageContext} from "./pageContext"
+import {sessionToOpen} from "./openRule"
+import {parseSentContextLine, withContextLine, type PageContext} from "./pageContext"
 import {readPagePart} from "./pagePart"
 import {QuickActions} from "./QuickActions"
 import {builderChatLinkVersionAtom, useBuilderChatList} from "./useBuilderChatList"
 
 /** A new builder chat: a client-side id that becomes a server session on its first message. */
-const newChatId = () => {
+const newBuilderSessionId = () => {
     const id = newId()
     // Never run: the conversation must not read its empty history as a pruned one.
     markSessionFresh(id)
@@ -49,7 +49,7 @@ const newChatId = () => {
  * (a move between a session and an agent page) shows it again instead of running the open rule,
  * so a new chat with a draft is not lost (design D6). Another agent runs the rule.
  */
-const lastShownChat = new Map<string, {agentId: string; chatId: string}>()
+const lastShownChat = new Map<string, {agentId: string; builderSessionId: string}>()
 
 /** The page context line of a stored or live user message, rebuilt from its text. */
 const sentContext = (message: UIMessage): PageContext | null => {
@@ -59,7 +59,7 @@ const sentContext = (message: UIMessage): PageContext | null => {
         .filter((part) => part.type === "text")
         .map((part) => part.text)
         .join("")
-    return parseContextLine(text, words)
+    return parseSentContextLine(text, words)
 }
 
 const sentContextChip = (message: UIMessage) => {
@@ -86,42 +86,44 @@ export const BuilderChat = ({
     const builderRevisionId = builder.data ?? null
     const memoryKey = `${userId}:${projectId}`
 
-    // `id` null: the open rule waits for the chat list.
-    const [chat, setChat] = useState<{agentId: string; id: string | null}>(() => {
+    // Null: the open rule waits for the chat list. Mounted per agent (`BuilderPanel` keys it), so
+    // another agent runs the rule again and never shows the last agent's chat.
+    const [builderSessionId, setBuilderSessionId] = useState<string | null>(() => {
         const last = lastShownChat.get(memoryKey)
-        return {agentId, id: last?.agentId === agentId ? last.chatId : null}
+        return last?.agentId === agentId ? last.builderSessionId : null
     })
-    // Another agent on the screen: the open rule runs again, never the last agent's chat.
-    if (chat.agentId !== agentId) setChat({agentId, id: null})
     const [view, setView] = useState<"chat" | "history">("chat")
 
     const recent = useBuilderChatList({userId, projectId, agentId})
     const liveness = useLivenessPoll(projectId)
     const isRunning = useCallback(
-        (chatId: string) =>
+        (builderSessionId: string) =>
             Boolean(
-                liveness.data?.find((stream) => stream.session_id === chatId)?.flags?.is_running,
+                liveness.data?.find((stream) => stream.session_id === builderSessionId)?.flags
+                    ?.is_running,
             ),
         [liveness.data],
     )
 
     const show = useCallback(
-        (chatId: string) => {
-            lastShownChat.set(memoryKey, {agentId, chatId})
-            setChat({agentId, id: chatId})
+        (id: string) => {
+            lastShownChat.set(memoryKey, {agentId, builderSessionId: id})
+            setBuilderSessionId(id)
             setView("chat")
         },
         [memoryKey, agentId],
     )
     // The open rule, once the list answered (no stored chat answers at once). A failed list
     // opens a new chat; "Recent chats" then says it could not load.
-    if (chat.agentId === agentId && chat.id === null && !recent.pending && !recent.stale) {
-        const id = (!recent.failed && chatToOpen(recent.rows, Date.now(), isRunning)) || newChatId()
-        lastShownChat.set(memoryKey, {agentId, chatId: id})
-        setChat({agentId, id})
+    if (builderSessionId === null && !recent.pending && !recent.stale) {
+        const id =
+            (!recent.failed && sessionToOpen(recent.rows, Date.now(), isRunning)) ||
+            newBuilderSessionId()
+        lastShownChat.set(memoryKey, {agentId, builderSessionId: id})
+        setBuilderSessionId(id)
     }
-    const chatId = chat.agentId === agentId ? chat.id : null
-    const isNew = !chatId || !recent.chatIds.includes(chatId)
+    // Not linked to the agent yet: a chat with no message.
+    const isUnlinked = !builderSessionId || !recent.sessionIds.includes(builderSessionId)
 
     const {row} = useAgentRow(agentId)
     const agentName = row?.name || row?.slug || ""
@@ -132,30 +134,44 @@ export const BuilderChat = ({
     // queue keeps the result, so a retry or a resume sends the same snapshot.
     const beforeSend = useCallback(
         (text: string) => {
-            if (!chatId) return undefined
+            if (!builderSessionId) return undefined
             const page = readPagePart(store, queryClient, projectId)
             const context: PageContext = {
                 agent: {id: agentId, name: agentName},
                 ...(page ? {page} : {}),
                 has_unsaved_draft: store.get(viewFormDirtyAtom),
             }
-            if (rememberBuilderChat(userId, projectId, agentId, chatId))
+            if (rememberBuilderChat(userId, projectId, agentId, builderSessionId))
                 bumpLinkVersion((version) => version + 1)
             return withContextLine(context, text)
         },
-        [store, queryClient, agentId, agentName, userId, projectId, chatId, bumpLinkVersion],
+        [
+            store,
+            queryClient,
+            agentId,
+            agentName,
+            userId,
+            projectId,
+            builderSessionId,
+            bumpLinkVersion,
+        ],
     )
 
-    const header = useSessionHeader(projectId, isNew || !chatId ? "" : chatId)
+    const header = useSessionHeader(
+        projectId,
+        isUnlinked || !builderSessionId ? "" : builderSessionId,
+    )
     const title =
-        (!isNew &&
+        (!isUnlinked &&
             (header.data?.name?.trim() ||
-                recent.rows.find((entry) => entry.session_id === chatId)?.name?.trim())) ||
+                recent.rows
+                    .find((entry) => entry.session_id === builderSessionId)
+                    ?.name?.trim())) ||
         t("builder.panel.newChat")
 
     const liveStream = useMemo(
-        () => liveness.data?.find((stream) => stream.session_id === chatId),
-        [liveness.data, chatId],
+        () => liveness.data?.find((stream) => stream.session_id === builderSessionId),
+        [liveness.data, builderSessionId],
     )
 
     // A ready request replaces the composer text and is not sent.
@@ -167,7 +183,7 @@ export const BuilderChat = ({
     }, [])
 
     let body
-    if (builder.isPending || !chatId) body = <ChatLoading />
+    if (builder.isPending || !builderSessionId) body = <ChatLoading />
     else if (!builderRevisionId)
         body = (
             <ChatUnreachable onRetry={() => void builder.refetch()} retrying={builder.isFetching} />
@@ -175,10 +191,10 @@ export const BuilderChat = ({
     else
         body = (
             <LiveConversation
-                key={chatId}
+                key={builderSessionId}
                 embedded
                 entityId={builderRevisionId}
-                sessionId={chatId}
+                sessionId={builderSessionId}
                 projectId={projectId}
                 workspaceId={workspaceId}
                 running={Boolean(liveStream?.flags?.is_running)}
@@ -188,16 +204,21 @@ export const BuilderChat = ({
                 sharedReader={Boolean(liveStream?.capabilities?.shared_reader)}
                 beforeSend={beforeSend}
                 inputRef={inputRef}
-                noAgentCommands
+                hideSlashCommands
                 composerPlaceholder={t("builder.panel.placeholder")}
                 composerHeader={<ContextChip projectId={projectId} agentName={agentName} />}
                 emptyState={<NewChatIntro agentName={agentName} />}
                 belowComposer={
-                    isNew ? (
+                    isUnlinked ? (
                         <div className="flex flex-col gap-4 px-3 pb-3">
-                            <QuickActions chatId={chatId} onPick={fillComposer} />
+                            <QuickActions
+                                sessionId={builderSessionId}
+                                onPick={fillComposer}
+                            />
                             <RecentChats
-                                rows={recent.rows.filter((entry) => entry.session_id !== chatId)}
+                                rows={recent.rows.filter(
+                                    (entry) => entry.session_id !== builderSessionId,
+                                )}
                                 failed={recent.failed}
                                 onRetry={recent.retry}
                                 onOpen={show}
@@ -219,11 +240,11 @@ export const BuilderChat = ({
                 onBack={() => setView("chat")}
                 onOpenChat={show}
                 onOpenHistory={() => setView("history")}
-                onNewChat={() => show(newChatId())}
+                onNewChat={() => show(newBuilderSessionId())}
                 openInBuilderHref={builderChatHref({
                     workspaceId,
                     projectId,
-                    chatId: chatId ?? "",
+                    sessionId: builderSessionId ?? "",
                     agentId,
                 })}
                 onClose={() => void panel.close()}

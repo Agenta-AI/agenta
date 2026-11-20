@@ -273,13 +273,13 @@ vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({
         placeholder,
-        header,
-        noAgentCommands,
+        headerExtra,
+        hideSlashCommands,
         inputRef,
     }: {
         placeholder?: string
-        header?: ReactNode
-        noAgentCommands?: boolean
+        headerExtra?: ReactNode
+        hideSlashCommands?: boolean
         inputRef?: {current: unknown}
     }) => {
         composerSeen.inputRef = inputRef
@@ -287,9 +287,9 @@ vi.mock("@/features/chat/Composer", () => ({
             <div
                 data-testid="composer"
                 data-placeholder={placeholder ?? ""}
-                data-no-agent-commands={noAgentCommands ? "true" : "false"}
+                data-hide-slash-commands={hideSlashCommands ? "true" : "false"}
             >
-                {header}
+                {headerExtra}
             </div>
         )
     },
@@ -366,7 +366,7 @@ describe("LiveConversation slots", () => {
         expect(byId("intro-card")).not.toBeNull()
         const composer = byId("composer")!
         expect(composer.getAttribute("data-placeholder")).toBe("")
-        expect(composer.getAttribute("data-no-agent-commands")).toBe("false")
+        expect(composer.getAttribute("data-hide-slash-commands")).toBe("false")
         expect(composer.textContent).toBe("")
         expect(byId("accessory")!.textContent).toBe("none")
         expect(byId("below")).toBeNull()
@@ -380,7 +380,7 @@ describe("LiveConversation slots", () => {
             belowComposer: <div data-testid="below" />,
             composerPlaceholder: "Ask the builder about this agent",
             inputRef,
-            noAgentCommands: true,
+            hideSlashCommands: true,
             userMessageAccessory: (message) => (
                 <span data-testid="sent-chip">{String(message.metadata && "seen")}</span>
             ),
@@ -390,7 +390,7 @@ describe("LiveConversation slots", () => {
         const composer = byId("composer")!
         expect(composer.querySelector('[data-testid="chip"]')).not.toBeNull()
         expect(composer.getAttribute("data-placeholder")).toBe("Ask the builder about this agent")
-        expect(composer.getAttribute("data-no-agent-commands")).toBe("true")
+        expect(composer.getAttribute("data-hide-slash-commands")).toBe("true")
         expect(composerSeen.inputRef).toBe(inputRef)
         expect(byId("below")).not.toBeNull()
         // The accessory gets the stored message, full text and metadata included.

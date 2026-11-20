@@ -24,7 +24,7 @@ export const ChatRow = ({
 }: {
     row: BuilderChatRow
     now: number
-    onOpen: (chatId: string) => void
+    onOpen: (sessionId: string) => void
 }) => {
     const t = useT(builderPanelCatalog)
     const age = useChatAgeLabel()
@@ -76,7 +76,7 @@ export const RecentChats = ({
     rows: readonly BuilderChatRow[]
     failed: boolean
     onRetry: () => void
-    onOpen: (chatId: string) => void
+    onOpen: (sessionId: string) => void
     onViewAll: () => void
 }) => {
     const t = useT(builderPanelCatalog)

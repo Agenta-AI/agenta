@@ -23,7 +23,7 @@ interface SeenProps {
     composerHeader?: ReactNode
     belowComposer?: ReactNode
     composerPlaceholder?: string
-    noAgentCommands?: boolean
+    hideSlashCommands?: boolean
     userMessageAccessory?: (message: UIMessage) => ReactNode
 }
 const seen = vi.hoisted(() => ({
@@ -227,7 +227,7 @@ describe("BuilderPanel: which chat opens", () => {
         await render()
         expect(seen.props?.entityId).toBe("builder-rev")
         expect(seen.role).toBe("embedded")
-        expect(seen.props?.noAgentCommands).toBe(true)
+        expect(seen.props?.hideSlashCommands).toBe(true)
         expect(seen.props?.composerPlaceholder).toBe("Ask the builder about this agent")
     })
 
@@ -270,13 +270,13 @@ describe("BuilderPanel: which chat opens", () => {
 
     it("opens a new chat with no Recent chats part when none is stored, and links it at the first send", async () => {
         await render()
-        const chatId = seen.props!.sessionId
+        const sessionId = seen.props!.sessionId
         expect(byTestId("builder-recent-chats")).toBeNull()
         // No stored id: nothing is asked of the server.
         expect(list.asked.every((options) => !options.enabled)).toBe(true)
         expect(readBuilderChats(user(), "p1", "agent-1")).toEqual([])
         act(() => void seen.props!.beforeSend!("Hello"))
-        expect(readBuilderChats(user(), "p1", "agent-1")).toEqual([chatId])
+        expect(readBuilderChats(user(), "p1", "agent-1")).toEqual([sessionId])
     })
 
     it("opens a new chat and says the list failed when the query fails", async () => {
@@ -290,14 +290,13 @@ describe("BuilderPanel: which chat opens", () => {
         expect(recent.textContent).toContain("Try again")
     })
 
-    it("drops a stored chat the query no longer returns", async () => {
-        window.localStorage.setItem(
-            `agenta:builder:chats:${user()}:p1`,
-            JSON.stringify({"agent-1": ["gone", "kept"]}),
-        )
-        list.rows = [{session_id: "kept", updated_at: hoursAgo(100)}]
+    it("shows no stored chat the query no longer returns", async () => {
+        rememberBuilderChat(user(), "p1", "agent-1", "kept")
+        rememberBuilderChat(user(), "p1", "agent-1", "gone")
+        list.rows = [{session_id: "kept", name: "Kept chat", updated_at: hoursAgo(100)}]
         await render()
-        expect(readBuilderChats(user(), "p1", "agent-1")).toEqual(["kept"])
+        const rows = [...container.querySelectorAll("[data-testid=builder-chat-row]")]
+        expect(rows.map((row) => row.textContent)).toEqual(["Kept chat4d"])
     })
 
     it("asks for the stored ids in one stable order, whatever the link order", async () => {
@@ -384,7 +383,7 @@ describe("BuilderPanel: new chat", () => {
         rememberBuilderChat(user(), "p1", "agent-1", "old-chat")
         list.rows = [{session_id: "old-chat", name: "Daily summary", updated_at: hoursAgo(100)}]
         await render()
-        const chatId = seen.props!.sessionId
+        const sessionId = seen.props!.sessionId
         const mounts = seen.mounts
         await click(button("View all"))
         expect(byTestId("builder-chat-history")?.textContent).toContain("Daily summary")
@@ -392,7 +391,7 @@ describe("BuilderPanel: new chat", () => {
         await click(container.querySelector('[aria-label="Back"]'))
         expect(byTestId("builder-chat-history")).toBeNull()
         // The chat stayed mounted under the history: its composer and scroll are as they were.
-        expect(seen.props?.sessionId).toBe(chatId)
+        expect(seen.props?.sessionId).toBe(sessionId)
         expect(seen.mounts).toBe(mounts)
     })
 
@@ -514,7 +513,7 @@ describe("BuilderPanel: same-agent switch", () => {
         headers.rows.s2 = {name: "Login fails on Safari"}
         await render()
         await click(button("Test"))
-        const chatId = seen.props!.sessionId
+        const sessionId = seen.props!.sessionId
         const renders = seen.renders
         const mounts = seen.mounts
 
@@ -527,18 +526,18 @@ describe("BuilderPanel: same-agent switch", () => {
         // running answer are untouched.
         expect(seen.renders).toBe(renders)
         expect(seen.mounts).toBe(mounts)
-        expect(seen.props?.sessionId).toBe(chatId)
+        expect(seen.props?.sessionId).toBe(sessionId)
         expect(byTestId("builder-ready-requests")).not.toBeNull()
     })
 
     it("restores the same chat and its open quick action after a remount (a page file change)", async () => {
         await render()
         await click(button("Automate"))
-        const chatId = seen.props!.sessionId
+        const sessionId = seen.props!.sessionId
         act(() => root.unmount())
         root = createRoot(container)
         await render()
-        expect(seen.props?.sessionId).toBe(chatId)
+        expect(seen.props?.sessionId).toBe(sessionId)
         expect(byTestId("builder-ready-requests")?.textContent).toContain("Run it every morning")
     })
 })

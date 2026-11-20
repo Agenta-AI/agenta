@@ -155,7 +155,7 @@ export const LiveConversation = ({
     belowComposer,
     composerPlaceholder,
     inputRef,
-    noAgentCommands = false,
+    hideSlashCommands = false,
     userMessageAccessory,
 }: {
     entityId: string
@@ -204,7 +204,7 @@ export const LiveConversation = ({
     /** The host's handle on the composer input, so the host can write into it. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** The `/` palette would change the agent's own configuration: offer none (the builder). */
-    noAgentCommands?: boolean
+    hideSlashCommands?: boolean
     /** Shown with each sent user message, from the message as stored (with its full text). */
     userMessageAccessory?: (message: UIMessage) => ReactNode
 }) => {
@@ -1258,8 +1258,8 @@ export const LiveConversation = ({
                                 inputBusy={conversation.inputBusy}
                                 inputRef={composerRef}
                                 modelPickerRef={modelPickerRef}
-                                header={composerHeader}
-                                noAgentCommands={noAgentCommands}
+                                headerExtra={composerHeader}
+                                hideSlashCommands={hideSlashCommands}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={
                                     agentId ? () => startBlankSession(agentId) : undefined

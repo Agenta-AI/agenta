@@ -17,7 +17,7 @@ export interface ChatHistoryListProps {
     search: string
     onSearch: (search: string) => void
     onRetry: () => void
-    onOpen: (chatId: string) => void
+    onOpen: (sessionId: string) => void
 }
 
 /** The search field and the rows of "Chat history", newest first. */
@@ -82,7 +82,7 @@ export const ChatHistory = ({
     userId: string
     projectId: string
     agentId: string
-    onOpen: (chatId: string) => void
+    onOpen: (sessionId: string) => void
 }) => {
     const [search, setSearch] = useState("")
     const query = useDeferredValue(search)

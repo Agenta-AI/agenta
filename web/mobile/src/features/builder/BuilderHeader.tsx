@@ -42,7 +42,7 @@ export const BuilderHeader = ({
     history: boolean
     menuRows: readonly BuilderChatRow[]
     onBack: () => void
-    onOpenChat: (chatId: string) => void
+    onOpenChat: (sessionId: string) => void
     onOpenHistory: () => void
     onNewChat: () => void
     openInBuilderHref: string
