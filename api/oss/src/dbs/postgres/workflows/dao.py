@@ -28,6 +28,7 @@ from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope, Visibility
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.dtos import WorkflowArtifact
 from oss.src.core.workflows.interfaces import WorkflowsDAOInterface
+from oss.src.core.workflows.types import STATIC_SLUG_PREFIX
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.sharing.dbes import AgentAccessDBE
 from oss.src.dbs.postgres.git.mappings import map_dbe_to_dto
@@ -42,16 +43,6 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-# One statement. The CTE takes the artifact row lock before the insert, so the insert
-# cannot land after a concurrent `set_agent_policy` read "no row" under the same lock
-# (that write would overwrite this row, or this one would be lost). ON CONFLICT covers a
-# row that a concurrent writer committed while this statement waited for the lock.
-#
-# "First" is the earliest agent revision by (created_at, id), not "no other agent
-# revision": two first agent revisions can commit before either call runs, and each
-# call then sees the other. Only the call for the earliest one inserts, whatever order
-# the calls run in. A NULL created_at sorts first. When the earliest agent revision has
-# no owner (it never calls this), no row is written.
 # A static workflow's rows, created at its first commit in a project. The fixed ids and the
 # reserved slug are the same in every project, so a conflict on either is the row a concurrent
 # first commit wrote, and it is the row this call wanted.
@@ -69,6 +60,16 @@ ON CONFLICT DO NOTHING
 """
 
 
+# One statement. The CTE takes the artifact row lock before the insert, so the insert
+# cannot land after a concurrent `set_agent_policy` read "no row" under the same lock
+# (that write would overwrite this row, or this one would be lost). ON CONFLICT covers a
+# row that a concurrent writer committed while this statement waited for the lock.
+#
+# "First" is the earliest agent revision by (created_at, id), not "no other agent
+# revision": two first agent revisions can commit before either call runs, and each
+# call then sees the other. Only the call for the earliest one inserts, whatever order
+# the calls run in. A NULL created_at sorts first. When the earliest agent revision has
+# no owner (it never calls this), no row is written.
 _ENSURE_FIRST_AGENT_ACCESS_SQL = """
 WITH locked AS (
     SELECT a.id
@@ -213,6 +214,19 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
             AgentAccessDBE.owner_user_id.is_distinct_from(read_scope.owner_user_id),
         )
 
+    def _static_rows_filter(self, *, project_id: UUID, artifact_id_column):
+        """Leave out the rows of a static workflow. They hold a project's commits of its
+        editable fields; the workflow is served from code and is not listed. A query
+        that names refs keeps them, because it asked for those rows. Inside the query's
+        own statement, before windowing."""
+
+        artifact = aliased(self.ArtifactDBE)
+        return ~exists().where(
+            artifact.project_id == project_id,
+            artifact.id == artifact_id_column,
+            artifact.slug.startswith(STATIC_SLUG_PREFIX, autoescape=True),
+        )
+
     @suppress_exceptions(default=[])
     async def query_artifacts(
         self,
@@ -240,6 +254,15 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     project_id=project_id,
                     artifact_id_column=self.ArtifactDBE.id,
                     read_scope=read_scope,
+                ),
+                *(
+                    ()
+                    if artifact_refs
+                    else (
+                        ~self.ArtifactDBE.slug.startswith(
+                            STATIC_SLUG_PREFIX, autoescape=True
+                        ),
+                    )
                 ),
             ),
         )
@@ -299,6 +322,16 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     artifact_id_column=self.VariantDBE.artifact_id,
                     read_scope=read_scope,
                 ),
+                *(
+                    ()
+                    if artifact_refs or variant_refs
+                    else (
+                        self._static_rows_filter(
+                            project_id=project_id,
+                            artifact_id_column=self.VariantDBE.artifact_id,
+                        ),
+                    )
+                ),
             ),
         )
 
@@ -336,6 +369,16 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     artifact_id_column=self.RevisionDBE.artifact_id,
                     read_scope=read_scope,
                 ),
+                *(
+                    ()
+                    if artifact_refs or variant_refs or revision_refs
+                    else (
+                        self._static_rows_filter(
+                            project_id=project_id,
+                            artifact_id_column=self.RevisionDBE.artifact_id,
+                        ),
+                    )
+                ),
             ),
         )
 
@@ -365,6 +408,10 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     project_id=project_id,
                     artifact_id_column=self.RevisionDBE.artifact_id,
                     read_scope=read_scope,
+                ),
+                self._static_rows_filter(
+                    project_id=project_id,
+                    artifact_id_column=self.RevisionDBE.artifact_id,
                 ),
             ),
         )

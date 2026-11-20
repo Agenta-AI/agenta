@@ -62,6 +62,38 @@ class StaticWorkflowSlug(WorkflowError):
         )
 
 
+class StaticWorkflowReadOnly(StaticWorkflowSlug):
+    """Raised when a write names a static workflow by id: an edit, an archive, a fork, a
+    variant or a revision created outside the commit, or a scoped commit.
+
+    A static workflow is defined in code. A project may commit only the editable fields of
+    one that lists them, through the commit endpoint; every other write is refused. A
+    subclass of :class:`StaticWorkflowSlug`, so a route that maps that refusal maps this one
+    too.
+    """
+
+    code = "static_workflow_read_only"
+
+    def __init__(self, slug: str):
+        super().__init__(
+            slug,
+            message=f"The workflow '{slug}' is defined by Agenta and cannot be changed here.",
+        )
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": (
+                "Commit only the workflow's editable fields through the commit endpoint, "
+                "or leave this workflow unchanged."
+            ),
+            "details": {"slug": self.slug},
+        }
+
+
 def _json_safe_echo(value: Any) -> Any:
     """A value echoed back to the caller must survive JSON serialization.
 

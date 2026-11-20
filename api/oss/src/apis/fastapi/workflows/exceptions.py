@@ -22,6 +22,7 @@ from oss.src.core.workflows.types import (
     InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
     StaticFieldNotEditableError,
+    StaticWorkflowReadOnly,
     StaticWorkflowSlug,
 )
 
@@ -34,8 +35,10 @@ class StaticWorkflowSlugException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
-class StaticFieldNotEditableException(HTTPException):
-    def __init__(self, error: StaticFieldNotEditableError):
+class StaticWorkflowCodedException(HTTPException):
+    """A static workflow refusal that carries the canonical envelope."""
+
+    def __init__(self, error: StaticFieldNotEditableError | StaticWorkflowReadOnly):
         super().__init__(status_code=400, detail=error.to_detail())
 
 
@@ -81,10 +84,10 @@ def handle_workflow_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except (StaticWorkflowReadOnly, StaticFieldNotEditableError) as e:
+                raise StaticWorkflowCodedException(e) from e
             except StaticWorkflowSlug as e:
                 raise StaticWorkflowSlugException(message=e.message) from e
-            except StaticFieldNotEditableError as e:
-                raise StaticFieldNotEditableException(e) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
             except EmbedError as e:

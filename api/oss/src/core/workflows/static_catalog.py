@@ -1,13 +1,16 @@
 """The static workflow catalogue: code-defined static workflows.
 
 Agenta ships its own managed workflows to every project without per-project seeding or a
-migration. They are served from
-this catalogue under a reserved ``__ag__*`` slug namespace, never the database, and carry
-``flags.is_static=True`` (slug-derived) so clients and the frontend treat them as read-only.
+migration. Their code version is served from this catalogue under a reserved ``__ag__*`` slug
+namespace, never the database, and they carry
+``flags.is_static=True`` (slug-derived) so clients and the frontend recognize them. A client
+changes only the editable fields of an entry that lists them (below); every other part is
+read-only.
 
 An entry may list ``editable`` paths. A project may commit those fields for itself; the server
 stores them in the project's workflow tables under the entry's fixed ids, and every read puts
-them on top of the code version. Everything else in the entry stays code-defined.
+them on top of the code version. Everything else in the entry stays code-defined. For such an
+entry a version is the project's commit, as for any agent, not a catalogue version.
 
 The catalogue is the concrete :class:`StaticWorkflowProvider`. It holds, per reserved slug, a
 ``latest`` version pointer and a map of immutable versions. An artifact-level lookup (no version)
