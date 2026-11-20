@@ -23,6 +23,8 @@ const Notice = ({children}: {children: string}) => (
 const AgentTab = ({
     agentId,
     builderChangeId,
+    changedSections,
+    onSectionOpened,
     guardRef,
     builderSessionId,
     workspaceId,
@@ -30,6 +32,8 @@ const AgentTab = ({
 }: {
     agentId: string
     builderChangeId: string | null
+    changedSections?: string[]
+    onSectionOpened: (section: string) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -46,6 +50,8 @@ const AgentTab = ({
         <AgentPane
             agentId={agentId}
             builderChangeId={builderChangeId}
+            changedSections={changedSections}
+            onSectionOpened={onSectionOpened}
             guardRef={guardRef}
             builderSessionId={builderSessionId}
             workspaceId={workspaceId}
@@ -101,6 +107,7 @@ const AutomationTabRoot = ({
 export const BuilderTabContent = ({
     tab,
     builderChangeId,
+    onSectionOpened,
     guardRef,
     builderSessionId,
     workspaceId,
@@ -109,6 +116,8 @@ export const BuilderTabContent = ({
     tab: BuilderTab
     /** The builder's latest save of this tab's agent in this visit (the pane follows it). */
     builderChangeId: string | null
+    /** The person opened a section of this agent tab marked "Changed by the builder". */
+    onSectionOpened: (section: string) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -120,6 +129,8 @@ export const BuilderTabContent = ({
             <AgentTab
                 agentId={tab.id}
                 builderChangeId={builderChangeId}
+                changedSections={tab.changed}
+                onSectionOpened={onSectionOpened}
                 guardRef={guardRef}
                 builderSessionId={builderSessionId}
                 workspaceId={workspaceId}

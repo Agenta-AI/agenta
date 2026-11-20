@@ -86,6 +86,7 @@ import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
 import {removeSubagentByRef} from "./agentTemplate/subagentReference"
 import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
 import {AgentEditorContext, type AgentEditor} from "./agentTemplate/useAgentConfigWriter"
+import {useMarkedSections} from "./sectionMarks"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -908,6 +909,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         permissionsSection({t, mh, sectionIndicator, panelChangedPaths, bodyProps}),
         advancedSection({t, mh, sectionIndicator, advancedChangeBody, openAdvanced}),
     ].filter(Boolean) as AgentTemplateSectionDescriptor[]
+    // A container's marks on sections (the builder page's "Changed by the builder").
+    const markedSections = useMarkedSections(sections)
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -919,7 +922,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     return (
         <div className={cn("flex flex-col", className)}>
             <AgentTemplateSectionList
-                sections={sections}
+                sections={markedSections}
                 controlledKeys={CONTROLLED_SECTION_KEYS}
                 openByKey={sectionOpen}
                 onOpenChange={setSectionOpenByKey}

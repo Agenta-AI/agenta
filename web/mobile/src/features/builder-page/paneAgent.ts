@@ -4,6 +4,8 @@ import type {ToolUIPart, UIMessage} from "ai"
 
 import {sentContextOf} from "../builder/pageContext"
 
+import {changedSections} from "./changedSections"
+
 /** An agent as the builder page names it. The name is empty when the source gives none. */
 export interface AgentRef {
     id: string
@@ -51,6 +53,8 @@ export interface AgentResult {
     agent: AgentRef
     /** True when the call saved a new version or created the agent ("committed", "created"). */
     saved: boolean
+    /** The panel sections a saved edit changed; none for a new agent or an unsaved call. */
+    sections: string[]
 }
 
 /** Every settled `create_agent` and `edit_agent_config` call that names an agent, in order. */
@@ -63,10 +67,12 @@ export const agentResults = (messages: readonly UIMessage[]): AgentResult[] => {
             if (!agent) continue
             const tool = part as ToolUIPart
             const status = parseResult(tool.output)?.status
+            const input = tool.input as {operations?: unknown} | undefined
             results.push({
                 toolCallId: tool.toolCallId,
                 agent,
                 saved: status === "committed" || status === "created",
+                sections: status === "committed" ? changedSections(input?.operations) : [],
             })
         }
     }

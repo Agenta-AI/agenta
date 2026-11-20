@@ -1,6 +1,11 @@
 import {useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
-import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
+import {
+    AgentEditorContext,
+    SectionMarksContext,
+    type AgentEditor,
+    type SectionMarks,
+} from "@agenta/entity-ui/drill-in"
 import {
     DriveSessionProvider,
     SessionFilesPane,
@@ -50,6 +55,8 @@ export type PaneTab = (typeof PANE_TABS)[number]
 export const AgentPane = ({
     agentId,
     builderChangeId = null,
+    changedSections,
+    onSectionOpened,
     guardRef,
     builderSessionId,
     workspaceId,
@@ -58,6 +65,10 @@ export const AgentPane = ({
     agentId: string
     /** The tool call of the builder's latest save of this agent in this visit; the pane follows it. */
     builderChangeId?: string | null
+    /** Agent panel sections the builder changed ("Changed by the builder"). */
+    changedSections?: string[]
+    /** The person opened a section marked as changed. */
+    onSectionOpened?: (section: string) => void
     /** The open pane tab's views, shared with the page so it can ask before a builder tab change. */
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     /** The builder chat: the session the Drives pane reads its session files from. */
@@ -110,6 +121,19 @@ export const AgentPane = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [builderChangeId])
 
+    const changedKey = (changedSections ?? []).join(",")
+    const sectionMarks = useMemo<SectionMarks | null>(
+        () =>
+            changedKey && onSectionOpened
+                ? {
+                      keys: new Set(changedKey.split(",")),
+                      label: t("builder.page.changedByBuilder"),
+                      onOpened: onSectionOpened,
+                  }
+                : null,
+        [changedKey, onSectionOpened, t],
+    )
+
     const needsRevision = tab === "agent" || tab === "automations"
     let body
     if (needsRevision && failed)
@@ -129,7 +153,12 @@ export const AgentPane = ({
                 <SkeletonBlock active className="h-24 w-full" />
             </div>
         )
-    else if (tab === "agent" && revisionId) body = <ConfigPane entityId={revisionId} />
+    else if (tab === "agent" && revisionId)
+        body = (
+            <SectionMarksContext.Provider value={sectionMarks}>
+                <ConfigPane entityId={revisionId} />
+            </SectionMarksContext.Provider>
+        )
     else if (tab === "automations" && revisionId)
         body = (
             <AutomationsTab

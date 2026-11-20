@@ -27,7 +27,6 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {AgentPicker} from "./AgentPicker"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
@@ -35,6 +34,7 @@ import {
     writeBuilderPaneLayout,
     type BuilderPaneLayout,
 } from "./builderLayout"
+import {AgentPicker} from "./AgentPicker"
 import {BuilderPageChat} from "./BuilderPageChat"
 import {createBuilderSidebarScope} from "./builderSidebarScope"
 import {BuilderTabContent} from "./BuilderTabContent"
@@ -100,6 +100,14 @@ export const BuilderPage = ({
     })
     const activeTab =
         tabs.state.tabs.find((held) => builderTabKey(held) === tabs.state.active) ?? null
+    const {clearChanged} = tabs
+    const activeKey = tabs.state.active
+    const onSectionOpened = useCallback(
+        (section: string) => {
+            if (activeKey) clearChanged(activeKey, section)
+        },
+        [activeKey, clearChanged],
+    )
     // The active tab's open views: a form with edits asks before the tab changes or closes.
     const paneGuard = useRef<PageViewStackGuardApi | null>(null)
     const leaveActiveTab = async () => {
@@ -307,6 +315,7 @@ export const BuilderPage = ({
                     key={builderTabKey(activeTab)}
                     tab={activeTab}
                     builderChangeId={tabs.activeChangeId}
+                    onSectionOpened={onSectionOpened}
                     guardRef={paneGuard}
                     builderSessionId={sessionId}
                     workspaceId={workspaceId}

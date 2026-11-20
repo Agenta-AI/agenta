@@ -3,7 +3,7 @@
  * The builder tabs of the builder page (tasks 27.2, 40.1 to 40.3): the first tab from a builder
  * result, the page context or the browser link; the dot of a later result; the closed-tab
  * memory; the cap of 50; closing the active tab; the address; storage per chat; the row fit
- * with "N more"; and the 10 second rule (task 41.1).
+ * with "N more"; the 10 second rule (task 41.1); and the changed sections (task 41.2).
  */
 import {act, renderHook} from "@testing-library/react"
 import type {UIMessage} from "ai"
@@ -14,6 +14,7 @@ import {
     activateBuilderTab,
     builderTabKey,
     builderTabsStorageKey,
+    clearChangedSection,
     closeBuilderTab,
     EMPTY_BUILDER_TABS,
     followBuilderResult,
@@ -24,6 +25,7 @@ import {
     writeBuilderTabs,
     type BuilderTab,
 } from "@/features/builder-page/builderTabs"
+import {changedSections} from "@/features/builder-page/changedSections"
 import {fitTabs} from "@/features/builder-page/fitTabs"
 import {followAction} from "@/features/builder-page/followBuilder"
 import type {AgentResult} from "@/features/builder-page/paneAgent"
@@ -38,6 +40,7 @@ const result = (toolCallId: string, id: string, saved = true): AgentResult => ({
     toolCallId,
     agent: {id, name: id},
     saved,
+    sections: [],
 })
 
 afterEach(() => {
@@ -320,5 +323,46 @@ describe("useBuilderTabs follows a new save of the active agent", () => {
             ]),
         )
         expect(hook.result.current.activeChangeId).toBe("c3")
+    })
+})
+
+describe("Changed by the builder (task 41.2)", () => {
+    const T = ["parameters", "agent"]
+    it("names the panel section of the first segment of each operation target", () => {
+        expect(
+            changedSections([
+                {operation: "set", target: [...T, "instructions", "agents_md"], value: "x"},
+                {operation: "set", target: [...T, "llm"], value: {}},
+                {operation: "add_item", target: [...T, "skills"], value: {}},
+                {operation: "remove_item", target: [...T, {list: "tools", key: "gmail"}]},
+                {operation: "add_item", target: [...T, "mcps"], value: {}},
+                {operation: "set", target: [...T, "instructions", "extra"], value: "y"},
+                {operation: "set", target: [...T, "sandbox", "kind"], value: "local"},
+            ]),
+        ).toEqual(["instructions", "model-harness", "skills", "tools", "mcp", "advanced"])
+        expect(changedSections(undefined)).toEqual([])
+    })
+
+    it("marks the changed sections of a saved edit on its tab, until each is opened", () => {
+        let state = followBuilderResults(EMPTY_BUILDER_TABS, [result("c1", "a")], null)
+        state = followBuilderResults(
+            state,
+            [result("c1", "a"), {...result("c2", "a"), sections: ["instructions"]}],
+            null,
+        )
+        state = followBuilderResults(
+            state,
+            [
+                result("c1", "a"),
+                {...result("c2", "a"), sections: ["instructions"]},
+                {...result("c3", "a"), sections: ["skills", "instructions"]},
+            ],
+            null,
+        )
+        expect(state.tabs[0].changed).toEqual(["instructions", "skills"])
+        state = clearChangedSection(state, "agent:a", "instructions")
+        expect(state.tabs[0].changed).toEqual(["skills"])
+        state = clearChangedSection(state, "agent:a", "skills")
+        expect(state.tabs[0].changed).toBeUndefined()
     })
 })

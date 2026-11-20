@@ -30,6 +30,8 @@ export interface BuilderTab extends BuilderTabRef {
     name: string
     /** The builder changed it while it was not the active tab. */
     dot?: boolean
+    /** Agent panel sections the builder changed, marked until the person opens them (41.2). */
+    changed?: string[]
 }
 
 export interface BuilderTabsState {
@@ -65,11 +67,17 @@ const markFollowed = (state: BuilderTabsState, ids: string[]): BuilderTabsState 
 export const isUntouched = (state: BuilderTabsState) =>
     !state.tabs.length && !state.closed.length && !state.followedToolCallIds.length
 
-export const agentTab = (agent: AgentRef): BuilderTab => ({
+export const agentTab = (agent: AgentRef, changed: string[] = []): BuilderTab => ({
     kind: "agent",
     id: agent.id,
     name: agent.name,
+    ...(changed.length ? {changed} : {}),
 })
+
+const mergeChanged = (held: string[] | undefined, more: string[] | undefined) => {
+    const all = [...new Set([...(held ?? []), ...(more ?? [])])]
+    return all.length ? {changed: all} : {}
+}
 
 export const builderTabKey = (ref: BuilderTabRef) => `${ref.kind}:${ref.id}`
 
@@ -121,7 +129,11 @@ export const followBuilderResult = (state: BuilderTabsState, tab: BuilderTab): B
     const tabs = found
         ? state.tabs.map((held) =>
               builderTabKey(held) === key
-                  ? {...withName(held, tab.name), dot: held.dot || dot}
+                  ? {
+                        ...withName(held, tab.name),
+                        dot: held.dot || dot,
+                        ...mergeChanged(held.changed, tab.changed),
+                    }
                   : held,
           )
         : [...state.tabs, {...tab, dot}]
@@ -156,6 +168,25 @@ export const closeBuilderTab = (state: BuilderTabsState, key: string): BuilderTa
             : tabs,
         active,
         closed,
+    }
+}
+
+/** The person opened a marked section of a tab: its mark goes away. */
+export const clearChangedSection = (
+    state: BuilderTabsState,
+    key: string,
+    section: string,
+): BuilderTabsState => {
+    const tab = state.tabs.find((held) => builderTabKey(held) === key)
+    if (!tab?.changed?.includes(section)) return state
+    return {
+        ...state,
+        tabs: state.tabs.map((held) => {
+            if (held !== tab) return held
+            const {changed, ...rest} = held
+            const left = (changed ?? []).filter((name) => name !== section)
+            return left.length ? {...rest, changed: left} : rest
+        }),
     }
 }
 
@@ -195,7 +226,8 @@ export const followBuilderResults = (
     for (const result of results) {
         if (next.followedToolCallIds.includes(result.toolCallId)) continue
         next = markFollowed(next, [result.toolCallId])
-        if (result.saved) next = followBuilderResult(next, agentTab(result.agent))
+        if (result.saved)
+            next = followBuilderResult(next, agentTab(result.agent, result.sections))
     }
     return next
 }
@@ -216,6 +248,9 @@ const parseTab = (value: unknown): BuilderTab | null => {
         id: tab.id,
         name: typeof tab.name === "string" ? tab.name : "",
         dot: tab.dot === true,
+        ...(Array.isArray(tab.changed) && tab.changed.length
+            ? {changed: tab.changed.filter((name): name is string => typeof name === "string")}
+            : {}),
     }
 }
 
