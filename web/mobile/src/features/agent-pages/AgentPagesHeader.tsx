@@ -49,12 +49,13 @@ export const AgentPagesHeader = ({
                 <SimpleTooltip title={t("agentLayout.header.builder")}>
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-compact"
                         aria-label={t("agentLayout.header.builder")}
-                        className="size-8 shrink-0 text-muted-foreground"
+                        // The header's icon buttons are 32 px (A04).
+                        className="size-8 shrink-0"
                         onClick={onOpenBuilder}
                     >
-                        <BuilderIcon className="size-4" />
+                        <BuilderIcon />
                     </Button>
                 </SimpleTooltip>
             ) : null}
