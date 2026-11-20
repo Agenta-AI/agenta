@@ -34,6 +34,24 @@ import {EventAppRail} from "./EventAppRail"
 import {EventList} from "./EventList"
 import {usePickerIsWide} from "./PickerOverlay"
 
+/**
+ * The workspace's connected apps, one per integration, named by the catalog's display name
+ * ("Google Calendar", not "Googlecalendar"), so every label downstream reads the same.
+ */
+function useConnectedApps() {
+    const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
+    const {integrations} = useTriggerCatalogIntegrations()
+    const catalogNames = useMemo(
+        () => new Map(integrations.map((integration) => [integration.key, integration.name])),
+        [integrations],
+    )
+    const apps = useMemo(
+        () => connectedApps(connections, catalogNames),
+        [catalogNames, connections],
+    )
+    return {connections, connectionsLoading, catalogNames, apps}
+}
+
 /** What Done hands back in a draft's "not yet saved" mode. */
 export interface EventSelection {
     connectionId: string
@@ -75,7 +93,7 @@ export const EventPickerPanel = ({
     onSelectEvent: (selection: EventSelection) => void
 }) => {
     const t = useT(automationsEditorCatalog)
-    const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
+    const {connections, connectionsLoading, catalogNames, apps} = useConnectedApps()
 
     const [connectionId, setConnectionId] = useState(automation.connectionId ?? undefined)
     const [eventKey, setEventKey] = useState(automation.eventKey ?? "")
@@ -108,17 +126,6 @@ export const EventPickerPanel = ({
         [automation.raw],
     )
 
-    // The catalog's display name, not the integration key made readable: "Google Calendar",
-    // not "Googlecalendar". Resolved here once, so every label downstream reads the same.
-    const {integrations} = useTriggerCatalogIntegrations()
-    const catalogNames = useMemo(
-        () => new Map(integrations.map((integration) => [integration.key, integration.name])),
-        [integrations],
-    )
-    const apps = useMemo(
-        () => connectedApps(connections, catalogNames),
-        [catalogNames, connections],
-    )
     const connection = useMemo(
         () => connections.find((candidate) => candidate.id === connectionId),
         [connections, connectionId],
@@ -388,16 +395,7 @@ export const EventInlineCard = ({
     onSelectEvent: (selection: EventSelection) => void
 }) => {
     const t = useT(automationsEditorCatalog)
-    const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
-    const {integrations} = useTriggerCatalogIntegrations()
-    const catalogNames = useMemo(
-        () => new Map(integrations.map((integration) => [integration.key, integration.name])),
-        [integrations],
-    )
-    const apps = useMemo(
-        () => connectedApps(connections, catalogNames),
-        [catalogNames, connections],
-    )
+    const {connections, connectionsLoading, apps} = useConnectedApps()
     const openCatalogDrawer = useSetAtom(triggerCatalogDrawerOpenAtom)
 
     // The draft owns the app: the first connected app until one is picked, as the canvas shows
@@ -410,19 +408,56 @@ export const EventInlineCard = ({
     const [eventKey, setEventKey] = useState(automation.eventKey ?? "")
     const [values, setValues] = useState<Record<string, unknown>>({})
 
-    const {events} = useTriggerCatalogEvents(app?.integrationKey ?? "")
+    const {
+        events,
+        isLoading: eventsLoading,
+        hasNextPage,
+        isFetchingNextPage,
+        requestMore,
+    } = useTriggerCatalogEvents(app?.integrationKey ?? "")
+    // A select has no scroll to page on, so it loads every page of the app's events.
+    useEffect(() => {
+        if (hasNextPage && !isFetchingNextPage) requestMore()
+    }, [hasNextPage, isFetchingNextPage, requestMore])
     const {event, isLoading: eventLoading} = useTriggerEvent(app?.integrationKey ?? "", eventKey)
     const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
     const [configForm] = useSchemaFormInstance()
 
+    const formRef = useRef<SchemaFormHandle>(null)
+
+    // The draft gets the event once its filters pass the form's own validation, read through
+    // `getValues()` as the picker's Done does. Until then it holds no event, so Create stays
+    // blocked. Empty required filters block at once, without painting errors on a fresh form.
     useEffect(() => {
         if (!app) return
-        const complete = Boolean(eventKey) && !eventLoading && !requiredGaps(schema, values).length
-        onSelectEvent({
-            connectionId: app.connectionId,
-            eventKey: complete ? eventKey : "",
-            triggerConfig: complete ? normalizeRepoFilters(schema, values) : undefined,
-        })
+        const connectionId = app.connectionId
+        const block = () => onSelectEvent({connectionId, eventKey: "", triggerConfig: undefined})
+        if (!eventKey || eventLoading || requiredGaps(schema, values).length) {
+            block()
+            return
+        }
+        if (!schema) {
+            onSelectEvent({connectionId, eventKey, triggerConfig: undefined})
+            return
+        }
+        let live = true
+        const read = formRef.current?.getValues() ?? Promise.resolve(values)
+        read.then(
+            (valid) => {
+                if (live)
+                    onSelectEvent({
+                        connectionId,
+                        eventKey,
+                        triggerConfig: normalizeRepoFilters(schema, valid),
+                    })
+            },
+            () => {
+                if (live) block()
+            },
+        )
+        return () => {
+            live = false
+        }
     }, [app, eventKey, eventLoading, onSelectEvent, schema, values])
 
     // Another app starts with no event; another event starts its filters from empty.
@@ -474,7 +509,11 @@ export const EventInlineCard = ({
             </div>
             <div className="flex flex-col gap-1">
                 <span className={label}>{t("automations.editor.event")}</span>
-                <Select value={eventKey} disabled={!app} onValueChange={setEventKey}>
+                <Select
+                    value={eventKey}
+                    disabled={!app || eventsLoading}
+                    onValueChange={setEventKey}
+                >
                     <SelectTrigger aria-label={t("automations.editor.event")}>
                         <SelectValue />
                     </SelectTrigger>
@@ -489,6 +528,7 @@ export const EventInlineCard = ({
             </div>
             {schema ? (
                 <SchemaForm
+                    ref={formRef}
                     form={configForm}
                     schema={schema}
                     optionalLabel={(count) => t("automations.editor.optionalFilters", {count})}
