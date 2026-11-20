@@ -1,11 +1,10 @@
 /**
- * Tool-list management for the Tools section. The `tools` array mixes inline function, builtin,
- * gateway, and `type:"reference"` workflow tools (#4860; the last derives its input schema async).
- * This hook owns those add/remove flows plus the derived sets the section needs.
+ * Tool-list management for the Integrations section. The `tools` array mixes inline function,
+ * builtin, gateway, and `type:"reference"` workflow tools (#4860). This hook owns the integration
+ * writes plus the derived sets the section needs; subagents are written by their own views
+ * (`subagentReference.ts`).
  */
 import {useCallback, useMemo, type MutableRefObject} from "react"
-
-import type {WorkflowReferenceBridge, WorkflowReferencePayload} from "@agenta/ui/drill-in"
 
 import {migrateIntegration} from "../gatewayMigration"
 import {DEFAULT_INTEGRATION_PERMISSIONS, mergeToolPermission} from "../integrationPolicy"
@@ -22,24 +21,20 @@ import {
     type GatewayPermission,
 } from "../toolUtils"
 
-import {toolReferenceSlug} from "./itemDescriptors"
 import type {ItemKind} from "./itemKinds"
-import {normalizeSubagentReference} from "./subagentReference"
 
 export function useAgentTools({
     config,
     onChange,
     configRef,
     openCreate,
-    workflowReference,
 }: {
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
-    /** Latest config, so an async reference add doesn't clobber a concurrent edit. */
+    /** Latest config, so an async write does not clobber a concurrent edit. */
     configRef: MutableRefObject<Record<string, unknown>>
     /** Opens the shared item-config drawer in "create" mode (for inline function tools). */
     openCreate: (kind: ItemKind, seed: Record<string, unknown>, view: "form" | "json") => void
-    workflowReference?: WorkflowReferenceBridge
 }) {
     // Tools live as a flat array on the agent definition (the same tool-object shape the
     // prompt control uses, so the backend resolver parses them identically).
@@ -50,40 +45,6 @@ export function useAgentTools({
     const setTools = useCallback(
         (next: unknown[]) => onChange({...config, tools: next}),
         [config, onChange],
-    )
-
-    // Append a subagent, deriving its model-facing input schema from the target's latest revision.
-    const handleAddWorkflowReference = useCallback(
-        async (payload: WorkflowReferencePayload) => {
-            const wf = workflowReference?.workflows.find((w) => w.slug === payload.slug)
-            let inputSchema: Record<string, unknown> | null = null
-            try {
-                inputSchema = wf
-                    ? ((await workflowReference?.resolveInputSchema(wf)) ?? null)
-                    : null
-            } catch {
-                inputSchema = null
-            }
-            // Read the freshest tools after the async lookup so a concurrent add/remove isn't clobbered.
-            const latest = configRef.current
-            const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
-            if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
-            // No `name`: that copy went stale on a rename (#6444). The description is authored
-            // here, so it stays, seeded from the target's own description alone.
-            const referenceTool = normalizeSubagentReference({
-                slug: payload.slug,
-                description: payload.description ?? wf?.description ?? "",
-                input_schema: inputSchema ?? {type: "object", properties: {}},
-            })
-            onChange({...latest, tools: [...latestTools, referenceTool]})
-        },
-        [workflowReference, onChange, configRef],
-    )
-
-    // Removal by SLUG: a reference's display name is editable and can match another tool.
-    const handleRemoveReferenceBySlug = useCallback(
-        (slug: string) => setTools(tools.filter((tool) => toolReferenceSlug(tool) !== slug)),
-        [tools, setTools],
     )
 
     // ── Integrations: one `gateway_connection` entry per provider and integration ────────────
@@ -168,8 +129,6 @@ export function useAgentTools({
 
     return {
         tools,
-        handleAddWorkflowReference,
-        handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
         addPersonalIntegration,

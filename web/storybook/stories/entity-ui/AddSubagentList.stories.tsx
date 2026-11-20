@@ -1,22 +1,22 @@
-import {AddSubagentDrawer, type SubagentOption} from "@agenta/entity-ui/drill-in"
+import {AddSubagentList, type SubagentOption} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The "pick the agents this agent can call" surface, sharing CatalogListRow,
 // ExpandableDescription and LogoMarks with the integration drawer.
 const meta = {
-    title: "@agenta/entity-ui/DrillIn/AddSubagentDrawer",
-    component: AddSubagentDrawer,
+    title: "@agenta/entity-ui/DrillIn/AddSubagentList",
+    component: AddSubagentList,
     parameters: {
         layout: "fullscreen",
         docs: {
             description: {
                 component:
                     "Add agents as subagents, in the home list's row and search. Clicking a " +
-                    "row adds it, clicking again removes it, and the footer only closes.",
+                    "row adds it, clicking again removes it. The view that mounts it adds Done.",
             },
         },
     },
-} satisfies Meta<typeof AddSubagentDrawer>
+} satisfies Meta<typeof AddSubagentList>
 
 export default meta
 type Story = StoryObj<typeof meta>
@@ -49,7 +49,7 @@ const LOGO = {
     notion: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%226%22%20fill%3D%22%230F0F0F%22%2F%3E%3Ctext%20x%3D%2212%22%20y%3D%2217%22%20font-family%3D%22system-ui%2Csans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22600%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3EN%3C%2Ftext%3E%3C%2Fsvg%3E",
 }
 
-/** Past two lines at the drawer's width, which is what makes the Show more toggle appear. */
+/** Past two lines at the panel's width, which is what makes the Show more toggle appear. */
 const LONG_DESCRIPTION =
     "Reads the full ticket thread including every attachment and prior escalation, decides the " +
     "severity against the current on-call policy, names the owning team, drafts the internal " +
@@ -120,40 +120,40 @@ const OPTIONS: SubagentOption[] = [
     },
 ]
 
-// The drawer positions itself.
+// The width of the agent panel.
 const Frame = (children: React.ReactNode) => (
-    <div className="h-screen w-full bg-[var(--ag-colorBgLayout)]">{children}</div>
+    <div className="flex h-[640px] w-[480px] flex-col bg-[var(--ag-colorBgContainer)]">
+        {children}
+    </div>
 )
 
 /** Every row state the list can produce, in one screen. */
 export const Default: Story = {
-    args: {open: true, onClose: noop, options: OPTIONS, onAdd: noop, onRemove: noop},
-    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+    args: {options: OPTIONS, onAdd: noop, onRemove: noop},
+    render: (args) => Frame(<AddSubagentList {...args} />),
 }
 
 /** A short list, which is what a young project actually looks like. */
 export const FewAgents: Story = {
-    args: {open: true, onClose: noop, options: OPTIONS.slice(0, 2), onAdd: noop, onRemove: noop},
-    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+    args: {options: OPTIONS.slice(0, 2), onAdd: noop, onRemove: noop},
+    render: (args) => Frame(<AddSubagentList {...args} />),
 }
 
 /** Nothing to add yet. The copy points at the one thing that fixes it. */
 export const NoAgents: Story = {
-    args: {open: true, onClose: noop, options: [], onAdd: noop, onRemove: noop},
-    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+    args: {options: [], onAdd: noop, onRemove: noop},
+    render: (args) => Frame(<AddSubagentList {...args} />),
 }
 
 /** First paint, before the project's agents resolve. */
 export const Loading: Story = {
-    args: {open: true, onClose: noop, options: [], loading: true, onAdd: noop, onRemove: noop},
-    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+    args: {options: [], loading: true, onAdd: noop, onRemove: noop},
+    render: (args) => Frame(<AddSubagentList {...args} />),
 }
 
 /** The row's worst case: long name, long description, four apps. */
 export const LongContent: Story = {
     args: {
-        open: true,
-        onClose: noop,
         onAdd: noop,
         onRemove: noop,
         options: [
@@ -185,31 +185,27 @@ export const LongContent: Story = {
             },
         ],
     },
-    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+    render: (args) => Frame(<AddSubagentList {...args} />),
 }
 
-/** Every agent is already added, so every row is tinted and checked. */
+/** Every agent is already added, so every row is tinted and says "Added". */
 export const AllAlreadyAdded: Story = {
     args: {
-        open: true,
-        onClose: noop,
         onAdd: noop,
         onRemove: noop,
         options: OPTIONS.map((o) => ({...o, added: true})),
     },
-    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+    render: (args) => Frame(<AddSubagentList {...args} />),
 }
 
 /** Two agents failed to load. The list says so and offers a retry, rather than hiding them. */
 export const SomeFailedToLoad: Story = {
     args: {
-        open: true,
-        onClose: noop,
         onAdd: noop,
         onRemove: noop,
         options: OPTIONS.slice(0, 3),
         failedCount: 2,
         onRetry: noop,
     },
-    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+    render: (args) => Frame(<AddSubagentList {...args} />),
 }
