@@ -43,8 +43,7 @@ export const AutomationsTab = ({
     const scheduleDrawer = useAtomValue(triggerScheduleDrawerAtom)
     const subscriptionDrawer = useAtomValue(triggerSubscriptionDrawerAtom)
     const drawerOpen = Boolean(scheduleDrawer ?? subscriptionDrawer)
-    // The automation and the new forms open as views; Run history opens the automation with
-    // `openRuns` (see AutomationViewParams).
+    // Run history opens the automation with its history on top (`openRuns`).
     const openRunHistory = useCallback(
         ({id, kind}: TriggerOwnerRef) =>
             void stack.open(
