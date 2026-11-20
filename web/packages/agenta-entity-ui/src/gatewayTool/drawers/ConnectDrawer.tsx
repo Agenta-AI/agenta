@@ -2,11 +2,11 @@ import {useRef} from "react"
 
 import {ViewDrawerHost, type ViewRequest} from "@agenta/ui/view-stack"
 
+import type {ConnectionOwner} from "../../accounts/ConnectOwnerField"
 import {
     integrationConnectView,
     type IntegrationConnectViewParams,
 } from "../../DrillInView/SchemaControls/agentTemplate/views/integrationConnectView"
-import type {ConnectionOwner} from "../components/ConnectForm"
 
 interface Props {
     open: boolean

@@ -31,7 +31,6 @@ import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
 
-export type {ConnectionOwner}
 type AuthMode = "oauth" | "api_key"
 
 export interface ConnectFormInput {

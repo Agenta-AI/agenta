@@ -23,14 +23,16 @@ import {
     mcpItemRef,
     readMcpAccountSource,
     removeMcpByRef,
+    withMcpAccountSource,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
 import {mcpAddView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/mcpAddView"
 import {mcpServerView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/mcpServerView"
 
 import {byText, click, findByText} from "./domHelpers"
 
-const {writer, listeners, endpoints, access} = vi.hoisted(() => ({
+const {writer, listeners, endpoints, access, toolReads} = vi.hoisted(() => ({
     access: {value: "on"},
+    toolReads: {count: 0},
     listeners: new Set<() => void>(),
     endpoints: {rows: [] as unknown[]},
     writer: {
@@ -45,19 +47,23 @@ const {writer, listeners, endpoints, access} = vi.hoisted(() => ({
 }))
 
 // A writer that renders again on each write, as the real draft atom does.
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", async () => {
-    const {useSyncExternalStore} = await import("react")
-    const subscribe = (listener: () => void) => {
-        listeners.add(listener)
-        return () => void listeners.delete(listener)
-    }
-    return {
-        useAgentConfigWriter: () => {
-            useSyncExternalStore(subscribe, () => writer.agent)
-            return writer
-        },
-    }
-})
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (importOriginal) => {
+        const {useSyncExternalStore} = await import("react")
+        const subscribe = (listener: () => void) => {
+            listeners.add(listener)
+            return () => void listeners.delete(listener)
+        }
+        return {
+            ...(await importOriginal<object>()),
+            useAgentConfigWriter: () => {
+                useSyncExternalStore(subscribe, () => writer.agent)
+                return writer
+            },
+        }
+    },
+)
 
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     const original = await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()
@@ -67,10 +73,13 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
         ...original,
         mcpEndpointsQueryAtom: query,
         refreshMcpEndpointsAtom: jotaiAtom(null, () => undefined),
-        listMcpTools: async () => [
-            {name: "list_issues", title: "List issues", annotations: {readOnlyHint: true}},
-            {name: "create_issue", title: "Create issue", annotations: {readOnlyHint: false}},
-        ],
+        listMcpTools: async () => {
+            toolReads.count += 1
+            return [
+                {name: "list_issues", title: "List issues", annotations: {readOnlyHint: true}},
+                {name: "create_issue", title: "Create issue", annotations: {readOnlyHint: false}},
+            ]
+        },
     }
 })
 
@@ -81,6 +90,11 @@ vi.mock("@agenta/entities/secret", async (importOriginal) => {
         personalAccountsAccessAtom: jotaiAtom(() => access.value),
     }
 })
+
+// The no-person warning reads the agent's triggers, which this suite does not load.
+vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/accounts/useRunsWithoutPerson", () => ({
+    useRunsWithoutPerson: () => false,
+}))
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
@@ -230,7 +244,11 @@ describe("Connect server, who can use it", () => {
         await openIn(mcpAddView, {})
         await click(await findByText("Connect server", "button"))
         await click(await findByText("finish as project"))
-        expect(added()?.connection).toEqual({type: "gateway", namespace: "custom", slug: "new-server"})
+        expect(added()?.connection).toEqual({
+            type: "gateway",
+            namespace: "custom",
+            slug: "new-server",
+        })
         expect(readMcpAccountSource(added())).toBe("agent")
     })
 
@@ -278,6 +296,29 @@ describe("MCP server view", () => {
         expect(dialog.textContent).toContain("The connection stays in the project.")
         await click(byText("Remove"))
         expect(mcps().map((item) => item.name)).toEqual(["docs_search"])
+    })
+
+    it("says nothing about the project's sign-in on each person's own entry", async () => {
+        // "Only me": the person signed in, the project never did.
+        endpoints.rows = [
+            {
+                ...endpoint("linear", "healthy"),
+                auth_mode: "oauth",
+                secret_id: null,
+                user_sign_in: {},
+            },
+        ]
+        const own = withMcpAccountSource(linear, "user")
+        writer.agent = {mcps: [own]}
+        toolReads.count = 0
+        await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
+        await findByText("crumb:linear")
+        await findByText("Each person's own")
+        expect(byText("Not signed in")).toBeUndefined()
+        expect(byText("Reconnect")).toBeUndefined()
+        // The project's credential cannot read this server's tools: no list and no error.
+        expect(toolReads.count).toBe(0)
+        expect(document.body.textContent).not.toContain("Couldn't read this server's tools")
     })
 
     it("shows the removed state when the server left the agent", async () => {

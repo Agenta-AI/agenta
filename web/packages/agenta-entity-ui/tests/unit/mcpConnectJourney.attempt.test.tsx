@@ -63,6 +63,12 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test/api"}))
 
+const invalidatePersonalAccountReads = vi.hoisted(() => vi.fn(async () => undefined))
+vi.mock("../../../agenta-entities/src/accountChoice/state", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    invalidatePersonalAccountReads,
+}))
+
 // The hook's only setter is the endpoint list refresh.
 const refreshEndpoints = vi.hoisted(() => vi.fn(async () => undefined))
 
@@ -1626,6 +1632,8 @@ describe("whose sign-in the first consent stores", () => {
         expect(beginMcpConnect).not.toHaveBeenCalled()
         // The project's credential cannot see the person's grant, so no check is recorded.
         expect(recordMcpEndpointCheck).not.toHaveBeenCalled()
+        // An account write: the run accounts and Needs setup read it again.
+        expect(invalidatePersonalAccountReads).toHaveBeenCalled()
         expect(onConnected).toHaveBeenCalledWith({
             id: "mcp-1",
             slug: "acme-7mx",
@@ -1640,6 +1648,7 @@ describe("whose sign-in the first consent stores", () => {
         expect(beginMcpConnect).toHaveBeenCalledWith("mcp-1", ["tools:list"], "project-1")
         expect(beginPersonalMcpSignIn).not.toHaveBeenCalled()
         expect(recordMcpEndpointCheck).toHaveBeenCalledWith("mcp-1", {ok: true}, "project-1")
+        expect(invalidatePersonalAccountReads).not.toHaveBeenCalled()
         expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({owner: "project"}))
     })
 

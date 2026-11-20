@@ -26,6 +26,7 @@ import type {OwnerKind} from "@agenta/shared/types"
 import {randomAlphanumeric} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {
     beginMcpConnect,
     beginPersonalMcpSignIn,
@@ -1168,6 +1169,8 @@ export function useMcpConnectJourney({
             await recordMcpEndpointCheck(endpoint.id, check, projectId)
         }
         await refreshEndpoints()
+        // A person's own sign-in is an account write: the run accounts and Needs setup read it.
+        if (grantOwner === "user") await invalidatePersonalAccountReads()
         // The grant is stored either way, so nothing is lost by saying nothing: the connection
         // is in settings. Telling a form that was abandoned mid-refresh to select it would be
         // the one outcome nobody asked for.
