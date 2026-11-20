@@ -1545,15 +1545,14 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         """The author's Codex ACP session-mode override, from the ``permissions.mode`` option.
 
         One of ``agent`` / ``read-only`` / ``agent-full-access``; absent means the platform default
-        ``agent-full-access`` (D-008). Every mode now raises Codex's own permission gate for a tool
-        call: the runner image patches codex-acp's full-access preset from ``approvalPolicy:
-        "never"`` to ``on-request`` (D-008 amendment, 2026-07-31), so tool approvals park warm on
-        the runner's keep-alive path instead of resuming cold on a follow-up turn. Texture caveat
-        for ``agent`` mode, unchanged: Codex's own bubblewrap sandbox fails to initialize in our
-        containers, so SHELL-command approvals under ``agent`` are noisy and nondeterministic (a
-        gate phrased "the sandbox failed, may I rerun?", sometimes the bwrap error returned instead
-        of a prompt). Full access keeps shell gate-free, because Codex only asks for exec approval
-        when the filesystem sandbox is restricted. Tool-level approvals are unaffected either way.
+        ``agent-full-access`` (D-008). The runner image patches codex-acp's full-access preset from
+        ``approvalPolicy: "never"`` to ``untrusted``, so Codex asks before every file patch and
+        every shell command it does not know to be safe, and the run's ``permissions`` policy
+        answers each request (``allow`` approves it, ``allow_reads`` and ``ask`` park a card).
+        ``read-only`` keeps ``on-request``. ``agent`` is codex-acp's "Auto review" preset, where a
+        reviewer model inside Codex answers its own requests, so the run's policy does not see
+        them. Codex's own bubblewrap sandbox fails to initialize in our containers, so shell under
+        ``agent`` and ``read-only`` is noisy; full access avoids that.
         An invalid value emits nothing (byte-identical wire; the golden contract)."""
         mode = self.harness_permissions.get("mode")
         if mode not in {"agent", "read-only", "agent-full-access"}:

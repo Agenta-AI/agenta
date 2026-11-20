@@ -1,7 +1,7 @@
 {
-  "_comment": "Single source of truth for the codex-acp approval-decoupling anchor (D-008 amendment). Consumed by codex-acp-patch.ts (the runner image, via scripts/patch-codex-acp-approvals.ts) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot image). Both surfaces MUST patch identically, or a Daytona run silently keeps cold approvals while a local run is warm. Keep the anchor here and nowhere else.",
-  "pattern": "(AgentFullAccess\\s*=\\s*new\\s+\\w+\\(\\s*\"agent-full-access\",[\\s\\S]{0,600}?)\"(never|on-request)\"(\\s*,\\s*\"user\"\\s*,\\s*\\{\\s*\"?type\"?\\s*:\\s*\"dangerFullAccess\"\\s*\\})",
+  "_comment": "Single source of truth for the codex-acp full-access approval anchor (D-008 amendment, then the 2026-11-20 change to untrusted so Codex asks before every file patch). Consumed by codex-acp-patch.ts (the runner image, via scripts/patch-codex-acp-approvals.ts) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot image). Both surfaces MUST patch identically. Keep the anchor here and nowhere else.",
+  "pattern": "(AgentFullAccess\\s*=\\s*new\\s+\\w+\\(\\s*\"agent-full-access\",[\\s\\S]{0,600}?)\"(never|on-request|untrusted)\"(\\s*,\\s*\"user\"\\s*,\\s*\\{\\s*\"?type\"?\\s*:\\s*\"dangerFullAccess\"\\s*\\})",
   "stock": "never",
-  "patched": "on-request",
+  "patched": "untrusted",
   "bundlePath": "bin/agent_processes/codex/node_modules/@agentclientprotocol/codex-acp/dist/index.js"
 }

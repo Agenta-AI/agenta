@@ -15,14 +15,17 @@
  * the turn stays alive and continues in place the moment the human answers.
  *
  * This patch decouples the pair for the full-access preset only: approvals become
- * `on-request` while the sandbox stays `dangerFullAccess`. Codex then raises native permission
- * requests for MCP (Agenta) tool calls, which ride the keep-alive park the runner already
- * built for Claude, so Codex approvals become warm. Shell stays gate-free because codex only
- * asks for exec approval when the filesystem sandbox is restricted, which full access is not.
+ * `untrusted` while the sandbox stays `dangerFullAccess`. Under `untrusted`, codex raises a
+ * native permission request for every file patch and for every shell command it does not know
+ * to be safe, as well as for MCP (Agenta) tool calls. (`on-request` was not enough: under full
+ * access it approves any patch inside the writable roots without asking, so the agent's
+ * permission policy never saw a file write.) The requests ride the keep-alive park the runner
+ * already built for Claude, so approvals are warm, and the runner's permission plan answers each
+ * one: `allow` approves it silently, `allow_reads` and `ask` show the user a card.
  *
  * RETIREMENT. Upstream issue agentclientprotocol/codex-acp#310 asks for the same decoupling.
  * When an accepted release ships it, drop this patch and bump the pin: `applyCodexAcpApprovalPatch`
- * reports `already-patched` for a source that already sends `on-request`, so the transition is safe.
+ * reports `already-patched` for a source that already sends `untrusted`, so the transition is safe.
  *
  * FAILING LOUDLY IS THE POINT. The image build calls this and exits non-zero on `anchor-missing`.
  * A codex-acp version whose preset no longer matches must break the build, not silently ship
@@ -38,8 +41,8 @@
  *
  * The pattern is anchored on the `AgentFullAccess` constructor call AND on the
  * `dangerFullAccess` sandbox literal that follows the approval argument, so it can only ever
- * rewrite the approval policy of the full-access preset. The `read-only` and `agent` presets
- * already send `on-request` and are left untouched.
+ * rewrite the approval policy of the full-access preset. The other presets keep `on-request`
+ * and are left untouched.
  */
 import patchSpec from "./codex-acp-patch.json" with { type: "json" };
 
@@ -60,7 +63,7 @@ export type CodexAcpPatchOutcome =
 /**
  * Rewrite the full-access preset's approval policy in a codex-acp bundle.
  *
- * Idempotent: a source already sending `on-request` returns `already-patched` and is not
+ * Idempotent: a source already sending `untrusted` returns `already-patched` and is not
  * rewritten, so a rebuilt image layer (or a re-run against a baked image) is a no-op.
  */
 export function applyCodexAcpApprovalPatch(
