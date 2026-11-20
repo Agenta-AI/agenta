@@ -294,6 +294,10 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                     stmt = stmt.where(
                         SessionTurnDBE.session_id == query.session_id,
                     )
+                if query.turn_id is not None:
+                    stmt = stmt.where(
+                        SessionTurnDBE.turn_id == query.turn_id,
+                    )
                 if query.stream_id is not None:
                     stmt = stmt.where(
                         SessionTurnDBE.stream_id == query.stream_id,

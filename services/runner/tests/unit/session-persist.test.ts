@@ -72,6 +72,42 @@ describe("buildPersistingEmitter", () => {
     assert.deepEqual(rows.map((row) => row.attributes.text), ["remember this", "partial thought"]);
     assert.notEqual(rows[0].record_id, rows[1].record_id);
   });
+  it("stamps the run's model on failure records only", async () => {
+    const live: any[] = [];
+    const { emit, persist, flush } = buildPersistingEmitter(
+      "failure-model",
+      () => "test",
+      (e) => live.push(e),
+      undefined,
+      undefined,
+      undefined,
+      "anthropic/haiku",
+    );
+
+    emit({ type: "message", text: "hi" });
+    emit({ type: "tool_result", id: "ok", output: "fine" });
+    emit({ type: "tool_result", id: "bad", output: "boom", isError: true });
+    emit({ type: "tool_result", id: "no", output: "declined", isError: true, denied: true });
+    emit({ type: "error", message: "provider down", code: "provider_error" } as any);
+    persist({ type: "mcp_server_failed", serverName: "linear" } as any, "agent");
+    await flush();
+
+    const models = (postedBodies as any[]).map((row) => [
+      row.attributes.id ?? row.record_type,
+      row.attributes.model,
+    ]);
+    assert.deepEqual(models, [
+      ["message", undefined],
+      ["ok", undefined],
+      ["bad", "anthropic/haiku"],
+      ["no", undefined],
+      ["error", "anthropic/haiku"],
+      ["mcp_server_failed", "anthropic/haiku"],
+    ]);
+    // The live stream keeps the harness's own events.
+    assert.equal(live.some((e) => "model" in e), false);
+  });
+
   it("persists a plain message event and forwards to the live emitter", async () => {
     const live: unknown[] = [];
     const { emit, flush } = buildPersistingEmitter(

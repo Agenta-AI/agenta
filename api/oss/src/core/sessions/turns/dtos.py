@@ -82,6 +82,7 @@ class SessionTurnComplete(BaseModel):
 
 class SessionTurnQuery(BaseModel):
     session_id: Optional[str] = None
+    turn_id: Optional[UUID] = None
     stream_id: Optional[UUID] = None
     harness_kind: Optional[HarnessKind] = None
     references: Optional[List[SessionReference]] = None
