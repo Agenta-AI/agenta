@@ -1681,6 +1681,36 @@ describe("whose sign-in the first consent stores", () => {
         listeners.mockRestore()
     })
 
+    it("keeps it too when the wait was cancelled first, as leaving the view does", async () => {
+        await mountJourney({owner: "user"})
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        fetchMcpConnectAttempt.mockResolvedValue({
+            count: 1,
+            attempt: {id: "attempt-1", status: "connected"},
+        })
+        // The screens drop the attempt first (Cancel on the wait, or their unmount).
+        await act(async () => {
+            await journey.abandonAttempt()
+        })
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(fetchMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+        expect(deleteMcpEndpoint).not.toHaveBeenCalled()
+    })
+
     it("still drops the pending server when the person's own sign-in did not finish", async () => {
         await mountJourney({owner: "user"})
         await act(async () => journey.setUrl("https://mcp.acme.test/"))

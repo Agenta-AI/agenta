@@ -230,6 +230,9 @@ export function useMcpConnectJourney({
     const consentAttemptRef = useRef<{endpointId: string; attemptId: string} | null>(null)
     // Whose grant the last consent started for, so the end reports the owner it stored.
     const consentOwnerRef = useRef<McpSignInOwner>("project")
+    // The last consent for a person's own sign-in. Kept past an abandon, unlike the attempt
+    // above: a cancel asks the API whether it finished before it drops the row.
+    const personalConsentRef = useRef<{endpointId: string; attemptId: string} | null>(null)
     const popupNameRef = useRef(`mcp_oauth_${randomAlphanumeric(6)}`)
     // The reducer's state is not readable from inside an async step that already started,
     // so the identity is mirrored here for the teardown and the callbacks.
@@ -571,6 +574,7 @@ export function useMcpConnectJourney({
             // the completion it posts then arrives at a window with no listener on it, and only
             // the completion check on close would recover it.
             consentAttemptRef.current = {endpointId, attemptId}
+            personalConsentRef.current = personal ? {endpointId, attemptId} : null
             stopWatch()
             stopWatchRef.current = watchOauthConsent({
                 popup,
@@ -1197,8 +1201,7 @@ export function useMcpConnectJourney({
     const cancel = useCallback(async () => {
         // A person's own consent leaves the row with no credential, so the API's pending check
         // cannot see that it finished. Asked after the cancel, which leaves a finished attempt be.
-        const personalAttempt =
-            consentOwnerRef.current === "user" ? consentAttemptRef.current : null
+        const personalAttempt = personalConsentRef.current
         const cancelled = abandonAttempt()
         const endpoint = endpointRef.current
         if (cancelDeletesEndpoint(state) && endpoint) {
