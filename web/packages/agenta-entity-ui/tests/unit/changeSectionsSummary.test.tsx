@@ -62,4 +62,23 @@ describe("ChangeSummary", () => {
         expect(html).toContain("send_email")
         expect(html).not.toContain("aria-expanded")
     })
+
+    it("shows every changed line of a text section, past the inline limit", () => {
+        const hunks = Array.from({length: 8}, (_, i) => line("added", `rule ${i + 1}`))
+        const html = renderToStaticMarkup(
+            <ChangeSummary
+                sections={[
+                    {
+                        id: "instructions",
+                        title: "Instructions",
+                        tags: [{kind: "edited", label: "Edited"}],
+                        totalCount: 1,
+                        textDiff: {hunks, added: 8, removed: 0, before: "", after: ""},
+                    },
+                ]}
+            />,
+        )
+        expect(html).toContain("Changed")
+        expect(html).toContain("rule 8")
+    })
 })

@@ -469,28 +469,29 @@ export const summaryLines = (
     return out
 }
 
-/** The summary box of a text diff: the changed lines in one bordered box, in the body font. */
+/** The summary box of a text diff: every changed line, in the body font. The sign has its own
+ * column, so a removed Markdown bullet does not read as "− -". */
 function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
     return (
         <>
-            {summaryLines(hunks)
-                .slice(0, INLINE_TEXT_DIFF_LINES)
-                .map((line, i) => (
-                    <div
-                        key={i}
-                        className="whitespace-pre-wrap break-words px-2.5 py-1"
-                        style={{
-                            background: line.type === "added" ? ADD_BG : DEL_BG,
-                            color:
-                                line.type === "added"
-                                    ? "var(--ag-colorSuccess)"
-                                    : "var(--ag-colorError)",
-                        }}
-                    >
-                        {line.type === "added" ? "+ " : "− "}
-                        {line.content}
-                    </div>
-                ))}
+            {summaryLines(hunks).map((line, i) => (
+                <div
+                    key={i}
+                    className="flex px-2.5 py-1"
+                    style={{
+                        background: line.type === "added" ? ADD_BG : DEL_BG,
+                        color:
+                            line.type === "added"
+                                ? "var(--ag-colorSuccess)"
+                                : "var(--ag-colorError)",
+                    }}
+                >
+                    <span aria-hidden className="mr-1.5 w-2.5 shrink-0">
+                        {line.type === "added" ? "+" : "−"}
+                    </span>
+                    <span className="min-w-0 whitespace-pre-wrap break-words">{line.content}</span>
+                </div>
+            ))}
         </>
     )
 }
