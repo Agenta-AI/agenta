@@ -51,7 +51,7 @@ def admin(monkeypatch):
     monkeypatch.setattr(licenses_router, "get_request_access", lambda: access)
     is_admin = AsyncMock(return_value=True)
     monkeypatch.setattr(licenses_router, "is_instance_admin", is_admin)
-    monkeypatch.setattr(env.stripe, "api_key", None)
+    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: False)
     monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
     return is_admin
 
@@ -118,8 +118,8 @@ async def test_registration_by_a_user_who_is_not_the_instance_admin_gets_403(
 
 
 @pytest.mark.asyncio
-async def test_registration_with_stripe_answers_404(admin, agenta, monkeypatch):
-    monkeypatch.setattr(env.stripe, "api_key", "sk_test_unit")
+async def test_registration_on_cloud_answers_404(admin, agenta, monkeypatch):
+    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
         await _register()

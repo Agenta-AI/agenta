@@ -121,6 +121,7 @@ def _setup(monkeypatch, *, plan, subscription_id, prices):
         "enabled",
         property(lambda self: True),
     )
+    monkeypatch.setattr(subscriptions_service_module, "is_cloud", lambda: True)
     monkeypatch.setattr(subscriptions_service_module, "_load_stripe", lambda: stripe)
     monkeypatch.setattr(subscriptions_service_module, "get_free_plan", lambda: HOBBY)
     monkeypatch.setattr(billing_router_module, "get_free_plan", lambda: HOBBY)

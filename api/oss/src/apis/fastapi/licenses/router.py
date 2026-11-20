@@ -21,10 +21,18 @@ from oss.src.core.licenses.admins import count_users, is_instance_admin
 from oss.src.core.licenses.registrations import create_registration
 from oss.src.core.licenses.types import RegistrationFailed
 from oss.src.utils.common import is_ee
-from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
 COMMUNITY_PLAN = "self_hosted_community"
+
+
+def _is_cloud() -> bool:
+    """Cloud has no instance license; only the EE image can be cloud."""
+    if not is_ee():
+        return False
+    from ee.src.core.licenses.cloud import is_cloud  # noqa: PLC0415
+
+    return is_cloud()
 
 
 def _not_available() -> HTTPException:
@@ -91,7 +99,7 @@ class LicensesRouter:
 
     @intercept_exceptions()
     async def fetch_instance_license(self, request: Request) -> InstanceLicenseResponse:
-        if env.stripe.enabled:
+        if _is_cloud():
             raise _not_available()
         await require_instance_admin()
 
@@ -114,7 +122,7 @@ class LicensesRouter:
         *,
         body: InstanceLicenseActivateRequest,
     ) -> InstanceLicenseResponse:
-        if env.stripe.enabled:
+        if _is_cloud():
             raise _not_available()
         await require_instance_admin()
 
@@ -151,7 +159,7 @@ class LicensesRouter:
         *,
         body: InstanceRegistrationRequest,
     ) -> InstanceRegistrationResponse:
-        if env.stripe.enabled:
+        if _is_cloud():
             raise _not_available()
         await require_instance_admin()
 

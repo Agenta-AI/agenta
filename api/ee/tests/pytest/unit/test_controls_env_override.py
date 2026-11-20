@@ -775,13 +775,41 @@ class TestDefaultPlanEnv:
         )
         assert out.strip() == "self_hosted_enterprise"
 
-    def test_unset_falls_back_to_hobby_when_stripe_on(self):
+    def test_unset_falls_back_to_hobby_on_cloud(self):
+        # Cloud is a cloud license key (signed here by a throwaway key pair), not Stripe.
         out = _ok(
-            "from ee.src.core.subscriptions.types import get_default_plan; "
+            "import base64, json, uuid, datetime\n"
+            "from cryptography.hazmat.primitives import serialization\n"
+            "from cryptography.hazmat.primitives.asymmetric.ed25519 import "
+            "Ed25519PrivateKey\n"
+            "from oss.src.utils.env import env\n"
+            "from ee.src.core.licenses import keys\n"
+            "from ee.src.core.licenses.cloud import is_cloud\n"
+            "from ee.src.core.subscriptions.types import get_default_plan\n"
+            "k = Ed25519PrivateKey.generate()\n"
+            "keys.PUBLIC_KEY = k.public_key().public_bytes("
+            "serialization.Encoding.PEM, "
+            "serialization.PublicFormat.SubjectPublicKeyInfo).decode()\n"
+            "b64 = lambda d: base64.urlsafe_b64encode(d).rstrip(b'=').decode()\n"
+            "body = b64(json.dumps({'key_id': str(uuid.uuid4()), 'plan': 'cloud', "
+            "'customer': 'Agenta cloud', "
+            "'issued_at': datetime.datetime.now(datetime.timezone.utc).isoformat()"
+            "}).encode())\n"
+            "env.license.key = 'agenta_license_v1.' + body + '.' + "
+            "b64(k.sign(body.encode()))\n"
+            "is_cloud.cache_clear()\n"
             "print(get_default_plan())",
             env_extra={"STRIPE_API_KEY": "sk_test_dummy"},
         )
         assert out.strip() == "cloud_v0_hobby"
+
+    def test_stripe_alone_does_not_pick_the_cloud_default_plan(self):
+        out = _ok(
+            "from ee.src.core.subscriptions.types import get_default_plan; "
+            "print(get_default_plan())",
+            env_extra={"STRIPE_API_KEY": "sk_test_dummy", "AGENTA_LICENSE_KEY": ""},
+        )
+        assert out.strip() == "self_hosted_enterprise"
 
     def test_default_plan_not_in_effective_set_fails_startup(self):
         _fails(

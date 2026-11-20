@@ -387,6 +387,10 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
     validate_platform_runtime_key()
+    if is_ee():
+        from ee.src.core.licenses.cloud import validate_cloud_license  # noqa: PLC0415
+
+        validate_cloud_license()
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()

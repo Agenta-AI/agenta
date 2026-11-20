@@ -16,8 +16,8 @@ from pydantic import ValidationError
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.access.controls import get_plans
 from ee.src.core.licenses.types import (
+    CLOUD_PLAN,
     LICENSE_KEY_PREFIX,
     InvalidLicenseKey,
     LicenseKey,
@@ -58,7 +58,7 @@ def _public_key() -> Ed25519PublicKey:
 
 def parse_license_key(text: str) -> LicenseKey:
     """The payload of a key whose signature checks, whose `key_id` is not refused, and
-    whose plan is in the plan table. Expiry is not checked here."""
+    whose plan is `cloud` or in the plan table. Expiry is not checked here."""
     text = (text or "").strip()
     if len(text) > _MAX_KEY_LENGTH:
         raise InvalidLicenseKey("format")
@@ -85,6 +85,12 @@ def parse_license_key(text: str) -> LicenseKey:
 
     if str(license_key.key_id) in REVOKED_KEY_IDS:
         raise InvalidLicenseKey("refused")
+
+    if license_key.plan == CLOUD_PLAN:
+        return license_key
+
+    # Imported here: building the plan table calls `is_cloud()`, which parses a key.
+    from ee.src.core.access.controls import get_plans  # noqa: PLC0415
 
     if license_key.plan not in get_plans():
         raise InvalidLicenseKey("plan")

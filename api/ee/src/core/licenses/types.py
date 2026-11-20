@@ -9,6 +9,10 @@ from ee.src.core.access.entitlements.types import DefaultPlan
 
 LICENSE_KEY_PREFIX = "agenta_license_v1"
 
+# The plan of the key that marks an install as Agenta cloud. It is not in the plan table:
+# a cloud organization's plan comes from its Stripe subscription.
+CLOUD_PLAN = "cloud"
+
 LicenseSource = Literal["environment", "database"]
 
 

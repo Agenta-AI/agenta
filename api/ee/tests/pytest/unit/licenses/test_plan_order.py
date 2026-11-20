@@ -1,5 +1,5 @@
-"""Stripe first (cloud, unchanged), then the license key, then the community plan.
-No env plan setting gives an instance without Stripe an enterprise flag."""
+"""Cloud first (a cloud license key, unchanged), then the license key, then the community
+plan. No env plan setting gives an instance outside cloud an enterprise flag."""
 
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -30,7 +30,7 @@ def _subscriptions(plan: str) -> SubscriptionsService:
 
 
 @pytest.mark.asyncio
-async def test_with_stripe_the_subscription_plan_is_unchanged(cloud, monkeypatch):
+async def test_on_cloud_the_subscription_plan_is_unchanged(cloud, monkeypatch):
     instance_plan = AsyncMock(return_value=COMMUNITY)
     monkeypatch.setattr(subscriptions_service_module, "instance_plan", instance_plan)
     service = _subscriptions("cloud_v0_pro")
@@ -42,7 +42,7 @@ async def test_with_stripe_the_subscription_plan_is_unchanged(cloud, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_without_stripe_the_subscription_plan_is_the_instance_plan(
+async def test_outside_cloud_the_subscription_plan_is_the_instance_plan(
     self_hosted, monkeypatch
 ):
     monkeypatch.setattr(
@@ -60,7 +60,7 @@ async def test_without_stripe_the_subscription_plan_is_the_instance_plan(
 
 
 @pytest.mark.asyncio
-async def test_with_stripe_entitlements_read_the_subscription(cloud, monkeypatch):
+async def test_on_cloud_entitlements_read_the_subscription(cloud, monkeypatch):
     instance_plan = AsyncMock(return_value=COMMUNITY)
     monkeypatch.setattr(entitlements_service, "instance_plan", instance_plan)
     monkeypatch.setattr(
@@ -76,7 +76,7 @@ async def test_with_stripe_entitlements_read_the_subscription(cloud, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_without_stripe_entitlements_use_the_instance_plan(
+async def test_outside_cloud_entitlements_use_the_instance_plan(
     self_hosted, monkeypatch
 ):
     monkeypatch.setattr(
@@ -99,7 +99,7 @@ async def test_without_stripe_entitlements_use_the_instance_plan(
 
 
 @pytest.mark.asyncio
-async def test_without_stripe_a_cached_plan_gives_way_to_the_instance_plan(
+async def test_outside_cloud_a_cached_plan_gives_way_to_the_instance_plan(
     self_hosted, monkeypatch
 ):
     cached = {"plan": COMMUNITY, "anchor": 7}
@@ -119,7 +119,7 @@ async def test_without_stripe_a_cached_plan_gives_way_to_the_instance_plan(
 
 
 @pytest.mark.asyncio
-async def test_with_stripe_the_throttle_plan_is_the_cached_plan(cloud, monkeypatch):
+async def test_on_cloud_the_throttle_plan_is_the_cached_plan(cloud, monkeypatch):
     instance_plan = AsyncMock(return_value=COMMUNITY)
     monkeypatch.setattr(
         throttling, "get_cache", AsyncMock(return_value={"plan": "cloud_v0_pro"})
@@ -203,7 +203,7 @@ async def test_default_plan_without_a_key_keeps_the_instance_on_community(
     assert all(value is False for value in _flags(plans, subscription.plan).values())
 
 
-def test_with_stripe_the_overlay_still_applies(cloud, monkeypatch):
+def test_on_cloud_the_overlay_still_applies(cloud, monkeypatch):
     monkeypatch.setattr(env.agenta.access, "default_plan", "cloud_v0_pro")
     monkeypatch.setattr(
         env.agenta.access, "default_plan_overlay", {"flags": {"sso": True}}

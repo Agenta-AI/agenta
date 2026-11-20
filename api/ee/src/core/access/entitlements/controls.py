@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
+from ee.src.core.licenses.cloud import is_cloud
 from ee.src.core.access.entitlements.types import (
     Category,
     Counter,
@@ -30,7 +31,7 @@ from ee.src.core.access.entitlements.types import (
 
 log = get_module_logger(__name__)
 
-# Without Stripe, the plans an instance gets without a paid key: no valid key, or a
+# Outside cloud, the plans an instance gets without a paid key: no valid key, or a
 # free registration key. Env settings cannot change their flags.
 FREE_SELF_HOSTED_PLANS = (
     DefaultPlan.SELF_HOSTED_COMMUNITY.value,
@@ -323,7 +324,7 @@ def _resolve_default_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
     raw = env.agenta.access.default_plan
     if raw:
         return raw
-    if env.stripe.enabled:
+    if is_cloud():
         return DefaultPlan.CLOUD_V0_HOBBY.value
     return DefaultPlan.SELF_HOSTED_ENTERPRISE.value
 
@@ -360,12 +361,12 @@ def build_plan_controls() -> tuple[Dict[str, Dict[Tracker, Any]], Dict[str, str]
         )
         plan_overlay_source = f"env→{default_plan_slug}"
 
-    if not env.stripe.enabled:
+    if not is_cloud():
         plans = _lock_free_self_hosted_plans(plans)
         if env.agenta.access.default_plan:
             log.warning(
-                "[access-controls] AGENTA_ACCESS_DEFAULT_PLAN has no effect without "
-                "Stripe: the plan comes from the license key"
+                "[access-controls] AGENTA_ACCESS_DEFAULT_PLAN has no effect outside "
+                "cloud: the plan comes from the license key"
             )
 
     source = f"plans={plans_source} plan_overlay={plan_overlay_source}"

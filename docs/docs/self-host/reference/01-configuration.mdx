@@ -1398,7 +1398,7 @@ to Agenta. Agenta emails back a key on the `self_hosted_registered` plan and a l
 Agenta uses `AGENTA_WEB_URL` only to build that link. The registered plan has the same features as
 `self_hosted_community` today.
 
-Without Stripe, the plan of every organization comes from the key. With no valid key, or after the
+On a self-hosted instance, the plan of every organization comes from the key. With no valid key, or after the
 key expires, the instance runs on `self_hosted_community`, which has no enterprise features. No data
 is deleted when a key expires. `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
 `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key.
@@ -1550,6 +1550,10 @@ SendGrid is used only when SMTP is not fully configured.
 | `STRIPE_API_KEY` | `stripe.api_key` | `stripe.apiKey` |
 | `STRIPE_WEBHOOK_SECRET` | `stripe.webhook_secret` | `stripe.webhookSecret` |
 | `STRIPE_WEBHOOK_TARGET` | `stripe.webhook_target` | `stripe.webhookTarget` |
+
+Stripe is for Agenta cloud billing. Do not set `STRIPE_API_KEY` on a self-hosted instance: the API
+and the workers refuse to start when `STRIPE_API_KEY` is set and `AGENTA_LICENSE_KEY` is not a
+cloud license key.
 
 ## supertokens
 
