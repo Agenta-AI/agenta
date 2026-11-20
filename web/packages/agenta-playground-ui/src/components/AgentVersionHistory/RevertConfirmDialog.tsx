@@ -2,6 +2,7 @@ import {useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {
     AlertDialog,
+    AlertDialogCancel,
     AlertDialogContent,
     AlertDialogDescription,
     AlertDialogFooter,
@@ -47,9 +48,9 @@ export const RevertConfirmDialog = ({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <Button variant="outline" onClick={onCancel}>
-                        {t("playground.versionHistory.cancel")}
-                    </Button>
+                    {/* The Radix Cancel: it takes focus when the dialog opens, and closing
+                        through it runs onOpenChange, which calls onCancel. */}
+                    <AlertDialogCancel>{t("playground.versionHistory.cancel")}</AlertDialogCancel>
                     <Button onClick={onConfirm}>{t("playground.versionHistory.revert")}</Button>
                 </AlertDialogFooter>
             </AlertDialogContent>

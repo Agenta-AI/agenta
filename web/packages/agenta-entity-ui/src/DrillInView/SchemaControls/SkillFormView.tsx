@@ -382,7 +382,9 @@ export function SkillFormView({
     const edited = (entry: SkillFileSelection) =>
         entry === "skill" ? skillMdEdited(skill, baseline) : fileEdited(files, entry, baselineFiles)
     // A file just added and still empty is not an edit yet (canvas F07 f6: "15 files").
-    const freshUntouched = freshFile !== null && !files[freshFile]?.content
+    // Only while that file is still there, unnamed and empty: an upload can replace the files.
+    const freshEntry = freshFile !== null ? files[freshFile] : undefined
+    const freshUntouched = Boolean(freshEntry) && !pathOf(freshEntry) && !freshEntry?.content
     const editedCount = Math.max(0, editedFileCount(skill, baseline) - (freshUntouched ? 1 : 0))
     const fileCount = files.length + 1
     const countLine = editedCount
