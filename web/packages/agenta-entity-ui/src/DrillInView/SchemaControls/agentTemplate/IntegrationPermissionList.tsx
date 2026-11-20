@@ -634,15 +634,15 @@ export function PermissionDrawerBody({
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                             {t("entityUi.permissionDrawer.defaultPermission")}
                         </span>
-                        {valuesAsText ? (
+                        {presets?.pending ? (
+                            // One bar at the select's own height, so the row keeps its shape while
+                            // the answer is on the way. Decorative, like the list's rows.
+                            <SkeletonRows count={1} rowClassName="h-9" />
+                        ) : valuesAsText ? (
                             <span className="text-sm text-colorText">
                                 {presetOptions.find((option) => option.value === preset)?.title ??
                                     preset}
                             </span>
-                        ) : presets?.pending ? (
-                            // One bar at the select's own height, so the row keeps its shape while
-                            // the answer is on the way. Decorative, like the list's rows.
-                            <SkeletonRows count={1} rowClassName="h-9" />
                         ) : (
                             <PermissionPolicySelect
                                 value={preset}

@@ -9,6 +9,7 @@ import {act} from "react"
 
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -66,10 +67,14 @@ afterEach(() => {
 })
 
 const renderExplorer = async (readOnly: boolean, initialPath = "") => {
+    // One client for the provider and the Jotai queries, as an app host wires them.
+    const client = new QueryClient()
+    const store = createStore()
+    store.set(queryClientAtom, client)
     await act(async () =>
         root.render(
-            <QueryClientProvider client={new QueryClient()}>
-                <Provider store={createStore()}>
+            <QueryClientProvider client={client}>
+                <Provider store={store}>
                     <DriveExplorer
                         drive={drive as never}
                         initialPath={initialPath}
