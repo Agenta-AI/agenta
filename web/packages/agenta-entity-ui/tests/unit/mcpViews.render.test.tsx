@@ -227,10 +227,13 @@ describe("two servers with the same name", () => {
         const eu = {...buildMcpAgentItem({slug: "linear-eu", name: "linear"})}
         const mcps = [us, eu]
         const ref = mcpItemRef(eu, mcps)!
-        expect(ref).toEqual({list: "mcps", key: "linear-eu"})
+        expect(ref).toEqual({list: "mcps", key: "@slug:linear-eu"})
         expect(removeMcpByRef(mcps, ref)).toEqual([us])
         // The name alone is ambiguous here, so it addresses nothing.
         expect(removeMcpByRef(mcps, {list: "mcps", key: "linear"})).toBe(mcps)
+        // A slug address is never read as a name, even when another server is named like it.
+        const namedLikeSlug = {...buildMcpAgentItem({slug: "other", name: "x"}), name: "linear-eu"}
+        expect(removeMcpByRef([us, eu, namedLikeSlug], ref)).toEqual([us, namedLikeSlug])
     })
 })
 

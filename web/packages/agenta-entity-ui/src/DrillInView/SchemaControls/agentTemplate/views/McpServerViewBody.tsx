@@ -123,7 +123,7 @@ const AgentServer = ({
     const endpoints = useCustomEndpoints()
     const slug = entry ? (readMcpConnectionSlug(entry) ?? undefined) : undefined
     const endpoint = slug ? findCustomMcpEndpoint(endpoints, slug) : undefined
-    const name = endpoint?.name || slug || item.key
+    const name = endpoint?.name || slug || item.key.replace(/^@slug:/, "")
     useViewTitle(name)
     const [confirming, setConfirming] = useState(false)
 
