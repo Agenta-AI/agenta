@@ -8,7 +8,7 @@ import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {SkeletonBlock, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -102,60 +102,63 @@ export const AgentConfigurationScreen = ({
         <>
             <PageTitle title={t("agentSidebar.configuration")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    {t("agentSidebar.configuration")}
-                                </h1>
-                                {tab === "agent" && revisionId ? (
-                                    <AgentRevisionStatus
-                                        revisionId={revisionId}
-                                        historyWorkflowId={agentId}
-                                        // A version saved elsewhere is offered ("Update to vN"),
-                                        // not adopted on its own: a drawer form here may hold edits.
-                                        onUpdate={pin}
-                                    />
-                                ) : null}
-                            </div>
-                            <Tabs
-                                className="mt-3"
-                                value={tab}
-                                onValueChange={(next) => {
-                                    if (isConfigurationTab(next)) openTab(next)
-                                }}
-                            >
-                                <TabsList>
-                                    {CONFIGURATION_TABS.map((key) => (
-                                        <TabsTrigger key={key} value={key}>
-                                            {t(`agentLayout.panel.${key}`)}
-                                        </TabsTrigger>
-                                    ))}
-                                </TabsList>
-                            </Tabs>
-                        </div>
-                    }
+                {/* One Tabs root for the tab row and the open tab's panel. */}
+                <Tabs
+                    className="contents"
+                    value={tab}
+                    onValueChange={(next) => {
+                        if (isConfigurationTab(next)) openTab(next)
+                    }}
                 >
-                    <div
-                        role="tabpanel"
-                        className={`flex h-full min-h-0 min-w-0 flex-col px-4 pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`}
+                    <ScreenScaffold
+                        header={
+                            <div
+                                className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
+                            >
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                        {t("agentSidebar.configuration")}
+                                    </h1>
+                                    {tab === "agent" && revisionId ? (
+                                        <AgentRevisionStatus
+                                            revisionId={revisionId}
+                                            historyWorkflowId={agentId}
+                                            // A version saved elsewhere is offered ("Update to vN"),
+                                            // not adopted on its own: a drawer form here may hold edits.
+                                            onUpdate={pin}
+                                        />
+                                    ) : null}
+                                </div>
+                                <div className="mt-3">
+                                    <TabsList>
+                                        {CONFIGURATION_TABS.map((key) => (
+                                            <TabsTrigger key={key} value={key}>
+                                                {t(`agentLayout.panel.${key}`)}
+                                            </TabsTrigger>
+                                        ))}
+                                    </TabsList>
+                                </div>
+                            </div>
+                        }
                     >
-                        {/* The same host parts (model providers, skills, subagents) and edit
-                            right as the right panel; a commit made here pins the new revision. */}
-                        <DrillInBridgeProvider
-                            projectId={projectId}
-                            onWorkflowRevisionCommitted={pin}
+                        <TabsContent
+                            value={tab}
+                            className={`flex h-full min-h-0 min-w-0 flex-col px-4 pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`}
                         >
-                            <AgentEditorContext.Provider value={editor}>
-                                {body}
-                            </AgentEditorContext.Provider>
-                        </DrillInBridgeProvider>
-                    </div>
-                </ScreenScaffold>
+                            {/* The same host parts (model providers, skills, subagents) and edit
+                            right as the right panel; a commit made here pins the new revision. */}
+                            <DrillInBridgeProvider
+                                projectId={projectId}
+                                onWorkflowRevisionCommitted={pin}
+                            >
+                                <AgentEditorContext.Provider value={editor}>
+                                    {body}
+                                </AgentEditorContext.Provider>
+                            </DrillInBridgeProvider>
+                        </TabsContent>
+                    </ScreenScaffold>
+                </Tabs>
             </AppShell>
             {/* The automation, catalog and run history drawers the tabs open. */}
             <SessionWorkspaceDrawers workspaceId={workspaceId} projectId={projectId} />

@@ -27,7 +27,8 @@ export const useConfigurationRevision = (agentId: string) => {
         refetch.current().then(
             (result) => {
                 if (!alive) return
-                const id = result.data?.id ?? null
+                // A failed request keeps the cached data; only a confirmed answer is held.
+                const id = result.isError ? null : (result.data?.id ?? null)
                 if (id) setPinned((held) => held ?? id)
                 else setFailed(true)
             },

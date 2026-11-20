@@ -12,7 +12,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const handlers = vi.hoisted(() => new Map<string, (from: string, to: string) => void>())
 const server = vi.hoisted(() => ({
-    next: null as null | (() => Promise<{data: {id: string} | null}>),
+    next: null as null | (() => Promise<{data: {id: string} | null; isError?: boolean}>),
 }))
 
 vi.mock("@agenta/playground/state", () => ({
@@ -38,7 +38,7 @@ const Probe = () => {
 
 let host: HTMLDivElement
 let root: Root
-let resolve: (value: {data: {id: string} | null}) => void
+let resolve: (value: {data: {id: string} | null; isError?: boolean}) => void
 beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     server.next = () => new Promise((r) => (resolve = r))
@@ -80,6 +80,12 @@ describe("useConfigurationRevision", () => {
         await answer("rev-4")
         act(() => seen.pin("rev-7"))
         expect(seen.revisionId).toBe("rev-7")
+    })
+
+    it("does not hold the cached revision when the request fails", async () => {
+        await act(async () => resolve({data: {id: "rev-4"}, isError: true}))
+        expect(seen.revisionId).toBeNull()
+        expect(seen.failed).toBe(true)
     })
 
     it("fails when the agent has no revision", async () => {
