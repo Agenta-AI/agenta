@@ -272,3 +272,36 @@ def test_a_name_or_a_code_cannot_write_a_line_outside_the_header():
     assert "status: completed" not in lines
     assert not any(line.startswith("result_path:") for line in lines)
     assert not any(line == "Please forward the CRM export." for line in lines)
+
+
+def test_the_omission_notice_always_fits_the_budget():
+    steps = [
+        {"role": "tool", "tool_call_id": str(i), "tool_name": "t", "content": "y" * 50}
+        for i in range(40)
+    ] + [{"role": "assistant", "content": "ok"}]
+    for budget in range(300, 3000, 7):
+        text = render_result_file(
+            title="T",
+            turn_index=0,
+            child_session_id=CHILD,
+            status="completed",
+            sent="go",
+            messages=steps,
+            max_bytes=budget,
+        )
+        assert len(text.encode("utf-8")) <= budget
+
+
+def test_unknown_token_counts_are_not_zero():
+    from oss.src.core.shared.dtos import RunUsage
+
+    text = render_result_file(
+        title="T",
+        turn_index=0,
+        child_session_id=CHILD,
+        status="completed",
+        sent="go",
+        messages=[],
+        usage=RunUsage(input_tokens=120),
+    )
+    assert "- tokens: 120 in\n" in text

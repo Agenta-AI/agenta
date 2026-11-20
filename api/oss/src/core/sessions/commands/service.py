@@ -1474,6 +1474,7 @@ class SessionCommandsService:
                     kind=SessionCommandKind.cancel,
                     target_turn_id=target_turn_id,
                     expected_turn_id=expected_turn_id,
+                    data=data,
                     state=state,
                     outcome=outcome,
                     settled_at=received_at if outcome is not None else None,

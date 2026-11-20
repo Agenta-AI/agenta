@@ -1085,3 +1085,33 @@ async def test_a_lock_redis_outage_inside_an_unproven_dispatch_is_never_dropped(
 
     assert acked == []
     assert not worker.is_permanent_failure(b"1-0", {})
+
+
+def test_a_lost_database_connection_is_a_short_failure():
+    from sqlalchemy.exc import DBAPIError
+
+    lost = DBAPIError("select", {}, ConnectionResetError(), connection_invalidated=True)
+    assert is_short_failure(lost)
+    assert not is_short_failure(DBAPIError("select", {}, ValueError("bad")))
+
+
+@pytest.mark.asyncio
+async def test_a_lost_run_waits_for_the_watchdog_done():
+    harness = _Harness()
+    harness.inputs.add_child_input()
+    harness.executions.add(CHILD_EXECUTION, outcome="lost")
+    reads = {"count": 0}
+    original = harness.records.get_execution_records
+
+    async def late(**kwargs):
+        reads["count"] += 1
+        if reads["count"] == 2:
+            harness.records.add(CHILD_EXECUTION, "done", {"settled_by": "watchdog"})
+        return await original(**kwargs)
+
+    harness.records.get_execution_records = late
+
+    await harness.ended()
+
+    assert reads["count"] == 2
+    assert harness.part()["status"] == "lost"

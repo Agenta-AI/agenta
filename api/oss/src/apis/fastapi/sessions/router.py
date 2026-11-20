@@ -917,21 +917,18 @@ class SessionStreamsRouter:
         # `stopped` by the watchdog, and the orphan sweep writes the missing `done` when
         # the runner writes none. It is settled before the kill: the kill clears the
         # flags and soft-deletes the row, so a retry after a failed settle could not
-        # find the execution again.
+        # find the execution again. Only the live flag decides: neither the execution
+        # row nor the stored records can prove a turn runs (a paused execution has no
+        # outcome, and its paused `done` can still be on its way to the database).
         stream = await self._service.fetch(
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
         if (
             stream is not None
+            and stream.flags.is_running
             and stream.turn_id
             and self._commands_service is not None
-            and await self._execution_runs(
-                project_id=UUID(str(project_id)),
-                session_id=session_id,
-                execution_id=stream.turn_id,
-                is_running=stream.flags.is_running,
-            )
         ):
             await self._commands_service.settle_execution_killed(
                 project_id=UUID(str(project_id)),
@@ -949,26 +946,6 @@ class SessionStreamsRouter:
             session_id=session_id,
         )
         return {"ok": True}
-
-    async def _execution_runs(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-        execution_id: str,
-        is_running: bool,
-    ) -> bool:
-        """Whether the session's latest execution is still running. The live flag says
-        so, but Redis can lose it: then an execution with no `done` record has neither
-        ended nor paused (a paused one has its `done` with `stopReason: paused`)."""
-        if is_running or self._records_service is None:
-            return is_running
-        records = await self._records_service.get_execution_records(
-            project_id=project_id,
-            session_id=session_id,
-            execution_ids=[execution_id],
-        )
-        return not any(record.record_type == TERMINAL_RECORD_TYPE for record in records)
 
     @intercept_exceptions()
     @_handle_session_exceptions()

@@ -68,17 +68,24 @@ def turn_messages(execution_records: Sequence[Sequence[SessionRecord]]) -> List[
     """The folded messages of every execution of the turn, in order. An execution that
     paused adds one approval step for its pending interaction."""
     # True or False for an approval answer, None for an answer with no `approved`.
-    answers: Dict[str, Optional[bool]] = {}
+    answers: Dict[str, Any] = {}
     for records in execution_records:
         for record in records:
             if record.record_type != "interaction_response":
                 continue
             attributes = record.attributes or {}
             payload = attributes.get("payload")
-            approved = payload.get("approved") if isinstance(payload, dict) else None
+            payload = payload if isinstance(payload, dict) else {}
+            approved = payload.get("approved")
             if attributes.get("id"):
+                # A request that the platform cancelled (a Stop or a kill) has no
+                # answer from a person.
                 answers[str(attributes["id"])] = (
-                    approved if isinstance(approved, bool) else None
+                    _NOT_ANSWERED
+                    if payload.get("outcome") == "cancelled"
+                    else approved
+                    if isinstance(approved, bool)
+                    else None
                 )
 
     messages: List[Dict] = []
@@ -158,6 +165,10 @@ def _iso(value: Optional[datetime]) -> Optional[str]:
     return value.isoformat().replace("+00:00", "Z") if value else None
 
 
+def _omitted(count: int) -> str:
+    return f"{count} more steps; read them with read_session\n"
+
+
 def render_result_file(
     *,
     title: str,
@@ -184,9 +195,15 @@ def render_result_file(
     if usage is not None and (
         usage.input_tokens is not None or usage.output_tokens is not None
     ):
-        header.append(
-            f"- tokens: {usage.input_tokens or 0} in, {usage.output_tokens or 0} out"
-        )
+        counts = [
+            f"{count} {label}"
+            for count, label in (
+                (usage.input_tokens, "in"),
+                (usage.output_tokens, "out"),
+            )
+            if count is not None
+        ]
+        header.append(f"- tokens: {', '.join(counts)}")
     if trace_id:
         header.append(f"- trace: {trace_id}")
 
@@ -200,10 +217,13 @@ def render_result_file(
     for index, step in enumerate(steps):
         block = step + "\n\n"
         size = len(block.encode("utf-8"))
-        if used + size > budget:
-            written.append(
-                f"{len(steps) - index} more steps; read them with read_session\n"
-            )
+        # Keep room for the notice while more steps follow, so it always fits.
+        left = len(steps) - index - 1
+        notice = len(_omitted(left).encode("utf-8")) if left else 0
+        if used + size + notice > budget:
+            omitted = _omitted(len(steps) - index)
+            if used + len(omitted.encode("utf-8")) <= budget:
+                written.append(omitted)
             break
         written.append(block)
         used += size
