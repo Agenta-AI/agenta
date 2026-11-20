@@ -32,6 +32,9 @@ const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
     useViewTitle(t("entityUi.agentTemplate.model"))
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 py-3">
+            {modelReq ? (
+                <NeedsSetupTag tag={false} reason={needsSetupReasonText(modelReq.reason)} />
+            ) : null}
             <ModelPickerLayoutContext.Provider value="list">
                 <ModelHarnessSectionBody
                     section="model-harness"
@@ -53,9 +56,6 @@ const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
                     onlyCurrentConnection={modelReq?.kind === "model"}
                 />
             </ModelPickerLayoutContext.Provider>
-            {modelReq ? (
-                <NeedsSetupTag tag={false} reason={needsSetupReasonText(modelReq.reason)} />
-            ) : null}
         </div>
     )
 }

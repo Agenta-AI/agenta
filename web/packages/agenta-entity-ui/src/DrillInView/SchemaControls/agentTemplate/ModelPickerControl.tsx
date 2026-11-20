@@ -1,5 +1,7 @@
 /**
- * ModelPickerControl — the agent playground's connection-first model menu.
+ * ModelPickerControl — the agent playground's connection-first model menu. In the Model view
+ * (`ModelPickerLayoutContext` "list") it draws the same groups as one inline list instead
+ * (`ModelPickerList`, F01 f2).
  *
  * Level 1 is one row per stored connection (plus one per subscription PLAN, however many harnesses
  * drive it); level 2 is that connection's models grouped by the harness that runs them. It IS the
