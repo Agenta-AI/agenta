@@ -97,7 +97,10 @@ export const useBuilderTabs = ({
 
     // The latest builder save of the active tab's agent in this visit (task 41.1): the pane
     // follows it. Saves already in the chat when it loads are history, not followed.
-    const [activeSaveToolCallId, setActiveSaveToolCallId] = useState<string | null>(null)
+    const [activeSave, setActiveSave] = useState<{
+        toolCallId: string
+        revisionId: string | null
+    } | null>(null)
 
     const onMessagesChanged = useCallback(
         (messages: UIMessage[]) => {
@@ -121,7 +124,7 @@ export const useBuilderTabs = ({
                     builderTabKey(agentTab(result.agent)) === next.active,
             )
             const last = saved.at(-1)
-            if (last) setActiveSaveToolCallId(last.toolCallId)
+            if (last) setActiveSave({toolCallId: last.toolCallId, revisionId: last.revisionId})
         },
         [commit, linkedAgentId],
     )
@@ -140,7 +143,9 @@ export const useBuilderTabs = ({
     return {
         state,
         /** The tool call of the builder's latest save of the active tab's agent, in this visit. */
-        activeSaveToolCallId,
+        activeSaveToolCallId: activeSave?.toolCallId ?? null,
+        /** The revision that save made, when its result names one. */
+        activeSaveRevisionId: activeSave?.revisionId ?? null,
         open: useCallback(
             (next: BuilderTab) => commit((current) => openBuilderTab(current, next)),
             [commit],

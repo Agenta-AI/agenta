@@ -83,12 +83,14 @@ describe("agentResults", () => {
                 toolCallId: "c1",
                 agent: {id: "agent-lead-finder", name: "Lead finder"},
                 saved: true,
+                revisionId: "rev-1",
                 changedSections: [],
             },
             {
                 toolCallId: "c2",
                 agent: {id: "agent-email-writer", name: "Email writer"},
                 saved: true,
+                revisionId: "rev-5",
                 changedSections: ["instructions"],
             },
         ])

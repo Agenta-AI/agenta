@@ -44,6 +44,7 @@ const result = (toolCallId: string, id: string, saved = true): AgentResult => ({
     toolCallId,
     agent: {id, name: id},
     saved,
+    revisionId: null,
     changedSections: [],
 })
 
@@ -328,7 +329,11 @@ describe("useBuilderTabs follows a new save of the active agent", () => {
                     toolCallId,
                     state: "output-available",
                     input: {},
-                    output: {status: "committed", agent: {id, name: id}},
+                    output: {
+                        status: "committed",
+                        agent: {id, name: id},
+                        revision: {id: `rev-${toolCallId}`, version: "2"},
+                    },
                 },
             ],
         }) as unknown as UIMessage
@@ -357,6 +362,7 @@ describe("useBuilderTabs follows a new save of the active agent", () => {
             ]),
         )
         expect(hook.result.current.activeSaveToolCallId).toBe("c3")
+        expect(hook.result.current.activeSaveRevisionId).toBe("rev-c3")
     })
 })
 

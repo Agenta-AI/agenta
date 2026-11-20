@@ -323,6 +323,7 @@ export const BuilderPage = ({
                     key={builderTabKey(activeTab)}
                     tab={activeTab}
                     builderSaveToolCallId={tabs.activeSaveToolCallId}
+                    builderSaveRevisionId={tabs.activeSaveRevisionId}
                     onSectionOpened={onSectionOpened}
                     guardRef={paneGuard}
                     builderSessionId={sessionId}

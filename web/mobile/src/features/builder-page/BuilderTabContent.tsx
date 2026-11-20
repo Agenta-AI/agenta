@@ -20,6 +20,7 @@ import {PaneNotice} from "./PaneNotice"
 export const BuilderTabContent = ({
     tab,
     builderSaveToolCallId,
+    builderSaveRevisionId,
     onSectionOpened,
     guardRef,
     builderSessionId,
@@ -29,6 +30,7 @@ export const BuilderTabContent = ({
     tab: BuilderTab
     /** The builders latest save of this tabs agent in this visit (the pane follows it). */
     builderSaveToolCallId: string | null
+    builderSaveRevisionId: string | null
     /** The person opened or used a section of this agent tab marked "Changed by the builder". */
     onSectionOpened: (section: MarkableSectionKey) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
@@ -42,6 +44,7 @@ export const BuilderTabContent = ({
             <AgentTabContent
                 agentId={tab.id}
                 builderSaveToolCallId={builderSaveToolCallId}
+                builderSaveRevisionId={builderSaveRevisionId}
                 changedSections={tab.changedSections}
                 onSectionOpened={onSectionOpened}
                 guardRef={guardRef}

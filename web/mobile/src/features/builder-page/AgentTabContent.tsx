@@ -20,6 +20,7 @@ import {PaneNotice} from "./PaneNotice"
 export const AgentTabContent = ({
     agentId,
     builderSaveToolCallId,
+    builderSaveRevisionId,
     changedSections,
     onSectionOpened,
     guardRef,
@@ -29,6 +30,7 @@ export const AgentTabContent = ({
 }: {
     agentId: string
     builderSaveToolCallId: string | null
+    builderSaveRevisionId: string | null
     changedSections?: MarkableSectionKey[]
     onSectionOpened: (section: MarkableSectionKey) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
@@ -58,6 +60,7 @@ export const AgentTabContent = ({
         <AgentPane
             agentId={agentId}
             builderSaveToolCallId={builderSaveToolCallId}
+            builderSaveRevisionId={builderSaveRevisionId}
             changedSections={changedSections}
             onSectionOpened={onSectionOpened}
             guardRef={guardRef}

@@ -20,6 +20,7 @@ const AGENT_RESULT_TOOLS = new Set(["create_agent", "edit_agent_config"])
 interface AgentToolResult {
     status?: unknown
     agent?: {id?: unknown; name?: unknown}
+    revision?: {id?: unknown}
 }
 
 const parseResult = (output: unknown): AgentToolResult | null => {
@@ -54,6 +55,8 @@ export interface AgentResult {
     agent: AgentRef
     /** True when the call saved a new version or created the agent ("committed", "created"). */
     saved: boolean
+    /** The revision the call saved, when its result names one. */
+    revisionId: string | null
     /** The panel sections a saved edit changed; none for a new agent or an unsaved call. */
     changedSections: MarkableSectionKey[]
 }
@@ -67,12 +70,15 @@ export const agentResults = (messages: readonly UIMessage[]): AgentResult[] => {
             const agent = agentOfToolPart(part)
             if (!agent) continue
             const tool = part as ToolUIPart
-            const status = parseResult(tool.output)?.status
+            const result = parseResult(tool.output)
+            const status = result?.status
+            const revisionId = result?.revision?.id
             const input = tool.input as {operations?: unknown} | undefined
             results.push({
                 toolCallId: tool.toolCallId,
                 agent,
                 saved: status === "committed" || status === "created",
+                revisionId: typeof revisionId === "string" && revisionId ? revisionId : null,
                 changedSections:
                     status === "committed" ? sectionsOfOperations(input?.operations) : [],
             })

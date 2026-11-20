@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
-import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {
     AgentEditorContext,
     SectionMarksContext,
@@ -20,7 +19,7 @@ import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {DrawerViewChrome, useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -57,6 +56,7 @@ export type PaneTab = (typeof PANE_TABS)[number]
 export const AgentPane = ({
     agentId,
     builderSaveToolCallId = null,
+    builderSaveRevisionId = null,
     changedSections,
     onSectionOpened,
     guardRef,
@@ -67,6 +67,8 @@ export const AgentPane = ({
     agentId: string
     /** The tool call of the builder's latest save of this agent in this visit; the pane follows it. */
     builderSaveToolCallId?: string | null
+    /** The revision that save made; the pane shows it unless a form still edits the held one. */
+    builderSaveRevisionId?: string | null
     /** Agent panel sections the builder changed ("Changed by the builder"). */
     changedSections?: MarkableSectionKey[]
     /** The person opened or used a section marked as changed. */
@@ -105,7 +107,6 @@ export const AgentPane = ({
     // Follow the builder (the 10 second rule): a save of this agent shows the Agent pane tab,
     // unless the person clicked in the pane in the last 10 seconds or a form has edits; then the
     // Agent pane tab gets a dot.
-    const latestRevision = useAtomValue(workflowLatestRevisionQueryAtomFamily(agentId))
     const lastPointerDown = useRef<number | null>(null)
     const followed = useRef(builderSaveToolCallId)
     useEffect(() => {
@@ -113,10 +114,7 @@ export const AgentPane = ({
         followed.current = builderSaveToolCallId
         const dirty = guardRef.current?.stack.dirty ?? false
         // The pane shows the version the builder saved, unless a form still edits the held one.
-        if (!dirty)
-            void latestRevision.refetch().then((result) => {
-                if (!result.isError && result.data?.id) pin(result.data.id)
-            })
+        if (!dirty && builderSaveRevisionId) pin(builderSaveRevisionId)
         const action = followAction<PaneTab>({
             paneTab: tab,
             target: "agent",
