@@ -366,6 +366,8 @@ function ConnectedRow({
                                 ? t("entityUi.integrationDrawer.inactive")
                                 : t("entityUi.integrationDrawer.pending")}
                         </span>
+                    ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
+                        <DefaultMark label={verbs.makeDefault.defaultLabel} />
                     ) : null
                 ) : added && !choosing ? (
                     <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-colorSuccess">
