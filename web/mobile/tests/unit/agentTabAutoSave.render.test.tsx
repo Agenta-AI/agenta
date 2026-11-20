@@ -7,12 +7,10 @@
  * reports it (`onDraftChange`); the auto-commit engine and the commit are real code paths up to
  * the commit request, which is recorded.
  */
-import {act} from "react"
-
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {agentSelfCommitSignalAtom, projectIdAtom} from "@agenta/shared/state"
+import {act, cleanup, render, screen} from "@testing-library/react"
 import {getDefaultStore, type PrimitiveAtom} from "jotai"
-import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {ConfigPane} from "@/features/chat/ConfigPane"
@@ -80,11 +78,7 @@ vi.mock("@agenta/playground", async (original) => {
 
 const REVISION = "rev-agent-tab"
 
-let root: Root
-let host: HTMLDivElement
-
 beforeEach(() => {
-    Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
     vi.useFakeTimers()
     hoisted.commits.length = 0
     const store = getDefaultStore()
@@ -97,28 +91,24 @@ beforeEach(() => {
     store.set(selectors.data(REVISION), {workflow_id: "wf-agent-tab"})
     store.set(selectors.configuration(REVISION), {agent: {llm: {model: "claude-sonnet-5-5"}}})
     store.set(selectors.serverConfiguration(REVISION), {agent: {llm: {model: "gpt-5.5"}}})
-    host = document.createElement("div")
-    document.body.appendChild(host)
-    root = createRoot(host)
 })
 
 afterEach(() => {
-    act(() => root.unmount())
-    host.remove()
+    cleanup()
     vi.clearAllTimers()
     vi.useRealTimers()
 })
 
 describe("the Agent tab", () => {
     it("shows the sections with no Configuration header bar", () => {
-        act(() => root.render(<ConfigPane entityId={REVISION} />))
-        expect(host.textContent).not.toContain("Configuration")
-        expect(host.querySelector("button")?.textContent).toBe("Edit")
+        render(<ConfigPane entityId={REVISION} />)
+        expect(screen.queryByText("Configuration")).toBeNull()
+        expect(screen.getByRole("button", {name: "Edit"})).toBeTruthy()
     })
 
     it("saves a new version about 1500 ms after an edit in a section", async () => {
-        act(() => root.render(<ConfigPane entityId={REVISION} />))
-        act(() => host.querySelector("button")!.click())
+        render(<ConfigPane entityId={REVISION} />)
+        act(() => screen.getByRole("button", {name: "Edit"}).click())
         await vi.advanceTimersByTimeAsync(1000)
         expect(hoisted.commits).toEqual([])
         await vi.advanceTimersByTimeAsync(700)
