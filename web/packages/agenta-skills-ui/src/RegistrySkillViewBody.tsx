@@ -224,7 +224,8 @@ const RegistrySkillEditor = ({
         setEditBaseId(head.id)
     }
     const headValue = useMemo(() => toFormValue(head?.skill), [head])
-    const value = draft ?? headValue
+    // Read only shows the saved skill, never a draft typed before the view turned read only.
+    const value = readOnly ? headValue : (draft ?? headValue)
     const dirty = !readOnly && draft !== null && JSON.stringify(draft) !== JSON.stringify(headValue)
     const valid =
         !readOnly &&

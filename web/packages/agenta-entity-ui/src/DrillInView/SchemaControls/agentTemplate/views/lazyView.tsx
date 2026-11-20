@@ -5,8 +5,9 @@ import type {ViewProps} from "@agenta/ui/view-stack"
 import {AgentEditorContext} from "../useAgentConfigWriter"
 
 /**
- * A view the host shows read only (a phone container and `readOnlyOnPhone`): its body reads the
- * agent through a read-only editor, so it shows its content with no edit control and no Save.
+ * Wraps every view body. When the host shows the view read only (a phone container and
+ * `readOnlyOnPhone`), the body reads the agent through a read-only editor, so it shows its content
+ * with no edit control and no Save; otherwise it passes the outer editor through unchanged.
  */
 const ReadOnlyEditor = ({readOnly, children}: {readOnly: boolean; children: ReactNode}) => {
     const editor = useContext(AgentEditorContext)
