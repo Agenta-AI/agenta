@@ -1844,6 +1844,18 @@ class InteractionsRouter:
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=e.errors(include_context=False),
                     ) from e
+                # Only a person or a channel answers an approval. An agent run settles
+                # an answer that it consumed (`resolved`), but it may not record one
+                # (`responded`), and it may not replace the answer a row already holds.
+                if approval_from_request(
+                    principal=request.state.principal,
+                    credential_kind=getattr(request.state, "credential_kind", None),
+                    user_id=UUID(str(request.state.user_id)),
+                ).is_run_credential:
+                    if body.status == SessionInteractionStatus.responded:
+                        raise FORBIDDEN_EXCEPTION
+                    if source.status == SessionInteractionStatus.responded:
+                        resolution = None
 
         try:
             interaction = await self.interactions_service.transition_interaction(

@@ -429,7 +429,7 @@ class InteractionsDispatcher:
             # An agent run may not answer an interaction. The interaction stays as it
             # is, so a person can still answer it.
             log.warning(
-                "[interactions] response refused: answered with a run credential",
+                "[interactions] response refused: not answered by a person or a channel",
                 project_id=str(project_id),
                 interaction_id=str(interaction_id),
             )
@@ -531,7 +531,9 @@ class InteractionsDispatcher:
 
         if envelope.approved_by is not None and envelope.approved_by.is_run_credential:
             raise AccessDenied(
-                decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED)
+                decision=Decision(
+                    allowed=False, reason=DecisionReason.RESTRICTED_BY_AUTHORITY
+                )
             )
         resolved = [
             (

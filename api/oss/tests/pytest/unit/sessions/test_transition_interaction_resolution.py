@@ -7,6 +7,7 @@ import pytest
 
 from oss.src.apis.fastapi.sessions.models import SessionInteractionTransitionRequest
 from oss.src.apis.fastapi.sessions.router import InteractionsRouter
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef, RequestCredentialKind
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -15,7 +16,13 @@ from oss.src.core.sessions.interactions.dtos import (
 )
 
 
-def _make_authed_request(app: FastAPI, project_id, user_id) -> Request:
+def _make_authed_request(
+    app: FastAPI,
+    project_id,
+    user_id,
+    credential_kind: RequestCredentialKind = RequestCredentialKind.RUN_CREDENTIAL,
+) -> Request:
+    """The runner is this route's caller, so the default credential is a run credential."""
     request = Request(
         {
             "type": "http",
@@ -27,6 +34,8 @@ def _make_authed_request(app: FastAPI, project_id, user_id) -> Request:
     )
     request.state.project_id = project_id
     request.state.user_id = user_id
+    request.state.principal = PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id)
+    request.state.credential_kind = credential_kind
     return request
 
 
@@ -336,3 +345,105 @@ async def test_transition_route_rejects_resolved_client_tool_without_resolution_
 
     assert caught.value.status_code == 409
     interactions_service.transition_interaction.assert_not_awaited()
+
+
+def _approval_row(project_id, status):
+    return SessionInteraction(
+        project_id=project_id,
+        session_id="session-1",
+        token="approval-token",
+        kind=SessionInteractionKind.user_approval,
+        status=status,
+        data=(
+            SessionInteractionData(
+                resolution={"verdict": "denied", "tool_call_id": "tool-1"}
+            )
+            if status == SessionInteractionStatus.responded
+            else None
+        ),
+    )
+
+
+async def _transition(interactions_service, body, credential_kind):
+    row = interactions_service.query_interactions.return_value[0]
+    project_id = row.project_id
+    interactions_service.transition_interaction.return_value = row
+    router = InteractionsRouter(
+        interactions_service=interactions_service,
+        commands_service=AsyncMock(),
+    )
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        return await router.transition_interaction(
+            request=_make_authed_request(
+                FastAPI(), project_id, uuid4(), credential_kind=credential_kind
+            ),
+            body=body,
+        )
+
+
+@pytest.mark.parametrize(
+    "credential_kind", [RequestCredentialKind.RUN_CREDENTIAL, None]
+)
+async def test_transition_route_refuses_an_approval_answer_from_a_run(credential_kind):
+    interactions_service = AsyncMock()
+    interactions_service.query_interactions.return_value = [
+        _approval_row(uuid4(), SessionInteractionStatus.pending)
+    ]
+    body = SessionInteractionTransitionRequest(
+        session_id="session-1",
+        token="approval-token",
+        status=SessionInteractionStatus.responded,
+        resolution={"verdict": "approved", "tool_call_id": "tool-1"},
+    )
+
+    with pytest.raises(HTTPException) as caught:
+        await _transition(interactions_service, body, credential_kind)
+
+    assert caught.value.status_code == 403
+    interactions_service.transition_interaction.assert_not_awaited()
+
+
+async def test_transition_route_keeps_the_stored_answer_when_a_run_settles_it():
+    interactions_service = AsyncMock()
+    interactions_service.query_interactions.return_value = [
+        _approval_row(uuid4(), SessionInteractionStatus.responded)
+    ]
+    body = SessionInteractionTransitionRequest(
+        session_id="session-1",
+        token="approval-token",
+        status=SessionInteractionStatus.resolved,
+        resolution={"verdict": "approved", "tool_call_id": "tool-1"},
+    )
+
+    await _transition(interactions_service, body, RequestCredentialKind.RUN_CREDENTIAL)
+
+    transition = interactions_service.transition_interaction.await_args.kwargs[
+        "transition"
+    ]
+    assert transition.status == SessionInteractionStatus.resolved
+    assert transition.resolution is None
+
+
+async def test_transition_route_lets_a_person_answer_an_approval():
+    interactions_service = AsyncMock()
+    interactions_service.query_interactions.return_value = [
+        _approval_row(uuid4(), SessionInteractionStatus.pending)
+    ]
+    body = SessionInteractionTransitionRequest(
+        session_id="session-1",
+        token="approval-token",
+        status=SessionInteractionStatus.responded,
+        resolution={"verdict": "approved", "tool_call_id": "tool-1"},
+    )
+
+    await _transition(interactions_service, body, RequestCredentialKind.BEARER_SESSION)
+
+    transition = interactions_service.transition_interaction.await_args.kwargs[
+        "transition"
+    ]
+    assert transition.status == SessionInteractionStatus.responded
+    assert transition.resolution == body.resolution

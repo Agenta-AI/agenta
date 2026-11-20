@@ -144,8 +144,9 @@ class RunApproval(BaseModel):
     principal: PrincipalRef  # the approving principal
     user_id: Optional[UUID] = None  # acting user of the approver
     external_key: Optional[str] = None  # channel answer only
-    # True when the answer came with a run credential, which may not approve anything.
-    # Set only by `approval_from_request`. Serialized only when true, and a missing key
+    # True when the answer came with a run credential, or with no known person or channel
+    # credential: such an answer may not approve anything. Set only by
+    # `approval_from_request`. Serialized only when true, and a missing key
     # reads as false: an older pod refuses unknown keys, and no stored envelope carries
     # true, because every path refuses it before it stores anything.
     is_run_credential: bool = Field(default=False, exclude_if=lambda value: not value)
