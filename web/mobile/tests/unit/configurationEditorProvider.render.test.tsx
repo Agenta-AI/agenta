@@ -6,6 +6,7 @@
 import {act, useContext} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
+import {ReportOpenViewItemContext, type OpenViewItem} from "@agenta/ui/view-stack"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -33,8 +34,10 @@ const {ConfigurationEditorProvider} =
 const {pageContextAtom} = await import("@/features/builder/pageContext")
 
 let seen: AgentEditor | null = null
+let reportItem: ((item: OpenViewItem | null) => void) | null = null
 const Probe = () => {
     seen = useContext(AgentEditorContext)
+    reportItem = useContext(ReportOpenViewItemContext)
     return null
 }
 
@@ -73,6 +76,18 @@ describe("ConfigurationEditorProvider", () => {
         expect(store.get(pageContextAtom)).toEqual({kind: "configuration", tab: "access"})
         act(() => root.render(<Provider store={store}>{null}</Provider>))
         expect(store.get(pageContextAtom)).toBeNull()
+    })
+
+    it("names the item an open view shows, and drops it when the view closes", () => {
+        mount("agent")
+        act(() => reportItem?.({list: "tools", key: "composio:zendesk", name: "Zendesk"}))
+        expect(store.get(pageContextAtom)).toEqual({
+            kind: "configuration",
+            tab: "agent",
+            item: {list: "tools", key: "composio:zendesk", name: "Zendesk"},
+        })
+        act(() => reportItem?.(null))
+        expect(store.get(pageContextAtom)).toEqual({kind: "configuration", tab: "agent"})
     })
 
     it("passes hasChannel on the editor when the agent answers in a channel", () => {

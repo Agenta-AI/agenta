@@ -30,7 +30,11 @@ export interface ViewDef<P> {
     Component: ComponentType<ViewProps<P>>
 }
 
-/** Params carry addresses only, never display names. */
+/**
+ * Params carry addresses only, never display names. A view that shows one configuration item
+ * puts its address at `params.item` (a `ConfigItemRef`); the stack reports it to a page that asks
+ * (`ReportOpenViewItemContext`).
+ */
 export interface ViewProps<P> {
     params: P
     target: ViewTarget
