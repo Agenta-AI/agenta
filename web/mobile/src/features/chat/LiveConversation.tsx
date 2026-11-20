@@ -88,6 +88,7 @@ import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
+import {ChangeResultHostContext} from "./changeResultHost"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
@@ -506,6 +507,23 @@ export const LiveConversation = ({
             sessionId,
             store,
         ],
+    )
+    // A result row's "Try again" sends a fixed message as the person, as the composer does.
+    const changeResultHost = useMemo(
+        () => ({
+            readOnly: locked,
+            // The composer's own gates: the row sends only when the composer could.
+            send:
+                disabled || setupBlocked
+                    ? undefined
+                    : (text: string) => {
+                          if (lockedRef.current) return
+                          void send({text, executionText: beforeSend?.(text)}).catch(
+                              () => undefined,
+                          )
+                      },
+        }),
+        [locked, disabled, setupBlocked, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
@@ -1020,19 +1038,21 @@ export const LiveConversation = ({
                     </div>
                 ) : null}
                 <UserMessageAccessoryContext.Provider value={readUserMessageAccessory}>
-                    <TranscriptTurns
-                        turns={visibleTurns}
-                        scrollerRef={autoScroll.ref}
-                        sessionId={sessionId}
-                        remoteRunning={showingTurnActivity && !streamingHere}
-                        waitingOnUser={parkedOnUser}
-                        resuming={resumingAfterAnswer}
-                        pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
-                        // A tool answer and a rewind both write: someone who cannot send here cannot
-                        // answer a tool or re-run a turn (retry rides rewind) either.
-                        onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
-                        onRewind={locked ? undefined : handleRewind}
-                    />
+                    <ChangeResultHostContext.Provider value={changeResultHost}>
+                        <TranscriptTurns
+                            turns={visibleTurns}
+                            scrollerRef={autoScroll.ref}
+                            sessionId={sessionId}
+                            remoteRunning={showingTurnActivity && !streamingHere}
+                            waitingOnUser={parkedOnUser}
+                            resuming={resumingAfterAnswer}
+                            pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                            // A tool answer and a rewind both write: someone who cannot send here cannot
+                            // answer a tool or re-run a turn (retry rides rewind) either.
+                            onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
+                            onRewind={locked ? undefined : handleRewind}
+                        />
+                    </ChangeResultHostContext.Provider>
                 </UserMessageAccessoryContext.Provider>
             </ContentRail>
         )
