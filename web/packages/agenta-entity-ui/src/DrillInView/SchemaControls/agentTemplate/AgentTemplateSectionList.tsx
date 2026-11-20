@@ -17,8 +17,12 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {
     ConfigAccordionSection,
+    sectionIndicatorColor,
     type SectionIndicatorTone,
 } from "@agenta/ui/components/presentational"
+import {CaretRight} from "@phosphor-icons/react"
+
+import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
 
 /** One config section, fully resolved by the container. */
 export interface AgentTemplateSectionDescriptor {
@@ -66,6 +70,7 @@ export const AgentTemplateSectionList = ({
     headerBand = "-mx-4 px-4",
 }: AgentTemplateSectionListProps) => {
     const t = useT(configItemsCatalog)
+    const phone = usePhoneSections()
     if (sections.length === 0) {
         // antd `Typography.Text type="secondary"` = colorTextDescription + `word-break: break-word`.
         // Its line-height token does NOT apply here: the call site already carried `text-xs`, and
@@ -76,6 +81,8 @@ export const AgentTemplateSectionList = ({
             </span>
         )
     }
+
+    if (phone) return <PhoneSectionList sections={sections} phone={phone} />
 
     return (
         <>
@@ -118,5 +125,72 @@ export const AgentTemplateSectionList = ({
                 )
             })}
         </>
+    )
+}
+
+const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
+    typeof s.title === "string" ? s.title : s.key
+
+/**
+ * The sections on a phone: one row per section with its current value, or the open section as its
+ * own screen (the container draws its header). A section that opens a view opens it from its row.
+ */
+const PhoneSectionList = ({
+    sections,
+    phone,
+}: {
+    sections: AgentTemplateSectionDescriptor[]
+    phone: PhoneSectionsApi
+}) => {
+    const open = sections.find((s) => s.key === phone.openKey && !s.onOpen)
+    if (open) {
+        return (
+            <div data-config-section={open.key} className="flex flex-col gap-3 pb-6 pt-3">
+                {open.extra ? <div className="flex justify-end">{open.extra}</div> : null}
+                {open.content}
+            </div>
+        )
+    }
+    return (
+        <div className="-mx-4 flex flex-col" data-testid="phone-section-list">
+            {sections.map((s) => (
+                <button
+                    key={s.key}
+                    type="button"
+                    data-config-section={s.key}
+                    data-config-section-title={typeof s.title === "string" ? s.title : undefined}
+                    className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-4 py-2 text-left font-[inherit] active:bg-colorFillTertiary"
+                    onClick={() => (s.onOpen ? s.onOpen() : phone.open(s.key, sectionTitle(s)))}
+                >
+                    {s.icon ? (
+                        <span
+                            aria-hidden
+                            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-colorFillTertiary text-colorTextSecondary"
+                        >
+                            {s.icon}
+                        </span>
+                    ) : null}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-[15px] text-colorText">{s.title}</span>
+                            {s.indicator ? (
+                                <span
+                                    aria-hidden
+                                    className="size-1.5 shrink-0 rounded-full"
+                                    style={{background: sectionIndicatorColor(s.indicator.tone)}}
+                                />
+                            ) : null}
+                            {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
+                        </span>
+                        {s.summary ? (
+                            <span className="truncate text-xs text-colorTextSecondary">
+                                {s.summary}
+                            </span>
+                        ) : null}
+                    </span>
+                    <CaretRight size={16} aria-hidden className="shrink-0 text-colorTextTertiary" />
+                </button>
+            ))}
+        </div>
     )
 }
