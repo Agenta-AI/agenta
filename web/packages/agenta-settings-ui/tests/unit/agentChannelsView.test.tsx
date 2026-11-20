@@ -78,7 +78,7 @@ describe("AgentChannelsView", () => {
     it("opens the manage view in place and returns with the breadcrumb", async () => {
         await render({...EMPTY_CONNECTIONS, slack: slackHere})
         await act(async () => row("slack").querySelector("button")!.click())
-        const view = container.querySelector('[data-testid="agent-channels-view"]')!
+        const view = container.querySelector('[data-testid="agent-channels-open-view"]')!
         expect(view.querySelector("nav")?.textContent).toContain("Channels")
         expect(view.querySelector("nav")?.textContent).toContain("Slack")
         expect(container.querySelector('[data-testid="inner-view"]')?.textContent).toBe("slack")
@@ -86,7 +86,7 @@ describe("AgentChannelsView", () => {
             (button) => button.textContent === "Channels",
         ) as HTMLButtonElement
         await act(async () => crumb.click())
-        expect(container.querySelector('[data-testid="agent-channels-view"]')).toBeNull()
+        expect(container.querySelector('[data-testid="agent-channels-open-view"]')).toBeNull()
         expect(groups()).toEqual(["Connected", "Add a channel"])
     })
 

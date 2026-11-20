@@ -29,6 +29,6 @@ export const AgentPrivacyHost = ({
  * The same privacy and owner content in place, for the Access tab of the agent: who can see it,
  * the owner and "Transfer ownership". It reads the sharing state and the members at once.
  */
-export const AgentAccessPanel = (options: AgentPrivacyHostOptions) => (
-    <AgentPrivacyPanel {...useAgentPrivacyProps({...options, engaged: true})} active />
+export const AgentPrivacyPanelHost = (options: AgentPrivacyHostOptions) => (
+    <AgentPrivacyPanel {...useAgentPrivacyProps(options)} active />
 )

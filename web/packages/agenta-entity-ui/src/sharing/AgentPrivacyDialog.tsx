@@ -144,7 +144,7 @@ export interface AgentPrivacyPanelProps extends AgentPrivacyProps {
      * it false drops a pending confirmation or transfer step.
      */
     active: boolean
-    /** Shared with the top bar panel; the panel makes its own when absent. */
+    /** Shared with the top bar control's popover; made here when absent. */
     writes?: AgentSharingWrites
 }
 

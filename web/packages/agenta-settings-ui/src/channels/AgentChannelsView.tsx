@@ -23,14 +23,22 @@ import {
     type UseChannelPanelOptions,
 } from "./useChannelPanel"
 
-export interface AgentChannelsViewProps extends Omit<UseChannelPanelOptions, "renderPanel"> {
+export interface AgentChannelsViewProps extends Pick<
+    UseChannelPanelOptions,
+    | "agentName"
+    | "agentDescription"
+    | "workspaceName"
+    | "connections"
+    | "loading"
+    | "loadError"
+    | "actions"
+    | "hostedHandle"
+> {
     agentId: string
-    /** The agent's name, for the intro line. */
-    agentName: string
 }
 
 /**
- * The Channels page of an agent, and the Channels tab of its right panel (A07, A08). The
+ * The Channels page of an agent, and the Channels tab of the agent's right panel. The
  * connected channels first, then the ones to add. "Manage" and "Connect" open the production
  * manage view and connect steps in place, under the breadcrumb "Channels › Slack". Changes apply
  * at once.
@@ -38,13 +46,14 @@ export interface AgentChannelsViewProps extends Omit<UseChannelPanelOptions, "re
 export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     const {
         agentId,
-        agentName,
         connections = EMPTY_CONNECTIONS,
         loading = false,
         loadError = null,
         actions,
+        hostedHandle,
     } = props
     const t = useT(agentChannelsCatalog, channelsPageCatalog, commonCatalog)
+    const agentName = props.agentName ?? t("channels.page.yourAgent")
     const [retrying, setRetrying] = useState(false)
     const {open, panel} = useChannelPanel({
         ...props,
@@ -98,7 +107,9 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                                 const mine = agentConnectionsOf(connections, platform)
                                 const sub =
                                     mine.length > 1 && !summary.needsAttention
-                                        ? mine.map((c) => connectionLabel(c)).join(", ")
+                                        ? mine
+                                              .map((c) => connectionLabel(c, hostedHandle))
+                                              .join(", ")
                                         : summary.sub
                                 return (
                                     <ChannelRow
@@ -217,7 +228,7 @@ const ChannelRowsSkeleton = () => (
 const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPanelRenderProps) => {
     const t = useT(channelsPageCatalog, commonCatalog)
     return (
-        <div className="flex flex-col gap-4" data-testid="agent-channels-view">
+        <div className="flex flex-col gap-4" data-testid="agent-channels-open-view">
             <nav className="flex min-w-0 items-center gap-1.5 text-sm">
                 {onBack ? (
                     <Button

@@ -5,11 +5,12 @@ import {useAgentChannels} from "../agents/useAgentChannels"
 
 /**
  * The Channels view of one agent, connected to its channels. The Channels page and the Channels
- * tab of the right panel both mount it.
+ * tab of the agent's right panel both mount it.
  */
 export const AgentChannels = ({agentId}: {agentId: string}) => {
     const {row, resolveAgentName} = useAgentRow(agentId)
-    const agentName = row?.name || row?.slug || ""
+    // Undefined until the agent list loads: the views then say "your agent", not a blank.
+    const agentName = row?.name || row?.slug || undefined
     const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
         resolveAgentName,
     })

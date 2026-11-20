@@ -5,7 +5,7 @@ const AgentChannels = dynamic(() =>
     import("../agent-pages/AgentChannels").then((m) => m.AgentChannels),
 )
 
-/** The Channels tab of Configuration: the same view as the agent's Channels page (task 23.3). */
+/** The Channels tab of the agent's right panel: the same view as the agent's Channels page. */
 export const ChannelsTab = ({
     agentId,
 }: {
