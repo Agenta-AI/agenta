@@ -90,7 +90,7 @@ function AlertDialogContent({
                         <AlertDialogPrimitive.Cancel data-slot="alert-dialog-close-x" asChild>
                             <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon-compact"
                                 className="absolute right-2 top-2"
                                 aria-label={t("common.close")}
                             >
