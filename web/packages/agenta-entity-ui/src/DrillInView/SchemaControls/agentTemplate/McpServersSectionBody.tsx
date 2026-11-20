@@ -37,6 +37,8 @@ export interface McpServersSectionBodyProps {
     openServer: (item: ConfigItemRef) => void
     /** Removes the server from the agent, after the row bin's question. */
     removeServer: (item: ConfigItemRef) => void
+    /** Removes an entry that has no name, by its index in `mcps`. */
+    removeServerAt: (index: number) => void
     /** The panel's draft and validation markers. Health is layered on top of them here. */
     statusFor: (item: unknown, index: number) => ItemRowStatus | undefined
 }
@@ -47,10 +49,16 @@ export function McpServersSectionBody({
     openForm,
     openServer,
     removeServer,
+    removeServerAt,
     statusFor,
 }: McpServersSectionBodyProps) {
     const t = useT(integrationViewsCatalog)
-    const [removing, setRemoving] = useState<{item: ConfigItemRef; name: string} | null>(null)
+    // `item` is null for an entry with no name, which can only be removed where it is.
+    const [removing, setRemoving] = useState<{
+        item: ConfigItemRef | null
+        index: number
+        name: string
+    } | null>(null)
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
 
     // `custom` only, which is the namespace an agent's connection reference names. A builtin
@@ -120,9 +128,15 @@ export function McpServersSectionBody({
                 removeItem={(_kind, index) => {
                     const item = items[index]
                     const ref = mcpItemRef(item, items)
-                    if (!ref) return
                     const endpoint = endpointForItem(item)
-                    setRemoving({item: ref, name: endpoint?.name || ref.key})
+                    setRemoving({
+                        item: ref,
+                        index,
+                        name:
+                            endpoint?.name ||
+                            readMcpConnectionSlug((item ?? {}) as Record<string, unknown>) ||
+                            "",
+                    })
                 }}
                 closeEditor={noop}
                 disabled={disabled}
@@ -134,7 +148,8 @@ export function McpServersSectionBody({
                     name={removing.name}
                     description={t("entityUi.integrationViews.connectionStays")}
                     onRemove={() => {
-                        removeServer(removing.item)
+                        if (removing.item) removeServer(removing.item)
+                        else removeServerAt(removing.index)
                         setRemoving(null)
                     }}
                     onClose={() => setRemoving(null)}

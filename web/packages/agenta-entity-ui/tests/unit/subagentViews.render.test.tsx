@@ -302,7 +302,7 @@ describe("Subagent view", () => {
 })
 
 describe("Subagents section", () => {
-    it("the row bin asks with the name the row shows, then removes by key", async () => {
+    it("the row bin asks with the name the row shows, then removes by slug", async () => {
         const removed: unknown[] = []
         catalogKeys.clear()
         const tool = reference("email-writer")
@@ -320,6 +320,7 @@ describe("Subagents section", () => {
             ],
             openSubagent: () => undefined,
             removeSubagent: (item) => removed.push(item),
+            removeSubagentAt: () => undefined,
             toolStatusFor: () => undefined,
         })
         if (!section) throw new Error("no section")
@@ -339,7 +340,8 @@ describe("Subagents section", () => {
         expect([...catalogKeys]).toEqual(["email-writer\nlead-finder"])
         expect(removed).toEqual([])
         await click(byText("Remove"))
-        expect(removed).toEqual([{list: "tools", key: "email-writer"}])
+        // By slug: a write that drops a copied name while the dialog is open keeps the entry.
+        expect(removed).toEqual([{list: "tools", key: "@slug:email-writer"}])
     })
 })
 

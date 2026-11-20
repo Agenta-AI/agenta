@@ -65,8 +65,14 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
     const add = useCallback(
         (option: {slug: string; name: string}) => {
             const item = buildMcpAgentItem(option)
-            writer.update((agent) => ({...agent, mcps: [...mcpsOf(agent), item]}))
-            const ref = mcpItemRef(item, [...mcpsOf(writer.agent), item])
+            // Opens the server's view only when the write landed (the writer skips a write while
+            // the configuration loads, or without the edit right).
+            const written: {mcps: unknown[] | null} = {mcps: null}
+            writer.update((agent) => {
+                written.mcps = [...mcpsOf(agent), item]
+                return {...agent, mcps: written.mcps}
+            })
+            const ref = written.mcps ? mcpItemRef(item, written.mcps) : null
             if (ref) void replace(mcpServerView, {item: ref}, target)
         },
         [writer, replace, target],
@@ -89,7 +95,16 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
                 findCustomMcpEndpoint(endpoints, option.slug),
             )
             if (!reconnectTarget) return
-            void push?.(mcpConnectView, {reconnect: reconnectTarget}, {kind: "project"})
+            // A server that is not on the agent yet joins it once it is signed in again, as a
+            // new connection does.
+            void push?.(
+                mcpConnectView,
+                {
+                    reconnect: reconnectTarget,
+                    onConnected: option.added ? undefined : (endpoint) => addRef.current(endpoint),
+                },
+                {kind: "project"},
+            )
         },
         [endpoints, push],
     )

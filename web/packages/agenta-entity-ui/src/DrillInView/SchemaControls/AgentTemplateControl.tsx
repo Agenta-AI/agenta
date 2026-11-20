@@ -1041,6 +1041,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             subagentTools,
             openSubagent,
             removeSubagent,
+            removeSubagentAt: (index: number) => removeItem("tool", index),
             toolStatusFor,
         }),
         agentMcpSection({
@@ -1053,6 +1054,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             openAddMcpServer,
             openMcpServer,
             removeMcpServer,
+            removeMcpServerAt: (index: number) => removeItem("mcp", index),
             openForm: (index: number, item: unknown) => openEdit("mcp", index, item),
             mcpStatusFor,
         }),
