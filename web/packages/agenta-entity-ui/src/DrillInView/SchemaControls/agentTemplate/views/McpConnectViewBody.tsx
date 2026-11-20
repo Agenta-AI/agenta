@@ -48,6 +48,10 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
         // Each press runs the screen's action inside the press, so the provider's window can
         // open. The step stays on this view; the journey shows what happens next.
         save: async () => {
+            // A step that opens the provider's window needs the press itself: from the
+            // unsaved-changes dialog (after awaits) the browser would refuse the window and the
+            // journey would send the whole tab to the provider. The person stays on the step.
+            if (screens.confirmOpensWindow && !hasUserActivation()) return "stay"
             screens.confirm()
             return "stay"
         },
