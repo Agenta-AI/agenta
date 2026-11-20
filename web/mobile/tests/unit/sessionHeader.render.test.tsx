@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {agentAutoCommitStatusAtomFamily} from "@agenta/playground/state"
 import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {cleanup, fireEvent, render, screen, waitFor, within} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
@@ -68,10 +69,11 @@ const panel = (over: Partial<AgentPanelApi> = {}): AgentPanelApi => ({
 
 const renderHeader = (
     apiIn: AgentPanelApi,
-    {hidden = false, builder = false, inspector = false} = {},
+    {hidden = false, builder = false, inspector = false, saveFailed = false} = {},
 ) => {
     let api = apiIn
     const store = createStore()
+    if (saveFailed) store.set(agentAutoCommitStatusAtomFamily("rev-1"), "error")
     store.set(activeUserIdAtom, "qa-user")
     store.set(playgroundInspectorEnabledAtom, inspector)
     if (builder) api = {...api, available: {...api.available, builder: true}}
@@ -218,6 +220,16 @@ describe("the session header on a phone", () => {
         expect(within(sheet).getByRole("link", {name: "Sessions"})).toBeTruthy()
         fireEvent.click(within(sheet).getByRole("button", {name: "Cancel"}))
         await waitFor(() => expect(screen.queryByTestId("session-sheet")).toBeNull())
+    })
+
+    it("keeps the version status hidden in row 2, and shows it while a save failed", () => {
+        renderHeader(panel({phone: true}))
+        expect(screen.getByTestId("session-header-save-status").className).toContain("hidden")
+        cleanup()
+        renderHeader(panel({phone: true}), {saveFailed: true})
+        const status = screen.getByTestId("session-header-save-status")
+        expect(status.className).not.toContain("hidden")
+        expect(status.className).toContain("flex")
     })
 
     it("shows no Configuration and no Builder for a private agent the reader cannot see", () => {
