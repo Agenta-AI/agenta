@@ -1057,18 +1057,29 @@ describe("a reader who may not edit the agent", () => {
 
 describe("the tool list read", () => {
     /** Shows the catalog state of one server, read with the given sign-in. */
-    const Probe = ({accountSource}: {accountSource: "agent" | "user"}) => {
+    const Probe = ({
+        accountSource = "agent",
+        listTools = true,
+    }: {
+        accountSource?: "agent" | "user"
+        listTools?: boolean
+    }) => {
         const mcp = useMcpPermissionSource({
             slug: "linear",
             policy: {permission: "allow"} as McpServerPolicy,
             onChange: () => undefined,
             accountSource,
+            listTools,
         })
         const catalog = mcp.source.catalog
+        const askWrites = mcp.source.presets?.options.find(
+            (option) => option.value === "ask_writes",
+        )
         return createElement(
             "div",
             {"data-testid": "probe"},
-            `${catalog.status}:${catalog.tools.map((tool) => tool.name).join(",")}`,
+            `${catalog.status}:${catalog.tools.map((tool) => tool.name).join(",")}:` +
+                (askWrites?.disabled ? "askWritesOff" : "askWritesOn"),
         )
     }
 
@@ -1094,5 +1105,19 @@ describe("the tool list read", () => {
 
         await act(async () => failOlder(new McpProtocolError("Sign in again.", "auth_required")))
         expect(probe()).toMatch(/^ready:.*list_issues/)
+    })
+
+    it("drops the list when no sign-in can read it any more", async () => {
+        listMcpTools.mockResolvedValueOnce([
+            {name: "list_issues", annotations: {readOnlyHint: true}},
+        ])
+        await act(async () => root.render(createElement(Probe, {accountSource: "user"})))
+        expect(probe()).toBe("ready:list_issues:askWritesOn")
+
+        // The viewer signed out: the view stops reading the list.
+        await act(async () =>
+            root.render(createElement(Probe, {accountSource: "user", listTools: false})),
+        )
+        expect(probe()).toMatch(/:askWritesOff$/)
     })
 })

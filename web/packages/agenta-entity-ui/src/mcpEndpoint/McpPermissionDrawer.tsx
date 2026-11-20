@@ -433,7 +433,14 @@ export function useMcpPermissionSource({
     }, [accountSource, loadToolsFrom, projectId, slug])
 
     useEffect(() => {
-        if (!open || !listTools) return
+        // No sign-in reads the list any more (the viewer signed out): drop the list and any read
+        // in flight, so no preset keeps writing tool names from a list that is gone.
+        if (!listTools) {
+            latestRead.current = null
+            setTools({status: "idle"})
+            return
+        }
+        if (!open) return
         if (slug) void loadTools()
         else setTools({status: "idle"})
     }, [listTools, loadTools, open, slug])
