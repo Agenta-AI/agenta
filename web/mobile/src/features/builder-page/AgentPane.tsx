@@ -35,7 +35,8 @@ import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {followAction} from "./followBuilder"
-import {PaneSessionSwitcher, PaneSessions, usePaneSessionPick} from "./PaneSessions"
+import {PaneSessions, usePaneSessionPick} from "./PaneSessions"
+import {PaneSessionSwitcher} from "./PaneSessionSwitcher"
 
 /** The pane tabs of an agent tab (B03): the Configuration tabs, then Drives and Sessions. */
 export const PANE_TABS = [

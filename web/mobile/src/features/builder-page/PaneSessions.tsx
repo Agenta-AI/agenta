@@ -5,13 +5,9 @@ import {sessionListQueryOptions} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {livePollInterval} from "@agenta/navigation"
-import {sessionRowVm} from "@agenta/sessions/row"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {Popover, PopoverContent, PopoverTrigger, SkeletonRows, Spinner} from "@agenta/ui/ui"
-import {CaretUpDown, Circle} from "@phosphor-icons/react"
+import {SkeletonRows} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
-
-import {cn} from "@/lib/utils"
 
 import {AutomationRunConversation} from "../automations/AutomationRunConversation"
 
@@ -43,17 +39,12 @@ export const usePaneSessions = (projectId: string, agentId: string) =>
         refetchInterval: (query) => livePollInterval(query.state.data?.sessions),
     })
 
-/**
- * The session the Sessions pane tab shows: the latest one when the list first loads, then the one
- * picked in the switcher. It stays on screen when newer sessions arrive or push it out of the list.
- */
+/** The session the Sessions tab shows: the first latest one, then the pick; kept on refresh. */
 export const usePaneSessionPick = (projectId: string, agentId: string) => {
     const query = usePaneSessions(projectId, agentId)
     const rows = query.data?.sessions ?? []
     const [picked, setPicked] = useState<SessionStream | null>(null)
-    // Pinned while rendering, so the first load never shows another session first.
     if (!picked && rows[0]) setPicked(rows[0])
-    // The fresh row when the list still has it (a new name or status), else the one held.
     const session = rows.find((row) => row.session_id === picked?.session_id) ?? picked
     const pick = (sessionId: string) => {
         const row = rows.find((entry) => entry.session_id === sessionId)
@@ -63,79 +54,7 @@ export const usePaneSessionPick = (projectId: string, agentId: string) => {
 }
 export type PaneSessionPick = ReturnType<typeof usePaneSessionPick>
 
-/** A session's status mark and title, as the session rows show them. */
-const SessionLabel = ({session}: {session: SessionStream}) => {
-    const vm = sessionRowVm(session, {pinned: false, pending: undefined})
-    return (
-        <>
-            {vm.status.status === "running" ? (
-                <Spinner className="size-3 shrink-0" />
-            ) : (
-                <Circle aria-hidden size={12} className="shrink-0 text-colorTextSecondary" />
-            )}
-            <span className="min-w-0 flex-1 truncate">{vm.title}</span>
-        </>
-    )
-}
-
-/**
- * The session switcher at the end of the pane sub-tab row (B04): the session on screen, and the
- * agent's latest sessions to pick from.
- */
-export const PaneSessionSwitcher = ({pick}: {pick: PaneSessionPick}) => {
-    const t = useT(builderPageCatalog)
-    const [open, setOpen] = useState(false)
-    const current = pick.session
-    if (!current) return null
-    return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <button
-                    type="button"
-                    data-testid="pane-session-switcher"
-                    aria-haspopup="listbox"
-                    // 44 px high on a phone (tap rule).
-                    className="box-border flex h-7 w-[172px] shrink-0 cursor-pointer items-center gap-2 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer pl-2.5 pr-2 text-left text-[13px] font-medium leading-5 text-colorText hover:bg-zinc-1 max-md:h-11 max-md:w-[140px]"
-                >
-                    <SessionLabel session={current} />
-                    <CaretUpDown
-                        aria-hidden
-                        size={14}
-                        className="shrink-0 text-colorTextTertiary"
-                    />
-                </button>
-            </PopoverTrigger>
-            <PopoverContent
-                align="end"
-                aria-label={t("builder.page.sessions")}
-                className="flex max-h-[360px] w-[280px] flex-col overflow-y-auto p-1"
-            >
-                {(pick.query.data?.sessions ?? []).map((row) => (
-                    <button
-                        key={row.session_id}
-                        type="button"
-                        aria-current={row.session_id === current.session_id || undefined}
-                        onClick={() => {
-                            pick.pick(row.session_id)
-                            setOpen(false)
-                        }}
-                        className={cn(
-                            "flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[13px] text-colorText hover:bg-colorFillTertiary max-md:h-11",
-                            row.session_id === current.session_id && "bg-colorFillSecondary",
-                        )}
-                    >
-                        <SessionLabel session={row} />
-                    </button>
-                ))}
-            </PopoverContent>
-        </Popover>
-    )
-}
-
-/**
- * The Sessions pane tab of an agent tab (B04): the session the switcher picked, the latest one
- * first. The address does not change.
- */
+/** The Sessions pane tab (B04): the session the switcher picked. */
 export const PaneSessions = ({
     pick,
     agentId,

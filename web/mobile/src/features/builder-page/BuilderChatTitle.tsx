@@ -18,12 +18,7 @@ import {SessionRowMenu} from "../sessions/SessionRowMenu"
 
 const titleClass = "min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-colorText"
 
-/**
- * The title of a saved builder chat and its "⋯" menu (B03). The menu holds the session actions a
- * session row has (rename, pin, copy link, archive, delete), from the shared `useSessionActions`
- * and the session row menu, because a builder chat is a session. Archive and delete leave for a
- * new chat.
- */
+/** A saved builder chat's title and its "⋯" menu: the session row's actions (B03). */
 export const BuilderChatTitle = ({
     title,
     session,

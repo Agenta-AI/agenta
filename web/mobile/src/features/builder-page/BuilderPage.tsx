@@ -172,9 +172,7 @@ export const BuilderPage = ({
         [projectId, workspaceId],
     )
 
-    // A page-sized layer for dialogs that cover the page but not the sidebar (Browse ideas, B02).
-    // `contain: layout` makes it the box their fixed mask and positioner fill. Not the dialog's
-    // `contained` mode: that one is non-modal (no focus trap) and its mask always blurs.
+    // Dialog layer over the page, not the sidebar (B02); `contained` mode is non-modal and blurs.
     const [dialogHost, setDialogHost] = useState<HTMLDivElement | null>(null)
 
     const header = useSessionHeader(projectId, routeChatId ?? "")

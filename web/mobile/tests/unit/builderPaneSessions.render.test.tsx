@@ -80,11 +80,8 @@ vi.mock("@/features/sessions/SessionRowMenu", () => ({
 vi.mock("next/router", () => ({useRouter: () => ({basePath: "/m", push: vi.fn()})}))
 
 import {BuilderChatTitle} from "@/features/builder-page/BuilderChatTitle"
-import {
-    PaneSessionSwitcher,
-    PaneSessions,
-    usePaneSessionPick,
-} from "@/features/builder-page/PaneSessions"
+import {PaneSessions, usePaneSessionPick} from "@/features/builder-page/PaneSessions"
+import {PaneSessionSwitcher} from "@/features/builder-page/PaneSessionSwitcher"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

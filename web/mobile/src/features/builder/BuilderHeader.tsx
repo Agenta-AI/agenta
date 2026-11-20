@@ -84,7 +84,7 @@ export const BuilderHeader = ({
                     type="button"
                     data-testid="builder-chat-title"
                     className={cn(
-                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-semibold text-colorText hover:bg-zinc-2",
+                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-semibold text-colorText hover:bg-accent",
                         phone
                             ? "h-11 rounded-lg px-2 text-base leading-5"
                             : "h-[30px] rounded-[6px] px-2 text-sm",

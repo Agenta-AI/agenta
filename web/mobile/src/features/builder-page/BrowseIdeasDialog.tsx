@@ -94,7 +94,7 @@ export const BrowseIdeasDialog = ({
                     ;(event.currentTarget as HTMLElement | null)?.focus()
                 }}
                 // 60 px from the top of the page: the positioner pads 16 px.
-                className="mt-11 flex h-[min(460px,calc(100%-44px))] max-w-[760px] flex-col gap-0 self-start overflow-hidden rounded-[12px] p-0 shadow-[0_20px_50px_rgba(0,0,0,0.18)] sm:max-w-[760px]"
+                className="mt-11 flex h-[min(460px,calc(100%-44px))] max-w-[760px] flex-col gap-0 self-start overflow-hidden rounded-[12px] p-0 shadow-dialog sm:max-w-[760px]"
             >
                 <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-4 py-3.5">
                     <DialogTitle className="m-0 flex-1 text-sm font-semibold">
@@ -167,7 +167,7 @@ export const BrowseIdeasDialog = ({
                                         onClick={() => onPick(entry.prompt)}
                                         className="flex w-full cursor-pointer items-center gap-3 rounded-lg border-0 bg-transparent p-2.5 text-left hover:bg-colorFillTertiary"
                                     >
-                                        <span className="box-border flex size-[26px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-zinc-1 text-zinc-8">
+                                        <span className="box-border flex size-[26px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-muted text-zinc-8">
                                             <IdeaIcon aria-hidden size={14} />
                                         </span>
                                         <span className="flex min-w-0 flex-1 flex-col gap-1">

@@ -30,7 +30,7 @@ export const ChatRow = ({
             data-testid="builder-chat-row"
             onClick={() => onOpen(row.session_id)}
             className={cn(
-                "flex w-full min-w-0 cursor-pointer items-center border-0 bg-transparent text-left text-colorText hover:bg-zinc-2",
+                "flex w-full min-w-0 cursor-pointer items-center border-0 bg-transparent text-left text-colorText hover:bg-accent",
                 layout === "panel" && "h-8 gap-3 rounded-lg px-2 text-[13px] leading-5",
                 layout === "phoneRecent" && "h-11 shrink-0 gap-2 rounded-md px-1 text-[15px]",
                 layout === "phoneHistory" &&

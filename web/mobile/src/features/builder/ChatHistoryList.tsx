@@ -74,8 +74,7 @@ export const ChatHistoryList = ({
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
-                    // On a phone the input fills the field, so the input itself is 44 px high
-                    // (46 px less the border), for the 44 px tap rule. M06 draws no clear button.
+                    // Phone: a 44 px input (tap rule) and no clear button (M06).
                     allowClear={!phone}
                     className={cn(
                         "border-colorBorderSecondary",

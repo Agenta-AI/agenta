@@ -10,10 +10,7 @@ const BuilderHero = dynamic(
     {ssr: false, loading: () => <div className="size-40" />},
 )
 
-/**
- * The top of a new builder chat: the hero, "What should we change?" and what the builder can do.
- * 20 / 26 and 13 px in the panel (S07), 22 / 28 and 14 px on a phone (M04).
- */
+/** The top of a new builder chat: the hero, the question and what the builder can do. */
 export const NewChatIntro = ({agentName, phone = false}: {agentName: string; phone?: boolean}) => {
     const t = useT(builderPanelCatalog)
     return (

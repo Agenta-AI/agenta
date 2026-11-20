@@ -52,7 +52,7 @@ export const RecentChats = ({
                             "cursor-pointer border-0 bg-transparent font-medium text-colorText underline underline-offset-2",
                             phone
                                 ? "relative p-0 text-[13px] after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
-                                : "-mr-1.5 rounded-[6px] px-1.5 py-0.5 text-[12px] leading-5 hover:bg-zinc-2",
+                                : "-mr-1.5 rounded-[6px] px-1.5 py-0.5 text-[12px] leading-5 hover:bg-accent",
                         )}
                     >
                         {t("builder.panel.viewAll")}

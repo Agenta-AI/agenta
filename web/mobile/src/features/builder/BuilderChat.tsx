@@ -197,8 +197,7 @@ export const BuilderChat = ({
                     <ContextChip projectId={projectId} agentName={agentName} phone={phone} />
                 }
                 emptyState={<NewChatIntro agentName={agentName} phone={phone} />}
-                // A new chat: the intro, the composer and the quick actions in the middle (S07), at
-                // the top on a phone (M04), and "Recent chats" at the bottom.
+                // New chat group in the middle (S07), at the top on a phone (M04).
                 newChatLayout={phone ? "top" : "middle"}
                 belowComposer={
                     isUnlinked ? (

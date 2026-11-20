@@ -30,11 +30,7 @@ const ICONS: Record<QuickAction, Icon> = {
     explain: Chats,
 }
 
-/**
- * The quick actions under the composer of a new chat (S07, S08). One opens its ready requests in
- * a card under the row; a pick puts the request in the composer and sends nothing. On a phone
- * (M04) the actions are 40 px with their icon and a 44 px hit area.
- */
+/** The quick actions of a new chat; one opens its ready requests, a pick fills the composer. */
 export const QuickActions = ({
     sessionId,
     onPick,
@@ -68,8 +64,8 @@ export const QuickActions = ({
                                     ? "relative h-10 gap-1.5 px-3.5 text-sm after:absolute after:-inset-0.5 after:content-['']"
                                     : "h-[30px] px-3 text-[13px] leading-5",
                                 open === action
-                                    ? "bg-zinc-2 ring-colorBorder"
-                                    : "bg-colorBgContainer ring-colorBorderSecondary hover:bg-zinc-1",
+                                    ? "bg-accent ring-colorBorder"
+                                    : "bg-colorBgContainer ring-colorBorderSecondary hover:bg-muted",
                             )}
                         >
                             {phone ? (
@@ -96,7 +92,7 @@ export const QuickActions = ({
                                 key={entry.request}
                                 type="button"
                                 onClick={() => onPick(request)}
-                                className="flex w-full cursor-pointer items-center gap-2.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-3 py-2 text-left last:border-b-0 hover:bg-zinc-1"
+                                className="flex w-full cursor-pointer items-center gap-2.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-3 py-2 text-left last:border-b-0 hover:bg-muted"
                             >
                                 <RowIcon
                                     aria-hidden

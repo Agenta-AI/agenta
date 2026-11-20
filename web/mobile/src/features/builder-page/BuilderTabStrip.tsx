@@ -18,7 +18,7 @@ const PLUS_WIDTH = 36
 const TAB_GAP = 17
 
 /** The line between two tabs, and before "N more". */
-const TabSeparator = () => <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorder" />
+const tabSeparator = <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorder" />
 
 /** The label a tab shows: its name, else the agent list's name, else the kind. */
 export type TabLabel = (tab: BuilderTab) => string
@@ -141,7 +141,7 @@ export const BuilderTabStrip = ({
                     if (!tab) return null
                     return (
                         <Fragment key={key}>
-                            {index > 0 ? <TabSeparator /> : null}
+                            {index > 0 ? tabSeparator : null}
                             <BuilderTabButton
                                 tab={tab}
                                 label={label(tab)}
@@ -153,7 +153,7 @@ export const BuilderTabStrip = ({
                     )
                 })}
             </div>
-            {hiddenTabs.length > 0 ? <TabSeparator /> : null}
+            {hiddenTabs.length > 0 ? tabSeparator : null}
             {hiddenTabs.length > 0 ? (
                 <Popover open={moreOpen} onOpenChange={setMoreOpen}>
                     <PopoverTrigger asChild>

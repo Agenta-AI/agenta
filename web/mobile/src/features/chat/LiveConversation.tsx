@@ -208,12 +208,7 @@ export const LiveConversation = ({
     belowComposer?: ReactNode
     /** At the bottom of a new chat, under everything else (the builder panel's recent chats). */
     newChatFooter?: ReactNode
-    /**
-     * A new chat shows its empty state, the composer and `belowComposer` as one group, in the
-     * "middle" (builder panel, S07) or at the "top" (builder on a phone, M04), with
-     * `newChatFooter` at the bottom. The first message moves the composer to the bottom; it
-     * stays mounted, so its text and focus stay. Omitted, the composer stays at the bottom.
-     */
+    /** A new chat groups empty state, composer and `belowComposer` in the middle or at the top. */
     newChatLayout?: "middle" | "top"
     /** The composer's placeholder when it is not gated. */
     composerPlaceholder?: string
@@ -997,8 +992,7 @@ export const LiveConversation = ({
 
     // Loaded and empty: a chat that still loads its messages is not new yet.
     const newChat = conversation.isEmpty && !conversation.isHydrating
-    // The group layout: "middle" splits the free space evenly above the empty state and above
-    // `newChatFooter`, "top" gives it all to the space above `newChatFooter`.
+    // "middle" splits the free space above the group and the footer; "top" gives it to the footer.
     const groupLayout = newChat ? newChatLayout : undefined
 
     let body

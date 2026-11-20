@@ -8,7 +8,7 @@ import type {Glyph, PageKey} from "./ideas"
 import type {AgentRef} from "./paneAgent"
 
 const buttonClass =
-    "inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border-0 bg-colorBgContainer px-3 text-[13px] leading-5 text-zinc-8 ring-1 ring-inset ring-colorBorderSecondary hover:bg-zinc-1 [&>svg]:text-colorTextSecondary"
+    "inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border-0 bg-colorBgContainer px-3 text-[13px] leading-5 text-zinc-8 ring-1 ring-inset ring-colorBorderSecondary hover:bg-muted [&>svg]:text-colorTextSecondary"
 
 /** The quick actions that put a ready request in the composer (B01). */
 const READY: {
