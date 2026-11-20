@@ -8,6 +8,7 @@ import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {DrawerViewChrome, ViewStackHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -15,6 +16,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {AccessTab} from "../agent-layout/AccessTab"
+import {AutomationsTab} from "../agent-layout/AutomationsTab"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {SessionWorkspaceDrawers} from "../chat/SessionWorkspaceDrawers"
 import {startBlankSession} from "../chat/useStartBlankSession"
@@ -26,7 +28,6 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 
 import {ConfigurationAgentTab} from "./ConfigurationAgentTab"
-import {ConfigurationAutomationsTab} from "./ConfigurationAutomationsTab"
 import {ConfigurationEditorProvider} from "./ConfigurationEditorProvider"
 import {CONFIGURATION_TABS, isConfigurationTab, type ConfigurationTab} from "./configurationTabs"
 import {useConfigurationRevision} from "./useConfigurationRevision"
@@ -91,7 +92,20 @@ export const AgentConfigurationScreen = ({
         ) : tab === "agent" ? (
             <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
         ) : (
-            <ConfigurationAutomationsTab revisionId={revisionId} readOnly={readOnly} />
+            // The panel's Automations tab, without its Files part (this page has no session). Its
+            // automation views open in the page, under the crumb "Automations".
+            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-solid border-border bg-background">
+                <ViewStackHost
+                    chrome={DrawerViewChrome}
+                    rootTitle={t("agentLayout.panel.automations")}
+                >
+                    <AutomationsTab
+                        revisionId={revisionId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                    />
+                </ViewStackHost>
+            </div>
         )
 
     return (
