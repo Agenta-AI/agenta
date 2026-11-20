@@ -238,7 +238,7 @@ export const AgentPane = ({
                             />
                         ) : null}
                         {key === "sessions" && sessionCount > 0 ? (
-                            <span className="text-[12px] leading-5 text-colorTextTertiary">
+                            <span className="text-[12px] font-normal leading-5 text-colorTextTertiary">
                                 {formatNumber(sessionCount)}
                             </span>
                         ) : null}
