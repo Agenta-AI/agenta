@@ -24,6 +24,7 @@ import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
+import {cn} from "@agenta/ui/styles"
 import {Spinner} from "@agenta/ui/ui"
 import {LockSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -33,6 +34,7 @@ import {SecretRemoveDialog} from "../../../../secret/SecretRemoveDialog"
 import {ItemRow, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
+import {useSectionListLayout} from "../sectionListLayout"
 import {SectionPageAction} from "../SectionPageAction"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
@@ -164,6 +166,8 @@ export const SecretsSectionBody = ({
     onRevisionCommitted?: (revisionId: string) => void
 }) => {
     const t = useT(agentSecretsCatalog)
+    // On the page the rows are flat in the card; a notice above them keeps off the card's edge.
+    const inset = useSectionListLayout() === "page" && bindings.length > 0
     const {namedSecrets, loading} = useVaultSecret()
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId))
     const commit = useSetAtom(commitAgentCredentialsAtom)
@@ -210,7 +214,12 @@ export const SecretsSectionBody = ({
     return (
         <div className="flex flex-col gap-2">
             {notice ? (
-                <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
+                <div
+                    className={cn(
+                        "rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary",
+                        inset && "m-3",
+                    )}
+                >
                     {notice}
                 </div>
             ) : null}

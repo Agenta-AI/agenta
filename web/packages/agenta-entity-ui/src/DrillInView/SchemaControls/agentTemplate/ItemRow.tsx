@@ -402,8 +402,8 @@ export function InstructionsFileRow({
     )
 }
 
-/** How many lines of the file the page shows; `max-h-44` cuts one long paragraph. */
-const PREVIEW_LINES = 8
+/** How many lines of the file the page shows; `max-h-44` also cuts one long paragraph there. */
+const PREVIEW_LINES = 6
 
 /**
  * The instructions file on the Configuration page (canvas A04): the filename and the word count
