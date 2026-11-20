@@ -338,6 +338,7 @@ export const AgentLayoutBody = ({
                                 // A phone has no wider pane, and Files is read only there.
                                 onToggleExpand={phone ? undefined : filesLayout.toggleExpand}
                                 readOnly={phone}
+                                touch={phone}
                             />
                         </DriveLinkContext.Provider>
                     </div>

@@ -108,6 +108,10 @@ const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
  * selection state; initialize with `initialPath` (callers remount per open, so mount-time init
  * is the reset).
  */
+/** The header and toolbar buttons keep their drawn size; each gets a 44 px hit area. */
+const TOUCH_HITS =
+    "contents [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-x-2 [&_button]:after:-inset-y-3 [&_button]:after:content-['']"
+
 export function DriveExplorer({
     drive,
     explicitFiles,
@@ -129,6 +133,7 @@ export function DriveExplorer({
     treePersistKey,
     closeVariant = "close",
     readOnly = false,
+    touch = false,
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -166,6 +171,8 @@ export function DriveExplorer({
     closeVariant?: "close" | "collapse" | "back"
     /** Open and download only: no upload, drop, paste, new item, rename, delete or edit (a phone). */
     readOnly?: boolean
+    /** A touch screen (a phone): the header and toolbar buttons get a 44 px hit area. */
+    touch?: boolean
 }) {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const chrome = chromeProp ?? onClose != null
@@ -681,6 +688,13 @@ export function DriveExplorer({
             />
         )
 
+        const shownContentHeader =
+            touch && contentHeader ? (
+                <div className={TOUCH_HITS}>{contentHeader}</div>
+            ) : (
+                contentHeader
+            )
+
         // The content column: the folder's children, an editor, or a preview.
         const contentPane =
             selectedPath == null ? (
@@ -787,7 +801,7 @@ export function DriveExplorer({
                     treeScrollRef={treeScrollRef}
                     onTreeKeyDown={onTreeKeyDown}
                     treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
-                    contentHeader={contentHeader}
+                    contentHeader={shownContentHeader}
                     railHeader={
                         chrome ? (
                             <Input
@@ -865,36 +879,38 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    <DriveHeader
-                        selectedPath={selectedPath}
-                        isFolder={selectedIsFolder}
-                        rootLabel={rootLabel}
-                        onNavigate={select}
-                        canGoBack={canGoBack}
-                        canGoForward={canGoForward}
-                        onBack={goBack}
-                        onForward={goForward}
-                        copyText={copyText}
-                        ids={driveIds ?? []}
-                        showOrigin={showOrigin}
-                        showTemporary={showTemporary}
-                        onToggleTemporary={() => setShowTemporary((v) => !v)}
-                        showHidden={showHidden}
-                        onToggleHidden={toggleShowHiddenPref}
-                        inGitScope={inGitScope}
-                        showGitignored={showGitignored}
-                        onToggleGitignored={toggleShowGitignoredPref}
-                        treeVisible={treeVisible}
-                        onToggleTree={toggleTree}
-                        onClose={onClose}
-                        closeVariant={closeVariant}
-                        expanded={drawerExpanded}
-                        onToggleExpand={onToggleExpand}
-                        expandPlacement={expandPlacement}
-                        partialErrored={drive.partialErrored}
-                        onRetry={drive.retry}
-                        retrying={drive.isFetching}
-                    />
+                    <div className={touch ? TOUCH_HITS : "contents"}>
+                        <DriveHeader
+                            selectedPath={selectedPath}
+                            isFolder={selectedIsFolder}
+                            rootLabel={rootLabel}
+                            onNavigate={select}
+                            canGoBack={canGoBack}
+                            canGoForward={canGoForward}
+                            onBack={goBack}
+                            onForward={goForward}
+                            copyText={copyText}
+                            ids={driveIds ?? []}
+                            showOrigin={showOrigin}
+                            showTemporary={showTemporary}
+                            onToggleTemporary={() => setShowTemporary((v) => !v)}
+                            showHidden={showHidden}
+                            onToggleHidden={toggleShowHiddenPref}
+                            inGitScope={inGitScope}
+                            showGitignored={showGitignored}
+                            onToggleGitignored={toggleShowGitignoredPref}
+                            treeVisible={treeVisible}
+                            onToggleTree={toggleTree}
+                            onClose={onClose}
+                            closeVariant={closeVariant}
+                            expanded={drawerExpanded}
+                            onToggleExpand={onToggleExpand}
+                            expandPlacement={expandPlacement}
+                            partialErrored={drive.partialErrored}
+                            onRetry={drive.retry}
+                            retrying={drive.isFetching}
+                        />
+                    </div>
                     <input
                         ref={uploadInputRef}
                         type="file"

@@ -88,6 +88,7 @@ export function SessionFilesPane({
     onToggleExpand,
     onSelectionChange,
     readOnly = false,
+    touch = false,
 }: {
     scope: string
     sessionId: string
@@ -101,6 +102,8 @@ export function SessionFilesPane({
     onToggleExpand?: () => void
     /** Open and download only (a phone): the explorer offers no write. */
     readOnly?: boolean
+    /** A touch screen (a phone): 44 px hit areas on the header and toolbar buttons. */
+    touch?: boolean
 }) {
     const {open, close} = useSessionFilesPane(scope, sessionId)
     const [quickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
@@ -189,6 +192,7 @@ export function SessionFilesPane({
                 stagedFiles={staged}
                 onStagedChange={setStaged}
                 readOnly={readOnly}
+                touch={touch}
             />
         </div>
     )
