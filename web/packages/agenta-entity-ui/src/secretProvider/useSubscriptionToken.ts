@@ -12,10 +12,14 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
 import {organizationRefusal} from "./useOrganizationProjectsDraft"
+
+const tNow = createT(subscriptionSignInCatalog)
 
 /** Every `claude setup-token` value starts with this. */
 const SETUP_TOKEN_PREFIX = "sk-ant-oat"
@@ -52,7 +56,9 @@ export const useSubscriptionToken = ({
     const name = connection?.name || subscriptionProviderName(provider)
     // A failed replacement keeps the old token, so the steps stay open on its error.
     const connected = subscriptionIsReady(connection?.subscription) && !replacing
-    const token = value.trim()
+    // A setup-token never contains whitespace. A terminal that wraps the long token can add
+    // spaces where the lines break, and the password field hides them, so they are removed.
+    const token = value.replace(/\s/g, "")
     const canSubmit = token.startsWith(SETUP_TOKEN_PREFIX) && !checking
 
     const submit = useCallback(async () => {
@@ -81,7 +87,7 @@ export const useSubscriptionToken = ({
                 (organization && organizationRefusal(caught, organizationName)) ||
                     subscriptionTokenErrorText(caught) ||
                     extractApiErrorMessage(caught) ||
-                    "Agenta could not store this token. Try again.",
+                    tNow("entityUi.subscriptionSignIn.couldNotStoreToken"),
             )
         } finally {
             setChecking(false)

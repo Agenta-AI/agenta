@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {timeAgo} from "@agenta/shared/utils"
 import {
     Button,
@@ -85,6 +87,7 @@ export const AgentCard = ({
     onRename,
     onArchive,
 }: AgentCardProps) => {
+    const t = useT(agentActionsCatalog)
     const {initials, color} = agentAvatar(agent.name, agent.id)
     const isGrid = variant === "grid"
     // Never `text-white` AND the icon's colour utility: equal specificity leaves the winner to
@@ -122,9 +125,9 @@ export const AgentCard = ({
                 {agent.name}
             </span>
             {waiting > 0 ? (
-                <Tip title={`${waiting} waiting on you`}>
+                <Tip title={t("entityUi.agentActions.waitingOnYou", {count: waiting})}>
                     <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
-                        {waiting} waiting
+                        {t("entityUi.agentActions.waitingCount", {count: waiting})}
                     </span>
                 </Tip>
             ) : null}
@@ -153,7 +156,7 @@ export const AgentCard = ({
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Agent actions"
+                    aria-label={t("entityUi.agentActions.agentActions")}
                     // pointer-coarse keeps it visible on touch, where there is no hover to
                     // reveal it and the kebab was simply unreachable.
                     className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100"
@@ -167,18 +170,18 @@ export const AgentCard = ({
                     verbs, whichever surface offers them. */}
                 <DropdownMenuItem onSelect={onOpenOverview}>
                     <Note size={16} />
-                    Open configuration
+                    {t("entityUi.agentActions.openConfiguration")}
                 </DropdownMenuItem>
                 {onOpenPlayground ? (
                     <DropdownMenuItem onSelect={onOpenPlayground}>
                         <Rocket size={16} />
-                        Open in playground
+                        {t("entityUi.agentActions.openInPlayground")}
                     </DropdownMenuItem>
                 ) : null}
                 {onRename ? (
                     <DropdownMenuItem onSelect={onRename}>
                         <PencilSimple size={16} />
-                        Rename
+                        {t("entityUi.agentActions.rename")}
                     </DropdownMenuItem>
                 ) : null}
                 {onArchive ? (
@@ -186,7 +189,7 @@ export const AgentCard = ({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem variant="destructive" onSelect={onArchive}>
                             <Archive size={16} />
-                            Archive agent
+                            {t("entityUi.agentActions.archiveAgent")}
                         </DropdownMenuItem>
                     </>
                 ) : null}

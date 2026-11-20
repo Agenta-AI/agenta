@@ -10,6 +10,8 @@ import {
     type AgentStarterTemplate,
     type AgentTemplateSource,
 } from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import createAgentCatalog from "@agenta/i18n/catalogs/home.createAgent"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
@@ -67,6 +69,8 @@ export interface UseCreateAgentOptions {
  */
 let creating = false
 
+const tNow = createT(createAgentCatalog)
+
 export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
     const loadTemplateFromEphemeral = useSetAtom(loadAgentTemplateFromEphemeralAtom)
@@ -93,7 +97,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                         defaultName: agentName,
                     }))
                 if (!ephemeralId) {
-                    onError?.("Couldn't start agent creation — please retry")
+                    onError?.(tNow("home.createAgent.startFailed"))
                     return null
                 }
 
@@ -139,7 +143,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                 const appId = result.workflow?.workflow_id ?? result.workflow?.id
                 const revisionId = result.newRevisionId
                 if (!appId || !revisionId) {
-                    onError?.("Agent created, but couldn't open it — find it under Agents")
+                    onError?.(tNow("home.createAgent.openFailed"))
                     return null
                 }
 

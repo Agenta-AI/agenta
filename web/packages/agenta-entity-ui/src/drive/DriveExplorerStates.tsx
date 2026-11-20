@@ -5,6 +5,9 @@
  */
 import {type DriveScope} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {
     Button,
     Empty,
@@ -17,15 +20,18 @@ import {
 import {ArrowClockwise, CircleNotch, Tray, WarningCircle} from "@phosphor-icons/react"
 
 export function DriveErrorState({drive}: {drive: SessionDriveData}) {
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
         <Empty className="flex-1 gap-2 p-8">
             <EmptyHeader className="gap-1">
                 <EmptyMedia variant="icon">
                     <WarningCircle size={26} />
                 </EmptyMedia>
-                <EmptyTitle className="text-xs">Couldn&apos;t reach the file store</EmptyTitle>
+                <EmptyTitle className="text-xs">
+                    {t("entityUi.driveBrowser.couldNotReachStore")}
+                </EmptyTitle>
                 <EmptyDescription className="text-xs">
-                    This deployment may have no file store configured.
+                    {t("entityUi.driveBrowser.noStoreConfigured")}
                 </EmptyDescription>
             </EmptyHeader>
             {drive.retry ? (
@@ -42,7 +48,9 @@ export function DriveErrorState({drive}: {drive: SessionDriveData}) {
                         ) : (
                             <ArrowClockwise />
                         )}
-                        {drive.isFetching ? "Loading…" : "Try again"}
+                        {drive.isFetching
+                            ? t("entityUi.driveExplorer.loading")
+                            : t("entityUi.driveExplorer.tryAgain")}
                     </Button>
                 </EmptyContent>
             ) : null}
@@ -51,17 +59,18 @@ export function DriveErrorState({drive}: {drive: SessionDriveData}) {
 }
 
 export function DriveEmptyState({scope}: {scope: DriveScope}) {
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
         <Empty className="flex-1 gap-2 p-8">
             <EmptyHeader className="gap-1">
                 <EmptyMedia variant="icon">
                     <Tray size={26} />
                 </EmptyMedia>
-                <EmptyTitle className="text-xs">This drive is empty</EmptyTitle>
+                <EmptyTitle className="text-xs">{t("entityUi.driveBrowser.driveEmpty")}</EmptyTitle>
                 <EmptyDescription className="text-xs">
                     {scope === "session"
-                        ? "Created on the conversation's first run."
-                        : "Files the agent keeps across conversations land here."}
+                        ? t("entityUi.driveBrowser.createdOnFirstRun")
+                        : t("entityUi.driveBrowser.agentFilesLandHere")}
                 </EmptyDescription>
             </EmptyHeader>
         </Empty>

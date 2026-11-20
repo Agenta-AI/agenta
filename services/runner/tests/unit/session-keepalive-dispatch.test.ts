@@ -8,6 +8,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-dispatch.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
@@ -197,7 +198,7 @@ function makeEngine(options: EngineOptions = {}) {
       const cwd = mountExpiryMs(presigned?.expiresAt);
       if (cwd !== undefined) env.installedMountExpiries.cwd = cwd;
       const agent = mountExpiryMs(options.agentMountExpiresAt);
-      if (agent !== undefined) env.installedMountExpiries.agent = agent;
+      if (agent !== undefined) env.installedMountExpiries.drives = { "/w-agent": agent };
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },
@@ -205,6 +206,7 @@ function makeEngine(options: EngineOptions = {}) {
       return runOneTurn(env as unknown as FakeEnv, !!opts.continuation, emit);
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signDrive: driveSigns,
     async runCold(_request, _emit, _signal, presignedMount) {
       calls.cold += 1;
       calls.coldPresigned.push(presignedMount);
@@ -1279,7 +1281,7 @@ describe("runWithKeepalive: the warm entry is checked against the turn log", () 
 
     await runWithKeepalive(streamed(), undefined, undefined, {
       ...ctx,
-      credential: () => "Secret leased",
+      credentialLease: { credential: () => "Secret leased", seed: "Secret leased" },
     });
 
     assert.equal(reads[0]?.authorization, "Secret leased");

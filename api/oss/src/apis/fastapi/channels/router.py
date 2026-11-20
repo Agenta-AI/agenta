@@ -1069,6 +1069,7 @@ class ChannelsRouter:
                 project_id=UUID(request.state.project_id),
                 connection_id=connection_id,
                 request_url=request_url,
+                identity=ChannelSetupIdentity(name=connection.name),
             )
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e

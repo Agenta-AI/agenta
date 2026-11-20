@@ -1,0 +1,18 @@
+{
+    "appearance": "Aparência",
+    "beta": "Beta",
+    "betaDeveloperMode": "Usar o novo modo de desenvolvedor beta",
+    "betaDeveloperModeDescription": "O modo de desenvolvedor permanece no novo app e mostra a seção Desenvolvedor, em vez de abrir o app clássico.",
+    "channelDebug": "Depuração de canais",
+    "channelDebugDescription": "Mostrar espaços, threads e eventos brutos dos canais nas configurações de Canais.",
+    "channelProbe": "Sonda de canais da Agenta",
+    "channelProbeDescription": "Mostrar a sonda de canais temporária no navegador.",
+    "debugging": "Depuração",
+    "debuggingDescription": "Ferramentas para inspecionar execuções e canais.",
+    "developerMode": "Modo de desenvolvedor",
+    "developerModeDescription": "Mostrar Avaliação, Gerenciamento de prompts e Rastreamento na navegação.",
+    "featureFlags": "Sinalizadores de recursos",
+    "language": "Idioma",
+    "playgroundInspector": "Inspetor do Playground",
+    "playgroundInspectorDescription": "Mostrar controles para inspecionar as sessões e os turnos do Playground."
+}

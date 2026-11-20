@@ -1,0 +1,11 @@
+{
+    "notUsedByAnyAgent": "どのエージェントでも使用されていません",
+    "reload": "再読み込み",
+    "renameFailed": "名前を変更できませんでした",
+    "rowActions": "行の操作",
+    "usedBy": "使用元: {{names}}",
+    "yours": "自分用",
+    "yoursEmptyBody": "ここで追加したアカウントは、エージェントが各ユーザー自身のアカウントを使うときに、すべてのプロジェクトで使用されます。",
+    "yoursEmptyBodyCount": "ここで追加したアカウントは、エージェントが各ユーザー自身のアカウントを使うときに、あなたの {{projectCount}} 件のプロジェクトすべてで使用されます。",
+    "yoursEmptyTitle": "自分のアカウントはまだありません"
+}

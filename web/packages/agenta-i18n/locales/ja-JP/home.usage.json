@@ -1,0 +1,12 @@
+{
+    "title": "使用量",
+    "requests": "リクエスト数",
+    "latency": "レイテンシ",
+    "totalCost": "合計コスト",
+    "avgCost": "平均コスト",
+    "totalTokens": "合計トークン数",
+    "avgTokens": "平均トークン数",
+    "failureRate": "失敗率",
+    "collapse": "折りたたむ",
+    "expand": "展開"
+}

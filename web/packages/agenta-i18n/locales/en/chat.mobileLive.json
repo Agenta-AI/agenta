@@ -1,0 +1,12 @@
+{
+    "cancel": "Cancel",
+    "couldNotIdentifyRun": "Could not identify the run to stop. Please try again.",
+    "couldNotLoadEarlier": "Couldn't load this session's earlier messages.",
+    "couldNotStopRun": "Could not stop the run. It may still be running.",
+    "noMessagesSaved": "No messages are saved in this session. Messages that failed to send are not kept, and old messages can expire.",
+    "rewindAnyway": "Rewind anyway",
+    "rewindBody": "{{tools}} already executed. Rewinding re-runs the conversation from here but will NOT undo it.",
+    "rewindTitle": "Rewind past a tool that already ran?",
+    "runAlreadyFinished": "That run had already finished. The session is running something else now.",
+    "tryAgain": "Try again"
+}

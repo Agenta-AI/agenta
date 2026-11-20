@@ -1,0 +1,10 @@
+{
+    "noProject": "无法删除：未选择项目。",
+    "failedMany": "删除追踪失败。",
+    "failedOne": "删除追踪失败。",
+    "confirmOne": "确定要删除吗？",
+    "confirmMany": "确定要删除 {{count}} 条追踪吗？",
+    "notReversible": "此操作无法撤销。",
+    "cancel": "取消",
+    "delete": "删除"
+}

@@ -1,0 +1,6 @@
+{
+    "scanRepository": "Repository durchsuchen",
+    "repositoryUrl": "Repository-URL",
+    "scanFailed": "Der Scan ist fehlgeschlagen. Prüfen Sie die URL und ob das Repository öffentlich ist.",
+    "noDescription": "Keine Beschreibung."
+}

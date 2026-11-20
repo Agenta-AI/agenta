@@ -13,6 +13,11 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 import type {ChangeEvent, DragEvent, MouseEvent, RefObject} from "react"
 
+import {createT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+
+const tNow = createT(uiChatCatalog)
+
 export interface UsePromptFileUploadOptions {
     /** Max accepted file size in bytes. */
     maxSize: number
@@ -74,13 +79,13 @@ export function usePromptFileUpload({
             reader.onload = () => {
                 const result = reader.result
                 if (typeof result !== "string") {
-                    setError("Failed to read file.")
+                    setError(tNow("ui.chat.failedToRead"))
                     return
                 }
                 setError("")
                 onAccepted(file, result)
             }
-            reader.onerror = () => setError("Failed to read file.")
+            reader.onerror = () => setError(tNow("ui.chat.failedToRead"))
             reader.readAsDataURL(file)
         },
         [isTypeAllowed, typeError, maxSize, sizeError, onAccepted],

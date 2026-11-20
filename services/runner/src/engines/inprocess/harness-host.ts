@@ -22,7 +22,6 @@ import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore, type CredentialStore } from "pi-coding-agent-pi-ai";
 import type { InMemorySessionPersistDriver, SessionRecord } from "sandbox-agent";
 import type { AttachmentFiles } from "../sandbox_agent/attachments.ts";
-import { agentMountPath } from "../sandbox_agent/agent-mount.ts";
 import type { InRunnerRunFacts } from "../sandbox_agent/runtime-contracts.ts";
 import type { ConversationRegistry } from "./conversation-registry.ts";
 import type { ConversationWorkspace, SandboxPreparation } from "./conversation-workspace.ts";
@@ -34,9 +33,10 @@ import type { SandboxRequirements } from "./sandbox/command-sandbox.ts";
 import { createSandboxBashTool } from "./tools/bash-tool.ts";
 import { EditDiffs } from "./tools/edit-diffs.ts";
 import { buildFileTools, type SandboxToolAccess } from "./tools/file-tools.ts";
+import { withNotice } from "./tools/tool-notice.ts";
 import { attachmentFiles } from "./workspace/attachment-files.ts";
 import type { ObjectStore } from "./workspace/drive-objects.ts";
-import { publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
+import { publishDrivesReadme, publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
 import { withPublicCode } from "../sandbox_agent/errors.ts";
 import type { SessionLedger } from "./session-ledger.ts";
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../sandbox_agent/run-plan.ts";
@@ -134,11 +134,10 @@ export class InProcessHarnessHost {
   private workspaceFor(cwd: string): Promise<ConversationWorkspace> {
     if (this.workspace) return Promise.resolve(this.workspace);
     this.leasing ??= (async () => {
-      const session = this.facts.drives.find((d) => d.root === cwd);
+      const session = this.facts.roots.find((d) => d.root === cwd);
       if (!session || !this.facts.conversationId || !this.facts.signTranscriptMount) {
         throw withPublicCode(new Error(INPROCESS_NEEDS_DRIVE_MESSAGE), "runner_error");
       }
-      const agent = this.facts.drives.find((d) => d.root === agentMountPath(cwd));
       const skillDir = this.facts.harnessEnv.PI_CODING_AGENT_SKILL_DIR;
       const { conversationId, projectId } = this.facts;
       const workspace = this.runtime.registry.hold({
@@ -146,8 +145,9 @@ export class InProcessHarnessHost {
         conversationId,
         projectId,
         cwd,
-        drive: agent ? [session, agent] : [session],
-        ...(agent ? { agentRoot: agent.root } : {}),
+        roots: this.facts.roots,
+        // The README text is set exactly when the request lists its drives.
+        drivesListed: this.facts.drivesReadme !== undefined,
         skillModes: await skillModes(skillDir, this.facts.skillSources),
         signTranscriptMount: this.facts.signTranscriptMount,
         ...(this.facts.usage ? { usage: this.facts.usage } : {}),
@@ -155,6 +155,7 @@ export class InProcessHarnessHost {
       // The runner built the skill snapshot on its own disk; the sandbox reads it from the drive.
       this.sessionObjects = this.runtime.registry.objects(session.credentials);
       if (skillDir) workspace.prepareDrive(publishSkillSnapshot(cwd, skillDir, this.sessionObjects, this.log));
+      if (this.facts.drivesReadme !== undefined) workspace.prepareDrive(publishDrivesReadme(this.facts.drivesReadme, this.sessionObjects, this.log));
       this.workspace = workspace;
       return workspace;
     })();
@@ -174,7 +175,7 @@ export class InProcessHarnessHost {
       tmpDir: workspace.tmpDir,
       maxFileBytes: this.runtime.config.fileToolMaxBytes,
     };
-    return [...buildFileTools(cwd, access, diffs), bash];
+    return [...buildFileTools(cwd, access, diffs), bash].map((tool) => withNotice(tool, () => workspace.takeDriveNotice()));
   }
 
   /** The start of a turn: the sandbox's view of the drive is refreshed before its next tool call. */

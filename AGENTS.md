@@ -26,7 +26,7 @@ bottom.
 - Local dev stack run commands: `hosting/AGENTS.md`.
 - Package vs app placement, `@agenta/*` packages, package unit tests: the
   `agenta-package-practices` skill.
-- Testing: [docs/designs/testing/README.md](docs/designs/testing/README.md).
+- Testing: [docs/design/testing/README.md](docs/design/testing/README.md).
 - Docs writing: the Diátaxis framework digest at `.agents/docs/diataxis/`, and the
   `write-docs` skill for Agenta style, voice, and structure.
 
@@ -123,7 +123,7 @@ file and the `run.sh` flags always agree:
 ## Testing
 
 For comprehensive testing documentation, see
-[docs/designs/testing/README.md](docs/designs/testing/README.md).
+[docs/design/testing/README.md](docs/design/testing/README.md).
 
 ## Packs
 

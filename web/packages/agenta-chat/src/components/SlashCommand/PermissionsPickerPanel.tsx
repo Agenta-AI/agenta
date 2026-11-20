@@ -5,6 +5,8 @@ import {
     type PermissionPolicy,
     type PermissionPolicyOption,
 } from "@agenta/entity-ui/drill-in"
+import {useT} from "@agenta/i18n"
+import chatPermissionsPickerPanelCatalog from "@agenta/i18n/catalogs/chat.permissionsPickerPanel"
 import {Check, ShieldCheck} from "@phosphor-icons/react"
 
 import {useRovingList} from "./useRovingList"
@@ -60,6 +62,7 @@ const PermissionsPickerPanel = ({
         }
     }, [onDismiss])
 
+    const t = useT(chatPermissionsPickerPanelCatalog)
     return (
         <div
             ref={rootRef}
@@ -67,9 +70,11 @@ const PermissionsPickerPanel = ({
         >
             <div className="flex items-center gap-2 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-[13px] py-2.5">
                 <ShieldCheck size={14} className="text-[var(--ag-colorSuccess)]" />
-                <span className="text-xs font-medium text-[var(--ag-colorText)]">Permissions</span>
+                <span className="text-xs font-medium text-[var(--ag-colorText)]">
+                    {t("chat.permissionsPickerPanel.title")}
+                </span>
                 <span className="truncate text-[11.5px] text-[var(--ag-colorTextTertiary)]">
-                    what the agent may do before it must ask
+                    {t("chat.permissionsPickerPanel.subtitle")}
                 </span>
                 <span className="ml-auto shrink-0 font-mono text-[10.5px] text-[var(--ag-colorTextTertiary)]">
                     /permissions
@@ -78,7 +83,7 @@ const PermissionsPickerPanel = ({
 
             <div
                 {...containerProps}
-                aria-label="Permission policy"
+                aria-label={t("chat.permissionsPickerPanel.policyLabel")}
                 className="py-[5px] outline-none"
             >
                 {options.map((option, index) => {
@@ -111,14 +116,14 @@ const PermissionsPickerPanel = ({
             </div>
 
             <div className="flex items-center gap-1.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-[13px] py-[7px] text-[10.5px] text-[var(--ag-colorTextTertiary)]">
-                <span>Changes this agent&apos;s draft config.</span>
+                <span>{t("chat.permissionsPickerPanel.changesDraft")}</span>
                 {onOpenConfig ? (
                     <button
                         type="button"
                         onClick={onOpenConfig}
                         className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
                     >
-                        Edit rules in config →
+                        {t("chat.permissionsPickerPanel.editRules")}
                     </button>
                 ) : null}
                 <button
@@ -129,7 +134,7 @@ const PermissionsPickerPanel = ({
                     <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
                         ←
                     </span>
-                    back to commands
+                    {t("chat.permissionsPickerPanel.backToCommands")}
                 </button>
             </div>
         </div>

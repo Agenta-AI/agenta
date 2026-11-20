@@ -1,0 +1,22 @@
+{
+    "appSection": "Aplicativo do Teams",
+    "connected": "Conectado. Faltam duas etapas no Teams.",
+    "download": "Baixar o aplicativo do Teams",
+    "endpointBody": "No Developer Portal, abra seu bot, depois Configure, e cole isto como endereço do endpoint.",
+    "endpointLabel": "Endpoint de mensagens",
+    "endpointTitle": "Cole o endpoint de mensagens",
+    "installTitle": "Instale o aplicativo no Teams",
+    "loadError": "Não foi possível carregar o aplicativo do Teams.",
+    "noUpload": "Não tem a opção Upload an app? Peça ao administrador do Teams para permitir aplicativos personalizados.",
+    "pasteBody": "Verificamos os valores com a Microsoft e depois mantemos o segredo oculto.",
+    "pasteTitle": "Cole os três valores",
+    "registerBody": "No Teams Developer Portal, abra Tools, depois Bot management, e selecione New bot.",
+    "registerLink": "Abrir o Developer Portal",
+    "registerTitle": "Registre um bot",
+    "secretBody": "Na página Client secrets do bot, adicione um segredo do cliente e copie o valor dele. O ID do aplicativo fica na página do bot.",
+    "secretTitle": "Adicione um segredo do cliente",
+    "tenantBody": "Ele fica na página Overview do centro de administração do Microsoft Entra.",
+    "tenantLink": "Abrir o Microsoft Entra",
+    "tenantTitle": "Copie o ID do seu locatário",
+    "upload": "No Teams, abra Apps, depois Manage your apps, depois Upload an app, e escolha o arquivo baixado."
+}

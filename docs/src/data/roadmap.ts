@@ -23,6 +23,34 @@ export type PlannedFeature = {
 // Recent product highlights, newest first. Match dates and links to the changelog.
 export const shippedFeatures: ShippedFeature[] = [
   {
+    id: "privacy-and-roles",
+    title: "Private agents and chats",
+    description:
+      "New agents and chats start private. Share a chat with chosen people or the whole project, and project actions follow each member's role.",
+    changelogPath: "/docs/changelog/private-agents-and-chats",
+    shippedAt: "2026-10-26",
+    labels: [
+      {
+        name: "Privacy & Access",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "embedded-agents",
+    title: "Embed agents in your website",
+    description:
+      "Paste a snippet to add an agent chat to your website or internal tool. Visitors don't need an Agenta account.",
+    changelogPath: "/docs/guides/embed-an-agent",
+    shippedAt: "2026-10-20",
+    labels: [
+      {
+        name: "Channels",
+        color: "2DD4BF",
+      },
+    ],
+  },
+  {
     id: "agent-setup",
     title: "Set up agents through chat",
     description:
@@ -122,9 +150,7 @@ export const shippedFeatures: ShippedFeature[] = [
   },
 ];
 
-export const inProgressFeatures: PlannedFeature[] = [];
-
-export const plannedFeatures: PlannedFeature[] = [
+export const inProgressFeatures: PlannedFeature[] = [
   {
     id: "agent-communication",
     title: "Agent communication and subagents",
@@ -138,30 +164,9 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "privacy-and-roles",
-    title: "Session and agent privacy",
-    description:
-      "Improve control over who can access sessions and agents, with roles that define what each person can see and do.",
-    labels: [
-      {
-        name: "Privacy & Access",
-        color: "000000",
-      },
-    ],
-  },
-  {
-    id: "embedded-agents",
-    title: "Embed agents in your website",
-    description:
-      "Add an agent to your website or app, including through an iframe, so people can use it there.",
-    labels: [
-      {
-        name: "Channels",
-        color: "2DD4BF",
-      },
-    ],
-  },
+];
+
+export const plannedFeatures: PlannedFeature[] = [
   {
     id: "custom-triggers",
     title: "Custom triggers",

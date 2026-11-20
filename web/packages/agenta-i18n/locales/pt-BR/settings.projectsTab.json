@@ -1,0 +1,8 @@
+{
+    "deleteBody": "Exclui permanentemente {{name}}, incluindo todos os agentes, datasets e implantações dele.",
+    "deleteTitle": "Excluir projeto",
+    "deleting": "Excluindo…",
+    "namePlaceholder": "Nome do projeto",
+    "newDescription": "Os projetos agrupam seus agentes, datasets e implantações.",
+    "newTitle": "Novo projeto"
+}

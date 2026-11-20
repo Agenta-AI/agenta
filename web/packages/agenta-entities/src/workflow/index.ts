@@ -102,14 +102,9 @@ export {
 } from "./state/retrievedRevision"
 export {
     AGENT_NEEDS_SETUP_CODE,
-    AGENT_NEEDS_SETUP_TITLE,
-    MODEL_NEEDS_SETUP_MESSAGE,
-    MODEL_SETUP_PLACEHOLDER,
-    NEEDS_SETUP_LABEL,
     canFixRequirement,
     isPersonalRequirement,
     modelRequirement,
-    needsSetupReasonLabel,
     requirementAtPath,
     requirementForItem,
     type AgentRequirementItem,
@@ -354,6 +349,7 @@ export {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateAgentCommittedRevisionCache,
+    revalidateAgentRevisionReads,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,

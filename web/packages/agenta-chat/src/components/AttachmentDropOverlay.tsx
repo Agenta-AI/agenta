@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import chatAttachmentDropOverlayCatalog from "@agenta/i18n/catalogs/chat.attachmentDropOverlay"
 import {DownloadSimple} from "@phosphor-icons/react"
 
 export interface AttachmentDropOverlayProps {
@@ -20,6 +22,7 @@ export const AttachmentDropOverlay = ({
     hint,
     className,
 }: AttachmentDropOverlayProps) => {
+    const t = useT(chatAttachmentDropOverlayCatalog)
     if (!active) return null
     return (
         <div
@@ -31,7 +34,9 @@ export const AttachmentDropOverlay = ({
         >
             <DownloadSimple size={24} className={atMax ? "text-colorError" : "text-colorText"} />
             <span className={`text-sm font-medium ${atMax ? "text-colorError" : "text-colorText"}`}>
-                {atMax ? "Attachment limit reached" : "Drop to attach"}
+                {atMax
+                    ? t("chat.attachmentDropOverlay.limitReached")
+                    : t("chat.attachmentDropOverlay.dropToAttach")}
             </span>
             {hint && <span className="text-xs text-colorTextSecondary">{hint}</span>}
         </div>

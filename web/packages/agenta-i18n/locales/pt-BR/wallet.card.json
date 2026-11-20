@@ -1,0 +1,7 @@
+{
+    "balance": "Saldo",
+    "label": "Carteira",
+    "rate": "1 crédito = {{usd}}",
+    "unit": "créditos",
+    "usage": "≈ {{usd}} em uso"
+}

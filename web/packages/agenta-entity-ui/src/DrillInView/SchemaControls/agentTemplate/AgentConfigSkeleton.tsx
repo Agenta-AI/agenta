@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 /**
@@ -54,21 +56,29 @@ const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
     {title: 100, value: 110}, // Advanced
 ]
 
-const AgentConfigSkeleton = () => (
-    // No padding of its own: the surrounding field/fallback wrapper provides the 16px inset.
-    // `role="status"`: a bare div is role=generic, which may not carry `aria-label`
-    // (axe aria-prohibited-attr) — the live region is also what makes the label useful.
-    <div className="flex flex-col" role="status" aria-busy aria-label="Loading agent configuration">
-        {ROWS.map((row, i) => (
-            <SkeletonSectionRow
-                key={i}
-                title={row.title}
-                value={row.value}
-                withAdd={row.withAdd}
-                divider={i < ROWS.length - 1}
-            />
-        ))}
-    </div>
-)
+const AgentConfigSkeleton = () => {
+    const t = useT(configItemsCatalog)
+    return (
+        // No padding of its own: the surrounding field/fallback wrapper provides the 16px inset.
+        // `role="status"`: a bare div is role=generic, which may not carry `aria-label`
+        // (axe aria-prohibited-attr) — the live region is also what makes the label useful.
+        <div
+            className="flex flex-col"
+            role="status"
+            aria-busy
+            aria-label={t("entityUi.configItems.loadingAgentConfig")}
+        >
+            {ROWS.map((row, i) => (
+                <SkeletonSectionRow
+                    key={i}
+                    title={row.title}
+                    value={row.value}
+                    withAdd={row.withAdd}
+                    divider={i < ROWS.length - 1}
+                />
+            ))}
+        </div>
+    )
+}
 
 export default AgentConfigSkeleton

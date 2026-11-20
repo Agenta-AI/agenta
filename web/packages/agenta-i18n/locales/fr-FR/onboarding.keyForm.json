@@ -1,0 +1,17 @@
+{
+    "title": "Votre clé API",
+    "hint": "OpenAI, Anthropic, Gemini et {{more}} autres.",
+    "saved": "Enregistrée en toute sécurité. Vous pouvez l'utiliser sur n'importe quel Agent.",
+    "using": "Utilisation de {{name}}.",
+    "usingMore": "Utilisation de {{name}} et de {{more}} autres.",
+    "cancel": "Annuler",
+    "add": "Ajouter une clé",
+    "save": "Enregistrer",
+    "keyLabel": "Clé API",
+    "provider": "Fournisseur",
+    "providerCount": "{{total}} fournisseurs",
+    "search": "Rechercher un fournisseur",
+    "noMatch": "Aucun fournisseur ne correspond",
+    "invalid": "Cela ne ressemble pas à une clé valide.",
+    "saveFailed": "Impossible d'enregistrer cette clé. Réessayez."
+}

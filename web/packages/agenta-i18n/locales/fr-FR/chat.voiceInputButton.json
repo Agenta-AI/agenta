@@ -1,0 +1,13 @@
+{
+    "cannotListen": "Ce modèle ne peut pas écouter l’audio",
+    "hintAudio": "Enregistrer un message vocal",
+    "hintTranscribe": "Dicter le message",
+    "holdToDictate": "Maintenez {{key}} pour dicter",
+    "limitReached": "Limite de pièces jointes atteinte : retirez un fichier pour enregistrer un message vocal",
+    "modeAudio": "Message vocal",
+    "modeTranscribe": "Voix en texte",
+    "stopDictation": "Arrêter la dictée",
+    "stopVoiceInput": "Arrêter la saisie vocale",
+    "voiceInputMode": "Mode de saisie vocale",
+    "waitingPrompt": "En attente de la demande d’accès au micro de votre navigateur…"
+}

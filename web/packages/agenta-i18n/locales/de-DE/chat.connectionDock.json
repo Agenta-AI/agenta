@@ -1,0 +1,14 @@
+{
+    "agentWaiting": "Der Agent wartet auf Sie",
+    "cancel": "Abbrechen",
+    "checkingHow": "Es wird geprüft, wie sich dieses Toolkit verbindet …",
+    "connect": "Verbinden",
+    "connectFirst": "Verbinden Sie zuerst {{label}}",
+    "connectPrompt": "Verbinden Sie sich mit <name>{{name}}</name>, damit Ihr Agent dessen Werkzeuge nutzen kann",
+    "connecting": "{{name}} wird verbunden … schließen Sie die Anmeldung im Popup-Fenster ab.",
+    "connectionFailed": "Verbindung fehlgeschlagen.",
+    "connectionPosition": "Verbindung {{position}} von {{total}}",
+    "dismissFailed": "Die Verbindungsanfrage konnte nicht verworfen werden.",
+    "notNow": "Jetzt nicht",
+    "retry": "Erneut versuchen"
+}

@@ -5,18 +5,13 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // CatalogDrawer (gatewayTool) — atom-driven container over the infinite catalog queries.
 // Data-seam story: `toolCatalogDrawerOpenAtom` opens it; the integrations fixture seeds the
 // infinite-query cache shape ({pages, pageParams}). Clicking GitHub exercises the actions
-// view (actions + connections fixtures below), including the Connect split button
-// (was antd `Dropdown.Button`) and the expandable description.
+// view (actions + connections fixtures below), including the Connect split button and the
+// expandable description.
 //
 // Fixture keys mirror the hooks: ["tools","catalog","integrations","composio","",""] and
 // ["tools","catalog","actions","composio","github",""] (infinite), plus
 // ["tools","connections","composio","github"] (flat). Search-driven keys re-fetch and log
 // the missing-fixture warning — expected; the resting state is what this story pins.
-//
-// antd swaps: `Drawer size="large"` → `EnhancedDrawer`; `Card hoverable` → CatalogCard;
-// `Empty` → `EmptyState`; `Input prefix/allowClear` → `InputAffix`; `Spin` → `Spinner`;
-// `Badge count` → composed count pill; `Tag` → presentational `Tag`;
-// `Typography.Paragraph ellipsis` → ExpandableText. Showcase story (portal — no parity pair).
 const meta = {
     title: "@agenta/entity-ui/GatewayTool/CatalogDrawer",
     component: CatalogDrawer,

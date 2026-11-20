@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowsClockwise} from "@phosphor-icons/react"
 
@@ -11,6 +13,7 @@ import {useSkillUpdates, useSkillUpdatesBusy, useSkillsWithUpdates} from "./useS
  * "Update 4 skills" before anyone looked would be promising work it had not measured.
  */
 export const SkillSourceUpdateAction = ({ids}: {ids: string[]}) => {
+    const t = useT(skillsListCatalog)
     const {check, apply} = useSkillUpdates()
     const pending = useSkillsWithUpdates(ids)
     const busy = useSkillUpdatesBusy(ids)
@@ -30,7 +33,7 @@ export const SkillSourceUpdateAction = ({ids}: {ids: string[]}) => {
                 className="h-6 px-2 text-[11.5px] font-normal"
                 onClick={() => void apply(pending)}
             >
-                Update {pending.length} {pending.length === 1 ? "skill" : "skills"}
+                {t("skills.list.updateSkills", {count: pending.length})}
             </Button>
         )
 
@@ -42,7 +45,7 @@ export const SkillSourceUpdateAction = ({ids}: {ids: string[]}) => {
             onClick={() => void check(ids)}
         >
             <ArrowsClockwise aria-hidden size={12} />
-            Check updates
+            {t("skills.list.checkUpdates")}
         </Button>
     )
 }

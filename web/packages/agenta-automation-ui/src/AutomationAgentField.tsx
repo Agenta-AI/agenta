@@ -1,4 +1,6 @@
 import {AgentPicker} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 
 import {AutomationField} from "./AutomationField"
 
@@ -26,20 +28,27 @@ export const AutomationAgentField = ({
     onSelectAgent?: (agentId: string) => void
     /** Set after a blocked create: the field is what is missing, and says so in red. */
     error?: string
-}) => (
-    <AutomationField label="Agent" helper="The agent this automation runs." error={error}>
-        <AgentPicker
-            value={agentId}
-            invalid={Boolean(error)}
-            // The read-only case still renders the picker so the bound agent keeps its glyph and
-            // its name; `disabled` only takes away the opening.
-            onChange={(next) => onSelectAgent?.(next)}
-            disabled={!onSelectAgent}
-            // An automation is chosen once and runs unattended, so the description earns its
-            // line here in a way it does not in a composer someone retargets all day.
-            density="relaxed"
-            fallbackName={agentName}
-            searchPlaceholder="Search agents by name or what they do"
-        />
-    </AutomationField>
-)
+}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <AutomationField
+            label={t("automations.editor.agent")}
+            helper={t("automations.editor.agentHelper")}
+            error={error}
+        >
+            <AgentPicker
+                value={agentId}
+                invalid={Boolean(error)}
+                // The read-only case still renders the picker so the bound agent keeps its glyph and
+                // its name; `disabled` only takes away the opening.
+                onChange={(next) => onSelectAgent?.(next)}
+                disabled={!onSelectAgent}
+                // An automation is chosen once and runs unattended, so the description earns its
+                // line here in a way it does not in a composer someone retargets all day.
+                density="relaxed"
+                fallbackName={agentName}
+                searchPlaceholder={t("automations.editor.agentSearch")}
+            />
+        </AutomationField>
+    )
+}

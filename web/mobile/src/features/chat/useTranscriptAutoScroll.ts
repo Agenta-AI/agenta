@@ -11,7 +11,7 @@ import {useMotionPresets} from "@/lib/motion/presets"
 
 /** Follow keeps tracking appends from this close to the bottom. Deliberately small and NOT the
  * pill's threshold: auto-scrolling someone who has scrolled up to read is the worse failure. */
-const NEAR_BOTTOM_PX = 80
+export const NEAR_BOTTOM_PX = 80
 
 /** Set by `AnswerReveal` on every answer. */
 export const ANSWER_ATTR = "data-answer"

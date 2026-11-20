@@ -2,7 +2,7 @@ import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
 import types
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -41,8 +41,12 @@ async def test_edit_returns_updated_references_and_links():
         evaluators_service=evaluators_service,
         simple_evaluators_service=AsyncMock(),
         tracing_service=AsyncMock(),
+        annotation_general_fields_service=AsyncMock(),
     )
-    service._fetch_annotation = AsyncMock(
+    service._fetch_parsed_trace = AsyncMock(
+        return_value=SimpleNamespace(span=SimpleNamespace(attributes={}))
+    )
+    service._build_annotation = Mock(
         return_value=Annotation(
             trace_id="old-trace",
             span_id="old-span",

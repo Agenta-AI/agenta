@@ -1,5 +1,7 @@
 import {useCallback, useMemo, type MouseEvent as ReactMouseEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentsActivity from "@agenta/i18n/catalogs/agents.activity"
 import {
     sessionAutomationKindLabel,
     type SessionRowStatusMeta,
@@ -40,12 +42,13 @@ const KIND_CHIP: Record<"subscription" | "schedule", string> = {
 
 /** A run's tile: the automations page's kind mark, a bolt for an event and a clock for a schedule. */
 const RunTile = ({vm}: {vm: SessionRowVm}) => {
+    const t = useT(agentsActivity)
     // A run whose trigger record is gone still ran from one; the neutral tile says "a run".
     const kind = vm.automation?.kind ?? null
     return (
         <span
             role="img"
-            aria-label={`${kind ? sessionAutomationKindLabel(kind) : "Automation run"} · ${vm.status.label}`}
+            aria-label={`${kind ? sessionAutomationKindLabel(kind) : t("agents.activity.automationRun")} · ${vm.status.label}`}
             title={vm.status.label}
             className={cn(
                 "flex size-6 shrink-0 items-center justify-center rounded-md",
@@ -76,6 +79,7 @@ export const AgentActivityRowCells = ({
     onMenuSelect: (vm: SessionRowVm, key: string) => void
     onRenameRow: (vm: SessionRowVm, name: string) => Promise<boolean>
 }) => {
+    const t = useT(agentsActivity)
     const onCommit = useCallback((name: string) => onRenameRow(vm, name), [onRenameRow, vm])
     const rename = useInlineRename({current: vm.title, onCommit})
 
@@ -128,7 +132,7 @@ export const AgentActivityRowCells = ({
                 <SessionRowMenu
                     entries={entries}
                     onSelect={onSelect}
-                    label={vm.title || "Untitled session"}
+                    label={vm.title || t("agents.activity.untitledSession")}
                 />
             </span>
         </>

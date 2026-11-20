@@ -1,0 +1,22 @@
+{
+    "appSection": "Teams 应用",
+    "connected": "已连接。还需在 Teams 中完成两步。",
+    "download": "下载 Teams 应用",
+    "endpointBody": "在 Developer Portal 中打开你的机器人，然后打开 Configure，并将它粘贴为终结点地址。",
+    "endpointLabel": "消息终结点",
+    "endpointTitle": "粘贴消息终结点",
+    "installTitle": "在 Teams 中安装应用",
+    "loadError": "无法加载 Teams 应用。",
+    "noUpload": "没有 Upload an app 选项？请让你的 Teams 管理员允许自定义应用。",
+    "pasteBody": "我们会与 Microsoft 核对这些值，然后将密钥保持隐藏。",
+    "pasteTitle": "粘贴这三个值",
+    "registerBody": "在 Teams Developer Portal 中，打开 Tools，然后打开 Bot management，并选择 New bot。",
+    "registerLink": "打开 Developer Portal",
+    "registerTitle": "注册机器人",
+    "secretBody": "在机器人的 Client secrets 页面添加客户端密钥，并复制它的值。应用 ID 在机器人页面上。",
+    "secretTitle": "添加客户端密钥",
+    "tenantBody": "它在 Microsoft Entra 管理中心的 Overview 页面上。",
+    "tenantLink": "打开 Microsoft Entra",
+    "tenantTitle": "复制你的租户 ID",
+    "upload": "在 Teams 中打开 Apps，然后打开 Manage your apps，再打开 Upload an app，并选择下载的文件。"
+}

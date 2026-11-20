@@ -2,6 +2,8 @@
 
 import {memo, useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -36,11 +38,14 @@ const ScriptEditor = memo(function ScriptEditor({
     onChange,
     disabled,
 }: ScriptEditorProps) {
+    const t = useT(schemaControlsCatalog)
     const [minimized, setMinimized] = useState(false)
 
     const header = (
         <div className="w-full flex items-start justify-between py-1">
-            <span className="text-sm font-semibold pl-2 text-colorText">Script</span>
+            <span className="text-sm font-semibold pl-2 text-colorText">
+                {t("entityUi.schemaControls.script")}
+            </span>
             <div className="flex items-center gap-1 shrink-0">
                 <TooltipProvider>
                     <Tooltip>
@@ -48,14 +53,14 @@ const ScriptEditor = memo(function ScriptEditor({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Copy"
+                                aria-label={t("entityUi.schemaControls.copy")}
                                 className="invisible group-hover/script:visible"
                                 onClick={() => navigator.clipboard.writeText(value)}
                             >
                                 <CopySimple size={14} />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Copy</TooltipContent>
+                        <TooltipContent>{t("entityUi.schemaControls.copy")}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
                 <CollapseToggleButton

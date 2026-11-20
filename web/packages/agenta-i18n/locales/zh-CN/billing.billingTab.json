@@ -1,0 +1,7 @@
+{
+    "dailyCredits": "每日免费额度",
+    "dailyCreditsNote": "每天 UTC 午夜重置",
+    "loadLimitsError": "无法加载你的套餐限额。",
+    "loadPlanAndLimitsError": "无法加载你的套餐及其限额。",
+    "loadPlanError": "无法加载你的套餐。"
+}

@@ -4,23 +4,20 @@ import {Meta} from "@storybook/addon-docs/blocks"
 
 # Enhanced
 
-The **antd-prop-compatible facades** over the `@agenta/ui` primitives. Call-sites keep the
-antd prop shape they already pass (`open`, `onCancel`, `placement`, `type`, `loading`, …),
-while the render moves to the migrated primitive underneath. This lets ~80 modal sites and
-the drawer / button call-sites migrate without a prop rewrite.
+Prop-friendly facades over the `@agenta/ui` primitives. Call-sites pass a familiar prop shape
+(`open`, `onCancel`, `placement`, `type`, `loading`, …), and the render goes through the
+primitive underneath.
 
-| Component          | Facade over | Notes                                                       |
-| ------------------ | ----------- | ----------------------------------------------------------- |
-| **EnhancedModal**  | `Dialog`    | antd `Modal` props → `Dialog`; modal radius 16px.           |
-| **EnhancedDrawer** | `Sheet`     | antd `Drawer` props (`placement`, `width`) → `Sheet`.       |
-| **EnhancedButton** | `Button`    | antd `Button` props (`type`, `loading`, `icon`) → `Button`. |
+| Component          | Facade over | Notes                                               |
+| ------------------ | ----------- | --------------------------------------------------- |
+| **EnhancedModal**  | `Dialog`    | `open` / `onCancel` props on `Dialog`; radius 16px. |
+| **EnhancedDrawer** | `Sheet`     | `placement` and `width` props mapped to `Sheet`.    |
+| **EnhancedButton** | `Button`    | `type`, `loading`, `icon` props mapped to `Button`. |
 
 **Conventions**
 
-- The facade preserves the antd API so existing call-sites compile unchanged; only the
-  underlying render is `@agenta/ui`.
-- Geometry / color still flow from the shared `controlScale` tokens + antd semantic colors,
-  so the facades match the primitives (and the app theme) in light and dark.
-- Match the **app's** Enhanced\* behaviour (e.g. modal radius 16px), not raw antd defaults.
+- The facade keeps one prop shape for call-sites; only the underlying render is `@agenta/ui`.
+- Geometry and color flow from the shared `controlScale` tokens and semantic theme tokens, so
+  the facades match the primitives in light and dark.
 
 Open a component's **Docs** tab for its full prop table.

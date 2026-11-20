@@ -10,6 +10,8 @@
  */
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -63,9 +65,10 @@ export function SectionRail({
     fill = false,
     bleed = false,
     drillIn = false,
-    listLabel = "Sections",
+    listLabel,
     children,
 }: SectionRailProps) {
+    const t = useT(drawerSharedCatalog)
     // The rail opens, picking a section pushes its panel, a back link returns — side by side left
     // the panel a sliver on a phone.
     const [mobileView, setMobileView] = useState<"list" | "detail">("list")
@@ -140,7 +143,7 @@ export function SectionRail({
                         className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] sm:hidden"
                     >
                         <ArrowLeft />
-                        {listLabel}
+                        {listLabel ?? t("entityUi.drawerShared.sections")}
                     </button>
                 ) : null}
                 {children}
