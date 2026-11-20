@@ -174,6 +174,10 @@ export const ConfigurationRoot = ({
                                 <AgentRevisionStatus
                                     revisionId={revisionId}
                                     historyWorkflowId={agentId}
+                                    // The newest status draws the history drawer: keep its
+                                    // "Update to vN", as the header's status passes it.
+                                    onUpdate={pinRevision}
+                                    checkKey={sessionId}
                                     footer
                                 />
                             </div>

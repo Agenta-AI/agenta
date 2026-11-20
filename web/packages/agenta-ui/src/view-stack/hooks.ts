@@ -1,8 +1,8 @@
-import {useEffect, useRef, type ReactNode} from "react"
+import {useContext, useEffect, useRef, type ReactNode} from "react"
 
 import {createPortal} from "react-dom"
 
-import {useViewEntry} from "./context"
+import {useViewEntry, ViewFooterStartContext} from "./context"
 import type {ViewDef, ViewForm} from "./types"
 
 /** Identity helper that types a view definition. */
@@ -36,7 +36,7 @@ export const useViewForm = (form: ViewForm): void => {
  * draws no action row; it leaves with the view.
  */
 export const ViewFooterStart = ({children}: {children: ReactNode}) => {
-    const {footerStart} = useViewEntry("ViewFooterStart")
+    const footerStart = useContext(ViewFooterStartContext)
     return footerStart ? createPortal(children, footerStart) : null
 }
 

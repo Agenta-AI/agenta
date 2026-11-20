@@ -26,8 +26,14 @@ export const permissionsSection = ({
     sectionIndicator,
     panelChangedPaths,
     bodyProps,
-}: PermissionsSectionParams): SectionResult =>
-    mh.hasPermissions && {
+}: PermissionsSectionParams): SectionResult => {
+    if (!mh.hasPermissions) return false
+    const policy = (
+        <ChangedPathsProvider changes={panelChangedPaths}>
+            <ModelHarnessSectionBody section="permissions" {...bodyProps} />
+        </ChangedPathsProvider>
+    )
+    return {
         key: "permissions",
         icon: <Shield size={14} />,
         title: t("entityUi.agentTemplate.permissions"),
@@ -37,24 +43,15 @@ export const permissionsSection = ({
         indicator: sectionIndicator("permissions"),
         // Closed: the row opens the policy inline (canvas S02, F04 f8).
         defaultOpen: false,
-        content: (
-            <ChangedPathsProvider changes={panelChangedPaths}>
-                <ModelHarnessSectionBody section="permissions" {...bodyProps} />
-            </ChangedPathsProvider>
-        ),
+        content: policy,
         // On the page: one row with the policy select at the right (canvas A04).
         pageContent: (
             <SectionPageRow
                 icon={<Shield size={16} />}
                 title={tNow("entityUi.modelHarness.policy")}
                 summary={tNow("entityUi.configItems.policyHint")}
-                trailing={
-                    <span className="flex w-40">
-                        <ChangedPathsProvider changes={panelChangedPaths}>
-                            <ModelHarnessSectionBody section="permissions" {...bodyProps} />
-                        </ChangedPathsProvider>
-                    </span>
-                }
+                trailing={<span className="flex w-40">{policy}</span>}
             />
         ),
     }
+}

@@ -5,7 +5,7 @@ import type {ViewDef} from "@agenta/ui/view-stack"
 import {GearSix} from "@phosphor-icons/react"
 
 import {SectionPageRow} from "../SectionPageRow"
-import type {AdvancedViewParams} from "../views/advancedViews"
+import {advancedView, type AdvancedViewParams} from "../views/advancedViews"
 
 import {useAdvancedPartRows} from "./AdvancedPartRows"
 import type {AgentTemplateT, ModelHarness, SectionIndicatorFor, SectionResult} from "./types"
@@ -16,10 +16,8 @@ export interface AdvancedSectionParams {
     sectionIndicator: SectionIndicatorFor
     /** The inline "what changed" body. Null when the section is clean. */
     advancedChangeBody: ReactNode
-    /** Opens "Advanced" (F04 f9): the list of its parts. */
-    openAdvanced: () => void
-    /** Opens one part's view, from the page's Advanced card. */
-    openAdvancedPart: (view: ViewDef<AdvancedViewParams>) => void
+    /** Opens "Advanced" (F04 f9, the list of its parts) or one part's view (the page card). */
+    openAdvanced: (view: ViewDef<AdvancedViewParams>) => void
     schema: SchemaProperty | null | undefined
     config: Record<string, unknown>
     revisionId: string | null
@@ -32,7 +30,6 @@ export const advancedSection = ({
     sectionIndicator,
     advancedChangeBody,
     openAdvanced,
-    openAdvancedPart,
     schema,
     config,
     revisionId,
@@ -53,12 +50,12 @@ export const advancedSection = ({
                 schema={schema}
                 config={config}
                 revisionId={revisionId}
-                onOpen={openAdvancedPart}
+                onOpen={openAdvanced}
             />
         ),
         ...(advancedChangeBody
             ? {content: advancedChangeBody}
-            : {onOpen: openAdvanced, content: null}),
+            : {onOpen: () => openAdvanced(advancedView), content: null}),
     }
 
 const AdvancedPageRows = ({
@@ -67,7 +64,7 @@ const AdvancedPageRows = ({
     revisionId,
     onOpen,
 }: Pick<AdvancedSectionParams, "schema" | "config" | "revisionId"> & {
-    onOpen: AdvancedSectionParams["openAdvancedPart"]
+    onOpen: AdvancedSectionParams["openAdvanced"]
 }) => {
     const rows = useAdvancedPartRows(schema, config, revisionId)
     return (

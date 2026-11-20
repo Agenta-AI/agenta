@@ -129,8 +129,11 @@ describe("panel Configuration on a phone", () => {
         expect(state.statusProps.at(-1)).toMatchObject({
             revisionId: "rev-4",
             historyWorkflowId: "support",
+            // The footer status may draw the history drawer: it keeps the update action.
+            checkKey: "s1",
             footer: true,
         })
+        expect(state.statusProps.at(-1)?.onUpdate).toBeTypeOf("function")
     })
 
     it("on a wide window shows no footer on the Automations tab", async () => {

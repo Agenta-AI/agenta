@@ -8,7 +8,12 @@ import {
     type ReactNode,
 } from "react"
 
-import {ViewEntryContext, ViewStackContext, type ViewEntryApi} from "./context"
+import {
+    ViewEntryContext,
+    ViewFooterStartContext,
+    ViewStackContext,
+    type ViewEntryApi,
+} from "./context"
 import {useReportOpenViewItem} from "./openItem"
 import {useSystemBack} from "./systemBack"
 import type {
@@ -467,9 +472,8 @@ const MountedView = ({
                 }),
             setTitle: (title) =>
                 setTitles((prev) => (prev[key] === title ? prev : {...prev, [key]: title})),
-            footerStart,
         }),
-        [key, setForms, setTitles, footerStart],
+        [key, setForms, setTitles],
     )
     const nav = useMemo<ViewNav>(
         () => ({
@@ -493,12 +497,14 @@ const MountedView = ({
             aria-busy={isTop && saving}
         >
             <ViewEntryContext.Provider value={api}>
-                <Component
-                    params={entry.params}
-                    target={entry.target}
-                    nav={nav}
-                    readOnly={readOnly || undefined}
-                />
+                <ViewFooterStartContext.Provider value={footerStart}>
+                    <Component
+                        params={entry.params}
+                        target={entry.target}
+                        nav={nav}
+                        readOnly={readOnly || undefined}
+                    />
+                </ViewFooterStartContext.Provider>
             </ViewEntryContext.Provider>
         </div>
     )

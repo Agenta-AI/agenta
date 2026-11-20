@@ -61,8 +61,6 @@ export const skillsSection = ({
         pageAction: !disabled ? (
             <SectionPageAction action="add" onClick={handleAddSkill} />
         ) : undefined,
-        // Closed by default (canvas S02 opens Instructions and Integrations only).
-        defaultOpen: false,
         content: (
             <SkillsList
                 skills={skills}
