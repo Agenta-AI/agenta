@@ -149,6 +149,39 @@ describe("the change card on a phone", () => {
     })
 })
 
+describe("the grouped card on a phone, with text diffs", () => {
+    it("titles the row's screen with its label and shows the whole diff there, with no second screen", async () => {
+        const second = {...instructionsCall, approvalId: "a2"}
+        await render([instructionsCall, second])
+        await click(host.querySelector('[data-testid="change-block-row"] button'))
+        const screenEl = detail()
+        expect(screenEl?.querySelector("h1")?.textContent).toBe("Instructions › AGENTS.md")
+        expect(screenEl?.textContent).toContain("Line 11")
+        expect(screenEl?.querySelector('[data-testid="change-full-diff"]')).toBeNull()
+        expect(document.querySelectorAll('[data-testid="change-phone-detail"]').length).toBe(1)
+    })
+
+    it("closes the screen on Escape and answers nothing", async () => {
+        const responded: unknown[] = []
+        await act(async () => {
+            root.render(
+                <ApprovalCard
+                    approvals={[instructionsCall] as never}
+                    onRespond={(answer) => responded.push(answer)}
+                    onApproveAll={() => undefined}
+                />,
+            )
+        })
+        await click(host.querySelector('[data-testid="change-full-diff"]'))
+        expect(detail()).not.toBeNull()
+        await act(async () => {
+            detail()!.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        expect(detail()).toBeNull()
+        expect(responded).toEqual([])
+    })
+})
+
 describe("the change card on a desktop", () => {
     it("opens the whole diff in place and the rows in place", async () => {
         screen.phone = false

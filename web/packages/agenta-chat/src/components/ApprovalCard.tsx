@@ -486,7 +486,12 @@ export const ApprovalCard = ({
                                 </span>
                             </label>
                         ) : null}
-                        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                        <div
+                            className={`ml-auto flex items-center gap-1.5 ${
+                                // The 44 px phone buttons wrap rather than run off a narrow card.
+                                phone ? "flex-wrap justify-end" : "shrink-0"
+                            }`}
+                        >
                             {steerEnabled ? (
                                 <Button
                                     variant="ghost"

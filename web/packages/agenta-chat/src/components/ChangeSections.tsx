@@ -5,7 +5,7 @@
  * one header. Old values come from the server preview; without one the card shows the proposed
  * values and says so. The footer (the version note and the buttons) is the card's.
  */
-import {useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
@@ -187,6 +187,9 @@ const TextDiff = ({
     // A phone detail screen already shows the whole diff.
     const inDetail = useInPhoneDetail()
     const [full, setFull] = useState(false)
+    // The open state means "in place" on the desktop and "full screen" on a phone: a move across
+    // the phone width closes it rather than turning one into the other.
+    useEffect(() => setFull(false), [phone])
     const rows = diffRows(detail)
     const inPlace = (full && !phone) || inDetail
     const shown = inPlace ? rows.full : rows.short.slice(0, INLINE_DIFF_LINES)

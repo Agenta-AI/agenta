@@ -5,7 +5,7 @@
  * row opens in place and shows the same detail as the single card. The other groups ("Needs you
  * first", "Applies at once") are section 46.
  */
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {useT, type CatalogKey, type TranslationValues} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
@@ -74,6 +74,8 @@ const Row = ({block}: {block: ChangeBlock}) => {
     // On a phone a row opens its detail full screen (M05); on the desktop it opens in place.
     const phone = useIsPhone()
     const [open, setOpen] = useState(false)
+    // A move across the phone width closes the row rather than turning one view into the other.
+    useEffect(() => setOpen(false), [phone])
     const mark = blockMark(block)
     const label = blockLabel(block)
     const summary = blockSummary(block, t)
