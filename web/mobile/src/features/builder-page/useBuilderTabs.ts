@@ -1,7 +1,8 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import type {UIMessage} from "ai"
+import {useAtomValue, useStore} from "jotai"
 import {useRouter} from "next/router"
 
 import {builderChatHref} from "../builder/builderChatHref"
@@ -19,8 +20,7 @@ import {
     isUntouched,
     openBuilderTab,
     parseTabParam,
-    readBuilderTabs,
-    writeBuilderTabs,
+    builderTabsAtomFamily,
     type BuilderTab,
     type BuilderTabsState,
 } from "./builderTabs"
@@ -52,14 +52,9 @@ export const useBuilderTabs = ({
     projectId: string
 }) => {
     const router = useRouter()
-    const [held, setHeld] = useState(() => ({sessionId, state: readBuilderTabs(sessionId)}))
-    const state = useMemo(
-        () => (held.sessionId === sessionId ? held.state : readBuilderTabs(sessionId)),
-        [held, sessionId],
-    )
-    // The latest state, also between a change and the render that shows it.
-    const latest = useRef(state)
-    latest.current = state
+    const store = useStore()
+    const tabsAtom = builderTabsAtomFamily(sessionId)
+    const state = useAtomValue(tabsAtom)
 
     const tabRef = parseTabParam(tab)
     const addressKey = tabRef ? builderTabKey(tabRef) : null
@@ -80,18 +75,14 @@ export const useBuilderTabs = ({
     /** Changes the state; when the active tab moves on this chat's address, the address follows. */
     const commit = useCallback(
         (change: (state: BuilderTabsState) => BuilderTabsState) => {
-            const base = latest.current
+            const base = store.get(tabsAtom)
             const next = change(base)
-            if (next !== base) {
-                latest.current = next
-                writeBuilderTabs(sessionId, next)
-                setHeld({sessionId, state: next})
-            }
+            if (next !== base) store.set(tabsAtom, next)
             const {addressKey: shown, onThisChat: routed} = address.current
             if (routed && next.active !== shown) writeAddress(next.active)
             return next
         },
-        [sessionId, writeAddress],
+        [store, tabsAtom, writeAddress],
     )
 
     // A link with a tab opens or brings forward that tab. A chat address with no tab shows the
@@ -99,7 +90,7 @@ export const useBuilderTabs = ({
     useEffect(() => {
         if (!onThisChat) return
         if (tabRef) commit((current) => applyAddressTab(current, tabRef))
-        else if (latest.current.active) writeAddress(latest.current.active)
+        else if (store.get(tabsAtom).active) writeAddress(store.get(tabsAtom).active)
         // tabRef is rebuilt every render; its key is the dependency.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addressKey, onThisChat, sessionId])
@@ -112,7 +103,7 @@ export const useBuilderTabs = ({
         (messages: UIMessage[]) => {
             // No message yet (a new chat, or history still loading): nothing names an agent.
             if (!messages.length) return
-            const before = latest.current
+            const before = store.get(tabsAtom)
             const results = agentResults(messages)
             const next = commit((current) =>
                 followBuilderResults(

@@ -87,17 +87,22 @@ export function SessionFilesPane({
     expanded = false,
     onToggleExpand,
     onSelectionChange,
+    readOnly = false,
+    touch = false,
 }: {
     scope: string
     sessionId: string
     /** Every selection, for a host that mirrors it in the URL. */
     onSelectionChange?: (item: DriveLinkItem) => void
-    /** Who closes the pane: row 1's "»" (the desktop), the host's own session-bar toggle
-     * (`"none"` — `/m`, where the panel icon shows the open state and flips it), or a leading
-     * "»" (`"back"` — a phone, where the pane has the screen and that bar is off it). */
-    closeControl?: "collapse" | "back" | "none"
+    /** Who closes the pane: row 1's "»" (the desktop), or the host (`"none"` — `/m`, where the
+     * panel icon shows the open state and flips it, and a phone header has the back arrow). */
+    closeControl?: "collapse" | "none"
     expanded?: boolean
     onToggleExpand?: () => void
+    /** Open and download only (a phone): the explorer offers no write. */
+    readOnly?: boolean
+    /** A touch screen (a phone): 44 px hit areas on the header and toolbar buttons. */
+    touch?: boolean
 }) {
     const {open, close} = useSessionFilesPane(scope, sessionId)
     const [quickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
@@ -176,7 +181,7 @@ export function SessionFilesPane({
                 expanded={expanded}
                 onToggleExpand={onToggleExpand}
                 expandPlacement="before-options"
-                closeVariant={closeControl === "back" ? "back" : "collapse"}
+                closeVariant="collapse"
                 mirrored
                 // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
                 // toggle (or a search, which needs the rows) brings it in; the choice then sticks.
@@ -185,6 +190,8 @@ export function SessionFilesPane({
                 driveIds={driveIds}
                 stagedFiles={staged}
                 onStagedChange={setStaged}
+                readOnly={readOnly}
+                touch={touch}
             />
         </div>
     )

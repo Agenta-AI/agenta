@@ -22,7 +22,9 @@ import {textVersionAtom, useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn, textColors} from "@agenta/ui/styles"
+import {SheetTitle} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -47,6 +49,13 @@ export interface AgentVersionHistoryDrawerProps {
     currentVersion?: number | null
     /** Switch this view to a newer version. */
     onUpdate?: (revisionId: string) => void
+    /**
+     * Lay out for a phone: the history covers the screen, with a back arrow instead of the close
+     * button, and 44 px buttons.
+     */
+    phone?: boolean
+    /** On a phone, the name of the screen the back arrow returns to. */
+    backTitle?: string
 }
 
 export const AgentVersionHistoryDrawer = ({
@@ -54,6 +63,8 @@ export const AgentVersionHistoryDrawer = ({
     revisionId,
     currentVersion,
     onUpdate,
+    phone = false,
+    backTitle,
 }: AgentVersionHistoryDrawerProps) => {
     const t = useT(versionCatalog)
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
@@ -194,12 +205,26 @@ export const AgentVersionHistoryDrawer = ({
             open={open}
             onClose={handleClose}
             title={
-                <span className="text-sm font-normal">{t("playground.versionHistory.title")}</span>
+                phone ? undefined : (
+                    <span className="text-sm font-normal">
+                        {t("playground.versionHistory.title")}
+                    </span>
+                )
             }
+            closable={!phone}
             width={780}
+            // On a phone the history is the whole screen, edge to edge.
+            styles={
+                phone
+                    ? {content: {inset: 0, width: "100%", maxWidth: "100%", borderRadius: 0}}
+                    : undefined
+            }
             panelRef={setPanel}
             // px-3 so the buttons' outer edge lands on the same line as the section bands.
-            classNames={{body: "!p-0", footer: "px-3"}}
+            classNames={{
+                body: phone ? "!p-0 flex flex-col" : "!p-0",
+                footer: phone ? "px-3 [&_button]:min-h-11" : "px-3",
+            }}
             footer={
                 <RevertFooter
                     phase={phase}
@@ -232,7 +257,20 @@ export const AgentVersionHistoryDrawer = ({
                 onCancel={() => setPhase("idle")}
                 onConfirm={handleConfirm}
             />
-            <div className="flex h-full min-h-0">
+            {phone ? (
+                <>
+                    {/* The drawer has no header on a phone; this names the dialog. */}
+                    <SheetTitle className="sr-only">
+                        {t("playground.versionHistory.title")}
+                    </SheetTitle>
+                    <PhoneScreenHeader
+                        title={t("playground.versionHistory.title")}
+                        backTitle={backTitle}
+                        onBack={handleClose}
+                    />
+                </>
+            ) : null}
+            <div className={cn("flex min-h-0", phone ? "flex-1" : "h-full")}>
                 <div
                     className={cn(
                         "flex min-h-0 flex-col py-3 pl-3 pr-2 sm:w-[250px] sm:shrink-0",
@@ -260,7 +298,8 @@ export const AgentVersionHistoryDrawer = ({
                         type="button"
                         onClick={() => setMobileView("list")}
                         className={cn(
-                            "flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 pt-3.5 text-xs sm:hidden",
+                            "flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 text-xs sm:hidden",
+                            phone ? "min-h-11" : "pt-3.5",
                             textColors.secondary,
                         )}
                     >

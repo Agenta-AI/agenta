@@ -29,7 +29,9 @@ export const ConfigurationAgentTab = ({
             <div
                 ref={contentRef}
                 data-testid="configuration-agent-tab"
-                className="ag-scroll-no-bar min-h-0 min-w-0 flex-1 overflow-y-auto rounded-xl border border-solid border-border bg-background"
+                // On a phone the rows run edge to edge, with no card around them (M07). The size
+                // container lets a section screen fill this column (its primary action at the bottom).
+                className="ag-scroll-no-bar min-h-0 min-w-0 flex-1 overflow-y-auto rounded-xl border border-solid border-border bg-background max-md:rounded-none max-md:border-0 max-md:[container-type:size]"
             >
                 <AgentBuildPanel
                     revisionId={revisionId}
@@ -38,7 +40,8 @@ export const ConfigurationAgentTab = ({
                     operations={false}
                     automationDrawer={null}
                     banner={
-                        <div className="px-4 pt-3">
+                        // The alert keeps a gap above the rows; it collapses with the banner.
+                        <div className="px-4 [&_[data-slot=alert]]:mt-3">
                             <ModelSetupBanner
                                 revisionId={revisionId}
                                 layout="alert"

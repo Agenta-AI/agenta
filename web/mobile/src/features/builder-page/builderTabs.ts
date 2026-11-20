@@ -1,4 +1,6 @@
 import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {AgentRef, AgentResult} from "./paneAgent"
 
@@ -265,50 +267,74 @@ const parseTab = (value: unknown): BuilderTab | null => {
     }
 }
 
-/** The tabs of each chat in this visit, for a browser that refuses storage. */
-const visitTabs = new Map<string, BuilderTabsState>()
-
-/** The stored tabs of a chat; this visit's tabs when storage refuses reads; else none. */
-export const readBuilderTabs = (sessionId: string): BuilderTabsState => {
-    let stored: string | null
-    try {
-        stored = window.localStorage.getItem(builderTabsStorageKey(sessionId))
-    } catch {
-        return visitTabs.get(sessionId) ?? EMPTY_BUILDER_TABS
+/** A stored value read back as tabs; anything broken reads as no tabs. */
+export const parseBuilderTabs = (raw: unknown): BuilderTabsState => {
+    if (!raw || typeof raw !== "object") return EMPTY_BUILDER_TABS
+    const value = raw as Record<string, unknown>
+    const tabs = (Array.isArray(value.tabs) ? value.tabs : [])
+        .map(parseTab)
+        .filter((tab): tab is BuilderTab => tab !== null)
+        .slice(-MAX_BUILDER_TABS)
+    const keys = tabs.map(builderTabKey)
+    const active =
+        typeof value.active === "string" && keys.includes(value.active)
+            ? value.active
+            : (keys[0] ?? null)
+    const strings = (list: unknown) =>
+        (Array.isArray(list) ? list : []).filter((key): key is string => typeof key === "string")
+    return {
+        tabs,
+        active,
+        closed: strings(value.closed).slice(-MAX_BUILDER_TABS),
+        followedToolCallIds: strings(value.followedToolCallIds),
     }
-    try {
-        const raw: unknown = JSON.parse(stored ?? "null")
-        if (!raw || typeof raw !== "object") return EMPTY_BUILDER_TABS
-        const value = raw as Record<string, unknown>
-        const tabs = (Array.isArray(value.tabs) ? value.tabs : [])
-            .map(parseTab)
-            .filter((tab): tab is BuilderTab => tab !== null)
-            .slice(-MAX_BUILDER_TABS)
-        const keys = tabs.map(builderTabKey)
-        const active =
-            typeof value.active === "string" && keys.includes(value.active)
-                ? value.active
-                : (keys[0] ?? null)
-        const strings = (list: unknown) =>
-            (Array.isArray(list) ? list : []).filter(
-                (key): key is string => typeof key === "string",
-            )
-        return {
-            tabs,
-            active,
-            closed: strings(value.closed).slice(-MAX_BUILDER_TABS),
-            followedToolCallIds: strings(value.followedToolCallIds),
+}
+
+/** Tabs whose last write the browser refused, kept for this visit. */
+const unsavedTabs = new Map<string, BuilderTabsState>()
+
+/**
+ * Browser storage for the tabs: a value that cannot be read is no tabs, and tabs whose write the
+ * browser refused are read from memory for the rest of the visit (the atom reads storage again
+ * each time a chat mounts).
+ */
+const builderTabsStorage = {
+    getItem: (key: string, initial: BuilderTabsState): BuilderTabsState => {
+        const unsaved = unsavedTabs.get(key)
+        if (unsaved) return unsaved
+        try {
+            const stored = window.localStorage.getItem(key)
+            return stored === null ? initial : parseBuilderTabs(JSON.parse(stored))
+        } catch {
+            return initial
         }
-    } catch {
-        return EMPTY_BUILDER_TABS
-    }
+    },
+    setItem: (key: string, value: BuilderTabsState) => {
+        try {
+            window.localStorage.setItem(key, JSON.stringify(value))
+            unsavedTabs.delete(key)
+        } catch {
+            unsavedTabs.set(key, value)
+        }
+    },
+    removeItem: (key: string) => {
+        unsavedTabs.delete(key)
+        try {
+            window.localStorage.removeItem(key)
+        } catch {
+            // Storage refused the removal; nothing else holds the tabs.
+        }
+    },
 }
 
-export const writeBuilderTabs = (sessionId: string, state: BuilderTabsState) => {
-    visitTabs.set(sessionId, state)
-    try {
-        window.localStorage.setItem(builderTabsStorageKey(sessionId), JSON.stringify(state))
-    } catch {
-        // Storage refused: the tabs last for this visit (visitTabs).
-    }
-}
+/** The builder tabs of one chat, kept in `agenta:builder:tabs:${sessionId}`. */
+export const builderTabsAtomFamily = atomFamily((sessionId: string) =>
+    atomWithStorage<BuilderTabsState>(
+        builderTabsStorageKey(sessionId),
+        EMPTY_BUILDER_TABS,
+        builderTabsStorage,
+        {
+            getOnInit: true,
+        },
+    ),
+)

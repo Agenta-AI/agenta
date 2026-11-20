@@ -2,11 +2,15 @@
  *  tool definitions and provider built-ins are deliberately not rendered: they still run. */
 import {type CSSProperties, type ReactNode, useMemo} from "react"
 
+import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
+import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import integrationsPhoneCatalog from "@agenta/i18n/catalogs/entityUi.integrationsPhone"
 import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
 import {humanizeActionKey} from "@agenta/shared/utils"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {ProviderLogo} from "../sectionGroups"
 import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
@@ -18,7 +22,8 @@ import {
     type ItemDescriptor,
 } from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
-import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
+import {ItemRow, StatusTag, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
+import {usePhoneSections} from "./phoneSections"
 
 const tNow = createT(configItemsCatalog, itemDescriptorsCatalog)
 
@@ -63,6 +68,59 @@ function rollupRowStatus(
         : worst
 }
 
+/**
+ * An integration row on a phone (M08): logo, name, whose account it uses, and a chevron, 56 px
+ * high, edge to edge. No bin: "Remove from agent" is in the integration view.
+ */
+function PhoneIntegrationRow({
+    row,
+    name,
+    logo,
+    status,
+    onOpen,
+    disabled,
+}: {
+    row: IntegrationRow
+    name: string
+    logo: string | null
+    status?: ItemRowStatus
+    onOpen: () => void
+    disabled?: boolean
+}) {
+    const t = useT(integrationsPhoneCatalog, accountSwitchCatalog)
+    const line =
+        status?.reason ??
+        (row.entry?.accountSource === USER_ACCOUNT_SOURCE
+            ? t("entityUi.integrationsPhone.eachPersonsOwnAccount")
+            : t("entityUi.accountSwitch.oneShared"))
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            disabled={disabled}
+            className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-4 py-2 text-left disabled:cursor-default"
+        >
+            <ProviderLogo logo={logo} size={28} />
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[15px] text-[var(--ag-colorText)]">{name}</span>
+                <span
+                    className={`truncate text-xs ${
+                        status?.reason
+                            ? "text-[var(--ag-colorWarningText)]"
+                            : "text-[var(--ag-colorTextTertiary)]"
+                    }`}
+                >
+                    {line}
+                </span>
+            </span>
+            {status ? <StatusTag status={status} /> : null}
+            {disabled ? null : (
+                <CaretRight size={14} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+            )}
+        </button>
+    )
+}
+
 function IntegrationListRow({
     row,
     tools,
@@ -70,6 +128,7 @@ function IntegrationListRow({
     onRemove,
     disabled,
     statusFor,
+    phone,
 }: {
     row: IntegrationRow
     tools: unknown[]
@@ -77,6 +136,7 @@ function IntegrationListRow({
     onRemove: () => void
     disabled?: boolean
     statusFor?: ToolStatusFor
+    phone?: boolean
 }) {
     const t = useT(configItemsCatalog, itemDescriptorsCatalog)
     // Selected-integration metadata must not come from the searchable browse query: typing in the
@@ -89,6 +149,19 @@ function IntegrationListRow({
         () => rollupRowStatus(tools, indices, statusFor),
         [tools, indices, statusFor],
     )
+
+    if (phone) {
+        return (
+            <PhoneIntegrationRow
+                row={row}
+                name={name}
+                logo={integration?.logo ?? null}
+                status={status}
+                onOpen={onOpen}
+                disabled={disabled}
+            />
+        )
+    }
 
     return (
         <ItemRow
@@ -141,13 +214,22 @@ export function ToolManagementList({
     statusFor,
 }: ToolManagementListProps) {
     const t = useT(configItemsCatalog, itemDescriptorsCatalog)
+    // On a phone the section is its own screen: rows edge to edge, "Add integration" at the bottom.
+    // The phone section context, not the viewport: -mx-4 -mt-3 undo the px-4 and pt-3 of that screen.
+    const phone = usePhoneSections() !== null
     if (integrationRows.length === 0) {
         if (disabled) return null
         return <EmptyLine label={t("entityUi.configItems.noIntegrationsYet")} />
     }
 
     return (
-        <div className="flex flex-col gap-2">
+        <div
+            className={
+                phone
+                    ? "-mx-4 -mt-3 flex flex-col border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]"
+                    : "flex flex-col gap-2"
+            }
+        >
             {integrationRows.map((row) => (
                 <IntegrationListRow
                     key={`${row.provider}:${row.integration}`}
@@ -157,6 +239,7 @@ export function ToolManagementList({
                     onRemove={() => onRemoveIntegration?.(row)}
                     disabled={disabled || !onOpenIntegration}
                     statusFor={statusFor}
+                    phone={phone}
                 />
             ))}
         </div>

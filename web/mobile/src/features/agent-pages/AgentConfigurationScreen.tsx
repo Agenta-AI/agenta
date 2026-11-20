@@ -1,12 +1,16 @@
 import {useEffect, useRef} from "react"
 
+import {PhoneSectionsContext, usePhoneSectionScreen} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
+import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
+import {cn} from "@agenta/ui/styles"
 import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {DrawerViewChrome, ViewStackHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
@@ -50,7 +54,7 @@ export const AgentConfigurationScreen = ({
     agentId: string
     tab: ConfigurationTab
 }) => {
-    const t = useT(agentSidebarCatalog, agentLayoutPanelCatalog)
+    const t = useT(agentSidebarCatalog, agentLayoutPanelCatalog, agentLayoutHeaderCatalog)
     const tControls = useT(schemaControlsCatalog)
     useBindProjectContext(projectId)
     const router = useRouter()
@@ -68,6 +72,10 @@ export const AgentConfigurationScreen = ({
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     // The Automations tab's open views (an automation form may hold edits).
     const automationsGuard = useRef<PageViewStackGuardApi | null>(null)
+    // On a phone (M07) the Agent tab is a list of rows, and a row opens its section as a screen.
+    const phone = useIsPhone()
+    const sectionScreen = usePhoneSectionScreen(phone)
+    const shownSection = sectionScreen.shown
     const openTab = async (next: ConfigurationTab) => {
         const guard = automationsGuard.current
         // Leaving the tab closes its views; an open form with edits asks first.
@@ -75,8 +83,23 @@ export const AgentConfigurationScreen = ({
             if (!(await guard.stack.closeAll())) return
             guard.allowNext()
         }
+        sectionScreen.close()
         void router.replace({query: {...router.query, tab: next}}, undefined, {shallow: true})
     }
+
+    // A version saved elsewhere is offered ("Update to vN"), not adopted on its own: a drawer form
+    // here may hold edits. On a phone it sits at the end of the tab row (M07).
+    const revisionStatus =
+        tab === "agent" && revisionId ? (
+            <AgentRevisionStatus
+                revisionId={revisionId}
+                historyWorkflowId={agentId}
+                onUpdate={pin}
+                phone={phone}
+                backTitle={t("agentLayout.header.configuration")}
+                className={phone ? "shrink-0" : undefined}
+            />
+        ) : null
 
     const loading = (
         <div className="flex flex-col gap-3" aria-busy>
@@ -100,12 +123,14 @@ export const AgentConfigurationScreen = ({
         ) : !revisionId ? (
             loading
         ) : tab === "agent" ? (
-            <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
+            <PhoneSectionsContext.Provider value={sectionScreen.api}>
+                <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
+            </PhoneSectionsContext.Provider>
         ) : (
             // The panel's Automations tab, without its Files part (this page has no session). Its
             // automation views open in the page, under the crumb "Automations"; the drawer chrome
             // shows no close button outside a drawer.
-            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-solid border-border bg-background">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-solid border-border bg-background max-md:rounded-none max-md:border-0">
                 <ViewStackHost
                     chrome={DrawerViewChrome}
                     rootTitle={t("agentLayout.panel.automations")}
@@ -134,39 +159,58 @@ export const AgentConfigurationScreen = ({
                 >
                     <ScreenScaffold
                         header={
-                            <div
-                                className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
-                            >
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                        {t("agentSidebar.configuration")}
-                                    </h1>
-                                    {tab === "agent" && revisionId ? (
-                                        <AgentRevisionStatus
-                                            revisionId={revisionId}
-                                            historyWorkflowId={agentId}
-                                            // A version saved elsewhere is offered ("Update to vN"),
-                                            // not adopted on its own: a drawer form here may hold edits.
-                                            onUpdate={pin}
+                            shownSection ? (
+                                <PhoneScreenHeader
+                                    title={shownSection.title}
+                                    backTitle={t("agentLayout.header.configuration")}
+                                    onBack={sectionScreen.close}
+                                />
+                            ) : (
+                                <div
+                                    className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
+                                >
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <NavDrawer
+                                            workspaceId={workspaceId}
+                                            projectId={projectId}
                                         />
-                                    ) : null}
+                                        <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                            {t("agentSidebar.configuration")}
+                                        </h1>
+                                        {phone ? null : revisionStatus}
+                                    </div>
+                                    <div className="mt-3 flex min-w-0 items-center gap-1">
+                                        <TabsList
+                                            className={cn(
+                                                phone &&
+                                                    "ag-scroll-no-bar min-w-0 flex-1 justify-start overflow-x-auto",
+                                            )}
+                                        >
+                                            {CONFIGURATION_TABS.map((key) => (
+                                                <TabsTrigger
+                                                    key={key}
+                                                    value={key}
+                                                    className={cn(phone && "min-h-11 shrink-0")}
+                                                >
+                                                    {t(`agentLayout.panel.${key}`)}
+                                                </TabsTrigger>
+                                            ))}
+                                        </TabsList>
+                                        {phone ? revisionStatus : null}
+                                    </div>
                                 </div>
-                                <div className="mt-3">
-                                    <TabsList>
-                                        {CONFIGURATION_TABS.map((key) => (
-                                            <TabsTrigger key={key} value={key}>
-                                                {t(`agentLayout.panel.${key}`)}
-                                            </TabsTrigger>
-                                        ))}
-                                    </TabsList>
-                                </div>
-                            </div>
+                            )
                         }
                     >
                         <TabsContent
                             value={tab}
-                            className={`flex h-full min-h-0 min-w-0 flex-col px-4 pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`}
+                            className={cn(
+                                `flex h-full min-h-0 min-w-0 flex-col pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`,
+                                // On a phone the Agent and Automations tabs run edge to edge.
+                                phone && (tab === "agent" || tab === "automations")
+                                    ? "px-0 pb-0 pt-0"
+                                    : "px-4",
+                            )}
                         >
                             {/* The same host parts (model providers, skills, subagents) and edit
                             right as the right panel; a commit made here pins the new revision. */}
