@@ -15,7 +15,7 @@ from oss.src.core.instances.service import (
 )
 from oss.src.core.telemetry import service as telemetry
 from oss.src.utils.common import is_ee
-from oss.src.utils.env import env
+from oss.src.utils.env import DeploymentMethod, env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.version import get_agenta_version
 
@@ -49,7 +49,7 @@ class InstanceHeartbeat(BaseModel):
     instance_kind: Literal["production", "development", "ci"]
     agenta_version: str
     edition: Literal["oss", "ee"]
-    deployment_method: Optional[Literal["compose", "helm", "railway"]]
+    deployment_method: Optional[DeploymentMethod]
     plan: str
     license_key_id: Optional[str]
     total_organizations: int

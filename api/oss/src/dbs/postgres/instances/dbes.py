@@ -1,4 +1,11 @@
-from sqlalchemy import TIMESTAMP, UUID, Column, PrimaryKeyConstraint, text
+from sqlalchemy import (
+    TIMESTAMP,
+    UUID,
+    Boolean,
+    Column,
+    PrimaryKeyConstraint,
+    text,
+)
 
 from oss.src.dbs.postgres.shared.base import Base
 
@@ -16,5 +23,7 @@ class InstanceDBE(Base):
     )
     installed_event_sent_at = Column(TIMESTAMP(timezone=True), nullable=True)
     heartbeat_sent_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    # True when the install upgraded from a version without this table: no install ping.
+    preexisting = Column(Boolean, nullable=False, server_default=text("false"))
 
     __table_args__ = (PrimaryKeyConstraint("id", name="pk_instances"),)

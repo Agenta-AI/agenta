@@ -168,7 +168,10 @@ async def instance_groups() -> Dict[str, str]:
 
 
 async def send_install_ping() -> None:
-    """Send `instance_installed` once per instance, whatever the switch says.
+    """Send `instance_installed` once per new instance, whatever the switch says.
+
+    An install that upgraded from a version without the `instances` table is
+    `preexisting` and never sends it.
 
     The row stays locked until PostHog accepts the event, so one container sends it.
     """

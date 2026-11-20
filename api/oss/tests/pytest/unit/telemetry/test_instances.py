@@ -1,9 +1,16 @@
-from unittest.mock import AsyncMock
+import os
+import warnings
+from contextlib import asynccontextmanager
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from oss.src.core.instances import service as instances_service
+from oss.src.dbs.postgres.instances import dao as instances_dao_module
+from oss.src.utils import env as env_module
 from oss.src.core.instances.types import InstanceMissing
 from oss.src.utils.env import env
 
@@ -56,3 +63,79 @@ async def test_missing_row_raises(monkeypatch):
 
     with pytest.raises(InstanceMissing):
         await instances_service.get_instance_id()
+
+
+@pytest.mark.asyncio
+async def test_install_ping_skips_a_preexisting_install(monkeypatch):
+    """An install that had data before the instances migration sends no install ping."""
+    statements = []
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+
+    async def _execute(statement):
+        statements.append(statement)
+        return result
+
+    connection = MagicMock()
+    connection.execute = _execute
+
+    @asynccontextmanager
+    async def _transaction():
+        yield connection
+
+    engine = MagicMock()
+    engine.transaction = _transaction
+    monkeypatch.setattr(instances_dao_module, "get_transactions_engine", lambda: engine)
+
+    async with instances_dao_module.InstancesDAO().lock_unsent_install_ping() as found:
+        assert found is None
+
+    sql = str(
+        statements[0].compile(
+            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+        )
+    )
+    assert "instances.preexisting IS false" in sql
+    assert "instances.installed_event_sent_at IS NULL" in sql
+
+
+def test_migration_marks_an_upgraded_install_as_preexisting():
+    migration = (
+        Path(__file__).resolve().parents[4]
+        / "databases/postgres/migrations/core_oss/versions"
+        / "oss000000064_add_instances.py"
+    ).read_text()
+
+    assert "EXISTS (SELECT 1 FROM users) OR EXISTS (SELECT 1 FROM organizations)" in (
+        migration
+    )
+
+
+@pytest.mark.parametrize(
+    ("variable", "kubernetes_host", "dockerenv", "method"),
+    [
+        ("helm", "10.0.0.1", True, "helm"),
+        ("compose", None, True, "compose"),
+        ("railway", None, False, "railway"),
+        ("", "10.0.0.1", True, "kubernetes"),
+        ("", None, True, "docker"),
+        ("", None, False, None),
+        ("podman", None, True, None),
+    ],
+)
+def test_deployment_method(monkeypatch, variable, kubernetes_host, dockerenv, method):
+    monkeypatch.setenv("AGENTA_DEPLOYMENT_METHOD", variable)
+    if kubernetes_host:
+        monkeypatch.setenv("KUBERNETES_SERVICE_HOST", kubernetes_host)
+    else:
+        monkeypatch.delenv("KUBERNETES_SERVICE_HOST", raising=False)
+    real_exists = os.path.exists
+    monkeypatch.setattr(
+        env_module.os.path,
+        "exists",
+        lambda path: dockerenv if path == "/.dockerenv" else real_exists(path),
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert env_module._parse_deployment_method() == method
