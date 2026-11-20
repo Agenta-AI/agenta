@@ -11,11 +11,15 @@
  *
  * A new integration lands on "Allow all". Choosing another connection for an
  * integration that is already configured REPLACES its entry, keeping the policy already set.
+ *
+ * Settings mounts the same list as its page (`layout="page"`), with the person's own accounts,
+ * Run and the project switch as props.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
     isConnectionActive,
+    isConnectionDefault,
     isConnectionValid,
     toolIntegrationDetailQueryFamily,
     toolIntegrationsSearchAtom,
@@ -43,8 +47,9 @@ import {
     RadioGroup,
     RadioGroupItem,
     SearchInput,
+    cn,
 } from "@agenta/ui/ui"
-import {Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {Check, MagnifyingGlass, Play, Plus, Star} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -56,10 +61,15 @@ import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
 
 import {CatalogListRow} from "./CatalogListRow"
 import {CatalogRowSkeleton} from "./CatalogRowSkeleton"
+import {CategoryChips} from "./CategoryChips"
 import {CategorySelect} from "./CategorySelect"
 import {ConnectionActionConfirm, type ConnectionAction} from "./ConnectionActionConfirm"
-import {ConnectionRowMenu} from "./ConnectionRowMenu"
-import {catalogSections, type CategorySelection} from "./integrationCatalogFilters"
+import {ConnectionRowMenu, type ConnectionMenuAction} from "./ConnectionRowMenu"
+import {
+    catalogSections,
+    filterConnectedGroups,
+    type CategorySelection,
+} from "./integrationCatalogFilters"
 
 const tNow = createT(integrationDrawerCatalog)
 
@@ -70,11 +80,17 @@ interface PendingConnect extends CreatedConnection {
     integrationKey: string
 }
 
-/** Whether "Connected" is folded away; remembered, as Settings remembers its own. */
+/** Whether "Connected" is folded away; remembered per viewer. */
 const connectedCollapsedAtom = atomWithStorage(
     "agenta:agent-integrations:connected-collapsed",
     false,
 )
+
+/** Whether the person's own accounts are folded away; Settings' key, so the fold carries over. */
+const yoursCollapsedAtom = atomWithStorage("agenta:settings:integrations-yours-collapsed", false)
+
+/** Rows in two columns where they fit, one on a phone: the Settings page grid. */
+const PAGE_ROWS = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8"
 
 /** What the catalog needs to add apps to an agent. Absent, it only browses and connects. */
 export interface IntegrationCatalogAdding {
@@ -86,6 +102,27 @@ export interface IntegrationCatalogAdding {
     onAddPersonalIntegration: (target: GatewayConnectionTarget) => void
 }
 
+/** Run a project connection's tool (Settings): a row click and a menu item. */
+export interface IntegrationCatalogRun {
+    label: string
+    onRun: (connection: ToolConnection) => void
+}
+
+/** The person's own accounts, as a first group (Settings). */
+export interface IntegrationCatalogYours {
+    label: string
+    /** Under the group when it has no rows, outside a search. */
+    empty: ReactNode
+    /** Under the group when the read failed; it then replaces `empty`. */
+    error?: ReactNode
+    /** "Make default" on a working account that is not the default; `defaultLabel` marks it. */
+    makeDefault: {
+        label: string
+        defaultLabel: string
+        onMakeDefault: (connection: ToolConnection) => void
+    }
+}
+
 export interface IntegrationCatalogProps {
     /** Adds apps to an agent; absent in a place with no agent (chat, playground, prompts). */
     adding?: IntegrationCatalogAdding
@@ -94,6 +131,18 @@ export interface IntegrationCatalogProps {
      * and the catalog adds that one once it is valid. A cancelled form calls nothing.
      */
     onConnect: (integrationKey: string, onCreated: (created: CreatedConnection) => void) => void
+    /**
+     * `panel` (default): a view body with its own scroll and a category select. `page`: the
+     * page scrolls, the search sticks to its top, categories are chips, rows sit in two columns.
+     */
+    layout?: "panel" | "page"
+    searchPlaceholder?: string
+    /** The project group's heading, e.g. the project switch: it never folds and stays when empty. */
+    connectedLabel?: ReactNode
+    yours?: IntegrationCatalogYours
+    run?: IntegrationCatalogRun
+    /** Confirms Revoke and Delete itself (the host's own dialog); absent, the catalog asks. */
+    onConnectionAction?: (action: ConnectionAction, connection: ToolConnection) => void
 }
 
 interface ConnectedGroup {
@@ -164,12 +213,50 @@ export interface ConnectionRowHandlers {
     onConfirm: (action: ConnectionAction, connection: ToolConnection, label: string) => void
 }
 
+/** The host's verbs on one connection: Run on a project row, Make default on the person's own. */
+interface RowVerbs {
+    run?: IntegrationCatalogRun
+    makeDefault?: IntegrationCatalogYours["makeDefault"]
+}
+
+const works = (connection: ToolConnection) =>
+    isConnectionActive(connection) && isConnectionValid(connection)
+
+const menuActions = (connection: ToolConnection, verbs: RowVerbs): ConnectionMenuAction[] => [
+    ...(verbs.run
+        ? [
+              {
+                  key: "run",
+                  label: verbs.run.label,
+                  icon: <Play size={14} />,
+                  onSelect: () => verbs.run?.onRun(connection),
+              },
+          ]
+        : []),
+    ...(verbs.makeDefault && works(connection) && !isConnectionDefault(connection)
+        ? [
+              {
+                  key: "make-default",
+                  label: verbs.makeDefault.label,
+                  icon: <Star size={14} />,
+                  onSelect: () => verbs.makeDefault?.onMakeDefault(connection),
+              },
+          ]
+        : []),
+]
+
+/** "Default" beside the person's default account. */
+const DefaultMark = ({label}: {label: string}) => (
+    <span className="shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)]">{label}</span>
+)
+
 /** A row in "Connected in your workspace": quick-add, or open the connection chooser. */
 function ConnectedRow({
     group,
     row,
     onAdd,
     handlers,
+    verbs = {},
 }: {
     group: ConnectedGroup
     /** The agent's row for this integration, in EITHER format, or undefined when it holds none. */
@@ -177,6 +264,7 @@ function ConnectedRow({
     /** Absent where nothing is added to an agent: the row only lists the connection. */
     onAdd?: (slug: string) => void
     handlers: ConnectionRowHandlers
+    verbs?: RowVerbs
 }) {
     const t = useT(integrationDrawerCatalog)
     const {integration} = useToolIntegrationDetail(group.integrationKey)
@@ -244,7 +332,10 @@ function ConnectedRow({
                         ? () => setChoosing((value) => !value)
                         : onAdd && !added && single.slug
                           ? () => onAdd(single.slug ?? "")
-                          : undefined
+                          : // Settings: a project connection opens to running its tools.
+                            !onAdd && verbs.run
+                            ? () => verbs.run?.onRun(single)
+                            : undefined
             }
             leading={<LogoTile logo={logo} />}
             title={title}
@@ -262,6 +353,8 @@ function ConnectedRow({
                             ? t("entityUi.integrationDrawer.inactive")
                             : t("entityUi.integrationDrawer.pending")}
                     </span>
+                ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
+                    <DefaultMark label={verbs.makeDefault.defaultLabel} />
                 ) : null
             }
             action={
@@ -270,6 +363,7 @@ function ConnectedRow({
                     {/* Per-connection verbs need one connection to act on. */}
                     {multiple ? null : (
                         <ConnectionRowMenu
+                            actions={menuActions(single, verbs)}
                             onRefresh={() => handlers.onRefresh(single)}
                             onRevoke={() => handlers.onConfirm("revoke", single, title)}
                             onDelete={() => handlers.onConfirm("delete", single, title)}
@@ -289,6 +383,9 @@ function ConnectedRow({
                                     className="flex items-center gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-2.5 py-1 text-xs"
                                 >
                                     <span className="flex-1 truncate">{label}</span>
+                                    {verbs.makeDefault && isConnectionDefault(connection) ? (
+                                        <DefaultMark label={verbs.makeDefault.defaultLabel} />
+                                    ) : null}
                                     {pending ? (
                                         <Button
                                             variant="ghost"
@@ -305,6 +402,7 @@ function ConnectedRow({
                                         </span>
                                     )}
                                     <ConnectionRowMenu
+                                        actions={menuActions(connection, verbs)}
                                         onRefresh={() => handlers.onRefresh(connection)}
                                         onRevoke={() =>
                                             handlers.onConfirm("revoke", connection, label)
@@ -411,18 +509,72 @@ function CatalogRow({
     )
 }
 
+/** A group of connection rows under its header; with `onToggle` the header folds them away. */
+function RowGroup({
+    label,
+    count,
+    collapsed = false,
+    onToggle,
+    page,
+    footer,
+    children,
+}: {
+    label: ReactNode
+    count: number
+    collapsed?: boolean
+    onToggle?: () => void
+    page: boolean
+    footer?: ReactNode
+    children: ReactNode
+}) {
+    return (
+        // No gap: the spacing rides inside the collapse, so a folded list leaves none.
+        <div className="flex flex-col">
+            <SubSectionHeader
+                label={label}
+                count={count}
+                collapsed={collapsed}
+                onToggle={onToggle}
+            />
+            {/* -mx/px: the rows' hover fill and focus ring bleed 8px past the column, and the
+            collapse clips its overflow. */}
+            <HeightCollapse
+                open={!collapsed}
+                fade
+                className="-mx-2"
+                contentClassName={cn(page ? PAGE_ROWS : "flex flex-col", "px-2 pt-2")}
+            >
+                {children}
+            </HeightCollapse>
+            {collapsed ? null : footer}
+        </div>
+    )
+}
+
 /** The catalog: the project's connected apps, then all apps. Mounted only while it shows. */
-export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps) {
+export function IntegrationCatalog({
+    adding,
+    onConnect,
+    layout = "panel",
+    searchPlaceholder,
+    connectedLabel,
+    yours,
+    run,
+    onConnectionAction,
+}: IntegrationCatalogProps) {
     const t = useT(integrationDrawerCatalog)
-    // The catalog's own box: its dialogs and the category list open inside it, so they stay in
-    // a drawer host and scroll under the drawer's lock.
+    const page = layout === "page"
+    // The catalog's own box: in a panel its dialogs and the category list open inside it, so they
+    // stay in a drawer host and scroll under the drawer's lock. On a page they open over the page.
     const [container, setContainer] = useState<HTMLDivElement | null>(null)
+    const dialogContainer = page ? null : container
     const [query, setQuery] = useState("")
     const [category, setCategoryState] = useState<CategorySelection | null>(null)
     const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
+    const [yoursCollapsed, setYoursCollapsed] = useAtom(yoursCollapsedAtom)
     // Fades the list's top and bottom edges while there is more to scroll that way.
     const listRef = useRef<HTMLDivElement>(null)
-    useScrollFadeEdges(listRef)
+    useScrollFadeEdges(listRef, {enabled: !page})
     // A search always shows what it matched.
     const searching = query.trim().length > 0
     // The connection a connect form made, until it is valid and added.
@@ -439,16 +591,25 @@ export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps)
         connection: ToolConnection
         label: string
     } | null>(null)
+    const confirmAction = useCallback(
+        (action: ConnectionAction, connection: ToolConnection, label: string) =>
+            onConnectionAction
+                ? onConnectionAction(action, connection)
+                : setConfirming({action, connection, label}),
+        [onConnectionAction],
+    )
     const refreshConnection = useRefreshToolConnection()
     const {handleDelete, handleRevoke} = useToolConnectionActions()
     const rowHandlers = useMemo<ConnectionRowHandlers>(
         () => ({
             onFinish: (connection, name, logo) => setFinishing({connection, name, logo}),
             onRefresh: (connection) => void refreshConnection(connection),
-            onConfirm: (action, connection, label) => setConfirming({action, connection, label}),
+            onConfirm: confirmAction,
         }),
-        [refreshConnection],
+        [refreshConnection, confirmAction],
     )
+    const projectVerbs = useMemo<RowVerbs>(() => ({run}), [run])
+    const yoursVerbs = useMemo<RowVerbs>(() => ({makeDefault: yours?.makeDefault}), [yours])
 
     const setSearch = useSetAtom(toolIntegrationsSearchAtom)
     const {
@@ -477,13 +638,26 @@ export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps)
         },
         [setSearch, setCategory],
     )
+    const selectCategory = (next: CategorySelection | null) => {
+        setCategoryState(next)
+        setCategory?.(next?.id ?? null)
+    }
 
     const allConnectedGroups = useMemo(() => groupConnections(connections), [connections])
+    const allYoursGroups = useMemo(
+        () => (yours ? groupConnections(personalConnections ?? []) : []),
+        [yours, personalConnections],
+    )
 
     // Read through the SAME query atoms each row uses, so this shares their cache.
     const connectedKeys = useMemo(
-        () => allConnectedGroups.map((group) => group.integrationKey).sort(),
-        [allConnectedGroups],
+        () =>
+            [
+                ...new Set(
+                    [...allConnectedGroups, ...allYoursGroups].map((group) => group.integrationKey),
+                ),
+            ].sort(),
+        [allConnectedGroups, allYoursGroups],
     )
     const connectedDetailsAtom = useMemo(
         () =>
@@ -527,6 +701,17 @@ export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps)
             namesByIntegration,
         ],
     )
+    const yoursGroups = useMemo(
+        () =>
+            filterConnectedGroups({
+                groups: allYoursGroups,
+                query,
+                category,
+                categoriesByIntegration,
+                namesByIntegration,
+            }),
+        [allYoursGroups, query, category, categoriesByIntegration, namesByIntegration],
+    )
     const rowsByIntegration = useMemo(
         () =>
             new Map(
@@ -569,81 +754,108 @@ export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps)
     )
 
     const catalogLoading = isLoading && integrations.length === 0
-    const nothingFound = !catalogLoading && connectedGroups.length === 0 && catalogRows.length === 0
+    const nothingFound =
+        !catalogLoading &&
+        connectedGroups.length === 0 &&
+        yoursGroups.length === 0 &&
+        catalogRows.length === 0
+    // Under a heading such as the project switch the group stays, except in a search.
+    const showConnected = connectedGroups.length > 0 || (Boolean(connectedLabel) && !searching)
+    const yoursFooter = yours?.error ?? (!searching && yoursGroups.length === 0 ? yours?.empty : null)
+
+    const search = (
+        <SearchInput
+            className="min-w-0 flex-1"
+            placeholder={searchPlaceholder ?? t("entityUi.integrationDrawer.searchApps")}
+            value={query}
+            onValueChange={setQuery}
+        />
+    )
+
+    const renderRows = (groups: ConnectedGroup[], verbs: RowVerbs) =>
+        groups.map((group) => (
+            <ConnectedRow
+                key={groupKey(group.provider, group.integrationKey)}
+                group={group}
+                row={rowsByIntegration.get(groupKey(group.provider, group.integrationKey))}
+                onAdd={
+                    adding
+                        ? (slug) =>
+                              slug &&
+                              adding.onAddIntegration(
+                                  {provider: group.provider, integration: group.integrationKey},
+                                  slug,
+                              )
+                        : undefined
+                }
+                handlers={rowHandlers}
+                verbs={verbs}
+            />
+        ))
 
     return (
-        <div ref={setContainer} className="relative flex min-h-0 flex-1">
+        <div
+            ref={setContainer}
+            className={page ? "flex min-w-0 flex-col" : "relative flex min-h-0 flex-1"}
+        >
             {/* One column: the category filter sits beside the search, so apps get the width. */}
             {/* min-w-0: without it the one-line descriptions stretch the column past the drawer. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* Fixed above the scroll. pt-1 keeps the focus ring inside the body's clip. */}
-                <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-1">
-                    <SearchInput
-                        className="min-w-0 flex-1"
-                        placeholder={t("entityUi.integrationDrawer.searchApps")}
-                        value={query}
-                        onValueChange={setQuery}
-                    />
-                    <CategorySelect
-                        value={category}
-                        container={container}
-                        onChange={(next) => {
-                            setCategoryState(next)
-                            setCategory?.(next?.id ?? null)
-                        }}
-                    />
-                </div>
+            <div className={page ? "flex flex-col" : "flex min-h-0 min-w-0 flex-1 flex-col"}>
+                {page ? (
+                    // Pinned to the page's top while it scrolls, as Settings pins its search.
+                    <div className="sticky top-0 z-10 -mx-3 bg-background px-3 pb-3 pt-1">
+                        <div className="flex">{search}</div>
+                        <CategoryChips value={category} onChange={selectCategory} />
+                    </div>
+                ) : (
+                    // Fixed above the scroll. pt-1 keeps the focus ring inside the body's clip.
+                    <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-1">
+                        {search}
+                        <CategorySelect
+                            value={category}
+                            container={container}
+                            onChange={selectCategory}
+                        />
+                    </div>
+                )}
 
                 <div
                     ref={listRef}
-                    className="ag-scroll-fade flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4"
+                    className={
+                        page
+                            ? "flex flex-col gap-8 pt-2"
+                            : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4"
+                    }
                 >
-                    {connectedGroups.length > 0 ? (
-                        // No gap: the spacing rides inside the collapse, so a folded list leaves none.
-                        <div className="flex flex-col">
-                            <SubSectionHeader
-                                label={t("entityUi.integrationDrawer.connected")}
-                                count={connectedGroups.length}
-                                collapsed={!searching && connectedCollapsed}
-                                onToggle={
-                                    searching
-                                        ? undefined
-                                        : () => setConnectedCollapsed((value) => !value)
-                                }
-                            />
-                            {/* -mx/px: the rows' hover fill and focus ring bleed 8px past the
-                            column, and the collapse clips its overflow. */}
-                            <HeightCollapse
-                                open={searching || !connectedCollapsed}
-                                fade
-                                className="-mx-2"
-                                contentClassName="flex flex-col px-2 pt-2"
-                            >
-                                {connectedGroups.map((group) => (
-                                    <ConnectedRow
-                                        key={groupKey(group.provider, group.integrationKey)}
-                                        group={group}
-                                        row={rowsByIntegration.get(
-                                            groupKey(group.provider, group.integrationKey),
-                                        )}
-                                        onAdd={
-                                            adding
-                                                ? (slug) =>
-                                                      slug &&
-                                                      adding.onAddIntegration(
-                                                          {
-                                                              provider: group.provider,
-                                                              integration: group.integrationKey,
-                                                          },
-                                                          slug,
-                                                      )
-                                                : undefined
-                                        }
-                                        handlers={rowHandlers}
-                                    />
-                                ))}
-                            </HeightCollapse>
-                        </div>
+                    {yours && (yoursGroups.length > 0 || yoursFooter) ? (
+                        <RowGroup
+                            label={yours.label}
+                            count={yoursGroups.length}
+                            collapsed={!searching && yoursCollapsed}
+                            onToggle={
+                                searching ? undefined : () => setYoursCollapsed((value) => !value)
+                            }
+                            page={page}
+                            footer={yoursFooter ? <div className="pt-2">{yoursFooter}</div> : null}
+                        >
+                            {renderRows(yoursGroups, yoursVerbs)}
+                        </RowGroup>
+                    ) : null}
+
+                    {showConnected ? (
+                        <RowGroup
+                            label={connectedLabel ?? t("entityUi.integrationDrawer.connected")}
+                            count={connectedGroups.length}
+                            collapsed={!connectedLabel && !searching && connectedCollapsed}
+                            onToggle={
+                                connectedLabel || searching
+                                    ? undefined
+                                    : () => setConnectedCollapsed((value) => !value)
+                            }
+                            page={page}
+                        >
+                            {renderRows(connectedGroups, projectVerbs)}
+                        </RowGroup>
                     ) : null}
 
                     {nothingFound ? (
@@ -678,7 +890,7 @@ export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps)
                             {catalogLoading ? (
                                 <CatalogRowSkeleton />
                             ) : (
-                                <div className="flex flex-col">
+                                <div className={page ? PAGE_ROWS : "flex flex-col"}>
                                     {catalogRows.map((integration) => (
                                         <CatalogRow
                                             key={integration.key}
@@ -702,16 +914,16 @@ export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps)
             {finishing ? (
                 <FinishConnectionDialog
                     open
-                    container={container}
+                    container={dialogContainer}
                     name={finishing.name}
                     logo={<ProviderLogo logo={finishing.logo} size={18} />}
                     onAuthorize={() => refreshConnection(finishing.connection)}
                     onDelete={() =>
-                        setConfirming({
-                            action: "delete",
-                            connection: finishing.connection,
-                            label: connectionLabel(finishing.connection, finishing.name),
-                        })
+                        confirmAction(
+                            "delete",
+                            finishing.connection,
+                            connectionLabel(finishing.connection, finishing.name),
+                        )
                     }
                     onClose={() => setFinishing(null)}
                 />
@@ -720,7 +932,7 @@ export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps)
                 <ConnectionActionConfirm
                     action={confirming.action}
                     name={confirming.label}
-                    container={container}
+                    container={dialogContainer}
                     onConfirm={async () => {
                         const id = confirming.connection.id
                         if (!id) return

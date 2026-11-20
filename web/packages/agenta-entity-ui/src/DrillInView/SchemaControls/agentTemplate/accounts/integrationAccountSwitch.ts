@@ -1,6 +1,7 @@
 /** The rules of an integration's account part (F10), pure so the tests and the view share them. */
 import {USER_ACCOUNT_SOURCE, type ItemAccount} from "@agenta/entities/accountChoice"
 import {isConnectionDefault, type ToolConnection} from "@agenta/entities/gatewayTool"
+import {triggerBoundAgentId} from "@agenta/entities/gatewayTrigger"
 import type {PersonalAccountsAccess} from "@agenta/entities/secret"
 
 import type {GatewayConnectionAccount, ParsedGatewayConnection} from "../../toolUtils"
@@ -60,7 +61,9 @@ export const sharedAccountOptions = (
 
 /** An automation as the trigger queries return it: the agent it targets and who it runs as. */
 export interface AutomationRunner {
+    /** Null for an automation bound through an environment; its references then name the agent. */
     artifact_id?: string | null
+    data?: {references?: Record<string, {id?: string | null} | undefined> | null} | null
     principal?: {kind?: string | null} | null
 }
 
@@ -75,7 +78,8 @@ export const hasAutomationWithoutPerson = (
     Boolean(workflowId) &&
     automations.some(
         (automation) =>
-            automation.artifact_id === workflowId &&
+            (automation.artifact_id ?? triggerBoundAgentId(automation.data?.references)) ===
+                workflowId &&
             Boolean(automation.principal?.kind) &&
             automation.principal?.kind !== "human",
     )

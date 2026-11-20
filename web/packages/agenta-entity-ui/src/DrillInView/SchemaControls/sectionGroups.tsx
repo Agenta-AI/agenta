@@ -53,7 +53,8 @@ export function SubSectionHeader({
     collapsed,
     onToggle,
 }: {
-    label: string
+    /** A word, or a node such as the Settings project switch (that one does not fold). */
+    label: ReactNode
     /** Omitted while the rows load, so the header never claims a count it does not have. */
     count?: number
     action?: ReactNode

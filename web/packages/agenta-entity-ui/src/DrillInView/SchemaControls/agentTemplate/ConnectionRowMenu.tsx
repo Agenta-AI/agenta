@@ -1,4 +1,6 @@
-/** A connection row's kebab: Refresh, Revoke and Delete, the same verbs Settings offers. */
+/** A connection row's kebab: the host's own verbs first, then Refresh, Revoke and Delete. */
+import type {ReactNode} from "react"
+
 import {useT} from "@agenta/i18n"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {
@@ -11,11 +13,21 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowClockwise, DotsThreeVertical, Trash, XCircle} from "@phosphor-icons/react"
 
+/** A verb a host adds to the menu, such as Run or Make default. */
+export interface ConnectionMenuAction {
+    key: string
+    label: string
+    icon: ReactNode
+    onSelect: () => void
+}
+
 export function ConnectionRowMenu({
+    actions = [],
     onRefresh,
     onRevoke,
     onDelete,
 }: {
+    actions?: ConnectionMenuAction[]
     onRefresh: () => void
     onRevoke: () => void
     onDelete: () => void
@@ -37,6 +49,12 @@ export function ConnectionRowMenu({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[160px]">
+                {actions.map((action) => (
+                    <DropdownMenuItem key={action.key} onSelect={action.onSelect}>
+                        {action.icon}
+                        {action.label}
+                    </DropdownMenuItem>
+                ))}
                 <DropdownMenuItem onSelect={onRefresh}>
                     <ArrowClockwise size={14} />
                     {t("entityUi.integrationDrawer.refresh")}
