@@ -2,7 +2,7 @@ import {useEffect} from "react"
 
 import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
 import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
-import {providerConnectionView} from "@agenta/entity-ui/secretProvider"
+import {providerConnectionView, providerListView} from "@agenta/entity-ui/secretProvider"
 import {userAtom} from "@agenta/shared/state"
 import {useViewStack, ViewStackHost, type ViewTarget} from "@agenta/ui/view-stack"
 import type {Meta, StoryObj} from "@storybook/nextjs"
@@ -10,13 +10,17 @@ import {userEvent, within} from "storybook/test"
 
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {
+    MODEL_PICKER_USER_ID,
+    modelProvidersQueries,
+} from "../../../fixtures/builderLayout/model-picker"
+import {
     OPENAI_CONNECTION_ID,
     PROBE_ANSWERS,
     PROVIDER_KEYS_USER_ID,
     providerKeysQueries,
 } from "../../../fixtures/builderLayout/provider-keys"
 
-const panel: AgentPanelApi = {
+const panelOf = (phone: boolean): AgentPanelApi => ({
     content: "configuration",
     toggle: async () => true,
     close: async () => true,
@@ -24,34 +28,50 @@ const panel: AgentPanelApi = {
     setConfigTab: () => undefined,
     wide: false,
     setWide: () => undefined,
-    phone: false,
+    phone,
     available: {files: true, configuration: true, builder: false},
-}
+})
 
 const PROJECT: ViewTarget = {kind: "project"}
 
-/** Opens the provider form at depth 1, as a click on a row of the add view would. */
-const Open = ({kind, connectionId}: {kind: string; connectionId?: string}) => {
+interface FrameProps {
+    /** The provider form of this kind; absent opens the Model providers list. */
+    kind?: string
+    connectionId?: string
+    /** The phone screen (M12): 390 x 844, the phone chrome, 44 px hit areas. */
+    phone?: boolean
+}
+
+/** Opens the provider form (or the list) at depth 1, as a click would. */
+const Open = ({kind, connectionId}: FrameProps) => {
     const stack = useViewStack()
     useEffect(() => {
-        void stack.open(
-            providerConnectionView,
-            {kind, ...(connectionId ? {connectionId} : {})},
-            PROJECT,
-        )
+        if (kind) {
+            void stack.open(
+                providerConnectionView,
+                {kind, ...(connectionId ? {connectionId} : {})},
+                PROJECT,
+            )
+        } else {
+            void stack.open(providerListView, {}, PROJECT)
+        }
         // Open once on mount, like a click.
     }, [])
     return null
 }
 
-const PanelFrame = ({kind, connectionId}: {kind: string; connectionId?: string}) => (
-    <AgentPanelContext.Provider value={panel}>
+const PanelFrame = ({kind, connectionId, phone = false}: FrameProps) => (
+    <AgentPanelContext.Provider value={panelOf(phone)}>
         <div
             data-testid="agent-panel"
-            className="ag-panel-raised flex h-[760px] flex-col border border-solid border-border"
-            style={{width: 440}}
+            className={`ag-panel-raised flex flex-col border border-solid border-border ${phone ? "h-[844px]" : "h-[760px]"}`}
+            style={{width: phone ? 390 : 440}}
         >
-            <ViewStackHost chrome={PanelViewChrome} rootTitle="Model providers">
+            <ViewStackHost
+                chrome={PanelViewChrome}
+                rootTitle={phone ? "Model" : "Model providers"}
+                phone={phone}
+            >
                 <Open kind={kind} connectionId={connectionId} />
             </ViewStackHost>
         </div>
@@ -170,3 +190,25 @@ export const Vertex: Story = {args: {kind: "vertex_ai"}}
 
 /** F11 f7: an OpenAI-compatible endpoint, with its protocol. */
 export const OpenAiCompatible: Story = {args: {kind: "custom"}}
+
+/** M12: Model providers on a phone, the list with the full-width primary action at the bottom. */
+export const PhoneList: Story = {
+    args: {phone: true},
+    parameters: {
+        viewport: {defaultViewport: "mobile2"},
+        agenta: {
+            atoms: [[userAtom, {id: MODEL_PICKER_USER_ID, email: "bob@acme.com"}]] as [
+                typeof userAtom,
+                unknown,
+            ][],
+            queries: (scope: StoryScope) => modelProvidersQueries(scope),
+        },
+    },
+}
+
+/** M12: the OpenAI form full screen on a phone, after the key works. */
+export const PhoneForm: Story = {
+    args: {kind: "openai", phone: true},
+    beforeEach: answerProbe(PROBE_ANSWERS.works),
+    play: ({canvasElement}) => pasteKey(canvasElement, "Paste your OpenAI API key"),
+}

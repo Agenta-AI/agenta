@@ -31,6 +31,12 @@ export interface ViewDef<P> {
      * no Cancel, Save or Done. For views whose editing needs a desktop (long text, technical forms).
      */
     readOnlyOnPhone?: boolean
+    /**
+     * "none": the chrome draws no action row (no Done) for this view. For a picker whose body
+     * carries its own primary action at the bottom, such as the Model providers list. Absent
+     * keeps the row.
+     */
+    actions?: "none"
     /** The body. Use a `next/dynamic` component so the code loads on first open. */
     Component: ComponentType<ViewProps<P>>
 }
@@ -129,7 +135,10 @@ export interface ViewChromeProps {
     crumbs: {title: string; onSelect?: () => void}[]
     apply: ViewApply
     wide: boolean
-    /** The top view is shown to read only: the chrome draws no action row. */
+    /**
+     * The chrome draws no action row: the top view is shown to read only, or it asks for none
+     * (`ViewDef.actions: "none"`).
+     */
     readOnly: boolean
     form: ViewChromeForm | null
     /** Guarded back one level. */

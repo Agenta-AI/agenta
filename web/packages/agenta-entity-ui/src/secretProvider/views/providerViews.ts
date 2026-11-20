@@ -28,6 +28,8 @@ export type BuiltinModelsViewParams = Record<string, never>
 export const providerListView = defineView<ProviderListViewParams>({
     id: "project.modelProviders",
     apply: "immediate",
+    // The list carries "Add a provider or subscription" at the bottom; no Done row (F09 f1, M12).
+    actions: "none",
     Component: lazyView(() => import("./ProviderListViewBody")),
 })
 

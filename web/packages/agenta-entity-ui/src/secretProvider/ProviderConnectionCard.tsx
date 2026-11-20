@@ -55,6 +55,7 @@ import providerKeyFormCatalog from "@agenta/i18n/catalogs/entityUi.providerKeyFo
 import {projectIdAtom} from "@agenta/shared/state"
 import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
+import {useIsPhone} from "@agenta/ui/phone"
 import {Button, InputAffix, PasswordInput, Segmented, Spinner, Textarea} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -95,6 +96,13 @@ const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
 
 /** How long a multi-field form waits after the last keystroke before it checks by itself. */
 const SETTLE_MS = 800
+
+/**
+ * On a phone every control of the form has a 44 px hit area: fields, buttons and links, and the
+ * model and harness rows (a label around a checkbox). A checkbox itself stays small.
+ */
+const PHONE_TARGETS =
+    "[&_[data-slot=input-affix]]:min-h-11 [&_textarea]:min-h-11 [&_button:not([role=checkbox])]:min-h-11 [&_label]:min-h-11"
 
 /** The two ways to sign in to AWS Bedrock, and the fields of each. */
 type BedrockWay = "apiKey" | "accessKeys"
@@ -202,6 +210,7 @@ const ProviderConnectionCard = ({
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const saveConnection = useSetAtom(saveProviderConnectionAtom)
     const keyCheck = useKeyCheck()
+    const phone = useIsPhone()
 
     const fields = useMemo(() => credentialFieldsForKind(kind), [kind])
     const title = providerTitleForKind(kind)
@@ -852,7 +861,9 @@ const ProviderConnectionCard = ({
     ) : null
 
     return (
-        <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
+        <div
+            className={`flex min-h-full flex-1 flex-col gap-4 text-xs ${phone ? PHONE_TARGETS : ""}`}
+        >
             {/* A member cannot rename an organization connection, so the field is not offered. */}
             {readOnly ? null : (
                 <div className="flex shrink-0 flex-col gap-1">
