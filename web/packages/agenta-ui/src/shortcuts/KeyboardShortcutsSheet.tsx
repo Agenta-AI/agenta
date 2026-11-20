@@ -20,16 +20,26 @@ import {ShortcutKeys} from "./ShortcutKeys"
 export interface KeyboardShortcutsSheetProps {
     open: boolean
     onOpenChange: (open: boolean) => void
+    /** Shortcut ids this surface does not bind, left out of the list. Default: none. */
+    omit?: readonly string[]
     className?: string
 }
 
 export const KeyboardShortcutsSheet = ({
     open,
     onOpenChange,
+    omit,
     className,
 }: KeyboardShortcutsSheetProps) => {
     const t = useT(navigationCatalog)
-    const groups = shortcutGroups().filter((group) => group.shortcuts.length > 0)
+    const groups = shortcutGroups()
+        .map((group) => ({
+            ...group,
+            shortcuts: omit
+                ? group.shortcuts.filter((shortcut) => !omit.includes(shortcut.id))
+                : group.shortcuts,
+        }))
+        .filter((group) => group.shortcuts.length > 0)
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

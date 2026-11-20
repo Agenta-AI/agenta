@@ -100,8 +100,9 @@ export const AgentRevisionStatus = ({
         setHistoryOpens((n) => n + 1)
     }, [historyOpen])
 
-    // The only moments a newer version is looked for: the page becoming visible, a session
-    // switch (`checkKey`), and the drawer opening.
+    // The only moments a newer version is looked for: the page becoming visible, the window
+    // getting focus, a save of this agent (auto-save here, or a builder's committed result), a
+    // session switch (`checkKey`), and the drawer opening.
     const projectId = useAtomValue(projectIdAtom)
     const [latest, setLatest] = useState<LatestVersion | null>(null)
     const offersUpdate = Boolean(onUpdate)
