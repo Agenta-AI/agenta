@@ -76,6 +76,22 @@ const pickTierAlias = (allowed: string[], wanted: string): string | undefined =>
   return allowed.find((id) => stripContextHint(id) === tier);
 };
 
+const TIER_ALIAS_NAMES = new Set(Object.values(CLAUDE_TIER_ALIASES));
+
+/**
+ * The bare tier alias for a saved context-hinted alias that the build no longer lists in any
+ * hinted form. claude-agent-acp 0.84.0 listed `opus[1m]`, and agents saved it; 0.109.0 lists only
+ * `opus`. The bare alias runs the same family's newest model (the adapter resolves `opus[1m]` the
+ * same way), so the saved agent keeps running instead of failing.
+ */
+const bareTierAliasForHinted = (allowed: string[], wanted: string): string | undefined => {
+  if (!contextHint(wanted)) return undefined;
+  const tier = stripContextHint(wanted);
+  if (!TIER_ALIAS_NAMES.has(tier)) return undefined;
+  if (allowed.some((id) => id !== tier && stripContextHint(id) === tier)) return undefined;
+  return allowed.includes(tier) ? tier : undefined;
+};
+
 /**
  * Pick the harness-specific model id for a requested name. Harnesses expose their own ids
  * (Pi: "openai-codex/gpt-5.5"; Claude: alias ids like "opus" / "sonnet[1m]"). Match exact, then
@@ -87,11 +103,11 @@ const pickTierAlias = (allowed: string[], wanted: string): string | undefined =>
  * generation ships in a single (1M-context) variant with no separate short-context sibling to
  * back a bare alias. A caller (or the agent-config default) requesting the friendly "sonnet"
  * alias must still resolve, so a bare request matches the harness's own hinted id when that's
- * the only variant on offer. This only widens a request to the harness's actual (equal-or-larger
- * context) variant; it never falls back from a hinted request to a bare id, which would silently
- * shrink the context window.
+ * the only variant on offer. A hinted request falls back to a bare id only when the build lists no
+ * hinted variant of that tier at all (see `bareTierAliasForHinted`).
  *
- * Last, a concrete Claude id resolves to its tier alias (see `CLAUDE_TIER_ALIASES`).
+ * Last, a concrete Claude id resolves to its tier alias (see `CLAUDE_TIER_ALIASES`), and a saved
+ * hinted alias such as `opus[1m]` to its bare alias.
  */
 export function pickModel(allowed: string[], wanted?: string): string | undefined {
   if (!wanted) return undefined;
@@ -102,7 +118,7 @@ export function pickModel(allowed: string[], wanted?: string): string | undefine
     allowed.find((id) => suffix(id) === suffix(wanted)) ??
     allowed.find((id) => id !== wanted && stripContextHint(id) === wanted);
   if (match) return match;
-  return pickTierAlias(allowed, wanted);
+  return pickTierAlias(allowed, wanted) ?? bareTierAliasForHinted(allowed, wanted);
 }
 
 /**
@@ -182,6 +198,8 @@ export async function applyModel(
         await session.setModel(match);
         if (claudeTierAlias(wanted) && baseModelId(match) !== baseModelId(wanted)) {
           log(`model '${wanted}' is not offered by this harness; running its tier alias '${match}'`);
+        } else if (contextHint(wanted) && match === stripContextHint(wanted)) {
+          log(`model '${wanted}' is not offered by this harness; running '${match}'`);
         }
         return match;
       } catch {

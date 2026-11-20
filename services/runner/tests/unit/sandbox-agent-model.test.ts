@@ -143,13 +143,34 @@ describe("pickModel", () => {
     assert.deepEqual(sdkTiers, CLAUDE_TIER_ALIASES);
   });
 
-  it("does not fall back from a hinted request to a bare id (never shrinks context)", () => {
-    // Only "sonnet" is offered (no "[1m]" sibling): a caller that explicitly asked for the
-    // long-context variant must not be silently downgraded to the short-context one.
-    assert.equal(
-      pickModel(["default", "sonnet", "opus"], "sonnet[1m]"),
-      undefined,
-    );
+  it("runs a saved hinted alias on the bare alias when the build lists no hinted variant", () => {
+    // claude-agent-acp 0.109.0 lists only bare aliases; agents saved `opus[1m]` under 0.84.0.
+    const allowed = ["default", "opus", "fable", "sonnet", "haiku"];
+    assert.equal(pickModel(allowed, "opus[1m]"), "opus");
+    assert.equal(pickModel(allowed, "fable[1m]"), "fable");
+    assert.equal(pickModel(allowed, "sonnet[1m]"), "sonnet");
+  });
+
+  it("keeps a hinted request on an offered hinted variant of the same tier", () => {
+    assert.equal(pickModel(["default", "opus", "opus[1m]"], "opus[1m]"), "opus[1m]");
+    assert.equal(pickModel(["default", "opus", "opus[2m]"], "opus[1m]"), undefined);
+  });
+
+  it("does not map a hinted id that is not a Claude tier alias", () => {
+    assert.equal(pickModel(["default", "gpt-6"], "gpt-6[1m]"), undefined);
+  });
+
+  it("runs a saved opus[1m] on opus and logs it", async () => {
+    const session = {
+      setModel: async (id: string) => {
+        if (id !== "opus") {
+          throw new Error("Unsupported value. Allowed values: default, opus, fable, sonnet, haiku");
+        }
+      },
+    };
+    const logs: string[] = [];
+    assert.equal(await applyModel(session, "opus[1m]", (m) => logs.push(m)), "opus");
+    assert.deepEqual(logs, ["model 'opus[1m]' is not offered by this harness; running 'opus'"]);
   });
 
   it("maps a custom connection's bare model id to Pi's advertised <slug>/<model-id>", () => {
