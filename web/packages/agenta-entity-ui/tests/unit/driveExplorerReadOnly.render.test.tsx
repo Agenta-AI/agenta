@@ -158,7 +158,7 @@ describe("DriveExplorer on a phone (M03)", () => {
         expect(tree?.textContent).toContain("file tree")
     })
 
-    it("keeps the warning and Retry of a failed mount in the row", async () => {
+    it("keeps the warning and Retry of a failed mount on a phone", async () => {
         const retry = vi.fn()
         await renderExplorer(true, "", {...drive, partialErrored: true, retry})
         const button = [...host.querySelectorAll("button")].find(

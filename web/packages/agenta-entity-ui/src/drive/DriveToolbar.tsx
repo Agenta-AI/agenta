@@ -65,8 +65,12 @@ const ROW_TEXT_BTN =
 /** A phone's 36 px controls; a transparent ::after grows each hit area to 44 px. */
 const PHONE_HIT = "relative after:absolute after:-inset-1 after:content-['']"
 const PHONE_PILL = "h-9 rounded-[6px] p-0.5"
-/** Each segment grows its own hit area: one over the whole list would take the taps. */
-const PHONE_PILL_TRIGGER = `h-full rounded-[5px] px-2.5 py-0 [&_svg]:size-4 ${PHONE_HIT}`
+/**
+ * Each segment grows its own hit area to 44 px high (one over the whole list would take the taps);
+ * only vertically, so a tap near the edge between Grid and List picks the segment under it.
+ */
+const PHONE_PILL_TRIGGER =
+    "relative h-full rounded-[5px] px-2.5 py-0 after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] [&_svg]:size-4"
 const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_HIT}`
 
 type BrowserKey = CatalogKey<typeof driveBrowserCatalog>
