@@ -34,7 +34,6 @@ from agenta.sdk.agents.tools.models import ReferenceToolConfig, target_permissio
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 
 from oss.src.core.access.dtos import (
-    Decision,
     DecisionReason,
     PrincipalKind,
     RunContext,
@@ -46,6 +45,7 @@ from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.sessions.child_updates.dtos import (
     ChildTurnAgent,
+    ChildTurnError,
     ChildTurnResult,
     ChildTurnRevision,
     ChildTurnStatus,
@@ -136,8 +136,8 @@ CHILD_SESSION_LIMIT_REACHED = "child_session_limit_reached"
 CHILD_QUEUE_LIMIT_REACHED = "child_queue_limit_reached"
 SESSION_NOT_CHILD = "session_not_child"
 AGENT_NOT_ALLOWED = "agent_not_allowed"
-# Not in design D29: the calling turn has no turn row, or names no saved revision, so
-# the server cannot name the child update's turn or the calling record.
+# Not in design D29: the server finds no turn row for the calling turn, so it cannot
+# name the child update's turn or the calling record.
 CALLING_TURN_NOT_FOUND = "calling_turn_not_found"
 
 _START_FIELDS = (
@@ -229,7 +229,12 @@ def _sharing_would_widen_send() -> _Refusal:
 
 
 def _calling_turn_not_found(message: str) -> _Refusal:
-    return _refusal(CALLING_TURN_NOT_FOUND, message, None)
+    return _refusal(
+        CALLING_TURN_NOT_FOUND,
+        message,
+        "Try again in a moment; if it fails again, do the work in this session.",
+        retryable=True,
+    )
 
 
 def _agent_not_allowed(raw: str, allowed: Sequence[str]) -> _Refusal:
@@ -241,13 +246,17 @@ def _agent_not_allowed(raw: str, allowed: Sequence[str]) -> _Refusal:
     )
 
 
-def _access_denied(caller: SessionCaller) -> _Refusal:
-    return _Refusal(
-        access_denied_error(
-            decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
-            principal_kind=caller.envelope.authority.principal.kind,
-            project_id=caller.envelope.authority.project_id,
-        )
+def _access_denied_private() -> _Refusal:
+    """A child copies this session's sharing. A private session is its owner's alone,
+    so a child of it may run only for the owner: not for another person who sent the
+    turn, and not for a channel installation."""
+    return _refusal(
+        "access_denied",
+        "This session is private to its owner, so a session that it starts would be "
+        "private to the owner too, and this turn does not run for the owner.",
+        "Do the work in this session, or ask the owner to share this session with the "
+        "project and then try again.",
+        details={"reason": DecisionReason.RESOURCE_DENIED.value},
     )
 
 
@@ -716,12 +725,6 @@ def _queued_from_caller(pending: Sequence[PendingInput], caller: SessionCaller) 
     return count
 
 
-async def _has_pending_interaction(
-    services: SessionWriteServices, *, project_id: UUID, session_id: str
-) -> bool:
-    return bool(await _pending_interactions(services, project_id, session_id))
-
-
 async def _pending_interactions(
     services: SessionWriteServices, project_id: UUID, session_id: str
 ) -> List[Any]:
@@ -826,10 +829,11 @@ async def _consume(
     session_id: str,
     rows: Sequence[_UpdateRow],
 ) -> Dict[str, str]:
-    """Set each row to `removed`, as the person's remove does, and keep the text of the
-    rows this call removed: the newest one per child. A row that a settle promoted a
-    moment before is not returned; it runs as a turn instead."""
-    texts: Dict[str, str] = {}
+    """Set each row to `removed`, as the person's remove does, and return the text of
+    every row this call removed, in queue order, by child: a child that ended two
+    turns gives both updates, so no removed update is lost. A row that a settle
+    promoted a moment before is not returned; it runs as a turn instead."""
+    texts: Dict[str, List[str]] = {}
     for update in rows:
         removed = await services.inputs_dao.remove_pending(
             project_id=project_id,
@@ -838,8 +842,8 @@ async def _consume(
             user_id=user_id,
         )
         if removed is not None:
-            texts[update.child_session_id] = update.text
-    return texts
+            texts.setdefault(update.child_session_id, []).append(update.text)
+    return {child: "\n\n".join(blocks) for child, blocks in texts.items()}
 
 
 async def wait_for_updates(
@@ -1049,6 +1053,7 @@ async def current_block(
     newest execution. It carries no last message; that comes with the update."""
     interactions = await _pending_interactions(services, project_id, stream.session_id)
     waiting_for = None
+    ending = None
     if interactions:
         status = ChildTurnStatus.paused
         waiting_for = [
@@ -1083,6 +1088,17 @@ async def current_block(
             agent=await _agent_of(services, project_id, stream),
             status=status,
             turn_id=await _newest_turn_id(services, project_id, stream.session_id),
+            # The same companion fields as the child update of this ending.
+            cancelled_by=(
+                ending.cancelled_by.value
+                if ending is not None and ending.cancelled_by is not None
+                else None
+            ),
+            error=(
+                ChildTurnError(**ending.error)
+                if ending is not None and ending.error
+                else None
+            ),
             waiting_for=waiting_for,
         )
     )
@@ -1155,20 +1171,17 @@ async def start_session(
         wait_ms = _short_wait_ms(parsed)
         minutes = _update_after_minutes(parsed)
 
-        calling_stream = await services.streams_dao.get_by_session_id(
-            project_id=project_id, session_id=caller.run_session_id
-        )
-        if calling_stream is not None and calling_stream.calling_session is not None:
-            raise _session_start_in_child()
+        if caller.run_agent_id is None:
+            raise _refusal(
+                "run_credential_required",
+                "This run's credential names no agent, so it cannot start a session.",
+                None,
+            )
         calling = await calling_turn(
             services=services, caller=caller, project_id=project_id
         )
-        calling_revision = calling_revision_id(calling.turn)
-        if calling_revision is None or caller.run_agent_id is None:
-            raise _calling_turn_not_found(
-                "This turn runs an agent version that is not saved, so it cannot start "
-                "a session. Save the agent and run it again."
-            )
+        if calling.stream.calling_session is not None:
+            raise _session_start_in_child()
         entries = (
             []
             if is_builder_agent(caller.run_agent_id)
@@ -1186,51 +1199,67 @@ async def start_session(
         revision = await start_revision(
             services=services, project_id=project_id, target=target
         )
-        _check_running_cap(
-            await running_children(
-                services=services, caller=caller, project_id=project_id
-            )
-        )
         readers = await get_sharing_service().session_readers(
             project_id=project_id, session_id=caller.run_session_id
         )
-        if readers is None:
-            raise _calling_turn_not_found("This session has no stored sharing policy.")
+        # A session with no stored policy fails closed, as a policy the authority may
+        # not run with does.
+        if readers is None or not _authority_may_run(readers.policy, caller):
+            raise _access_denied_private()
         policy = readers.policy
-        if not _authority_may_run(policy, caller):
-            raise _access_denied(caller)
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
+    request_key = start_key(
+        calling_session_id=caller.run_session_id,
+        calling_execution_id=calling.execution_id,
+        tool_call_id=tool_call_id,
+    )
+    starts = services.starts_service
     try:
-        started = await services.starts_service.start_once(
-            project_id=project_id,
-            user_id=user_id,
-            workflow_id=target.workflow.id,
-            revision_id=revision.id,
-            message=text,
-            request_key=start_key(
-                calling_session_id=caller.run_session_id,
-                calling_execution_id=calling.execution_id,
-                tool_call_id=tool_call_id,
-            ),
-            envelope=child_envelope(
-                caller=caller, calling_execution_id=calling.execution_id
-            ),
-            access=AccessPolicy(
-                visibility=policy.visibility, owner_user_id=policy.owner_user_id
-            ),
-            calling_session=SessionCallingSession(
-                id=caller.run_session_id,
-                turn_id=calling.first_execution_id,
-                agent_id=caller.run_agent_id,
-                revision_id=calling_revision,
-            ),
-            calling_turn_id=calling.first_execution_id,
-            boundary=CHILD_RUN_BOUNDARY,
-            name=name.strip() if isinstance(name, str) and name.strip() else None,
-            keep_session_warm=True,
-        )
+        # The count and the start are one step for this calling session, so two
+        # concurrent starts cannot both pass the cap. A retry of a start that already
+        # ran is not counted again: it answers its first result.
+        async with starts.calling_session_lock(
+            project_id=project_id, calling_session_id=caller.run_session_id
+        ):
+            if (
+                await starts.fetch_started(
+                    project_id=project_id, request_key=request_key
+                )
+                is None
+            ):
+                _check_running_cap(
+                    await running_children(
+                        services=services, caller=caller, project_id=project_id
+                    )
+                )
+            started = await starts.start_once(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_id=target.workflow.id,
+                revision_id=revision.id,
+                message=text,
+                request_key=request_key,
+                envelope=child_envelope(
+                    caller=caller, calling_execution_id=calling.execution_id
+                ),
+                access=AccessPolicy(
+                    visibility=policy.visibility, owner_user_id=policy.owner_user_id
+                ),
+                calling_session=SessionCallingSession(
+                    id=caller.run_session_id,
+                    turn_id=calling.first_execution_id,
+                    agent_id=caller.run_agent_id,
+                    # None for a calling turn that ran an unsaved configuration.
+                    revision_id=calling_revision_id(calling.turn),
+                ),
+                calling_turn_id=calling.first_execution_id,
+                boundary=CHILD_RUN_BOUNDARY,
+                name=name.strip() if isinstance(name, str) and name.strip() else None,
+            )
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
     except AccessDenied as e:
         return PlatformHandlerResult.failure(_access_denied_from(caller, e))
 
@@ -1277,6 +1306,51 @@ async def start_session(
 
 
 # -- send_session_message -----------------------------------------------------------------
+
+
+async def _check_send_caps(
+    services: SessionWriteServices,
+    *,
+    caller: SessionCaller,
+    project_id: UUID,
+    child: SessionStream,
+) -> None:
+    """A message to a busy child (a running turn or a pending approval) waits in its
+    queue, up to the queue cap; a message to an idle child starts a turn, up to the
+    running cap. Called under the calling session's lock, so the child's row is read
+    again: another send of this session may have started a turn in it a moment ago."""
+    child = (
+        await services.streams_dao.get_by_session_id(
+            project_id=project_id, session_id=child.session_id
+        )
+        or child
+    )
+    busy = child.flags.is_running or bool(
+        await _pending_interactions(services, project_id, child.session_id)
+    )
+    if not busy:
+        _check_running_cap(
+            await running_children(
+                services=services,
+                caller=caller,
+                project_id=project_id,
+                exclude=child.session_id,
+            )
+        )
+        return
+    cap = env.agenta.sessions.child_queued_messages_limit
+    pending = await services.inputs_dao.list_pending(
+        project_id=project_id, session_id=child.session_id
+    )
+    if _queued_from_caller(pending, caller) >= cap:
+        raise _refusal(
+            CHILD_QUEUE_LIMIT_REACHED,
+            f"That child session already holds {cap} queued messages from "
+            "this session, the most it may hold.",
+            "Wait until the child ends its turn, then send again.",
+            retryable=True,
+            details={"limit": cap, "session_id": child.session_id},
+        )
 
 
 async def send_session_message(
@@ -1330,59 +1404,55 @@ async def send_session_message(
             or is_wider(child_readers, calling_readers)
         ):
             raise _sharing_would_widen_send()
-
-        busy = child.flags.is_running or await _has_pending_interaction(
-            services, project_id=project_id, session_id=session_id
-        )
-        if busy:
-            cap = env.agenta.sessions.child_queued_messages_limit
-            pending = await services.inputs_dao.list_pending(
-                project_id=project_id, session_id=session_id
-            )
-            if _queued_from_caller(pending, caller) >= cap:
-                raise _refusal(
-                    CHILD_QUEUE_LIMIT_REACHED,
-                    f"That child session already holds {cap} queued messages from "
-                    "this session, the most it may hold.",
-                    "Wait until the child ends its turn, then send again.",
-                    retryable=True,
-                    details={"limit": cap, "session_id": session_id},
-                )
-        else:
-            _check_running_cap(
-                await running_children(
-                    services=services,
-                    caller=caller,
-                    project_id=project_id,
-                    exclude=session_id,
-                )
-            )
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
+    idempotency_key = send_key(
+        calling_session_id=caller.run_session_id,
+        calling_execution_id=calling.execution_id,
+        tool_call_id=tool_call_id,
+    )
+    starts = services.starts_service
     try:
-        enqueued = await services.starts_service.enqueue_session_input(
-            project_id=project_id,
-            user_id=user_id,
-            session_id=session_id,
-            kind=PendingInputKind.message,
-            content={
-                "session_id": session_id,
-                "references": keyed_references(child.references),
-                "data": {"inputs": {"messages": [{"role": "user", "content": text}]}},
-            },
-            idempotency_key=send_key(
-                calling_session_id=caller.run_session_id,
-                calling_execution_id=calling.execution_id,
-                tool_call_id=tool_call_id,
-            ),
-            run_envelope=child_envelope(
-                caller=caller, calling_execution_id=calling.execution_id
-            ),
-            dispatch_boundary=CHILD_RUN_BOUNDARY,
-            calling_turn_id=calling.first_execution_id,
-            keep_session_warm=True,
-        )
+        # The count and the send are one step for this calling session, so two
+        # concurrent sends cannot both pass a cap. A retry of a send that already
+        # wrote its row is not counted again: it answers its first result.
+        async with starts.calling_session_lock(
+            project_id=project_id, calling_session_id=caller.run_session_id
+        ):
+            earlier = await services.inputs_dao.fetch_by_idempotency_key(
+                project_id=project_id,
+                session_id=session_id,
+                idempotency_key=idempotency_key,
+            )
+            if earlier is None:
+                await _check_send_caps(
+                    services,
+                    caller=caller,
+                    project_id=project_id,
+                    child=child,
+                )
+            enqueued = await starts.enqueue_session_input(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                kind=PendingInputKind.message,
+                content={
+                    "session_id": session_id,
+                    "references": keyed_references(child.references),
+                    "data": {
+                        "inputs": {"messages": [{"role": "user", "content": text}]}
+                    },
+                },
+                idempotency_key=idempotency_key,
+                run_envelope=child_envelope(
+                    caller=caller, calling_execution_id=calling.execution_id
+                ),
+                dispatch_boundary=CHILD_RUN_BOUNDARY,
+                calling_turn_id=calling.first_execution_id,
+            )
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
     except AccessDenied as e:
         return PlatformHandlerResult.failure(_access_denied_from(caller, e))
 

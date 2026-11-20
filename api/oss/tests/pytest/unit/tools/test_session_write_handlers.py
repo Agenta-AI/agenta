@@ -4,7 +4,9 @@ runs, the policy copy and the run authority, the caps, the child rule and the ch
 order, the short wait and the wait that consume a child update, the still-running
 schedule, and that no message between sessions can carry an approval answer."""
 
+import asyncio
 import json
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -163,6 +165,14 @@ class _Store:
     async def list_pending(self, *, project_id, session_id, transaction=None):
         return [row for row in self.inputs.get(session_id, [])]
 
+    async def fetch_by_idempotency_key(
+        self, *, project_id, session_id, idempotency_key
+    ):
+        for row in self.inputs.get(session_id, []):
+            if getattr(row, "idempotency_key", None) == idempotency_key:
+                return row
+        return None
+
     async def remove_pending(self, *, project_id, session_id, input_id, user_id):
         for row in self.inputs.get(session_id, []):
             if row.id == input_id and row.state == PendingInputState.pending:
@@ -178,9 +188,25 @@ class _Starts:
         self.inputs = {}
         self.enqueued = []
         self.enqueue_state = PendingInputState.promoted
+        self.started_keys = {}
+        self.locks = {}
+        self.lock_calls = []
+
+    @asynccontextmanager
+    async def calling_session_lock(self, *, project_id, calling_session_id):
+        self.lock_calls.append(calling_session_id)
+        lock = self.locks.setdefault(calling_session_id, asyncio.Lock())
+        async with lock:
+            yield
+
+    async def fetch_started(self, *, project_id, request_key):
+        return self.started_keys.get(request_key)
 
     async def start_once(self, **kwargs):
         self.starts.append(kwargs)
+        # Yield, as the real start does while it dispatches, so a concurrent start
+        # runs meanwhile unless the lock holds it.
+        await asyncio.sleep(0)
         session_id = f"child-{kwargs['request_key']}"
         if session_id not in self.world.store.streams:
             self.world.add_stream(
@@ -192,12 +218,14 @@ class _Starts:
             )
         # One input per request key, as the real start stores one row per key.
         input_id = self.inputs.setdefault(kwargs["request_key"], uuid4())
-        return SimpleNamespace(
+        result = SimpleNamespace(
             session_id=session_id,
             execution_id=str(UUID(int=len(session_id))),
             input_id=input_id,
-            replayed=False,
+            replayed=kwargs["request_key"] in self.started_keys,
         )
+        self.started_keys[kwargs["request_key"]] = result
+        return result
 
     async def enqueue_session_input(self, **kwargs):
         self.enqueued.append(kwargs)
@@ -333,6 +361,7 @@ class _World:
         revision_id="latest",
         with_turn=True,
         session_id="s-calling",
+        turn_references=None,
     ):
         user = user or self.ana
         policy = policy or AccessPolicy(
@@ -354,9 +383,13 @@ class _World:
                 turn_id=UUID(execution_id),
                 turn_index=0,
                 references=(
-                    [SessionReference(key="workflow_revision", id=revision_id)]
-                    if revision_id
-                    else []
+                    turn_references
+                    if turn_references is not None
+                    else (
+                        [SessionReference(key="workflow_revision", id=revision_id)]
+                        if revision_id
+                        else []
+                    )
                 ),
                 context=SimpleNamespace(origin=RunOrigin.WEB, origin_id=None),
             )
@@ -509,7 +542,6 @@ async def test_an_agent_starts_a_copy_of_itself_with_the_calling_turns_authority
     assert start["revision_id"] == research.latest  # no entry: the latest revision
     assert start["request_key"] == f"ag:start:s-calling:{execution_id}:call-1"
     assert start["boundary"] == CHILD_RUN_BOUNDARY
-    assert start["keep_session_warm"] is True
     assert start["message"] == "Research Globex"
     # The child copies the calling session's policy at start.
     assert start["access"] == AccessPolicy(
@@ -603,18 +635,98 @@ async def test_a_calling_turn_with_no_turn_row_is_refused(world):
 
 
 @pytest.mark.asyncio
-async def test_a_draft_run_with_no_saved_revision_cannot_start(world):
+async def test_a_draft_run_starts_its_own_agent_and_the_record_names_no_revision(
+    world,
+):
+    # A person runs an unsaved configuration in the app: the turn row names the agent
+    # and its variant but no revision (the app withholds it for a draft).
     research = world.workflows.add("market-research")
-    caller, _ = world.calling(agent=research, revision_id=None)
+    caller, execution_id = world.calling(
+        agent=research,
+        turn_references=[SessionReference(key="workflow", id=research.id)],
+    )
     result = await _call(
         world,
         "start_session",
         caller,
         agent="market-research",
         text="Go",
+        wait_ms=0,
         tool_call_id="t",
     )
-    assert _error(result)["code"] == "calling_turn_not_found"
+    assert result.ok
+    start = world.starts.starts[0]
+    # The child runs the latest saved revision, and the record says that the calling
+    # turn ran no saved revision.
+    assert start["revision_id"] == research.latest
+    assert start["calling_session"] == SessionCallingSession(
+        id="s-calling", turn_id=execution_id, agent_id=research.id, revision_id=None
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_draft_run_uses_no_subagent_entries(world):
+    world.workflows.add("email-writer")
+    chief = world.workflows.add(
+        "chief-of-staff",
+        tools=[{"type": "reference", "slug": "email-writer"}],
+    )
+    caller, _ = world.calling(
+        agent=chief, turn_references=[SessionReference(key="workflow", id=chief.id)]
+    )
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="email-writer",
+        text="Go",
+        tool_call_id="t",
+    )
+    error = _error(result)
+    assert error["code"] == "agent_not_allowed"
+    assert error["details"]["allowed_agents"] == ["chief-of-staff"]
+
+
+@pytest.mark.asyncio
+async def test_the_builder_starts_from_the_turn_row_the_runner_writes(world):
+    # The builder chat runs the builder's static revision. The runner writes the
+    # run's workflow identity on the turn row under the `workflow*` keys, with the
+    # derived ids of the static catalog.
+    from oss.src.core.workflows.static_catalog import (  # noqa: PLC0415
+        BUILDER_AGENT_SLUG,
+        _revision_uuid,
+        _variant_uuid,
+    )
+
+    email = world.workflows.add("email-writer")
+    builder_revision = _revision_uuid(slug=BUILDER_AGENT_SLUG, version="v1")
+    caller, execution_id = world.calling(
+        agent=None,
+        turn_references=[
+            SessionReference(key="workflow", id=BUILDER_AGENT_ID),
+            SessionReference(
+                key="workflow_variant", id=_variant_uuid(slug=BUILDER_AGENT_SLUG)
+            ),
+            SessionReference(key="workflow_revision", id=builder_revision),
+        ],
+    )
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="email-writer",
+        text="Go",
+        wait_ms=0,
+        tool_call_id="t",
+    )
+    assert result.ok
+    assert world.starts.starts[0]["revision_id"] == email.latest
+    assert world.starts.starts[0]["calling_session"] == SessionCallingSession(
+        id="s-calling",
+        turn_id=execution_id,
+        agent_id=BUILDER_AGENT_ID,
+        revision_id=builder_revision,
+    )
 
 
 @pytest.mark.asyncio
@@ -1036,7 +1148,6 @@ async def test_a_send_to_an_idle_child_starts_its_turn_through_the_queue(world):
     assert enqueued["idempotency_key"] == f"ag:send:s-calling:{execution_id}:call-9"
     assert enqueued["dispatch_boundary"] == CHILD_RUN_BOUNDARY
     assert enqueued["calling_turn_id"] == execution_id
-    assert enqueued["keep_session_warm"] is True
     assert enqueued["run_envelope"].context.origin == RunOrigin.CALLING_SESSION
     assert enqueued["content"]["data"]["inputs"]["messages"] == [
         {"role": "user", "content": "Friendly"}
@@ -1415,3 +1526,120 @@ async def test_a_wait_returns_a_paused_child_and_leaves_other_sessions_rows(worl
     )
     assert _lines(result.content)["status"] == "paused"
     assert other_row.state == PendingInputState.pending
+
+
+@pytest.mark.asyncio
+async def test_a_participant_in_a_private_session_is_told_why_and_what_to_do(world):
+    # Ana's private session; Ben sent the calling turn. The child would be private to
+    # Ana, so it may not run for Ben.
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research, user=world.ben)
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t",
+    )
+    error = _error(result)
+    assert error["code"] == "access_denied"
+    assert "private to its owner" in error["message"]
+    assert "share this session with the project" in error["next_step"]
+    assert world.starts.starts == []
+
+
+@pytest.mark.asyncio
+async def test_a_wait_returns_every_update_it_removes(world):
+    # The child ended two turns while the calling turn ran: both updates are pending.
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    child = world.child(caller, agent=research)
+    first = world.update_row(caller, child.session_id, status=ChildTurnStatus.failed)
+    second = world.update_row(
+        caller, child.session_id, status=ChildTurnStatus.completed
+    )
+    result = await _call(
+        world, "wait_for_sessions", caller, session_ids=[child.session_id]
+    )
+    assert "failed answer" in result.content
+    assert "completed answer" in result.content
+    assert result.content.index("failed answer") < result.content.index(
+        "completed answer"
+    )
+    assert first.state == second.state == PendingInputState.removed
+
+
+@pytest.mark.asyncio
+async def test_concurrent_starts_cannot_pass_the_running_cap(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    for _ in range(4):
+        world.child(caller, agent=research, is_running=True)
+    results = await asyncio.gather(
+        *(
+            _call(
+                world,
+                "start_session",
+                caller,
+                agent="market-research",
+                text="Go",
+                wait_ms=0,
+                tool_call_id=f"t{index}",
+            )
+            for index in range(3)
+        )
+    )
+    assert sum(1 for result in results if result.ok) == 1
+    assert [_error(result)["code"] for result in results if not result.ok] == [
+        "child_session_limit_reached"
+    ] * 2
+    assert set(world.starts.lock_calls) == {"s-calling"}
+
+
+@pytest.mark.asyncio
+async def test_a_retried_start_at_the_cap_answers_its_first_result(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    for _ in range(4):
+        world.child(caller, agent=research, is_running=True)
+    arguments = dict(agent="market-research", text="Go", wait_ms=0, tool_call_id="t")
+    first = await _call(world, "start_session", caller, **arguments)
+    # The fifth child runs now; the retry of the same call is not a sixth.
+    retry = await _call(world, "start_session", caller, **arguments)
+    assert first.ok and retry.ok
+    assert retry.content == first.content
+    assert (
+        world.starts.starts[0]["request_key"] == world.starts.starts[1]["request_key"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_retried_send_at_the_queue_cap_is_not_counted_again(world):
+    research = world.workflows.add("market-research")
+    caller, execution_id = world.calling(agent=research)
+    child = world.child(caller, agent=research, is_running=True)
+    key = f"ag:send:s-calling:{execution_id}:t"
+    for index in range(3):
+        world.store.inputs.setdefault(child.session_id, []).append(
+            SimpleNamespace(
+                id=uuid4(),
+                state=PendingInputState.pending,
+                kind=PendingInputKind.message,
+                idempotency_key=key if index == 2 else f"ag:send:other:{index}",
+                run_envelope=writes.child_envelope(
+                    caller=caller, calling_execution_id=execution_id
+                ),
+            )
+        )
+    world.starts.enqueue_state = PendingInputState.pending
+    result = await _call(
+        world,
+        "send_session_message",
+        caller,
+        session_id=child.session_id,
+        text="More",
+        tool_call_id="t",
+    )
+    assert result.ok
+    assert world.starts.enqueued[0]["idempotency_key"] == key

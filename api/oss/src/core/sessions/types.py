@@ -86,12 +86,13 @@ class SessionDelivery(BaseModel):
 class SessionCallingSession(BaseModel):
     """The session whose agent created this session: the calling session, the calling
     turn, the calling agent and its revision. Set only when the origin is
-    `calling_session`."""
+    `calling_session`. `revision_id` is None when the calling turn ran a configuration
+    that was not saved (a draft run in the app): no saved revision exists to name."""
 
     id: str
     turn_id: str
     agent_id: UUID
-    revision_id: UUID
+    revision_id: Optional[UUID] = None
 
 
 class SessionCallingSessionQuery(BaseModel):

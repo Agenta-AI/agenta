@@ -186,6 +186,21 @@ def test_the_calling_session_record_round_trips():
     ).model_dump(mode="json")
 
 
+def test_a_record_from_a_draft_run_names_no_revision():
+    """A calling turn that ran an unsaved configuration has no revision to name: the
+    row stores no revision key and reads back `revision_id: null`."""
+    calling_session = _calling_session().model_copy(update={"revision_id": None})
+    dbe = _created(
+        run_envelope=make_envelope(origin="calling_session"),
+        calling_session=calling_session,
+    )
+
+    assert "ag.calling_session.revision_id" not in dbe.tags
+    stream = map_stream_dbe_to_dto(stream_dbe=dbe)
+    assert stream.calling_session == calling_session
+    assert stream.model_dump(mode="json")["calling_session"]["revision_id"] is None
+
+
 @pytest.mark.parametrize(
     "run_origin, attribution",
     [

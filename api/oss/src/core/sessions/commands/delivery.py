@@ -14,6 +14,7 @@ from uuid import UUID
 
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 
+from oss.src.core.access.dtos import RunOrigin
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sessions.commands.dtos import SessionCommand
 from oss.src.core.sessions.commands.service import deliverable_envelope
@@ -44,6 +45,9 @@ async def deliver_continue_input(
         run_id=command.target_turn_id,
         control_command_id=command.id,
         admitted_agent_id=agent_artifact_id,
+        # A queued message from a calling session keeps the child's sandbox warm, as
+        # the same message dispatched at once does.
+        keep_session_warm=envelope.context.origin == RunOrigin.CALLING_SESSION,
     )
 
 

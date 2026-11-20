@@ -2580,7 +2580,9 @@ def _origin_entry(stream: Any) -> Dict[str, Any]:
             "id": calling.id,
             "turn_id": calling.turn_id,
             "agent_id": str(calling.agent_id),
-            "revision_id": str(calling.revision_id),
+            "revision_id": (
+                str(calling.revision_id) if calling.revision_id is not None else None
+            ),
         }
     trigger = getattr(stream, "trigger", None)
     if trigger is not None:

@@ -1041,8 +1041,9 @@ async def test_a_calling_session_record_without_a_policy_is_refused():
 @pytest.mark.asyncio
 async def test_a_session_tool_start_admits_at_its_boundary_names_the_row_and_keeps_warm():
     """`start_session` admits the child at the child run's boundary, names the row it
-    creates, and asks the runner to keep the sandbox warm. The template loader's start
-    keeps its own boundary and a cold sandbox."""
+    creates, and its run origin `calling_session` asks the runner to keep the sandbox
+    warm. The template loader's start keeps its own boundary and a cold sandbox."""
+    from oss.src.core.access.dtos import RunContext, RunOrigin
     from oss.src.core.sessions.streams.dtos import SessionNameSource
     from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 
@@ -1053,11 +1054,21 @@ async def test_a_session_tool_start_admits_at_its_boundary_names_the_row_and_kee
     policy = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
 
     await service.start_once(
-        **_args(),
+        **{
+            **_args(),
+            "envelope": ENVELOPE.model_copy(
+                update={
+                    "context": RunContext(
+                        origin=RunOrigin.CALLING_SESSION,
+                        origin_id="calling",
+                        parent_run_id="x1",
+                    )
+                }
+            ),
+        },
         access=policy,
         boundary="child_run",
         name="Globex research",
-        keep_session_warm=True,
     )
 
     assert admission.calls[0][1]["boundary"] == "child_run"

@@ -343,13 +343,24 @@ async def test_an_idle_session_claims_and_dispatches_the_input():
 
 @pytest.mark.asyncio
 async def test_a_relayed_message_asks_the_runner_to_keep_the_sandbox_warm():
-    """Only the session tool handlers pass `keep_session_warm`; every other caller
-    keeps the default, and the request is unchanged."""
+    """A message that a calling session sends (run origin `calling_session`) keeps the
+    child's sandbox warm; every other input keeps the default."""
+    from oss.src.core.access.dtos import RunContext, RunOrigin
+
     harness = _Harness()
+    relayed = ENVELOPE.model_copy(
+        update={
+            "context": RunContext(
+                origin=RunOrigin.CALLING_SESSION,
+                origin_id="calling",
+                parent_run_id="x1",
+            )
+        }
+    )
     await harness.enqueue(
         key="ag:send:calling:x1:call-1",
         kind=PendingInputKind.message,
-        keep_session_warm=True,
+        run_envelope=relayed,
     )
     invoke = harness.workflows.invoke_workflow_detached.await_args.kwargs
     assert invoke["keep_session_warm"] is True

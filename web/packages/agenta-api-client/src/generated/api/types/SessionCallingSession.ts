@@ -3,11 +3,12 @@
 /**
  * The session whose agent created this session: the calling session, the calling
  * turn, the calling agent and its revision. Set only when the origin is
- * `calling_session`.
+ * `calling_session`. `revision_id` is None when the calling turn ran a configuration
+ * that was not saved (a draft run in the app): no saved revision exists to name.
  */
 export interface SessionCallingSession {
     id: string;
     turn_id: string;
     agent_id: string;
-    revision_id: string;
+    revision_id?: string;
 }
