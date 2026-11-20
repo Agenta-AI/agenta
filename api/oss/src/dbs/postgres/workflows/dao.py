@@ -52,6 +52,23 @@ log = get_module_logger(__name__)
 # call then sees the other. Only the call for the earliest one inserts, whatever order
 # the calls run in. A NULL created_at sorts first. When the earliest agent revision has
 # no owner (it never calls this), no row is written.
+# A static workflow's rows, created at its first commit in a project. The fixed ids and the
+# reserved slug are the same in every project, so a conflict on either is the row a concurrent
+# first commit wrote, and it is the row this call wanted.
+_ENSURE_STATIC_ARTIFACT_SQL = """
+INSERT INTO workflow_artifacts (project_id, id, slug, name, created_at, created_by_id)
+VALUES (:project_id, :artifact_id, :slug, :name, now(), :user_id)
+ON CONFLICT DO NOTHING
+"""
+
+_ENSURE_STATIC_VARIANT_SQL = """
+INSERT INTO workflow_variants
+    (project_id, id, artifact_id, slug, name, created_at, created_by_id)
+VALUES (:project_id, :variant_id, :artifact_id, :slug, :name, now(), :user_id)
+ON CONFLICT DO NOTHING
+"""
+
+
 _ENSURE_FIRST_AGENT_ACCESS_SQL = """
 WITH locked AS (
     SELECT a.id
@@ -508,6 +525,29 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                 error_type=type(e).__name__,
             )
             raise AgentCreationFailed() from e
+
+    async def ensure_static_workflow_rows(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_id: UUID,
+        variant_id: UUID,
+        slug: str,
+        name: Optional[str] = None,
+    ) -> None:
+        params = {
+            "project_id": project_id,
+            "artifact_id": artifact_id,
+            "variant_id": variant_id,
+            "slug": slug,
+            "name": name,
+            "user_id": user_id,
+        }
+        async with self.engine.transaction() as connection:
+            await connection.execute(text(_ENSURE_STATIC_ARTIFACT_SQL), params)
+            await connection.execute(text(_ENSURE_STATIC_VARIANT_SQL), params)
 
     async def ensure_first_agent_access(
         self,

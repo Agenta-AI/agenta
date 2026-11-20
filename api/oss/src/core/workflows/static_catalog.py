@@ -1,9 +1,13 @@
-"""The static workflow catalogue: code-defined, read-only static workflows.
+"""The static workflow catalogue: code-defined static workflows.
 
 Agenta ships its own managed workflows to every project without per-project seeding or a
 migration. They are served from
 this catalogue under a reserved ``__ag__*`` slug namespace, never the database, and carry
 ``flags.is_static=True`` (slug-derived) so clients and the frontend treat them as read-only.
+
+An entry may list ``editable`` paths. A project may commit those fields for itself; the server
+stores them in the project's workflow tables under the entry's fixed ids, and every read puts
+them on top of the code version. Everything else in the entry stays code-defined.
 
 The catalogue is the concrete :class:`StaticWorkflowProvider`. It holds, per reserved slug, a
 ``latest`` version pointer and a map of immutable versions. An artifact-level lookup (no version)
@@ -11,7 +15,8 @@ resolves to ``latest``; a revision-level lookup with a version pins that immutab
 an entry (or adding a ``vN+1``) ships with the release and updates every project at once.
 
 Trust comes from the platform authoring the content in code: the reserved namespace guarantees a
-user cannot author or shadow it, and resolution never falls through to Postgres.
+user cannot author or shadow it, and the code version never comes from Postgres. Only the
+values of an entry's editable fields are read from the project's tables.
 """
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -436,6 +441,10 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
     BUILDER_AGENT_SLUG: {
         "kind": "agent",
         "embeddable": False,
+        # The fields a project may commit for itself; the rest stays in code. Paths start at
+        # the root of revision `data`. Not `harness.permissions`: those rules decide which
+        # builder tools may run.
+        "editable": ["parameters.agent.llm", "parameters.agent.harness.kind"],
         "latest": "v1",
         "versions": {"v1": builder_agent_revision},
     },
@@ -477,7 +486,8 @@ def _revision_uuid(*, slug: str, version: str) -> UUID:
 
 
 class StaticWorkflowCatalog(StaticWorkflowProvider):
-    """Code-defined, read-only catalogue of static workflows keyed by reserved slug."""
+    """Code-defined catalogue of static workflows keyed by reserved slug. An entry is
+    read-only unless it lists ``editable`` paths."""
 
     def __init__(
         self,
@@ -520,6 +530,7 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                     f"Static workflow {slug!r} latest version {latest!r} is not in versions "
                     f"{sorted(versions)}."
                 )
+            self._validate_editable(slug=slug, editable=entry.get("editable"))
             for version, revision in versions.items():
                 if callable(revision):
                     continue
@@ -532,6 +543,48 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                         f"Static workflow {slug!r} version {version!r} must be a "
                         f"WorkflowRevision with data.uri."
                     )
+
+    @staticmethod
+    def _validate_editable(*, slug: str, editable: Any) -> None:
+        """An ``editable`` list holds distinct dotted paths under ``parameters``, and no path
+        sits inside another (a commit could then write one through the other)."""
+        if editable is None:
+            return
+        if not isinstance(editable, list) or not editable:
+            raise ValueError(
+                f"Static workflow {slug!r} editable must be a non-empty list of paths."
+            )
+        paths = []
+        for path in editable:
+            segments = path.split(".") if isinstance(path, str) else []
+            if len(segments) < 2 or segments[0] != "parameters" or not all(segments):
+                raise ValueError(
+                    f"Static workflow {slug!r} editable path {path!r} must be a dotted "
+                    "path under 'parameters'."
+                )
+            paths.append(tuple(segments))
+        for path in paths:
+            for other in paths:
+                if path != other and other[: len(path)] == path:
+                    raise ValueError(
+                        f"Static workflow {slug!r} editable path {'.'.join(other)!r} "
+                        f"sits inside {'.'.join(path)!r}."
+                    )
+        if len(set(paths)) != len(paths):
+            raise ValueError(f"Static workflow {slug!r} editable paths repeat.")
+
+    def editable_paths(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+    ) -> List[str]:
+        resolved_slug = slug
+        if id is not None:
+            match = self._index_by_id.get(id)
+            resolved_slug = match[0] if match is not None else None
+        entry = self._catalog.get(resolved_slug) if resolved_slug else None
+        return list((entry or {}).get("editable") or [])
 
     def list_slugs(self) -> List[str]:
         """Every reserved slug in the catalogue, in declaration order.

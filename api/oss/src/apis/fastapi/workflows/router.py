@@ -1946,8 +1946,12 @@ class WorkflowsRouter:
                 status_code=400,
                 detail="workflow_revision.workflow_variant_id is required when committing a workflow revision.",
             )
-        # The agent comes from the variant, never from the body's own workflow id.
-        if not await self._allow_variant_agent(
+        # The agent comes from the variant, never from the body's own workflow id. A static
+        # workflow with editable fields is visible to the whole project and has no owner,
+        # and its variant has no row before the project's first commit.
+        if not self.workflows_service.static_editable_paths(
+            variant_id
+        ) and not await self._allow_variant_agent(
             request,
             action=Permission.EDIT_WORKFLOWS,
             workflow_variant_id=variant_id,

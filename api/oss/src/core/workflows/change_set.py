@@ -37,6 +37,7 @@ __all__ = [
     "subtree_scope",
     "PARAMETERS_ONLY",
     "AGENT_COMMIT_SCOPE",
+    "editable_scope",
     "KEY_FIELDS",
     "FILE_MARKER",
     "PLATFORM_GUIDANCE_START",
@@ -565,6 +566,27 @@ def subtree_scope(
     policy._prefix_depth = max(  # type: ignore[attr-defined]
         [len(wanted)] + [len(path) for path in blocked]
     )
+    return policy
+
+
+def editable_scope(paths: Sequence[Sequence[str]]) -> ScopePolicy:
+    """Allow only targets at or under one of ``paths``.
+
+    The policy of a static workflow's editable fields. A target above an editable path is
+    refused too, because writing it would rewrite the fields beside the editable one.
+    """
+    allowed = [list(path) for path in paths]
+
+    def policy(target: Target) -> Optional[str]:
+        segments = list(target)
+        for path in allowed:
+            if _plain_prefix(path, segments):
+                return None
+        got = ".".join(str(s) for s in segments) or "<empty>"
+        return f"'{got}' is not an editable field of this workflow"
+
+    # The legacy arm walks the `set` tree this deep before it asks the policy.
+    policy._prefix_depth = max(len(path) for path in allowed)  # type: ignore[attr-defined]
     return policy
 
 

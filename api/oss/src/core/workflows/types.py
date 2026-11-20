@@ -122,6 +122,35 @@ class InvalidAgentHarnessError(Exception):
         }
 
 
+class StaticFieldNotEditableError(Exception):
+    """A delta commit on a static workflow targets a field outside its ``editable`` list.
+
+    A static workflow is defined in code; a project may commit only the fields its catalogue
+    entry lists as editable. A full-data commit drops the other fields instead, so this is
+    raised only for a delta, which names its target.
+    """
+
+    code = "static_field_not_editable"
+
+    def __init__(self, *, field: str, editable: List[str]) -> None:
+        self.field = field
+        self.editable = list(editable)
+        self.message = f"'{field}' cannot be changed on this workflow."
+        super().__init__(self.message)
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": (
+                "Change only the fields in `details.editable` and send the commit again."
+            ),
+            "details": {"field": self.field, "editable": self.editable},
+        }
+
+
 class InvalidAgentInstructionsError(Exception):
     """The commit carries ``parameters.agent.instructions`` in a shape the runtime cannot read.
 

@@ -21,6 +21,7 @@ from oss.src.core.workflows.types import (
     InvalidAgentConnectionError,
     InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
+    StaticFieldNotEditableError,
     StaticWorkflowSlug,
 )
 
@@ -31,6 +32,11 @@ class StaticWorkflowSlugException(HTTPException):
         message: str = "The slug prefix '__ag__' is reserved for static workflows.",
     ):
         super().__init__(status_code=400, detail=message)
+
+
+class StaticFieldNotEditableException(HTTPException):
+    def __init__(self, error: StaticFieldNotEditableError):
+        super().__init__(status_code=400, detail=error.to_detail())
 
 
 class NonEmbeddableWorkflowReferenceException(HTTPException):
@@ -77,6 +83,8 @@ def handle_workflow_exceptions():
                 return await func(*args, **kwargs)
             except StaticWorkflowSlug as e:
                 raise StaticWorkflowSlugException(message=e.message) from e
+            except StaticFieldNotEditableError as e:
+                raise StaticFieldNotEditableException(e) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
             except EmbedError as e:

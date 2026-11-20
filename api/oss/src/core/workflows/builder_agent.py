@@ -845,13 +845,14 @@ def _builder_agent_parameters() -> dict[str, Any]:
         request_input_tool,
     )
 
-    # The model, harness, runner and sandbox are the ones a new agent starts with, so the
-    # builder runs where a person's own agent would on this deployment.
+    # The harness, runner and sandbox are the ones a new agent starts with, so the builder
+    # runs where a person's own agent would on this deployment. No model: a project commits
+    # its own `llm` (an editable field of the catalog entry). The template's model is the SDK
+    # default, which nobody chose and which a project without that provider's key cannot run.
     template = new_agent_revision_data()["parameters"]["agent"]
     return {
         "agent": {
             "instructions": {"agents_md": BUILDER_AGENT_INSTRUCTIONS},
-            "llm": template["llm"],
             "tools": [
                 *(
                     {"type": "platform", "op": op, "permission": permission}

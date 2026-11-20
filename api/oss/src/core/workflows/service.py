@@ -153,6 +153,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceStreamResponse,
 )
 from oss.src.core.git.types import (
+    InitialRevisionConflict,
     InlineResolveInvalid,
     RevisionConflict,
     RevisionUnchanged,
@@ -167,6 +168,7 @@ from oss.src.core.workflows.change_set import (
     ChangeSetError,
     Reason,
     apply_change_set,
+    editable_scope,
 )
 from oss.src.core.workflows.new_agent import new_agent_revision_data, new_agent_slug
 from oss.src.core.workflows.read_config import (
@@ -213,6 +215,7 @@ from oss.src.core.workflows.types import (
     InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
     MountLookupMissing,
+    StaticFieldNotEditableError,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -1050,6 +1053,93 @@ class WorkflowsService:
         if is_static_workflow_slug(slug):
             raise StaticWorkflowSlug(slug)
 
+    def _reject_static_id(self, *entity_ids: Optional[UUID]) -> None:
+        """Reject a write that names a static workflow by id.
+
+        A static workflow with editable fields has rows in a project once that project
+        commits them. Those rows are storage for the commit only: every other write on them
+        (an edit, an archive, a fork, a revision created outside the commit) stays refused.
+        """
+        if self.static_catalog is None:
+            return
+        for entity_id in entity_ids:
+            if self.static_catalog.is_static_id(entity_id):
+                revision = self.static_catalog.retrieve_revision(id=entity_id)
+                slug = revision.slug if revision else str(entity_id)
+                raise StaticWorkflowSlug(
+                    slug,
+                    message=(
+                        f"The static workflow '{slug}' is defined by Agenta and cannot "
+                        "be changed here."
+                    ),
+                )
+
+    async def _reject_static_revision_write(
+        self,
+        *,
+        project_id: UUID,
+        revision_id: Optional[UUID],
+    ) -> None:
+        """The same refusal for a write that names a stored revision of a static workflow,
+        whose id is random and so is not in the catalogue."""
+        if self.static_catalog is None or revision_id is None:
+            return
+        self._reject_static_id(revision_id)
+        stored = await self.workflows_dao.fetch_revision(
+            project_id=project_id,
+            revision_ref=Reference(id=revision_id),
+        )
+        if stored is not None:
+            self._reject_static_id(stored.artifact_id)
+
+    def static_editable_paths(self, entity_id: Optional[UUID]) -> List[str]:
+        """The editable paths of the static workflow ``entity_id`` names (artifact, variant
+        or catalogue revision id). Empty for any other id."""
+        if self.static_catalog is None or entity_id is None:
+            return []
+        return self.static_catalog.editable_paths(id=entity_id)
+
+    def _merge_static_revision(
+        self,
+        stored: WorkflowRevision,
+    ) -> Optional[WorkflowRevision]:
+        """A stored revision of a static workflow, read as the code version with the stored
+        editable fields on top. None for a revision of any other workflow.
+
+        Keyed on the artifact id, never on the revision slug: a stored revision has a random
+        slug. The result keeps the reserved slug and the fixed ids, so every reader treats it
+        as the static workflow; its ``id`` and ``version`` are the stored revision's.
+        """
+        artifact_id = stored.workflow_id or stored.artifact_id
+        paths = self.static_editable_paths(artifact_id)
+        if not paths:
+            return None
+        code = self.static_catalog.retrieve_revision(id=artifact_id)
+        if code is None or code.data is None:
+            return None
+
+        parameters = copy.deepcopy(code.data.parameters or {})
+        stored_parameters = (stored.data.parameters if stored.data else None) or {}
+        for path in paths:
+            # Catalogue paths start at `data`, and all of them sit under `parameters`.
+            segments = path.split(".")[1:]
+            value = _value_at(stored_parameters, segments)
+            if value is not _MISSING:
+                _set_at(parameters, segments, copy.deepcopy(value))
+
+        return code.model_copy(
+            update={
+                "id": stored.id,
+                "version": stored.version,
+                "data": code.data.model_copy(update={"parameters": parameters}),
+                "created_at": stored.created_at,
+                "created_by_id": stored.created_by_id,
+                "message": stored.message,
+                "author": stored.author,
+                "date": stored.date,
+            }
+        )
+
     @classmethod
     def _scrub_server_owned_flags(cls, flags: dict) -> dict:
         """Force a present server-owned flag to False in a user-supplied stored-flags dict.
@@ -1310,6 +1400,12 @@ class WorkflowsService:
         include_archived: Optional[bool] = True,
         workflow: Optional[Workflow] = None,
     ) -> WorkflowRevision:
+        # A stored revision of a static workflow holds only its editable fields; it reads as
+        # the code version with those fields on top.
+        merged = self._merge_static_revision(revision)
+        if merged is not None:
+            return merged
+
         if revision.data and not revision.data.url and revision.data.uri:
             path = infer_url_from_uri(revision.data.uri)
             if path:
@@ -2418,6 +2514,8 @@ class WorkflowsService:
         #
         platform_meta: bool = False,
     ) -> Optional[Workflow]:
+        self._reject_static_id(workflow_edit.id)
+
         current_artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
             #
@@ -2540,6 +2638,10 @@ class WorkflowsService:
             workflow = Workflow(
                 **artifact.model_dump(mode="json"),
             )
+            # The rows of a static workflow hold a project's commits of its editable
+            # fields. The workflow itself is served from code and is not listed.
+            if is_static_workflow_slug(workflow.slug):
+                continue
             if not self._matches_requested_flags(
                 actual_flags=workflow.flags,
                 requested_flags=workflow_query.flags if workflow_query else None,
@@ -2557,6 +2659,8 @@ class WorkflowsService:
         #
         workflow_id: UUID,
     ) -> Optional[Workflow]:
+        self._reject_static_id(workflow_id)
+
         artifact = await self.workflows_dao.archive_artifact(
             project_id=project_id,
             user_id=user_id,
@@ -2614,6 +2718,8 @@ class WorkflowsService:
         #
         workflow_id: UUID,
     ) -> Optional[Workflow]:
+        self._reject_static_id(workflow_id)
+
         artifact = await self.workflows_dao.unarchive_artifact(
             project_id=project_id,
             user_id=user_id,
@@ -2714,6 +2820,8 @@ class WorkflowsService:
         #
         workflow_variant_edit: WorkflowVariantEdit,
     ) -> Optional[WorkflowVariant]:
+        self._reject_static_id(workflow_variant_edit.id)
+
         _variant_edit = VariantEdit(
             **workflow_variant_edit.model_dump(
                 mode="json",
@@ -2814,6 +2922,7 @@ class WorkflowsService:
         workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
         self._reject_static_slug(workflow_variant_fork.slug)
+        self._reject_static_id(workflow_variant_ref.id)
 
         source_variant = await self.fetch_workflow_variant(
             project_id=project_id,
@@ -2869,6 +2978,8 @@ class WorkflowsService:
         #
         workflow_variant_id: UUID,
     ) -> Optional[WorkflowVariant]:
+        self._reject_static_id(workflow_variant_id)
+
         variant = await self.workflows_dao.archive_variant(
             project_id=project_id,
             user_id=user_id,
@@ -2895,6 +3006,8 @@ class WorkflowsService:
         #
         workflow_variant_id: UUID,
     ) -> Optional[WorkflowVariant]:
+        self._reject_static_id(workflow_variant_id)
+
         variant = await self.workflows_dao.unarchive_variant(
             project_id=project_id,
             user_id=user_id,
@@ -2924,6 +3037,10 @@ class WorkflowsService:
         workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_create.slug)
+        self._reject_static_id(
+            workflow_revision_create.workflow_id,
+            workflow_revision_create.workflow_variant_id,
+        )
         self._reject_non_embeddable_workflow_embeds(
             getattr(workflow_revision_create, "data", None)
         )
@@ -3206,6 +3323,20 @@ class WorkflowsService:
             workflow_revision_ref=workflow_revision_ref,
         )
         if is_reserved:
+            # A static workflow with editable fields reads the project's latest commit of
+            # those fields, when there is one, on top of the code version.
+            if static_revision is not None and self.static_editable_paths(
+                static_revision.workflow_id
+            ):
+                stored = await self.workflows_dao.fetch_revision(
+                    project_id=project_id,
+                    variant_ref=Reference(id=static_revision.workflow_variant_id),
+                    include_archived=False,
+                )
+                if stored is not None:
+                    return self._merge_static_revision(
+                        WorkflowRevision(**stored.model_dump(mode="json"))
+                    )
             return static_revision
 
         validate_variant_refs_sufficient(
@@ -3425,6 +3556,10 @@ class WorkflowsService:
         #
         workflow_revision_edit: WorkflowRevisionEdit,
     ) -> Optional[WorkflowRevision]:
+        await self._reject_static_revision_write(
+            project_id=project_id, revision_id=workflow_revision_edit.id
+        )
+
         _workflow_revision_edit = RevisionEdit(
             **workflow_revision_edit.model_dump(
                 mode="json",
@@ -3679,6 +3814,19 @@ class WorkflowsService:
         ANOTHER agent passes one (see ``agent_attribution``): that edit lands in a history
         whose owner did not watch it happen.
         """
+        static_revision = self._editable_static_commit_target(workflow_revision_commit)
+        if static_revision is not None:
+            # Only the human and SDK route commits a static workflow's fields. A scoped
+            # caller (an agent's tool) stays refused, as for any other static write.
+            if scope_policy is not None:
+                raise StaticWorkflowSlug(static_revision.slug)
+            return await self._commit_static_revision(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_revision_commit=workflow_revision_commit,
+                code_revision=static_revision,
+            )
+
         self._reject_static_slug(workflow_revision_commit.slug)
 
         warnings: List[CommitWarning] = []
@@ -3776,6 +3924,179 @@ class WorkflowsService:
                 warnings=warnings,
             )
         return CommitOutcome(revision=revision, status="committed", warnings=warnings)
+
+    def _editable_static_commit_target(
+        self,
+        workflow_revision_commit: WorkflowRevisionCommit,
+    ) -> Optional[WorkflowRevision]:
+        """The code version of the static workflow a commit names by id, when that workflow
+        has editable fields. None for a commit on any other workflow. A commit that names a
+        static workflow without editable fields, or mixes its ids with another workflow's,
+        is refused."""
+        variant_id = (
+            workflow_revision_commit.workflow_variant_id
+            or workflow_revision_commit.variant_id
+        )
+        artifact_id = (
+            workflow_revision_commit.workflow_id or workflow_revision_commit.artifact_id
+        )
+        if self.static_catalog is None or not (
+            self.static_catalog.is_static_id(variant_id)
+            or self.static_catalog.is_static_id(artifact_id)
+        ):
+            return None
+
+        code = self.static_catalog.retrieve_revision(id=variant_id or artifact_id)
+        if (
+            code is None
+            or not self.static_editable_paths(code.workflow_id)
+            or variant_id != code.workflow_variant_id
+            or (artifact_id is not None and artifact_id != code.workflow_id)
+        ):
+            self._reject_static_id(variant_id, artifact_id)
+        return code
+
+    async def _commit_static_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        workflow_revision_commit: WorkflowRevisionCommit,
+        code_revision: WorkflowRevision,
+    ) -> "CommitOutcome":
+        """Commit a project's values of a static workflow's editable fields.
+
+        A full-data commit keeps the editable fields of what it sends and ignores the rest,
+        so a client that sends the whole configuration it read can still save. A delta names
+        its targets, and a target outside the editable fields is refused. The stored revision
+        holds only the editable fields; the answer is the merged read. The project's rows are
+        created at its first commit. The revision slug is always the server's: the catalogue
+        slug is reserved.
+        """
+        paths = self.static_editable_paths(code_revision.workflow_id)
+        head = await self.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_variant_ref=Reference(id=code_revision.workflow_variant_id),
+            include_archived=False,
+        )
+        # With no stored revision, the head is the code version and its id is the base.
+        has_stored_head = head is not None and head.id != code_revision.id
+
+        self._check_base_revision(
+            workflow_revision_commit=workflow_revision_commit,
+            current=head,
+        )
+
+        warnings: List[CommitWarning] = []
+        message = workflow_revision_commit.message
+        if workflow_revision_commit.delta is not None:
+            base = (
+                head.data.model_dump(mode="json", exclude_none=True)
+                if head and head.data
+                else {}
+            )
+            try:
+                data, message, warnings = self._apply_delta(
+                    base=base,
+                    workflow_revision_commit=workflow_revision_commit,
+                    scope_policy=editable_scope([path.split(".") for path in paths]),
+                )
+            except ChangeSetError as e:
+                if e.reason == Reason.OUT_OF_SCOPE:
+                    raise StaticFieldNotEditableError(
+                        field=".".join(str(segment) for segment in e.target or []),
+                        editable=paths,
+                    ) from e
+                raise
+        else:
+            data = (
+                workflow_revision_commit.data.model_dump(mode="json", exclude_none=True)
+                if workflow_revision_commit.data
+                else {}
+            )
+
+        stored_data = _editable_fields(data, paths)
+        head_data = _editable_fields(
+            head.data.model_dump(mode="json", exclude_none=True)
+            if head and head.data
+            else {},
+            paths,
+        )
+        if self._canonical_revision_record(
+            data=stored_data, flags=None
+        ) == self._canonical_revision_record(data=head_data, flags=None):
+            warnings.append(
+                CommitWarning(
+                    code="no_change",
+                    message=(
+                        "The change produced the configuration that is already "
+                        "stored, so no revision was created."
+                    ),
+                )
+            )
+            return CommitOutcome(revision=head, status="no_change", warnings=warnings)
+
+        await self.workflows_dao.ensure_static_workflow_rows(
+            project_id=project_id,
+            user_id=user_id,
+            artifact_id=code_revision.workflow_id,
+            variant_id=code_revision.workflow_variant_id,
+            slug=code_revision.slug,
+            name=code_revision.name,
+        )
+
+        base_revision_id = workflow_revision_commit.base_revision_id
+        try:
+            revision = await self.workflows_dao.commit_revision(
+                project_id=project_id,
+                user_id=user_id,
+                revision_commit=RevisionCommit(
+                    artifact_id=code_revision.workflow_id,
+                    variant_id=code_revision.workflow_variant_id,
+                    slug=uuid4().hex[-12:],
+                    message=message,
+                    data=stored_data,
+                ),
+                # A base that is the code version means "no stored revision yet": the
+                # first of two commits at once wins, and the second is a conflict.
+                initial=base_revision_id is not None and not has_stored_head,
+                expected_head_revision_id=(
+                    base_revision_id if has_stored_head else None
+                ),
+            )
+        except RevisionConflict as e:
+            raise RevisionConflictError(
+                base_revision_id=e.expected_head_revision_id,
+                current_revision_id=e.current_head_revision_id,
+            ) from e
+        except InitialRevisionConflict as e:
+            current = await self.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=Reference(id=code_revision.workflow_variant_id),
+                include_archived=False,
+            )
+            raise RevisionConflictError(
+                base_revision_id=str(base_revision_id),
+                current_revision_id=str(current.id) if current else None,
+            ) from e
+
+        if not revision:
+            return CommitOutcome(revision=None, status="committed", warnings=warnings)
+
+        stored = WorkflowRevision(**revision.model_dump(mode="json"))
+        await publish_revision_event(
+            domain="workflow",
+            action="commit",
+            project_id=project_id,
+            user_id=user_id,
+            revision=stored,
+            message=message,
+        )
+        return CommitOutcome(
+            revision=self._merge_static_revision(stored),
+            status="committed",
+            warnings=warnings,
+        )
 
     def _no_change_check(self, *, candidate: RevisionCommit):
         """The comparison the DAO runs against the head it holds the lock on.
@@ -3912,6 +4233,13 @@ class WorkflowsService:
         artifact that never had an agent revision before gets a project-visible
         access row owned by that user (multi-step creation)."""
         self._reject_static_slug(workflow_revision_commit.slug)
+        # A static workflow's editable fields commit only through the checked commit.
+        self._reject_static_id(
+            workflow_revision_commit.workflow_id,
+            workflow_revision_commit.workflow_variant_id,
+            workflow_revision_commit.artifact_id,
+            workflow_revision_commit.variant_id,
+        )
 
         if workflow_revision_commit.delta is not None:
             resolution = await self._resolve_revision_delta(
@@ -4350,6 +4678,10 @@ class WorkflowsService:
         #
         workflow_revision_id: UUID,
     ) -> Optional[WorkflowRevision]:
+        await self._reject_static_revision_write(
+            project_id=project_id, revision_id=workflow_revision_id
+        )
+
         revision = await self.workflows_dao.archive_revision(
             project_id=project_id,
             user_id=user_id,
@@ -4377,6 +4709,10 @@ class WorkflowsService:
         #
         workflow_revision_id: UUID,
     ) -> Optional[WorkflowRevision]:
+        await self._reject_static_revision_write(
+            project_id=project_id, revision_id=workflow_revision_id
+        )
+
         revision = await self.workflows_dao.unarchive_revision(
             project_id=project_id,
             user_id=user_id,
@@ -6043,3 +6379,40 @@ class SimpleWorkflowsService:
         return simple_workflows
 
     # --------------------------------------------------------------------------
+
+
+_MISSING = object()
+
+
+def _value_at(tree: Any, path: List[str]) -> Any:
+    """What ``tree`` holds at ``path``, or ``_MISSING`` when the path is not there."""
+    node = tree
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return _MISSING
+        node = node[key]
+    return node
+
+
+def _set_at(tree: Dict[str, Any], path: List[str], value: Any) -> None:
+    """Set ``value`` at ``path``, creating the objects on the way. A non-object on the way
+    is replaced by an object."""
+    node = tree
+    for key in path[:-1]:
+        child = node.get(key)
+        if not isinstance(child, dict):
+            child = {}
+            node[key] = child
+        node = child
+    node[path[-1]] = value
+
+
+def _editable_fields(data: Dict[str, Any], paths: List[str]) -> Dict[str, Any]:
+    """Only the fields of ``data`` at the dotted ``paths`` that it holds."""
+    kept: Dict[str, Any] = {}
+    for path in paths:
+        segments = path.split(".")
+        value = _value_at(data, segments)
+        if value is not _MISSING:
+            _set_at(kept, segments, copy.deepcopy(value))
+    return kept
