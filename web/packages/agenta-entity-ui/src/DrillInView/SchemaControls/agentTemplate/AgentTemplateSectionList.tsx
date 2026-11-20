@@ -36,6 +36,8 @@ export interface AgentTemplateSectionDescriptor {
     extra?: ReactNode
     indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode; pulse?: boolean}
     defaultOpen?: boolean
+    /** On a phone the section shows its content with no add control (`extra`). */
+    readOnlyOnPhone?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
     onOpen?: () => void
     bodyClassName?: string
@@ -128,7 +130,7 @@ export const AgentTemplateSectionList = ({
     )
 }
 
-/** A section's title as text: its header title on a phone. Every section passes a string. */
+/** A section's title as text, for its header on a phone; the key when the title is not text. */
 const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
     typeof s.title === "string" ? s.title : s.key
 
@@ -147,7 +149,9 @@ const PhoneSectionList = ({
     if (shown) {
         return (
             <div data-config-section={shown.key} className="flex flex-col gap-3 pb-6 pt-3">
-                {shown.extra ? <div className="flex justify-end">{shown.extra}</div> : null}
+                {shown.extra && !shown.readOnlyOnPhone ? (
+                    <div className="flex justify-end">{shown.extra}</div>
+                ) : null}
                 {shown.content}
             </div>
         )
