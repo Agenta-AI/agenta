@@ -37,6 +37,7 @@ from oss.src.core.secrets.interfaces import (
 )
 from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.redaction import (
+    AWS_SESSION_TOKEN_KEYS,
     AWS_SIGN_IN_WAYS,
     CREDENTIAL_EXTRAS_KEYS,
     PRIMARY_CREDENTIAL_FIELDS,
@@ -351,7 +352,10 @@ def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
     brought_ways = [
         way
         for way in AWS_SIGN_IN_WAYS
-        if any(update_extras.get(extras_key) not in (None, "") for extras_key in way)
+        if any(
+            update_extras.get(extras_key) not in (None, "")
+            for extras_key in way - AWS_SESSION_TOKEN_KEYS
+        )
     ]
     replaced_keys = frozenset().union(
         *(way for way in AWS_SIGN_IN_WAYS if brought_ways and way not in brought_ways)

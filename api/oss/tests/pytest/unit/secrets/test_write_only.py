@@ -569,6 +569,35 @@ async def test_bedrock_switch_to_api_key_drops_the_stored_access_keys(service):
 
 
 @pytest.mark.asyncio
+async def test_bedrock_switch_to_api_key_drops_a_session_token_sent_back(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Bedrock"}, secret=_bedrock(dict(_ACCESS_KEYS))
+        ),
+    )
+
+    updated = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret=_bedrock(
+                {
+                    "aws_bearer_token_bedrock": "new-bearer",
+                    "aws_session_token": "stored-session",
+                    "aws_region_name": "eu-west-1",
+                }
+            )
+        ),
+    )
+
+    assert updated.data.provider.extras == {
+        "aws_bearer_token_bedrock": "new-bearer",
+        "aws_region_name": "eu-west-1",
+    }
+
+
+@pytest.mark.asyncio
 async def test_bedrock_switch_to_access_keys_drops_the_stored_api_key(service):
     created = await service.create_secret(
         project_id=PROJECT_ID,

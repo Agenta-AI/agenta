@@ -95,6 +95,9 @@ AWS_SIGN_IN_WAYS: Tuple[frozenset, ...] = (
         }
     ),
 )
+# A session token belongs to access keys, but alone it does not choose that way: a form
+# can send a stored one back beside a new API key.
+AWS_SESSION_TOKEN_KEYS = frozenset({"aws_session_token", "AWS_SESSION_TOKEN"})
 
 
 # Credential fields that sit on the data object itself instead of inside a nested
