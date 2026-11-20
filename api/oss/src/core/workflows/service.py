@@ -193,6 +193,7 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.mounts.agent_drives import fill_agent_drive_keys
+from oss.src.core.mounts.types import is_static_agent_drive_slug
 from oss.src.core.sharing.service import (
     get_sharing_service,
     invalidate_sharing_caches,
@@ -749,6 +750,20 @@ class WorkflowsService:
         )
         if own is not None:
             return own
+        static_slug = self._static_agent_drive_slug(artifact_id)
+        if static_slug is not None:
+            # A static agent with its own drive in its catalog entry: the reserved slug
+            # the entry lists, named after the agent, shared with no owner (the agent has
+            # no access row and no owner).
+            return await lookup.create_agent_drive(
+                project_id=project_id,
+                user_id=user_id,
+                artifact_id=str(artifact_id),
+                agent_slug=None,
+                agent_name=self.static_catalog.retrieve_revision(id=artifact_id).name,
+                visibility=OWNERLESS_PROJECT_POLICY,
+                slug=static_slug,
+            )
         workflow = await self.fetch_workflow(
             project_id=project_id,
             workflow_ref=Reference(id=artifact_id),
@@ -778,6 +793,68 @@ class WorkflowsService:
             agent_name=getattr(workflow, "name", None),
             visibility=visibility,
         )
+
+    def _static_agent_drive_slug(self, artifact_id: UUID) -> Optional[str]:
+        """The slug of a static catalog agent's own drive: the first ``drives`` entry its
+        catalog configuration lists under ``is_static_agent_drive_slug``. None for any
+        other agent. No read."""
+        if self.static_catalog is None or not self.static_catalog.is_static_id(
+            artifact_id
+        ):
+            return None
+        revision = self.static_catalog.retrieve_revision(id=artifact_id)
+        if revision is None:
+            return None
+        drives = (_agent_config(revision.data) or {}).get("drives")
+        return next(
+            (
+                entry["slug"]
+                for entry in (drives if isinstance(drives, list) else [])
+                if isinstance(entry, dict)
+                and isinstance(entry.get("slug"), str)
+                and is_static_agent_drive_slug(entry["slug"], agent_slug=revision.slug)
+            ),
+            None,
+        )
+
+    async def ensure_static_agent_drive(
+        self,
+        *,
+        project_id: UUID,
+        envelope: RunEnvelope,
+        artifact_id: UUID,
+    ) -> None:
+        """Create the own drive of a static catalog agent at its first run in the
+        project, shared with no owner. A static agent is never committed, so the commit
+        never creates it. Called by both run credential mints, before the runner signs the
+        run's drives. Best effort: on a failure the run goes on without the drive, which
+        the runner skips because it cannot sign it."""
+        if self._static_agent_drive_slug(artifact_id) is None:
+            return
+        try:
+            user_id = await get_access_service().acting_user_id(
+                authority=envelope.authority
+            )
+            if user_id is None:
+                log.info(
+                    "[DRIVES] static agent drive not created: the run has no acting user",
+                    project_id=str(project_id),
+                    artifact_id=str(artifact_id),
+                )
+                return
+            await self.ensure_agent_drive(
+                project_id=project_id,
+                user_id=user_id,
+                artifact_id=artifact_id,
+                include_archived=True,
+            )
+        except Exception:  # pylint: disable=broad-except
+            log.warning(
+                "[DRIVES] static agent drive create failed",
+                project_id=str(project_id),
+                artifact_id=str(artifact_id),
+                exc_info=True,
+            )
 
     async def fill_agent_revision_drives(
         self,
@@ -1813,9 +1890,16 @@ class WorkflowsService:
         project_id: UUID,
         artifact_id: UUID,
     ) -> bool:
-        """True when a stored revision of the agent states `drives`: the legacy sign
-        route then refuses. One read, never cached."""
+        """True when a stored revision of the agent states `drives`, or the catalog
+        configuration of a static agent does: the legacy sign route then refuses. One
+        read, never cached; none for a static agent."""
 
+        if self.static_catalog is not None and self.static_catalog.is_static_id(
+            artifact_id
+        ):
+            revision = self.static_catalog.retrieve_revision(id=artifact_id)
+            agent = _agent_config(revision.data) if revision is not None else None
+            return agent is not None and isinstance(agent.get("drives"), list)
         return await self.workflows_dao.has_revision_with_drives(
             project_id=project_id, artifact_id=artifact_id
         )
@@ -1834,7 +1918,8 @@ class WorkflowsService:
         resolved for this request, else the agent `references` name, resolved in this
         project) and that the run's principal may run. None for a run with no stored
         agent (an inline configuration), a reference that resolves to nothing, or an
-        agent the principal may not run. Never a raw id from the caller."""
+        agent the principal may not run. Never a raw id from the caller. For a static
+        catalog agent, creates its own drive first (`ensure_static_agent_drive`)."""
 
         if resolved_revision is not None:
             artifact_id = resolved_revision.workflow_id
@@ -1872,7 +1957,9 @@ class WorkflowsService:
             resource=ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id)),
             context=envelope.context,
         )
-        return artifact_id if decision.allowed else None
+        if not decision.allowed:
+            return None
+        return artifact_id
 
     async def resolve_agent_artifact_id(
         self,
@@ -4372,6 +4459,19 @@ class WorkflowsService:
         if acting_user_id is None:
             raise MissingPrincipal("The run's principal is not active")
 
+        run_agent_id = await self.resolve_run_agent_id(
+            project_id=project_id,
+            envelope=envelope,
+            references=getattr(request, "references", None),
+            resolved_revision=resolved_revision,
+            admitted_agent_id=admitted_agent_id,
+        )
+        if run_agent_id is not None:
+            # Before the runner signs the run's drives.
+            await self.ensure_static_agent_drive(
+                project_id=project_id, envelope=envelope, artifact_id=run_agent_id
+            )
+
         secret_token = await sign_secret_token(
             user_id=str(acting_user_id),
             project_id=str(project_id),
@@ -4392,13 +4492,7 @@ class WorkflowsService:
                     )
                 ),
             ),
-            run_agent_id=await self.resolve_run_agent_id(
-                project_id=project_id,
-                envelope=envelope,
-                references=getattr(request, "references", None),
-                resolved_revision=resolved_revision,
-                admitted_agent_id=admitted_agent_id,
-            ),
+            run_agent_id=run_agent_id,
         )
 
         credentials = f"Secret {secret_token}"

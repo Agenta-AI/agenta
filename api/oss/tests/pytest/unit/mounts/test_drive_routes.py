@@ -55,6 +55,7 @@ class _Workflows:
     ensure_agent_drive = WorkflowsService.ensure_agent_drive
     _agent_policy = WorkflowsService._agent_policy
     _require_mount_lookup = WorkflowsService._require_mount_lookup
+    _static_agent_drive_slug = WorkflowsService._static_agent_drive_slug
 
     def __init__(self, *, states_drives=False):
         self.states_drives = states_drives
