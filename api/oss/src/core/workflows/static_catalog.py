@@ -51,6 +51,10 @@ from oss.src.core.workflows.build_kit import (
     build_agent_template_overlay,
     build_kit_op_access,
 )
+from oss.src.core.workflows.builder_agent import (
+    BUILDER_AGENT_SLUG,
+    builder_agent_revision,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowRevision,
     WorkflowRevisionData,
@@ -253,6 +257,11 @@ def _request_secret_revision() -> WorkflowRevision:
 REQUEST_INPUT_TOOL_NAME = "request_input"
 
 
+def request_input_tool() -> Dict[str, Any]:
+    """The `request_input` client tool entry, for an agent that lists it inline."""
+    return _request_input_revision().data.parameters["tool"]
+
+
 def _request_input_revision() -> WorkflowRevision:
     """The elicitation client tool (interaction kinds M1): pause and collect typed input.
 
@@ -414,6 +423,12 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "embeddable": False,
         "latest": "v1",
         "versions": {"v1": _agenta_tools_revision},
+    },
+    BUILDER_AGENT_SLUG: {
+        "kind": "agent",
+        "embeddable": False,
+        "latest": "v1",
+        "versions": {"v1": builder_agent_revision},
     },
     AGENTA_APPS_SLUG: {
         "kind": "skill",
@@ -627,5 +642,11 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                 "workflow_id": _artifact_uuid(slug=slug),
                 "workflow_slug": slug,
                 "workflow_variant_id": _variant_uuid(slug=slug),
+                # `model_copy` skips the alias sync of `model_post_init`. The generic names
+                # are what a run's resolved references are built from, and a static agent's
+                # tools bind its artifact id from them.
+                "artifact_id": _artifact_uuid(slug=slug),
+                "artifact_slug": slug,
+                "variant_id": _variant_uuid(slug=slug),
             }
         )
