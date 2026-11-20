@@ -11,7 +11,11 @@ import {useAtomValue} from "jotai"
 
 import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {readRunnerPermission} from "../../agentConfigPatch"
-import {findIntegrationRow, integrationRowConnection} from "../../toolUtils"
+import {
+    findIntegrationRow,
+    integrationRowConnection,
+    setGatewayConnectionAccount,
+} from "../../toolUtils"
 import {IntegrationAccountBlock} from "../accounts/IntegrationAccountBlock"
 import {
     IntegrationDrawerBody,
@@ -60,6 +64,9 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
     const access = useAtomValue(personalAccountsAccessAtom)
     const {connections: personal} = usePersonalToolConnections()
     const {push} = nav
+    // The connect view can return after auto-save replaced the revision: write through the latest.
+    const writerRef = useRef(writer)
+    writerRef.current = writer
     // Connect from the account part: the viewer's own account, or a shared one the agent then uses.
     const connect = useCallback(
         (owner: "user" | "project") => {
@@ -70,17 +77,21 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                     integrationKey: integrationTarget.integration,
                     owners: [owner],
                     onCreated: (created) => {
-                        if (created.owner === "project")
-                            setIntegrationAccount(integrationTarget, {
-                                accountSource: "agent",
-                                slug: created.slug,
-                            })
+                        if (created.owner !== "project") return
+                        writerRef.current.update((agent) => ({
+                            ...agent,
+                            tools: setGatewayConnectionAccount(
+                                Array.isArray(agent.tools) ? (agent.tools as unknown[]) : [],
+                                integrationTarget,
+                                {accountSource: "agent", slug: created.slug},
+                            ),
+                        }))
                     },
                 },
                 {kind: "project"},
             )
         },
-        [push, integrationTarget, setIntegrationAccount],
+        [push, integrationTarget],
     )
 
     if (!integrationTarget || !row) {
