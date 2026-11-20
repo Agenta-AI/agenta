@@ -74,7 +74,6 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {ContentRail} from "@/components/ContentRail"
 import {ContentRailCapContext} from "@/components/contentRailCap"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {cn} from "@/lib/utils"
 
 import {useBuilderCommitChecks} from "../builder/useBuilderCommitChecks"
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -468,13 +467,13 @@ export const LiveConversation = ({
     // (S07, M04), and on a phone a focus there opens the keyboard over the page.
     const sideConversation = builderChat || role === "embedded"
     useEffect(() => {
-        if (disabled || sideConversation || hideComposer) return
+        if (disabled || sideConversation) return
         const frame = requestAnimationFrame(() => {
             if (isTypingElsewhere(document.activeElement)) return
             composerRef.current?.focus()
         })
         return () => cancelAnimationFrame(frame)
-    }, [disabled, sideConversation, hideComposer, sessionId, composerRef])
+    }, [disabled, sideConversation, sessionId, composerRef])
 
     // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
@@ -1093,7 +1092,8 @@ export const LiveConversation = ({
                                 onClientToolOutput={
                                     locked ? undefined : conversation.sendToolOutput
                                 }
-                                onRewind={locked ? undefined : handleRewind}
+                                // Rewind puts the message back in the composer: none without one.
+                                onRewind={locked || hideComposer ? undefined : handleRewind}
                             />
                         </ChangeResultHostContext.Provider>
                     </UserMessageAccessoryContext.Provider>
@@ -1137,7 +1137,8 @@ export const LiveConversation = ({
                                         onRemove={conversation.removeQueued}
                                         onSendNow={conversation.sendQueuedNow}
                                         sendNowBlocked={conversation.sendNowPending}
-                                        onEdit={editQueued}
+                                        // An edit borrows the composer: none without one.
+                                        onEdit={hideComposer ? undefined : editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}
                                         touch
@@ -1282,13 +1283,11 @@ export const LiveConversation = ({
                             <ReadOnlyComposerNotice text={readOnly.notice} />
                         ) : (
                             <Composer
-                                className={cn(
-                                    // The builder pads 16 px on a phone too (M04).
-                                    builderChat && "px-4",
-                                    // A new chat's group: 16 px under the intro, and the quick
-                                    // actions 12 px under the box (S07), 14 px on a phone (M04).
-                                    groupLayout && belowComposer && "pt-0 pb-3.5 md:pb-3",
-                                )}
+                                // A new chat's group: 16 px under the intro, and the quick actions
+                                // 12 px under the box (S07), 14 px on a phone (M04).
+                                className={
+                                    groupLayout && belowComposer ? "pt-0 pb-3.5 md:pb-3" : undefined
+                                }
                                 entityId={entityId}
                                 sessionId={sessionId}
                                 agentName={builderChat ? undefined : agentName}

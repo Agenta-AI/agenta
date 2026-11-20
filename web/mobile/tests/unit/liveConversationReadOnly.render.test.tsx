@@ -427,6 +427,8 @@ describe("a read-only run (F05)", () => {
         expect(byId("composer")).toBeNull()
         expect(byId("read-only-composer")).toBeNull()
         expect(byId("approval-card")?.dataset.readOnly).toBe("false")
+        // Rewind and a queued edit put text back in the composer: none without one.
+        expect(byId("transcript")?.dataset.rewind).toBe("false")
     })
 })
 
