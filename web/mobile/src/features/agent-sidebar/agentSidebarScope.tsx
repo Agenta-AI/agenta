@@ -1,78 +1,110 @@
-import {useCallback, useContext, useMemo} from "react"
+import {createElement, useCallback, useContext, useMemo} from "react"
 
-import {sessionListQueryOptions} from "@agenta/entities/session"
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
-import {livePollInterval} from "@agenta/navigation"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import {
+    livePollInterval,
+    setSidebarSessionFilterDefaults,
+    sidebarSessionFiltersAtomFamily,
+    sidebarSessionFiltersDirtyAtomFamily,
+} from "@agenta/navigation"
 import type {
     SidebarScope,
     SidebarSection,
     SidebarSelection,
     SidebarSlotContext,
 } from "@agenta/navigation"
-import {SidebarBackButton, SidebarLayoutContext, SidebarToggleButton} from "@agenta/navigation-ui"
+import {
+    SessionFilterMenu,
+    SessionSearchButton,
+    SidebarBackButton,
+    SidebarLayoutContext,
+    SidebarToggleButton,
+} from "@agenta/navigation-ui"
 import {sessionRowVm} from "@agenta/sessions/row"
 import {pendingBySessionId, useActionableInteractions} from "@agenta/sessions/state"
-import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {keepPreviousData, useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
-import Router, {useRouter} from "next/router"
+import {useRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
-import {useMobileBottomNavItems, useRailSessionRowWrapper} from "../nav/useMobileNavItems"
+import {
+    useMobileBottomNavItems,
+    usePaletteShortcut,
+    useRailSessionRowWrapper,
+} from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
+import {agentSessionsNarrowing, agentSessionsQuery} from "./agentSessionsQuery"
 import {AgentSidebarHeader} from "./AgentSidebarHeader"
 import {
     agentSidebarItems,
     agentSidebarSelectedKey,
     type AgentSidebarSession,
 } from "./agentSidebarItems"
-import {AgentSidebarSwitcher} from "./AgentSidebarSwitcher"
-import {
-    currentSidebar,
-    openAgentSidebar,
-    openMainSidebar,
-    useSelectedSidebar,
-} from "./selectedSidebar"
+import {ConnectedAgentSwitcher} from "./ConnectedAgentSwitcher"
+import {openMainSidebar, useSelectedSidebar} from "./selectedSidebar"
 import {SidebarNewButton} from "./SidebarNewButton"
-import {switchTarget} from "./switchAgent"
+
+/** The filter menu's facets in the agent sidebar. */
+const AGENT_SIDEBAR_FILTER_FACETS = ["type", "status", "activity"] as const
 
 /** How many latest sessions the agent sidebar lists; "Show N older sessions" opens the rest. */
 export const AGENT_SIDEBAR_SESSION_LIMIT = 10
 
-/** The first page of one agent's session list, with the total. Under the list's own key prefix,
- * so renames, archives and new turns refresh it too. */
-const agentSessionsQuery = (projectId: string, agentId: string, limit: number) => {
-    const options = sessionListQueryOptions({projectId, agentId, includeTotal: true, limit})
-    return {
-        queryKey: [...options.queryKey, "first-page"],
-        queryFn: async ({signal}: {signal?: AbortSignal}) => {
-            const page = await options.queryFn({pageParam: null, signal})
-            // An error, not an empty list: a failed refresh keeps the rows it had.
-            if (!page) throw new Error("The session list did not load")
-            return page
-        },
-        staleTime: 30_000,
-    }
-}
+/** The filter scope of one agent's sidebar: its own, so it never narrows the main sidebar. */
+export const agentSidebarFilterScope = (agentId: string) => `agent-sidebar:${agentId}`
 
-/** The agent's latest sessions and the count of all its sessions, in one request. */
+/**
+ * The agent's latest sessions and the count of all its sessions, in one request, narrowed by
+ * the sidebar's filter menu (Type, Status, Last activity).
+ */
 const useAgentSessions = (projectId: string, agentId: string) => {
+    const filters = useAtomValue(sidebarSessionFiltersAtomFamily(agentSidebarFilterScope(agentId)))
+    const interactions = useActionableInteractions(projectId)
+    const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
+    // Joined, so a poll that returns the same waiting sessions keeps the same query. Read only
+    // under "Waiting" and "Idle": no other filter depends on who is waiting.
+    const usesWaiting = filters.status === "waiting" || filters.status === "idle"
+    const waitingKey = !usesWaiting ? "" : pending ? [...pending.keys()].sort().join(",") : null
+    // Per filter change, not per render: the activity floor reads the clock, and a new floor on
+    // every render would make a new query each time.
+    const narrowing = useMemo(
+        () =>
+            agentSessionsNarrowing(
+                filters,
+                waitingKey === null ? null : waitingKey.split(",").filter(Boolean),
+            ),
+        [filters, waitingKey],
+    )
+    const filtered = useAtomValue(
+        sidebarSessionFiltersDirtyAtomFamily(agentSidebarFilterScope(agentId)),
+    )
+    // The waiting list failed to load (the lookup answers null): "Waiting" and "Idle" cannot be
+    // answered.
+    const waitingFailed = usesWaiting && interactions.data === null
     const query = useQuery({
-        ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSION_LIMIT),
-        enabled: Boolean(projectId),
+        // Until the waiting list loads, a key of its own: never the unfiltered list's.
+        ...agentSessionsQuery(
+            projectId,
+            agentId,
+            AGENT_SIDEBAR_SESSION_LIMIT,
+            narrowing ?? {sessionIds: []},
+        ),
+        // "Waiting" waits for the waiting list: without it the query would not be narrowed.
+        enabled: Boolean(projectId) && narrowing !== null,
+        // A filter change keeps the rows on screen until the narrowed page arrives.
+        placeholderData: keepPreviousData,
         refetchOnWindowFocus: true,
         // The main sidebar's cadence: faster while a session runs or is alive.
         refetchInterval: (query) => livePollInterval(query.state.data?.sessions),
     })
-    const interactions = useActionableInteractions(projectId)
-    const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
     const sessions = useMemo(
         () =>
-            (query.data?.sessions ?? []).map((row): AgentSidebarSession => {
+            (waitingFailed ? [] : (query.data?.sessions ?? [])).map((row): AgentSidebarSession => {
                 const vm = sessionRowVm(row, {
                     pinned: false,
                     pending: pending?.get(row.session_id),
@@ -89,74 +121,22 @@ const useAgentSessions = (projectId: string, agentId: string) => {
                     isAutomation: vm.isAutomation,
                 }
             }),
-        [pending, query.data?.sessions],
+        [pending, query.data?.sessions, waitingFailed],
     )
-    const status = query.isPending ? "loading" : query.isError ? "error" : "ready"
+    const status = waitingFailed
+        ? "error"
+        : query.isPending
+          ? "loading"
+          : query.isError
+            ? "error"
+            : "ready"
     const {refetch} = query
-    const retry = useCallback(() => void refetch(), [refetch])
-    return {sessions, total: query.data?.total ?? null, status, retry} as const
-}
-
-/**
- * The switcher, connected: the agents the person can see, and a pick that keeps the same kind
- * of page (see `switchTarget`) and shows the picked agent's sidebar.
- */
-const ConnectedSwitcher = ({
-    projectURL,
-    projectId,
-    agentId,
-    collapsed,
-}: {
-    projectURL: string
-    projectId: string
-    agentId: string
-    collapsed: boolean
-}) => {
-    const router = useRouter()
-    const queryClient = useQueryClient()
-    const selected = useSelectedSidebar()
-    const agents = useAtomValue(agentWorkflowsListQueryStateAtom).data
-    const onPick = useCallback(
-        async (pickedAgentId: string) => {
-            const fromPath = router.asPath
-            const choice = openAgentSidebar(
-                pickedAgentId,
-                selected.kind === "agent" ? selected.from : "main",
-            )
-            let href: string | null
-            try {
-                href = await switchTarget({
-                    projectURL,
-                    pathname: router.pathname,
-                    query: router.query,
-                    pickedAgentId,
-                    latestSessionId: async (id) => {
-                        const page = await queryClient.fetchQuery(
-                            agentSessionsQuery(projectId, id, 1),
-                        )
-                        return page.sessions[0]?.session_id ?? null
-                    },
-                })
-            } catch {
-                // The lookup failed: the agent sidebar shows, and the page stays.
-                return
-            }
-            // Any later sidebar choice (a pick, Fold, Back, an open button) or a move to another
-            // page replaced this one.
-            if (currentSidebar() !== choice || Router.asPath !== fromPath) return
-            if (href) void router.push(href)
-            else startBlankSession(projectURL, pickedAgentId)
-        },
-        [projectId, projectURL, queryClient, router, selected],
+    const {refetch: refetchInteractions} = interactions
+    const retry = useCallback(
+        () => void (waitingFailed ? refetchInteractions() : refetch()),
+        [refetch, refetchInteractions, waitingFailed],
     )
-    return (
-        <AgentSidebarSwitcher
-            agents={agents}
-            agentId={agentId}
-            collapsed={collapsed}
-            onPick={(id) => void onPick(id)}
-        />
-    )
+    return {sessions, total: query.data?.total ?? null, status, retry, filtered} as const
 }
 
 /**
@@ -169,6 +149,13 @@ export const createAgentSidebarScope = (
     agentId: string,
 ): SidebarScope => {
     const projectURL = `/w/${workspaceId}/p/${projectId}`
+    // Unfiltered by default: the list shows the agent's latest sessions of every kind and age,
+    // as before the menu existed. Reset returns here.
+    setSidebarSessionFilterDefaults(agentSidebarFilterScope(agentId), {
+        type: "all",
+        activity: "all",
+        status: "all",
+    })
 
     const useSelection = (): SidebarSelection => {
         const router = useRouter()
@@ -186,7 +173,28 @@ export const createAgentSidebarScope = (
         const phone = useContext(SidebarLayoutContext) === "phone"
         const bottomItems = useMobileBottomNavItems(projectURL)
         const wrapSessionRow = useRailSessionRowWrapper(projectURL)
-        const {sessions, total, status, retry} = useAgentSessions(projectId, agentId)
+        const {sessions, total, status, retry, filtered} = useAgentSessions(projectId, agentId)
+        const tNav = useT(navigationCatalog)
+        const paletteShortcut = usePaletteShortcut()
+        // The main sidebar's Sessions controls: search opens the search window, the filter
+        // narrows this list. No Group by and no Agent: the agent is this one, and the list keeps
+        // its day groups.
+        const sessionsActions = useMemo(
+            () =>
+                createElement(
+                    "span",
+                    {className: "flex items-center gap-0.5"},
+                    createElement(SessionSearchButton, {
+                        label: tNav("navigation.items.search"),
+                        shortcut: paletteShortcut,
+                    }),
+                    createElement(SessionFilterMenu, {
+                        scopeId: agentSidebarFilterScope(agentId),
+                        facets: AGENT_SIDEBAR_FILTER_FACETS,
+                    }),
+                ),
+            [paletteShortcut, tNav],
+        )
 
         return useMemo(() => {
             const agent: SidebarSection = {
@@ -201,6 +209,8 @@ export const createAgentSidebarScope = (
                     t,
                     phone,
                     wrapSessionRow: phone ? undefined : wrapSessionRow,
+                    sessionsActions,
+                    filtered,
                 }),
             }
             return phone
@@ -209,7 +219,18 @@ export const createAgentSidebarScope = (
                       agent,
                       {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
                   ]
-        }, [bottomItems, phone, retry, sessions, status, t, total, wrapSessionRow])
+        }, [
+            bottomItems,
+            filtered,
+            phone,
+            retry,
+            sessions,
+            sessionsActions,
+            status,
+            t,
+            total,
+            wrapSessionRow,
+        ])
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
@@ -232,10 +253,10 @@ export const createAgentSidebarScope = (
                 }
                 toggle={<SidebarToggleButton onDismiss={onDismiss} />}
                 switcher={
-                    <ConnectedSwitcher
+                    <ConnectedAgentSwitcher
                         projectURL={projectURL}
                         projectId={projectId}
-                        agentId={agentId}
+                        current={{kind: "agent", agentId}}
                         collapsed={collapsed}
                     />
                 }

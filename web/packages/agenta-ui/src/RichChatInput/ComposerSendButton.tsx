@@ -8,6 +8,8 @@ import {Button} from "../components/ui/button"
 import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
+import type {ComposerSurface} from "./RichChatInput"
+
 export interface ComposerSendButtonProps {
     onClick?: () => void
     disabled?: boolean
@@ -20,6 +22,8 @@ export interface ComposerSendButtonProps {
      * that has not committed. The arrow becomes a spinner and the button refuses a second press.
      */
     sending?: boolean
+    /** `canvas`: a round dark 28 px button (36 px on a phone), dark even with nothing to send. */
+    surface?: ComposerSurface
 }
 
 /**
@@ -36,6 +40,7 @@ export function ComposerSendButton({
     ariaLabel,
     icon,
     sending,
+    surface,
 }: ComposerSendButtonProps) {
     const t = useT(uiChatInputCatalog)
     return (
@@ -53,16 +58,19 @@ export function ComposerSendButton({
             className={cn(
                 // The control radius, not a circle: the composer is a rounded rectangle and every
                 // other control on it follows that radius — a puck was the one round thing on it.
-                "rounded-control",
+                // The canvas surface draws the round one.
+                surface === "canvas" ? "size-7 rounded-full" : "rounded-control",
                 // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
                 "max-md:size-9",
                 PHONE_TOUCH_TARGET_CLASS,
-                disabled && !sending
-                    ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
-                    : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
-                      // any host that might want a different fill, and threading a colour down
-                      // that chain is how one control becomes two. Defaults to the brand accent.
-                      "!border-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !bg-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !text-[var(--ag-composer-send-fg,#191a0d)] hover:!border-[var(--ag-composer-send-hover-bg,#b8cb3f)] hover:!bg-[var(--ag-composer-send-hover-bg,#b8cb3f)]",
+                surface === "canvas"
+                    ? "!border-[var(--ag-colorText)] !bg-[var(--ag-colorText)] !text-[var(--ag-colorBgContainer)] disabled:!opacity-100 hover:!opacity-90"
+                    : disabled && !sending
+                      ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
+                      : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
+                        // any host that might want a different fill, and threading a colour down
+                        // that chain is how one control becomes two. Defaults to the brand accent.
+                        "!border-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !bg-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !text-[var(--ag-composer-send-fg,#191a0d)] hover:!border-[var(--ag-composer-send-hover-bg,#b8cb3f)] hover:!bg-[var(--ag-composer-send-hover-bg,#b8cb3f)]",
             )}
         >
             {sending ? (

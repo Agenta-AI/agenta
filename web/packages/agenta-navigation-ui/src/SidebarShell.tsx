@@ -173,6 +173,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     className,
     onNavigate,
     onDismiss,
+    enterFrom,
 }) => {
     const t = useT(navigationCatalog)
     // Only a drawer can dismiss the rail, so this is also how the shell knows it is in a sheet.
@@ -183,6 +184,21 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const railRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const {width, handleProps} = useSidebarResize({railRef, contentRef, collapsed, setCollapsed})
+    // A scope change the person asked for (focus on one agent, or back) slides the new rail's
+    // content in from that side, 0.2 s. Only on mount: the host remounts the shell per scope.
+    useEffect(() => {
+        const content = contentRef.current
+        if (!enterFrom || !content?.animate) return
+        if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+        content.animate(
+            [
+                {transform: `translateX(${enterFrom === "end" ? 16 : -16}px)`, opacity: 0},
+                {transform: "none", opacity: 1},
+            ],
+            {duration: 200, easing: "cubic-bezier(.2,.8,.2,1)"},
+        )
+        // Mount only: the host remounts the shell per scope.
+    }, [])
     const openGroupsAtom = useMemo(
         () => openGroupsAtomFamily(scope.id),
         [openGroupsAtomFamily, scope.id],

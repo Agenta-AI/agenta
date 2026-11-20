@@ -75,6 +75,7 @@ export const Composer = ({
     inputRef,
     modelPickerRef,
     placeholder,
+    agentName,
     hasTurns,
     onNewSession,
     headerExtra,
@@ -117,6 +118,8 @@ export const Composer = ({
     modelPickerRef?: MutableRefObject<(() => void) | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
+    /** The agent this chat talks to: the placeholder reads "Message <agent>". */
+    agentName?: string | null
     /** The session already has turns: the key hints move from chips into the placeholder. */
     hasTurns?: boolean
     /** Starts a fresh session — the palette offers no /new row without it. */
@@ -428,6 +431,8 @@ export const Composer = ({
                         </AnimatePresence>
                         <ChatComposer
                             inputRef={richInputRef}
+                            // The session and builder composer as the canvas draws it (S03, M01).
+                            surface="canvas"
                             onSubmit={submit}
                             fileMentions
                             attachments={attachments}
@@ -456,6 +461,7 @@ export const Composer = ({
                             dictating={dictating}
                             dictationAnalyserRef={voice.dictationAnalyserRef}
                             placeholder={placeholder}
+                            agentName={agentName}
                             hasTurns={hasTurns}
                             waitingOnUser={waitingOnUser}
                             streaming={stoppable}

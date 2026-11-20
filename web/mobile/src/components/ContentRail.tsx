@@ -1,8 +1,10 @@
-import type {ComponentProps} from "react"
+import {useContext, type ComponentProps} from "react"
 
 import {CHAT_COLUMN} from "@agenta/chat/assets"
 
 import {cn} from "@/lib/utils"
+
+import {ContentRailCapContext} from "./contentRailCap"
 
 /**
  * The responsive content column — the breakpoint story for an app that now serves every
@@ -15,6 +17,7 @@ import {cn} from "@/lib/utils"
  * — a local literal drifted a step narrower. Screens with a wider composition (Home's two-column
  * grid) pass their own cap via className.
  */
-export const ContentRail = ({className, ...props}: ComponentProps<"div">) => (
-    <div className={cn(CHAT_COLUMN, className)} {...props} />
-)
+export const ContentRail = ({className, ...props}: ComponentProps<"div">) => {
+    const cap = useContext(ContentRailCapContext)
+    return <div className={cn(CHAT_COLUMN, cap, className)} {...props} />
+}

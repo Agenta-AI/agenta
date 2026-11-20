@@ -62,8 +62,12 @@ export interface ApprovalCardProps {
     onApproveAll: (approvalIds: string[]) => void
     /** Deny the whole batch. Omit (mobile has no batch deny) and Deny answers the current gate. */
     onDenyAll?: (approvalIds: string[]) => void
-    /** Card surface + density; hosts pass their own token surface. */
+    /** Card surface + density; hosts pass their own token surface. A change card draws its own
+     *  chrome (C01: parts from edge to edge, the footer band), so it does not use this. */
     className?: string
+    /** Offer "Always auto-approve". Off in a builder chat: the grant would go to the builder
+     *  itself, not to the agent it edits (OPEN-QUESTIONS 2.67). */
+    alwaysAllowOffered?: boolean
     /**
      * The viewer cannot answer (they can view the chat but not send to it): the card keeps the
      * eyebrow, the ask and the details, and drops every answer control and shortcut.
@@ -94,6 +98,7 @@ export const ApprovalCard = ({
     readOnly = false,
     readOnlyNote,
     ownsShortcut,
+    alwaysAllowOffered = true,
     className = "gap-2.5 border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5",
 }: ApprovalCardProps) => {
     const current = approvals[0]
@@ -222,18 +227,22 @@ export const ApprovalCard = ({
         const info = infoFor(toolName)
         return info.eligible && !info.alreadyAllowed
     })
-    const canAlwaysAllow = grantableTools.length > 0
+    const canAlwaysAllow = alwaysAllowOffered && grantableTools.length > 0
     // On a phone the actions are drawn 44 px high (M05). Touch elsewhere keeps the chrome and
     // extends the tap target invisibly.
     const phone = useIsPhone()
+    // A change card: the C01 chrome, with its parts from edge to edge and a footer band.
+    const changeCard = Boolean(changes || grouped)
     const actionCls = phone
-        ? "h-11 rounded-[10px] px-4 text-[15px]"
+        ? `h-11 rounded-[10px] px-4 text-[15px] ${changeCard ? "min-w-[92px]" : ""}`
         : touch
           ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
           : ""
     // The keycaps ride on the actions themselves, so the gesture reads without a hover. Gated on
     // the keyboard, not on `touch`: that prop sizes the buttons, and /m serves desktop browsers too.
     const showKeys = hasKeyboard
+    // A change card's buttons are the canvas's 28 px ones (C01); a phone sets 44 px above.
+    const buttonSize = changeCard ? "compact" : undefined
 
     const approve = () => {
         if (!current || responding || readOnly || answered) return
@@ -304,7 +313,7 @@ export const ApprovalCard = ({
         return (
             <div
                 ref={rootRef}
-                className="flex flex-col gap-1 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer py-1"
+                className="flex flex-col gap-1 rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer py-1 shadow-[var(--ag-surface-card-shadow)]"
             >
                 <ChangeResultRow state={cardState} />
                 {errorText ? (
@@ -323,9 +332,11 @@ export const ApprovalCard = ({
     return (
         <div
             ref={rootRef}
-            className={`flex flex-col rounded-lg ${className} ${
-                risky ? "!border-colorWarningBorder" : ""
-            }`}
+            className={`flex flex-col ${
+                changeCard
+                    ? "overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-[var(--ag-surface-card-shadow)]"
+                    : `rounded-lg ${className}`
+            } ${risky ? "!border-colorWarningBorder" : ""}`}
         >
             {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. A change card's
                 header is the change itself, so it shows the eyebrow only once answered. */}
@@ -342,7 +353,9 @@ export const ApprovalCard = ({
 
             {/* The whole ask, in one sentence — what happens, and what it costs. */}
             {grouped ? (
-                <ChangeCallGroups previews={grouped} />
+                <div className="px-3 pb-3 pt-2.5">
+                    <ChangeCallGroups previews={grouped} />
+                </div>
             ) : changes ? (
                 <ChangeSections
                     changes={changes}
@@ -362,7 +375,7 @@ export const ApprovalCard = ({
             )}
 
             {changes && conflict ? (
-                <div data-testid="change-conflict">
+                <div data-testid="change-conflict" className="mx-3 mb-2.5 mt-1.5">
                     <RiskLine>
                         {tChange("chat.changeCard.conflict", {
                             latest: latestVersion,
@@ -447,21 +460,37 @@ export const ApprovalCard = ({
                 <ChangeResultRow
                     state={cardState}
                     readOnlyNote={readOnlyNote}
-                    className="-mx-1 rounded-md bg-colorFillQuaternary px-2.5 py-2"
+                    className={`rounded-md bg-colorFillQuaternary px-2.5 py-2 ${
+                        changeCard ? "mx-2 mb-2" : "-mx-1"
+                    }`}
                 />
             ) : null}
             {readOnly ? null : (
-                <HeightCollapse className="-mt-1" open={!steerOpen && !answered} fade inert>
+                <HeightCollapse
+                    className={changeCard ? "" : "-mt-1"}
+                    open={!steerOpen && !answered}
+                    fade
+                    inert
+                >
                     {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
-                    instead of shoving Approve off a narrow screen. */}
-                    <div className="flex flex-wrap items-center gap-2">
+                    instead of shoving Approve off a narrow screen. A change card puts the row in
+                    its footer band (C01): the version note left, the buttons right. */}
+                    <div
+                        className={`flex flex-wrap items-center gap-2 ${
+                            changeCard
+                                ? `border-0 border-t border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] ${
+                                      phone ? "px-3 py-2" : "py-2 pl-3 pr-2.5"
+                                  }`
+                                : ""
+                        }`}
+                    >
                         {grouped ? (
-                            <span className="text-xs text-colorTextSecondary">
+                            <span className="text-[12px] leading-4 text-colorTextSecondary">
                                 {tStates("chat.changeCardStates.openRow")}
                             </span>
                         ) : changes && baseVersion !== undefined ? (
                             <span
-                                className="text-xs text-colorTextSecondary"
+                                className="text-[12px] leading-4 text-colorTextSecondary"
                                 data-testid="change-saves-as"
                             >
                                 {tChange("chat.changeCard.savesAs", {version: baseVersion + 1})}
@@ -496,6 +525,7 @@ export const ApprovalCard = ({
                             {steerEnabled ? (
                                 <Button
                                     variant="ghost"
+                                    size={buttonSize}
                                     disabled={responding}
                                     className={`text-colorTextSecondary ${actionCls}`}
                                     onClick={() => setSteerOpen(true)}
@@ -505,9 +535,10 @@ export const ApprovalCard = ({
                             ) : null}
                             <LoadingButton
                                 variant="ghost"
+                                size={buttonSize}
                                 disabled={responding}
                                 loading={responding && firedAction === "deny"}
-                                className={actionCls}
+                                className={`${changeCard ? "text-colorTextSecondary" : ""} ${actionCls}`}
                                 onClick={deny}
                                 aria-keyshortcuts={shortcutAria("approval.deny")}
                             >
@@ -525,6 +556,7 @@ export const ApprovalCard = ({
                             </LoadingButton>
                             <LoadingButton
                                 variant={removes ? "destructive" : undefined}
+                                size={buttonSize}
                                 disabled={responding}
                                 loading={responding && firedAction === "approve"}
                                 className={actionCls}
@@ -554,7 +586,11 @@ export const ApprovalCard = ({
                 off — a collapsed HeightCollapse still leaves its controls in the tab order. */}
             {steerEnabled && !answered && !readOnly ? (
                 <HeightCollapse open={steerOpen} fade inert>
-                    <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
+                    <div
+                        className={`flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5 ${
+                            changeCard ? "px-3 pb-3" : ""
+                        }`}
+                    >
                         <span className="text-xs text-colorTextSecondary">
                             {t("chat.approvalCard.steerHint")}
                         </span>
@@ -599,12 +635,20 @@ export const ApprovalCard = ({
             ) : null}
 
             {answered ? (
-                <p role="status" aria-live="polite" className="m-0 text-xs text-colorTextSecondary">
+                <p
+                    role="status"
+                    aria-live="polite"
+                    className={`m-0 text-xs text-colorTextSecondary ${changeCard ? "px-3 pb-3" : ""}`}
+                >
                     {t("chat.approvalCard.answerSavedRetryHint")}
                 </p>
             ) : null}
             {errorText ? (
-                <p role="alert" aria-live="assertive" className="m-0 text-xs text-colorError">
+                <p
+                    role="alert"
+                    aria-live="assertive"
+                    className={`m-0 text-xs text-colorError ${changeCard ? "px-3 py-2" : ""}`}
+                >
                     {errorText}
                 </p>
             ) : null}

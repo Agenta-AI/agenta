@@ -3,6 +3,7 @@
     "attachFiles": "ファイルを添付",
     "attachUpTo": "最大 {{count}} 個のファイル",
     "listening": "聞き取り中…",
+    "placeholderAgent": "{{agent}} にメッセージ",
     "placeholderFirst": "何に取り組みますか？",
     "placeholderKeyboard": "エージェントに聞く…（Enterで送信、⌘/Ctrl+Enterで改行）",
     "placeholderQuoted": "引用した部分をどう変えますか？",

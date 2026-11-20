@@ -1,4 +1,5 @@
 {
     "agent": "Agent",
-    "onlyThisAgent": "This page shows only this agent"
+    "onlyThisAgent": "This page shows only this agent",
+    "agentNamed": "Agent: {{name}}"
 }

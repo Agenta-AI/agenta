@@ -17,6 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
+import {CaretUpDown} from "@phosphor-icons/react"
 
 export interface PermissionPolicyOption {
     value: string
@@ -57,7 +58,16 @@ export interface PermissionPolicySelectProps {
     size?: "sm" | "default"
     /** Which trigger edge the menu lines up with. A row's trailing chip opens leftward ("end"). */
     align?: "start" | "end"
+    /**
+     * The canvas trigger (F02 f6, F03 f7): no leading glyph and an up-down icon. "field" also
+     * shows the selected option's help line under its title (a 44 px field); "chip" is the 28 px
+     * per-tool control. Absent, the trigger is unchanged.
+     */
+    canvas?: "field" | "chip"
 }
+
+/** The shared trigger's own chevron, hidden where the canvas draws an up-down icon instead. */
+const HIDE_TRIGGER_CHEVRON = "[&>svg:last-child]:hidden"
 
 export function PermissionPolicySelect({
     value,
@@ -73,6 +83,7 @@ export function PermissionPolicySelect({
     triggerTitle,
     size,
     align,
+    canvas,
 }: PermissionPolicySelectProps) {
     const t = useT(permissionDrawerCatalog)
     const selected = options.find((option) => option.value === value)
@@ -85,16 +96,38 @@ export function PermissionPolicySelect({
             onOpenChange={onOpenChange}
         >
             <SelectTrigger
-                className={triggerClassName}
+                className={
+                    canvas ? `${HIDE_TRIGGER_CHEVRON} ${triggerClassName}` : triggerClassName
+                }
                 size={size}
                 aria-label={ariaLabel ?? t("entityUi.permissionDrawer.permissionPolicy")}
             >
                 <SelectValue>
-                    <span className="flex min-w-0 items-center gap-2">
-                        {selected?.icon}
-                        <span className="truncate">{triggerTitle ?? selected?.title}</span>
-                    </span>
+                    {canvas === "field" ? (
+                        <span className="flex min-w-0 flex-col items-start text-left">
+                            <span className="max-w-full truncate leading-5">
+                                {triggerTitle ?? selected?.title}
+                            </span>
+                            {selected?.help ? (
+                                <span className="max-w-full truncate text-[12px] leading-4 text-colorTextTertiary">
+                                    {selected.help}
+                                </span>
+                            ) : null}
+                        </span>
+                    ) : (
+                        <span className="flex min-w-0 items-center gap-2">
+                            {canvas ? null : selected?.icon}
+                            <span className="truncate">{triggerTitle ?? selected?.title}</span>
+                        </span>
+                    )}
                 </SelectValue>
+                {canvas ? (
+                    <CaretUpDown
+                        aria-hidden
+                        size={canvas === "field" ? 14 : 12}
+                        className="ml-auto shrink-0 text-colorTextTertiary"
+                    />
+                ) : null}
             </SelectTrigger>
             <SelectContent container={container} className={contentClassName} align={align}>
                 {options.map((option) => (

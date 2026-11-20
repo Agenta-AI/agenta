@@ -15,7 +15,8 @@ export const formatElapsed = (ms: number, {live}: {live: boolean}): string => {
     const minutes = Math.floor(total / 60)
     const seconds = total % 60
     if (live) return `${minutes}:${String(seconds).padStart(2, "0")}`
-    return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`
+    // A space before the unit, as the canvas writes it ("Worked for 5 s").
+    return minutes ? `${minutes} m ${seconds} s` : `${seconds} s`
 }
 
 /**

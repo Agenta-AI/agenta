@@ -63,7 +63,8 @@ export const FilterMenuToggleRow = ({
                 disabled={item.disabled}
                 tabIndex={-1}
                 aria-hidden
-                className="pointer-events-none shrink-0"
+                // Off reads as a light track in a menu row (A10), not the form switch's gray.
+                className="pointer-events-none shrink-0 data-[state=unchecked]:bg-colorBorder"
             />
         </div>
     )

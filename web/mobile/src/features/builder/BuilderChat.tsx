@@ -11,6 +11,7 @@ import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {useAgentPanel} from "../agent-layout/agentPanelContext"
 import {useAgentRow} from "../agent-layout/useAgentRow"
+import {BuilderChatContext} from "../chat/builderChat"
 import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
 import {pageSessionIdAtom} from "../chat/pageSessionId"
@@ -196,15 +197,23 @@ export const BuilderChat = ({
                 composerHeaderExtra={
                     <ContextChip projectId={projectId} agentName={agentName} phone={phone} />
                 }
-                emptyState={<NewChatIntro agentName={agentName} />}
+                emptyState={<NewChatIntro agentName={agentName} phone={phone} />}
+                // New chat group in the middle (S07), at the top on a phone (M04).
+                newChatLayout={phone ? "top" : "middle"}
                 belowComposer={
                     isUnlinked ? (
-                        <div className="flex flex-col gap-4 px-3 pb-3">
+                        <div className="px-3 pt-3">
                             <QuickActions
                                 sessionId={builderSessionId}
                                 onPick={fillComposer}
                                 phone={phone}
                             />
+                        </div>
+                    ) : null
+                }
+                newChatFooter={
+                    isUnlinked ? (
+                        <div className={phone ? "px-2 pt-2 pb-5" : "px-2 pt-3 pb-3.5"}>
                             <RecentChats
                                 rows={recent.rows}
                                 failed={recent.failed}
@@ -257,7 +266,9 @@ export const BuilderChat = ({
                 focus is in it, never the session's own approval card. It stays mounted under the
                 history, so its composer text and scroll position are there on the way back. */}
             <ConversationRoleContext.Provider value="embedded">
-                <div className={view === "history" ? "hidden" : "min-h-0 flex-1"}>{body}</div>
+                <BuilderChatContext.Provider value>
+                    <div className={view === "history" ? "hidden" : "min-h-0 flex-1"}>{body}</div>
+                </BuilderChatContext.Provider>
             </ConversationRoleContext.Provider>
         </div>
     )

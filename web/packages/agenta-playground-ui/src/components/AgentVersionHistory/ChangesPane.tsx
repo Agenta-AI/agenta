@@ -1,17 +1,15 @@
 /**
  * What the selected version would change, against the configuration currently on screen.
  *
- * Renders `ChangeSections` (`@agenta/entity-ui/changes`) — the same section list the commit modal
- * shows — rather than `AgentChangesSummary`, which statically imports `DiffView` and the Lexical
- * editor behind it. This drawer runs on mobile too, and the design has no JSON view here.
+ * Renders `ChangeSummary` (`@agenta/entity-ui/changes`): each section with a plain status and
+ * its changed lines in one box (S06), rather than `AgentChangesSummary`, which statically imports
+ * `DiffView` and the Lexical editor behind it. This drawer runs on mobile too.
  *
  * The sections are computed by the drawer, not here: the footer has to know whether there is
  * anything to restore before it can enable Revert, and one diff should be computed once.
  */
-import {useMemo, useState} from "react"
-
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
-import {ChangeSections} from "@agenta/entity-ui/changes"
+import {ChangeSummary} from "@agenta/entity-ui/changes"
 import {useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {cn, textColors} from "@agenta/ui/styles"
@@ -87,13 +85,6 @@ export const ChangesPane = ({
     emptyText,
 }: ChangesPaneProps) => {
     const t = useT(versionCatalog)
-    const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({})
-    // Sections can arrive after the first render, so resolve open state per section rather than
-    // seeding a set once — a late section would otherwise land shut.
-    const openState = useMemo(
-        () => Object.fromEntries(sections.map((s) => [s.id, openOverrides[s.id] ?? true])),
-        [sections, openOverrides],
-    )
 
     if (isLoading) return <Skeleton />
     if (placeholder) return <Centered>{placeholder}</Centered>
@@ -121,15 +112,7 @@ export const ChangesPane = ({
                     {emptyText ?? t("playground.versionHistory.currentNothingToCompare")}
                 </div>
             ) : (
-                <ChangeSections
-                    sections={sections}
-                    size="small"
-                    ghost
-                    openState={openState}
-                    onToggleSection={(id) =>
-                        setOpenOverrides((prev) => ({...prev, [id]: !(prev[id] ?? true)}))
-                    }
-                />
+                <ChangeSummary sections={sections} />
             )}
         </div>
     )

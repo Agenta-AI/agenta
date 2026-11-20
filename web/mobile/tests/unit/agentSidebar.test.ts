@@ -1,17 +1,23 @@
 // @vitest-environment jsdom
+import type {SidebarSessionFilters} from "@agenta/navigation"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
+import {orderAgentsLikeMainSidebar} from "../../src/features/agent-sidebar/agentOrder"
+import {agentSessionsNarrowing} from "../../src/features/agent-sidebar/agentSessionsQuery"
 import {agentSidebarItems} from "../../src/features/agent-sidebar/agentSidebarItems"
 import {sidebarAfterRoute} from "../../src/features/agent-sidebar/agentSidebarRoute"
 import {groupByDay} from "../../src/features/agent-sidebar/dayGroups"
 import {
+    clearSidebarChange,
     MAIN_SIDEBAR,
     SELECTED_SIDEBAR_KEY,
+    sidebarChangePending,
     openAgentSidebar,
     parseSelectedSidebar,
     openMainSidebar,
 } from "../../src/features/agent-sidebar/selectedSidebar"
 import {switchTarget} from "../../src/features/agent-sidebar/switchAgent"
+import {sidebarEnterFrom} from "../../src/features/nav/railScope"
 
 const SESSION = "/w/[workspace_id]/p/[project_id]/sessions/[session_id]"
 const AGENT = "/w/[workspace_id]/p/[project_id]/agents/[agent_id]"
@@ -160,11 +166,36 @@ describe("the agent sidebar's session rows", () => {
             "agent-sidebar-analytics",
             "agent-sidebar-sessions",
         ])
-        // No icon and always open: the rail draws it as a heading link with a Filter button.
+        // No icon and always open: the rail draws it as a heading link.
         const group = sessionsGroup(items)
         expect(group.icon).toBeUndefined()
         expect(group.alwaysOpen).toBe(true)
-        expect(group.groupAction).toBeDefined()
+    })
+
+    it("links Sessions to the Sessions page and puts the host's search control on the heading", () => {
+        const sessionsActions = "search control"
+        const group = sessionsGroup(agentSidebarItems({...base, sessionsActions}))
+        expect(group.link).toBe("/w/w1/p/p1/agents/a1?view=sessions")
+        expect(group.groupAction).toBe(sessionsActions)
+    })
+
+    it("says when the filters hide every session, and leaves out the older row while filtered", () => {
+        const empty = sessionsGroup(agentSidebarItems({...base, total: 0, filtered: true}))
+        expect(empty.submenu!.map((row) => row.title)).toEqual(["agentSidebar.noSessionsMatch"])
+        const session = {
+            sessionId: "s1",
+            appId: "a1",
+            name: "One",
+            archived: false,
+            title: "One",
+            activityAt: new Date().toISOString(),
+            status: "idle" as const,
+            isAutomation: false,
+        }
+        const narrowed = sessionsGroup(
+            agentSidebarItems({...base, sessions: [session], total: 30, filtered: true}),
+        )
+        expect(narrowed.submenu!.some((row) => row.key === "agent-sidebar-older")).toBe(false)
     })
 
     it("shows Sessions without a number until the count loads, then the older sessions row", () => {
@@ -187,5 +218,135 @@ describe("the agent sidebar's session rows", () => {
             agentSidebarItems({...base, sessions: [session], total: 42, phone: true}),
         )
         expect(phone.submenu!.at(-1)!.title).toBe("agentSidebar.showOlderSessionsShort")
+    })
+})
+
+describe("the switcher's agent order", () => {
+    const agents = [
+        {id: "a", name: "Alpha"},
+        {id: "b", name: "Beta"},
+        {id: "c", name: "Gamma"},
+        {id: "d", name: "Delta"},
+    ]
+
+    it("puts agents with chats first, most chats first and by name on a tie, then the rest in catalog order", () => {
+        const counts = new Map([
+            ["c", 5],
+            ["d", 2],
+            ["b", 2],
+        ])
+        expect(orderAgentsLikeMainSidebar(agents, counts).map((agent) => agent.id)).toEqual([
+            "c",
+            "b",
+            "d",
+            "a",
+        ])
+    })
+
+    it("puts the person's hand arrangement of the main sidebar's agent headings first", () => {
+        const counts = new Map([
+            ["c", 5],
+            ["b", 2],
+        ])
+        expect(
+            orderAgentsLikeMainSidebar(agents, counts, ["agent:d", "agent:b"]).map(
+                (agent) => agent.id,
+            ),
+        ).toEqual(["d", "b", "c", "a"])
+    })
+
+    it("keeps catalog order until the main sidebar loads the counts", () => {
+        expect(orderAgentsLikeMainSidebar(agents, new Map()).map((agent) => agent.id)).toEqual([
+            "a",
+            "b",
+            "c",
+            "d",
+        ])
+    })
+})
+
+describe("the slide between the main sidebar and an agent sidebar", () => {
+    it("slides the agent sidebar in from the end, and the main sidebar back from the start", () => {
+        expect(sidebarEnterFrom("mobile-main", "agent-sidebar:a1")).toBe("end")
+        expect(sidebarEnterFrom("agent-sidebar:a1", "mobile-main")).toBe("start")
+        expect(sidebarEnterFrom("builder-sidebar", "agent-sidebar:a1")).toBe("end")
+    })
+
+    it("marks a sidebar change made in the tab, so the rail slides only for those", () => {
+        clearSidebarChange()
+        expect(sidebarChangePending()).toBe(false)
+        openAgentSidebar("a1")
+        expect(sidebarChangePending()).toBe(true)
+        clearSidebarChange()
+        openMainSidebar()
+        expect(sidebarChangePending()).toBe(true)
+        clearSidebarChange()
+    })
+
+    it("does not slide on the first mount, on the same sidebar, or from one agent to another", () => {
+        expect(sidebarEnterFrom(null, "agent-sidebar:a1")).toBeUndefined()
+        expect(sidebarEnterFrom("mobile-main", "mobile-main")).toBeUndefined()
+        expect(sidebarEnterFrom("agent-sidebar:a1", "agent-sidebar:a2")).toBeUndefined()
+    })
+})
+
+describe("the agent sidebar's filters as server predicates", () => {
+    const all: SidebarSessionFilters = {
+        groupBy: "none",
+        agentIds: [],
+        status: "all",
+        type: "all",
+        activity: "all",
+    }
+    afterEach(() => vi.useRealTimers())
+
+    it("narrows nothing by default", () => {
+        expect(agentSessionsNarrowing(all, null)).toEqual({
+            flags: undefined,
+            sessionIds: undefined,
+            origins: undefined,
+            excludeOrigins: undefined,
+            activityFloor: undefined,
+            excludeSessionIds: undefined,
+        })
+    })
+
+    it("sends status, type and last activity through the main sidebar's mapping", () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(Date.parse("2026-11-20T12:00:00Z"))
+        expect(agentSessionsNarrowing({...all, status: "running"}, null)?.flags).toEqual({
+            is_running: true,
+        })
+        expect(agentSessionsNarrowing({...all, status: "idle"}, [])?.flags).toEqual({
+            is_alive: false,
+        })
+        expect(agentSessionsNarrowing({...all, type: "chat"}, null)?.excludeOrigins).toEqual([
+            "trigger",
+        ])
+        expect(agentSessionsNarrowing({...all, type: "automation"}, null)?.origins).toEqual([
+            "trigger",
+        ])
+        expect(agentSessionsNarrowing({...all, activity: "24h"}, null)?.activityFloor).toBe(
+            "2026-11-19T12:00:00.000Z",
+        )
+    })
+
+    it("leaves the waiting sessions out of Idle on the server, before the page limit", () => {
+        expect(agentSessionsNarrowing({...all, status: "idle"}, null)).toBeNull()
+        expect(
+            agentSessionsNarrowing({...all, status: "idle"}, ["s2", "s1"])?.excludeSessionIds,
+        ).toEqual(["s1", "s2"])
+    })
+
+    it("narrows Waiting to the sessions with a pending interaction, and waits for that list", () => {
+        expect(agentSessionsNarrowing({...all, status: "waiting"}, null)).toBeNull()
+        // The server takes at most 500 ids; a longer list would fail the request.
+        const many = Array.from({length: 600}, (_, index) => `s${String(index).padStart(3, "0")}`)
+        expect(agentSessionsNarrowing({...all, status: "waiting"}, many)?.sessionIds).toHaveLength(
+            500,
+        )
+        expect(
+            agentSessionsNarrowing({...all, status: "waiting"}, ["s1", "s2"])?.sessionIds,
+        ).toEqual(["s1", "s2"])
     })
 })

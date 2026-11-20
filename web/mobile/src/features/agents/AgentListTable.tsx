@@ -40,7 +40,7 @@ const columnsFor = (narrow: boolean, t: Translate): ListTableColumn[] => {
     const lastActive: ListTableColumn = {
         key: "lastActive",
         label: t("agents.list.columnLastActive"),
-        width: narrow ? "76px" : "96px",
+        width: narrow ? "76px" : "minmax(96px,1fr)",
     }
     const actions: ListTableColumn = {
         key: "actions",
@@ -109,6 +109,10 @@ export const AgentListTable = ({
             // Affordable for the same reason: the minima fit every width this page is read at,
             // so the frame's own horizontal scroller was never doing anything.
             stickyHeader
+            // As drawn (A03): quiet 12 px column names between two lines, 56 px rows with a light
+            // line under each that stays inside the table, and the cells 8 px in from its edge.
+            headerClassName="border-t border-colorBorderSecondary px-2 text-[12px] font-normal text-colorTextTertiary"
+            rowClassName="mx-0 min-h-14 w-full border-b border-solid border-colorSplit px-2 py-0"
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.id}

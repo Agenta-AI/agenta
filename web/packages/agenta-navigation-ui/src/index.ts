@@ -34,5 +34,5 @@ export {
     type WorkflowPickerViewProps,
 } from "./WorkflowPickerView"
 export {SidebarToggleButton, type SidebarToggleButtonProps} from "./SidebarToggleButton"
-export {SessionFilterMenu} from "./SessionFilterMenu"
+export {SessionFilterMenu, type SessionFilterFacet} from "./SessionFilterMenu"
 export {SidebarReorderLayer} from "./reorder"

@@ -2,6 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {
     Button,
@@ -11,7 +12,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {ArrowLeft, ArrowsOut, CaretDown, Hammer, Plus, X} from "@phosphor-icons/react"
+import {ArrowsOutSimple, CaretDown, CaretLeft, Plus, X} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {cn} from "@/lib/utils"
@@ -23,7 +24,7 @@ import {useChatAgeLabel} from "./useChatAgeLabel"
 export const TITLE_MENU_CHATS = 5
 
 const headerClass =
-    "flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2"
+    "flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pr-2"
 
 /**
  * The builder panel header: the chat title as a menu of the latest chats about this agent and
@@ -67,7 +68,7 @@ export const BuilderHeader = ({
     const iconButton = (label: string, icon: ReactNode, onClick: () => void) => (
         <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-compact"
             aria-label={label}
             title={label}
             onClick={onClick}
@@ -83,11 +84,13 @@ export const BuilderHeader = ({
                     type="button"
                     data-testid="builder-chat-title"
                     className={cn(
-                        "flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent font-semibold text-colorText hover:bg-colorFillTertiary",
-                        phone ? "h-11 rounded-lg px-2 text-base" : "h-8 rounded-md px-2 text-sm",
+                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-semibold text-colorText hover:bg-accent",
+                        phone
+                            ? "h-11 rounded-lg px-2 text-base leading-5"
+                            : "h-[30px] rounded-[6px] px-2 text-sm",
                     )}
                 >
-                    <Hammer aria-hidden size={14} className="shrink-0" />
+                    <BuilderIcon size={14} className="shrink-0" />
                     <span className="min-w-0 truncate" title={title}>
                         {title}
                     </span>
@@ -118,15 +121,16 @@ export const BuilderHeader = ({
     )
     if (phone) {
         const newChat = (
-            <button
-                type="button"
+            <Button
+                variant="ghost"
+                size="icon-compact"
                 aria-label={t("builder.panel.newChat")}
                 title={t("builder.panel.newChat")}
                 onClick={onNewChat}
-                className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-colorText active:bg-colorFillTertiary"
+                className="shrink-0"
             >
-                <Plus aria-hidden size={20} />
-            </button>
+                <Plus aria-hidden />
+            </Button>
         )
         return (
             <PhoneScreenHeader
@@ -138,10 +142,13 @@ export const BuilderHeader = ({
         )
     }
     return (
-        <div className={headerClass} data-testid="builder-panel-header">
+        <div
+            className={cn(headerClass, isHistory ? "pl-1.5" : "pl-2.5")}
+            data-testid="builder-panel-header"
+        >
             {isHistory ? (
                 <>
-                    {iconButton(t("builder.panel.back"), <ArrowLeft aria-hidden />, onBack)}
+                    {iconButton(t("builder.panel.back"), <CaretLeft aria-hidden />, onBack)}
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">
                         {t("builder.panel.chatHistory")}
                     </span>
@@ -154,13 +161,13 @@ export const BuilderHeader = ({
                 <Button
                     asChild
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon-compact"
                     className="shrink-0"
                     aria-label={t("builder.panel.openInBuilder")}
                     title={t("builder.panel.openInBuilder")}
                 >
                     <Link href={openInBuilderHref} data-testid="builder-open-in-builder">
-                        <ArrowsOut aria-hidden />
+                        <ArrowsOutSimple aria-hidden />
                     </Link>
                 </Button>
             ) : null}

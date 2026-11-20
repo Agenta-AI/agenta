@@ -66,7 +66,7 @@ afterEach(() => {
     host.remove()
 })
 
-const renderExplorer = async (readOnly: boolean, initialPath = "") => {
+const renderExplorer = async (readOnly: boolean, initialPath = "", shown: object = drive) => {
     // One client for the provider and the Jotai queries, as an app host wires them.
     const client = new QueryClient()
     const store = createStore()
@@ -76,9 +76,11 @@ const renderExplorer = async (readOnly: boolean, initialPath = "") => {
             <QueryClientProvider client={client}>
                 <Provider store={store}>
                     <DriveExplorer
-                        drive={drive as never}
+                        drive={shown as never}
                         initialPath={initialPath}
-                        onClose={() => undefined}
+                        // The phone Files pane has no close in its rows (the phone header closes it).
+                        onClose={readOnly ? undefined : () => undefined}
+                        chrome
                         readOnly={readOnly}
                         touch={readOnly}
                     />
@@ -134,5 +136,70 @@ describe("DriveExplorer read only", () => {
         const menu = await folderMenu()
         expect(menu.Rename).toBe(true)
         expect(menu.Delete).toBe(true)
+    })
+})
+
+describe("DriveExplorer on a phone (M03)", () => {
+    it("draws one row: the crumb, Grid and List, the sort, and More actions", async () => {
+        await renderExplorer(true)
+        // No row 1: its Back, Forward, View options and file tree buttons are not in the row.
+        const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))
+        expect(labels).not.toContain("Back")
+        expect(labels).not.toContain("View options")
+        expect(labels).toContain("Sort")
+        expect(host.textContent).toContain("All files")
+    })
+
+    it("keeps Back, Forward and the file tree in More actions", async () => {
+        await renderExplorer(true)
+        const menu = await folderMenu()
+        expect(menu).toHaveProperty("Back")
+        expect(menu).toHaveProperty("Forward")
+        expect(menu["Download all.zip"]).toBe(true)
+        const tree = document.querySelector('[role="menuitemcheckbox"]')
+        expect(tree?.textContent).toContain("file tree")
+    })
+
+    it("keeps the warning and Retry of a failed mount on a phone", async () => {
+        const retry = vi.fn()
+        await renderExplorer(true, "", {...drive, partialErrored: true, retry})
+        const button = [...host.querySelectorAll("button")].find(
+            (b) => b.getAttribute("aria-label") === "Try loading files again",
+        )
+        expect(button).toBeTruthy()
+        await act(async () => button?.click())
+        expect(retry).toHaveBeenCalled()
+    })
+
+    it("keeps row 1 on a phone host whose close lives in that row", async () => {
+        const client = new QueryClient()
+        const store = createStore()
+        store.set(queryClientAtom, client)
+        await act(async () =>
+            root.render(
+                <QueryClientProvider client={client}>
+                    <Provider store={store}>
+                        <DriveExplorer
+                            drive={drive as never}
+                            initialPath=""
+                            onClose={() => undefined}
+                            readOnly
+                            touch
+                        />
+                    </Provider>
+                </QueryClientProvider>,
+            ),
+        )
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+        const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))
+        expect(labels).toContain("Close")
+        expect(labels).toContain("Back")
+    })
+
+    it("keeps row 1 on the desktop", async () => {
+        await renderExplorer(false)
+        const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))
+        expect(labels).toContain("Back")
+        expect(labels).toContain("View options")
     })
 })

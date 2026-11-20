@@ -14,6 +14,7 @@ import {
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar} from "@agenta/ui/list-table"
+import {useIsPhone} from "@agenta/ui/phone"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -24,6 +25,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
+import {AGENT_SESSIONS_PAGE_COLUMN, AgentListPageHeader} from "../agent-pages/AgentListPageHeader"
 import {LockedAgentChip} from "../agent-pages/LockedAgentChip"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
@@ -93,6 +95,7 @@ const SessionListBody = ({
     lockedAgentId?: string
 }) => {
     const t = useT(sessionsMobileListCatalog)
+    const phone = useIsPhone()
     const filterAtoms = useSessionFilterAtoms()
     const defaultView = lockedAgentId ? LOCKED_AGENT_SESSION_LIST_VIEW : DEFAULT_SESSION_LIST_VIEW
     useBindProjectContext(projectId)
@@ -224,37 +227,51 @@ const SessionListBody = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        // The same frame the automations header uses, so the two pages line up at
-                        // every width: page column, 16px gutters on a phone, 64px and a deeper
-                        // top from `lg`.
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    {t("sessions.mobileList.sessions")}
-                                </h1>
-                                {projectEmpty || lockedAgentId ? null : (
-                                    <HowThisWorksButton
-                                        guide="sessions"
-                                        className="max-sm:hidden"
-                                    />
-                                )}
-                                {/* Sessions start from Home's composer. */}
-                                {projectEmpty ? (
-                                    <Button asChild>
-                                        <Link href={`${base}/apps`}>
-                                            <Plus />
-                                            {t("sessions.mobileList.newSession")}
-                                        </Link>
-                                    </Button>
-                                ) : null}
+                        lockedAgentId ? (
+                            <AgentListPageHeader
+                                title={t("sessions.mobileList.sessions")}
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        ) : (
+                            // The same frame the automations header uses, so the two pages line up at
+                            // every width: page column, 16px gutters on a phone, 64px and a deeper
+                            // top from `lg`.
+                            <div
+                                className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
+                            >
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                        {t("sessions.mobileList.sessions")}
+                                    </h1>
+                                    {projectEmpty ? null : (
+                                        <HowThisWorksButton
+                                            guide="sessions"
+                                            className="max-sm:hidden"
+                                        />
+                                    )}
+                                    {/* Sessions start from Home's composer. */}
+                                    {projectEmpty ? (
+                                        <Button asChild>
+                                            <Link href={`${base}/apps`}>
+                                                <Plus />
+                                                {t("sessions.mobileList.newSession")}
+                                            </Link>
+                                        </Button>
+                                    ) : null}
+                                </div>
                             </div>
-                        </div>
+                        )
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}>
+                    <div
+                        className={
+                            lockedAgentId && !phone
+                                ? AGENT_SESSIONS_PAGE_COLUMN
+                                : `min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`
+                        }
+                    >
                         {projectEmpty ? (
                             <FeatureOnboarding guideKey="sessions" base={base} />
                         ) : (
@@ -285,7 +302,10 @@ const SessionListBody = ({
                                                 defaultView={defaultView}
                                             />
                                             {lockedAgent ? (
-                                                <LockedAgentChip agentId={lockedAgent.id} />
+                                                <LockedAgentChip
+                                                    agentId={lockedAgent.id}
+                                                    variant="inline"
+                                                />
                                             ) : null}
                                         </>
                                     }

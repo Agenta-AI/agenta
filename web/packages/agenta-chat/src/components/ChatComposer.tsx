@@ -19,7 +19,11 @@ import {
     revealQuote,
     useStagedQuotes,
 } from "@agenta/ui/quote-selection"
-import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
+import type {
+    ComposerSurface,
+    RichChatInputHandle,
+    SlashCommandSection,
+} from "@agenta/ui/rich-chat-input"
 import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
@@ -65,6 +69,10 @@ export interface ChatComposerProps {
      * there is a keyboard to press them with, hidden on a touch-only screen.
      */
     hideShortcutHints?: boolean
+    /** The box's look: `canvas` is the builder layout design (see RichChatInput). */
+    surface?: ComposerSurface
+    /** The agent this composer talks to: the resting placeholder reads "Message <agent>". */
+    agentName?: string | null
     /** Full placeholder override; when absent, `waitingOnUser` picks the queue message. */
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
@@ -126,6 +134,8 @@ export const ChatComposer = ({
     hideSendButton,
     hideShortcutHints,
     placeholder,
+    agentName,
+    surface,
     waitingOnUser,
     hasTurns = false,
     initialMarkdown,
@@ -249,10 +259,12 @@ export const ChatComposer = ({
                 }
                 className={className}
                 maxHeightClassName={maxHeightClassName}
+                surface={surface}
                 onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
-                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || hasTurns)}
+                // With "Message <agent>" in the field, the key hints stay on as chips (shown on focus).
+                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || (hasTurns && !agentName))}
                 // A touch keyboard has no modifier to make a newline with, so its Enter IS the
                 // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
                 submitOnEnter={hasKeyboard}
@@ -264,12 +276,15 @@ export const ChatComposer = ({
                           ? // The parked interaction is docked directly above, so point at it rather
                             // than describing the wait in the abstract.
                             t("chat.chatComposer.placeholderWaiting")
-                          : !hasTurns
-                            ? t("chat.chatComposer.placeholderFirst")
-                            : // An ongoing session carries the key hints here instead of as chips.
-                              hasKeyboard
-                              ? t("chat.chatComposer.placeholderKeyboard")
-                              : t("chat.chatComposer.placeholderTouch"))
+                          : agentName
+                            ? // The canvas names the agent (M01, S03); the key hints stay as chips.
+                              t("chat.chatComposer.placeholderAgent", {agent: agentName})
+                            : !hasTurns
+                              ? t("chat.chatComposer.placeholderFirst")
+                              : // An ongoing session carries the key hints here instead of as chips.
+                                hasKeyboard
+                                ? t("chat.chatComposer.placeholderKeyboard")
+                                : t("chat.chatComposer.placeholderTouch"))
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -314,7 +329,12 @@ export const ChatComposer = ({
                                     size="icon"
                                     // A phone: 36 px drawn and a 44 px area (4 px reach), as the
                                     // design canvas.
-                                    className={`max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
+                                    className={`max-md:size-9 ${
+                                        // The canvas draws a bare 16 px glyph in a 24 px box.
+                                        surface === "canvas"
+                                            ? "size-6 text-colorTextTertiary max-md:[&_svg]:size-5"
+                                            : ""
+                                    } ${PHONE_TOUCH_TARGET_CLASS}`}
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.

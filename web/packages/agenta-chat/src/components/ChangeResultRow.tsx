@@ -45,12 +45,13 @@ const REASON_KEY: Record<
 const Mark = ({tone, children}: {tone: "plain" | "added" | "removed"; children: ReactNode}) => (
     <span
         aria-hidden
-        className={`flex size-5 shrink-0 items-center justify-center rounded-full ${
+        // A 16 px tile, radius 4 (C01 status rows).
+        className={`flex size-4 shrink-0 items-center justify-center rounded ${
             tone === "added"
                 ? "bg-colorSuccessBg text-colorSuccess"
                 : tone === "removed"
                   ? "bg-colorErrorBg text-colorError"
-                  : "bg-colorFillTertiary text-colorTextSecondary"
+                  : "bg-colorSplit text-colorTextSecondary"
         }`}
     >
         {children}
@@ -83,7 +84,7 @@ export const ChangeResultRow = ({
     onRevert,
     onTryAgain,
     touch = false,
-    className = "px-3 py-2",
+    className = "px-3 py-[7px]",
 }: ChangeResultRowProps) => {
     const t = useT(chatChangeCardStatesCatalog)
     const tChange = useT(chatChangeCardCatalog)
@@ -117,12 +118,22 @@ export const ChangeResultRow = ({
             actions = (
                 <>
                     {onView ? (
-                        <Button variant="ghost" size="sm" className={touchCls} onClick={onView}>
+                        <Button
+                            variant="ghost"
+                            size="compact"
+                            className={touchCls}
+                            onClick={onView}
+                        >
                             {t("chat.changeCardStates.view")}
                         </Button>
                     ) : null}
                     {onRevert ? (
-                        <Button variant="ghost" size="sm" className={touchCls} onClick={onRevert}>
+                        <Button
+                            variant="ghost"
+                            size="compact"
+                            className={touchCls}
+                            onClick={onRevert}
+                        >
                             {t("chat.changeCardStates.revert")}
                         </Button>
                     ) : null}
@@ -148,7 +159,12 @@ export const ChangeResultRow = ({
             detail = t(REASON_KEY[state.reason])
             actions =
                 state.reason === "conflict" && onTryAgain ? (
-                    <Button variant="outline" size="sm" className={touchCls} onClick={onTryAgain}>
+                    <Button
+                        variant="outline"
+                        size="compact"
+                        className={touchCls}
+                        onClick={onTryAgain}
+                    >
                         {t("chat.changeCardStates.tryAgain")}
                     </Button>
                 ) : null
@@ -165,7 +181,7 @@ export const ChangeResultRow = ({
     }
     return (
         <div
-            className={`flex min-w-0 items-center gap-2.5 ${className}`}
+            className={`flex min-w-0 items-center gap-2 ${className}`}
             data-testid={`change-result-${state.kind === "not_saved" ? state.reason : state.kind}`}
             {...(state.kind === "waiting" ? {role: "status", "aria-live": "polite" as const} : {})}
         >
@@ -173,7 +189,10 @@ export const ChangeResultRow = ({
             <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[13px] font-medium text-colorText">{title}</span>
                 {detail ? (
-                    <span className="truncate text-xs text-colorTextSecondary" title={detail}>
+                    <span
+                        className="truncate text-[12px] leading-4 text-colorTextSecondary"
+                        title={detail}
+                    >
                         {detail}
                     </span>
                 ) : null}
@@ -259,7 +278,7 @@ export const ChangeResultRows = ({
     actions,
     finished = false,
     touch = false,
-    className = "border border-solid border-colorBorderSecondary bg-colorBgContainer",
+    className = "border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-[var(--ag-surface-card-shadow)]",
 }: {
     parts: readonly unknown[] | undefined
     actions?: ChangeResultActions
@@ -280,7 +299,8 @@ export const ChangeResultRows = ({
     }
     return (
         <div
-            className={`flex min-w-0 flex-col rounded-lg py-1 ${className}`}
+            // One stacked status card (C01): rows split by a hairline.
+            className={`flex min-w-0 flex-col divide-y divide-solid divide-colorSplit rounded-[10px] py-1 ${className}`}
             data-testid="change-results"
         >
             {calls.map((call, index) => (

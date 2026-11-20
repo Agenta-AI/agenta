@@ -1,6 +1,5 @@
 {
     "builder": "Builder",
-    "back": "Retour",
     "newChat": "Nouveau chat",
     "chats": "Chats",
     "chatsLoading": "Chargement des chats…",

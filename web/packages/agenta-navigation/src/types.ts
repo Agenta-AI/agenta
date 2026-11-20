@@ -133,4 +133,7 @@ export interface SidebarShellProps {
     /** Dismisses the rail. Passed ONLY by an overlay mount (the drawer), so the header slot can
      * offer a close instead of a collapse toggle without testing a viewport width. */
     onDismiss?: () => void
+    /** The side the rail's content slides in from when it mounts (a focus change between two
+     * sidebars). Unset: no slide. Reduced motion: no slide. */
+    enterFrom?: "start" | "end"
 }

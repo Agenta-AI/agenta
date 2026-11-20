@@ -15,6 +15,7 @@ import {chipClass} from "../builder/chipText"
 import {sentContextOf, withContextLine, type PageContext} from "../builder/pageContext"
 import {SentContextChip} from "../builder/SentContextChip"
 import {builderChatLinkVersionAtom} from "../builder/useBuilderChatList"
+import {BuilderChatContext} from "../chat/builderChat"
 import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
 import {viewFormDirtyAtom} from "../chat/viewFormDirty"
@@ -40,6 +41,7 @@ const sentContextChip = (message: UIMessage) => {
 export const BuilderPageChat = ({
     builderRevisionId,
     sessionId,
+    isNew,
     userId,
     workspaceId,
     projectId,
@@ -47,9 +49,12 @@ export const BuilderPageChat = ({
     activeTabKey,
     onFirstSend,
     onMessagesChanged,
+    dialogContainer,
 }: {
     builderRevisionId: string
     sessionId: string
+    /** A new chat, not one opened from the address: a chat that loads its messages is not new. */
+    isNew: boolean
     userId: string
     workspaceId: string
     projectId: string
@@ -60,6 +65,8 @@ export const BuilderPageChat = ({
     /** The first message of a new chat left the composer. */
     onFirstSend: (agent: AgentRef | null) => void
     onMessagesChanged: (messages: UIMessage[]) => void
+    /** Where "Browse ideas" opens: the page beside the sidebar (B02). */
+    dialogContainer: HTMLElement | null
 }) => {
     const t = useT(builderPageCatalog, builderContextCatalog)
     const store = useStore()
@@ -148,55 +155,59 @@ export const BuilderPageChat = ({
 
     return (
         <ConversationRoleContext.Provider value="page">
-            <div className="flex h-full min-h-0 flex-col" onInputCapture={onComposerInput}>
-                <LiveConversation
-                    key={sessionId}
-                    embedded
-                    entityId={builderRevisionId}
-                    sessionId={sessionId}
-                    projectId={projectId}
-                    workspaceId={workspaceId}
-                    running={Boolean(liveStream?.flags?.is_running)}
-                    stopStateLoading={liveness.isLoading}
-                    sessionTurnId={liveStream?.turn_id}
-                    stoppingTurnId={liveStream?.stopping_turn_id}
-                    sharedReader={Boolean(liveStream?.capabilities?.shared_reader)}
-                    beforeSend={beforeSend}
-                    inputRef={inputRef}
-                    hideSlashCommands
-                    composerPlaceholder={
-                        hasMessages
-                            ? t("builder.page.placeholder")
-                            : t("builder.page.placeholderNew")
-                    }
-                    composerHeaderExtra={chip}
-                    emptyState={<NewBuilderChat heroState={heroState} />}
-                    belowComposer={
-                        hasMessages ? null : (
-                            <div className="px-3 pb-3">
-                                <PageQuickActions
-                                    onFill={fillComposer}
-                                    onPickAgent={(agent) => {
-                                        setPickedAgent(agent)
-                                        setChipRemoved(false)
-                                    }}
-                                    onBrowseIdeas={() => setIdeasOpen(true)}
-                                />
-                            </div>
-                        )
-                    }
-                    userMessageAccessory={sentContextChip}
-                    onMessagesChanged={handleMessages}
-                />
-                <BrowseIdeasDialog
-                    open={ideasOpen}
-                    onOpenChange={setIdeasOpen}
-                    onPick={(prompt) => {
-                        setIdeasOpen(false)
-                        fillComposer(prompt)
-                    }}
-                />
-            </div>
+            <BuilderChatContext.Provider value>
+                <div className="flex h-full min-h-0 flex-col" onInputCapture={onComposerInput}>
+                    <LiveConversation
+                        key={sessionId}
+                        embedded
+                        entityId={builderRevisionId}
+                        sessionId={sessionId}
+                        projectId={projectId}
+                        workspaceId={workspaceId}
+                        running={Boolean(liveStream?.flags?.is_running)}
+                        stopStateLoading={liveness.isLoading}
+                        sessionTurnId={liveStream?.turn_id}
+                        stoppingTurnId={liveStream?.stopping_turn_id}
+                        sharedReader={Boolean(liveStream?.capabilities?.shared_reader)}
+                        beforeSend={beforeSend}
+                        inputRef={inputRef}
+                        hideSlashCommands
+                        composerPlaceholder={
+                            isNew && !hasMessages
+                                ? t("builder.page.placeholderNew")
+                                : t("builder.page.placeholder")
+                        }
+                        composerHeaderExtra={chip}
+                        emptyState={<NewBuilderChat heroState={heroState} />}
+                        // Above the composer (B01), only in a new chat once it has loaded.
+                        aboveComposer={
+                            isNew ? (
+                                <div className="px-3 pb-2.5">
+                                    <PageQuickActions
+                                        onFill={fillComposer}
+                                        onPickAgent={(agent) => {
+                                            setPickedAgent(agent)
+                                            setChipRemoved(false)
+                                        }}
+                                        onBrowseIdeas={() => setIdeasOpen(true)}
+                                    />
+                                </div>
+                            ) : null
+                        }
+                        userMessageAccessory={sentContextChip}
+                        onMessagesChanged={handleMessages}
+                    />
+                    <BrowseIdeasDialog
+                        container={dialogContainer}
+                        open={ideasOpen}
+                        onOpenChange={setIdeasOpen}
+                        onPick={(prompt) => {
+                            setIdeasOpen(false)
+                            fillComposer(prompt)
+                        }}
+                    />
+                </div>
+            </BuilderChatContext.Provider>
         </ConversationRoleContext.Provider>
     )
 }

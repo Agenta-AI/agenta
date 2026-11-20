@@ -12,8 +12,9 @@ export interface BuilderPaneLayout {
     fullScreen: boolean
 }
 
+/** At 1440 px with the 236 px sidebar, the chat is 400 px wide beside the pane (B03). */
 export const DEFAULT_BUILDER_PANE_LAYOUT: BuilderPaneLayout = {
-    width: 560,
+    width: 804,
     hidden: false,
     fullScreen: false,
 }

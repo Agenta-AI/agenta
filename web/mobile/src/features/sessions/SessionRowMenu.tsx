@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {
     isMenuDivider,
     useDeferredMenuSelect,
@@ -12,7 +14,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {DotsThreeVertical} from "@phosphor-icons/react"
+import {DotsThree} from "@phosphor-icons/react"
 
 /**
  * A session row's kebab — the shared verbs (rename, pin, archive, delete, and an automation
@@ -27,32 +29,37 @@ export const SessionRowMenu = ({
     entries,
     onSelect,
     label,
+    trigger,
 }: {
     entries: SessionMenuEntry[]
     onSelect: MenuSelect
     /** Names the session, so a screen reader hears which row's actions these are. */
     label: string
+    /** Replaces the row kebab (the builder chat header's "⋯"). Must forward a ref. */
+    trigger?: ReactNode
 }) => {
     const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect(onSelect)
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button
-                    type="button"
-                    // The automations list row's kebab, to the class: same 24px box, same glyph
-                    // size, same hover. The two tables share a last column.
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={`Actions for ${label}`}
-                    className="text-muted-foreground hover:bg-foreground/10 dark:hover:bg-foreground/15 max-md:relative max-md:after:absolute max-md:after:-inset-[10px] max-md:after:content-['']"
-                >
-                    {/* `size-3.5` as a CLASS, not a `size` prop: the button's own
+                {trigger ?? (
+                    <Button
+                        type="button"
+                        // The automations list row's kebab, to the class: same 24px box, same glyph
+                        // size, same hover. The two tables share a last column.
+                        size="icon-xs"
+                        variant="ghost"
+                        aria-label={`Actions for ${label}`}
+                        className="text-muted-foreground hover:bg-foreground/10 dark:hover:bg-foreground/15 max-md:relative max-md:after:absolute max-md:after:-inset-[10px] max-md:after:content-['']"
+                    >
+                        {/* `size-3.5` as a CLASS, not a `size` prop: the button's own
                         `[&_svg:not([class*='size-'])]:size-3` wins over the attribute, so the prop
                         silently rendered 12px. Three dots also read smaller than a glyph that
                         fills its box, so 14 is what matches by eye. */}
-                    <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
-                </Button>
+                        <DotsThree aria-hidden className="size-3.5" weight="bold" />
+                    </Button>
+                )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onCloseAutoFocus={handleCloseAutoFocus}>
                 {entries.map((entry, index) =>

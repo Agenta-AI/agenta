@@ -9,11 +9,9 @@ import {
     ArrowClockwiseIcon,
     BroadcastIcon,
     ChartBarIcon,
-    FadersHorizontalIcon,
     LightningIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
-import Link from "next/link"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
 import {groupByDay} from "./dayGroups"
@@ -39,14 +37,15 @@ export type AgentSidebarText = (
         | "agentSidebar.earlier"
         | "agentSidebar.showOlderSessions"
         | "agentSidebar.showOlderSessionsShort"
-        | "agentSidebar.filter"
         | "agentSidebar.loading"
         | "agentSidebar.loadError"
-        | "agentSidebar.retry",
+        | "agentSidebar.retry"
+        | "agentSidebar.noSessionsMatch",
     values?: {count: number},
 ) => string
 
 export const AGENT_SIDEBAR_SESSIONS_KEY = "agent-sidebar-sessions"
+
 export const agentSidebarSessionKey = (sessionId: string) => `agent-sidebar-session-${sessionId}`
 
 /** The row that marks an agent page as the current one. */
@@ -101,7 +100,7 @@ const sessionIcon = (session: AgentSidebarSession) => {
 
 /**
  * The rows of one agent's sidebar (A01): Configuration, Channels, Analytics, then the heading
- * link "Sessions" with the count and a Filter button, the latest sessions grouped by day, and
+ * link "Sessions" with the count and its search and filter controls, the latest sessions grouped by day, and
  * "Show N older sessions" when the agent has more. `total` is null until the count loads.
  * "New session" is a button in the sidebar's header, not a row.
  */
@@ -115,6 +114,8 @@ export const agentSidebarItems = ({
     t,
     phone = false,
     wrapSessionRow,
+    sessionsActions,
+    filtered = false,
 }: {
     projectURL: string
     agentId: string
@@ -129,6 +130,11 @@ export const agentSidebarItems = ({
     phone?: boolean
     /** The row menu and inline rename, as the main sidebar has them. */
     wrapSessionRow?: (session: SessionRowTarget, node: ReactNode) => ReactElement
+    /** The controls at the right of the "Sessions" heading: search, then filter. */
+    sessionsActions?: ReactNode
+    /** The filter menu narrows the list: an empty list says so, and the "older" row, which
+     * opens the unfiltered Sessions page, is left out. */
+    filtered?: boolean
 }): SidebarConfig[] => {
     const sessionsHref = agentPageHref(projectURL, agentId, "sessions")
     const pageRow = (view: AgentPageView, title: string, icon: ReactNode): SidebarConfig => ({
@@ -182,7 +188,14 @@ export const agentSidebarItems = ({
                 onClick: () => onRetry?.(),
             },
         )
-    const older = total !== null ? total - sessions.length : 0
+    if (sessions.length === 0 && status === "ready" && filtered)
+        rows.push({
+            key: "agent-sidebar-sessions-none-match",
+            title: t("agentSidebar.noSessionsMatch"),
+            disabled: true,
+            isPlaceholder: true,
+        })
+    const older = total !== null && !filtered ? total - sessions.length : 0
     if (older > 0)
         rows.push({
             key: "agent-sidebar-older",
@@ -216,19 +229,8 @@ export const agentSidebarItems = ({
             scrollChildren: true,
             // No number until the count loads; the phone sheet draws none.
             suffix: total !== null && !phone ? formatNumber(total) : undefined,
-            // The filters live on the Sessions page of this agent.
-            groupAction: createElement(
-                Link,
-                {
-                    href: sessionsHref,
-                    prefetch: false,
-                    "aria-label": t("agentSidebar.filter"),
-                    title: t("agentSidebar.filter"),
-                    className:
-                        "flex size-6 items-center justify-center rounded-sm !text-colorTextSecondary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
-                },
-                createElement(FadersHorizontalIcon, {size: 14}),
-            ),
+            // Search and filter, as on the main sidebar's Sessions row (the host builds them).
+            groupAction: sessionsActions,
             submenu: rows,
         },
     ]

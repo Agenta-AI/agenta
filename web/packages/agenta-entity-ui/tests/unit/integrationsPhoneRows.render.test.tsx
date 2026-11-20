@@ -18,7 +18,10 @@ import {
     PhoneSectionsContext,
     type PhoneSectionsApi,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/phoneSections"
-import {ToolManagementList} from "../../src/DrillInView/SchemaControls/agentTemplate/ToolManagementList"
+import {
+    ToolManagementList,
+    type ToolManagementListProps,
+} from "../../src/DrillInView/SchemaControls/agentTemplate/ToolManagementList"
 import type {IntegrationRow} from "../../src/DrillInView/SchemaControls/toolUtils"
 
 beforeAll(() => {
@@ -49,7 +52,12 @@ const row = (integration: string, accountSource?: "user"): IntegrationRow =>
 
 const rows = [row("zendesk", "user"), row("slack")]
 
-const renderList = (phone: PhoneSectionsApi | null, onOpen = vi.fn(), onRemove = vi.fn()) =>
+const renderList = (
+    phone: PhoneSectionsApi | null,
+    onOpen = vi.fn(),
+    onRemove = vi.fn(),
+    statusFor?: ToolManagementListProps["statusFor"],
+) =>
     act(() =>
         root.render(
             createElement(
@@ -60,6 +68,7 @@ const renderList = (phone: PhoneSectionsApi | null, onOpen = vi.fn(), onRemove =
                     integrationRows: rows,
                     onOpenIntegration: onOpen,
                     onRemoveIntegration: onRemove,
+                    statusFor,
                 }),
             ),
         ),
@@ -74,6 +83,17 @@ describe("ToolManagementList on a phone", () => {
             "SlackOne shared account",
         ])
         expect(container.querySelector("[aria-label=Remove]")).toBeNull()
+    })
+
+    it("keeps whose account it uses next to the setup reason and tag (M08)", () => {
+        renderList({shownKey: "tools", show: vi.fn()}, vi.fn(), vi.fn(), (_item, index) =>
+            index === 0
+                ? {tone: "incomplete", label: "Needs setup", reason: "Sign-in expired"}
+                : undefined,
+        )
+        const first = container.querySelectorAll("button")[0]
+        expect(first.textContent).toContain("Each person's own account · Sign-in expired")
+        expect(first.textContent).toContain("Needs setup")
     })
 
     it("opens the integration on a tap", () => {

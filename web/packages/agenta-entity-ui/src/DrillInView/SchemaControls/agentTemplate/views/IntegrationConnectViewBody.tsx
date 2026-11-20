@@ -84,7 +84,7 @@ const ConnectForm = ({
         save: form.submit,
     })
     return (
-        <div className="flex flex-col gap-4 px-4 py-3">
+        <div className="flex flex-col gap-3 px-4 py-3.5">
             <ConnectAppMark name={name} logo={logo} />
             <ConnectFormFields
                 form={form}
