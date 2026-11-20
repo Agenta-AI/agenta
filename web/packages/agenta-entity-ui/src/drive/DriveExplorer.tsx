@@ -173,7 +173,7 @@ export function DriveExplorer({
     initialShowTree?: boolean
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
-    closeVariant?: "close" | "collapse" | "back"
+    closeVariant?: "close" | "collapse"
     /** Open and download only: no upload, drop, paste, new item, rename, delete or edit (a phone). */
     readOnly?: boolean
     /** A touch screen (a phone): the header and toolbar buttons get a 44 px hit area. */
@@ -649,6 +649,7 @@ export function DriveExplorer({
                       onCopyLink: onCopyCurrentLink,
                       onDownloadAll: onDownloadCurrent,
                       downloadingAll,
+                      readOnly,
                   }
                 : undefined
 
@@ -697,6 +698,7 @@ export function DriveExplorer({
                 onCopyPath={onCopyCurrentPath}
                 onCopyLink={onCopyCurrentLink}
                 onDownload={onDownloadCurrent}
+                readOnly={readOnly}
             />
         )
 

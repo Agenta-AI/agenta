@@ -407,15 +407,7 @@ export const blockLabel = (block: ChangeBlock): string => {
     return path.join(" › ") || block.title
 }
 
-export const Block = ({
-    block,
-    small,
-    pathPrefix,
-}: {
-    block: ChangeBlock
-    small: boolean
-    pathPrefix: string[]
-}) => (
+export const Block = ({block, small}: {block: ChangeBlock; small: boolean}) => (
     <div
         className={`flex min-w-0 flex-col gap-2 ${
             block.fails ? "rounded-md border border-solid border-colorError p-2" : ""
@@ -425,7 +417,7 @@ export const Block = ({
         <ChangeHeader
             icon={SECTION_ICON[block.section]}
             title={block.title}
-            path={[...pathPrefix, ...block.path]}
+            path={block.path}
             small={small}
         />
         {block.changes.map((change, index) =>
@@ -460,7 +452,7 @@ export const ChangeSections = ({
     changes: ApprovalChange[]
     proposedValues?: boolean
     cannotApply?: boolean
-    /** The name of the agent the changes are for; the card always names it. */
+    /** The name of the agent the changes are for, for the header of a card with several. */
     agentName?: string
     /** The card's own header (`create_agent`); the changes then show under it. */
     header?: {title: string; path: string[]}
@@ -469,7 +461,8 @@ export const ChangeSections = ({
 }) => {
     const t = useT(chatChangeCardCatalog)
     const blocks = groupChanges(changes)
-    // One block is the card: its header is the card's header, and its path starts with the agent.
+    // One block is the card: its header is the card's header. Its path starts at the section, as
+    // the C01 and M05 frames draw it.
     const single = !header && blocks.length === 1
     const cardHeader = header ? (
         <ChangeHeader icon={Sparkle} title={header.title} path={header.path} />
@@ -504,7 +497,6 @@ export const ChangeSections = ({
                             key={`${block.path.join("›")}-${index}`}
                             block={block}
                             small={!single}
-                            pathPrefix={single && agentName ? [agentName] : []}
                         />
                     ))}
                 </div>

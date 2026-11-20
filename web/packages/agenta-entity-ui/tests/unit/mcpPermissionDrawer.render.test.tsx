@@ -27,7 +27,9 @@ vi.mock("jotai", async (importOriginal) => ({
     useAtomValue: () => "project-1",
 }))
 
-import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
+import McpPermissionDrawer, {
+    useMcpPermissionSource,
+} from "../../src/mcpEndpoint/McpPermissionDrawer"
 import {
     getMcpConnectionStatus,
     McpProtocolError,
@@ -1050,5 +1052,72 @@ describe("a reader who may not edit the agent", () => {
 
         expect(button("Connect")).toBeUndefined()
         logged.mockRestore()
+    })
+})
+
+describe("the tool list read", () => {
+    /** Shows the catalog state of one server, read with the given sign-in. */
+    const Probe = ({
+        accountSource = "agent",
+        listTools = true,
+    }: {
+        accountSource?: "agent" | "user"
+        listTools?: boolean
+    }) => {
+        const mcp = useMcpPermissionSource({
+            slug: "linear",
+            policy: {permission: "allow"} as McpServerPolicy,
+            onChange: () => undefined,
+            accountSource,
+            listTools,
+        })
+        const catalog = mcp.source.catalog
+        const askWrites = mcp.source.presets?.options.find(
+            (option) => option.value === "ask_writes",
+        )
+        return createElement(
+            "div",
+            {"data-testid": "probe"},
+            `${catalog.status}:${catalog.tools.map((tool) => tool.name).join(",")}:` +
+                (askWrites?.disabled ? "askWritesOff" : "askWritesOn"),
+        )
+    }
+
+    const probe = () => document.querySelector('[data-testid="probe"]')?.textContent
+
+    it("keeps the newer read when an older read with the other sign-in ends after it", async () => {
+        let failOlder: (error: Error) => void = () => undefined
+        listMcpTools.mockImplementationOnce(
+            () =>
+                new Promise((_, reject) => {
+                    failOlder = reject
+                }),
+        )
+        listMcpTools.mockResolvedValueOnce([{name: "list_issues"}])
+
+        await act(async () => root.render(createElement(Probe, {accountSource: "agent"})))
+        await act(async () => root.render(createElement(Probe, {accountSource: "user"})))
+        expect(listMcpTools.mock.calls.map((call) => call[2])).toEqual([
+            {accountSource: "agent"},
+            {accountSource: "user"},
+        ])
+        expect(probe()).toContain("ready")
+
+        await act(async () => failOlder(new McpProtocolError("Sign in again.", "auth_required")))
+        expect(probe()).toMatch(/^ready:.*list_issues/)
+    })
+
+    it("drops the list when no sign-in can read it any more", async () => {
+        listMcpTools.mockResolvedValueOnce([
+            {name: "list_issues", annotations: {readOnlyHint: true}},
+        ])
+        await act(async () => root.render(createElement(Probe, {accountSource: "user"})))
+        expect(probe()).toBe("ready:list_issues:askWritesOn")
+
+        // The viewer signed out: the view stops reading the list.
+        await act(async () =>
+            root.render(createElement(Probe, {accountSource: "user", listTools: false})),
+        )
+        expect(probe()).toMatch(/:askWritesOff$/)
     })
 })

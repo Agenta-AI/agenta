@@ -57,12 +57,15 @@ vi.mock("@agenta/entity-ui/drill-in", () => ({
     SkillFormView: ({
         value,
         onChange,
+        valuesAsText,
     }: {
         value: Record<string, unknown>
         onChange: (next: Record<string, unknown>) => void
+        valuesAsText?: boolean
     }) =>
         createElement("textarea", {
             "aria-label": "Description",
+            "data-read-only": String(Boolean(valuesAsText)),
             value: String(value.description ?? ""),
             onChange: (e: {target: {value: string}}) =>
                 onChange({...value, description: e.target.value}),
@@ -78,13 +81,18 @@ const Chrome = ({children, ...actions}: ViewChromeProps) => (
     </div>
 )
 
-const Opener = () => {
+const Opener = ({readOnlyOnPhone = false}: {readOnlyOnPhone?: boolean}) => {
     const stack = useViewStack()
     return (
         <button
             onClick={() =>
                 void stack.open(
-                    {id: "skill.registry", apply: "on_save", Component: RegistrySkillViewBody},
+                    {
+                        id: "skill.registry",
+                        apply: "on_save",
+                        readOnlyOnPhone,
+                        Component: RegistrySkillViewBody,
+                    },
                     {slug: "plain-writing-4k2p"},
                     {kind: "agent_draft", revisionId: "agent-rev"},
                 )
@@ -174,5 +182,35 @@ describe("registry skill body", () => {
             skill: {name: "plain-writing", description: "Writes replies in plain words"},
         })
         // A busy machine needs more than the default.
+    }, 30_000)
+
+    it("a read-only view on a phone draws the form as text rows", async () => {
+        await act(async () =>
+            root.render(
+                <QueryClientProvider client={new QueryClient()}>
+                    <ViewStackHost chrome={Chrome} phone>
+                        <Opener readOnlyOnPhone />
+                    </ViewStackHost>
+                </QueryClientProvider>,
+            ),
+        )
+        await act(async () => buttonByText("open")?.click())
+        const form = await find('textarea[aria-label="Description"]')
+        expect(form.dataset.readOnly).toBe("true")
+    }, 30_000)
+
+    it("an editable view draws the form with its fields", async () => {
+        await act(async () =>
+            root.render(
+                <QueryClientProvider client={new QueryClient()}>
+                    <ViewStackHost chrome={Chrome}>
+                        <Opener />
+                    </ViewStackHost>
+                </QueryClientProvider>,
+            ),
+        )
+        await act(async () => buttonByText("open")?.click())
+        const form = await find('textarea[aria-label="Description"]')
+        expect(form.dataset.readOnly).toBe("false")
     }, 30_000)
 })

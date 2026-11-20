@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import chatRecordingBarCatalog from "@agenta/i18n/catalogs/chat.recordingBar"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {ComposerSendButton} from "@agenta/ui/rich-chat-input"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
 import {Check, X} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -111,11 +111,13 @@ const RecordingBar = ({
                 )}
             </AnimatePresence>
 
-            <div className="flex shrink-0 items-center gap-1">
+            {/* On a phone the two exits are 36 px with a 44 px area, 8 px apart, as the composer's. */}
+            <div className="flex shrink-0 items-center gap-1 max-md:gap-2">
                 <SimpleTooltip title={t("chat.recordingBar.deleteTooltip")}>
                     <Button
                         variant="ghost"
                         size="icon"
+                        className={`max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
                         onClick={cancel}
                         aria-label={t("chat.recordingBar.delete")}
                     >

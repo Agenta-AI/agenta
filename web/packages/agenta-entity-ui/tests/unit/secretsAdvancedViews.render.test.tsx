@@ -637,6 +637,20 @@ describe("Advanced", () => {
         expect(saveButton("Revert")).toBeFalsy()
     })
 
+    it("Agenta tools: read only shows the default and each tool's permission as text", async () => {
+        writer.agent = {tools: []}
+        writer.readOnly = true
+        await openIn(agentaToolsView, {}, AGENT)
+        await findByText("here:Agenta tools")
+        expect(document.querySelector('[role="combobox"]')).toBeNull()
+        expect(document.querySelector('[aria-label="Default permission"]')).toBeNull()
+        // The default ("Deactivate") and the two tools ("Deactivate" each).
+        expect(
+            [...document.querySelectorAll("span")].filter((s) => s.textContent === "Deactivate"),
+        ).toHaveLength(3)
+        expect(document.body.textContent).not.toContain("switches the default to Custom")
+    })
+
     it("Agenta tools: a preset resets every tool, and Save applies the form", async () => {
         writer.agent = {tools: []}
         await openIn(agentaToolsView, {}, AGENT)
