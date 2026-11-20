@@ -70,11 +70,13 @@ describe("AccountSwitch", () => {
     it("an arrow key moves to the next choice, wrapping at the end", async () => {
         const onChange = vi.fn()
         await render({value: "agent", onChange})
-        const group = host.querySelector('[role="radiogroup"]')!
+        const [own, shared] = radios()
+        shared.focus()
         await act(async () => {
-            group.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowRight", bubbles: true}))
+            shared.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowRight", bubbles: true}))
         })
         expect(onChange).toHaveBeenCalledWith("user")
+        expect(document.activeElement).toBe(own)
     })
 
     it("a disabled switch picks nothing", async () => {
