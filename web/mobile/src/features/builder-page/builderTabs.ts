@@ -155,7 +155,7 @@ const parseTab = (value: unknown): BuilderTab | null => {
         kind: tab.kind as BuilderTabKind,
         id: tab.id,
         name: typeof tab.name === "string" ? tab.name : "",
-        ...(tab.dot === true ? {dot: true} : {}),
+        dot: tab.dot === true,
     }
 }
 
