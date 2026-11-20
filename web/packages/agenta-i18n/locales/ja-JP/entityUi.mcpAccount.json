@@ -9,7 +9,7 @@
     "yourSignInNote": "あなた自身の実行で使う{{name}}のサインイン",
     "notSignedInYet": "まだサインインしていません",
     "signInTo": "{{name}}にサインイン",
-    "signedInAs": "あなたのサインイン：{{name}}",
+    "signedInAs": "あなたのサインイン：{{account}}",
     "signedIn": "サインイン済み",
     "noPersonWarning": "チャネルからの実行や、APIキーで作成されたオートメーションからの実行には人がいません。各ユーザー自身のサインインを使えないため、このサーバーはそれらでは使えません。"
 }

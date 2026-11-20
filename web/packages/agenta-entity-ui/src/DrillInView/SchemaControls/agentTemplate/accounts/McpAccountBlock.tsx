@@ -65,7 +65,7 @@ export function McpAccountBlock({
                         note={t("entityUi.mcpAccount.chooseWhose", {name})}
                     />
                     <AccountSwitch
-                        value={eachPerson ? USER_ACCOUNT_SOURCE : "agent"}
+                        value={source}
                         choices={[
                             {
                                 value: USER_ACCOUNT_SOURCE,
@@ -78,7 +78,7 @@ export function McpAccountBlock({
                                 note: t("entityUi.mcpAccount.oneSharedNote"),
                             },
                         ]}
-                        onChange={(next) => onChange(next as AccountSource)}
+                        onChange={onChange}
                         aria-label={t("entityUi.accounts.label")}
                         disabled={disabled}
                     />
@@ -87,9 +87,9 @@ export function McpAccountBlock({
             ) : null}
 
             {eachPerson ? (
-                // Disabled means the viewer may not edit the agent. Those roles may not use the
-                // project's MCP servers either (the API sends no `user_sign_in`), so a sign-in
-                // would lead nowhere.
+                // Disabled means the viewer may not edit the agent; those roles may not use the
+                // project's MCP servers either, so a sign-in would lead nowhere. The API leaves
+                // `user_sign_in` out when the viewer can hold no own sign-in at all.
                 !disabled && endpoint && endpoint.user_sign_in !== undefined ? (
                     <div className="flex flex-col gap-2">
                         <FieldHeading
@@ -128,7 +128,7 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
             <AccountLine
                 text={
                     own.account_name
-                        ? t("entityUi.mcpAccount.signedInAs", {name: own.account_name})
+                        ? t("entityUi.mcpAccount.signedInAs", {account: own.account_name})
                         : t("entityUi.mcpAccount.signedIn")
                 }
             >

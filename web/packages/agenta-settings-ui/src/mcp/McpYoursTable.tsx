@@ -123,12 +123,12 @@ export const McpYoursTable = ({
                         minWidth={0}
                         renderRow={(record) => {
                             const signedIn = isSignedIn(record)
-                            // The account name when the server gave one (PR 8373).
+                            // The account name, when the server gave one at sign-in.
                             const accountName = record.user_sign_in?.account_name
                             const statusLabel = !signedIn
                                 ? t("settings.mcp.notSignedIn")
                                 : accountName
-                                  ? t("entityUi.mcpAccount.signedInAs", {name: accountName})
+                                  ? t("entityUi.mcpAccount.signedInAs", {account: accountName})
                                   : t("settings.mcp.signedInAsYou")
                             // One sign-in action at a time: the hook tracks one.
                             const pending = pendingId !== null

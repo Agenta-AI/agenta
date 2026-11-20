@@ -9,7 +9,7 @@
     "yourSignInNote": "The {{name}} sign-in your own runs use",
     "notSignedInYet": "Not signed in yet",
     "signInTo": "Sign in to {{name}}",
-    "signedInAs": "Your sign-in: {{name}}",
+    "signedInAs": "Your sign-in: {{account}}",
     "signedIn": "Signed in",
     "noPersonWarning": "Runs from a channel or from an automation created with an API key have no person. They cannot use each person's own sign-in, so this server is not available to them."
 }

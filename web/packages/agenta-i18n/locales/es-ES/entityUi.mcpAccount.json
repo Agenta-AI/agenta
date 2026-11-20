@@ -9,7 +9,7 @@
     "yourSignInNote": "El inicio de sesión de {{name}} que usan tus propias ejecuciones",
     "notSignedInYet": "Aún no has iniciado sesión",
     "signInTo": "Iniciar sesión en {{name}}",
-    "signedInAs": "Tu inicio de sesión: {{name}}",
+    "signedInAs": "Tu inicio de sesión: {{account}}",
     "signedIn": "Sesión iniciada",
     "noPersonWarning": "Las ejecuciones desde un canal o desde una automatización creada con una clave de API no tienen persona. No pueden usar el inicio de sesión propio de cada persona, así que este servidor no está disponible para ellas."
 }

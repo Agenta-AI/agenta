@@ -9,7 +9,7 @@
     "yourSignInNote": "La connexion {{name}} qu'utilisent vos propres exécutions",
     "notSignedInYet": "Pas encore connecté",
     "signInTo": "Se connecter à {{name}}",
-    "signedInAs": "Votre connexion : {{name}}",
+    "signedInAs": "Votre connexion : {{account}}",
     "signedIn": "Connecté",
     "noPersonWarning": "Les exécutions lancées depuis un canal ou depuis une automatisation créée avec une clé API n'ont pas de personne. Elles ne peuvent pas utiliser la connexion propre à chaque personne, donc ce serveur ne leur est pas disponible."
 }

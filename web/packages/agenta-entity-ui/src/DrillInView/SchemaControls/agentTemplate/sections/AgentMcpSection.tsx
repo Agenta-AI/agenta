@@ -44,9 +44,8 @@ export const agentMcpSection = ({
         key: "mcp",
         icon: <HardDrives size={16} />,
         title: fieldTitle("mcps", t("entityUi.agentTemplate.mcpServers")),
-        // "None" when empty, as the canvas draws the Agent tab (S02).
-        summary:
-            mcpServers.length > 0 ? countSummary(mcpServers.length, "server") : tNow("common.none"),
+        // "None" when empty, as the canvas draws the Agent tab.
+        summary: countSummary(mcpServers.length, "server") || tNow("common.none"),
         indicator: sectionIndicator("mcp"),
         extra:
             !disabled && openAddMcpServer ? (

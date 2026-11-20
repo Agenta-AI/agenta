@@ -9,7 +9,7 @@
     "yourSignInNote": "你自己的运行使用的 {{name}} 登录",
     "notSignedInYet": "尚未登录",
     "signInTo": "登录 {{name}}",
-    "signedInAs": "你的登录：{{name}}",
+    "signedInAs": "你的登录：{{account}}",
     "signedIn": "已登录",
     "noPersonWarning": "来自频道或使用 API 密钥创建的自动化的运行没有对应的人。它们无法使用每个人自己的登录，因此此服务器对它们不可用。"
 }

@@ -9,7 +9,7 @@
     "yourSignInNote": "Die {{name}}-Anmeldung, die deine eigenen Ausführungen verwenden",
     "notSignedInYet": "Noch nicht angemeldet",
     "signInTo": "Bei {{name}} anmelden",
-    "signedInAs": "Deine Anmeldung: {{name}}",
+    "signedInAs": "Deine Anmeldung: {{account}}",
     "signedIn": "Angemeldet",
     "noPersonWarning": "Ausführungen aus einem Kanal oder aus einer mit einem API-Schlüssel erstellten Automatisierung haben keine Person. Sie können die eigene Anmeldung einer Person nicht verwenden, daher steht ihnen dieser Server nicht zur Verfügung."
 }
