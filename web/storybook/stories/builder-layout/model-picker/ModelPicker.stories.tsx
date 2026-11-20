@@ -22,7 +22,7 @@ const ModelViewFrame = () => {
                     onChange={(_value, option) => setPicked(option.key ?? option.value)}
                     searchPlaceholder="Search models"
                     disabledGroupAction={{label: "Sign in", onClick: () => undefined}}
-                    footer={
+                    panelFooter={
                         <Button variant="outline" className="w-full">
                             Manage model providers
                         </Button>

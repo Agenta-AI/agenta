@@ -51,7 +51,7 @@ import {
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
 import {buildPickerGroupsWithSections} from "../pickerSections"
 
-import {groupsForList, ModelPickerLayoutContext} from "./modelPickerLayout"
+import {listPickerGroups, ModelPickerLayoutContext} from "./modelPickerLayout"
 import {rowsOfConnection} from "./rowsOfConnection"
 
 export interface ModelPickerControlProps {
@@ -145,11 +145,13 @@ const ModelPickerControl = ({
     )
     const groups = useMemo(
         () =>
-            groupsForList(buildPickerGroupsWithSections(shownRows), {
-                label: t("entityUi.providerList.agenta"),
-                tag: t("entityUi.providerList.builtIn"),
-            }),
-        [shownRows, t],
+            layout === "list"
+                ? listPickerGroups(shownRows, {
+                      label: t("entityUi.providerList.agenta"),
+                      tag: t("entityUi.providerList.builtIn"),
+                  })
+                : buildPickerGroupsWithSections(shownRows),
+        [layout, shownRows, t],
     )
     const allSourcesResolved = candidateState.status === "ready"
 
@@ -272,7 +274,7 @@ const ModelPickerControl = ({
                         label: t("common.signIn"),
                         onClick: openModelProviders,
                     }}
-                    footer={
+                    panelFooter={
                         <Button variant="outline" className="w-full" onClick={openModelProviders}>
                             {t("ui.llmProvider.manageProviders")}
                         </Button>

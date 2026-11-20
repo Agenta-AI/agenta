@@ -32,7 +32,7 @@ export interface ModelPickerListProps {
     /** The action of a disabled group, for example "Sign in". */
     disabledGroupAction?: {label: string; onClick: (group: ProviderGroup) => void}
     /** Fixed under the list (the full-width "Manage model providers"). */
-    footer?: ReactNode
+    panelFooter?: ReactNode
 }
 
 /** The group's sections with only the options that match; a group with none drops out. */
@@ -61,7 +61,7 @@ const ModelPickerList = ({
     searchPlaceholder,
     disabled,
     disabledGroupAction,
-    footer,
+    panelFooter,
 }: ModelPickerListProps) => {
     const t = useT(uiLlmProviderCatalog, uiControlsCatalog)
     const [search, setSearch] = useState("")
@@ -76,8 +76,8 @@ const ModelPickerList = ({
             <li key={option.key ?? option.value}>
                 <button
                     type="button"
-                    role="option"
-                    aria-selected={selected}
+                    // Plain buttons, not a listbox: the view stack keeps Escape (back).
+                    aria-pressed={selected}
                     disabled={disabled}
                     onClick={() => onChange(option.value, option)}
                     className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
@@ -94,6 +94,11 @@ const ModelPickerList = ({
                         {option.label !== option.value ? (
                             <span className="truncate font-mono text-xs text-colorTextTertiary">
                                 {option.value}
+                            </span>
+                        ) : null}
+                        {option.caption ? (
+                            <span className="truncate text-xs text-colorTextTertiary">
+                                {option.caption}
                             </span>
                         ) : null}
                     </span>
@@ -114,7 +119,7 @@ const ModelPickerList = ({
                         <span>{section.label}</span>
                     </div>
                 ) : null}
-                <ul className="m-0 flex list-none flex-col p-0" role="listbox">
+                <ul className="m-0 flex list-none flex-col p-0">
                     {section.options.map(renderRow)}
                 </ul>
             </div>
@@ -146,6 +151,11 @@ const ModelPickerList = ({
                             {group.tag}
                         </span>
                     ) : null}
+                    {group.caption && !group.disabled ? (
+                        <span className="min-w-0 truncate text-xs text-colorTextTertiary">
+                            {group.caption}
+                        </span>
+                    ) : null}
                 </div>
                 {group.disabled ? (
                     <div className="flex items-center justify-between gap-2 px-3 py-1">
@@ -154,6 +164,7 @@ const ModelPickerList = ({
                             <Button
                                 variant="outline"
                                 size="sm"
+                                disabled={disabled}
                                 onClick={() => disabledGroupAction.onClick(group)}
                             >
                                 {disabledGroupAction.label}
@@ -186,7 +197,7 @@ const ModelPickerList = ({
                     </p>
                 )}
             </div>
-            {footer ? <div className="shrink-0 pt-3">{footer}</div> : null}
+            {panelFooter ? <div className="shrink-0 pt-3">{panelFooter}</div> : null}
         </div>
     )
 }

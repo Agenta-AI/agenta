@@ -59,7 +59,7 @@ const renderList = (props: Partial<Parameters<typeof ModelPickerList>[0]> = {}) 
             searchPlaceholder="Search models"
             selectedKey="a:sonnet"
             disabledGroupAction={{label: "Sign in", onClick: onSignIn}}
-            footer={<button>Manage model providers</button>}
+            panelFooter={<button>Manage model providers</button>}
             {...props}
         />,
     )
@@ -75,7 +75,7 @@ describe("ModelPickerList", () => {
         expect(screen.getByText("claude-sonnet-5-5")).toBeTruthy()
         expect(screen.getByText("google/gemini-3.8-flash")).toBeTruthy()
         expect(screen.getByText("Manage model providers")).toBeTruthy()
-        const picked = screen.getByRole("option", {selected: true})
+        const picked = screen.getByRole("button", {pressed: true})
         expect(picked.textContent).toContain("Claude Sonnet 5.5")
     })
 
