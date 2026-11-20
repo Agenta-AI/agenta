@@ -2086,6 +2086,20 @@ class RedisConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# releases
+# ---------------------------------------------------------------------------
+
+
+class ReleasesConfig(BaseModel):
+    """The update check: the API downloads Agenta's public release feed and sends
+    nothing about the instance. It does not follow AGENTA_TELEMETRY_ENABLED."""
+
+    update_check_enabled: bool = _parse_bool_env("AGENTA_UPDATE_CHECK_ENABLED", True)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # sessions — coordination-plane Redis contract (api/oss/src/dbs/redis/sessions/contract.py)
 # ---------------------------------------------------------------------------
 
@@ -2461,6 +2475,7 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    releases: ReleasesConfig = ReleasesConfig()
     runner: RunnerConfig = RunnerConfig()
     sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()

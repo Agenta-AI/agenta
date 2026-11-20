@@ -1863,7 +1863,8 @@
         "dontShowAgain": "497a0f940e31",
         "readChangelog": "c97da0c481bd",
         "play": "436e61016e26",
-        "playFeature": "bc2e9f2d0190"
+        "playFeature": "bc2e9f2d0190",
+        "notInstalled": "d177cdc09a4e"
     },
     "entityUi.accounts": {
         "label": "7e1b0d5641f2",
@@ -4496,10 +4497,12 @@
         "items.githubSupport": "0c337063c9da",
         "items.helpDocs": "ef9125a876f8",
         "items.home": "3a78695388b3",
+        "items.howToUpgrade": "0abda85c2a0c",
         "items.inviteTeammate": "41e2681609b5",
         "items.keyboardShortcuts": "e9bef0b0f3c2",
         "items.newAgentOrOpen": "5992bfc38674",
         "items.newSessionWith": "29f7cf206b3f",
+        "items.notInstalled": "d177cdc09a4e",
         "items.observability": "a37c93100e7c",
         "items.overview": "d4b1ea5708dd",
         "items.playground": "a6273fb551f2",
@@ -4514,6 +4517,7 @@
         "items.templates": "56b564b75c7f",
         "items.untitledPrompt": "5e9072a82479",
         "items.untitledSession": "3d9b66fd4938",
+        "items.updateAvailable": "ff8b555d818f",
         "items.viewAllReleases": "fd37943859cc",
         "items.whatsNew": "623aab5c4dfa",
         "projectMenu.createOrganization": "f14e1b22393c",
@@ -6573,6 +6577,10 @@
         "failed": "c9920c977a44",
         "namePlaceholder": "25498193b898",
         "title": "fa67e4d0dae5"
+    },
+    "shell.securityWarning": {
+        "message": "c0856e93a82a",
+        "readNotes": "30bd4d5dc1fc"
     },
     "shell.sessionFilter": {
         "agent": "11b39c93777e",

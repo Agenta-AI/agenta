@@ -20,7 +20,7 @@ export const computeUnseenReleases = ({
 }
 
 // Storage can throw (private mode, blocked storage, quota); What's New then just stays quiet.
-const readStorage = (key: string): string | null => {
+export const readStorage = (key: string): string | null => {
     if (typeof window === "undefined") return null
     try {
         return window.localStorage.getItem(key)
@@ -29,7 +29,7 @@ const readStorage = (key: string): string | null => {
     }
 }
 
-const writeStorage = (key: string, value: string | null) => {
+export const writeStorage = (key: string, value: string | null) => {
     if (typeof window === "undefined") return
     try {
         if (value === null) window.localStorage.removeItem(key)

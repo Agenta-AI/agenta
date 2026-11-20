@@ -172,6 +172,9 @@ export const useSidebarHelpItem = ({
                     ...buildReleaseNavItems(version, {
                         whatsNew: "What's new?",
                         viewAll: "View all releases",
+                        updateAvailable: "Update available",
+                        howToUpgrade: "How to upgrade",
+                        notInstalled: "Not installed",
                     }),
                 ],
             }),

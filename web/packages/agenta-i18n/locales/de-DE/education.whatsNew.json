@@ -8,5 +8,6 @@
     "dontShowAgain": "Nicht mehr anzeigen",
     "readChangelog": "Changelog lesen",
     "play": "Abspielen",
-    "playFeature": "{{title}} abspielen"
+    "playFeature": "{{title}} abspielen",
+    "notInstalled": "Nicht installiert"
 }

@@ -16,7 +16,8 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
-    RELEASES,
+    notInstalledReleasesAtom,
+    releaseListAtom,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     setSidebarSessionFilterDefaults,
@@ -62,6 +63,7 @@ import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
+import {useReleaseNotices} from "@/features/education/useReleaseNotices"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -415,11 +417,28 @@ export const useMobileHelpItem = ({
     const t = useT(navigationCatalog)
     const version = useMobileVersion()
     const openWhatsNew = useSetAtom(whatsNewAtom)
+    const releases = useAtomValue(releaseListAtom)
+    const notInstalled = useAtomValue(notInstalledReleasesAtom)
+    const {notices, dismiss: dismissReleaseNotice} = useReleaseNotices()
 
     return useMemo(() => {
         const help = buildHelpDocsNavItem({
             icons: {
-                help: createElement(QuestionIcon, {size: 16}),
+                help:
+                    notInstalled.length > 0
+                        ? createElement(
+                              "span",
+                              {
+                                  className: "relative flex",
+                                  "aria-label": t("navigation.items.updateAvailable"),
+                              },
+                              createElement(QuestionIcon, {size: 16}),
+                              createElement("span", {
+                                  className:
+                                      "absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-colorSuccess",
+                              }),
+                          )
+                        : createElement(QuestionIcon, {size: 16}),
                 docs: createElement(ScrollIcon, {size: 14}),
                 github: createElement(GithubLogoIcon, {size: 14}),
                 slack: createElement(SlackLogoIcon, {size: 14}),
@@ -434,12 +453,28 @@ export const useMobileHelpItem = ({
                     // The rule between the destinations and the release list.
                     divider: true,
                 },
-                // Release rows reopen the what's-new dialog; "View all releases" links out.
-                ...buildReleaseNavItems(version, {
-                    whatsNew: t("navigation.items.whatsNew"),
-                    viewAll: t("navigation.items.viewAllReleases"),
-                }).map((item) =>
-                    RELEASES.some((release) => release.id === item.key)
+                // Release rows reopen the what's-new dialog; a notice opens its link and
+                // stays closed after; "View all releases" links out.
+                ...buildReleaseNavItems(
+                    version,
+                    {
+                        whatsNew: t("navigation.items.whatsNew"),
+                        viewAll: t("navigation.items.viewAllReleases"),
+                        updateAvailable: t("navigation.items.updateAvailable"),
+                        howToUpgrade: t("navigation.items.howToUpgrade"),
+                        notInstalled: t("navigation.items.notInstalled"),
+                    },
+                    {
+                        releases,
+                        notInstalled,
+                        notices,
+                        onOpenNotice: (notice) => {
+                            window.open(notice.link, "_blank", "noopener,noreferrer")
+                            dismissReleaseNotice(notice.id)
+                        },
+                    },
+                ).map((item) =>
+                    releases.some((release) => release.id === item.key)
                         ? {
                               ...item,
                               link: undefined,
@@ -462,5 +497,14 @@ export const useMobileHelpItem = ({
                 titles[item.key] ? {...item, title: titles[item.key]} : item,
             ),
         }
-    }, [onOpenShortcuts, openWhatsNew, t, version])
+    }, [
+        dismissReleaseNotice,
+        notInstalled,
+        notices,
+        onOpenShortcuts,
+        openWhatsNew,
+        releases,
+        t,
+        version,
+    ])
 }

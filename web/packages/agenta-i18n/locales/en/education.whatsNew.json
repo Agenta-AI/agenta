@@ -8,5 +8,6 @@
     "dontShowAgain": "Don't show this again",
     "readChangelog": "Read changelog",
     "play": "Play",
-    "playFeature": "Play {{title}}"
+    "playFeature": "Play {{title}}",
+    "notInstalled": "Not installed"
 }

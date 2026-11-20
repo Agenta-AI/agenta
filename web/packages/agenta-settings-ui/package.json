@@ -16,7 +16,8 @@
         "test:unit:coverage": "vitest run --coverage"
     },
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./entitlements": "./src/access/entitlements.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

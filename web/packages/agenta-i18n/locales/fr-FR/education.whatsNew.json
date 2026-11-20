@@ -8,5 +8,6 @@
     "dontShowAgain": "Ne plus afficher",
     "readChangelog": "Lire le journal des modifications",
     "play": "Lire",
-    "playFeature": "Lire {{title}}"
+    "playFeature": "Lire {{title}}",
+    "notInstalled": "Non installée"
 }

@@ -8,5 +8,6 @@
     "dontShowAgain": "Não mostrar novamente",
     "readChangelog": "Ler o changelog",
     "play": "Reproduzir",
-    "playFeature": "Reproduzir {{title}}"
+    "playFeature": "Reproduzir {{title}}",
+    "notInstalled": "Não instalada"
 }

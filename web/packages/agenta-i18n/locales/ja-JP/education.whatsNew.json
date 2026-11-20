@@ -8,5 +8,6 @@
     "dontShowAgain": "今後表示しない",
     "readChangelog": "変更履歴を読む",
     "play": "再生",
-    "playFeature": "{{title}} を再生"
+    "playFeature": "{{title}} を再生",
+    "notInstalled": "未インストール"
 }

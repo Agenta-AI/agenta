@@ -8,5 +8,6 @@
     "dontShowAgain": "不再显示",
     "readChangelog": "查看更新日志",
     "play": "播放",
-    "playFeature": "播放：{{title}}"
+    "playFeature": "播放：{{title}}",
+    "notInstalled": "未安装"
 }

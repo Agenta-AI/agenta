@@ -1,7 +1,20 @@
 import type {ReactNode} from "react"
 
-import {ALL_RELEASES_LINK, RELEASES, type SidebarConfig} from "@agenta/navigation"
-import {CircleIcon, PackageIcon} from "@phosphor-icons/react"
+import {
+    ALL_RELEASES_LINK,
+    RELEASES,
+    UPGRADE_GUIDE_LINK,
+    type Notice,
+    type Release,
+    type SidebarConfig,
+} from "@agenta/navigation"
+import {
+    ArrowCircleUpIcon,
+    CircleIcon,
+    InfoIcon,
+    PackageIcon,
+    WarningIcon,
+} from "@phosphor-icons/react"
 
 /** Newest first, capped: the menu says what changed lately, not the whole changelog. */
 const RECENT_RELEASE_COUNT = 3
@@ -47,32 +60,84 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
     </span>
 )
 
+const RowNote = ({children}: {children: ReactNode}) => (
+    <span className="text-[11px] leading-none text-colorTextTertiary">{children}</span>
+)
+
+/** The visible text of the block; the shell supplies it in the reader's language. */
+export interface ReleaseNavLabels {
+    whatsNew: string
+    viewAll: string
+    updateAvailable: string
+    howToUpgrade: string
+    notInstalled: string
+}
+
+export interface ReleaseNavOptions {
+    /** The bundled list merged with the release feed. Defaults to the bundled list. */
+    releases?: Release[]
+    /** Releases newer than the running version that the reader can install. */
+    notInstalled?: Release[]
+    /** Feed notices that already passed their filters. */
+    notices?: Notice[]
+    /** Opens a notice. Without it, a notice row is a plain link. */
+    onOpenNotice?: (notice: Notice) => void
+}
+
 /**
- * The help menu's "What's new?" block: a heading, the recent releases, and the way to the rest.
+ * The help menu's "What's new?" block: a heading, the feed's notices, the way to upgrade when a
+ * newer release exists, the recent releases, and the way to the rest.
  *
- * Shared by both rails so one changelog reads the same in the desktop app and in `/m`. `version`
- * rides the last row — the running build belongs beside the list of what shipped.
+ * Shared by both rails so one changelog reads the same in the desktop app and in `/m`.
+ * `appVersion` (the web build, without the "v") rides the last row — the running build belongs
+ * beside the list of what shipped.
  */
 export const buildReleaseNavItems = (
-    version: string | undefined,
-    labels: {whatsNew: string; viewAll: string},
-): SidebarConfig[] => [
-    {key: "releases-heading", title: labels.whatsNew, isGroupLabel: true},
-    ...RELEASES.slice(0, RECENT_RELEASE_COUNT).map((release, index) => ({
-        key: release.id,
-        title: release.features[0]?.title ?? release.id,
-        link: release.features[0]?.link ?? ALL_RELEASES_LINK,
-        icon: <ReleaseGlyph first={index === 0} />,
-        rowClassName: RELEASE_ROW,
-    })),
-    {
-        key: "all-releases",
-        title: labels.viewAll,
-        link: ALL_RELEASES_LINK,
-        icon: <ReleaseGlyph last />,
-        rowClassName: RELEASE_ROW,
-        suffix: version ? (
-            <span className="text-[11px] leading-none text-colorTextTertiary">v{version}</span>
-        ) : undefined,
-    },
-]
+    appVersion: string | undefined,
+    labels: ReleaseNavLabels,
+    {releases = RELEASES, notInstalled = [], notices = [], onOpenNotice}: ReleaseNavOptions = {},
+): SidebarConfig[] => {
+    const newer = new Set(notInstalled.map((release) => release.id))
+    return [
+        {key: "releases-heading", title: labels.whatsNew, isGroupLabel: true},
+        ...notices.map((notice) => ({
+            key: `notice:${notice.id}`,
+            title: notice.title,
+            tooltip: notice.body,
+            ...(onOpenNotice ? {onClick: () => onOpenNotice(notice)} : {link: notice.link}),
+            icon:
+                notice.severity === "warning" ? (
+                    <WarningIcon size={14} className="text-colorWarning" />
+                ) : (
+                    <InfoIcon size={14} className="text-colorTextSecondary" />
+                ),
+        })),
+        ...(newer.size > 0
+            ? [
+                  {
+                      key: "update-available",
+                      title: labels.updateAvailable,
+                      link: UPGRADE_GUIDE_LINK,
+                      icon: <ArrowCircleUpIcon size={14} className="text-colorSuccessText" />,
+                      suffix: <RowNote>{labels.howToUpgrade}</RowNote>,
+                  },
+              ]
+            : []),
+        ...releases.slice(0, RECENT_RELEASE_COUNT).map((release, index) => ({
+            key: release.id,
+            title: release.features[0]?.title ?? release.id,
+            link: release.features[0]?.link ?? ALL_RELEASES_LINK,
+            icon: <ReleaseGlyph first={index === 0} />,
+            rowClassName: RELEASE_ROW,
+            suffix: newer.has(release.id) ? <RowNote>{labels.notInstalled}</RowNote> : undefined,
+        })),
+        {
+            key: "all-releases",
+            title: labels.viewAll,
+            link: ALL_RELEASES_LINK,
+            icon: <ReleaseGlyph last />,
+            rowClassName: RELEASE_ROW,
+            suffix: appVersion ? <RowNote>v{appVersion}</RowNote> : undefined,
+        },
+    ]
+}
