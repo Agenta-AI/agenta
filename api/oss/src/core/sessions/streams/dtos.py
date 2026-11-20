@@ -13,9 +13,12 @@ from pydantic import (
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
 from oss.src.core.sharing.dtos import AccessPolicy, Visibility, SessionSharingState
 from oss.src.core.sessions.types import (
+    SessionCallingSession,
+    SessionCallingSessionQuery,
     SessionDelivery,
     SessionOrigin,
     SessionReference,
@@ -93,6 +96,7 @@ class SessionStream(Identifier, Header, Lifecycle):
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None
+    calling_session: Optional[SessionCallingSession] = None
     # The sharing policy, read only. A row written by pre-sharing code (stored NULL) reads
     # as project-visible.
     visibility: Visibility = Visibility.PROJECT
@@ -126,6 +130,11 @@ class SessionStreamCreate(Header):
     # the channel policy (`channel_session_policy`). Only that binding's run creates a
     # row a channel thread names, and only for a thread of that binding.
     channel_binding_id: Optional[UUID] = None
+    # The run whose request creates the row, and the calling session record of a start
+    # from another session. The mapper turns them into the session origin
+    # (`session_origin_tags`). Never serialized.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
+    calling_session: Optional[SessionCallingSession] = Field(default=None, exclude=True)
     # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
     # storage representation.
     name_source: Optional[SessionNameSource] = None
@@ -227,6 +236,7 @@ class SessionStreamQuery(BaseModel):
     search: Optional[str] = None
     origins: Optional[list[SessionOrigin]] = None
     exclude_origins: Optional[list[SessionOrigin]] = None
+    calling_session: Optional[SessionCallingSessionQuery] = None
 
 
 class CommandMode(str, Enum):

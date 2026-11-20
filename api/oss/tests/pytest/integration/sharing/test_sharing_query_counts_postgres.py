@@ -831,6 +831,7 @@ async def test_channel_thread_creation_paths(world, redis_commands):
 
     async def _send(session_id: str):
         return await world.streams.command(
+            envelope=None,
             project_id=world.project_id,
             user_id=world.alice,
             request=SessionStreamCommandRequest(
@@ -872,6 +873,7 @@ def _session_recheck(world, user_id, session_id):
 async def test_send_unchanged(world):
     async def _send(session_id: str):
         return await world.streams.command(
+            envelope=None,
             project_id=world.project_id,
             user_id=world.alice,
             request=SessionStreamCommandRequest(

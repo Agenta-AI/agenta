@@ -17,7 +17,12 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from oss.src.core.sessions.dtos import SessionQuery, SessionQueryLifecycle
+from oss.src.core.sessions.dtos import (
+    SessionCallingSessionQuery,
+    SessionOrigin,
+    SessionQuery,
+    SessionQueryLifecycle,
+)
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
@@ -371,3 +376,71 @@ async def test_count_short_circuits_on_an_empty_intersection():
 
     assert total == 0
     assert streams.count_captured == {}
+
+
+# ---------------------------------------------------------------------------------- #
+# The calling session filters
+# ---------------------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_calling_session_ids_match_the_calling_session_tag(monkeypatch):
+    stmt = await _run_query(
+        monkeypatch,
+        filter=SessionStreamQuery(
+            calling_session=SessionCallingSessionQuery(ids=["builder-session"])
+        ),
+    )
+
+    sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+    assert "session_streams.tags ->> 'ag.calling_session.id'" in sql
+    assert "'builder-session'" in sql
+    assert "ag.calling_session.agent_id" not in sql
+    # Not the session's own id.
+    assert "session_streams.session_id IN" not in sql
+
+
+@pytest.mark.asyncio
+async def test_calling_agent_ids_match_the_calling_agent_tag(monkeypatch):
+    agent_id = uuid4()
+    stmt = await _run_query(
+        monkeypatch,
+        filter=SessionStreamQuery(
+            origins=[SessionOrigin.calling_session],
+            calling_session=SessionCallingSessionQuery(agent_ids=[agent_id]),
+        ),
+    )
+
+    sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+    assert "session_streams.tags ->> 'ag.calling_session.agent_id'" in sql
+    assert f"'{agent_id}'" in sql
+    assert "session_streams.tags ->> 'ag.origin'" in sql
+    assert "'calling_session'" in sql
+
+
+@pytest.mark.asyncio
+async def test_no_calling_session_filter_adds_no_predicate(monkeypatch):
+    stmt = await _run_query(monkeypatch, filter=SessionStreamQuery())
+
+    sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+    assert "ag.calling_session" not in sql
+
+
+@pytest.mark.asyncio
+async def test_the_calling_session_filter_forwards_to_the_streams_query():
+    streams = _FakeStreamsService([_stream("s1")])
+    service = _service(streams, _FakeTurnsService([]))
+    calling_session = SessionCallingSessionQuery(
+        ids=["builder-session"], agent_ids=[uuid4()]
+    )
+
+    await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
+        project_id=_PROJECT,
+        query=SessionQuery(calling_session=calling_session),
+    )
+
+    assert streams.captured["filter"].calling_session == calling_session

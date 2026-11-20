@@ -254,6 +254,7 @@ async def test_cancel_atomically_tombstones_and_clears_the_locks(lock_engine):
 
     with patch.object(redis, "eval", new=_beat_after_atomic_displacement):
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=_cancel(),

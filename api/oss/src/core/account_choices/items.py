@@ -13,8 +13,10 @@ from oss.src.core.workflows.dtos import WorkflowRevisionData
 def run_person_id(envelope: Optional[RunEnvelope]) -> Optional[UUID]:
     """The person a run is for, or None.
 
-    None when there is no envelope, and for a child run: a child keeps its parent's
-    authority, so the authority alone cannot tell it apart. Otherwise the principal's id
+    None when there is no envelope, and for a child run (a blocking workflow call): a
+    child keeps its parent's authority, so the authority alone cannot tell it apart. A
+    turn that a calling session sent (`calling_session`) keeps its run person, as a
+    `web` turn does. Otherwise the principal's id
     when the principal is a human; an API key and a channel installation have no run
     person. Every boundary uses this one function. A route that is not a run builds its
     envelope with `request_run_envelope(request)`."""

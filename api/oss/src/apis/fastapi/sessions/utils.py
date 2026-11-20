@@ -8,9 +8,11 @@ from pydantic import BaseModel, ConfigDict
 
 from oss.src.apis.fastapi.sessions.models import (
     CurrentSessionResponse,
+    SessionCallingSessionRequest,
     SessionQueryRequest,
 )
 from oss.src.core.sessions.dtos import (
+    SessionCallingSessionQuery,
     SessionQuery,
     SessionQueryLifecycle,
     SessionQueryOptions,
@@ -135,6 +137,17 @@ def _unique_sorted(values: Any) -> Any:
     )
 
 
+def _calling_session_query(
+    request: Optional[SessionCallingSessionRequest],
+) -> Optional[SessionCallingSessionQuery]:
+    if request is None or (request.ids is None and request.agent_ids is None):
+        return None
+    return SessionCallingSessionQuery(
+        ids=_unique_sorted(request.ids),
+        agent_ids=_unique_sorted(request.agent_ids),
+    )
+
+
 def normalize_session_query_request(
     body: SessionQueryRequest,
 ) -> NormalizedSessionQuery:
@@ -246,6 +259,9 @@ def normalize_session_query_request(
             exclude_session_ids=_unique_sorted(exclude_session_ids),
             origins=final_origins,
             exclude_origins=final_exclude_origins,
+            calling_session=_calling_session_query(
+                session.calling_session if session else None
+            ),
         ),
         lifecycle=SessionQueryLifecycle(
             include_ended=body.include_ended,

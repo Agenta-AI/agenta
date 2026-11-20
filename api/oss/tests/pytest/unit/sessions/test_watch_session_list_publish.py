@@ -118,6 +118,7 @@ def _session_id() -> str:
 
 async def _send(svc, session_id: str, *, force: bool = False):
     return await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
