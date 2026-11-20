@@ -112,15 +112,23 @@ export const AgentMenu = ({
         return (
             <>
                 {leave}
-                <button
-                    type="button"
+                {/* A div with the button role: the identity renders block elements, which a
+                    <button> may not hold. */}
+                <div
+                    role="button"
+                    tabIndex={0}
                     aria-haspopup="dialog"
-                    className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 font-[inherit] text-colorText active:bg-colorFillTertiary"
+                    className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
                     onClick={() => setSheetOpen(true)}
+                    onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return
+                        event.preventDefault()
+                        setSheetOpen(true)
+                    }}
                 >
                     <AgentIdentity workflowId={agentId} name={name} editable={false} />
                     <CaretDown size={14} aria-hidden className="shrink-0 text-colorTextSecondary" />
-                </button>
+                </div>
                 <BottomSheetMenu
                     open={sheetOpen}
                     onOpenChange={setSheetOpen}

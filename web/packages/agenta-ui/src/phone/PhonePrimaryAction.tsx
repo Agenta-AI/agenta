@@ -4,7 +4,7 @@ import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
 import {cn} from "../utils/styles"
 
-import {PHONE_BUTTON_CLASS} from "./BottomSheet"
+import {PHONE_BUTTON_CLASS} from "./phoneButton"
 
 export interface PhonePrimaryActionProps {
     /** The label ("Add integration"). */

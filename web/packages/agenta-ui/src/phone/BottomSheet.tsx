@@ -7,8 +7,7 @@ import {Button} from "../components/ui/button"
 import {Sheet, SheetContent, SheetTitle} from "../components/ui/sheet"
 import {cn} from "../utils/styles"
 
-/** A phone button: 44 px high, as wide as its row, the phone's 15 px text. */
-export const PHONE_BUTTON_CLASS = "h-11 w-full gap-2 rounded-[10px] text-[15px]"
+import {PHONE_BUTTON_CLASS} from "./phoneButton"
 
 export interface BottomSheetProps {
     open: boolean
