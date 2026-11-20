@@ -5,6 +5,7 @@ import {
     agentWorkflowsListQueryStateAtom,
     invalidateWorkflowsListCache,
 } from "@agenta/entities/workflow"
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -18,12 +19,20 @@ import {PaneNotice} from "./PaneNotice"
 /** An agent tab: its pane tabs, or the no-access line when it was deleted or hidden. */
 export const AgentTabContent = ({
     agentId,
+    builderSaveToolCallId,
+    builderSaveRevisionId,
+    changedSections,
+    onSectionOpened,
     guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     agentId: string
+    builderSaveToolCallId: string | null
+    builderSaveRevisionId: string | null
+    changedSections?: MarkableSectionKey[]
+    onSectionOpened: (section: MarkableSectionKey) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -50,6 +59,10 @@ export const AgentTabContent = ({
     return (
         <AgentPane
             agentId={agentId}
+            builderSaveToolCallId={builderSaveToolCallId}
+            builderSaveRevisionId={builderSaveRevisionId}
+            changedSections={changedSections}
+            onSectionOpened={onSectionOpened}
             guardRef={guardRef}
             builderSessionId={builderSessionId}
             workspaceId={workspaceId}

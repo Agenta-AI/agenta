@@ -67,14 +67,31 @@ describe("agentResults", () => {
     it("lists each create_agent or edit_agent_config result with its agent, in order", () => {
         const messages = [
             assistant("m1", [toolPart("create_agent", "c1", created)]),
-            assistant("m2", [toolPart("edit_agent_config", "c2", JSON.stringify(committed))]),
+            assistant("m2", [
+                {
+                    ...toolPart("edit_agent_config", "c2", JSON.stringify(committed)),
+                    input: {
+                        operations: [
+                            {operation: "set", target: ["parameters", "agent", "instructions"]},
+                        ],
+                    },
+                },
+            ]),
         ]
         expect(agentResults(messages)).toEqual([
-            {toolCallId: "c1", agent: {id: "agent-lead-finder", name: "Lead finder"}, saved: true},
+            {
+                toolCallId: "c1",
+                agent: {id: "agent-lead-finder", name: "Lead finder"},
+                saved: true,
+                revisionId: "rev-1",
+                changedSections: [],
+            },
             {
                 toolCallId: "c2",
                 agent: {id: "agent-email-writer", name: "Email writer"},
                 saved: true,
+                revisionId: "rev-5",
+                changedSections: ["instructions"],
             },
         ])
     })

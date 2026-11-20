@@ -52,5 +52,14 @@
         "theme": "light",
         "selector": "[data-testid=\"builder-tabs-story\"]",
         "ready": "text=2 more"
+    },
+    {
+        "id": "builder-page-b03-changed-light",
+        "story": "builderlayout-builder-page-changed-by-the-builder--instructions-changed",
+        "width": 700,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Instructions"
     }
 ]

@@ -66,6 +66,7 @@ export const BuilderTabButton = ({
             {tab.dot ? (
                 <span
                     data-testid="builder-tab-dot"
+                    role="img"
                     aria-label={t("builder.page.changedByBuilder")}
                     className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
                 />

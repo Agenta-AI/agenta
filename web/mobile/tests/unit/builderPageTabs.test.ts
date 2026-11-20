@@ -2,8 +2,8 @@
 /**
  * The builder tabs of the builder page (tasks 27.2, 40.1 to 40.3): the first tab from a builder
  * result, the page context or the browser link; the dot of a later result; the closed-tab
- * memory; the cap of 50; closing the active tab; the address; storage per chat; and the row fit
- * with "N more".
+ * memory; the cap of 50; closing the active tab; the address; storage per chat; the row fit
+ * with "N more"; the 10 second rule (task 41.1); and the changed sections (task 41.2).
  */
 import {createElement, type ReactNode} from "react"
 
@@ -17,6 +17,7 @@ import {
     activateBuilderTab,
     builderTabKey,
     builderTabsStorageKey,
+    clearChangedSection,
     closeBuilderTab,
     EMPTY_BUILDER_TABS,
     followBuilderResult,
@@ -28,7 +29,9 @@ import {
     type BuilderTab,
     type BuilderTabsState,
 } from "@/features/builder-page/builderTabs"
+import {sectionsOfOperations} from "@/features/builder-page/changedSections"
 import {fitTabs} from "@/features/builder-page/fitTabs"
+import {followAction} from "@/features/builder-page/followBuilder"
 import type {AgentResult} from "@/features/builder-page/paneAgent"
 import {useBuilderTabs} from "@/features/builder-page/useBuilderTabs"
 
@@ -41,6 +44,8 @@ const result = (toolCallId: string, id: string, saved = true): AgentResult => ({
     toolCallId,
     agent: {id, name: id},
     saved,
+    revisionId: null,
+    changedSections: [],
 })
 
 /** Tabs as the browser stores them. */
@@ -287,5 +292,133 @@ describe("fitTabs", () => {
         const picked = fitTabs({keys, active: "enrich", widths, room: 520, moreWidth: 90, gap: 4})
         expect(picked.visible).toContain("enrich")
         expect(picked.hidden).toHaveLength(2)
+    })
+})
+
+describe("follow the builder: the 10 second rule", () => {
+    const at = (seconds: number) => ({
+        paneTab: "sessions" as const,
+        target: "agent" as const,
+        now: 100_000 + seconds * 1000,
+        lastPointerDown: 100_000,
+        dirty: false,
+    })
+    it("keeps the view and marks the Agent pane tab after a click 9 seconds ago", () => {
+        expect(followAction<"agent" | "sessions">(at(9))).toBe("dot")
+    })
+
+    it("shows the Agent pane tab when the last click was 11 seconds ago, or never", () => {
+        expect(followAction<"agent" | "sessions">(at(11))).toBe("show")
+        expect(followAction<"agent" | "sessions">({...at(0), lastPointerDown: null})).toBe("show")
+    })
+
+    it("keeps an open form with edits, and does nothing when the Agent pane tab shows", () => {
+        expect(followAction<"agent" | "sessions">({...at(60), dirty: true})).toBe("dot")
+        expect(followAction<"agent" | "sessions">({...at(60), paneTab: "agent"})).toBe("none")
+    })
+})
+
+describe("useBuilderTabs follows a new save of the active agent", () => {
+    const saveOf = (id: string, toolCallId: string) =>
+        ({
+            id: `m-${toolCallId}`,
+            role: "assistant",
+            parts: [
+                {
+                    type: "tool-edit_agent_config",
+                    toolCallId,
+                    state: "output-available",
+                    input: {},
+                    output: {
+                        status: "committed",
+                        agent: {id, name: id},
+                        revision: {id: `rev-${toolCallId}`, version: "2"},
+                    },
+                },
+            ],
+        }) as unknown as UIMessage
+
+    it("reports a save made in this visit, not the saves the chat loaded with", () => {
+        const hook = renderHook(() =>
+            useBuilderTabs({
+                sessionId: "chat-f",
+                routeChatId: "chat-f",
+                tab: undefined,
+                linkedAgentId: null,
+                workspaceId: "w",
+                projectId: "p",
+            }),
+        )
+        act(() => hook.result.current.onMessagesChanged([saveOf("a", "c1")]))
+        expect(hook.result.current.state.active).toBe("agent:a")
+        expect(hook.result.current.activeSaveToolCallId).toBeNull()
+        act(() => hook.result.current.onMessagesChanged([saveOf("a", "c1"), saveOf("b", "c2")]))
+        expect(hook.result.current.activeSaveToolCallId).toBeNull()
+        act(() =>
+            hook.result.current.onMessagesChanged([
+                saveOf("a", "c1"),
+                saveOf("b", "c2"),
+                saveOf("a", "c3"),
+            ]),
+        )
+        expect(hook.result.current.activeSaveToolCallId).toBe("c3")
+        expect(hook.result.current.activeSaveRevisionId).toBe("rev-c3")
+    })
+})
+
+describe("Changed by the builder (task 41.2)", () => {
+    const T = ["parameters", "agent"]
+    it("names the panel section of the first segment of each operation target", () => {
+        expect(
+            sectionsOfOperations([
+                {operation: "set", target: [...T, "instructions", "agents_md"], value: "x"},
+                {operation: "set", target: [...T, "llm"], value: {}},
+                {operation: "add_item", target: [...T, "skills"], value: {}},
+                {operation: "remove_item", target: [...T, {list: "tools", key: "gmail"}]},
+                {operation: "add_item", target: [...T, "mcps"], value: {}},
+                {operation: "set", target: [...T, "instructions", "extra"], value: "y"},
+                {operation: "set", target: [...T, "sandbox", "kind"], value: "local"},
+            ]),
+        ).toEqual(["instructions", "model-harness", "skills", "tools", "mcp", "advanced"])
+        expect(
+            sectionsOfOperations([
+                {operation: "set", target: [...T, "runner", "permissions", "default"]},
+                {operation: "set", target: [...T, "sandbox", "credentials"]},
+                {operation: "set", target: [...T, "harness", "kind"]},
+            ]),
+        ).toEqual(["permissions", "secrets", "model-harness"])
+        expect(sectionsOfOperations([{target: [...T, "harness", "permissions"]}])).toEqual([
+            "advanced",
+        ])
+        // A whole runner or sandbox spans two sections.
+        expect(sectionsOfOperations([{target: [...T, "runner"]}])).toEqual([
+            "permissions",
+            "advanced",
+        ])
+        expect(sectionsOfOperations([{target: [...T, "sandbox"]}])).toEqual(["secrets", "advanced"])
+        expect(sectionsOfOperations(undefined)).toEqual([])
+    })
+
+    it("marks the changed sections of a saved edit on its tab, until each is opened", () => {
+        let state = followBuilderResults(EMPTY_BUILDER_TABS, [result("c1", "a")], null)
+        state = followBuilderResults(
+            state,
+            [result("c1", "a"), {...result("c2", "a"), changedSections: ["instructions"]}],
+            null,
+        )
+        state = followBuilderResults(
+            state,
+            [
+                result("c1", "a"),
+                {...result("c2", "a"), changedSections: ["instructions"]},
+                {...result("c3", "a"), changedSections: ["skills", "instructions"]},
+            ],
+            null,
+        )
+        expect(state.tabs[0].changedSections).toEqual(["instructions", "skills"])
+        state = clearChangedSection(state, "agent:a", "instructions")
+        expect(state.tabs[0].changedSections).toEqual(["skills"])
+        state = clearChangedSection(state, "agent:a", "skills")
+        expect(state.tabs[0].changedSections).toBeUndefined()
     })
 })

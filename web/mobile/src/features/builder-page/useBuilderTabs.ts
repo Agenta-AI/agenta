@@ -1,5 +1,6 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import type {UIMessage} from "ai"
 import {useAtomValue, useStore} from "jotai"
 import {useRouter} from "next/router"
@@ -12,6 +13,7 @@ import {
     applyAddressTab,
     builderTabHref,
     builderTabKey,
+    clearChangedSection,
     closeBuilderTab,
     followBuilderResult,
     followBuilderResults,
@@ -92,20 +94,49 @@ export const useBuilderTabs = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addressKey, onThisChat, sessionId])
 
+    // The latest builder save of the active tab's agent in this visit (task 41.1): the pane
+    // follows it. Saves already in the chat when it loads are history, not followed.
+    const [activeSave, setActiveSave] = useState<{
+        toolCallId: string
+        revisionId: string | null
+    } | null>(null)
+    // The tool calls in the first messages of this chat in this visit: history, never followed.
+    const history = useRef<{sessionId: string; ids: Set<string>} | null>(null)
+
     const onMessagesChanged = useCallback(
         (messages: UIMessage[]) => {
             // No message yet (a new chat, or history still loading): nothing names an agent.
             if (!messages.length) return
-            commit((current) =>
+            const before = store.get(tabsAtom)
+            const results = agentResults(messages)
+            const next = commit((current) =>
                 followBuilderResults(
                     current,
-                    agentResults(messages),
+                    results,
                     latestContextAgent(messages) ??
                         (linkedAgentId ? {id: linkedAgentId, name: ""} : null),
                 ),
             )
+            if (history.current?.sessionId !== sessionId) {
+                history.current = {
+                    sessionId,
+                    ids: new Set(results.map((result) => result.toolCallId)),
+                }
+                return
+            }
+            if (!next.active) return
+            const seen = history.current.ids
+            const saved = results.filter(
+                (result) =>
+                    result.saved &&
+                    !seen.has(result.toolCallId) &&
+                    !before.followedToolCallIds.includes(result.toolCallId) &&
+                    builderTabKey(agentTab(result.agent)) === next.active,
+            )
+            const last = saved.at(-1)
+            if (last) setActiveSave({toolCallId: last.toolCallId, revisionId: last.revisionId})
         },
-        [commit, linkedAgentId],
+        [commit, linkedAgentId, sessionId],
     )
 
     /** The first message of a new chat: its chip's agent opens a tab; the address names the chat. */
@@ -121,12 +152,21 @@ export const useBuilderTabs = ({
 
     return {
         state,
+        /** The tool call of the builder's latest save of the active tab's agent, in this visit. */
+        activeSaveToolCallId: activeSave?.toolCallId ?? null,
+        /** The revision that save made, when its result names one. */
+        activeSaveRevisionId: activeSave?.revisionId ?? null,
         open: useCallback(
             (next: BuilderTab) => commit((current) => openBuilderTab(current, next)),
             [commit],
         ),
         activate: useCallback(
             (key: string) => commit((current) => activateBuilderTab(current, key)),
+            [commit],
+        ),
+        clearChangedSection: useCallback(
+            (key: string, section: MarkableSectionKey) =>
+                commit((current) => clearChangedSection(current, key, section)),
             [commit],
         ),
         close: useCallback(

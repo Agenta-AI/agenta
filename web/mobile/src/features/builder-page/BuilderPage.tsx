@@ -5,6 +5,7 @@ import {
     agentWorkflowsListQueryStateAtom,
     builderAgentRevisionIdQueryAtom,
 } from "@agenta/entities/workflow"
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {userAtom} from "@agenta/shared/state"
@@ -101,6 +102,14 @@ export const BuilderPage = ({
     })
     const activeTab =
         tabs.state.tabs.find((held) => builderTabKey(held) === tabs.state.active) ?? null
+    const {clearChangedSection} = tabs
+    const activeKey = tabs.state.active
+    const onSectionOpened = useCallback(
+        (section: MarkableSectionKey) => {
+            if (activeKey) clearChangedSection(activeKey, section)
+        },
+        [activeKey, clearChangedSection],
+    )
     // The active tab's open views: a form with edits asks before the tab changes or closes.
     const paneGuard = useRef<PageViewStackGuardApi | null>(null)
     const leaveActiveTab = async () => {
@@ -313,6 +322,9 @@ export const BuilderPage = ({
                 <BuilderTabContent
                     key={builderTabKey(activeTab)}
                     tab={activeTab}
+                    builderSaveToolCallId={tabs.activeSaveToolCallId}
+                    builderSaveRevisionId={tabs.activeSaveRevisionId}
+                    onSectionOpened={onSectionOpened}
                     guardRef={paneGuard}
                     builderSessionId={sessionId}
                     workspaceId={workspaceId}
