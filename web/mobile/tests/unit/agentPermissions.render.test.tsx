@@ -178,10 +178,7 @@ describe("mobile schema-driven agent permissions", () => {
         // Advanced opens its own views now (their tests live in @agenta/entity-ui); its row and
         // a remote request to open it show no permission editor here.
         await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
-        const advanced = [...document.querySelectorAll("button")].find(
-            (node) => node.textContent?.includes("Advanced"),
-        )
-        expect(advanced).toBeTruthy()
+        expect(document.body.textContent).toContain("Advanced")
         expect(document.querySelectorAll('[aria-label="Policy"]').length).toBeLessThanOrEqual(1)
         expect(document.body.textContent).not.toMatch(
             /Network|Filesystem|Enforcement|Allow rules|Deny rules/,
