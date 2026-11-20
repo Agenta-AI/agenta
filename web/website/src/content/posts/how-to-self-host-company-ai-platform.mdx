@@ -1,0 +1,459 @@
+---
+slug: how-to-self-host-company-ai-platform
+title: "How to Self-Host Your Company AI Platform: Docker, Kubernetes, Harnesses, and Security"
+description: "A practical engineering guide to self-hosting your company AI platform with Docker Compose or Kubernetes Helm, covering agent harnesses, Daytona sandboxes, MCP gateways, and S3 backups."
+category: Engineering
+date: 2026-04-20
+author: mahmoud-mabrouk
+heroImage: /blog/how-to-self-host-company-ai-platform/hero.webp
+ogImage: /blog/how-to-self-host-company-ai-platform/hero.webp
+readingTime: 14 min read
+tags:
+  - AI Coworker
+  - Company Brain
+  - Open Source
+  - AI Engineering
+  - Enterprise AI
+faq:
+  - question: "What hardware do I need to self-host Agenta with Docker Compose?"
+    answer: "To run the full self-hosted Agenta stack (including the control plane, agent-runner, PostgreSQL 16, Redis, and SeaweedFS S3 object storage) on a single Linux VM or developer machine, allocate at least 4 vCPU, 8 GB RAM, and 20 GB of free disk space. Because LLM inference happens through your connected model provider APIs or subscriptions rather than on the host, no GPU is required unless you also run local open-weight models via Ollama or vLLM."
+  - question: "When should we switch from local agent execution to Daytona sandboxes?"
+    answer: "Local process execution (where the harness runs inside the agent-runner container) is convenient for single-user evaluation or a trusted internal engineering environment. As soon as multiple users share the deployment, or when agents inspect untrusted external inputs, enable Daytona sandboxes (AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona). Daytona gives each conversation an ephemeral container that is destroyed after the session closes and supports opaque secrets (AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS) so API keys are substituted at the network boundary instead of being readable inside the sandbox."
+  - question: "Why must agentRunner stay at replicas: 1 in Kubernetes while other services scale horizontally?"
+    answer: "In Agenta's Kubernetes Helm chart, api, web, services, workerStreams, and workerQueues are stateless and should run at replicas: 2 or higher for high availability. By contrast, agentRunner manages the local filesystem mount cache and synchronizes durable workspace folders with the S3 object store on a single-writer model. Running multiple replicas of agentRunner concurrently would cause competing S3 writes and overwrite workspace files, so agentRunner must stay at replicas: 1 with a Recreate deployment strategy."
+  - question: "Can my team use existing Claude Pro/Max or ChatGPT Plus/Pro subscriptions on a self-hosted Agenta instance?"
+    answer: "Yes. Self-hosted Agenta supports both standard provider API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY) and personal OAuth subscriptions for Claude Code (Claude Pro or Max via claude setup-token) and Codex (ChatGPT Plus or Pro via codex login). Users connect their subscription under Settings -> Providers & Models -> Agent Harness Credentials without storing shared API keys in host configuration files."
+  - question: "How do I back up and restore durable agent workspace files in a self-hosted deployment?"
+    answer: "Backing up PostgreSQL alone does not back up agent workspace files, which live in the S3-compatible object store (agenta-store on SeaweedFS or external S3). Agenta automatically enables S3 bucket versioning on startup with a 30-day retention window so you can restore accidentally deleted or overwritten files to any point in time using hosting/scripts/restore_store_objects.py. For full disaster recovery against disk loss, pair S3 bucket versioning with nightly snapshots of the seaweed-data volume or point AGENTA_STORE_ENDPOINT_URL at managed AWS S3 or Cloudflare R2."
+---
+
+Self-hosting a company AI platform used to mean running a chat wrapper in front of an LLM API. As soon as your organization moves from stateless chat to autonomous AI coworkers that write code, run shell commands, query internal databases, and maintain files across sessions, the infrastructure requirements change completely.
+
+A production AI coworker platform is not a single container. It combines a control plane for configurations and evaluations, a stateful object store for durable workspace files, a background queue for scheduled triggers and OpenTelemetry traces, an MCP gateway for internal tool calls, and an execution runner that isolates untrusted agent code from your core network.
+
+This guide walks through how to self-host [Agenta](https://agenta.ai), an [open-source AI coworker platform](https://agenta.ai), on your own infrastructure. We cover the four-layer reference architecture, a five-minute Docker Compose deployment, automatic TLS with Traefik, isolating agent harnesses ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex/cli), and [Pi](https://shittycodingagent.ai/)) in local or Daytona sandboxes, locking down internal MCP egress, and scaling to Kubernetes with Helm.
+
+## 1. Reference Architecture: What Actually Runs in a Self-Hosted AI Platform
+
+Before running `docker compose up` or `helm install`, it helps to understand what components make up a self-hosted company AI platform and why they are separated. If you are designing your broader [company AI platform ownership model](/blog/company-ai-platform-ownership-model), this is the physical topology your platform engineering team will operate.
+
+![Self-Hosted Company AI Platform Reference Architecture](/blog/how-to-self-host-company-ai-platform/self-hosted-platform-architecture.webp)
+
+A self-hosted Agenta deployment splits responsibilities across four layers:
+
+### Entry and Routing Layer (`traefik`)
+
+Browser clients require the web studio, mobile chat interface, control-plane API, and execution services to share a single origin so cross-path requests succeed without CORS failures. **Traefik** serves as the reverse proxy on port `80` (and `443` when TLS is enabled), routing paths by specificity:
+
+- `/m` routes to **Web (mobile)** (`web-mobile:3001`), the lightweight chat interface for talking to agents on mobile or desktop.
+- `/api` routes to **API** (`api:8000` after stripping `/api`), the core control plane.
+- `/services` routes to **Services** (`services:8080` after stripping `/services`), the workflow and completion execution layer.
+- `/` routes to **Web** (`web:3000`), the full Next.js studio for building agents, running evaluations, and inspecting traces.
+
+### Control Plane and Async Workers (`api`, `services`, `workers`, `cron`)
+
+- **API (`api`)**: A FastAPI and Gunicorn service that owns projects, agent configurations, prompt revisions, evaluation datasets, OpenTelemetry trace queries, authentication checks, and the outbound MCP gateway relay.
+- **Services (`services`)**: A separate FastAPI service that executes completions, built-in evaluators, and chat workflows. When a user or trigger starts an agent session, `services` dispatches the run to the `runner` over `AGENTA_RUNNER_INTERNAL_URL`, authenticating with `AGENTA_RUNNER_TOKEN`.
+- **Worker Streams (`worker-streams`)**: A Taskiq consumer backed by Redis Streams that handles high-throughput OpenTelemetry trace ingestion so heavy telemetry never slows down interactive API calls.
+- **Worker Queues (`worker-queues`)**: A Taskiq consumer that runs asynchronous evaluation jobs, webhook deliveries, event subscriptions, and trigger dispatches.
+- **Cron (`cron`)**: Runs **Supercronic** inside a lightweight container to trigger scheduled agent runs and maintenance endpoints over internal HTTP using `AGENTA_SERVICES_INTERNAL_KEY`.
+
+### Execution Plane (`runner`)
+
+The **Runner (`runner:8090`)** is the process that actually launches coding and coworker harnesses. It receives a job payload from `services`, prepares the agent's instructions, skills, and tools, mounts the durable workspace, and executes the chosen harness ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex/cli), or [Pi](https://shittycodingagent.ai/)) either as a local subprocess or inside an isolated Daytona cloud sandbox.
+
+### Stateful Data Layer (`postgres`, `redis`, `seaweedfs`)
+
+- **PostgreSQL 16 (`postgres`)**: Stores relational state across three logical databases created automatically at startup: `agenta_oss_core` (projects, agents, variants, evaluation results), `agenta_oss_tracing` (spans and trace metadata), and `supertokens` (user identities and sessions).
+- **Dual Redis Instances (`redis-volatile` and `redis-durable`)**: Caching and job queues have conflicting memory policies, so Agenta runs two separate Redis 7 instances. `redis-volatile` runs with persistence disabled and `allkeys-lru` eviction for caching and pub/sub. `redis-durable` runs with AOF persistence (`appendonly yes`) and `noeviction` so Taskiq worker streams and active session state are never dropped under memory pressure.
+- **S3-Compatible Object Store (`seaweedfs`)**: Agent workspace files and durable team folders do not belong in PostgreSQL. By default, Agenta deploys **SeaweedFS** (`chrislusf/seaweedfs:4.47`) exposing an S3 API on port `8333`. During a run, the runner mounts the agent's prefix into the workspace via FUSE (`rclone mount` or `goofys`), so standard POSIX file reads and writes persist across sessions. You can swap SeaweedFS for AWS S3, Cloudflare R2, or MinIO at any time via `AGENTA_STORE_ENDPOINT_URL`.
+
+---
+
+## 2. Fast Path: Deploying with Docker Compose (Local and Remote VM)
+
+For a single evaluation box, an internal team pilot, or a dedicated virtual machine on AWS EC2, GCP Compute Engine, or Hetzner, Docker Compose is the fastest way to bring the entire stack online.
+
+### Hardware Sizing
+
+| Deployment Tier              | Minimum vCPU | Minimum RAM | Disk Space   | Recommended Use Case                                                       |
+| :--------------------------- | :----------- | :---------- | :----------- | :------------------------------------------------------------------------- |
+| **Local Trial / Laptop**     | 2 vCPU       | 8 GB        | 30 GB        | Testing workflows, single-operator local harness runs                      |
+| **Team Pilot VM**            | 4 vCPU       | 16 GB       | 80 GB NVMe   | 5 to 25 users, concurrent evaluations, SeaweedFS object storage            |
+| **Production Multi-Team VM** | 8 vCPU       | 32 GB       | 200 GB+ NVMe | High trace volume, multiple active agent sessions (with Daytona sandboxes) |
+
+### Step 1: Sparse-Clone the Deployment Manifests
+
+You do not need to clone the entire source monorepo onto your server. Use `git sparse-checkout` to pull only the Docker Compose configurations and PostgreSQL initialization directories:
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
+cd agenta
+git sparse-checkout set hosting/docker-compose api/oss/databases/postgres api/ee/databases/postgres
+```
+
+### Step 2: Configure `.env.oss.gh` and Generate Internal Secrets
+
+Copy the prebuilt GitHub Container Registry (`gh`) environment template:
+
+```bash
+cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```
+
+Before starting the containers, generate a 32-byte hex secret for `AGENTA_SERVICES_INTERNAL_KEY`:
+
+```bash
+openssl rand -hex 32
+```
+
+Open `hosting/docker-compose/oss/.env.oss.gh` and replace `replace-me` on the `AGENTA_SERVICES_INTERNAL_KEY` line with your generated value. The `cron` container validates this variable on boot and exits immediately if it is still set to `replace-me`.
+
+If you are deploying on a remote VM rather than `localhost`, also update the public URLs in `.env.oss.gh` to match your server's IP or domain:
+
+```bash
+AGENTA_WEB_URL=http://agenta.yourdomain.com
+AGENTA_API_URL=http://agenta.yourdomain.com/api
+AGENTA_SERVICES_URL=http://agenta.yourdomain.com/services
+```
+
+### Step 3: Start the Stack
+
+Launch the prebuilt images with the `with-web` and `with-traefik` profiles enabled:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh \
+  --profile with-web --profile with-traefik up -d
+```
+
+Database migrations run automatically inside the `alembic` container before `api` and `services` accept traffic. Verify that all services are healthy:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh ps
+```
+
+### Step 4: Enable Automatic Let's Encrypt TLS on a Remote Server
+
+Running an internal AI platform over plain HTTP on a non-loopback address is dangerous and triggers Agenta's `gateway_insecure_endpoint` protection, which refuses to hand gateway credentials to agent runs over unencrypted connections.
+
+To enable automatic HTTPS with Let's Encrypt and Traefik:
+
+1. Point an `A` record for your domain (for example, `agenta.yourdomain.com`) to your VM's public IP, and ensure ports `80` and `443` are open. (If you use Cloudflare DNS, set the proxy status to **DNS only / gray cloud** so Cloudflare's proxy does not conflict with Traefik's ACME challenge.)
+2. Create an `acme.json` certificate store with strict `600` permissions (Traefik refuses to start if `acme.json` is world-readable):
+
+```bash
+mkdir -p /home/$(whoami)/ssl_certificates
+touch /home/$(whoami)/ssl_certificates/acme.json
+chmod 600 /home/$(whoami)/ssl_certificates/acme.json
+```
+
+3. Update `hosting/docker-compose/oss/.env.oss.gh` to use `https://` URLs and point to your SSL directory:
+
+```bash
+AGENTA_WEB_URL=https://agenta.yourdomain.com
+AGENTA_API_URL=https://agenta.yourdomain.com/api
+AGENTA_SERVICES_URL=https://agenta.yourdomain.com/services
+TRAEFIK_DOMAIN=agenta.yourdomain.com
+AGENTA_SSL_DIR=/home/ubuntu/ssl_certificates
+```
+
+4. Deploy using `docker-compose.gh.ssl.yml`:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.ssl.yml \
+  --env-file=hosting/docker-compose/oss/.env.oss.gh \
+  --profile with-web --profile with-traefik up -d
+```
+
+---
+
+## 3. Configuring Agent Harnesses and Sandbox Isolation (`local` vs `daytona`)
+
+In Agenta, **how an agent thinks and acts** (the harness) is decoupled from **where the agent's code and bash commands execute** (the sandbox provider).
+
+Every agent run selects one of three supported coding and coworker harnesses:
+
+- **[Pi](https://shittycodingagent.ai/)**: A fast, model-agnostic coding harness that supports Anthropic, OpenAI, Google Gemini, OpenRouter, AWS Bedrock, and custom OpenAI-compatible endpoints.
+- **[Claude Code](https://code.claude.com/docs/en/overview)**: Anthropic's agentic harness with native tool use and repository navigation.
+- **[Codex](https://developers.openai.com/codex/cli)**: OpenAI's terminal coding agent harness.
+
+Independently of the harness, the `runner` service controls where that harness runs via `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` and `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER`. For a deeper comparison of container, microVM, and gVisor runtimes, see our breakdown of [AI agent sandboxes compared](/blog/ai-agent-sandboxes-compared).
+
+![Local Runner vs Daytona Cloud Sandbox Isolation Modes](/blog/how-to-self-host-company-ai-platform/sandbox-secret-isolation-modes.webp)
+
+### Mode A: Local Runner Execution (`local`)
+
+By default in Docker Compose (`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local`), the runner starts the selected harness as a direct subprocess inside the `runner` container.
+
+**Security boundary:** Every local run shares the runner container's filesystem, environment variables, and Docker network. A shell tool call inside a local run can inspect other concurrent local sessions on the same runner and reach internal Compose services. Use `local` only for single-operator setups or small, trusted engineering teams.
+
+**Mounting your own personal subscription (`Pi`, `Claude Code`, or `Codex`):**
+One advantage of `local` mode on a single-operator machine is that you can authenticate runs using your personal OAuth login instead of paying per-token API keys. Because OAuth tokens rotate during runs, you mount your host credential folder read-write (`:rw`) into the `runner` service in `hosting/docker-compose/oss/docker-compose.gh.yml`:
+
+```yaml
+runner:
+  volumes:
+    # For Pi (also supports ChatGPT/Codex login via pi /login)
+    - ~/.pi/agent:/agenta/harness/pi:rw
+    # For Claude Code
+    - ~/.claude:/agenta/harness/claude:rw
+    # For Codex
+    - ~/.codex:/agenta/harness/codex:rw
+  environment:
+    PI_CODING_AGENT_DIR: /agenta/harness/pi
+    CLAUDE_CONFIG_DIR: /agenta/harness/claude
+    CODEX_HOME: /agenta/harness/codex
+```
+
+_(Note: The runner container executes as UID `1000`. If `id -u` on your host machine is not `1000`, set `user: "<uid>:<gid>"` and `HOME: /tmp` on the `runner` service so the container can read your `0600` login files.)_
+
+### Mode B: Isolated Cloud Sandboxes (`daytona`)
+
+Before inviting multiple teams, connecting untrusted external triggers, or letting non-engineers run agents with bash access, switch your runner to **Daytona** (`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona`).
+
+In Daytona mode, the runner never executes agent code locally. Instead, each session boots a dedicated cloud sandbox (`2 vCPU`, `4 GB RAM`, `5 GB disk` by default) from a prebuilt snapshot in your Daytona account.
+
+#### 1. Build the Sandbox Snapshot in Your Daytona Account
+
+Agenta provides the snapshot build recipe in `services/runner/images/sandbox/daytona`. It layers the [Pi](https://shittycodingagent.ai/) harness, FUSE mount utilities (`rclone`, `goofys`), and standard CLI tools (`python3`, `rg`, `fd`, `jq`, `unzip`, `tree`) onto the base image alongside [Claude Code](https://code.claude.com/docs/en/overview) and [Codex](https://developers.openai.com/codex/cli):
+
+```bash
+cd services/runner/images/sandbox/daytona
+DAYTONA_API_KEY=<your-daytona-api-key> DAYTONA_TARGET=eu uv run build_snapshot.py
+```
+
+This creates the `agenta-agent-sandbox-v4` snapshot in your Daytona organization.
+
+#### 2. Configure the Runner for Daytona and Opaque Secrets
+
+Add your Daytona credentials to `.env.oss.gh` (ensuring your Daytona API key has both **Sandbox** and **Secrets** permissions):
+
+```bash
+AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona
+AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=daytona
+AGENTA_RUNNER_DAYTONA_API_KEY=<your-daytona-api-key>
+AGENTA_RUNNER_DAYTONA_API_URL=https://app.daytona.io/api
+AGENTA_RUNNER_DAYTONA_TARGET=eu
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v4
+```
+
+By default, `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` is enabled. When a run uses a standard bearer API key (such as OpenAI, Anthropic, or an HTTP MCP credential), Agenta registers the secret with Daytona Secrets and passes only an opaque placeholder into the sandbox environment. If an agent runs `env` or `printenv` inside the sandbox, it sees only the placeholder, while Daytona's egress proxy injects the real key on outbound HTTPS requests. _(The only exception is locally signed cloud SDK credentials like AWS Bedrock and Google Vertex AI, which must enter the sandbox so the SDK can compute request signatures locally.)_
+
+#### 3. Make the Durable Object Store Reachable from the Sandbox
+
+Because a Daytona sandbox runs outside your Docker network, it cannot resolve `http://seaweedfs:8333` to mount the agent's durable files via FUSE. You have two clean options:
+
+- **Option 1: Expose the bundled SeaweedFS store on its own TLS subdomain via Traefik** (do not put S3 behind a path prefix, because path rewriting breaks AWS S3 v4 request signatures):
+
+```bash
+AGENTA_STORE_TRAEFIK_ENABLE=true
+AGENTA_STORE_DOMAIN=store.yourdomain.com
+AGENTA_STORE_ENDPOINT_URL=https://store.yourdomain.com
+```
+
+- **Option 2: Point `AGENTA_STORE_ENDPOINT_URL` at an external S3 bucket** (AWS S3, Cloudflare R2, or MinIO) that is already reachable over HTTPS.
+
+---
+
+## 4. Securing Internal MCP Servers, App Tools, and Network Egress
+
+Connecting agents to internal databases, issue trackers, and microservices via the Model Context Protocol (MCP) introduces two classic security risks: leaking MCP credentials inside the agent sandbox, and opening a Server-Side Request Forgery (SSRF) path into your private network. We cover the broader design patterns in our guide to [enterprise MCP gateway architecture and options](/blog/mcp-gateway-architecture-and-options).
+
+### How Agenta's API-Level MCP Gateway Relay Works
+
+Since Agenta v0.119.0, `AGENTA_MCP_GATEWAY_ENABLED` is enabled by default. When an agent invokes a tool on an external HTTP MCP server:
+
+1. The agent sandbox sends the tool call to the Agenta `api` container using a run-scoped gateway token.
+2. The `api` container resolves the upstream MCP server's credential from encrypted storage and relays the request.
+3. The upstream MCP server's API key never enters the runner or the Daytona sandbox.
+
+### Controlling Private-Network and Plain-HTTP MCP Egress
+
+What happens when your engineering team hosts an internal MCP server inside your VPC (for example, `http://mcp.internal:8080` or `https://10.0.14.22:8443`)? By default, the MCP gateway includes an outbound SSRF guard that blocks plain `http://` targets as well as private IP ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback, and link-local addresses.
+
+You control this boundary on the `api` service with two environment variables:
+
+| Deployment Posture                                                                   | Configuration on `api`                                                                                             | Security Behavior                                                                                                                                       |
+| :----------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Posture 1: All project members are trusted** (Default in Docker Compose templates) | `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`                                                                     | Allows projects to save and call MCP servers on private IP ranges or over plain `http://`.                                                              |
+| **Posture 2: Multi-tenant or untrusted MCP creators** (Recommended for enterprise)   | `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=false`<br/>`AGENTA_MCP_GATEWAY_HOST_ALLOWLIST=mcp.internal,jira-mcp.corp` | Blocks all private IPs and plain HTTP across the deployment, **except** for the exact comma-separated hostnames in `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`. |
+
+Using `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` with `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=false` gives platform teams a surgical control: agents can reach `http://mcp.internal:8080`, while no user can register an MCP connection pointing at `http://169.254.169.254` (cloud instance metadata) or internal Redis/Postgres ports.
+
+### Enabling Managed App Integrations (`COMPOSIO_API_KEY`)
+
+Built-in Agenta tools and cron-based schedule triggers run entirely against your local PostgreSQL database with zero external dependencies. If you want agents to use managed third-party OAuth integrations (Slack, GitHub, Linear, Gmail, Notion) or external webhook event triggers, add a Composio API key to `.env.oss.gh` and recreate the `api` service:
+
+```bash
+COMPOSIO_API_KEY=your-composio-api-key
+```
+
+---
+
+## 5. Scaling to Kubernetes with Helm (High Availability and Stateful Rules)
+
+When your company AI platform moves from a single DevOps VM to a shared production cluster on AWS EKS, Google Kubernetes Engine (GKE), or Azure AKS, Agenta ships an official Helm chart in `hosting/kubernetes/helm`.
+
+### Step 1: Sparse-Clone the Chart and Generate the Five Core Secrets
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
+cd agenta
+git sparse-checkout set hosting/kubernetes
+cp hosting/kubernetes/oss/values.oss.example.yaml hosting/kubernetes/oss/.values.oss.yaml
+chmod 600 hosting/kubernetes/oss/.values.oss.yaml
+```
+
+Generate five cryptographic secrets and store them in your secret manager (or wire them via `secrets.existingSecret` from AWS Secrets Manager / Vault):
+
+```bash
+openssl rand -hex 32   # agenta.authKey
+openssl rand -hex 32   # agenta.cryptKey
+openssl rand -hex 32   # agenta.servicesInternalKey
+openssl rand -hex 32   # agenta.runnerToken
+openssl rand -hex 16   # postgres.password
+```
+
+**Critical warning on `agenta.cryptKey`:** Agenta encrypts stored model provider keys and MCP credentials in PostgreSQL using `agenta.cryptKey`. Back this value up in your company vault immediately; if you lose `agenta.cryptKey` during a cluster migration, encrypted secrets in the database cannot be recovered.
+
+### Step 2: Configure Production Replicas Without Breaking the Runner
+
+A common mistake when deploying an AI agent platform on Kubernetes is setting `replicas: 3` across every workload in `values.yaml`. In Agenta's architecture, stateless control-plane workloads scale horizontally, while the runner and single-volume stores follow strict stateful rules:
+
+```yaml
+agenta:
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
+  authKey: "<32-byte-hex>"
+  cryptKey: "<32-byte-hex>"
+  servicesInternalKey: "<32-byte-hex>"
+  runnerToken: "<32-byte-hex>"
+
+# Scale stateless workloads to 2+ replicas so node drains never cause downtime.
+# Setting replicas >= 2 automatically adds a PodDisruptionBudget (maxUnavailable: 1)
+# and topologySpreadConstraints across nodes and availability zones.
+api:
+  replicas: 2
+web:
+  replicas: 2
+services:
+  replicas: 2
+workerStreams:
+  replicas: 2
+workerQueues:
+  replicas: 2
+supertokens:
+  replicas: 2
+
+# CRITICAL: Keep agentRunner at 1 replica with Recreate strategy.
+# The API does not sticky-route an active session to the specific runner pod
+# that owns it; running 2 runner pods causes session ownership conflicts.
+agentRunner:
+  enabled: true
+  replicas: 1
+  providers:
+    enabled: [daytona]
+    default: daytona
+    daytona:
+      apiKeySecretRef:
+        name: agenta-runner-daytona
+        key: api-key
+      apiUrl: https://app.daytona.io/api
+      target: eu
+      snapshot: agenta-agent-sandbox-v4
+
+# Enable the durable object store (or point at external AWS S3 / R2)
+store:
+  enabled: true
+```
+
+Install the release into the `agenta` namespace:
+
+```bash
+helm install agenta hosting/kubernetes/helm \
+  --namespace agenta --create-namespace \
+  -f hosting/kubernetes/oss/.values.oss.yaml
+```
+
+For full production resilience on GKE or EKS, replace the bundled single-primary Bitnami PostgreSQL subchart with a managed database (Cloud SQL or Amazon RDS) using the chart's external PostgreSQL configuration so database node upgrades never interrupt availability.
+
+---
+
+## 6. Day-2 Operations: Backing Up Agent Files and Enforcing Enterprise SSO
+
+Once engineering, product, and operations teams rely on your self-hosted AI platform daily, two Day-2 tasks matter above everything else: protecting the durable object store and locking down authentication.
+
+### Backing Up Durable Agent Workspaces (`seaweedfs` / S3)
+
+Many platform teams back up PostgreSQL nightly and assume their AI platform is protected. However, agent workspaces, generated reports, and durable team files live in the **S3-compatible object store** (`agenta-store`), not in PostgreSQL.
+
+Agenta's self-hosted stack protects those files at two levels:
+
+1. **Automatic S3 Bucket Versioning (Accidental Delete and Overwrite Protection):**
+   On startup, the `api` container automatically enables S3 bucket versioning on the bundled SeaweedFS bucket (requires SeaweedFS `4.42+`; Compose ships `4.47`) with a 30-day retention window (`AGENTA_STORE_VERSION_RETENTION_DAYS=30`). If an agent or user accidentally deletes or overwrites files in a workspace, you can inspect and restore the prefix to any timestamp using `hosting/scripts/restore_store_objects.py`:
+
+```bash
+export AWS_ACCESS_KEY_ID=<AGENTA_STORE_ACCESS_KEY>
+export AWS_SECRET_ACCESS_KEY=<AGENTA_STORE_SECRET_KEY>
+
+# Dry-run restoring a project mount to how it looked before an accidental overwrite
+uv run hosting/scripts/restore_store_objects.py \
+  --endpoint-url http://127.0.0.1:8333 \
+  --bucket agenta-store \
+  --prefix mounts/<project-id>/<mount-id>/ \
+  --restore-as-of 2026-04-20T08:00:00Z
+
+# Add --apply after verifying the "would restore" output
+```
+
+2. **Volume-Level Nightly Snapshots (Disk Failure Protection):**
+   Bucket versioning keeps historical object versions in the same `seaweed-data` Docker volume, so it does not protect against losing the host disk. Pair S3 versioning with a nightly `rsync -aH --link-dest` cron job against `/var/lib/docker/volumes/agenta-oss-gh_seaweed-data/_data` to remote backup storage, or point `AGENTA_STORE_ENDPOINT_URL` at AWS S3 or Cloudflare R2 with cross-region replication.
+
+### Enforcing Corporate SSO (Okta, Azure AD, and SAML)
+
+For Enterprise deployments (`agenta.license: ee`), you can wire your identity provider directly via environment variables so users authenticate through your corporate directory:
+
+- **Okta (OIDC):** Set `OKTA_OAUTH_CLIENT_ID`, `OKTA_OAUTH_CLIENT_SECRET`, and `OKTA_DOMAIN` (with redirect URI `https://<your-agenta-domain>/auth/callback/okta`).
+- **Azure AD / Entra ID (OIDC):** Set `AZURE_AD_OAUTH_CLIENT_ID`, `AZURE_AD_OAUTH_CLIENT_SECRET`, and `AZURE_AD_DIRECTORY_ID` (with redirect URI `https://<your-agenta-domain>/auth/callback/azure-ad`).
+- **SAML 2.0 (via BoxyHQ SAML Jackson):** Set `BOXY_SAML_OAUTH_CLIENT_ID`, `BOXY_SAML_OAUTH_CLIENT_SECRET`, and `BOXY_SAML_URL`.
+
+Once your SSO provider is verified, set `AGENTA_ACCESS_EMAIL_DISABLED=true` to disable password-based sign-ins across the deployment.
+
+---
+
+## Production Self-Hosting Checklist
+
+Before opening your self-hosted AI platform to the rest of the company, verify these six items:
+
+1. **Secrets generated and vaulted:** `AGENTA_SERVICES_INTERNAL_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_AUTH_KEY`, and `AGENTA_RUNNER_TOKEN` are generated with `openssl rand -hex 32` and stored in your secret manager.
+2. **HTTPS enforced everywhere:** `AGENTA_WEB_URL`, `AGENTA_API_URL`, and `AGENTA_SERVICES_URL` use `https://`, preventing `gateway_insecure_endpoint` failures.
+3. **Multi-user sandbox isolation enabled:** `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona` is set so concurrent users never share a local runner container filesystem, and `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` keeps API keys out of the sandbox.
+4. **Durable store reachable and backed up:** `AGENTA_STORE_ENDPOINT_URL` is reachable over HTTPS from Daytona sandboxes, S3 bucket versioning returns `"Status": "Enabled"`, and volume backups are scheduled.
+5. **MCP gateway egress locked down:** `AGENTA_MCP_GATEWAY_ENABLED=true` is active, and untrusted environments set `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=false` with explicit internal hosts listed in `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`.
+6. **Kubernetes replica rules respected:** Stateless workloads (`api`, `web`, `services`, `workerStreams`, `workerQueues`) run at `replicas: 2+`, while `agentRunner` remains at `replicas: 1`.
+
+## Frequently asked questions
+
+### What hardware do I need to self-host Agenta with Docker Compose?
+
+To run the full self-hosted Agenta stack (including the control plane, `agent-runner`, PostgreSQL 16, Redis, and SeaweedFS S3 object storage) on a single Linux VM or developer machine, allocate at least 4 vCPU, 8 GB RAM, and 20 GB of free disk space. Because LLM inference happens through your connected model provider APIs or subscriptions rather than on the host, no GPU is required unless you also run local open-weight models via Ollama or vLLM.
+
+### When should we switch from local agent execution to Daytona sandboxes?
+
+Local process execution (where the harness runs inside the `agent-runner` container) is convenient for single-user evaluation or a trusted internal engineering environment. As soon as multiple users share the deployment, or when agents inspect untrusted external inputs, enable Daytona sandboxes (`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona`). Daytona gives each conversation an ephemeral container that is destroyed after the session closes and supports opaque secrets (`AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS`) so API keys are substituted at the network boundary instead of being readable inside the sandbox.
+
+### Why must `agentRunner` stay at `replicas: 1` in Kubernetes while other services scale horizontally?
+
+In Agenta's Kubernetes Helm chart, `api`, `web`, `services`, `workerStreams`, and `workerQueues` are stateless and should run at `replicas: 2` or higher for high availability. By contrast, `agentRunner` manages the local filesystem mount cache and synchronizes durable workspace folders with the S3 object store on a single-writer model. Running multiple replicas of `agentRunner` concurrently would cause competing S3 writes and overwrite workspace files, so `agentRunner` must stay at `replicas: 1` with a `Recreate` deployment strategy.
+
+### Can my team use existing Claude Pro/Max or ChatGPT Plus/Pro subscriptions on a self-hosted Agenta instance?
+
+Yes. Self-hosted Agenta supports both standard provider API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) and personal OAuth subscriptions for Claude Code (Claude Pro or Max via `claude setup-token`) and Codex (ChatGPT Plus or Pro via `codex login`). Users connect their subscription under **Settings -> Providers & Models -> Agent Harness Credentials** without storing shared API keys in host configuration files.
+
+### How do I back up and restore durable agent workspace files in a self-hosted deployment?
+
+Backing up PostgreSQL alone does not back up agent workspace files, which live in the S3-compatible object store (`agenta-store` on SeaweedFS or external S3). Agenta automatically enables S3 bucket versioning on startup with a 30-day retention window so you can restore accidentally deleted or overwritten files to any point in time using `hosting/scripts/restore_store_objects.py`. For full disaster recovery against disk loss, pair S3 bucket versioning with nightly snapshots of the `seaweed-data` volume or point `AGENTA_STORE_ENDPOINT_URL` at managed AWS S3 or Cloudflare R2.
+
+Ready to deploy? Start with the [Agenta Self-Hosting Quick Start](https://agenta.ai/docs/self-host/quick-start) or explore our [comparison of the best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms) to see how Agenta fits into your stack.
