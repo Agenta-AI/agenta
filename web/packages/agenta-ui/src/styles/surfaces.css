@@ -13,8 +13,10 @@
 .ag-app-ground {
     background: var(--ag-surface-app);
 }
+/* The docked right panel and the full screen views. The design paints them with the container
+   colour, the same as the chat beside them; the shadow still lifts the panel off its seam. */
 .ag-panel-raised {
-    background: var(--ag-surface-raised);
+    background: var(--ag-colorBgContainer);
     box-shadow: var(--ag-surface-raised-shadow);
 }
 .ag-canvas {

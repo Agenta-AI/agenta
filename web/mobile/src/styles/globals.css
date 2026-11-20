@@ -198,6 +198,9 @@
        `shadow-tertiary` on cards. Both existed on /w only, so a shared card read flat here. */
     --shadow-dialog: var(--ag-boxShadowSecondary);
     --shadow-tertiary: var(--ag-boxShadowTertiary);
+    /* The app's sans stack, the one the design canvas draws with. Tailwind's default starts at
+       -apple-system, which is the same face on macOS but a different one on Linux and Windows. */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
        scope. Mobile has no custom face, so that is the default sans stack. */
     --font-portal: var(--font-sans);
