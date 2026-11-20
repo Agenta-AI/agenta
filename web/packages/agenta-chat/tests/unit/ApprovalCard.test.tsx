@@ -9,6 +9,8 @@
 import {renderToStaticMarkup} from "react-dom/server"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
+import editAgentConfigTurn from "./fixtures/editAgentConfigTurn.json"
+
 const grantState = vi.hoisted(() => ({eligible: false, alreadyAllowed: false}))
 // Records what a decision actually granted, so the batch case can assert every tool landed.
 const granted = vi.hoisted(() => ({calls: [] as string[][]}))
@@ -474,5 +476,38 @@ describe("the read-only card (a person who can view but not send)", () => {
         const html = renderReadOnly()
         expect(html).toContain("Needs your approval")
         expect(html).toContain("Waiting for Alice Martin or someone who can send in this chat.")
+    })
+})
+
+describe("the change card of a builder edit (task 8.2)", () => {
+    const recorded = editAgentConfigTurn.message.parts
+    const preview = (recorded[0] as {data: {preview: unknown}}).data.preview
+    const input = (recorded[1] as {input: unknown}).input
+    const card = (changePreview?: unknown) =>
+        renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    {approvalId: "perm-1", toolName: "edit_agent_config", input, changePreview},
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+    it("shows the old and the new values of the server preview", () => {
+        const html = card(preview)
+        expect(html).toContain('data-testid="change-sections"')
+        expect(html).toMatch(/data-testid="change-old"[^>]*>claude-sonnet-5-5</)
+        expect(html).toMatch(/data-testid="change-new"[^>]*>claude-opus-5-5</)
+        expect(html).not.toContain('data-testid="change-proposed"')
+        // The changes show in place; the toggle would repeat them.
+        expect(html).not.toContain("See what changes")
+    })
+
+    it("shows the proposed values with a label when the call has no preview", () => {
+        const html = card(undefined)
+        expect(html).toContain("Proposed values. The current values could not be loaded.")
+        expect(html).not.toMatch(/data-testid="change-old"[^>]*>claude-sonnet-5-5</)
+        expect(html).toContain("Approve")
     })
 })

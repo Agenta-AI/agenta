@@ -2,18 +2,15 @@ import type {ReactNode} from "react"
 
 import {atom} from "jotai"
 
+import type {BuilderPanelProps} from "../builder/BuilderPanel"
+import {renderBuilderPanel} from "../builder/renderBuilderPanel"
+
 /**
- * Seams that later milestones fill. Each holds a render function; null keeps the default.
- *
- * - `builderPanelSlotAtom`: the Builder content of the panel (wave 2, the builder panel). While
- *   it is null the Builder icon is hidden.
+ * The Builder content of the panel, as a render function; the Builder icon shows while it is
+ * set. A read-only atom: jotai would read a function given as the initial value as its getter.
+ * It takes no session id: the builder reads the page session itself (`pageSessionIdAtom`), so a
+ * session switch does not reach into it (design D6).
  */
-export const builderPanelSlotAtom = atom<
-    | ((props: {
-          agentId: string
-          sessionId: string
-          workspaceId: string
-          projectId: string
-      }) => ReactNode)
-    | null
->(null)
+export const builderPanelSlotAtom = atom<((props: BuilderPanelProps) => ReactNode) | null>(
+    () => renderBuilderPanel,
+)

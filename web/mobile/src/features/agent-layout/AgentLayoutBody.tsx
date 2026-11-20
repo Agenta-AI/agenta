@@ -337,7 +337,7 @@ export const AgentLayoutBody = ({
             ) : null}
             {builder && agentId && (mounted.has("builder") || content === "builder") ? (
                 <div className={content === "builder" ? "h-full min-h-0" : "hidden"}>
-                    {builder({agentId, sessionId, workspaceId, projectId})}
+                    {builder({agentId, workspaceId, projectId})}
                 </div>
             ) : null}
         </div>
