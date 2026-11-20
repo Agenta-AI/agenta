@@ -1182,6 +1182,77 @@ const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
 )
 
+/** Pages the rail may load on its own; past them a scroll asks, as before. */
+export const MAX_AUTO_SESSION_PAGES = 3
+
+/**
+ * The agents the rail should show a section for but has no row of yet: agents with a chat inside
+ * the rail's activity window (from the ranking query, newest 200 chats), minus the agents the
+ * agent filter leaves out and the agents already loaded.
+ *
+ * Under agent grouping each agent section shows a few rows, so a first page full of one busy
+ * agent's sessions draws a rail too short to scroll, and a scroll is the only other way to ask
+ * for the next page.
+ */
+export const hasUnloadedAgent = ({
+    chats,
+    loadedRefs,
+    agentFilter,
+    oldest,
+}: {
+    chats: readonly SessionStream[]
+    loadedRefs: readonly SessionSidebarRef[]
+    agentFilter: readonly string[]
+    /** The rail's activity floor (ISO), or undefined for no floor. */
+    oldest?: string
+}): boolean => {
+    const loaded = new Set(loadedRefs.map((ref) => ref.agentId))
+    const floor = oldest ? Date.parse(oldest) : null
+    for (const row of chats) {
+        const agentId = sessionOpenTarget(row)?.appId
+        if (!agentId || loaded.has(agentId)) continue
+        if (agentFilter.length > 0 && !agentFilter.includes(agentId)) continue
+        const activity = Date.parse(row.updated_at ?? row.created_at ?? "")
+        if (floor !== null && !(activity >= floor)) continue
+        return true
+    }
+    return false
+}
+
+/**
+ * Should the rail ask for the next page now, without a scroll? Only for the default list shape
+ * the ranking query can speak for (agent grouping, chats, any status), only while an agent with
+ * a chat in the window has no row yet, and for at most `MAX_AUTO_SESSION_PAGES` pages.
+ */
+export const sidebarSessionsNeedNextPageAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        if (filters.groupBy !== "agent" || filters.type !== "chat" || filters.status !== "all")
+            return false
+        if (get(sidebarSessionPageCountAtomFamily(scopeId)) >= MAX_AUTO_SESSION_PAGES) return false
+        // Not mid-drag (a page then is a no-op; this turns true again after the drop), and not
+        // from a previous filter's rows still shown as placeholder: the tail boundary is taken
+        // from the head and would come from the wrong list.
+        if (get(sidebarReorderActiveAtom)) return false
+        if (get(sidebarSessionsQueryAtomFamily(scopeId)).isPlaceholderData) return false
+        const paging = get(sidebarSessionPagingAtomFamily(scopeId))
+        if (!paging.hasMore || paging.isLoadingMore || paging.isError) return false
+        const live = get(liveAgentIdsAtom)
+        const chats = (get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => {
+                const agentId = sessionOpenTarget(row)?.appId
+                return Boolean(agentId) && (live === null || live.has(agentId as string))
+            },
+        )
+        return hasUnloadedAgent({
+            chats,
+            loadedRefs: get(sidebarSessionRefsAtomFamily(scopeId)),
+            agentFilter: filters.agentIds,
+            oldest: requestFilters(filters).oldest,
+        })
+    }),
+)
+
 /**
  * Agents the filter can narrow to, from the project's agent catalog.
  *

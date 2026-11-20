@@ -16,11 +16,11 @@ import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {openAgentFromList} from "../agent-pages/openAgentFromList"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
@@ -28,7 +28,6 @@ import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {isAgentOverviewEnabled} from "./agentEntry"
 import {AgentFilterMenu} from "./AgentFilterMenu"
 import {AgentListTable} from "./AgentListTable"
 import {
@@ -68,7 +67,6 @@ export const AgentListScreen = ({
 }) => {
     const t = useT(agentsList)
     useBindProjectContext(projectId)
-    const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
     const rowActions = useAgentRowActions(base, projectId)
@@ -126,10 +124,12 @@ export const AgentListScreen = ({
     const projectHasAgents = (query.data ?? []).length > 0
     const openRow = useCallback(
         (row: AgentListRow) => {
-            if (isAgentOverviewEnabled()) void router.push(`${base}/agents/${row.id}`)
-            else startBlankSession(base, row.id)
+            // An archived agent has no agent sidebar (the sidebar shows only listed agents): it
+            // opens a new session, as before.
+            if (row.archived) startBlankSession(base, row.id)
+            else void openAgentFromList({queryClient, base, projectId, agentId: row.id})
         },
-        [base, router],
+        [base, projectId, queryClient],
     )
     const failed = showArchived ? archived.isError : query.isError
     const refetchArchived = archived.refetch
