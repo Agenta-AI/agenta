@@ -3,7 +3,6 @@ import {useCallback, useMemo, useRef, useState} from "react"
 import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
 import {usePersonalToolConnections, useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {Button} from "@agenta/ui/ui"
@@ -14,7 +13,6 @@ import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {readRunnerPermission} from "../../agentConfigPatch"
 import {findIntegrationRow, integrationRowConnection} from "../../toolUtils"
 import {IntegrationAccountBlock} from "../accounts/IntegrationAccountBlock"
-import {useRunsWithoutPerson} from "../accounts/useRunsWithoutPerson"
 import {
     IntegrationDrawerBody,
     IntegrationTitle,
@@ -59,8 +57,6 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
         [writer.revisionId, writer.agent],
     )
     const [confirming, setConfirming] = useState(false)
-    const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(writer.revisionId)) ?? ""
-    const runsWithoutPerson = useRunsWithoutPerson(workflowId)
     const access = useAtomValue(personalAccountsAccessAtom)
     const {connections: personal} = usePersonalToolConnections()
     const {push} = nav
@@ -149,7 +145,6 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                                         setIntegrationAccount(integrationTarget, account)
                                     }
                                     onConnect={connect}
-                                    runsWithoutPerson={runsWithoutPerson}
                                     disabled={writer.readOnly}
                                 />
                             ) : undefined

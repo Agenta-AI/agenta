@@ -9,6 +9,7 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
@@ -34,6 +35,7 @@ import {
     USE_MY_DEFAULT,
     yourAccountValue,
 } from "./integrationAccountSwitch"
+import {useRunsWithoutPerson} from "./useRunsWithoutPerson"
 
 export interface IntegrationAccountBlockProps {
     target: GatewayConnectionTarget
@@ -42,8 +44,6 @@ export interface IntegrationAccountBlockProps {
     onChange: (account: GatewayConnectionAccount) => void
     /** Opens the connect view for this app: `"user"` for the viewer's own, `"project"` shared. */
     onConnect: (owner: "user" | "project") => void
-    /** The agent has runs without a person: a channel, or an automation created with an API key. */
-    runsWithoutPerson: boolean
     disabled?: boolean
 }
 
@@ -53,7 +53,6 @@ export function IntegrationAccountBlock({
     context,
     onChange,
     onConnect,
-    runsWithoutPerson,
     disabled,
 }: IntegrationAccountBlockProps) {
     const t = useT(accountSwitchCatalog, accountsCatalog)
@@ -110,12 +109,7 @@ export function IntegrationAccountBlock({
                         disabled={disabled}
                     />
                 ) : null}
-                {eachPerson && runsWithoutPerson ? (
-                    <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
-                        <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
-                        <span>{t("entityUi.accountSwitch.noPersonWarning")}</span>
-                    </div>
-                ) : null}
+                {eachPerson ? <NoPersonWarning context={context} /> : null}
             </div>
 
             {eachPerson ? (
@@ -153,6 +147,21 @@ export function IntegrationAccountBlock({
                     />
                 </div>
             )}
+        </div>
+    )
+}
+
+/** Shown when the agent has runs without a person: a channel, or an automation saved by an API key. */
+function NoPersonWarning({context}: {context: ItemAccountContext}) {
+    const t = useT(accountSwitchCatalog)
+    const fromRevision = useAtomValue(
+        workflowMolecule.selectors.workflowId(context.workflowId ? "" : (context.revisionId ?? "")),
+    )
+    if (!useRunsWithoutPerson(context.workflowId || fromRevision || "")) return null
+    return (
+        <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
+            <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
+            <span>{t("entityUi.accountSwitch.noPersonWarning")}</span>
         </div>
     )
 }
