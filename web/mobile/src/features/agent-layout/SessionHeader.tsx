@@ -121,6 +121,7 @@ export const SessionHeader = ({
                             sessionId={sessionId}
                             canSend={canSend && Boolean(entityId)}
                             projectId={projectId}
+                            base={base}
                         />
                     ) : null}
                 </div>
