@@ -67,12 +67,12 @@ const ROW_TEXT_BTN =
 const PHONE_HIT = "relative after:absolute after:-inset-1 after:content-['']"
 const PHONE_PILL = "h-9 rounded-[6px] p-0.5"
 /**
- * Each segment is 34 px wide, as drawn, and grows its own hit area to 44 x 44 px (one over the
+ * Each segment is 34 px wide with its 1 px border, as drawn, and grows its own hit area to 44 x 44 px (one over the
  * whole list would take the taps): up and down, and out at the pill's outer edge only, so a tap
  * near the edge between Grid and List picks the segment under it.
  */
 const PHONE_PILL_TRIGGER =
-    "relative h-full rounded-[5px] px-2.5 py-0 after:absolute after:inset-x-0 after:-inset-y-1.5 first:after:-left-2.5 last:after:-right-2.5 after:content-['']"
+    "relative h-full rounded-[5px] px-[9px] py-0 after:absolute after:inset-x-0 after:-inset-y-1.5 first:after:-left-2.5 last:after:-right-2.5 after:content-['']"
 const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_HIT}`
 
 /**

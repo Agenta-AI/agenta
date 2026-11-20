@@ -331,7 +331,7 @@ export function TriggerManagementSection({
             className={
                 phone
                     ? "m-0 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-[var(--ag-colorTextTertiary)]"
-                    : "m-0 mt-1 text-[12px] font-medium text-[var(--ag-colorTextSecondary)]"
+                    : "m-0 mt-1 text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]"
             }
         >
             {label}
