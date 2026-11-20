@@ -12,6 +12,8 @@ import {ListIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {currentSidebar, openAgentSidebar} from "../agent-sidebar/selectedSidebar"
+import {usePageAgentId} from "../agent-sidebar/useAgentSidebarSync"
 import {liveChatOpenAtom} from "../support/crispChat"
 
 import {useRailScope} from "./railScope"
@@ -55,6 +57,19 @@ export const NavDrawer = ({
     useEffect(() => {
         if (liveChatOpen) setOpen(false)
     }, [liveChatOpen])
+    // On a phone the menu button inside an agent opens that agent's sidebar; "Back" in the sheet
+    // still shows the main sidebar, until the sheet closes. A screen with its own rail keeps it.
+    const pageAgentId = usePageAgentId(projectId)
+    const agentSheet = phone && !scopeOverride && pageAgentId !== null
+    useEffect(() => {
+        // Load the agent sidebar's code ahead of the tap, so the sheet opens on it.
+        if (agentSheet) void import("../agent-sidebar/agentSidebarScope")
+    }, [agentSheet])
+    const onOpenChange = (next: boolean) => {
+        if (next && agentSheet && currentSidebar().kind === "main")
+            openAgentSidebar(pageAgentId!, "main")
+        setOpen(next)
+    }
     const scope = useRailScope(workspaceId, projectId, scopeOverride)
     const router = useRouter()
     // A pick in a rail flyout navigates from a button, which the shell's link-click close misses.
@@ -93,7 +108,7 @@ export const NavDrawer = ({
         return (
             <SidebarSheet
                 open={open}
-                onOpenChange={setOpen}
+                onOpenChange={onOpenChange}
                 title={t("navigation.chrome.navigationTitle")}
                 showHeader={false}
                 trigger={menuButton(tPhone("ui.phone.openSidebar"))}

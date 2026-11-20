@@ -317,13 +317,18 @@ export const ProjectOrgSwitcherView = ({
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
-                        <InitialsAvatar size="small" name={projectLabel} className="shrink-0" />
+                        {/* The design's workspace mark: radius 5, a 10 px semibold initial. */}
+                        <InitialsAvatar
+                            size="small"
+                            name={projectLabel}
+                            className="shrink-0 !rounded-[5px] !text-[10px] !font-semibold"
+                        />
                         {/* One line, not two: the org already names itself on the panel's
                             caption, and stacking it here made the rail's shortest row its
                             tallest. */}
                         {!collapsed && (
                             <>
-                                <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-none text-colorText">
+                                <span className="min-w-0 flex-1 truncate text-left text-sm leading-none text-colorText">
                                     {projectLabel}
                                 </span>
                                 {triggerMeta ? (

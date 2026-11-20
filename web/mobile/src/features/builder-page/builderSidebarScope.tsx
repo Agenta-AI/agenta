@@ -10,9 +10,11 @@ import type {
 } from "@agenta/navigation"
 import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
 import {Spinner} from "@agenta/ui/ui"
-import {ArrowClockwiseIcon, CircleIcon, PlusIcon, SparkleIcon} from "@phosphor-icons/react"
+import {ArrowClockwiseIcon, SparkleIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
+import {SidebarNewButton, SidebarTopRow} from "../agent-sidebar/AgentSidebarHeader"
+import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
 import {builderChatHref} from "../builder/builderChatHref"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
@@ -24,7 +26,6 @@ const ROW =
     "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
 
 export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionId}`
-const NEW_CHAT_KEY = "builder-new-chat"
 
 /**
  * The builder sidebar (B01): Back, "Builder", "New chat" and "Chats", the person's builder chats
@@ -42,8 +43,12 @@ export const createBuilderSidebarScope = (
         const router = useRouter()
         const chat = router.query.chat
         const sessionId = Array.isArray(chat) ? chat[0] : undefined
-        const selectedKeyOverride = sessionId ? builderChatRowKey(sessionId) : NEW_CHAT_KEY
-        return useMemo(() => ({mode: "route", selectedKeyOverride}), [selectedKeyOverride])
+        // A new chat marks no row: "New chat" is a button, not a place.
+        const selectedKeyOverride = sessionId ? builderChatRowKey(sessionId) : undefined
+        return useMemo(
+            () => (selectedKeyOverride ? {mode: "route", selectedKeyOverride} : {mode: "route"}),
+            [selectedKeyOverride],
+        )
     }
 
     const useSections = (): SidebarSection[] => {
@@ -61,10 +66,10 @@ export const createBuilderSidebarScope = (
                     tooltip: title,
                     icon: row.flags?.is_running
                         ? createElement(Spinner, {className: "size-3"})
-                        : createElement(CircleIcon, {size: 8}),
+                        : sessionBullet("idle"),
                     suffix: createElement(
                         "span",
-                        {className: "text-xs text-colorTextTertiary"},
+                        {className: "text-xs leading-4 text-colorTextSecondary"},
                         chatDayLabel(row.updated_at, now, words),
                     ),
                     link: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),
@@ -104,15 +109,10 @@ export const createBuilderSidebarScope = (
                     key: "builder",
                     items: [
                         {
-                            key: NEW_CHAT_KEY,
-                            title: t("builder.page.newChat"),
-                            icon: createElement(PlusIcon, {size: 16}),
-                            link: `${projectURL}/builder`,
-                            matchLinks: [],
-                        },
-                        {
                             key: "builder-chats",
                             title: t("builder.page.chats"),
+                            // Always open with no icon: the rail draws it as a small heading.
+                            rowClassName: "pt-2.5",
                             alwaysOpen: true,
                             scrollChildren: true,
                             hideChildrenWhenCollapsed: true,
@@ -132,25 +132,26 @@ export const createBuilderSidebarScope = (
         const toggle = <SidebarToggleButton onDismiss={onDismiss} />
         return (
             <>
-                <div
-                    className={`${ROW} h-[45px] ${collapsed ? "justify-center" : "justify-between px-1.5"}`}
-                >
-                    {collapsed ? toggle : back}
-                    {!collapsed && toggle}
-                </div>
-                {collapsed && <div className={`${ROW} h-[45px] justify-center`}>{back}</div>}
-                <div
-                    className={`${ROW} min-h-[52px] gap-2 ${collapsed ? "justify-center" : "px-3"}`}
-                >
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillTertiary text-colorText">
-                        <SparkleIcon aria-hidden size={16} />
-                    </span>
-                    {collapsed ? null : (
-                        <span className="truncate text-sm font-medium text-colorText">
-                            {t("builder.page.builder")}
+                <SidebarTopRow collapsed={collapsed} back={back} toggle={toggle} />
+                <div className={`${ROW} h-12 ${collapsed ? "justify-center" : "px-3"}`}>
+                    <span
+                        className={`flex min-w-0 items-center gap-2 ${collapsed ? "" : "h-[38px] flex-1"}`}
+                    >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorSplit text-colorText">
+                            <SparkleIcon aria-hidden size={18} />
                         </span>
-                    )}
+                        {collapsed ? null : (
+                            <span className="truncate text-sm font-medium text-colorText">
+                                {t("builder.page.builder")}
+                            </span>
+                        )}
+                    </span>
                 </div>
+                <SidebarNewButton
+                    label={t("builder.page.newChat")}
+                    href={`${projectURL}/builder`}
+                    collapsed={collapsed}
+                />
             </>
         )
     }

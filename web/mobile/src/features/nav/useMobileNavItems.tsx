@@ -43,8 +43,7 @@ import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
-    ChatsCircleIcon,
-    CircleIcon,
+    ChatsIcon,
     GearIcon,
     GithubLogoIcon,
     CompassIcon,
@@ -63,6 +62,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 import {useRouter} from "next/router"
 
+import {sessionBullet} from "@/features/agent-sidebar/agentSidebarItems"
 import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
 import {agentEntryHref} from "@/features/agents/agentEntry"
 import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
@@ -102,7 +102,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     SESSIONS_SIDEBAR_KEY,
     {
         kind: "app",
-        icon: createElement(ChatsCircleIcon, {size: 14}),
+        icon: createElement(ChatsIcon, {size: 14}),
         // Its OWN scope: the source reads that scope's filters, so the desktop rail's filters
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -131,11 +131,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
                     weight: live ? "fill" : "regular",
                     className: amber,
                 })
-            return createElement(CircleIcon, {
-                size: 8,
-                weight: live ? "fill" : "regular",
-                className: amber,
-            })
+            return sessionBullet(session.waiting ? "waiting" : live ? "live" : "idle")
         },
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
@@ -303,17 +299,18 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 
     return useMemo(
         () => [
-            {
-                key: "mobile-home",
-                title: t("navigation.items.home"),
-                icon: createElement(HouseIcon, {size: 16}),
-                link: `${projectURL}/apps`,
-            },
+            // Builder first, then Home: the design's order.
             {
                 key: "mobile-builder",
                 title: tBuilder("builder.page.builder"),
                 icon: createElement(SparkleIcon, {size: 16}),
                 link: `${projectURL}/builder`,
+            },
+            {
+                key: "mobile-home",
+                title: t("navigation.items.home"),
+                icon: createElement(HouseIcon, {size: 16}),
+                link: `${projectURL}/apps`,
             },
             ...developerSlots.afterHome,
             {
@@ -348,7 +345,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: SESSIONS_SIDEBAR_KEY,
                 title: t("navigation.items.sessions"),
-                icon: createElement(ChatsCircleIcon, {size: 16}),
+                icon: createElement(ChatsIcon, {size: 16}),
                 link: `${projectURL}/sessions`,
                 hideChildrenWhenCollapsed: true,
                 // No collapse caret here: the filter control is this group's affordance, and the
@@ -448,7 +445,7 @@ export const useMobileBottomNavItems = (
                           suffix: version
                               ? createElement(
                                     "span",
-                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
+                                    {className: "text-xs leading-4 text-colorTextTertiary"},
                                     `v${version}`,
                                 )
                               : undefined,

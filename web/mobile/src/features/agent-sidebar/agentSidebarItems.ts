@@ -1,4 +1,4 @@
-import {createElement, type MouseEvent, type ReactElement, type ReactNode} from "react"
+import {createElement, type ReactElement, type ReactNode} from "react"
 
 import {formatNumber} from "@agenta/i18n"
 import type {SidebarConfig} from "@agenta/navigation"
@@ -7,13 +7,13 @@ import type {SessionRowTarget} from "@agenta/sessions-ui"
 import {Spinner} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
-    ChartLineIcon,
-    CircleIcon,
+    BroadcastIcon,
+    ChartBarIcon,
+    FadersHorizontalIcon,
     LightningIcon,
-    PlusIcon,
-    RadioIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
+import Link from "next/link"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
 import {groupByDay} from "./dayGroups"
@@ -29,7 +29,6 @@ export interface AgentSidebarSession extends SessionRowTarget {
 
 export type AgentSidebarText = (
     key:
-        | "agentSidebar.newSession"
         | "agentSidebar.configuration"
         | "agentSidebar.channels"
         | "agentSidebar.analytics"
@@ -39,6 +38,8 @@ export type AgentSidebarText = (
         | "agentSidebar.yesterday"
         | "agentSidebar.earlier"
         | "agentSidebar.showOlderSessions"
+        | "agentSidebar.showOlderSessionsShort"
+        | "agentSidebar.filter"
         | "agentSidebar.loading"
         | "agentSidebar.loadError"
         | "agentSidebar.retry",
@@ -64,22 +65,45 @@ export const agentSidebarSelectedKey = (
         : undefined
 }
 
+export type SessionBulletState = "idle" | "live" | "waiting"
+
+const BULLET_STATE: Record<SessionBulletState, string> = {
+    idle: "border-colorTextTertiary",
+    live: "border-colorText bg-colorText",
+    // `--ag-run-status-warning`: the palette's bright amber in both themes.
+    waiting: "border-[var(--ag-run-status-warning)] bg-[var(--ag-run-status-warning)]",
+}
+
+/**
+ * The ring in front of a session or chat row: 8 px with a 1.25 px rim, 2 px clear of its
+ * neighbours, so the title starts where the design puts it. Filled while the session is live,
+ * amber while it waits for the person. The main, agent and builder sidebars all draw it.
+ */
+export const sessionBullet = (state: SessionBulletState) =>
+    createElement("span", {
+        "aria-hidden": true,
+        className: `mx-0.5 box-border block size-2 shrink-0 rounded-full border-[1.25px] border-solid ${BULLET_STATE[state]}`,
+    })
+
 /** The run state as the main sidebar draws it: a spinner while running, amber while waiting. */
 const sessionIcon = (session: AgentSidebarSession) => {
     if (session.status === "running") return createElement(Spinner, {className: "size-3"})
     const live = session.status === "waiting" || session.status === "alive"
-    const weight = live ? "fill" : "regular"
-    const className =
-        session.status === "waiting" ? "text-[var(--ag-run-status-warning)]" : undefined
-    return session.isAutomation
-        ? createElement(LightningIcon, {size: 12, weight, className})
-        : createElement(CircleIcon, {size: 8, weight, className})
+    if (session.isAutomation)
+        return createElement(LightningIcon, {
+            size: 12,
+            weight: live ? "fill" : "regular",
+            className:
+                session.status === "waiting" ? "text-[var(--ag-run-status-warning)]" : undefined,
+        })
+    return sessionBullet(session.status === "waiting" ? "waiting" : live ? "live" : "idle")
 }
 
 /**
- * The rows of one agent's sidebar (A01): New session, Configuration, Channels, Analytics, then
- * the link "Sessions" with the count, the latest sessions grouped by day, and "Show N older
- * sessions" when the agent has more. `total` is null until the count loads.
+ * The rows of one agent's sidebar (A01): Configuration, Channels, Analytics, then the heading
+ * link "Sessions" with the count and a Filter button, the latest sessions grouped by day, and
+ * "Show N older sessions" when the agent has more. `total` is null until the count loads.
+ * "New session" is a button in the sidebar's header, not a row.
  */
 export const agentSidebarItems = ({
     projectURL,
@@ -89,8 +113,7 @@ export const agentSidebarItems = ({
     status = "ready",
     onRetry,
     t,
-    newSessionHref,
-    onNewSession,
+    phone = false,
     wrapSessionRow,
 }: {
     projectURL: string
@@ -102,9 +125,8 @@ export const agentSidebarItems = ({
     /** Reads the session list again after a failed first load. */
     onRetry?: () => void
     t: AgentSidebarText
-    /** What "New session" opens in a new tab; a plain click runs `onNewSession`. */
-    newSessionHref: string
-    onNewSession: (event: MouseEvent) => void
+    /** The phone sheet: "Show older sessions" without the count, as the phone design writes it. */
+    phone?: boolean
     /** The row menu and inline rename, as the main sidebar has them. */
     wrapSessionRow?: (session: SessionRowTarget, node: ReactNode) => ReactElement
 }): SidebarConfig[] => {
@@ -164,28 +186,23 @@ export const agentSidebarItems = ({
     if (older > 0)
         rows.push({
             key: "agent-sidebar-older",
-            title: t("agentSidebar.showOlderSessions", {count: older}),
+            title: phone
+                ? t("agentSidebar.showOlderSessionsShort")
+                : t("agentSidebar.showOlderSessions", {count: older}),
             link: sessionsHref,
             matchLinks: [],
             prefetch: false,
+            rowClassName: `text-[13px] ${phone ? "text-colorTextTertiary" : "text-colorTextSecondary"}`,
         })
 
     return [
-        {
-            key: "agent-sidebar-new",
-            title: t("agentSidebar.newSession"),
-            icon: createElement(PlusIcon, {size: 16}),
-            link: newSessionHref,
-            matchLinks: [],
-            onClick: onNewSession,
-        },
         pageRow(
             "configuration",
             t("agentSidebar.configuration"),
             createElement(SlidersHorizontalIcon, {size: 16}),
         ),
-        pageRow("channels", t("agentSidebar.channels"), createElement(RadioIcon, {size: 16})),
-        pageRow("analytics", t("agentSidebar.analytics"), createElement(ChartLineIcon, {size: 16})),
+        pageRow("channels", t("agentSidebar.channels"), createElement(BroadcastIcon, {size: 16})),
+        pageRow("analytics", t("agentSidebar.analytics"), createElement(ChartBarIcon, {size: 16})),
         {
             key: AGENT_SIDEBAR_SESSIONS_KEY,
             title: t("agentSidebar.sessions"),
@@ -194,17 +211,24 @@ export const agentSidebarItems = ({
             matchLinks: [],
             prefetch: false,
             hideChildrenWhenCollapsed: true,
+            // Always open with no icon: the rail draws it as a small heading link, not a row.
             alwaysOpen: true,
             scrollChildren: true,
             // No number until the count loads.
-            groupAction:
-                total !== null
-                    ? createElement(
-                          "span",
-                          {className: "text-xs text-colorTextTertiary"},
-                          formatNumber(total),
-                      )
-                    : undefined,
+            suffix: total !== null ? formatNumber(total) : undefined,
+            // The filters live on the Sessions page of this agent.
+            groupAction: createElement(
+                Link,
+                {
+                    href: sessionsHref,
+                    prefetch: false,
+                    "aria-label": t("agentSidebar.filter"),
+                    title: t("agentSidebar.filter"),
+                    className:
+                        "flex size-6 items-center justify-center rounded-sm !text-colorTextSecondary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
+                },
+                createElement(FadersHorizontalIcon, {size: 14}),
+            ),
             submenu: rows,
         },
     ]
