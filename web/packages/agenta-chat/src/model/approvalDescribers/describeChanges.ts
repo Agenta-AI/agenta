@@ -32,7 +32,7 @@ export const parseChangePreview = (value: unknown): ChangePreview | null => {
 const SCAFFOLDING = new Set(["parameters", "agent"])
 
 /** Readable path segments: `[..., {list: "skills", key: "qa"}, "body"]` → `["skills", "qa", "body"]`. */
-export const changePath = (target: unknown[]): string[] => {
+export const readablePath = (target: unknown[]): string[] => {
     const path: string[] = []
     for (const segment of target) {
         if (typeof segment === "string") {
@@ -67,25 +67,20 @@ const isLongText = (value: unknown): value is string =>
 const itemName = (path: string[], value: unknown): string =>
     (isRecord(value) && typeof value.name === "string" && value.name) || path[path.length - 1] || ""
 
+/** The target addresses a whole list item (`{list, key}` last), not a field. */
+const isWholeItem = (target: unknown[]): boolean => isRecord(target[target.length - 1])
+
 const previewDetail = (
     change: ChangePreviewChange,
+    target: unknown[],
     path: string[],
 ): ApprovalChangeDetail | undefined => {
-    if (change.kind === "added")
-        return {
-            kind: "item",
-            mode: "added",
-            name: itemName(path, change.new),
-            value: displayValue(change.new),
-        }
-    if (change.kind === "removed")
-        return {
-            kind: "item",
-            mode: "removed",
-            name: itemName(path, change.old),
-            value: displayValue(change.old),
-        }
-    // A change past the size bound keeps only its path: title and path, no values.
+    if (change.kind !== "changed" && isWholeItem(target)) {
+        const value = change.kind === "added" ? change.new : change.old
+        return {kind: "item", change: change.kind, name: itemName(path, value)}
+    }
+    // A change past the size bound keeps only its path: title and path, no values. A field that
+    // appears or goes away has only its new or only its old value.
     if (change.old === undefined && change.new === undefined && !change.diff) return undefined
     if (change.diff || isLongText(change.old) || isLongText(change.new))
         return {
@@ -119,14 +114,9 @@ const operationDetail = (
             return {kind: "text_diff", fragmentsOnly: true, edits}
         }
         case "add_item":
-            return {
-                kind: "item",
-                mode: "added",
-                name: itemName(path, value),
-                value: displayValue(value),
-            }
+            return {kind: "item", change: "added", name: itemName(path, value)}
         case "remove_item":
-            return {kind: "item", mode: "removed", name: itemName(path, undefined)}
+            return {kind: "item", change: "removed", name: itemName(path, undefined)}
         default:
             return undefined
     }
@@ -138,14 +128,15 @@ const titleOf = (titles: ApprovalPreviewItem[], indexes: number[], path: string[
 export interface DescribedChanges {
     changes: ApprovalChange[]
     proposedValues: boolean
-    refusal?: string
+    cannotApply: boolean
 }
 
 /**
  * The changes of a call with ordered `operations`. With a preview that applies, one change per
  * changed path, with its old and new values. Without one (or when it cannot apply), one change
- * per operation with the proposed values; an operation the preview names as failing carries its
- * error. A pure function: no fetch, no revision read.
+ * per operation with the proposed values; when the engine refused it, `cannotApply` is set and
+ * the operation it names is marked. The engine's error text is written for the builder, not for
+ * the person, so the card does not show it. A pure function: no fetch, no revision read.
  */
 export const describeConfigChanges = (
     operations: unknown,
@@ -158,8 +149,9 @@ export const describeConfigChanges = (
 
     if (preview?.applies) {
         const changes = preview.changes.map((change): ApprovalChange => {
-            const path = changePath(Array.isArray(change.path) ? change.path : [])
-            const detail = previewDetail(change, path)
+            const target = Array.isArray(change.path) ? change.path : []
+            const path = readablePath(target)
+            const detail = previewDetail(change, target, path)
             return {
                 title: titleOf(titles, change.operation_indexes ?? [], path),
                 path,
@@ -167,29 +159,25 @@ export const describeConfigChanges = (
                 ...base,
             }
         })
-        return {changes, proposedValues: false}
+        return {changes, proposedValues: false, cannotApply: false}
     }
 
-    const errors = new Map(
+    const failing = new Set(
         (preview?.operations ?? [])
-            .filter((status) => status.applies === false && status.error)
-            .map((status) => [status.index, status.error!.message]),
+            .filter((status) => status.applies === false)
+            .map((status) => status.index),
     )
     const changes = ops.map((operation, index): ApprovalChange => {
-        const path = changePath(Array.isArray(operation.target) ? operation.target : [])
+        const path = readablePath(Array.isArray(operation.target) ? operation.target : [])
         const detail = operationDetail(operation, path)
-        const error = errors.get(index)
         return {
             title: titleOf(titles, [index], path),
             path,
             ...(detail ? {detail} : {}),
             ...base,
-            ...(error ? {error} : {}),
+            ...(failing.has(index) ? {fails: true} : {}),
         }
     })
-    return {
-        changes,
-        proposedValues: true,
-        ...(preview?.error ? {refusal: preview.error.message} : {}),
-    }
+    // Proposed values only when there is no preview at all: a refused one was computed.
+    return {changes, proposedValues: !preview, cannotApply: Boolean(preview)}
 }

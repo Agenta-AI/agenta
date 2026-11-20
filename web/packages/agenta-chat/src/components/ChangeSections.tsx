@@ -13,24 +13,29 @@ const TEXT_BOX =
     "m-0 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-colorFillQuaternary px-2 py-1.5 font-mono text-[11px] leading-relaxed"
 
 const diffLineClass = (line: string): string =>
-    line.startsWith("+") && !line.startsWith("+++")
+    line.startsWith("+")
         ? "text-colorSuccess"
-        : line.startsWith("-") && !line.startsWith("---")
+        : line.startsWith("-")
           ? "text-colorError"
           : "text-colorTextSecondary"
+
+/** The hunks of a unified diff: the file header lines before the first `@@` go. A `---` or `+++`
+ * inside a hunk is a changed line (a Markdown rule, a line that starts with `++`) and stays. */
+const diffHunkLines = (diff: string): string[] => {
+    const lines = diff.split("\n")
+    const start = lines.findIndex((line) => line.startsWith("@@"))
+    return start === -1 ? lines : lines.slice(start)
+}
 
 const TextDiff = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>}) => {
     if (detail.diff) {
         return (
             <pre className={TEXT_BOX} data-testid="change-diff">
-                {detail.diff
-                    .split("\n")
-                    .filter((line) => !line.startsWith("---") && !line.startsWith("+++"))
-                    .map((line, index) => (
-                        <span key={index} className={`block ${diffLineClass(line)}`}>
-                            {line || " "}
-                        </span>
-                    ))}
+                {diffHunkLines(detail.diff).map((line, index) => (
+                    <span key={index} className={`block ${diffLineClass(line)}`}>
+                        {line || " "}
+                    </span>
+                ))}
             </pre>
         )
     }
@@ -79,27 +84,34 @@ const Detail = ({detail}: {detail: ApprovalChangeDetail}) => {
                             >
                                 {detail.old}
                             </span>
-                            <span aria-hidden className="text-colorTextTertiary">
-                                →
-                            </span>
+                            {detail.new !== undefined ? (
+                                <span aria-hidden className="text-colorTextTertiary">
+                                    →
+                                </span>
+                            ) : null}
                         </>
                     ) : null}
-                    <span className="break-all font-medium text-colorText" data-testid="change-new">
-                        {detail.new}
-                    </span>
+                    {detail.new !== undefined ? (
+                        <span
+                            className="break-all font-medium text-colorText"
+                            data-testid="change-new"
+                        >
+                            {detail.new}
+                        </span>
+                    ) : null}
                 </span>
             )
         case "item":
             return (
                 <span
                     className={`text-xs font-medium ${
-                        detail.mode === "added"
+                        detail.change === "added"
                             ? "text-colorSuccess"
                             : "text-colorError line-through"
                     }`}
-                    data-testid={`change-item-${detail.mode}`}
+                    data-testid={`change-item-${detail.change}`}
                 >
-                    <span aria-hidden>{detail.mode === "added" ? "+ " : "− "}</span>
+                    <span aria-hidden>{detail.change === "added" ? "+ " : "− "}</span>
                     {detail.name}
                 </span>
             )
@@ -111,11 +123,11 @@ const Detail = ({detail}: {detail: ApprovalChangeDetail}) => {
 export const ChangeSections = ({
     changes,
     proposedValues,
-    refusal,
+    cannotApply,
 }: {
     changes: ApprovalChange[]
     proposedValues?: boolean
-    refusal?: string
+    cannotApply?: boolean
 }) => {
     const t = useT(chatChangeCardCatalog)
     return (
@@ -128,13 +140,20 @@ export const ChangeSections = ({
                     {t("chat.changeCard.proposedValues")}
                 </p>
             ) : null}
-            {refusal ? <p className="m-0 text-xs text-colorError">{refusal}</p> : null}
+            {cannotApply ? (
+                <p className="m-0 text-xs text-colorError" data-testid="change-cannot-apply">
+                    {t("chat.changeCard.cannotApply")}
+                </p>
+            ) : null}
             {changes.map((change, index) => {
                 const path = change.path.join(" › ")
                 return (
                     <div
                         key={`${path}-${index}`}
-                        className="flex min-w-0 flex-col gap-1 rounded-md border border-solid border-colorBorderSecondary px-3 py-2"
+                        className={`flex min-w-0 flex-col gap-1 rounded-md border border-solid px-3 py-2 ${
+                            change.fails ? "border-colorError" : "border-colorBorderSecondary"
+                        }`}
+                        data-fails={change.fails ? "true" : undefined}
                     >
                         <span className="text-xs font-medium text-colorText">{change.title}</span>
                         {path ? (
@@ -146,9 +165,6 @@ export const ChangeSections = ({
                             </span>
                         ) : null}
                         {change.detail ? <Detail detail={change.detail} /> : null}
-                        {change.error ? (
-                            <span className="text-xs text-colorError">{change.error}</span>
-                        ) : null}
                     </div>
                 )
             })}

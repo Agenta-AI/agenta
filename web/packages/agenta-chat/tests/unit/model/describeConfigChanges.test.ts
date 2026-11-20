@@ -11,7 +11,7 @@ import {
     summarizeAgentCall,
 } from "../../../src/model/approvalDescribers/describeAgentChanges"
 import {
-    changePath,
+    readablePath,
     describeConfigChanges,
 } from "../../../src/model/approvalDescribers/describeChanges"
 import {describeApproval} from "../../../src/model/approvalPreview"
@@ -55,7 +55,7 @@ describe("describeConfigChanges with a preview", () => {
             new: "claude-opus-5-5",
         })
         expect(skill.path).toEqual(["skills", "refund-check"])
-        expect(skill.detail).toMatchObject({kind: "item", mode: "added", name: "refund-check"})
+        expect(skill.detail).toMatchObject({kind: "item", change: "added", name: "refund-check"})
         expect(preview.changes!.every((change) => change.effect === "version")).toBe(true)
     })
 
@@ -65,6 +65,29 @@ describe("describeConfigChanges with a preview", () => {
             "New llm",
             "New skill · refund-check",
         ])
+    })
+
+    it("shows the value of a field that appears or goes away, not an item", () => {
+        const {changes} = describeConfigChanges(operations, {
+            applies: true,
+            operations: [{index: 0, applies: true}],
+            changes: [
+                {
+                    path: ["parameters", "agent", "llm", "reasoning"],
+                    operation_indexes: [1],
+                    kind: "added",
+                    new: "medium",
+                },
+                {
+                    path: ["parameters", "agent", "llm", "effort"],
+                    operation_indexes: [1],
+                    kind: "removed",
+                    old: "low",
+                },
+            ],
+        })
+        expect(changes[0].detail).toEqual({kind: "value_change", new: "medium"})
+        expect(changes[1].detail).toEqual({kind: "value_change", old: "low"})
     })
 
     it("keeps a change past the size bound as its title and path only", () => {
@@ -96,16 +119,16 @@ describe("describeConfigChanges without a preview", () => {
             edits: [{old: "Be kind.", new: "Be short and kind."}],
         })
         expect(model.detail).toEqual({kind: "value_change", new: "claude-opus-5-5"})
-        expect(skill.detail).toMatchObject({kind: "item", mode: "added", name: "refund-check"})
+        expect(skill.detail).toMatchObject({kind: "item", change: "added", name: "refund-check"})
     })
 
-    it("marks the operation a refused preview names, and keeps the proposed values", () => {
-        const {changes, proposedValues} = describeConfigChanges(
-            recorded.failedOperations,
-            recorded.failedPreview,
-        )
-        expect(proposedValues).toBe(true)
-        expect(changes[0].error).toContain("does not occur")
+    it("marks the operation a refused preview names, and shows no engine text", () => {
+        const described = describeConfigChanges(recorded.failedOperations, recorded.failedPreview)
+        expect(described.cannotApply).toBe(true)
+        // The preview was computed, so the values are not "could not be loaded".
+        expect(described.proposedValues).toBe(false)
+        expect(described.changes[0].fails).toBe(true)
+        expect(JSON.stringify(described)).not.toContain("does not occur")
     })
 
     it("treats a payload that is not a preview as no preview", () => {
@@ -121,10 +144,10 @@ describe("describeConfigChanges without a preview", () => {
     })
 })
 
-describe("changePath", () => {
+describe("readablePath", () => {
     it("drops the addressing scaffolding and spells a list item as list then key", () => {
         expect(
-            changePath(["parameters", "agent", {list: "skills", key: "release-qa"}, "body"]),
+            readablePath(["parameters", "agent", {list: "skills", key: "release-qa"}, "body"]),
         ).toEqual(["skills", "release-qa", "body"])
     })
 })

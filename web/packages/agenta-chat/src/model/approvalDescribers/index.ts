@@ -19,9 +19,9 @@ export {
 } from "./describeAgentChanges"
 export {describeRunTool}
 export {
-    changePath,
     describeConfigChanges,
     parseChangePreview,
+    readablePath,
     type DescribedChanges,
 } from "./describeChanges"
 export {parseApprovedContentManifest} from "./approvedContentManifest"

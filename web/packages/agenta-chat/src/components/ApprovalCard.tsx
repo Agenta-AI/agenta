@@ -4,9 +4,9 @@
  *
  * The card shows no raw payload. A gate resolves to plain language through `describeApproval`,
  * and everything beyond the one-sentence ask folds behind a single toggle. An agent change is the
- * one exception: its changes show in place, with the old and new values of the server preview. Hosts adapt transport only: how a response actually fires arrives as callbacks.
- * There is no `body` slot and no mode flag, because a second visual shape is exactly what this
- * card exists to remove.
+ * one exception: its changes show in place, with the old and new values of the server preview.
+ * Hosts adapt transport only: how a response actually fires arrives as callbacks. There is no
+ * `body` slot and no mode flag.
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
@@ -264,7 +264,7 @@ export const ApprovalCard = ({
                 <ChangeSections
                     changes={changes}
                     proposedValues={preview.proposedValues}
-                    refusal={preview.refusal}
+                    cannotApply={preview.cannotApply}
                 />
             ) : null}
 

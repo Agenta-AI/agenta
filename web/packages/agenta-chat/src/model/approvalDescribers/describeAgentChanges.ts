@@ -89,9 +89,7 @@ export const savedVersion = (output: unknown): string | null => {
     const result = toolOutputRecord(output)
     if (result?.status !== "committed") return null
     const version = asRecord(result.revision)?.version
-    if (typeof version === "number") return String(version)
-    if (typeof version !== "string" || !version.trim()) return null
-    return version.trim().replace(/^v/i, "")
+    return typeof version === "string" && version ? version : null
 }
 
 /** The settled row's one-liner: "Saved as vN" when the call saved, the agent's name, then what changed. */

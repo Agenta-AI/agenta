@@ -74,7 +74,7 @@ export type ApprovalChangeRisk = "fewer_approvals" | "data_egress" | "cost" | "b
  *   preview, `fragmentsOnly` is set and `edits` holds the proposed fragments of `edit_text`, or
  *   `new` holds the proposed text of a `set`.
  * - `value_change`: a short value; `old` is absent when the preview is missing.
- * - `item`: a list item added or removed.
+ * - `item`: a whole list item added or removed (a skill, a tool, an MCP server).
  * - `user_step`: a step the person does before the change (connect, paste a secret).
  */
 export type ApprovalChangeDetail =
@@ -87,7 +87,7 @@ export type ApprovalChangeDetail =
           edits?: {old?: string; new?: string}[]
       }
     | {kind: "value_change"; old?: string; new?: string}
-    | {kind: "item"; mode: "added" | "removed"; name: string; value?: string}
+    | {kind: "item"; change: "added" | "removed"; name: string}
     | {kind: "user_step"; step: string}
 
 /** One change a card proposes (shared contract SC6). */
@@ -100,8 +100,8 @@ export interface ApprovalChange {
     /** "version": saved as part of a new version; "immediate": applies at once. */
     effect: "version" | "immediate"
     risks: ApprovalChangeRisk[]
-    /** Why this operation cannot apply, from the server preview. */
-    error?: string
+    /** The server preview names this operation as the one that cannot apply. */
+    fails?: boolean
 }
 
 /**
@@ -120,8 +120,8 @@ export interface ApprovalPreview {
     changes?: ApprovalChange[]
     /** The changes show the proposed values: the server preview is missing for this call. */
     proposedValues?: boolean
-    /** Why the save would be refused as a whole, from the server preview. */
-    refusal?: string
+    /** The server preview says the change set cannot apply to the current version. */
+    cannotApply?: boolean
 }
 
 /**

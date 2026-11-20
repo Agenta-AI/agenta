@@ -1,4 +1,5 @@
 {
+    "cannotApply": "Cette modification ne peut pas être appliquée à la version actuelle de l’agent.",
     "proposedValues": "Valeurs proposées. Les valeurs actuelles n’ont pas pu être chargées.",
     "savedAs": "Enregistré en v{{version}}"
 }

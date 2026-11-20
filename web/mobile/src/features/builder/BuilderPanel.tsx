@@ -43,10 +43,20 @@ const newChatId = () => {
  * the screen. It opens the newest chat this browser links to the agent, or a new chat. Every
  * message carries the page context as a context line that only the model reads.
  */
-export const BuilderPanel = ({agentId, workspaceId, projectId}: BuilderPanelProps) => {
+export const BuilderPanel = (props: BuilderPanelProps) => {
+    // The chat link is per user: read it only once the user is known.
+    const userId = useAtomValue(userAtom)?.id
+    return userId ? <BuilderChat key={userId} userId={userId} {...props} /> : <ChatLoading />
+}
+
+const BuilderChat = ({
+    agentId,
+    workspaceId,
+    projectId,
+    userId,
+}: BuilderPanelProps & {userId: string}) => {
     const t = useT(builderPanelCatalog)
     const panel = useAgentPanel()
-    const userId = useAtomValue(userAtom)?.id ?? "anonymous"
     const builder = useAtomValue(builderAgentRevisionIdQueryAtom)
     const builderRevisionId = builder.data ?? null
     const [chat, setChat] = useState(() => ({

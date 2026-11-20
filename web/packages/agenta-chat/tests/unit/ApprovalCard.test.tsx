@@ -504,6 +504,24 @@ describe("the change card of a builder edit (task 8.2)", () => {
         expect(html).not.toContain("See what changes")
     })
 
+    it("keeps a changed line that starts like a diff header", () => {
+        const html = card({
+            applies: true,
+            operations: [{index: 0, applies: true}],
+            changes: [
+                {
+                    path: ["parameters", "agent", "instructions", "agents_md"],
+                    operation_indexes: [0],
+                    kind: "changed",
+                    diff: "--- old\n+++ new\n@@ -1,2 +1,2 @@\n Intro\n----\n+++ bold\n",
+                },
+            ],
+        })
+        expect(html).not.toContain(">--- old<")
+        expect(html).toContain(">----<")
+        expect(html).toContain(">+++ bold<")
+    })
+
     it("shows the proposed values with a label when the call has no preview", () => {
         const html = card(undefined)
         expect(html).toContain("Proposed values. The current values could not be loaded.")
