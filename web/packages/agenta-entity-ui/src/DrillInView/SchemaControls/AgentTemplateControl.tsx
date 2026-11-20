@@ -70,7 +70,6 @@ import {
     isEmbedRefSkill,
     isStaticSkill,
     staticEmbedSlug,
-    toolReferenceSlug,
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {integrationItemRef, removeIntegrationByRef} from "./agentTemplate/itemKinds/tool"
@@ -96,8 +95,7 @@ import {modelSection} from "./agentTemplate/sections/ModelSection"
 import {permissionsSection} from "./agentTemplate/sections/PermissionsSection"
 import {skillsSection} from "./agentTemplate/sections/SkillsSection"
 import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
-import {SubagentDrawerContainer} from "./agentTemplate/SubagentDrawerContainer"
-import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
+import {removeSubagentByRef} from "./agentTemplate/subagentReference"
 import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
 import {AgentEditorContext, type AgentEditor} from "./agentTemplate/useAgentConfigWriter"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
@@ -109,6 +107,8 @@ import {integrationView} from "./agentTemplate/views/integrationView"
 import {mcpAddView} from "./agentTemplate/views/mcpAddView"
 import {mcpServerView} from "./agentTemplate/views/mcpServerView"
 import {modelView} from "./agentTemplate/views/modelView"
+import {subagentAddView} from "./agentTemplate/views/subagentAddView"
+import {subagentView} from "./agentTemplate/views/subagentView"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {modelIdFromConfig} from "./connectionUtils"
 import {SkillFormSkeleton} from "./DrawerSkeletons"
@@ -196,7 +196,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [revisionId],
     )
 
-    const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
     const openAddIntegration = useCallback(() => {
         if (viewTarget) void openView(integrationAddView, {}, viewTarget)
     }, [openView, viewTarget])
@@ -490,13 +489,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
-    const {
-        tools,
-        handleAddWorkflowReference,
-        handleRemoveReferenceBySlug,
-        integrationRows,
-        migrateIntegrationEntries,
-    } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
+    const {tools, integrationRows, migrateIntegrationEntries} = useAgentTools({
+        config,
+        onChange,
+        configRef,
+        openCreate,
+    })
 
     /**
      * Open one integration's view. Migration runs HERE, on the click, and never on a page load:
@@ -520,14 +518,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Each section counts only the kind it renders; what renders nowhere is counted nowhere.
     const integrationCount = integrationRows.length
     const subagentCount = subagentTools.length
-    // What the picker marks as added, read from the saved tools rather than the picker's state.
-    const savedSubagentSlugs = useMemo(
-        () =>
-            subagentTools
-                .map(({item}) => toolReferenceSlug(item))
-                .filter((s): s is string => Boolean(s)),
-        [subagentTools],
-    )
 
     // External HTTP MCP servers from the saved agent template.
     const mcpServers = useMemo(
@@ -1027,13 +1017,30 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [openAddIntegration, openIntegrationPermissions, toolResolutionStatus],
     )
 
-    // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
-    const openSubagentSelector = workflowReference?.enabled
-        ? () => {
-              workflowReference.activate?.()
-              setReferenceSelectorOpen(true)
-          }
-        : undefined
+    // "Add subagents" and a subagent row open views, as Integrations does.
+    const openAddSubagents =
+        workflowReference?.enabled && viewTarget
+            ? () => void openView(subagentAddView, {}, viewTarget)
+            : undefined
+    const openSubagent = useCallback(
+        (item: ConfigItemRef) => {
+            if (viewTarget) void openView(subagentView, {item}, viewTarget)
+        },
+        [openView, viewTarget],
+    )
+    const removeSubagent = useCallback(
+        (item: ConfigItemRef) => {
+            const latest = configRef.current
+            onChange({
+                ...latest,
+                tools: removeSubagentByRef(
+                    Array.isArray(latest.tools) ? (latest.tools as unknown[]) : [],
+                    item,
+                ),
+            })
+        },
+        [onChange],
+    )
     // The Integrations add button: the agent's "Add integration" view, not the shared catalog.
     const addIntegration = gatewayTools?.enabled ? openAddIntegration : undefined
 
@@ -1084,13 +1091,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             hasTools,
             sectionIndicator,
             disabled,
-            openSubagentSelector,
+            openAddSubagents,
             subagentCount,
             workflowReference,
             subagentTools,
-            openEdit,
-            removeItem,
-            closeEditor,
+            openSubagent,
+            removeSubagent,
             toolStatusFor,
         }),
         agentMcpSection({
@@ -1138,14 +1144,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     if (editing) lastEditingRef.current = editing
     const shownEditing = editing ?? lastEditingRef.current
 
-    // Resolved in children, which mount only when the host supplies a bridge: a hook reached
-    // through an optional member cannot be called from here without breaking hook order.
-    const editingSubagentSlug =
-        shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
-    const subagentHeaderAction = workflowReference ? (
-        <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
-    ) : undefined
-
     return (
         <div className={cn("flex flex-col", className)}>
             <AgentTemplateSectionList
@@ -1168,7 +1166,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       // already says what it is; both drawers drop the badge and subtitle.
                       const bareChrome =
                           shownEditing.kind === "skill" || shownEditing.kind === "mcp"
-                      const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
                       // An inline skill's way into the registry, from the drawer's footer: the
                       // draft is what gets published, and the row it came from is what gets
                       // swapped for the reference.
@@ -1221,29 +1218,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              title={
-                                  isSubagent && workflowReference ? (
-                                      <SubagentHeaderTitle
-                                          bridge={workflowReference}
-                                          slug={editingSubagentSlug}
-                                          fallback={def.drawerTitle(draft)}
-                                      />
-                                  ) : (
-                                      def.drawerTitle(draft)
-                                  )
-                              }
+                              title={def.drawerTitle(draft)}
                               badge={
-                                  bareChrome || isSubagent
+                                  bareChrome
                                       ? undefined
                                       : {text: desc.typeLabel, color: desc.typeColor}
                               }
-                              subtitle={
-                                  bareChrome
-                                      ? undefined
-                                      : isSubagent
-                                        ? t("entityUi.agentTemplate.subagent")
-                                        : desc.subtitle
-                              }
+                              subtitle={bareChrome ? undefined : desc.subtitle}
                               // A skill's footer-left is its Publish action; the MCP drawer has
                               // no note; every other kind keeps it.
                               footerNote={
@@ -1268,7 +1249,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                   (def.jsonOnly(draft) && jsonInvalid)
                               }
                               jsonOnly={def.jsonOnly(draft)}
-                              headerExtra={isSubagent ? subagentHeaderAction : undefined}
                               disabled={editorDisabled}
                               form={
                                   <Form
@@ -1339,21 +1319,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     slug={skillDetailSlug}
                 />
             ) : null}
-
-            {workflowReference?.enabled && (
-                <SubagentDrawerContainer
-                    open={referenceSelectorOpen}
-                    onClose={() => setReferenceSelectorOpen(false)}
-                    bridge={workflowReference}
-                    revisionId={revisionId}
-                    savedSlugs={savedSubagentSlugs}
-                    onAdd={handleAddWorkflowReference}
-                    onRemoveSlug={(slug) => {
-                        handleRemoveReferenceBySlug(slug)
-                        closeEditor()
-                    }}
-                />
-            )}
 
             {/* A view in this drawer follows the revision on screen and the edit right. */}
             <AgentEditorContext.Provider value={editor}>{views.drawer}</AgentEditorContext.Provider>
