@@ -10,6 +10,8 @@ export type AdvancedViewParams = Record<string, never>
 export const advancedView = defineView<AdvancedViewParams>({
     id: "agent.advanced",
     apply: "immediate",
+    // A list of parts with no Done (F04 f9): a row opens the part, the crumb goes back.
+    actionRow: false,
     readOnlyOnPhone: true,
     Component: lazyView(() => import("./AdvancedViewBody")),
 })
