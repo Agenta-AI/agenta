@@ -57,14 +57,17 @@ vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter
     }
 })
 
-// Names and icons come from the workflow artifacts; none resolve here, so rows use their slug.
+// Names come from the workflow artifacts: only "Email writer" (wf-email) resolves here; icons do not.
 const empty = atom("")
 const currentName = atom("Email writer")
+const nameOf = (workflowId: string) => (workflowId === "wf-email" ? currentName : empty)
 const noIcon = atom(null)
 vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
     agentIconAtomFamily: () => noIcon,
-    workflowMolecule: {selectors: {artifactName: () => currentName, workflowId: () => empty}},
+    workflowMolecule: {
+        selectors: {artifactName: (id: string) => nameOf(id), workflowId: () => empty},
+    },
 }))
 
 const AGENT: ViewTarget = {kind: "agent_draft", revisionId: "rev-1"}
@@ -92,7 +95,14 @@ const bridge = (options: {failedSlugs?: string[]; detailFailed?: boolean} = {}) 
                     bySlug: Object.fromEntries(
                         slugs
                             .filter((slug) => !options.failedSlugs?.includes(slug))
-                            .map((slug) => [slug, {type: "agent", integrations: []}]),
+                            .map((slug) => [
+                                slug,
+                                {
+                                    type: "agent",
+                                    workflowId: AGENTS.find((agent) => agent.slug === slug)?.id,
+                                    integrations: [],
+                                },
+                            ]),
                     ),
                     failedSlugs: slugs.filter((slug) => options.failedSlugs?.includes(slug)),
                     loading: false,

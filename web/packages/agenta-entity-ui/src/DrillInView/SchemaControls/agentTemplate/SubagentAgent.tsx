@@ -1,7 +1,7 @@
 /** The agent a subagent calls: its current name and its "Open agent" link. Each part takes the
  *  bridge as a required prop and mounts only when the host supplies one, so none of them calls a
  *  hook conditionally. */
-import type {ReactNode} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
@@ -10,7 +10,10 @@ import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-/** The agent's CURRENT name, off its artifact, as the row shows it; `fallback` until it resolves. */
+/**
+ * The agent's CURRENT name, off its artifact, as the section row shows it: the same cached catalog
+ * entry gives the workflow id. `fallback` until it resolves.
+ */
 export function SubagentCurrentName({
     bridge,
     slug,
@@ -22,8 +25,9 @@ export function SubagentCurrentName({
     fallback: string
     children: (name: string) => ReactNode
 }) {
-    const {detail} = bridge.useSubagentDetail(slug)
-    const name = useAtomValue(workflowMolecule.selectors.artifactName(detail?.workflowId ?? ""))
+    const slugs = useMemo(() => [slug], [slug])
+    const workflowId = bridge.useWorkflowReferenceCatalog(slugs).bySlug[slug]?.workflowId
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(workflowId ?? ""))
     return <>{children(name || fallback)}</>
 }
 
