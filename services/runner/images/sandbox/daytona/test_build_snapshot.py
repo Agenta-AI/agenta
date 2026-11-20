@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["daytona", "pytest"]
+# dependencies = ["daytona<2", "pytest"]
 # ///
 """Unit tests for the snapshot recipe's build decisions. No Daytona account is touched.
 
@@ -214,6 +214,15 @@ def test_adapter_pins_never_reinstall_the_native_clis():
         assert f"install-agent {agent} --agent-process-version {version}" in command
         # The npm cache is cleared in the same RUN, or it stays in the layer.
         assert command.endswith("rm -rf /home/sandbox/.npm/_cacache")
+
+
+def test_pruned_paths_are_removed_in_the_install_run():
+    command = build_snapshot.pin_agent_process_command(
+        "codex", "2.8.0", prune=(build_snapshot.CODEX_VOICE_DIR,)
+    )
+    assert command.endswith(
+        f"rm -rf /home/sandbox/.npm/_cacache {build_snapshot.CODEX_VOICE_DIR}"
+    )
 
 
 # --- pi-ai provider-cost patch (harness cost issue H1) -------------------------------------

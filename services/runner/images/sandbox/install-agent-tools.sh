@@ -171,6 +171,9 @@ chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev
 req="$(dirname "$0")/agent-requirements.txt"
 [ -f "$req" ] || { echo "missing $req next to $0" >&2; exit 1; }
 uv pip install --system --break-system-packages --no-cache --require-hashes --no-deps -r "$req"
+# imageio-ffmpeg bundles its own ffmpeg (about 80 MB). Without it, imageio-ffmpeg falls back to
+# the apt ffmpeg above, so moviepy and imageio use the same one. The check below asserts this.
+rm -f "$(python3 -c 'import imageio_ffmpeg, os; print(os.path.dirname(imageio_ffmpeg.__file__))')"/binaries/ffmpeg-*
 python3 - <<'PY'
 import importlib
 for m in ["requests","httpx","bs4","lxml","pandas","numpy","matplotlib","PIL","scipy","sklearn",
@@ -178,6 +181,8 @@ for m in ["requests","httpx","bs4","lxml","pandas","numpy","matplotlib","PIL","s
           "openai","anthropic","pytest","pypdf","docx","pptx","openpyxl","moviepy","yt_dlp",
           "flask","fastapi","uvicorn","playwright"]:
     importlib.import_module(m)
+import imageio_ffmpeg
+assert "imageio_ffmpeg" not in imageio_ffmpeg.get_ffmpeg_exe(), imageio_ffmpeg.get_ffmpeg_exe()
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     b = p.chromium.launch(args=["--no-sandbox"])

@@ -1033,7 +1033,7 @@ jobs:
       - name: Run the Daytona snapshot recipe tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
         working-directory: services/runner/images/sandbox/daytona
-        run: uv run --with pytest --with daytona python -m pytest -q test_recipe_fingerprint.py test_build_snapshot.py
+        run: uv run --with pytest --with 'daytona<2' python -m pytest -q test_recipe_fingerprint.py test_build_snapshot.py
 
       # The gateway composition suite covers the Daytona placement, which uploads the in-sandbox
       # tool MCP shim from `dist/tools/tool-mcp-stdio.js`. That bundle is a build artifact, so
