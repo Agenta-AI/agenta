@@ -13,6 +13,7 @@ precision highp float;
 uniform vec2 u_res;
 uniform float u_phase, u_time, u_energy, u_think, u_done, u_pulse;
 uniform vec3 u_ink, u_ink2;
+uniform float u_gain;
 #define PI 3.14159265
 #define TAU 6.2831853
 // Centered coordinates: the short side runs from -1 to 1.
@@ -71,7 +72,7 @@ void main() {
   // Thinking: one darker run that travels around the ring.
   float ad = mod(t * 0.5 - a + PI, TAU) - PI;
   float run = u_think * (ad > 0.0 ? exp(-ad * 1.3) : exp(-(ad / 0.15) * (ad / 0.15)));
-  float al = 1.0 - exp(-acc * 0.85 * (1.0 + 1.3 * run));
+  float al = 1.0 - exp(-acc * 0.85 * u_gain * (1.0 + 1.3 * run));
   out4(mix(u_ink2, u_ink, clamp(nearAvg + run, 0.0, 1.0)), al);
 }
 `

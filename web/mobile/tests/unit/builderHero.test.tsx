@@ -94,21 +94,34 @@ describe("hero inks", () => {
         expect(parseCssColor("#242424")).toEqual([36, 36, 36, 1])
         expect(parseCssColor("rgba(255, 255, 255, 0.85)")).toEqual([255, 255, 255, 0.85])
         expect(parseCssColor("rgb(20, 20, 20)")).toEqual([20, 20, 20, 1])
+        // The built CSS is minified to these forms.
+        expect(parseCssColor("#fff")).toEqual([255, 255, 255, 1])
+        expect(parseCssColor("#ffffffd9")).toEqual([255, 255, 255, 217 / 255])
+        expect(parseCssColor("#0008")).toEqual([0, 0, 0, 136 / 255])
+        expect(parseCssColor("#fffff")).toBeNull()
         expect(parseCssColor("oklch(0.5 0.1 200)")).toBeNull()
     })
 
-    it("reads the light and dark inks, with dark inks over the dark background", () => {
+    it("reads the light and dark inks, with dark inks whiter, denser and over the dark background", () => {
         const el = document.createElement("div")
         document.body.appendChild(el)
         el.style.setProperty("--colorBgContainer", "#ffffff")
         el.style.setProperty("--colorText", "#242424")
         el.style.setProperty("--colorTextSecondary", "#676770")
-        expect(readHeroInks(el)).toEqual({ink: [36, 36, 36], ink2: [103, 103, 112]})
+        el.style.setProperty("--colorTextLightSolid", "#ffffff")
+        expect(readHeroInks(el)).toEqual({ink: [36, 36, 36], ink2: [103, 103, 112], gain: 1})
 
+        document.documentElement.classList.add("dark")
         el.style.setProperty("--colorBgContainer", "#141414")
         el.style.setProperty("--colorText", "rgba(255, 255, 255, 0.85)")
         el.style.setProperty("--colorTextSecondary", "rgba(255, 255, 255, 0.65)")
-        expect(readHeroInks(el)).toEqual({ink: [220, 220, 220], ink2: [173, 173, 173]})
+        expect(readHeroInks(el)).toEqual({ink: [255, 255, 255], ink2: [220, 220, 220], gain: 1.5})
+
+        // The same tokens as the minified CSS serves them.
+        el.style.setProperty("--colorText", "#ffffffd9")
+        el.style.setProperty("--colorTextLightSolid", "#fff")
+        expect(readHeroInks(el)).toEqual({ink: [255, 255, 255], ink2: [220, 220, 220], gain: 1.5})
+        document.documentElement.classList.remove("dark")
         el.remove()
     })
 })
@@ -279,11 +292,11 @@ describe("hero engine", () => {
 
         // jsdom does not inherit custom properties, so the tokens go on the canvas itself.
         canvas.style.setProperty("--colorBgContainer", "#141414")
-        canvas.style.setProperty("--colorText", "rgba(255, 255, 255, 0.85)")
+        canvas.style.setProperty("--colorTextLightSolid", "#ffffff")
         document.documentElement.classList.add("dark")
         // MutationObserver callbacks run as a microtask.
         await Promise.resolve()
-        expect(inks.at(-1)).toEqual([220, 220, 220])
+        expect(inks.at(-1)).toEqual([255, 255, 255])
         engine.destroy()
         document.documentElement.classList.remove("dark")
     })
