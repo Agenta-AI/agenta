@@ -15,7 +15,6 @@ import {
     NewSkillMenuButton,
     SkillCreateDrawer,
     SkillDetailDrawer,
-    SkillImportDrawer,
     useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
@@ -159,10 +158,9 @@ export const SkillListScreen = ({
     }, [linkedSkill, openedLink])
     // The drawer's Used-by names lead to the agent.
     const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
-    const [importOpen, setImportOpen] = useState(false)
-    const openImport = useCallback(() => setImportOpen(true), [])
-    const closeImport = useCallback(() => setImportOpen(false), [])
-    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
+    // Each way of the New skill menu opens the one new skill view on that step.
+    const {createOpen, upload, start, onWrite, onUpload, onImport, closeCreate} =
+        useSkillCreateEntry()
 
     // The search narrows the query, so with no term an empty registry means the project has none.
     const projectEmpty =
@@ -213,7 +211,7 @@ export const SkillListScreen = ({
                                 <NewSkillMenuButton
                                     onWrite={onWrite}
                                     onUpload={onUpload}
-                                    onImport={openImport}
+                                    onImport={onImport}
                                     className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                                 />
                             </div>
@@ -226,7 +224,7 @@ export const SkillListScreen = ({
                                 <SkillCreateOptions
                                     onWrite={onWrite}
                                     onUpload={onUpload}
-                                    onImport={openImport}
+                                    onImport={onImport}
                                 />
                             </FeatureOnboarding>
                         ) : (
@@ -267,12 +265,12 @@ export const SkillListScreen = ({
                 skill={detailSkill}
                 agentHref={agentHref}
             />
-            <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
             <SkillCreateDrawer
                 open={createOpen}
                 onClose={closeCreate}
                 projectId={projectId}
                 upload={upload}
+                start={start}
             />
         </>
     )
