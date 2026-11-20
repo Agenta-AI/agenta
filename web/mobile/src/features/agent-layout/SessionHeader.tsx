@@ -1,10 +1,10 @@
 import {useCallback, useState} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
+import {agentDisplayNameAtomFamily} from "@agenta/navigation"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {cn} from "@agenta/ui/styles"
@@ -62,10 +62,11 @@ export const SessionHeader = ({
     const panel = useAgentPanel()
     const base = `/w/${workspaceId}/p/${projectId}`
     const tScreen = useT(chatMobileScreenCatalog)
-    const artifactName = useAtomValue(
-        workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""),
-    )
-    const name = artifactName || tScreen("chat.mobileScreen.agent")
+    // By the agent id first, as the sidebar heading reads it: the name is known before the
+    // revision loads.
+    const name =
+        useAtomValue(agentDisplayNameAtomFamily(agentId ?? entityId ?? "")) ||
+        tScreen("chat.mobileScreen.agent")
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const session = useSessionHeader(projectId, sessionId)
     // The agent's session order: archiving the open session moves to the next one.
@@ -97,7 +98,9 @@ export const SessionHeader = ({
     return (
         <header
             data-testid="session-header"
-            className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3"
+            // On a phone the row wraps instead of running off the screen (the layout clips sideways
+            // overflow), so every icon stays reachable until the two-row phone header lands.
+            className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 max-md:h-auto max-md:min-h-12 max-md:flex-wrap max-md:py-1"
         >
             <PageTitle title={session.data?.name} />
             <KeyboardShortcutsSheet

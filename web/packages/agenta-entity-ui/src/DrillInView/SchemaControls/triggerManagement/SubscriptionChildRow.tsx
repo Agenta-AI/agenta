@@ -16,6 +16,7 @@ import {Play} from "@phosphor-icons/react"
 import {EventSourcePicker} from "../../../gatewayTrigger/drawers/shared/EventSourcePicker"
 import {ProviderLogo} from "../sectionGroups"
 
+import {PHONE_LINE_CLASS, PHONE_NAME_CLASS, PHONE_ROW_CLASS, PhoneRowSwitch} from "./phoneRow"
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
 import {useSubscriptionRun} from "./useSubscriptionRun"
 
@@ -36,6 +37,8 @@ export function SubscriptionChildRow({
     menu,
     menuOpen,
     menuContainer,
+    phone,
+    onToggle,
 }: {
     logo?: string | null
     primary: string
@@ -56,6 +59,10 @@ export function SubscriptionChildRow({
     menuOpen?: boolean
     /** Portal target for the "⋯" menu; defaults to document.body. */
     menuContainer?: HTMLElement | null
+    /** The phone shape (M10): a flat row, the line wraps, 44 px controls. */
+    phone?: boolean
+    /** Phone only: the row's switch turns the automation on or off. Absent, no switch. */
+    onToggle?: (next: boolean) => void
 }) {
     const t = useT(triggersCatalog)
     const open = disabled ? undefined : onOpen
@@ -93,11 +100,15 @@ export function SubscriptionChildRow({
             {/* Same split as TriggerRow: the `role="button"` region is a SIBLING of the ⋯ menu,
                 never its ancestor (axe nested-interactive). */}
             <div
-                className={`group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2 transition-colors ${
-                    disabled
-                        ? "cursor-default"
-                        : "cursor-pointer hover:border-[var(--ag-colorBorder)]"
-                }`}
+                className={
+                    phone
+                        ? `${PHONE_ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer"}`
+                        : `group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2 transition-colors ${
+                              disabled
+                                  ? "cursor-default"
+                                  : "cursor-pointer hover:border-[var(--ag-colorBorder)]"
+                          }`
+                }
             >
                 <div
                     role="button"
@@ -111,7 +122,7 @@ export function SubscriptionChildRow({
                             open()
                         }
                     }}
-                    className="flex min-w-0 flex-1 items-center gap-2.5"
+                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : "gap-2.5"}`}
                 >
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -132,14 +143,20 @@ export function SubscriptionChildRow({
                     </Tooltip>
                     <div className="min-w-0 flex-1">
                         <div
-                            className={`truncate text-xs font-normal ${
+                            className={`${phone ? PHONE_NAME_CLASS : "truncate text-xs"} font-normal ${
                                 primaryMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
                             }`}
                         >
                             {primary}
                         </div>
                         {secondary ? (
-                            <div className="truncate text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                            <div
+                                className={
+                                    phone
+                                        ? PHONE_LINE_CLASS
+                                        : "truncate text-xs leading-snug text-[var(--ag-colorTextTertiary)]"
+                                }
+                            >
                                 {secondary}
                             </div>
                         ) : null}
@@ -173,10 +190,14 @@ export function SubscriptionChildRow({
                             waitHint={t("entityUi.triggers.triggerFromApp")}
                         />
                     ) : null}
+                    {onToggle ? (
+                        <PhoneRowSwitch name={primary} active={active} onToggle={onToggle} />
+                    ) : null}
                     <TriggerActionsMenu
                         menu={composedMenu}
                         open={menuOpen}
                         container={menuContainer}
+                        phone={phone}
                     />
                 </div>
             </div>

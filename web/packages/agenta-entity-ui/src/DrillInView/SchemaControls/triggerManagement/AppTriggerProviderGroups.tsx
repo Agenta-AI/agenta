@@ -42,6 +42,8 @@ export function AppTriggerProviderGroups({
     disabled,
     subscriptionMenu,
     onOpenSubscription,
+    phone,
+    onToggleSubscription,
 }: {
     scopedSubscriptions: TriggerSubscription[]
     entityId: string | null
@@ -50,6 +52,10 @@ export function AppTriggerProviderGroups({
     subscriptionMenu: (record: TriggerSubscription) => ReactNode
     /** A row click: opens the automation. */
     onOpenSubscription: (id: string) => void
+    /** The phone shape of the rows (M10). */
+    phone?: boolean
+    /** Phone only: a row's switch. Absent, the rows have no switch. */
+    onToggleSubscription?: (record: TriggerSubscription, next: boolean) => void
 }) {
     const t = useT(triggersCatalog)
     const {connections} = useTriggerConnectionsQuery()
@@ -117,9 +123,9 @@ export function AppTriggerProviderGroups({
     if (groups.length === 0) return null
 
     return (
-        <div className="flex flex-col gap-2">
+        <div className={`flex flex-col ${phone ? "" : "gap-2"}`}>
             {groups.map((group) => (
-                <div key={group.connId} className="flex flex-col gap-2">
+                <div key={group.connId} className={`flex flex-col ${phone ? "" : "gap-2"}`}>
                     {group.showHeader && group.label ? (
                         <div className="flex items-center gap-1.5 px-0.5 pt-0.5 text-[12px] text-[var(--ag-colorTextTertiary)]">
                             {/* No logo: the header only appears when one app has several
@@ -155,6 +161,12 @@ export function AppTriggerProviderGroups({
                                 runDisabled={disabled || !record.id}
                                 onOpen={() => record.id && onOpenSubscription(record.id)}
                                 menu={subscriptionMenu(record)}
+                                phone={phone}
+                                onToggle={
+                                    onToggleSubscription
+                                        ? (next) => onToggleSubscription(record, next)
+                                        : undefined
+                                }
                             />
                         )
                     })}

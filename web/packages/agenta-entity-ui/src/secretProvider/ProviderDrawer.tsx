@@ -32,6 +32,7 @@ import {
 import {providerTitleForKind} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, Divider} from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
@@ -162,7 +163,7 @@ const ProviderDrawer = ({
     organizationConnections,
     ownerChoice,
 }: ProviderDrawerProps) => {
-    const t = useT(providerDrawerCatalog)
+    const t = useT(providerDrawerCatalog, providerListCatalog)
     const [view, setView] = useState<DrawerView>({level: "catalog"})
     const readOnly = !!organization?.readOnly
     // Outside the Organization tab, an organization connection is the project's to use, never to
@@ -330,11 +331,10 @@ const ProviderDrawer = ({
                 }
                 isMutating={cardSave?.saving}
                 canSave={cardSave?.canSave ?? false}
-                // One label in every entry context: nothing is written until it is pressed, which
-                // is as true of the first save as of the tenth.
-                submitLabel={t("entityUi.providerDrawer.done")}
+                // The button says what it does, in every entry context.
+                submitLabel={t("entityUi.providerList.saveConnection")}
                 cancelVariant="ghost"
-                onSubmit={() => cardSave?.submit()}
+                onSubmit={() => void cardSave?.submit()}
             />
         ) : view.level === "subscription" ? (
             <DrawerFooter

@@ -2,6 +2,7 @@ import {useMemo, useState} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
+import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import {ViewStackHost} from "@agenta/ui/view-stack"
 import {useSetAtom} from "jotai"
@@ -33,7 +34,7 @@ export interface ConfigurationContentProps {
  * today's bodies and drawers; a view opened from a tab shows with the panel chrome.
  */
 export const ConfigurationContent = (props: ConfigurationContentProps) => {
-    const t = useT(agentLayoutPanelCatalog)
+    const t = useT(agentLayoutPanelCatalog, agentLayoutHeaderCatalog)
     const panel = useAgentPanel()
     // A commit made here pins the new revision to this session.
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(props.sessionId))
@@ -63,7 +64,14 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
             <AgentEditorContext.Provider value={editor}>
                 <ViewStackHost
                     chrome={PanelViewChrome}
-                    rootTitle={t(`agentLayout.panel.${panel.configTab}`)}
+                    // On a phone a view's back arrow names the Configuration screen; on the
+                    // desktop the breadcrumb starts at the tab.
+                    rootTitle={
+                        panel.phone
+                            ? t("agentLayout.header.configuration")
+                            : t(`agentLayout.panel.${panel.configTab}`)
+                    }
+                    phone={panel.phone}
                 >
                     <StackGuards />
                     <ConfigurationRoot {...props} />

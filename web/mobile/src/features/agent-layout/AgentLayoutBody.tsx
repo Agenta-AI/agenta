@@ -215,7 +215,7 @@ export const AgentLayoutBody = ({
             const next = nextPanelContent(content, clicked)
             if (!(await confirmLeave(next ? "swap" : "close"))) return false
             setContent(next)
-            if (next) requestAnimationFrame(() => panelRef.current?.focus())
+            if (next) requestAnimationFrame(() => panelRef.current?.focus({preventScroll: true}))
             return true
         },
         [confirmLeave, content, setContent, available],
@@ -227,7 +227,9 @@ export const AgentLayoutBody = ({
         // Escape or Close at the root: focus goes back to the header icon that opened it.
         // After the commit: on a phone the header is inert until the panel closes.
         if (was)
-            requestAnimationFrame(() => document.getElementById(`agent-panel-icon-${was}`)?.focus())
+            requestAnimationFrame(() =>
+                document.getElementById(`agent-panel-icon-${was}`)?.focus({preventScroll: true}),
+            )
         return true
     }, [confirmLeave, content, setContent])
 
@@ -250,7 +252,7 @@ export const AgentLayoutBody = ({
             if (!ok) return
             setContent("configuration")
             setState({configTab: "agent"})
-            requestAnimationFrame(() => panelRef.current?.focus())
+            requestAnimationFrame(() => panelRef.current?.focus({preventScroll: true}))
         })
     }, [revealRequest, canConfigure, content, confirmLeave, setContent, setState, setRevealRequest])
 
@@ -445,7 +447,10 @@ export const AgentLayoutBody = ({
 
     return (
         <AgentPanelContext.Provider value={api}>
-            <div className="relative flex h-full min-h-0 flex-col">
+            {/* Clipped, not scrollable: a row wider than a phone (a long header) must never let
+                the browser scroll the layout sideways, which shifts a full screen panel off its
+                left edge when focus moves into it. */}
+            <div className="relative flex h-full min-h-0 flex-col overflow-x-clip">
                 <div className="contents" inert={mode === "full" && open}>
                     {header}
                 </div>

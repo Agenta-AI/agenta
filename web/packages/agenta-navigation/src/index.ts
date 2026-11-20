@@ -15,6 +15,7 @@ export * from "./releases"
 export {useSidebarResize} from "./useSidebarResize"
 
 export {
+    agentDisplayNameAtomFamily,
     dropMissingAgentSessions,
     localSessionRefsAtom,
     sidebarHasAnySessionAtomFamily,

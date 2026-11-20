@@ -22,6 +22,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {
+    AddAutomationPhoneAction,
     AddTriggerDropdown,
     TriggerManagementSection,
     useAgentTriggers,
@@ -109,6 +110,7 @@ export function AgentOperationsSections({
     onOpenAutomation,
     onAddAutomation,
     showFiles = true,
+    phone = false,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -135,43 +137,55 @@ export function AgentOperationsSections({
         kind: TriggerOwnerRef["kind"],
         references: Record<string, {id?: string; slug?: string}>,
     ) => void
+    /**
+     * The phone shape (M10): no Automations header bar (the tab already names the list), no Files
+     * region, phone rows, and "Add automation" as the full-width button at the bottom, which opens
+     * a bottom sheet (M11). The host decides it (`useIsPhone`) and makes its scrolling column a flex
+     * column, so the button sits at the bottom of the screen.
+     */
+    phone?: boolean
 }) {
     const t = useT(agentOperationsCatalog)
     const {count: triggerCount} = useAgentTriggers(revisionId)
 
     return (
         <>
-            <section className="flex flex-col">
-                <AgentRegionHeaderBar
-                    title={t("entityUi.agentOperations.automations")}
-                    sticky={sticky}
-                >
-                    {/* No reserved affordance column: this region has no caret, and the empty
+            {/* On a phone the list is the whole screen: its white sheet runs down to the button. */}
+            <section className={phone ? "flex grow flex-col" : "flex flex-col"}>
+                {phone ? null : (
+                    <AgentRegionHeaderBar
+                        title={t("entityUi.agentOperations.automations")}
+                        sticky={sticky}
+                    >
+                        {/* No reserved affordance column: this region has no caret, and the empty
                         14px slot only held the "+" off the bar's right edge. */}
-                    <ConfigRowTrailing reserve={false}>
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            {countSummary(triggerCount, "automation")}
-                        </span>
-                        {/* "Add automation": the kind is chosen in the menu (F05 f2). */}
-                        {disabled ? null : (
-                            <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
-                        )}
-                    </ConfigRowTrailing>
-                </AgentRegionHeaderBar>
-                <div className={sectionsBodyClass}>
+                        <ConfigRowTrailing reserve={false}>
+                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                                {countSummary(triggerCount, "automation")}
+                            </span>
+                            {/* "Add automation": the kind is chosen in the menu (F05 f2). */}
+                            {disabled ? null : (
+                                <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
+                            )}
+                        </ConfigRowTrailing>
+                    </AgentRegionHeaderBar>
+                )}
+                <div className={phone ? `${sectionsBodyClass} grow` : sectionsBodyClass}>
                     <TriggerManagementSection
                         entityId={revisionId}
                         disabled={disabled}
                         automationDrawer={automationDrawer}
                         onOpenRunHistory={onOpenRunHistory}
                         onOpenAutomation={onOpenAutomation}
+                        phone={phone}
                     />
                 </div>
             </section>
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            {showFiles ? (
+            {/* A phone shows the automation list alone (M10). */}
+            {showFiles && !phone ? (
                 <section className="flex grow flex-col">
                     <AgentRegionHeaderBar
                         title={t("entityUi.agentOperations.recentFiles")}
@@ -189,6 +203,11 @@ export function AgentOperationsSections({
                         )}
                     </div>
                 </section>
+            ) : null}
+
+            {/* A viewer gets no "Add automation", as on the desktop. */}
+            {phone && !disabled ? (
+                <AddAutomationPhoneAction entityId={revisionId} onAdd={onAddAutomation} />
             ) : null}
         </>
     )

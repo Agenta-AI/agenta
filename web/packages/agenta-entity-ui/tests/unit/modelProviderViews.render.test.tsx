@@ -12,10 +12,11 @@ import {
     type ViewChromeProps,
 } from "@agenta/ui/view-stack"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {createStore, Provider} from "jotai"
+import {createStore, Provider, useSetAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {providerSaveFollowUpAtom} from "../../src/secretProvider/views/providerSaveFollowUp"
 import {providerListView} from "../../src/secretProvider/views/providerViews"
 
 import {byText, change, click, findByText, waitFor} from "./domHelpers"
@@ -25,6 +26,7 @@ const fixture = vi.hoisted(() => ({
     saved: [] as string[],
     failSave: false,
     refreshed: 0,
+    afterSave: (() => undefined) as (id?: string) => void,
 }))
 
 vi.mock("@agenta/entities/secret", async (importOriginal) => {
@@ -91,10 +93,15 @@ vi.mock("../../src/secretProvider/ProviderConnectionCard", () => ({
                     canSave: true,
                     saving: false,
                     error,
-                    submit: () => {
-                        if (fixture.failSave) return publish("Agenta could not save this.")
+                    dirty: true,
+                    submit: async () => {
+                        if (fixture.failSave) {
+                            publish("Agenta could not save this.")
+                            return false
+                        }
                         fixture.saved.push(kind)
                         latest.current.onSaved("new-id")
+                        return true
                     },
                 })
             publish(null)
@@ -121,10 +128,17 @@ const Chrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
 
 const Opener = () => {
     const stack = useViewStack()
+    const setFollowUp = useSetAtom(providerSaveFollowUpAtom)
     return (
-        <button onClick={() => void stack.open(providerListView, {}, {kind: "project"})}>
-            open
-        </button>
+        <>
+            <button onClick={() => void stack.open(providerListView, {}, {kind: "project"})}>
+                open
+            </button>
+            {/* What a model picker in this stack does before it opens Model providers. */}
+            <button onClick={() => setFollowUp({host: stack.open, run: fixture.afterSave})}>
+                arm
+            </button>
+        </>
     )
 }
 
@@ -232,6 +246,50 @@ describe("Model providers list", {timeout: 30_000}, () => {
         expect(fixture.saved).toEqual(["openai"])
         // The list and the picker read the vault, so the save refreshes it.
         expect(fixture.refreshed).toBe(1)
+    })
+
+    it("a save runs the model picker's follow-up once, with the new id", async () => {
+        const afterSave = vi.fn()
+        fixture.afterSave = afterSave
+        await openList()
+        await click(byText("arm"))
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await findByText("here:OpenAI")
+        await click(byText("Save connection"))
+        await findByText("here:Model providers")
+
+        expect(afterSave).toHaveBeenCalledTimes(1)
+        expect(afterSave).toHaveBeenCalledWith("new-id")
+
+        // A second save in the same visit does not run it again.
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await findByText("here:OpenAI")
+        await click(byText("Save connection"))
+        await findByText("here:Model providers")
+        expect(afterSave).toHaveBeenCalledTimes(1)
+    })
+
+    it("leaving Model providers without a save drops the follow-up", async () => {
+        const afterSave = vi.fn()
+        fixture.afterSave = afterSave
+        await openList()
+        await click(byText("arm"))
+        // Back to the root: the list closes.
+        await click(byText("crumb:Agent"))
+        await click(byText("open"))
+        await findByText("here:Model providers")
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await findByText("here:OpenAI")
+        await click(byText("Save connection"))
+        await findByText("here:Model providers")
+
+        expect(afterSave).not.toHaveBeenCalled()
     })
 
     it("a failed save keeps the form open", async () => {

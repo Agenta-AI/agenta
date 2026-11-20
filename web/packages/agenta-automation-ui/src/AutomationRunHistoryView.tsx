@@ -49,6 +49,7 @@ export const AutomationRunHistoryView = ({
     sessionHref,
     runNow,
     initialRunId,
+    phone = false,
 }: {
     automation: Automation | null
     /** The way back to the automation — rendered above the list, on its own grid. */
@@ -69,6 +70,11 @@ export const AutomationRunHistoryView = ({
     runNow?: ReactNode
     /** Open this run first (the automation view's "Last run"). */
     initialRunId?: string | null
+    /**
+     * Phone: rows, the back arrow and the icons have a 44 px hit area. The view is narrower than
+     * the split width on a phone, so it already shows the list or one run, never both.
+     */
+    phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog, automationsRunHistoryCatalog)
     // The count line reads the capped recent query (shared with the card); the list pages.
@@ -166,6 +172,7 @@ export const AutomationRunHistoryView = ({
                                     title={t("automations.runHistory.openInNewTab")}
                                     className={cn(
                                         "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
+                                        phone && "size-11",
                                         ICON_LINK,
                                     )}
                                 >
@@ -192,6 +199,7 @@ export const AutomationRunHistoryView = ({
                             loadingMore={loadingMore}
                             onEndReached={loadMore}
                             emptyAction={runNow}
+                            phone={phone}
                         />
                     </div>
                 ) : null}
@@ -205,6 +213,7 @@ export const AutomationRunHistoryView = ({
                             renderConversation={renderConversation}
                             sessionHref={sessionHref}
                             onBack={canSplit ? undefined : onBack}
+                            phone={phone}
                         />
                     </div>
                 ) : null}

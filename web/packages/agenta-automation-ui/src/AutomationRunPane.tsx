@@ -37,6 +37,7 @@ export const AutomationRunPane = ({
     renderConversation,
     sessionHref,
     onBack,
+    phone = false,
 }: {
     delivery: TriggerDelivery
     /** The run's transcript, given its session — the host's chat surface. */
@@ -45,6 +46,8 @@ export const AutomationRunPane = ({
     sessionHref?: (sessionId: string) => string
     /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
     onBack?: () => void
+    /** Phone: the back arrow and the new-tab icon have a 44 px hit area. */
+    phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog, automationsModelCatalog, automationsRunHistoryCatalog)
     const sessionId = runSessionId(delivery)
@@ -68,6 +71,7 @@ export const AutomationRunPane = ({
                         aria-label={t("automations.editor.backToRunList")}
                         className={cn(
                             "-ml-1 flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-1 text-muted-foreground",
+                            phone && "-my-2 -ml-3 size-11",
                             ICON_LINK,
                         )}
                     >
@@ -100,6 +104,7 @@ export const AutomationRunPane = ({
                         title={t("automations.runHistory.openRunInNewTab")}
                         className={cn(
                             "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
+                            phone && "-my-2 -mr-2 size-11",
                             ICON_LINK,
                         )}
                     >
