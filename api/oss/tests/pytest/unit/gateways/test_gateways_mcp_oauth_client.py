@@ -612,6 +612,69 @@ async def test_discover_refuses_protected_resource_metadata_describing_another_r
 
 
 @pytest.mark.asyncio
+async def test_discover_refuses_a_document_naming_another_path_on_the_same_origin():
+    """One origin can serve several MCP servers, and a deployment routinely does.
+
+    `/key/mcp` beside `/oauth/mcp` is the shape the development mock serves. A document
+    at the origin's own well-known URL that names `/oauth/mcp` says nothing about
+    `/key/mcp`; taking it ran OAuth discovery for the key surface and reported `oauth`
+    for a server that wants a header.
+    """
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(prm={**_PRM, "resource": "https://mcp.acme.io/oauth/mcp"})
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError) as refusal:
+        await client.discover(server_url="https://mcp.acme.io/key/mcp")
+
+    assert "different resource" in str(refusal.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "resource",
+    [
+        # RFC 9728 s3.3: the resource identifier of the address itself.
+        "https://mcp.acme.io/key/mcp",
+        # A trailing slash is the one difference real documents show.
+        "https://mcp.acme.io/key/mcp/",
+        # The origin-level identifier: what real servers publish for a server the tenant
+        # calls at a path.
+        "https://mcp.acme.io/",
+        # A broader resource the address sits under, at a segment boundary.
+        "https://mcp.acme.io/key",
+        "https://mcp.acme.io/key/",
+    ],
+)
+async def test_discover_accepts_a_document_that_covers_the_address(resource):
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(_as_handler(prm={**_PRM, "resource": resource}))
+    )
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/key/mcp")
+
+    assert discovery.authorization_server == "https://auth.acme.io/"
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_a_prefix_that_ends_mid_segment():
+    """`/keyboard/mcp` is not under `/key`, and reading it as such would let one server's
+    document answer for another's address."""
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(prm={**_PRM, "resource": "https://mcp.acme.io/key"})
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError) as refusal:
+        await client.discover(server_url="https://mcp.acme.io/keyboard/mcp")
+
+    assert "different resource" in str(refusal.value)
+
+
+@pytest.mark.asyncio
 async def test_discover_refuses_a_plain_http_authorization_endpoint(monkeypatch):
     monkeypatch.setattr(
         "oss.src.core.gateways.mcps.oauth.client.env.gateway_egress.insecure_allowed",
