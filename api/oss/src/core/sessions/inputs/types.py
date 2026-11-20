@@ -79,8 +79,9 @@ def _is_approval_answer(block: Dict[str, Any]) -> bool:
         return True
     if isinstance(kind, str) and (kind.startswith("tool-") or kind == "dynamic-tool"):
         # The SDK turns a tool part's `output` into a `tool_result` in every state.
+        state = block.get("state")
         return (
-            block.get("state") in _ANSWERED_TOOL_PART_STATES
+            (isinstance(state, str) and state in _ANSWERED_TOOL_PART_STATES)
             or _has_approved_flag(block.get("approval"))
             or _has_approved_flag(block.get("output"))
         )

@@ -24,6 +24,7 @@ from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
     SessionInputCarriesApprovalAnswer,
     SessionInputEnvelopeMismatch,
+    SessionInputIdempotencyConflict,
     carries_approval_answer,
     is_reserved_input_key,
 )
@@ -41,7 +42,10 @@ from oss.src.core.sharing.service import (
 from oss.src.core.sessions.streams.dtos import SessionStreamCreate
 from oss.src.core.sessions.types import SessionCallingSession
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
-from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+from oss.src.core.sessions.streams.types import (
+    SessionStreamAlreadyExists,
+    SessionStreamNotFound,
+)
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.access.prefetch import request_memo_scope
 from oss.src.core.sharing.admission import TEMPLATE_START_BOUNDARY, RunAdmission
@@ -465,7 +469,9 @@ class SessionStartsService:
 
         One row per key in the session: a repeat writes nothing and answers the first
         row. Raises `SessionInputEnvelopeMismatch` for an envelope of another project,
-        `SessionInputIdempotencyConflict` for a key reused with other content,
+        `SessionStreamNotFound` when the session does not exist,
+        `SessionInputIdempotencyConflict` for a key reused with other content (or a
+        resumed dispatch with another envelope),
         `SessionInputCarriesApprovalAnswer` for content with an approval answer (no row
         is written),
         `AdmissionDenied` when the immediate dispatch is refused (no row is written), and
@@ -502,6 +508,15 @@ class SessionStartsService:
         # One lock per session, not per key: two inputs with different keys must not
         # both find the session idle and both dispatch. The second one, once the lock is
         # free, sees the first turn running and waits as `pending`.
+        # The helper puts an input into a session that exists; it never creates one.
+        if (
+            await self._streams.get_by_session_id_including_archived(
+                project_id=project_id, session_id=session_id
+            )
+            is None
+        ):
+            raise SessionStreamNotFound(session_id)
+
         async with self._start_lock(
             project_id=project_id, lock_id=f"{_INPUT_NAMESPACE}:{session_id}"
         ):
@@ -517,6 +532,10 @@ class SessionStartsService:
                 and earlier.state == PendingInputState.promoted
                 and earlier.promoted_execution_id == execution_id
             )
+            if resumes and earlier.run_envelope != run_envelope:
+                # The resumed turn would run with this call's authority, not the
+                # stored one. Only the same authority finishes its own dispatch.
+                raise SessionInputIdempotencyConflict()
             if (
                 not resumes
                 and kind != PendingInputKind.message
