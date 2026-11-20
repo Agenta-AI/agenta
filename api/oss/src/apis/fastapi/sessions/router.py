@@ -1806,8 +1806,12 @@ class InteractionsRouter:
 
         resolution = body.resolution
         # `resolved` is approval-only whether or not an answer rides along, so the row lookup
-        # runs for a bare `resolved` transition too.
-        if resolution is not None or body.status == SessionInteractionStatus.resolved:
+        # runs for a bare `resolved` transition too. A bare `responded` needs the row to
+        # refuse it on an approval.
+        if resolution is not None or body.status in (
+            SessionInteractionStatus.resolved,
+            SessionInteractionStatus.responded,
+        ):
             interactions = await self.interactions_service.query_interactions(
                 project_id=project_id,
                 query=SessionInteractionQuery(session_id=body.session_id),
@@ -1844,18 +1848,22 @@ class InteractionsRouter:
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=e.errors(include_context=False),
                     ) from e
-                # Only a person or a channel answers an approval. An agent run settles
-                # an answer that it consumed (`resolved`), but it may not record one
-                # (`responded`), and it may not replace the answer a row already holds.
-                if approval_from_request(
+            # Only a person or a channel answers an approval. An agent run settles an
+            # answer that it consumed (`resolved`), but it may not record one
+            # (`responded`, with or without a resolution), and it may not replace the
+            # answer a row already holds.
+            if (
+                source.kind == SessionInteractionKind.user_approval
+                and approval_from_request(
                     principal=request.state.principal,
                     credential_kind=getattr(request.state, "credential_kind", None),
                     user_id=UUID(str(request.state.user_id)),
-                ).is_run_credential:
-                    if body.status == SessionInteractionStatus.responded:
-                        raise FORBIDDEN_EXCEPTION
-                    if source.status == SessionInteractionStatus.responded:
-                        resolution = None
+                ).is_run_credential
+            ):
+                if body.status == SessionInteractionStatus.responded:
+                    raise FORBIDDEN_EXCEPTION
+                if source.status == SessionInteractionStatus.responded:
+                    resolution = None
 
         try:
             interaction = await self.interactions_service.transition_interaction(

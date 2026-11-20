@@ -388,7 +388,12 @@ async def _transition(interactions_service, body, credential_kind):
 @pytest.mark.parametrize(
     "credential_kind", [RequestCredentialKind.RUN_CREDENTIAL, None]
 )
-async def test_transition_route_refuses_an_approval_answer_from_a_run(credential_kind):
+@pytest.mark.parametrize(
+    "resolution", [{"verdict": "approved", "tool_call_id": "tool-1"}, None]
+)
+async def test_transition_route_refuses_an_approval_answer_from_a_run(
+    credential_kind, resolution
+):
     interactions_service = AsyncMock()
     interactions_service.query_interactions.return_value = [
         _approval_row(uuid4(), SessionInteractionStatus.pending)
@@ -397,7 +402,7 @@ async def test_transition_route_refuses_an_approval_answer_from_a_run(credential
         session_id="session-1",
         token="approval-token",
         status=SessionInteractionStatus.responded,
-        resolution={"verdict": "approved", "tool_call_id": "tool-1"},
+        resolution=resolution,
     )
 
     with pytest.raises(HTTPException) as caught:
