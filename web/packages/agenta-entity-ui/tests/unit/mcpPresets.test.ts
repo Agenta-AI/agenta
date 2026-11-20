@@ -7,8 +7,9 @@
  * that preset wrote nothing at all. The absence has its own preset now, and that one writes the
  * shape it describes.
  */
-import {askWritesPolicy, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 import {describe, expect, it} from "vitest"
+
+import {askWritesPolicy, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 
 import {INTEGRATION_PRESETS} from "../../src/DrillInView/SchemaControls/integrationPolicy"
 import {MCP_PRESETS, readMcpPreset} from "../../src/mcpEndpoint/mcpPresets"

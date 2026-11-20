@@ -14,9 +14,10 @@
  */
 import {act, createElement} from "react"
 
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight, touchTargetWidth} from "@agenta/ui/ui"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
+
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight, touchTargetWidth} from "@agenta/ui/ui"
 
 import {ExpandableDescription} from "../../src/DrillInView/SchemaControls/agentTemplate/ExpandableDescription"
 

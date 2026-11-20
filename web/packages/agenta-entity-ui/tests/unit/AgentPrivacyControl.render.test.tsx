@@ -1,9 +1,10 @@
 import {act, createElement} from "react"
 
 import type {AgentSharingState} from "@agenta/entities/sharing"
-import {shareDisclosureCopy} from "@agenta/sessions-ui/sharing"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
+
+import {shareDisclosureCopy} from "@agenta/sessions-ui/sharing"
 
 import {AgentPrivacyControl} from "../../src/sharing/AgentPrivacyControl"
 import {AgentPrivacyDialog, type AgentPrivacyProps} from "../../src/sharing/AgentPrivacyDialog"

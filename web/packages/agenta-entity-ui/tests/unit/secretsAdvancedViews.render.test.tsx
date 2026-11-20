@@ -122,16 +122,16 @@ vi.mock("@agenta/ui/drill-in", async (original) => ({
     useDrillInUI: () => ({permissions: {canEditSecrets: true}}),
 }))
 
-import {SecretsSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SecretsSection"
 import {
     agentaToolsView,
     advancedView,
     executionView,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/views/advancedViews"
+import {SecretsSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SecretsSection"
 import {SecretRemoveDialog} from "../../src/secret/SecretRemoveDialog"
+import {secretFormDirty} from "../../src/secret/views/SecretFormViewBody"
 import {secretAttachView} from "../../src/secret/views/secretAttachView"
 import {secretFormView} from "../../src/secret/views/secretFormView"
-import {secretFormDirty} from "../../src/secret/views/SecretFormViewBody"
 
 import {byText, change, click, findByText, keyDown, waitFor} from "./domHelpers"
 
