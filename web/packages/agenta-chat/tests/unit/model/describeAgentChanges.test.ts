@@ -57,10 +57,16 @@ describe("describeEditAgentConfig", () => {
 
 describe("describeCreateAgent", () => {
     it("names the new agent, with or without operations", () => {
+        // The card has its own header; the sentence is its detail.
         expect(describeCreateAgent({name: "Invoice helper"})).toEqual({
             sentence:
                 "Create the agent Invoice helper from the default setup. Only you will see it.",
             items: [],
+            agentName: "Invoice helper",
+            header: {title: "Create an agent", path: ["Invoice helper"]},
+            changes: [],
+            proposedValues: false,
+            cannotApply: false,
         })
         const preview = describeCreateAgent({name: "Invoice helper", operations})
         expect(preview?.sentence).toBe(

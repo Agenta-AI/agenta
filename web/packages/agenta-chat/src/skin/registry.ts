@@ -319,6 +319,9 @@ const capitalized = (text: string): string => text.charAt(0).toUpperCase() + tex
 
 type SentenceId =
     | "runCommand"
+    | "readAgent"
+    | "createAgent"
+    | "editAgent"
     | "testAgent"
     | "searchTools"
     | "connectApp"
@@ -369,23 +372,12 @@ const DEFAULT_TOOL_DISPLAY: Record<string, DefaultEntry> = {
     // The agent tools act on ANOTHER agent, which the glossary's "the agent" would misname as
     // this one. Each settled row names that agent.
     read_agent_config: {
-        activity: {running: "Reading another agent's setup", done: "Read another agent's setup"},
-        verb: {running: "Reading", done: "Read"},
+        sentence: "readAgent",
+        verbId: "read",
         summary: (input, output) => agentCallTarget(input, output) ?? null,
     },
-    create_agent: {
-        activity: {running: "Creating an agent", done: "Created an agent"},
-        verb: {running: "Creating", done: "Created"},
-        summary: summarizeAgentCall,
-    },
-    edit_agent_config: {
-        activity: {
-            running: "Saving changes to another agent",
-            done: "Saved changes to another agent",
-        },
-        verb: {running: "Saving", done: "Saved"},
-        summary: summarizeAgentCall,
-    },
+    create_agent: {sentence: "createAgent", verbId: "create", summary: summarizeAgentCall},
+    edit_agent_config: {sentence: "editAgent", verbId: "commit", summary: summarizeAgentCall},
     // "Tested a run" misses the point — the run IS the agent under test.
     test_run: {sentence: "testAgent", verbId: "test"},
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
