@@ -127,7 +127,9 @@ export const SessionMenu = ({
                             {t("agentLayout.header.sessions")}
                         </SheetTitle>
                         {loadError}
-                        <div className="min-h-0 flex-1 overflow-y-auto px-2">
+                        {/* The rows keep their drawn size; their small buttons (pin, "Show more")
+                            get a 44 px hit area. */}
+                        <div className="min-h-0 flex-1 overflow-y-auto px-2 [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-[5px] [&_button]:after:content-['']">
                             <SessionCardList
                                 {...sessionMenuListArgs(agentId)}
                                 showAgent={false}
