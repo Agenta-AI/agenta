@@ -336,7 +336,10 @@ class SessionStartsService:
 
         The row's origin comes from `envelope`'s run origin. `calling_session` is the
         record of the session whose agent starts this one; it needs an envelope with
-        the run origin `calling_session`."""
+        the run origin `calling_session` and an `access`, because only the row that
+        the start creates carries the record."""
+        if calling_session is not None and access is None:
+            raise ValueError("a calling session record needs the initial policy")
         # The start runs as the request's principal; recheck before anything is
         # claimed (AccessDenied -> 403 at the route).
         await get_access_service().require(
