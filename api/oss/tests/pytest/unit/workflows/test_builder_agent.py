@@ -366,8 +366,8 @@ def test_learning_skill_keeps_private_content_out_of_the_shared_drive():
 
 
 def test_manage_skill_names_every_field_the_save_refuses():
-    """The builder must not set a field that the agent commit scope refuses; the list
-    in the text comes from the scope itself, so the two cannot drift."""
+    """The builder must not set a field that the agent commit scope refuses, so the
+    text names every refused path. A path added to the scope fails this test."""
     skills = {skill["name"]: skill for skill in _agent()["skills"]}
     body = skills["manage-project-agents"]["body"]
     refused = [".".join(path[2:]) for path in AGENT_COMMIT_SCOPE._refused]
