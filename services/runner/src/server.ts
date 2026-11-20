@@ -816,7 +816,7 @@ async function runAndStreamWithApiBaseResolved(
     // response connection ends — after a normal `res.end()` (harmless: the run is already
     // done) or when the client drops mid-stream (the case we want to cancel).
     res.on("close", () => controller.abort());
-  } else if (!controlCommandId) {
+  } else if (!controlCommandId && !detached) {
     // Session-owned: the run signal is deliberately NOT aborted (the run must survive the
     // disconnect and finish), but keep-alive's park decision must still see the disconnect —
     // a disconnected client's session is destroyed at turn end, never parked. The flag is
@@ -831,7 +831,8 @@ async function runAndStreamWithApiBaseResolved(
   // first record arrives, so that close always lands mid-turn: reading it as a disconnect
   // destroyed the warm sandbox the answer had just resumed, and the next message started cold.
   // Its lifetime is the session's, like the turn it continues: a Stop still ends it, and the
-  // idle TTL still bounds the park.
+  // idle TTL still bounds the park. A detached run is closed the same way on purpose, so it keeps
+  // its warm sandbox too.
 
   // The invoke stream's sole positive payload in shared mode: correlation/acceptance. Live text
   // and tools arrive through /sessions/{id}/events and are filtered from invoke client-side.

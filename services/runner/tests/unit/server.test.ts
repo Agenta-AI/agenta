@@ -1663,14 +1663,20 @@ describe("createAgentServer", () => {
   });
 
   for (const testCase of [
-    { name: "durable continuation", continuation: true, clientGone: false },
-    { name: "session-owned turn", continuation: false, clientGone: true },
+    {
+      name: "durable continuation",
+      suffix: "c",
+      fields: { controlCommandId: "command-close", detached: true },
+      clientGone: false,
+    },
+    { name: "detached session turn", suffix: "d", fields: { detached: true }, clientGone: false },
+    { name: "session-owned turn", suffix: "s", fields: {}, clientGone: true },
   ]) {
     it(`a ${testCase.name} whose caller closes mid-turn reports clientGone=${testCase.clientGone} to the park decision`, async () => {
       // The api dispatches an answered approval detached and closes the stream once the first
       // record arrives. That close must not read as a lost client, or the resumed warm sandbox is
-      // destroyed at turn end and the next message starts cold. Any other session-owned turn
-      // keeps "disconnect means destroy, never park".
+      // destroyed at turn end and the next message starts cold. A detached turn closes the same
+      // way on purpose. Any other session-owned turn keeps "disconnect means destroy, never park".
       vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
       let markStarted: (() => void) | undefined;
       const started = new Promise<void>((resolve) => {
@@ -1722,12 +1728,10 @@ describe("createAgentServer", () => {
         request.end(
           JSON.stringify({
             harness: "pi_core",
-            sessionId: `session-close-${testCase.continuation ? "c" : "s"}`,
-            turnId: `turn-close-${testCase.continuation ? "c" : "s"}`,
+            sessionId: `session-close-${testCase.suffix}`,
+            turnId: `turn-close-${testCase.suffix}`,
             projectId: "project-1",
-            ...(testCase.continuation
-              ? { controlCommandId: "command-close", detached: true }
-              : {}),
+            ...testCase.fields,
             messages: [{ role: "user", content: "approved" }],
           }),
         );
