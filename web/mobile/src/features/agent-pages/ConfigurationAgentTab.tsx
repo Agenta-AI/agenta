@@ -1,7 +1,9 @@
 import {useRef} from "react"
 
 import {ModelSetupBanner} from "@agenta/chat/components"
+import {SectionListLayoutContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
+import {useIsPhone} from "@agenta/ui/phone"
 
 import {useOpenModelSetup} from "../chat/useOpenModelSetup"
 
@@ -22,6 +24,7 @@ export const ConfigurationAgentTab = ({
     readOnly: boolean
 }) => {
     const openModelSetup = useOpenModelSetup()
+    const phone = useIsPhone()
     const scrollRef = useRef<HTMLDivElement>(null)
     return (
         <div
@@ -36,28 +39,28 @@ export const ConfigurationAgentTab = ({
                 <aside className="sticky top-7 max-md:hidden">
                     <ConfigurationSectionNav contentRef={scrollRef} />
                 </aside>
-                <div
-                    data-testid="configuration-agent-tab"
-                    // On a phone the rows run edge to edge, with no card around them (M07).
-                    className="min-w-0 overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-background max-md:rounded-none max-md:border-0"
-                >
-                    <AgentBuildPanel
-                        revisionId={revisionId}
-                        disabled={readOnly}
-                        // Automations have their own tab on this page.
-                        operations={false}
-                        automationDrawer={null}
-                        banner={
-                            // The alert keeps a gap above the rows; it collapses with the banner.
-                            <div className="px-4 [&_[data-slot=alert]]:mt-3">
-                                <ModelSetupBanner
-                                    revisionId={revisionId}
-                                    layout="alert"
-                                    onSetUp={openModelSetup}
-                                />
-                            </div>
-                        }
-                    />
+                {/* On a desktop each section is its own card (A04); on a phone the sections are
+                rows that run edge to edge (M07). */}
+                <div data-testid="configuration-agent-tab" className="min-w-0">
+                    <SectionListLayoutContext.Provider value={phone ? null : "page"}>
+                        <AgentBuildPanel
+                            revisionId={revisionId}
+                            disabled={readOnly}
+                            // Automations have their own tab on this page.
+                            operations={false}
+                            automationDrawer={null}
+                            banner={
+                                // The alert keeps a gap above the rows; it collapses with the banner.
+                                <div className="px-4 [&_[data-slot=alert]]:mt-3">
+                                    <ModelSetupBanner
+                                        revisionId={revisionId}
+                                        layout="alert"
+                                        onSetUp={openModelSetup}
+                                    />
+                                </div>
+                            }
+                        />
+                    </SectionListLayoutContext.Provider>
                 </div>
             </div>
         </div>
