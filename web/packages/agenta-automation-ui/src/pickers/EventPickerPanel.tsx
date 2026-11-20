@@ -518,7 +518,7 @@ export const EventInlineCard = ({
                 <Select value={app?.connectionId ?? ""} onValueChange={selectApp}>
                     <SelectTrigger
                         size="compact"
-                        className="h-auto min-h-11 py-1"
+                        className="h-auto min-h-11 py-[3px]"
                         aria-label={t("automations.editor.app")}
                     >
                         <SelectValue />

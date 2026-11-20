@@ -143,7 +143,9 @@ const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: bool
                         value={o.value}
                         aria-label={o.label}
                         title={o.label}
-                        className={phone ? PHONE_PILL_TRIGGER : "h-full rounded-[5px] px-1.5 py-0"}
+                        className={
+                            phone ? PHONE_PILL_TRIGGER : "h-full rounded-[5px] px-[5px] py-0"
+                        }
                     >
                         {o.icon}
                     </TabsTrigger>
@@ -283,7 +285,7 @@ const FileActionsMenu = ({
                     title={t("entityUi.driveBrowser.more")}
                     className={cn(ROW_ICON_BTN, phoneMenu ? "size-11" : null)}
                 >
-                    <DotsThree size={16} weight="bold" />
+                    <DotsThree size={14} weight="bold" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -485,7 +487,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         title={t("entityUi.driveBrowser.more")}
                         className={cn(ROW_ICON_BTN, phone ? "size-11" : "size-6 rounded-[6px]")}
                     >
-                        <DotsThree size={16} weight="bold" />
+                        <DotsThree size={14} weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
