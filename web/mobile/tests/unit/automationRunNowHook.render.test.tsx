@@ -6,8 +6,12 @@
  */
 import {act, createElement} from "react"
 
+import type {Automation} from "@agenta/automation-ui"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+
+import {AutomationActionsMenu} from "@/features/automations/AutomationActionsMenu"
+import {AutomationRunNowButton} from "@/features/automations/AutomationRunNowButton"
 
 const startTask = vi.hoisted(() => vi.fn())
 const toastError = vi.hoisted(() => vi.fn())
@@ -35,11 +39,6 @@ vi.mock("@/features/automations/useAutomationRunNow", async (importOriginal) => 
         },
     }
 })
-
-import type {Automation} from "@agenta/automation-ui"
-
-import {AutomationActionsMenu} from "@/features/automations/AutomationActionsMenu"
-import {AutomationTestRunButton} from "@/features/automations/AutomationTestRunButton"
 
 const automation = (overrides: Partial<Automation> = {}) =>
     ({
@@ -76,7 +75,7 @@ describe("Run now", () => {
     it("starts a new session with the automation's message from the button", async () => {
         act(() =>
             root.render(
-                createElement(AutomationTestRunButton, {
+                createElement(AutomationRunNowButton, {
                     automation: automation(),
                     base: "/w/ws/p/pr",
                     dirty: false,
@@ -94,7 +93,7 @@ describe("Run now", () => {
     it("is blocked with the production reason while settings have unsaved edits", () => {
         act(() =>
             root.render(
-                createElement(AutomationTestRunButton, {
+                createElement(AutomationRunNowButton, {
                     automation: automation(),
                     base: "/w/ws/p/pr",
                     dirty: true,
@@ -109,7 +108,7 @@ describe("Run now", () => {
     it("is blocked when the automation has no instruction", () => {
         act(() =>
             root.render(
-                createElement(AutomationTestRunButton, {
+                createElement(AutomationRunNowButton, {
                     automation: automation({raw: {data: {inputs_fields: {}}}} as never),
                     base: "/w/ws/p/pr",
                     dirty: false,

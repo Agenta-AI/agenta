@@ -12,15 +12,10 @@ import type {
     TriggerDeliveryWindowing,
 } from "../core/types"
 
-interface DeliveriesOwner {
-    kind: "subscription" | "schedule"
-    id: string
-}
+import {ownerFilter, ownerKey, type DeliveriesOwner} from "./useTriggerDeliveries"
 
 /** Runs per page of the run history. */
 export const TRIGGER_DELIVERIES_PAGE_SIZE = 50
-
-const ownerKey = (owner: DeliveriesOwner) => `${owner.kind}:${owner.id}`
 
 /**
  * The windowing that reads the page after `page`, or undefined when `page` was the last one.
@@ -48,9 +43,7 @@ export const triggerDeliveryPagesAtomFamily = atomFamily(
                 queryKey: ["triggers", "deliveries", "pages", projectId, owner.kind, owner.id],
                 queryFn: ({pageParam}) =>
                     queryTriggerDeliveries(
-                        owner.kind === "subscription"
-                            ? {subscription_id: owner.id}
-                            : {schedule_id: owner.id},
+                        ownerFilter(owner),
                         (pageParam as TriggerDeliveryWindowing | undefined) ?? {
                             limit: TRIGGER_DELIVERIES_PAGE_SIZE,
                             order: "descending",

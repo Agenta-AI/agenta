@@ -6,6 +6,7 @@
  */
 import {act, createElement} from "react"
 
+import {AutomationRunHistoryView, type Automation} from "@agenta/automation-ui"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -34,8 +35,6 @@ vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
         loadMore: pages.loadMore,
     }),
 }))
-
-import {AutomationRunHistoryView, type Automation} from "@agenta/automation-ui"
 
 const automation = {
     id: "sch-1",
@@ -93,7 +92,7 @@ beforeEach(() => {
                     this as unknown as ResizeObserver,
                 )
             }
-            disconnect() {}
+            disconnect = vi.fn()
         },
     )
     vi.stubGlobal(
@@ -102,8 +101,8 @@ beforeEach(() => {
             constructor(callback: IntersectionObserverCallback) {
                 intersect = callback
             }
-            observe() {}
-            disconnect() {}
+            observe = vi.fn()
+            disconnect = vi.fn()
         },
     )
     container = document.createElement("div")
@@ -165,6 +164,20 @@ describe("AutomationRunHistoryView layout", () => {
 
     it("asks for the next page when the end of the list shows", () => {
         pages.deliveries = [run(1), run(2)]
+        pages.hasMore = true
+        render(440)
+        expect(container.querySelector("[data-testid=run-list-end]")).not.toBeNull()
+        act(() => {
+            intersect?.(
+                [{isIntersecting: true} as IntersectionObserverEntry],
+                {} as IntersectionObserver,
+            )
+        })
+        expect(pages.loadMore).toHaveBeenCalledTimes(1)
+    })
+
+    it("keeps reading pages when no loaded run shows", () => {
+        pages.deliveries = []
         pages.hasMore = true
         render(440)
         expect(container.querySelector("[data-testid=run-list-end]")).not.toBeNull()

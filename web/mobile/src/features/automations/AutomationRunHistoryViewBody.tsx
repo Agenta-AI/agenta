@@ -9,7 +9,7 @@ import {useRouter} from "next/router"
 
 import {AutomationRunConversation} from "./AutomationRunConversation"
 import type {AutomationRunHistoryViewParams} from "./automationRunHistoryView"
-import {AutomationTestRunButton} from "./AutomationTestRunButton"
+import {AutomationRunNowButton} from "./AutomationRunNowButton"
 
 /** The body of the run history view: the shared view in its panel frame, with this app's chat. */
 const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryViewParams>) => {
@@ -46,11 +46,7 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
                 sessionHref={sessionHref}
                 runNow={
                     automation ? (
-                        <AutomationTestRunButton
-                            automation={automation}
-                            base={base}
-                            dirty={false}
-                        />
+                        <AutomationRunNowButton automation={automation} base={base} dirty={false} />
                     ) : null
                 }
                 renderConversation={renderConversation}

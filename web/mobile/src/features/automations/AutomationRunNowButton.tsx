@@ -20,7 +20,7 @@ import {useAutomationRunNow} from "./useAutomationRunNow"
  * Disabled with a reason rather than hidden — "why can't I test this" is a question the control
  * itself should answer.
  */
-export const AutomationTestRunButton = ({
+export const AutomationRunNowButton = ({
     automation,
     base,
     dirty,

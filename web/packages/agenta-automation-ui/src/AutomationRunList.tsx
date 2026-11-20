@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, type ReactNode} from "react"
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
@@ -57,15 +57,17 @@ export const AutomationRunList = ({
     // The group labels are text, so the groups are cut again when the language changes.
     const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs, t])
     const scrollerRef = useRef<HTMLDivElement>(null)
-    const endRef = useRef<HTMLDivElement>(null)
+    // The end marker as state: it mounts again after an error and a retry, and the observer
+    // follows it.
+    const [end, setEnd] = useState<HTMLDivElement | null>(null)
     const endReached = useRef(onEndReached)
     endReached.current = onEndReached
 
-    // The end of the list in view asks for the next page. Observed inside the list's own
-    // scroller, so it works the same in a panel, a drawer and a page.
+    // The end of the list in view asks for the next page. The observer is made again when a page
+    // finishes, so a page that adds no visible row (a filter hides it) still asks for the next.
+    // Observed inside the list's own scroller, so it works the same in a panel and a page.
     useEffect(() => {
-        const end = endRef.current
-        if (!hasMore || !end || typeof IntersectionObserver === "undefined") return
+        if (!hasMore || loadingMore || !end || typeof IntersectionObserver === "undefined") return
         const observer = new IntersectionObserver(
             (entries) => {
                 if (entries.some((entry) => entry.isIntersecting)) endReached.current?.()
@@ -74,7 +76,7 @@ export const AutomationRunList = ({
         )
         observer.observe(end)
         return () => observer.disconnect()
-    }, [hasMore, runs.length])
+    }, [end, hasMore, loadingMore])
 
     // `ag-scroll-quiet`: the bar stays invisible until the pointer is in the column. A permanent
     // one sat over the times and clipped them to "17:0".
@@ -88,38 +90,37 @@ export const AutomationRunList = ({
             ) : error ? (
                 <AutomationRunHistoryError onRetry={onRetry} />
             ) : groups.length ? (
-                <>
-                    {groups.map((group) => (
-                        <section key={group.key} className="mb-1 last:mb-0">
-                            {group.label ? (
-                                <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[12px] font-medium capitalize text-muted-foreground">
-                                    {group.label}
-                                </h2>
-                            ) : null}
-                            <div className="flex flex-col gap-0.5">
-                                {group.runs.map((delivery) => (
-                                    <AutomationRunRow
-                                        key={delivery.id ?? delivery.event_id}
-                                        delivery={delivery}
-                                        selected={delivery.id === selectedId}
-                                        onSelect={() => onSelect(delivery)}
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    ))}
-                    {hasMore ? (
-                        <div ref={endRef} data-testid="run-list-end">
-                            {loadingMore ? <AutomationRunListSkeleton groups={1} rows={2} /> : null}
+                groups.map((group) => (
+                    <section key={group.key} className="mb-1 last:mb-0">
+                        {group.label ? (
+                            <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[12px] font-medium capitalize text-muted-foreground">
+                                {group.label}
+                            </h2>
+                        ) : null}
+                        <div className="flex flex-col gap-0.5">
+                            {group.runs.map((delivery) => (
+                                <AutomationRunRow
+                                    key={delivery.id ?? delivery.event_id}
+                                    delivery={delivery}
+                                    selected={delivery.id === selectedId}
+                                    onSelect={() => onSelect(delivery)}
+                                />
+                            ))}
                         </div>
-                    ) : null}
-                </>
+                    </section>
+                ))
             ) : (
                 <AutomationRunHistoryEmpty
                     filtered={filtered}
                     action={filtered ? undefined : emptyAction}
                 />
             )}
+            {/* Outside the rows: a filter that hides every loaded run still reads on. */}
+            {hasMore && !isLoading && !error ? (
+                <div ref={setEnd} data-testid="run-list-end">
+                    {loadingMore ? <AutomationRunListSkeleton groups={1} rows={2} /> : null}
+                </div>
+            ) : null}
         </div>
     )
 }

@@ -13,16 +13,16 @@ import {runNowText} from "./runNowText"
 const tNow = createT(automationsScreensCatalog)
 
 /** The words for each reason a run cannot start. */
-export const TEST_RUN_BLOCKED_TEXT = {
+export const RUN_NOW_BLOCKED_TEXT = {
     agent: "automations.screens.blockedAgent",
     instruction: "automations.screens.blockedInstruction",
     dirty: "automations.screens.blockedDirty",
 } as const
 
-export type TestRunBlockedReason = keyof typeof TEST_RUN_BLOCKED_TEXT
+export type RunNowBlockedReason = keyof typeof RUN_NOW_BLOCKED_TEXT
 
 /** Why "Run now" cannot start, or null when it can. */
-export const testRunBlockedReason = ({
+export const runNowBlockedReason = ({
     agentId,
     instruction,
     dirty = false,
@@ -30,7 +30,7 @@ export const testRunBlockedReason = ({
     agentId: string | null
     instruction: string
     dirty?: boolean
-}): TestRunBlockedReason | null => {
+}): RunNowBlockedReason | null => {
     if (!agentId) return "agent"
     // The run IS the instruction; with none there is nothing to send.
     if (!instruction) return "instruction"
@@ -64,14 +64,14 @@ export const useAutomationRunNow = (
         [automation?.raw.data?.inputs_fields],
     )
     const blocked = automation
-        ? testRunBlockedReason({agentId: automation.agentId, instruction, dirty})
+        ? runNowBlockedReason({agentId: automation.agentId, instruction, dirty})
         : "agent"
-    const blockedText = blocked ? tNow(TEST_RUN_BLOCKED_TEXT[blocked]) : undefined
+    const blockedText = blocked ? tNow(RUN_NOW_BLOCKED_TEXT[blocked]) : undefined
 
     const run = useCallback(async () => {
         if (!automation || inFlight.current) return
         if (blocked !== null || !automation.agentId) {
-            if (blocked !== null) message.error(tNow(TEST_RUN_BLOCKED_TEXT[blocked]))
+            if (blocked !== null) message.error(tNow(RUN_NOW_BLOCKED_TEXT[blocked]))
             return
         }
         inFlight.current = true

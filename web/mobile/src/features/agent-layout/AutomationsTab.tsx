@@ -5,7 +5,6 @@ import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {useViewStack} from "@agenta/ui/view-stack"
 
 import {automationRunHistoryView} from "../automations/automationRunHistoryView"
-
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
@@ -25,7 +24,7 @@ export const AutomationsTab = ({
 }) => {
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
     const stack = useViewStack()
-    // The run history opens in the panel, as a view (no 960px drawer).
+    // The run history opens in the panel, as a view.
     const openRunHistory = useCallback(
         ({id, kind}: TriggerOwnerRef) =>
             void stack.open(

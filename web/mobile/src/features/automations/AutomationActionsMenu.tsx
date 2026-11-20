@@ -57,7 +57,7 @@ export const AutomationActionsMenu = ({
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
     // The list row's Run now ignores unsaved edits: the row has none.
-    const {run: onTestRun} = useAutomationRunNow(automation, base)
+    const {run: onRunNow} = useAutomationRunNow(automation, base)
     const {confirm, modal} = useConfirmModal()
 
     const onToggle = useCallback(async () => {
@@ -117,7 +117,7 @@ export const AutomationActionsMenu = ({
                 <DropdownMenuContent align="end" className="w-[220px]">
                     {surface === "list" ? (
                         <>
-                            <DropdownMenuItem onSelect={() => void onTestRun()}>
+                            <DropdownMenuItem onSelect={() => void onRunNow()}>
                                 <Play aria-hidden size={14} />
                                 {t("automations.screens.runNow")}
                             </DropdownMenuItem>

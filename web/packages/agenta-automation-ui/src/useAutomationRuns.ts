@@ -16,7 +16,7 @@ import {
 } from "./runModel"
 
 /**
- * One automation's newest runs, plus the two facts the screens state about them: the count line
+ * One automation's newest runs (at most 101, the capped recent read), plus the two facts the screens state about them: the count line
  * and why the last run failed.
  *
  * Reads the capped recent query (the newest 101 runs), so the card, the list row and the run
@@ -26,7 +26,7 @@ import {
  * The hook is inert without an automation: the deliveries endpoint is scoped by owner, and the
  * kind (schedule vs subscription) is only known once the automation resolves.
  */
-export const useAutomationRuns = (automation: Automation | null) => {
+export const useRecentAutomationRuns = (automation: Automation | null) => {
     const text = useAutomationText()
     const owner = useMemo(() => deliveriesOwner(automation), [automation])
     const {deliveries, isLoading, error, refetch} = useTriggerDeliveries(owner, {recent: true})
@@ -61,16 +61,7 @@ export const useAutomationRuns = (automation: Automation | null) => {
 /** Every run of one automation, newest first, a page at a time: the run history list. */
 export const useAutomationRunPages = (automation: Automation | null) => {
     const owner = useMemo(() => deliveriesOwner(automation), [automation])
-    const {deliveries, isLoading, error, refetch, hasMore, loadingMore, loadMore} =
-        useTriggerDeliveryPages(owner)
+    const {deliveries, ...pages} = useTriggerDeliveryPages(owner)
     const runs = useMemo<TriggerDelivery[]>(() => sortRuns(deliveries), [deliveries])
-    return {
-        runs,
-        isLoading: Boolean(owner) && isLoading,
-        error,
-        refetch,
-        hasMore,
-        loadingMore,
-        loadMore,
-    }
+    return {runs, ...pages}
 }

@@ -20,8 +20,8 @@ import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
+import {AutomationRunNowButton} from "./AutomationRunNowButton"
 import {AutomationScreenHeader} from "./AutomationScreenHeader"
-import {AutomationTestRunButton} from "./AutomationTestRunButton"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
 /**
@@ -158,7 +158,7 @@ export const AutomationDetailScreen = ({
                             renderConversation={renderConversation}
                             runNow={
                                 automation ? (
-                                    <AutomationTestRunButton
+                                    <AutomationRunNowButton
                                         automation={automation}
                                         base={base}
                                         dirty={dirty}
@@ -185,7 +185,7 @@ export const AutomationDetailScreen = ({
                             onChangeIncludeEvent={setIncludeEvent}
                             onToggle={onToggle}
                             testRun={
-                                <AutomationTestRunButton
+                                <AutomationRunNowButton
                                     automation={automation}
                                     base={base}
                                     dirty={dirty}

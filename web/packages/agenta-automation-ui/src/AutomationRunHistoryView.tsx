@@ -20,7 +20,7 @@ import {
     isRunListFiltered,
     type RunListView,
 } from "./runListView"
-import {useAutomationRunPages, useAutomationRuns} from "./useAutomationRuns"
+import {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
 
 /** From this width of the VIEW (not the window) the list and the open run sit side by side. */
 export const RUN_HISTORY_SPLIT_WIDTH = 700
@@ -72,7 +72,7 @@ export const AutomationRunHistoryView = ({
 }) => {
     const t = useT(automationsEditorCatalog, automationsRunHistoryCatalog)
     // The count line reads the capped recent query (shared with the card); the list pages.
-    const {caption} = useAutomationRuns(automation)
+    const {caption} = useRecentAutomationRuns(automation)
     const {
         runs: allRuns,
         isLoading,
@@ -82,7 +82,7 @@ export const AutomationRunHistoryView = ({
         loadingMore,
         loadMore,
     } = useAutomationRunPages(automation)
-    const filters = frame !== "panel"
+    const showFilters = frame !== "panel"
 
     // Same split as the automations list: how the runs are cut is remembered, what they are
     // narrowed to is not.
@@ -91,7 +91,7 @@ export const AutomationRunHistoryView = ({
         fallback: DEFAULT_RUN_LIST_VIEW,
         persist: ["group"],
     })
-    const listView = filters ? view : DEFAULT_RUN_LIST_VIEW
+    const listView = showFilters ? view : DEFAULT_RUN_LIST_VIEW
     const runs = useMemo(() => deriveRunList(allRuns, listView), [allRuns, listView])
     const filtered = isRunListFiltered(listView)
 
@@ -155,7 +155,7 @@ export const AutomationRunHistoryView = ({
                             <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-foreground">
                                 {t("automations.editor.runHistory")}
                             </h1>
-                            {filters ? (
+                            {showFilters ? (
                                 <AutomationRunFilterMenu view={view} onChange={setView} />
                             ) : runHistoryHref ? (
                                 <a

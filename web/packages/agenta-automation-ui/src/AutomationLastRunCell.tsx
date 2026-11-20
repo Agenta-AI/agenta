@@ -4,12 +4,12 @@ import {timeAgo} from "@agenta/shared/utils"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {type Automation} from "./automationModel"
-import {useAutomationRuns} from "./useAutomationRuns"
+import {useRecentAutomationRuns} from "./useAutomationRuns"
 
 /** When an automation last ran and how often — Status says it is on, this says it is doing anything. */
 export const AutomationLastRunCell = ({automation}: {automation: Automation}) => {
     const t = useT(automationsEditorCatalog)
-    const {runs, caption, isLoading} = useAutomationRuns(automation)
+    const {runs, caption, isLoading} = useRecentAutomationRuns(automation)
     const newest = runs[0]
 
     if (isLoading) {
