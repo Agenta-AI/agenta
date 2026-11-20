@@ -117,7 +117,7 @@ export const AutomationRunList = ({
                     action={filtered ? undefined : emptyAction}
                 />
             )}
-            {/* A next page failed: the loaded runs stay, and the retry asks for that page again. */}
+            {/* A next page or a refresh failed: the loaded runs stay, with a retry under them. */}
             {error && groups.length ? (
                 <div className="flex items-center gap-2 px-2.5 py-3 text-[13px] text-muted-foreground">
                     <span className="min-w-0 flex-1">{t("automations.editor.loadRunsFailed")}</span>
@@ -125,7 +125,7 @@ export const AutomationRunList = ({
                         variant="outline"
                         size="sm"
                         className="text-xs font-normal"
-                        onClick={() => onEndReached?.()}
+                        onClick={onRetry}
                     >
                         {t("automations.editor.tryAgain")}
                     </Button>

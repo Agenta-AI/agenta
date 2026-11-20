@@ -69,16 +69,22 @@ export const useTriggerDeliveryPages = (owner?: DeliveriesOwner) => {
         () => query.data?.pages.flatMap((page) => page.deliveries) ?? [],
         [query.data?.pages],
     )
-    const {hasNextPage, isFetchingNextPage, fetchNextPage} = query
+    const {hasNextPage, isFetchingNextPage, fetchNextPage, isFetchNextPageError, refetch} = query
     const loadMore = useCallback(() => {
         if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
     }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+    // After an error: a failed next page asks for that page again; any other failure (the first
+    // page, or a refresh of the loaded pages) reads the pages again.
+    const retry = useCallback(() => {
+        if (isFetchNextPageError) void fetchNextPage()
+        else void refetch()
+    }, [fetchNextPage, isFetchNextPageError, refetch])
 
     return {
         deliveries,
         isLoading: owner?.id ? query.isPending : false,
         error: query.error,
-        refetch: query.refetch,
+        retry,
         hasMore: Boolean(hasNextPage),
         loadingMore: isFetchingNextPage,
         loadMore,

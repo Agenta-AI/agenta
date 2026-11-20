@@ -77,7 +77,7 @@ export const AutomationRunHistoryView = ({
         runs: allRuns,
         isLoading,
         error,
-        refetch,
+        retry,
         hasMore,
         loadingMore,
         loadMore,
@@ -187,7 +187,7 @@ export const AutomationRunHistoryView = ({
                             isLoading={isLoading}
                             error={error}
                             onSelect={onSelect}
-                            onRetry={refetch}
+                            onRetry={retry}
                             hasMore={hasMore}
                             loadingMore={loadingMore}
                             onEndReached={loadMore}

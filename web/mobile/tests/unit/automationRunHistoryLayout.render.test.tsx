@@ -16,6 +16,7 @@ const pages = vi.hoisted(() => ({
     hasMore: false,
     loadingMore: false,
     loadMore: vi.fn(),
+    retry: vi.fn(),
 }))
 
 vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
@@ -31,7 +32,7 @@ vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
         deliveries: pages.deliveries,
         isLoading: false,
         error: pages.error,
-        refetch: vi.fn(),
+        retry: pages.retry,
         hasMore: pages.hasMore,
         loadingMore: pages.loadingMore,
         loadMore: pages.loadMore,
@@ -71,6 +72,7 @@ beforeEach(() => {
     pages.loadingMore = false
     pages.error = null
     pages.loadMore.mockReset()
+    pages.retry.mockReset()
     observers.length = 0
     intersect = null
     // A wide window: a window media query would say "split".
@@ -212,7 +214,7 @@ describe("AutomationRunHistoryView layout", () => {
         expect(pages.loadMore).toHaveBeenCalledTimes(1)
     })
 
-    it("keeps the loaded runs when a next page fails, and retries that page", () => {
+    it("keeps the loaded runs when a read fails, and retries it", () => {
         pages.deliveries = [run(1), run(2)]
         pages.hasMore = true
         pages.error = new Error("page 2")
@@ -224,7 +226,7 @@ describe("AutomationRunHistoryView layout", () => {
             (button) => button.textContent === "Try again",
         ) as HTMLButtonElement
         act(() => retry.click())
-        expect(pages.loadMore).toHaveBeenCalledTimes(1)
+        expect(pages.retry).toHaveBeenCalledTimes(1)
     })
 
     it("offers the host's Run now when there is no run", () => {

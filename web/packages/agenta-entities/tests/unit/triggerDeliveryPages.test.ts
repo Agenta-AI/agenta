@@ -98,3 +98,23 @@ describe("triggerDeliveryPagesAtomFamily", () => {
         unsub()
     })
 })
+
+describe("useTriggerDeliveryPages retry", () => {
+    it("asks for the failed next page again, not the first", async () => {
+        const size = TRIGGER_DELIVERIES_PAGE_SIZE
+        post.mockResolvedValueOnce({data: {count: size, deliveries: page(0, size)}})
+        post.mockRejectedValueOnce(new Error("page 2"))
+        post.mockResolvedValueOnce({data: {count: 1, deliveries: page(size, 1)}})
+
+        const atom = triggerDeliveryPagesAtomFamily({kind: "subscription", id: "sub-9"})
+        const unsub = store.sub(atom, () => {})
+        await waitFor(() => expect(store.get(atom).data?.pages).toHaveLength(1))
+        await store.get(atom).fetchNextPage()
+        await waitFor(() => expect(store.get(atom).isFetchNextPageError).toBe(true))
+        // What the hook's retry does for a next-page error.
+        await store.get(atom).fetchNextPage()
+        await waitFor(() => expect(store.get(atom).data?.pages).toHaveLength(2))
+        expect(post.mock.calls[2][1].windowing.next).toBe(`d-${size - 1}`)
+        unsub()
+    })
+})
