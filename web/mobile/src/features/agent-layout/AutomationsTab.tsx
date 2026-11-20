@@ -43,9 +43,8 @@ export const AutomationsTab = ({
     const scheduleDrawer = useAtomValue(triggerScheduleDrawerAtom)
     const subscriptionDrawer = useAtomValue(triggerSubscriptionDrawerAtom)
     const drawerOpen = Boolean(scheduleDrawer ?? subscriptionDrawer)
-    // The run history, the automation and the new forms open in the panel as views.
-    // The row menu's "Run history" opens the automation with its history on top, so the crumb
-    // keeps the automation ("Automations › Daily summary › Run history") and Back returns to it.
+    // The automation and the new forms open as views; Run history opens the automation with
+    // `openRuns` (see AutomationViewParams).
     const openRunHistory = useCallback(
         ({id, kind}: TriggerOwnerRef) =>
             void stack.open(
