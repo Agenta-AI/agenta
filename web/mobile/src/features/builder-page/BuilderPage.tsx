@@ -387,7 +387,7 @@ export const BuilderPage = ({
                 </div>
             </AppShell>
             {/* The automation, catalog and run history drawers the pane's views open. */}
-            <SessionWorkspaceDrawers workspaceId={workspaceId} projectId={projectId} />
+            <SessionWorkspaceDrawers />
         </>
     )
 }

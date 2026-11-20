@@ -100,7 +100,8 @@ export interface ViewForm {
      * child form opens, the view mounts again from the saved data. Resolve false on failure.
      *
      * Resolve "stay" for a step of a form with several steps: the step worked and the view stays
-     * open, with no failure text. A view that leaves by itself later (the last step ends outside
+     * open, with no failure text. Resolve "stay" too when the form refuses a save for its own field
+     * errors: they say what is wrong, so the stack adds no failure line next to them. A view that leaves by itself later (the last step ends outside
      * the Save press) calls `nav.cancel()`. From the unsaved-changes dialog, "stay" keeps the
      * person on the view, as "Keep editing" does.
      */
@@ -153,7 +154,7 @@ export interface ViewChromeProps {
      * The chrome draws no action row: the top view is shown to read only, or it asks for none
      * (`ViewDef.actionRow: false`).
      */
-    readOnly: boolean
+    hideActionRow: boolean
     form: ViewChromeForm | null
     /** The slot at the left of the action row, where the top view's `ViewFooterStart` renders. */
     footerStartRef: (element: HTMLElement | null) => void
