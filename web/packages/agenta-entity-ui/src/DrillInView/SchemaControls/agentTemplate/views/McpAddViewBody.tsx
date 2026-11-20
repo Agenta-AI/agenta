@@ -8,41 +8,29 @@ import {
     mcpReconnectTarget,
     readMcpConnectionSlug,
     readMcpToolCount,
-    refreshMcpEndpointsAtom,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 
 import {McpAddServerList, type McpConnectionOption} from "../../../../mcpEndpoint/McpAddServerList"
-import {buildMcpAgentItem, mcpItemRef} from "../mcpRail"
+import {buildMcpAgentItem, customMcpEndpoints, mcpItemRef, mcpsOf} from "../mcpRail"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
 import type {McpAddViewParams} from "./mcpAddView"
 import {mcpConnectView} from "./mcpConnectView"
 import {mcpServerView} from "./mcpServerView"
 
-const mcpsOf = (agent: Record<string, unknown>): unknown[] =>
-    Array.isArray(agent.mcps) ? (agent.mcps as unknown[]) : []
-
 const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
     const t = useT(mcpConnectCatalog)
     useViewTitle(t("entityUi.mcpConnect.addMcpServer"))
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
-    const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
 
     // `custom` only, which is the namespace an agent's connection reference names.
-    const endpoints = useMemo<MCPEndpoint[]>(
-        () =>
-            (endpointsQuery.data ?? []).filter(
-                (endpoint) => (endpoint.namespace ?? "custom") === "custom",
-            ),
-        [endpointsQuery.data],
-    )
+    const endpoints = useMemo(() => customMcpEndpoints(endpointsQuery.data), [endpointsQuery.data])
     const mcps = mcpsOf(writer.agent)
     const addedSlugs = useMemo(
         () =>
@@ -78,7 +66,7 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
         (option: {slug: string; name: string}) => {
             const item = buildMcpAgentItem(option)
             writer.update((agent) => ({...agent, mcps: [...mcpsOf(agent), item]}))
-            const ref = mcpItemRef(item)
+            const ref = mcpItemRef(item, [...mcpsOf(writer.agent), item])
             if (ref) void replace(mcpServerView, {item: ref}, target)
         },
         [writer, replace, target],
@@ -93,19 +81,9 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
                 findCustomMcpEndpoint(endpoints, option.slug),
             )
             if (!reconnectTarget) return
-            void push?.(
-                mcpConnectView,
-                {
-                    reconnect: reconnectTarget,
-                    onConnected: () => {
-                        void refreshEndpoints()
-                        void invalidateAgentRequirements()
-                    },
-                },
-                {kind: "project"},
-            )
+            void push?.(mcpConnectView, {reconnect: reconnectTarget}, {kind: "project"})
         },
-        [endpoints, push, refreshEndpoints],
+        [endpoints, push],
     )
 
     return (

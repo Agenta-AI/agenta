@@ -389,6 +389,11 @@ export interface McpConnectScreens {
     confirmOpensWindow: boolean
     /** Cancel: closes the window and drops the pending connection, then calls `onClose`. */
     handleClose: () => void
+    /**
+     * The same drop without `onClose`, for a container that is already leaving. False while the
+     * credential is stored and only the refresh is left: nothing is dropped then.
+     */
+    abandon: () => boolean
 }
 
 export interface McpConnectScreensInput {
@@ -635,15 +640,20 @@ export function useMcpConnectScreens({
               })
             : null
 
-    const handleClose = useCallback(() => {
-        // Belt and braces with the modal props below: whatever route a close arrives by, it
-        // must not cancel an attempt whose credential the provider has already issued.
-        if (state.status === "saving") return
+    /** Drop the attempt: close the provider's window and the pending connection. */
+    const abandon = useCallback(() => {
+        // Whatever route a close arrives by, it must not cancel an attempt whose credential
+        // the provider has already issued.
+        if (state.status === "saving") return false
         consentPopupRef.current?.close()
         consentPopupRef.current = null
         void journey.cancel()
-        onClose()
-    }, [journey, onClose, state.status])
+        return true
+    }, [journey, state.status])
+
+    const handleClose = useCallback(() => {
+        if (abandon()) onClose()
+    }, [abandon, onClose])
 
     const selectedSecretId = useCallback(
         () => namedSecrets.find((secret) => secret.slug === secretSlug)?.id ?? "",
@@ -1129,6 +1139,7 @@ export function useMcpConnectScreens({
         confirmLabel: t(confirmLabel(screen, state)),
         confirmOpensWindow: screen === "oauth" && !isConsentRefusal(state.status),
         handleClose,
+        abandon,
     }
 }
 

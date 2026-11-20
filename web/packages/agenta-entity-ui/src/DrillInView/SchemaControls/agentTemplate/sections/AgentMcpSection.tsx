@@ -14,7 +14,7 @@ export interface AgentMcpSectionParams {
     disabled?: boolean
     mcpServers: unknown[]
     /** Opens "Add MCP server". Undefined when the host has no view target. */
-    openAddMcp: (() => void) | undefined
+    openAddMcpServer: (() => void) | undefined
     openMcpServer: McpServersSectionBodyProps["openServer"]
     removeMcpServer: McpServersSectionBodyProps["removeServer"]
     openForm: McpServersSectionBodyProps["openForm"]
@@ -29,7 +29,7 @@ export const agentMcpSection = ({
     sectionIndicator,
     disabled,
     mcpServers,
-    openAddMcp,
+    openAddMcpServer,
     openMcpServer,
     removeMcpServer,
     openForm,
@@ -42,10 +42,10 @@ export const agentMcpSection = ({
         summary: countSummary(mcpServers.length, "server"),
         indicator: sectionIndicator("mcp"),
         extra:
-            !disabled && openAddMcp ? (
+            !disabled && openAddMcpServer ? (
                 <SectionAddButton
                     label={t("entityUi.agentTemplate.addMcpServer")}
-                    onClick={openAddMcp}
+                    onClick={openAddMcpServer}
                 />
             ) : undefined,
         defaultOpen: mcpServers.length > 0,

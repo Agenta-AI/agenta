@@ -76,7 +76,7 @@ vi.mock("@agenta/ui/view-stack", () => ({
     }: {
         request: {
             view: {id: string}
-            params: {reconnect?: {slug?: string; name?: string} | null; connection?: string}
+            params: {reconnect?: {slug?: string; name?: string} | null; connectionSlug?: string}
             target: {kind: string}
         }
     }) => {
@@ -90,7 +90,7 @@ vi.mock("@agenta/ui/view-stack", () => ({
         return (
             <div
                 data-testid="mcp-permission-drawer"
-                data-slug={request.params.connection}
+                data-slug={request.params.connectionSlug}
                 data-target={request.target.kind}
             />
         )

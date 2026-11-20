@@ -22,7 +22,7 @@ import {useAtomValue} from "jotai"
 
 import {ConfigItemList} from "./ConfigItemList"
 import {type ItemRowStatus} from "./ItemRow"
-import {mcpItemNeedsRepair, mcpItemRef} from "./mcpRail"
+import {customMcpEndpoints, mcpItemNeedsRepair, mcpItemRef} from "./mcpRail"
 import {needsSetupStatus} from "./needsSetup"
 import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {useAgentRequirements} from "./useAgentRequirements"
@@ -55,13 +55,7 @@ export function McpServersSectionBody({
 
     // `custom` only, which is the namespace an agent's connection reference names. A builtin
     // or provider row is not something an agent adds by slug.
-    const endpoints = useMemo(
-        () =>
-            (endpointsQuery.data ?? []).filter(
-                (endpoint) => (endpoint.namespace ?? "custom") === "custom",
-            ),
-        [endpointsQuery.data],
-    )
+    const endpoints = useMemo(() => customMcpEndpoints(endpointsQuery.data), [endpointsQuery.data])
 
     /** The registered connection one saved item points at, or undefined when it is gone. */
     const endpointForItem = useCallback(
@@ -101,7 +95,7 @@ export function McpServersSectionBody({
             const record = (item ?? {}) as Record<string, unknown>
             const endpoint = endpointForItem(item)
             const req = requirementFor(item)
-            const ref = mcpItemRef(item)
+            const ref = mcpItemRef(item, items)
             // An expired sign-in opens the server view, whose title offers "Reconnect".
             if (ref && req?.kind === "mcp_sign_in" && endpoint) {
                 openServer(ref)
@@ -125,7 +119,7 @@ export function McpServersSectionBody({
                 openEdit={openRow}
                 removeItem={(_kind, index) => {
                     const item = items[index]
-                    const ref = mcpItemRef(item)
+                    const ref = mcpItemRef(item, items)
                     if (!ref) return
                     const endpoint = endpointForItem(item)
                     setRemoving({item: ref, name: endpoint?.name || ref.key})

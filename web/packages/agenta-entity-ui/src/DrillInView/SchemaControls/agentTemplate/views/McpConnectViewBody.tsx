@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {mcpEndpointsQueryAtom, useMcpConnectJourney} from "@agenta/entities/mcpEndpoint"
+import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
@@ -10,13 +11,7 @@ import {useMcpConnectScreens} from "../../../../mcpEndpoint/McpConnectJourney"
 
 import type {McpConnectViewParams} from "./mcpConnectView"
 
-interface Connected {
-    id: string
-    slug: string
-    name: string
-}
-
-const noop = () => undefined
+type Connected = {id: string; slug: string; name: string}
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     const t = useT(mcpViewsCatalog)
@@ -28,16 +23,21 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     const reconnect = params.reconnect ?? null
     const [connected, setConnected] = useState<Connected | null>(null)
     const journey = useMcpConnectJourney({existingNames, reconnect, onConnected: setConnected})
-    // The view leaves on its own once connected (below), so the screens' close does nothing.
-    const screens = useMcpConnectScreens({journey, existingNames, reconnect, onClose: noop})
+    // The screens close the view: their own Cancel links, and the end of the journey (they ask
+    // to close once the connection is made). Navigation has this one owner.
+    const screens = useMcpConnectScreens({
+        journey,
+        existingNames,
+        reconnect,
+        onClose: nav.cancel,
+    })
     useViewTitle(screens.title)
 
-    const status = journey.state.status
-    const done = connected !== null || status === "connected"
+    const done = connected !== null || journey.state.status === "connected"
     useViewForm({
-        // What the person typed, until the connection is made. A reconnect starts with nothing
-        // to lose.
-        dirty: !done && !reconnect && journey.state.url.trim() !== "",
+        // Until the connection is made: what the person typed, or for a reconnect the repair
+        // itself. Save (the step's action) needs a dirty form to run.
+        dirty: !done && (reconnect !== null || journey.state.url.trim() !== ""),
         valid: screens.canConfirm && screens.screen !== "waiting",
         leaveDescription: t("entityUi.mcpViews.connectLeaveDescription"),
         saveLabel: screens.confirmLabel,
@@ -49,24 +49,24 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
         },
     })
 
-    // Connected: leave first, then tell the opener, which may open the server's view.
+    // Connected: the screens have closed the view; tell the opener (it may open the server's
+    // view) and re-check the agents' setup, which the sign-in may have fixed.
     const {onConnected} = params
-    const {cancel} = nav
     useEffect(() => {
         if (!connected) return
-        cancel()
+        void invalidateAgentRequirements()
         onConnected?.(connected)
-    }, [connected, cancel, onConnected])
+    }, [connected, onConnected])
 
-    // Leaving before the end drops the pending connection and closes the provider's window, as
-    // the dialog's Cancel does.
+    // Leaving before the end drops the pending connection and closes the provider's window.
+    // The view is already leaving, so this asks for no navigation.
+    const abandonRef = useRef(screens.abandon)
+    abandonRef.current = screens.abandon
     const doneRef = useRef(done)
     doneRef.current = done
-    const closeRef = useRef(screens.handleClose)
-    closeRef.current = screens.handleClose
     useEffect(
         () => () => {
-            if (!doneRef.current) closeRef.current()
+            if (!doneRef.current) abandonRef.current()
         },
         [],
     )

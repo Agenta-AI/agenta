@@ -533,7 +533,7 @@ export default function McpServersSection({
                     key={rowKey(viewingTools)}
                     request={{
                         view: mcpServerView,
-                        params: {connection: viewingTools.slug},
+                        params: {connectionSlug: viewingTools.slug},
                         target: {kind: "project"},
                     }}
                     onClosed={() => setToolsKey(null)}

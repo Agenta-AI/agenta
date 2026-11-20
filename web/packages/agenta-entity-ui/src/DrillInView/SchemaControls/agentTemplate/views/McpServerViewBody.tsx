@@ -10,11 +10,9 @@ import {
     readMcpConnectionSlug,
     readMcpPolicy,
     readMcpToolCount,
-    refreshMcpEndpointsAtom,
     type MCPEndpoint,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
-import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions"
@@ -23,7 +21,7 @@ import {McpServerMark} from "@agenta/ui/agent-icon"
 import {Badge, Button} from "@agenta/ui/ui"
 import {useViewTitle, type ConfigItemRef, type ViewNav, type ViewProps} from "@agenta/ui/view-stack"
 import {ArrowClockwise} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 
 import {useMcpPermissionSource} from "../../../../mcpEndpoint/McpPermissionDrawer"
 import {readRunnerPermission} from "../../agentConfigPatch"
@@ -32,6 +30,8 @@ import {PermissionDrawerBody} from "../IntegrationPermissionDrawer"
 import {
     findMcpIndex,
     readMcpAccountSource,
+    customMcpEndpoints,
+    mcpsOf,
     removeMcpByRef,
     updateMcpByRef,
     withMcpAccountSource,
@@ -57,24 +57,12 @@ const useCustomEndpoints = (): MCPEndpoint[] => {
 
 /** "Reconnect" opens the reconnect step over this view; the permissions stay as they are. */
 const useReconnect = (endpoint: MCPEndpoint | undefined, nav: ViewNav) => {
-    const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
     const {push} = nav
     return useMemo(() => {
         const target = mcpReconnectTarget(endpoint)
         if (!target || !push) return undefined
-        return () =>
-            void push(
-                mcpConnectView,
-                {
-                    reconnect: target,
-                    onConnected: () => {
-                        void refreshEndpoints()
-                        void invalidateAgentRequirements()
-                    },
-                },
-                {kind: "project"},
-            )
-    }, [endpoint, push, refreshEndpoints])
+        return () => void push(mcpConnectView, {reconnect: target}, {kind: "project"})
+    }, [endpoint, push])
 }
 
 /**
@@ -123,7 +111,7 @@ const McpServerViewBody = (props: ViewProps<McpServerViewParams>) =>
     "item" in props.params ? (
         <AgentServer {...props} item={props.params.item} />
     ) : (
-        <ProjectServer {...props} slug={props.params.connection} />
+        <ProjectServer {...props} slug={props.params.connectionSlug} />
     )
 
 /** The server in an agent: account, permissions and removal write the agent configuration. */

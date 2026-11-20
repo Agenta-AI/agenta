@@ -213,7 +213,7 @@ function LoginExpiredBanner({
 }
 
 /** Header: the server tile, the name, the frozen tool prefix, and the health. */
-export function McpServerTitle({
+function DrawerTitle({
     connectionName,
     toolPrefix,
     status,
@@ -334,7 +334,7 @@ export default function McpPermissionDrawer(props: McpPermissionDrawerProps) {
             source={{
                 ...mcp.source,
                 title: (
-                    <McpServerTitle
+                    <DrawerTitle
                         onBack={onBack}
                         connectionName={mcp.name}
                         toolPrefix={toolPrefix}
@@ -661,7 +661,6 @@ export function useMcpPermissionSource({
     return {
         name,
         status,
-        loginLapsed,
         permissions,
         write,
         setTool,

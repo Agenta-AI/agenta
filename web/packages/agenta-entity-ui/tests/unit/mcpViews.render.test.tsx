@@ -186,7 +186,7 @@ describe("Reconnect", () => {
 
     it("opens the reconnect step from the server view's title", async () => {
         endpoints.rows = [endpoint("linear", "expired")]
-        await openIn(mcpServerView, {item: mcpItemRef(linear)!})
+        await openIn(mcpServerView, {item: mcpItemRef(linear, [linear])!})
         await click(await findByText("Reconnect"))
         await findByText("connect step: linear")
     })
@@ -195,7 +195,7 @@ describe("Reconnect", () => {
 describe("MCP server view", () => {
     it("shows an expired sign-in in the title with Reconnect, and no banner", async () => {
         endpoints.rows = [endpoint("linear", "expired")]
-        await openIn(mcpServerView, {item: mcpItemRef(linear)!})
+        await openIn(mcpServerView, {item: mcpItemRef(linear, [linear])!})
         await findByText("crumb:linear")
         await findByText("Login expired")
         expect(byText("Reconnect")).toBeTruthy()
@@ -203,7 +203,7 @@ describe("MCP server view", () => {
     })
 
     it("removes by key after the list changed under the view, and asks first", async () => {
-        await openIn(mcpServerView, {item: mcpItemRef(linear)!})
+        await openIn(mcpServerView, {item: mcpItemRef(linear, [linear])!})
         await findByText("crumb:linear")
         // A builder save puts another server in front of it.
         writer.agent = {mcps: [docs, linear]}
@@ -216,15 +216,28 @@ describe("MCP server view", () => {
 
     it("shows the removed state when the server left the agent", async () => {
         writer.agent = {mcps: [docs]}
-        await openIn(mcpServerView, {item: mcpItemRef(linear)!})
+        await openIn(mcpServerView, {item: mcpItemRef(linear, [linear])!})
         await findByText("This MCP server is no longer in the agent.")
+    })
+})
+
+describe("two servers with the same name", () => {
+    it("are addressed by slug, so the second one never touches the first", () => {
+        const us = {...buildMcpAgentItem({slug: "linear-us", name: "linear"})}
+        const eu = {...buildMcpAgentItem({slug: "linear-eu", name: "linear"})}
+        const mcps = [us, eu]
+        const ref = mcpItemRef(eu, mcps)!
+        expect(ref).toEqual({list: "mcps", key: "linear-eu"})
+        expect(removeMcpByRef(mcps, ref)).toEqual([us])
+        // The name alone is ambiguous here, so it addresses nothing.
+        expect(removeMcpByRef(mcps, {list: "mcps", key: "linear"})).toBe(mcps)
     })
 })
 
 describe("MCP item keys", () => {
     it("use the entry name, the key the change-set engine uses", () => {
-        expect(mcpItemRef(linear)).toEqual({list: "mcps", key: "linear"})
-        expect(mcpItemRef({connection: {slug: "x"}})).toBeNull()
+        expect(mcpItemRef(linear, [linear])).toEqual({list: "mcps", key: "linear"})
+        expect(mcpItemRef({connection: {slug: "x"}}, [])).toBeNull()
         const list = [linear, docs]
         expect(removeMcpByRef(list, {list: "mcps", key: "nope"})).toBe(list)
     })

@@ -525,7 +525,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.mcps],
     )
     // "+" and a server row open views, as Integrations does.
-    const openAddMcp = viewTarget ? () => void openView(mcpAddView, {}, viewTarget) : undefined
+    const openAddMcpServer = viewTarget ? () => void openView(mcpAddView, {}, viewTarget) : undefined
     const openMcpServer = useCallback(
         (item: ConfigItemRef) => {
             if (viewTarget) void openView(mcpServerView, {item}, viewTarget)
@@ -1106,7 +1106,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             sectionIndicator,
             disabled,
             mcpServers,
-            openAddMcp,
+            openAddMcpServer,
             openMcpServer,
             removeMcpServer,
             openForm: (index: number, item: unknown) => openEdit("mcp", index, item),

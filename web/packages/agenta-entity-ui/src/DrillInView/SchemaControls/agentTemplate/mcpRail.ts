@@ -5,6 +5,7 @@
 import {USER_ACCOUNT_SOURCE, type AccountSource} from "@agenta/entities/accountChoice"
 import {
     buildMcpConnectionRef,
+    readMcpConnectionSlug,
     isLegacyMcpItem,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,
@@ -85,34 +86,59 @@ export const withMcpAccountSource = (
     return {...item, connection: user ? {...rest, account_source: USER_ACCOUNT_SOURCE} : rest}
 }
 
+/** The agent's `mcps`, or an empty list. */
+export const mcpsOf = (agent: Record<string, unknown>): unknown[] =>
+    Array.isArray(agent.mcps) ? (agent.mcps as unknown[]) : []
+
+/** The project's `custom` servers: the namespace an agent's connection reference names. */
+export const customMcpEndpoints = (endpoints: MCPEndpoint[] | undefined): MCPEndpoint[] =>
+    (endpoints ?? []).filter((endpoint) => (endpoint.namespace ?? "custom") === "custom")
+
+const entryName = (item: unknown): string | undefined => {
+    const name = (item as Record<string, unknown> | null)?.name
+    return typeof name === "string" && name ? name : undefined
+}
+
+const entrySlug = (item: unknown): string | undefined =>
+    readMcpConnectionSlug((item ?? {}) as Record<string, unknown>) ?? undefined
+
 /**
  * The address of an MCP server in the agent's `mcps`: the key the change-set engine gives an
  * `mcps` entry, its `name` (the tool prefix frozen when the server was added), so a view and a
- * builder operation name the same server. Null for an entry with no name.
+ * builder operation name the same server. When two entries share a name (the engine refuses such
+ * a list), the entry is addressed by its connection slug, so the second never touches the first.
+ * Null for an entry with no name.
  */
-export const mcpItemRef = (item: unknown): ConfigItemRef | null => {
-    const name = (item as Record<string, unknown> | null)?.name
-    return typeof name === "string" && name ? {list: "mcps", key: name} : null
+export const mcpItemRef = (item: unknown, mcps: unknown[]): ConfigItemRef | null => {
+    const name = entryName(item)
+    if (!name) return null
+    const shared = mcps.filter((other) => entryName(other) === name).length > 1
+    const slug = entrySlug(item)
+    return shared && slug ? {list: "mcps", key: slug} : {list: "mcps", key: name}
 }
 
-/** The index of the server `ref` names in the list as it is now, or -1. */
-export const findMcpIndex = (mcps: unknown[], ref: ConfigItemRef): number =>
-    ref.list === "mcps" ? mcps.findIndex((item) => mcpItemRef(item)?.key === ref.key) : -1
+/** The index of the server `ref` names: the one entry with that name, else with that slug. */
+export const findMcpIndex = (mcps: unknown[], ref: ConfigItemRef): number => {
+    if (ref.list !== "mcps") return -1
+    const byName = mcps.flatMap((item, index) => (entryName(item) === ref.key ? [index] : []))
+    if (byName.length === 1) return byName[0]
+    const bySlug = mcps.flatMap((item, index) => (entrySlug(item) === ref.key ? [index] : []))
+    return bySlug.length === 1 ? bySlug[0] : -1
+}
 
 /** The list with the server `ref` names replaced by `next(item)`; unchanged when it is gone. */
 export const updateMcpByRef = (
     mcps: unknown[],
     ref: ConfigItemRef,
-    next: (item: Record<string, unknown>) => Record<string, unknown> | null,
+    next: (item: Record<string, unknown>) => Record<string, unknown>,
 ): unknown[] => {
     const index = findMcpIndex(mcps, ref)
     if (index < 0) return mcps
-    const replaced = next(mcps[index] as Record<string, unknown>)
-    return replaced
-        ? mcps.map((item, i) => (i === index ? replaced : item))
-        : mcps.filter((_, i) => i !== index)
+    return mcps.map((item, i) => (i === index ? next(item as Record<string, unknown>) : item))
 }
 
 /** The list without the server `ref` names. The project's connection stays. */
-export const removeMcpByRef = (mcps: unknown[], ref: ConfigItemRef): unknown[] =>
-    updateMcpByRef(mcps, ref, () => null)
+export const removeMcpByRef = (mcps: unknown[], ref: ConfigItemRef): unknown[] => {
+    const index = findMcpIndex(mcps, ref)
+    return index < 0 ? mcps : mcps.filter((_, i) => i !== index)
+}
