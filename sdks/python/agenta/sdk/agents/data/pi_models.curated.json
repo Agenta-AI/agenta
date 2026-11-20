@@ -3,12 +3,27 @@
   "_curation": {
     "target": "pi_models.generated.json",
     "note": "Human overlay for the generated Pi catalog. Keyed by the entry `id` (the `provider/model` join key). Only `label`, `description`, and `ratings` may appear here; the objective facts (name/pricing/context_window/modalities) always come from the generated file. The SDK loader merges this on top of the generated facts, so a pi-ai regeneration never overwrites these judgments. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Sourced from the current lineup (Fable 5 is the Anthropic frontier, above Opus), not a model's memory. Uncurated ids are valid and fall back to `name` in the picker; seed only the models worth a description. The separate `additions` list carries WHOLE entries (facts included, `source`: `curated`) for models released after the pinned pi-ai snapshot, which the generated file cannot carry at all. A generated entry of the same id always wins, so an addition retires itself on the next regeneration; drop it then.",
-    "sources": "@earendil-works/pi-ai@0.99.1 (regenerated 2026-09-30; the Claude Sonnet 5.5 addition retired because pi-ai 0.99.1 carries it); Claude Haiku 5.5 addition from platform.claude.com/docs/en/about-claude/models/overview and platform.claude.com/docs/en/about-claude/pricing (prices are the tier for prompts up to 100,000 tokens; the schema holds one tier), checked 2026-10-26; vendor model and pricing pages, checked 2026-09-07; GPT-6 Sol and Luna from OpenAI's 2026-09-22 launch (openai.com/index/introducing-gpt-6-sol-and-luna, VentureBeat, MarkTechPost), checked 2026-09-27. GPT-6.1 Sol from OpenAI's 2026-09-29 DevDay launch ($2/$10 per Mtok, $0.10 cached input, near-Astra agentic coding at one fifth of Astra's price; pi-ai 0.99.1 carries it and makes it the Codex default), checked 2026-09-30. Kimi K3.1 Pro facts from OpenRouter's public model catalog (https://openrouter.ai/api/v1/models), checked 2026-10-26."
+    "sources": "@earendil-works/pi-ai@1.5.2 (regenerated 2026-11-20; the Claude Haiku 5.5 and OpenRouter Kimi K3.1 Pro additions retired because pi-ai 1.5.2 carries both). GPT-6.2 Astra and GPT-6.2 Sol additions (released 2026-11-17) from developers.openai.com/api/docs/models/gpt-6.2-astra, developers.openai.com/api/docs/models/gpt-6.2-sol and developers.openai.com/api/docs/pricing (prices are the tier for prompts up to 272K input tokens and the 30-minute cache write; the schema holds one tier), checked 2026-11-20. OpenAI flagship order (6.2 Astra, 6.2 Sol, 6.1 Terra, 6 Luna) and GPT-6.1 Terra standing from developers.openai.com/api/docs/models, checked 2026-11-20. Claude Fable 5.2 standing from platform.claude.com/docs/en/about-claude/models/overview, checked 2026-11-20. Mistral Large 4 standing from docs.mistral.ai/getting-started/models/models_overview, checked 2026-11-20. Tencent Hy4 flash facts from OpenRouter's public model catalog (https://openrouter.ai/api/v1/models), checked 2026-11-20. Earlier entries: vendor model and pricing pages, checked 2026-09-07 to 2026-10-26."
   },
   "overlay": {
+    "openai/gpt-6.2-astra": {
+      "label": "GPT-6.2 Astra",
+      "description": "OpenAI's most capable model for the hardest reasoning, coding, and long-running agent work.",
+      "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
+    },
+    "openai/gpt-6.2-sol": {
+      "label": "GPT-6.2 Sol",
+      "description": "OpenAI's go-to model for everyday work, from coding to running agents at scale.",
+      "ratings": {"cost": 3, "intelligence": 5, "speed": 3}
+    },
+    "openai/gpt-6.1-terra": {
+      "label": "GPT-6.1 Terra",
+      "description": "OpenAI's fast, efficient mid-tier model between Sol and Luna, tuned for visual reasoning, computer use, and natural writing.",
+      "ratings": {"cost": 4, "intelligence": 4, "speed": 4}
+    },
     "openai/gpt-6-astra": {
       "label": "GPT-6 Astra",
-      "description": "OpenAI's most capable model for difficult reasoning, coding, research, and computer-use work.",
+      "description": "OpenAI's previous most capable model, replaced by GPT-6.2 Astra at a lower price.",
       "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
     },
     "openai/gpt-6-sol": {
@@ -18,7 +33,7 @@
     },
     "openai/gpt-6.1-sol": {
       "label": "GPT-6.1 Sol",
-      "description": "OpenAI's upgraded workhorse model, near GPT-6 Astra on coding and agent work at the Sol price.",
+      "description": "OpenAI's previous workhorse model, replaced by GPT-6.2 Sol at the same price.",
       "ratings": {"cost": 3, "intelligence": 5, "speed": 3}
     },
     "openai/gpt-6-luna": {
@@ -41,14 +56,24 @@
       "description": "OpenAI's upgraded workhorse model for coding and agent work through a ChatGPT subscription, now the Codex default.",
       "ratings": {"cost": 3, "intelligence": 5, "speed": 3}
     },
+    "openai-codex/gpt-6.1-terra": {
+      "label": "GPT-6.1 Terra",
+      "description": "OpenAI's fast, efficient mid-tier model for coding and agent work through a ChatGPT subscription.",
+      "ratings": {"cost": 4, "intelligence": 4, "speed": 4}
+    },
     "openai-codex/gpt-6-luna": {
       "label": "GPT-6 Luna",
       "description": "OpenAI's fast, affordable model for easier tasks through a ChatGPT subscription.",
       "ratings": {"cost": 5, "intelligence": 3, "speed": 5}
     },
+    "anthropic/claude-fable-5-2": {
+      "label": "Fable 5.2",
+      "description": "Anthropic's most capable model, for the most demanding reasoning and long-horizon agentic work.",
+      "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
+    },
     "anthropic/claude-fable-5-1": {
       "label": "Fable 5.1",
-      "description": "Anthropic's strongest model for demanding reasoning and long-horizon work.",
+      "description": "The previous Fable release, replaced by Fable 5.2 at a lower price.",
       "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
     },
     "anthropic/claude-fable-5": {
@@ -96,22 +121,55 @@
     },
     "openrouter/moonshotai/kimi-k3.1-pro": {
       "label": "Kimi K3.1 Pro"
+    },
+    "mistral/mistral-large-4": {
+      "label": "Mistral Large 4",
+      "description": "Mistral's flagship open-weight multimodal reasoning model, replacing Mistral Large 3."
     }
   },
   "additions": [
     {
-      "id": "anthropic/claude-haiku-5-5",
-      "provider": "anthropic",
+      "id": "openai/gpt-6.2-astra",
+      "provider": "openai",
       "source": "curated",
-      "name": "Claude Haiku 5.5",
+      "name": "GPT-6.2 Astra",
       "pricing": {
-        "input_per_mtok": 0.1,
-        "output_per_mtok": 0.5,
-        "cache_read_per_mtok": 0.01,
-        "cache_write_per_mtok": 0.125,
+        "input_per_mtok": 8,
+        "output_per_mtok": 40,
+        "cache_read_per_mtok": 0.4,
+        "cache_write_per_mtok": 10,
         "currency": "USD"
       },
-      "context_window": 1000000,
+      "context_window": 1050000,
+      "modalities": ["text", "image"]
+    },
+    {
+      "id": "openai/gpt-6.2-sol",
+      "provider": "openai",
+      "source": "curated",
+      "name": "GPT-6.2 Sol",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 10,
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 2.5,
+        "currency": "USD"
+      },
+      "context_window": 1050000,
+      "modalities": ["text", "image"]
+    },
+    {
+      "id": "openrouter/tencent/hy4-flash",
+      "provider": "openrouter",
+      "source": "curated",
+      "name": "Tencent: Hy4 flash",
+      "pricing": {
+        "input_per_mtok": 0.035,
+        "output_per_mtok": 0.1405,
+        "cache_read_per_mtok": 0.0015,
+        "currency": "USD"
+      },
+      "context_window": 1048576,
       "modalities": ["text", "image"]
     },
     {
@@ -119,20 +177,6 @@
       "provider": "openrouter",
       "source": "curated",
       "name": "Gemini 4 Argon"
-    },
-    {
-      "id": "openrouter/moonshotai/kimi-k3.1-pro",
-      "provider": "openrouter",
-      "source": "curated",
-      "name": "MoonshotAI: Kimi K3.1 Pro",
-      "pricing": {
-        "input_per_mtok": 2,
-        "output_per_mtok": 10,
-        "cache_read_per_mtok": 0.2,
-        "currency": "USD"
-      },
-      "context_window": 1048576,
-      "modalities": ["text", "image", "video"]
     }
   ]
 }

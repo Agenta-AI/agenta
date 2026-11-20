@@ -13,7 +13,7 @@ import {
 } from "../../src/tools/pi-provider-cost-patch.ts";
 
 /**
- * Verbatim from the installed bundle (`@earendil-works/pi-ai` 0.87.1,
+ * Verbatim from the installed bundle (`@earendil-works/pi-ai` 1.5.2,
  * `dist/api/openai-completions.js`), from the function before `parseChunkUsage` to the header of
  * the one after it. Keep it byte-exact: the patch's only job is to rewrite this shape, so a fixture
  * that drifts from the real bundle proves nothing.
@@ -22,7 +22,10 @@ const COMPLETIONS_SECTION = `            },
         };
     });
 }
-function parseChunkUsage(rawUsage, model) {
+function parseChunkUsage(
+// OpenRouter adds billing fields to streamed usage at runtime,
+// although the OpenAI SDK does not type those fields.
+rawUsage, model) {
     const promptTokens = rawUsage.prompt_tokens || 0;
     const cacheReadTokens = rawUsage.prompt_tokens_details?.cached_tokens ?? rawUsage.prompt_cache_hit_tokens ?? rawUsage.cached_tokens ?? 0;
     const cacheWriteTokens = rawUsage.prompt_tokens_details?.cache_write_tokens || 0;
@@ -50,6 +53,9 @@ function parseChunkUsage(rawUsage, model) {
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     };
     calculateCost(model, usage);
+    if (isOpenRouterModel(model)) {
+        applyOpenRouterReportedCost(usage, rawUsage);
+    }
     return usage;
 }
 function mapStopReason(reason) {
@@ -94,11 +100,20 @@ function loadParseChunkUsage(source: string): (rawUsage: unknown) => Usage {
     usage.cost.cacheWrite = 0;
     usage.cost.total = usage.cost.input + usage.cost.output;
   };
+  // Pi's own OpenRouter step is out of scope here: the stub model is not an OpenRouter one.
+  const isOpenRouterModel = () => false;
+  const applyOpenRouterReportedCost = () => {};
   const factory = new Function(
     "calculateCost",
+    "isOpenRouterModel",
+    "applyOpenRouterReportedCost",
     `${parseChunkUsageSource(source)}\nreturn (raw) => parseChunkUsage(raw, {});`,
-  ) as (cc: typeof calculateCost) => (rawUsage: unknown) => Usage;
-  return factory(calculateCost);
+  ) as (
+    cc: typeof calculateCost,
+    isOr: typeof isOpenRouterModel,
+    applyOr: typeof applyOpenRouterReportedCost,
+  ) => (rawUsage: unknown) => Usage;
+  return factory(calculateCost, isOpenRouterModel, applyOpenRouterReportedCost);
 }
 
 function patched(): string {
@@ -206,8 +221,8 @@ describe("applyPiProviderCostPatch", () => {
     assert.equal(
       applyPiProviderCostPatch(
         COMPLETIONS_SECTION.replace(
-          "    calculateCost(model, usage);\n    return usage;",
-          "    return withCost(model, usage);",
+          "    calculateCost(model, usage);\n",
+          "    withCost(model, usage);\n",
         ),
       ).kind,
       "anchor-missing",
@@ -227,8 +242,11 @@ describe("applyPiProviderCostPatch", () => {
     // The tail is generic enough to appear in another function. Only the one inside
     // parseChunkUsage may be rewritten.
     const moved = COMPLETIONS_SECTION.replace(
-      "    calculateCost(model, usage);\n    return usage;\n}\nfunction mapStopReason",
-      "    return usage;\n}\nfunction other(model, usage) {\n    calculateCost(model, usage);\n    return usage;\n}\nfunction mapStopReason",
+      "    calculateCost(model, usage);\n    if (isOpenRouterModel(model)) {",
+      "    if (isOpenRouterModel(model)) {",
+    ).replace(
+      "\nfunction mapStopReason",
+      "\nfunction other(model, usage) {\n    calculateCost(model, usage);\n    return usage;\n}\nfunction mapStopReason",
     );
     assert.equal(applyPiProviderCostPatch(moved).kind, "anchor-missing");
   });
@@ -242,12 +260,12 @@ describe("applyPiProviderCostPatch", () => {
 });
 
 /**
- * Verbatim from the pi CLI's bundle (`@earendil-works/pi-coding-agent` 0.87.1,
- * `dist/bundle/chunks/openai-completions-OBX42CLD.js`). The `pi` subprocess runs this minified copy
+ * Verbatim from the pi CLI's bundle (`@earendil-works/pi-coding-agent` 1.5.2,
+ * `dist/bundle/chunks/openai-completions-HRZOSLBO.js`). The `pi` subprocess runs this minified copy
  * of pi-ai, not the pi-ai package, so patching only the package left every Pi run on Pi's estimate.
  */
 const CLI_COMPLETIONS_SECTION =
-  ",...compat.supportsStrictMode!==!1&&{strict:strict??!1}}}})}function parseChunkUsage(rawUsage,model){let promptTokens=rawUsage.prompt_tokens||0,cacheReadTokens=rawUsage.prompt_tokens_details?.cached_tokens??rawUsage.prompt_cache_hit_tokens??rawUsage.cached_tokens??0,cacheWriteTokens=rawUsage.prompt_tokens_details?.cache_write_tokens||0,input=Math.max(0,promptTokens-cacheReadTokens-cacheWriteTokens),outputTokens=rawUsage.completion_tokens||0,usage={input,output:outputTokens,cacheRead:cacheReadTokens,cacheWrite:cacheWriteTokens,reasoning:rawUsage.completion_tokens_details?.reasoning_tokens||0,totalTokens:input+outputTokens+cacheReadTokens+cacheWriteTokens,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};return calculateCost(model,usage),usage}function mapStopReason(reason){";
+  ",...compat.supportsStrictMode!==!1&&{strict:strict??!1}}}})}function parseChunkUsage(rawUsage,model){let promptTokens=rawUsage.prompt_tokens||0,cacheReadTokens=rawUsage.prompt_tokens_details?.cached_tokens??rawUsage.prompt_cache_hit_tokens??rawUsage.cached_tokens??0,cacheWriteTokens=rawUsage.prompt_tokens_details?.cache_write_tokens||0,input=Math.max(0,promptTokens-cacheReadTokens-cacheWriteTokens),outputTokens=rawUsage.completion_tokens||0,usage={input,output:outputTokens,cacheRead:cacheReadTokens,cacheWrite:cacheWriteTokens,reasoning:rawUsage.completion_tokens_details?.reasoning_tokens||0,totalTokens:input+outputTokens+cacheReadTokens+cacheWriteTokens,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};return calculateCost(model,usage),isOpenRouterModel(model)&&applyOpenRouterReportedCost(usage,rawUsage),usage}function mapStopReason(reason){";
 
 describe("applyPiProviderCostPatch on the pi CLI's bundled copy", () => {
   function patchedCli(): string {

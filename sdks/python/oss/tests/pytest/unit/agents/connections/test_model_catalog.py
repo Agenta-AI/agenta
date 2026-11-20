@@ -346,10 +346,13 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     # Pi spells the openai family bare and every other family provider-prefixed; the defaults
     # follow the accepted set rather than the curated list's canonical spelling.
     assert pi_defaults["openai"] == [
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
+        "gpt-6.1-terra",
+        "gpt-6-luna",
         "gpt-6-astra",
         "gpt-6.1-sol",
         "gpt-6-sol",
-        "gpt-6-luna",
         "gpt-5.6-luna",
         "gpt-5.6-terra",
         "gpt-5.6-sol",
@@ -357,14 +360,14 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     assert pi_defaults["anthropic"] == [
         "anthropic/claude-opus-5-5",
         "anthropic/claude-opus-5",
-        "anthropic/claude-fable-5-1",
+        "anthropic/claude-fable-5-2",
         "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-5-5",
         "anthropic/claude-haiku-4-5",
     ]
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
-    assert len(pi_defaults["openrouter"]) == 12
+    assert len(pi_defaults["openrouter"]) == 10
 
     # Claude selects by alias: `claude-fable-5-1` is its own request value, and the versioned
     # opus, sonnet and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives
@@ -436,7 +439,7 @@ def test_opus_5_5_is_a_prompt_model_and_a_default():
     ]
     assert "anthropic/claude-fable-5-1" in supported_llm_models["anthropic"]
     assert "anthropic/claude-opus-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
-    assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]
+    assert "anthropic/claude-fable-5-2" in PROVIDER_DEFAULT_MODELS["anthropic"]
 
 
 @pytest.mark.parametrize(
@@ -544,11 +547,14 @@ def test_gemini_4_argon_is_published_with_its_display_name():
     assert entry is not None, (
         "openrouter/google/gemini-4-argon missing from the pi catalog"
     )
-    assert entry["name"] == "Gemini 4 Argon"
+    # pi-ai 1.5.2 carries it, so OpenRouter's own name wins over the curated addition.
+    assert entry["name"] == "Google: Gemini 4 Argon"
     assert entry["provider"] == "openrouter"
 
 
 def test_kimi_k3_1_pro_is_published_with_a_clean_label():
+    # pi-ai 1.5.2 carries Kimi K3.1 Pro, so its facts come from the generated catalog and the
+    # overlay keeps the clean label.
     entries = harness_catalog_document()["pi_core"]["capabilities"]["model_catalog"]
     entry = next(
         (
@@ -562,13 +568,13 @@ def test_kimi_k3_1_pro_is_published_with_a_clean_label():
         "openrouter/moonshotai/kimi-k3.1-pro missing from the pi catalog"
     )
     assert entry["provider"] == "openrouter"
-    assert entry["source"] == "curated"
+    assert entry["source"] == "pi_generated"
     assert entry["name"] == "MoonshotAI: Kimi K3.1 Pro"
     assert entry["label"] == "Kimi K3.1 Pro"
     assert entry["context_window"] == 1048576
-    assert entry["modalities"] == ["text", "image", "video"]
+    assert entry["modalities"] == ["text", "image"]
     assert entry["pricing"]["input_per_mtok"] == 2
     assert entry["pricing"]["output_per_mtok"] == 10
     assert entry["pricing"]["cache_read_per_mtok"] == 0.2
-    assert entry["pricing"]["cache_write_per_mtok"] is None
+    assert entry["pricing"]["cache_write_per_mtok"] == 0
     assert entry["pricing"]["currency"] == "USD"

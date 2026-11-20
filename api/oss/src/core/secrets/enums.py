@@ -131,6 +131,7 @@ class SubscriptionLoginState(str, Enum):
 SUBSCRIPTION_PROVIDER_MODELS = {
     SubscriptionProviderKind.CHATGPT: [
         "gpt-6.1-sol",
+        "gpt-6.1-terra",
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6-luna",
@@ -208,6 +209,21 @@ SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS = {
         frozenset(
             {
                 "gpt-6.1-sol",
+                "gpt-6-astra",
+                "gpt-6-sol",
+                "gpt-6-luna",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.3-codex-spark",
+            }
+        ),
+        # After the GPT-6.1 Terra addition (Pi 1.5.2).
+        frozenset(
+            {
+                "gpt-6.1-sol",
+                "gpt-6.1-terra",
                 "gpt-6-astra",
                 "gpt-6-sol",
                 "gpt-6-luna",

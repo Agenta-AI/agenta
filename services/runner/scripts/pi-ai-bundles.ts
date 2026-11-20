@@ -1,6 +1,6 @@
 /**
  * Find every installed copy of one file inside `@earendil-works/pi-ai`, for the build-time Pi
- * patches (`patch-pi-validation-message.ts`, `patch-pi-provider-cost.ts`).
+ * patch (`patch-pi-provider-cost.ts`).
  *
  * `require.resolve` is not usable here: neither Pi package declares an `exports` entry for its
  * `package.json`, and `pi-ai` is not hoisted to the top level, so both lookups throw. What is

@@ -74,11 +74,12 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
     # harness's ``openai-codex/<id>`` model. This is the ``openai-codex`` model set Pi's
     # vendored catalog exposes (``@earendil-works/pi-ai`` ``models.generated`` ->
     # ``openai-codex``, served via ``chatgpt.com/backend-api``), minus the ids a ChatGPT account
-    # refuses ("not supported when using Codex with a ChatGPT account"): ``gpt-5.5`` and
-    # ``gpt-5.3-codex-spark``. Keep it in sync when the pinned Pi version changes its codex model
+    # refuses ("not supported when using Codex with a ChatGPT account"); Pi 1.5.2 no longer lists
+    # the two it refused (``gpt-5.5`` and ``gpt-5.3-codex-spark``). Keep it in sync when the pinned Pi version changes its codex model
     # list, and run one turn per new id on a ChatGPT login before you add it.
     "openai-codex": [
         "gpt-6.1-sol",
+        "gpt-6.1-terra",
         "gpt-6-sol",
         "gpt-6-astra",
         "gpt-6-luna",
@@ -152,11 +153,16 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 # ids are the shared catalog spelling (``provider/id``); each harness republishes them below in
 # the spelling it accepts. A saved list on a connection — including an empty one — always wins.
 PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
+    # OpenAI's flagship order first (6.2 Astra, 6.2 Sol, 6.1 Terra, 6 Luna). The two 6.2 models
+    # postdate pi-ai 1.5.2, so their facts ride the curated ``additions`` list.
     "openai": [
+        "openai/gpt-6.2-astra",
+        "openai/gpt-6.2-sol",
+        "openai/gpt-6.1-terra",
+        "openai/gpt-6-luna",
         "openai/gpt-6-astra",
         "openai/gpt-6.1-sol",
         "openai/gpt-6-sol",
-        "openai/gpt-6-luna",
         "openai/gpt-5.6-luna",
         "openai/gpt-5.6-terra",
         "openai/gpt-5.6-sol",
@@ -164,7 +170,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     "anthropic": [
         "anthropic/claude-opus-5-5",
         "anthropic/claude-opus-5",
-        "anthropic/claude-fable-5-1",
+        "anthropic/claude-fable-5-2",
         "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-5-5",
@@ -196,18 +202,16 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "together_ai/zai-org/GLM-5.2",
     ],
     "openrouter": [
-        "openrouter/tencent/hy4-preview",
-        "openrouter/openai/gpt-6-sol",
-        "openrouter/openai/gpt-6-luna",
-        "openrouter/openai/gpt-5.6-luna",
-        "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/tencent/hy4-flash",
+        "openrouter/deepseek/deepseek-v4.1-flash-1017",
+        "openrouter/deepseek/deepseek-v4.1-flash",
+        "openrouter/tencent/hy4",
         "openrouter/z-ai/glm-5.3-flash",
-        "openrouter/deepseek/deepseek-v4-flash",
-        "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/tencent/hy3",
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/z-ai/glm-5.3",
-        "openrouter/google/gemini-3.8-flash",
+        "openrouter/openai/gpt-6-luna",
+        "openrouter/anthropic/claude-opus-5.5",
+        "openrouter/stepfun/step-5-preview",
+        "openrouter/xiaomi/mimo-v2.6-flash",
+        "openrouter/minimax/minimax-m3.1-flash",
     ],
     # 4.6 and 4.5 come from the generated catalog. Grok 4.7 alone postdates the pinned pi-ai
     # release, so its facts ride the curated ``additions`` list until a bump carries it.

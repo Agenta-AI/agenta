@@ -220,39 +220,47 @@ interface PiModelAheadOfCatalog {
   withoutCompat?: string[];
 }
 
-// Pi 0.87.1 added Claude Opus 5.5 and Grok 4.7, and Pi 0.99.1 added Claude Sonnet 5.5, at the
-// prices their entries used to supply, so all three were dropped.
+// Earlier entries (Claude Opus 5.5, Grok 4.7, Claude Sonnet 5.5, Claude Haiku 5.5) were dropped once
+// a Pi bump carried each model at the prices the entry supplied.
 export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {
-  // Pi 0.99.1 does not carry Haiku 5.5. Its request surface is Sonnet 5.5's, not Haiku 4.5's:
-  // adaptive thinking only (a `budget_tokens` request is a 400), 1M context, and 128K output.
-  // Unlike Sonnet 5.5, thinking can be turned off. A prompt over 100,000 tokens pays five times
-  // every rate. The values match the entry newer Pi releases ship (pi.dev/models).
-  "anthropic/claude-haiku-5-5": {
-    inheritsFrom: "claude-sonnet-5-5",
+  // Pi 1.5.2 does not carry GPT-6.2 Sol (released 2026-11-17). It keeps GPT-6.1 Sol's request
+  // surface (reasoning effort `none` is rejected) and price, including the long-prompt rate above
+  // 272K input tokens. The context window stays at the 272K Pi uses for its GPT-6.1 siblings.
+  "openai/gpt-6.2-sol": {
+    inheritsFrom: "gpt-6.1-sol",
     cost: {
-      input: 0.1,
-      output: 0.5,
-      cacheRead: 0.01,
-      cacheWrite: 0.125,
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
       tiers: [
         {
-          inputTokensAbove: 100000,
-          input: 0.5,
-          output: 2.5,
-          cacheRead: 0.05,
-          cacheWrite: 0.625,
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.2,
+          cacheWrite: 5,
         },
       ],
     },
-    contextWindow: 1000000,
-    maxTokens: 128000,
-    thinkingLevelMap: {
-      minimal: null,
-      low: "low",
-      medium: "medium",
-      high: "high",
-      xhigh: "xhigh",
-      max: "max",
+  },
+  // Same for GPT-6.2 Astra, on GPT-6 Astra's request surface, at its own lower price.
+  "openai/gpt-6.2-astra": {
+    inheritsFrom: "gpt-6-astra",
+    cost: {
+      input: 8,
+      output: 40,
+      cacheRead: 0.4,
+      cacheWrite: 10,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 16,
+          output: 60,
+          cacheRead: 0.8,
+          cacheWrite: 20,
+        },
+      ],
     },
   },
 };
