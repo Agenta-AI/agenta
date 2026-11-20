@@ -226,6 +226,16 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
         )
         expect(changes[0].detail?.kind).not.toBe("item")
         expect(JSON.stringify(changes[0].detail)).toContain("linear")
+        // The first server of a list that did not exist still sends data out.
+        expect(changes[0].risks.map((risk) => risk.kind)).toEqual(["data_egress"])
+        const builtin = describeConfigChanges([
+            {
+                operation: "set",
+                target: [...T, "mcps"],
+                value: [{name: "agenta", connection: {type: "gateway", namespace: "builtin"}}],
+            },
+        ])
+        expect(builtin.changes[0].risks).toEqual([])
     })
 
     it("adds a skill with its description and files, and marks a file that can run", () => {

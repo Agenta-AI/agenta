@@ -450,20 +450,26 @@ const risksOf = (
                 : t("chat.changeCard.riskFewerApprovals"),
         })
     }
-    const connection = asRecord(asRecord(newValue)?.connection)
+    // A built-in route is Agenta's own server.
+    const outside = (server: unknown) =>
+        asRecord(asRecord(server)?.connection)?.namespace !== "builtin"
     const newServer =
+        location.section === "mcps" && location.wholeItem && kind === "added" && outside(newValue)
+    // The whole list set at once (a list that did not exist): a server it adds is new.
+    const serverName = (server: unknown) => asRecord(server)?.name
+    const known = new Set(Array.isArray(oldValue) ? oldValue.map(serverName) : [])
+    const newInList =
         location.section === "mcps" &&
-        location.wholeItem &&
-        kind === "added" &&
-        // A built-in route is Agenta's own server.
-        connection?.namespace !== "builtin"
+        !location.wholeItem &&
+        Array.isArray(newValue) &&
+        newValue.some((server) => outside(server) && !known.has(serverName(server)))
     const newUrl =
         location.section === "mcps" &&
         !location.wholeItem &&
         typeof newValue === "string" &&
         /^[a-z]+:\/\//i.test(newValue) &&
         newValue !== oldValue
-    if (newServer || newUrl)
+    if (newServer || newInList || newUrl)
         risks.push({kind: "data_egress", message: t("chat.changeCard.riskDataEgress")})
     return risks
 }
