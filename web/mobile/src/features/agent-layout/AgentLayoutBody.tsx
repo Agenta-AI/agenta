@@ -133,18 +133,26 @@ export const AgentLayoutBody = ({
     // A swap away from Files closes it, which clears what it was holding (files staged by a drop,
     // the file in quick look). They are put aside here and given back when Files opens again.
     const store = useStore()
-    const setAside = useRef<{
-        staged: ExtractAtomValue<ReturnType<typeof filesDrawerStagedAtomFamily>>
-        quickLook: ExtractAtomValue<ReturnType<typeof driveQuickLookAtomFamily>>
-    } | null>(null)
+    // Kept per session: the page stays mounted across sessions of one agent, and one session's
+    // staged files must never land in another's.
+    const setAside = useRef(
+        new Map<
+            string,
+            {
+                staged: ExtractAtomValue<ReturnType<typeof filesDrawerStagedAtomFamily>>
+                quickLook: ExtractAtomValue<ReturnType<typeof driveQuickLookAtomFamily>>
+            }
+        >(),
+    )
     const putAside = useCallback(() => {
         const staged = store.get(filesDrawerStagedAtomFamily(sessionId))
         const quickLook = store.get(driveQuickLookAtomFamily(sessionId))
-        setAside.current = staged.length || quickLook ? {staged, quickLook} : null
+        if (staged.length || quickLook) setAside.current.set(sessionId, {staged, quickLook})
+        else setAside.current.delete(sessionId)
     }, [store, sessionId])
     const giveBack = useCallback(() => {
-        const kept = setAside.current
-        setAside.current = null
+        const kept = setAside.current.get(sessionId)
+        setAside.current.delete(sessionId)
         if (!kept) return
         // A new request that opened Files wins over what was put aside.
         if (store.get(filesDrawerStagedAtomFamily(sessionId)).length === 0)
@@ -186,13 +194,13 @@ export const AgentLayoutBody = ({
                 // A swap keeps what Files held; closing the panel from Files drops it, as the
                 // pane's own close does.
                 if (next) putAside()
-                else setAside.current = null
+                else setAside.current.delete(sessionId)
                 files.close()
             }
             setState({content: next})
             setWide(false)
         },
-        [files, setState, putAside],
+        [files, setState, putAside, sessionId],
     )
 
     // The panel takes the focus when it opens, so Escape reaches it.

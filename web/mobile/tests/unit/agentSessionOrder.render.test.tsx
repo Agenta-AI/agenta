@@ -11,9 +11,12 @@ import {describe, expect, it, vi} from "vitest"
 
 import {useAgentSessionOrder} from "@/features/agent-layout/useAgentSessionOrder"
 
+const lastArgs = vi.hoisted(() => ({limit: undefined as number | undefined}))
 vi.mock("@agenta/sessions/state", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/sessions/state")>()),
-    useSessionCardList: () => ({
+    useSessionCardList: (args: {limit?: number}) => ({
+        // Records the limit, so the test can see that revealed rows are not cut.
+        limit: (lastArgs.limit = args.limit),
         groups: [
             {key: "pinned", rows: [{id: "s-2"}]},
             {key: "recent", rows: [{id: "s-1"}, {id: "s-3"}]},
@@ -40,6 +43,8 @@ describe("the agent's session order", () => {
         const order = store.get(renderedSessionTabsAtomFamily(sessionTabScope("agent-1")))
         expect(order).toEqual(["s-2", "s-1", "s-3"])
         expect(nearestSurvivingTab(order, new Set(["s-1"]), "s-1")).toBe("s-3")
+        // Rows the menu revealed with "Show more" stay in the order: no cut at the menu's 20.
+        expect(lastArgs.limit).toBeGreaterThan(20)
     })
 
     it("reports a failed session-list request of this agent that a list reads now", async () => {
@@ -61,11 +66,12 @@ describe("the agent's session order", () => {
         )
         await new Promise((r) => setTimeout(r, 20))
         expect(hook.result.current.failed).toBe(false)
-        renderHook(
+        let fail = true
+        const failing = renderHook(
             () =>
                 useQuery({
                     queryKey: ["session-list", "proj", "", "agent-1"],
-                    queryFn: () => Promise.reject(new Error("down")),
+                    queryFn: () => (fail ? Promise.reject(new Error("down")) : Promise.resolve([])),
                     retry: false,
                 }),
             {
@@ -75,5 +81,15 @@ describe("the agent's session order", () => {
             },
         )
         await waitFor(() => expect(hook.result.current.failed).toBe(true))
+        // Retry refetches the failed request; once it answers, the error goes.
+        fail = false
+        hook.result.current.retry()
+        await waitFor(() => expect(hook.result.current.failed).toBe(false))
+        // A failed request no list reads any more does not count.
+        fail = true
+        await client.refetchQueries({queryKey: ["session-list"]}).catch(() => undefined)
+        await waitFor(() => expect(hook.result.current.failed).toBe(true))
+        failing.unmount()
+        await waitFor(() => expect(hook.result.current.failed).toBe(false))
     })
 })

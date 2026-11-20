@@ -267,4 +267,40 @@ describe("the session screen on the agent layout", () => {
         expect(store.get(filesDrawerStagedAtomFamily("session-1"))).toEqual(staged)
         files.open = false
     })
+
+    it("never gives one session's set-aside files to another session", async () => {
+        files.open = true
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 440, configTab: "agent"}),
+        )
+        const store = createStore()
+        store.set(filesDrawerStagedAtomFamily("session-1"), [{name: "a"}] as never[])
+        const mount = (sessionId: string) =>
+            act(async () =>
+                root.render(
+                    <Provider store={store}>
+                        <SessionWorkspace
+                            entityId="rev-1"
+                            agentId="agent-1"
+                            sessionId={sessionId}
+                            workspaceId="ws-1"
+                            projectId="proj-1"
+                            chat={<div data-testid="chat-column" />}
+                        />
+                    </Provider>,
+                ),
+            )
+        await mount("session-1")
+        await act(async () => {
+            store.set(configPaneRevealRequestAtom, Date.now())
+        })
+        store.set(filesDrawerStagedAtomFamily("session-1"), [])
+        files.open = false
+        await mount("session-2")
+        files.open = true
+        await mount("session-2")
+        expect(store.get(filesDrawerStagedAtomFamily("session-2"))).toEqual([])
+        files.open = false
+    })
 })
