@@ -7,6 +7,7 @@ import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integration
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
+import type {CreatedConnection} from "../../../../gatewayTool/components/ConnectForm"
 import {IntegrationCatalog} from "../IntegrationCatalog"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import {useAgentTools} from "../useAgentTools"
@@ -38,10 +39,10 @@ const IntegrationAddViewBody = ({target, nav}: ViewProps<IntegrationAddViewParam
     const askOwner = useAtomValue(personalAccountsAccessAtom) === "on"
     const {push} = nav
     const connect = useCallback(
-        (integrationKey: string) => {
+        (integrationKey: string, onCreated: (created: CreatedConnection) => void) => {
             void push?.(
                 integrationConnectView,
-                {integrationKey, owners: askOwner ? ["user", "project"] : undefined},
+                {integrationKey, owners: askOwner ? ["user", "project"] : undefined, onCreated},
                 {kind: "project"},
             )
         },

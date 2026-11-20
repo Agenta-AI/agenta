@@ -55,6 +55,7 @@ const ConnectForm = ({
         integrationName: name,
         authSchemes,
         owners: params.owners,
+        onCreated: params.onCreated,
     })
     const projectName = useProjectName(Boolean(params.owners && params.owners.length > 1))
     useViewForm({

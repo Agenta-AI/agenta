@@ -44,6 +44,14 @@ export interface ConnectFormInput {
      * is used without asking. Absent, the connection is the project's.
      */
     owners?: ConnectionOwner[]
+    /** The connection exists (its sign-in may still be running): its slug and who owns it. */
+    onCreated?: (created: CreatedConnection) => void
+}
+
+/** The connection a connect form made. */
+export interface CreatedConnection {
+    slug: string
+    owner: ConnectionOwner
 }
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
@@ -65,6 +73,7 @@ export function useConnectForm({
     integrationName,
     authSchemes,
     owners,
+    onCreated,
 }: ConnectFormInput) {
     const [chosenOwner, setOwner] = useState<ConnectionOwner>(owners?.[0] ?? "project")
     // The allowed owners can change while the form is open (the switch was still loading):
@@ -131,6 +140,7 @@ export function useConnectForm({
                 owner,
             )
             invalidateToolConnections()
+            onCreated?.({slug, owner})
 
             const redirectUrl = (result.connection?.data as Record<string, unknown> | undefined)
                 ?.redirect_url
@@ -163,7 +173,7 @@ export function useConnectForm({
         } finally {
             setLoading(false)
         }
-    }, [slug, name, selectedMode, integrationKey, owner])
+    }, [slug, name, selectedMode, integrationKey, owner, onCreated])
 
     return {
         name,

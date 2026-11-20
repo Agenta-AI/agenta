@@ -135,7 +135,7 @@ describe("Add integration: Connect, then attach", () => {
         await clickConnect()
         expect(push).toHaveBeenCalledWith(
             integrationConnectView,
-            {integrationKey: "gmail", owners: ["user", "project"]},
+            expect.objectContaining({integrationKey: "gmail", owners: ["user", "project"]}),
             {kind: "project"},
         )
     })
@@ -153,15 +153,20 @@ describe("Add integration: Connect, then attach", () => {
             store,
         )
         await clickConnect()
-        expect(push.mock.calls[0][1]).toEqual({integrationKey: "gmail", owners: undefined})
+        expect(push.mock.calls[0][1]).toMatchObject({integrationKey: "gmail", owners: undefined})
     })
 
-    it("adds the new project connection once it is valid, as a separate write", async () => {
+    /** Clicks Connect and returns the form's "made a connection" callback. */
+    const connectAndCreate = async () => {
         await render(catalogElement())
         await clickConnect()
-        expect(onConnect).toHaveBeenCalledWith("gmail")
-        expect(onAddIntegration).not.toHaveBeenCalled()
+        expect(onConnect).toHaveBeenCalledWith("gmail", expect.any(Function))
+        return onConnect.mock.calls[0][1] as (created: {slug: string; owner: string}) => void
+    }
 
+    it("adds the connection the form made once it is valid, as a separate write", async () => {
+        const created = await connectAndCreate()
+        await act(async () => created({slug: "gmail-1", owner: "project"}))
         // The connection exists before its sign-in finishes: not yet.
         catalog.connections = [
             {
@@ -184,19 +189,19 @@ describe("Add integration: Connect, then attach", () => {
         )
     })
 
-    it("a connection that existed before Connect is not added", async () => {
+    it("a cancelled form adds nothing, even when another valid connection shows up", async () => {
+        await connectAndCreate()
         catalog.connections = [
-            {slug: "gmail-old", integration_key: "gmail", provider_key: "composio", flags: valid},
+            {slug: "gmail-other", integration_key: "gmail", provider_key: "composio", flags: valid},
         ]
         await render(catalogElement())
-        await clickConnect()
-        await render(catalogElement())
         expect(onAddIntegration).not.toHaveBeenCalled()
+        expect(onAddPersonalIntegration).not.toHaveBeenCalled()
     })
 
-    it("Only me: a new valid personal connection sets each person's own account", async () => {
-        await render(catalogElement())
-        await clickConnect()
+    it("Only me: the person's new connection sets each person's own account", async () => {
+        const created = await connectAndCreate()
+        await act(async () => created({slug: "mine", owner: "user"}))
         personal.connections = [{slug: "mine", integration_key: "gmail", flags: valid}]
         await render(catalogElement())
         expect(onAddPersonalIntegration).toHaveBeenCalledWith({

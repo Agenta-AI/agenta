@@ -34,10 +34,10 @@ const {writer, created} = vi.hoisted(() => ({
     writer: {
         agent: {} as Record<string, unknown>,
         schema: null,
+        revisionId: "rev-1",
         update: null as unknown as (
             next: (agent: Record<string, unknown>) => Record<string, unknown>,
         ) => void,
-        setField: () => undefined,
     },
     created: {calls: [] as unknown[]},
 }))

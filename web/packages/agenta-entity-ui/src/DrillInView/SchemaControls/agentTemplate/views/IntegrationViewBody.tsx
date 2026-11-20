@@ -25,8 +25,7 @@ const noCreate = () => undefined
 
 const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewParams>) => {
     const t = useT(integrationViewsCatalog)
-    const revisionId = target.kind === "agent_draft" ? target.revisionId : ""
-    const writer = useAgentConfigWriter(revisionId)
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const configRef = useRef(writer.agent)
     configRef.current = writer.agent
     const onChange = useCallback(
@@ -49,8 +48,8 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
     const name = integration?.name || integrationTarget?.integration || ""
     useViewTitle(name)
     const accountContext = useMemo(
-        () => ({revisionId, agent: writer.agent}),
-        [revisionId, writer.agent],
+        () => ({revisionId: writer.revisionId, agent: writer.agent}),
+        [writer.revisionId, writer.agent],
     )
     const [confirming, setConfirming] = useState(false)
 

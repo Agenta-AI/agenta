@@ -1,9 +1,16 @@
+import {
+    agentRequirementsAtomFamily,
+    isPersonalRequirement,
+    modelRequirement,
+} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import {defineView, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import deepEqual from "fast-deep-equal"
-import {useStore} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 
+import {NeedsSetupTag} from "../NeedsSetupTag"
+import {needsSetupReasonText} from "../needsSetupText"
 import {rememberModelPick} from "../rememberModelPick"
 import {ModelHarnessSectionBody} from "../sections/ModelHarnessSectionBody"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
@@ -18,9 +25,11 @@ export interface ModelViewParams {
  */
 const ModelViewBody = ({params, target}: ViewProps<ModelViewParams>) => {
     const t = useT(agentTemplateCatalog)
-    const revisionId = target.kind === "agent_draft" ? target.revisionId : ""
-    const writer = useAgentConfigWriter(revisionId)
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const store = useStore()
+    // The server's needs-setup check of the model; a personal requirement is each runner's own.
+    const requirements = useAtomValue(agentRequirementsAtomFamily(writer.revisionId))
+    const modelReq = modelRequirement(requirements?.filter((r) => !isPersonalRequirement(r)) ?? [])
     useViewTitle(t("entityUi.agentTemplate.model"))
     return (
         <div className="flex flex-col gap-2 px-4 py-3">
@@ -39,8 +48,13 @@ const ModelViewBody = ({params, target}: ViewProps<ModelViewParams>) => {
                         rememberModelPick(store, next)
                 }}
                 disabled={params.readOnly}
-                revisionId={revisionId}
+                revisionId={writer.revisionId}
+                // A model the chosen key no longer offers: list only that key's models.
+                onlyCurrentConnection={modelReq?.kind === "model"}
             />
+            {modelReq ? (
+                <NeedsSetupTag tag={false} reason={needsSetupReasonText(modelReq.reason)} />
+            ) : null}
         </div>
     )
 }

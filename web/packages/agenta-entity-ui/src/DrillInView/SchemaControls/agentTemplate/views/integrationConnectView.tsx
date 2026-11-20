@@ -1,6 +1,9 @@
 import {defineView} from "@agenta/ui/view-stack"
 
-import type {ConnectionOwner} from "../../../../gatewayTool/components/ConnectForm"
+import type {
+    ConnectionOwner,
+    CreatedConnection,
+} from "../../../../gatewayTool/components/ConnectForm"
 
 import {lazyView} from "./lazyView"
 
@@ -12,6 +15,8 @@ export interface IntegrationConnectViewParams {
      * Absent, the connection is the project's.
      */
     owners?: ConnectionOwner[]
+    /** Tells the opener which connection Connect made, so it adds exactly that one. */
+    onCreated?: (created: CreatedConnection) => void
 }
 
 /**

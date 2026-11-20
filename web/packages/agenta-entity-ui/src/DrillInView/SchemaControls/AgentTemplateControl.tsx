@@ -98,6 +98,7 @@ import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
 import {SubagentDrawerContainer} from "./agentTemplate/SubagentDrawerContainer"
 import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
+import {useRecordRevisionSuccessor} from "./agentTemplate/useAgentConfigWriter"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -182,6 +183,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const revisionId = drillIn?.entityId ?? null
     // Rows and "+" open views: in the container's stack, or, in a host with none, in a drawer.
     const views = useViewOpener()
+    // An open view follows the revision that auto-save puts in place of this one.
+    useRecordRevisionSuccessor(revisionId)
     const openView = views.open
     const viewTarget = useMemo<ViewTarget | null>(
         () => (revisionId ? {kind: "agent_draft", revisionId} : null),
@@ -189,7 +192,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
 
     const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
-    const openIntegration = useCallback(() => {
+    const openAddIntegration = useCallback(() => {
         if (viewTarget) void openView(integrationAddView, {}, viewTarget)
     }, [openView, viewTarget])
     const openModel = useCallback(() => {
@@ -1012,10 +1015,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const openIntegrationRow = useCallback(
         (row: IntegrationRow) => {
             if (integrationRowIndices(row).some((i) => isNeedsSetupStatus(toolResolutionStatus(i))))
-                openIntegration()
+                openAddIntegration()
             else openIntegrationPermissions(row)
         },
-        [openIntegration, openIntegrationPermissions, toolResolutionStatus],
+        [openAddIntegration, openIntegrationPermissions, toolResolutionStatus],
     )
 
     // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
@@ -1025,8 +1028,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
               setReferenceSelectorOpen(true)
           }
         : undefined
-    // The Integrations add button. Routes to the agent-scoped drawer, not the shared global catalog.
-    const openIntegrationDrawer = gatewayTools?.enabled ? openIntegration : undefined
+    // The Integrations add button: the agent's "Add integration" view, not the shared catalog.
+    const addIntegration = gatewayTools?.enabled ? openAddIntegration : undefined
 
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
     // is clean, which is what keeps it a plain drawer-opening row.
@@ -1061,15 +1064,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             hasTools,
             sectionIndicator,
             disabled,
-            openIntegrationDrawer,
+            openAddIntegration: addIntegration,
             integrationCount,
             tools,
             integrationRows,
             toolStatusFor,
             gatewayToolsEnabled: Boolean(gatewayTools?.enabled),
             openIntegrationRow,
-            removeIntegration: setRemovingIntegration,
-            closeEditor,
+            askRemoveIntegration: setRemovingIntegration,
         }),
         subagentsSection({
             t,

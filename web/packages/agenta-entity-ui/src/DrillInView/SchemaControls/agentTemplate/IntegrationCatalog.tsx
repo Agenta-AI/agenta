@@ -48,6 +48,7 @@ import {Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import type {CreatedConnection} from "../../../gatewayTool/components/ConnectForm"
 import {FinishConnectionDialog} from "../../../gatewayTool/components/FinishConnectionDialog"
 import {useRefreshToolConnection} from "../../../gatewayTool/hooks/useRefreshToolConnection"
 import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
@@ -64,10 +65,9 @@ const tNow = createT(integrationDrawerCatalog)
 
 type CatalogIntegration = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
-interface PendingConnect {
+/** A connection a connect form made, waiting to be valid before it is added. */
+interface PendingConnect extends CreatedConnection {
     integrationKey: string
-    /** The slugs of the app's connections when the form opened. */
-    known: Set<string>
 }
 
 /** Whether "Connected" is folded away; remembered, as Settings remembers its own. */
@@ -83,8 +83,11 @@ export interface IntegrationCatalogProps {
     onAddIntegration: (target: GatewayConnectionTarget, connectionSlug: string) => void
     /** Add an integration that uses each person's own account. */
     onAddPersonalIntegration: (target: GatewayConnectionTarget) => void
-    /** Open the connect form of an app. The catalog adds the connection it makes. */
-    onConnect: (integrationKey: string) => void
+    /**
+     * Open the connect form of an app. The form calls `onCreated` with the connection it made,
+     * and the catalog adds that one once it is valid. A cancelled form calls nothing.
+     */
+    onConnect: (integrationKey: string, onCreated: (created: CreatedConnection) => void) => void
     /** Where the catalog's dialogs open (a drawer panel); absent, the page. */
     container?: HTMLElement | null
 }
@@ -378,8 +381,7 @@ export function IntegrationCatalog({
     useScrollFadeEdges(listRef)
     // A search always shows what it matched.
     const searching = query.trim().length > 0
-    // The app a connect form was opened for, with the connections it had then. A connection that
-    // shows up after it is the one the form made.
+    // The connection a connect form made, until it is valid and added.
     const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null)
     const {connections: personalConnections} = usePersonalToolConnections()
     // The rows' Settings verbs: finish a pending sign-in, or confirm a revoke or delete.
@@ -494,31 +496,23 @@ export function IntegrationCatalog({
         [onAddIntegration],
     )
 
-    // The connect form stores the connection in the project (or the person's own) and returns.
-    // Adding it to the agent is this catalog's own write, made once the new connection shows up.
-    // A closed sign-in window is not a sign-in, so only a VALID new connection is added; the row
-    // stays, with its reconnect hint, for the rest. With two new ones the author picks instead.
+    // The connect form stores the connection in the project (or the person's own) and names it.
+    // Adding it to the agent is this catalog's own write. A closed sign-in window is not a
+    // sign-in, so the add waits until the connection is valid; the row keeps its reconnect hint
+    // until then.
     useEffect(() => {
         if (!pendingConnect) return
-        const {integrationKey, known} = pendingConnect
-        const isNew = (connection: ToolConnection) =>
-            connection.integration_key === integrationKey &&
-            Boolean(connection.slug) &&
-            !known.has(connection.slug ?? "")
-        const project = connections.filter(isNew)
-        const personal = (personalConnections ?? []).filter(isNew)
-        if (project.length + personal.length === 0) return
-        // Stay armed while the one new connection is not valid YET: validity can arrive on a
-        // later refresh, and the catalog unmounts when it closes, so the intent cannot outlive it.
-        const only = project.length + personal.length === 1 ? (project[0] ?? personal[0]) : null
-        if (only && !isConnectionValid(only)) return
-        if (only && project[0]) {
-            onAddIntegration(
-                {provider: only.provider_key ?? "composio", integration: integrationKey},
-                only.slug ?? "",
-            )
-        } else if (only) {
+        const {integrationKey, slug, owner} = pendingConnect
+        const list = owner === "user" ? (personalConnections ?? []) : connections
+        const made = list.find((connection) => connection.slug === slug)
+        if (!made || !isConnectionValid(made)) return
+        if (owner === "user") {
             onAddPersonalIntegration({provider: "composio", integration: integrationKey})
+        } else {
+            onAddIntegration(
+                {provider: made.provider_key ?? "composio", integration: integrationKey},
+                slug,
+            )
         }
         setPendingConnect(null)
     }, [
@@ -530,16 +524,9 @@ export function IntegrationCatalog({
     ])
 
     const startConnect = useCallback(
-        (integrationKey: string) => {
-            const known = new Set(
-                [...connections, ...(personalConnections ?? [])]
-                    .filter((connection) => connection.integration_key === integrationKey)
-                    .map((connection) => connection.slug ?? ""),
-            )
-            setPendingConnect({integrationKey, known})
-            onConnect(integrationKey)
-        },
-        [connections, personalConnections, onConnect],
+        (integrationKey: string) =>
+            onConnect(integrationKey, (created) => setPendingConnect({integrationKey, ...created})),
+        [onConnect],
     )
 
     const catalogLoading = isLoading && integrations.length === 0
