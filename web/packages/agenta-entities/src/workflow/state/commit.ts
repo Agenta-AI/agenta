@@ -39,6 +39,7 @@ import {
 import {generateSlug, type Workflow} from "../core"
 
 import {workflowsListDataAtom} from "./allWorkflows"
+import {invalidateBuilderAgentRevisionCache} from "./builderAgent"
 import {
     buildCreatePayloadFromEphemeral,
     prepareCommitParameters,
@@ -316,6 +317,8 @@ export const commitWorkflowRevisionAtom = atom(
             // The picker lists by VARIANT, so without this the revision just created is missing
             // from the dropdown until something else refetches.
             if (variantId) invalidateWorkflowRevisionsByVariantCache(variantId)
+            // The builder chats read the builder's revision id from its own query.
+            if (entity.flags?.is_static) invalidateBuilderAgentRevisionCache()
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
             }

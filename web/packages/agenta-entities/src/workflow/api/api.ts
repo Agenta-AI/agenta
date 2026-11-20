@@ -1079,6 +1079,9 @@ export interface CommitWorkflowRevisionPayload {
     name?: string
     data: NonNullable<UpdateWorkflowPayload["data"]>
     message?: string | null
+    /** The revision the change was made on. The server refuses the commit (409) when the
+     *  variant's head has moved since. */
+    baseRevisionId?: string
 }
 
 export async function commitWorkflowRevisionApi(
@@ -1097,6 +1100,7 @@ export async function commitWorkflowRevisionApi(
                 data: payload.data,
                 flags: revisionFlags,
                 message: payload.message ?? undefined,
+                base_revision_id: payload.baseRevisionId ?? undefined,
             },
         },
         {params: {project_id: projectId}},
