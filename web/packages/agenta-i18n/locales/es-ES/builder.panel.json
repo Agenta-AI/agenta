@@ -5,6 +5,7 @@
     "chatHistory": "Historial de chats",
     "back": "Atrás",
     "chat": "Chat",
+    "backToChat": "Volver al chat",
     "question": "¿Qué cambiamos?",
     "intro": "Puedo cambiar, probar y explicar {{agent}}.",
     "placeholder": "Pregunta al Builder sobre este agente",

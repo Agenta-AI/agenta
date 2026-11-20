@@ -5,6 +5,7 @@
     "chatHistory": "对话历史",
     "back": "返回",
     "chat": "对话",
+    "backToChat": "返回对话",
     "question": "我们要改什么？",
     "intro": "我可以修改、测试和解释 {{agent}}。",
     "placeholder": "向构建器询问这个 Agent",

@@ -203,12 +203,15 @@ export const SessionHeader = ({
                         </span>
                     ) : null}
                     <div className="min-w-0 flex-1" />
-                    {icon(
-                        "files",
-                        t("agentLayout.header.files"),
-                        <FolderSimple className="size-5" />,
-                    )}
-                    {sharing}
+                    {/* Files and Share sit 8 px apart (M01). */}
+                    <span className="flex shrink-0 items-center gap-2">
+                        {icon(
+                            "files",
+                            t("agentLayout.header.files"),
+                            <FolderSimple className="size-5" />,
+                        )}
+                        {sharing}
+                    </span>
                 </div>
             </header>
         )

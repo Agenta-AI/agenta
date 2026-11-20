@@ -114,7 +114,8 @@ export const AgentMenu = ({
             <>
                 {leave}
                 {/* The trigger is a div with the button role: the identity renders block
-                    elements, which a <button> may not hold. */}
+                    elements, which a <button> may not hold. It starts 4 px after the menu
+                    button; the header row's gap is 2 px (M01). */}
                 <BottomSheetMenu
                     open={sheetOpen}
                     onOpenChange={setSheetOpen}
@@ -125,7 +126,7 @@ export const AgentMenu = ({
                             role="button"
                             tabIndex={0}
                             aria-haspopup="dialog"
-                            className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
+                            className="ml-0.5 box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
                             onKeyDown={(event) => {
                                 if (event.key !== "Enter" && event.key !== " ") return
                                 event.preventDefault()

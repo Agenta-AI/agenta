@@ -24,18 +24,18 @@ export const SidebarBackButton = ({collapsed, onBack, className}: SidebarBackBut
             aria-label={t("common.back")}
             onClick={onBack}
             className={clsx(
-                // A white chip, as the design draws it: 13 px in the label's ink on the rail, the
-                // phone's 15 px in the secondary ink in the sheet.
+                // A white chip on the rail, as the design draws it, 13 px in the label's ink. The
+                // phone sheet draws no ground: 15 px in the secondary ink (M02).
                 // [font-family:inherit] is load-bearing — preflight is off, so a bare <button>
                 // falls back to Arial while every <div> row beside it renders Inter.
                 "flex cursor-pointer items-center justify-center rounded-sm border-0 [font-family:inherit]",
                 collapsed
                     ? "size-8 bg-transparent text-colorText hover:bg-colorFillTertiary"
-                    : "gap-1.5 bg-colorBgContainer hover:bg-colorSplit",
+                    : "gap-1.5 hover:bg-colorSplit",
                 !collapsed &&
                     (phone
-                        ? "h-11 pl-1.5 pr-2.5 text-[15px] leading-5 text-colorTextSecondary"
-                        : "h-7 pl-1 pr-2 text-[13px] text-colorText"),
+                        ? "h-11 bg-transparent pl-1.5 pr-2.5 text-[15px] leading-5 text-colorTextSecondary"
+                        : "h-7 bg-colorBgContainer pl-1 pr-2 text-[13px] text-colorText"),
                 className,
             )}
         >

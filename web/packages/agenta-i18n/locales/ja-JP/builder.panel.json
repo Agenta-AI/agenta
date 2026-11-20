@@ -5,6 +5,7 @@
     "chatHistory": "チャット履歴",
     "back": "戻る",
     "chat": "チャット",
+    "backToChat": "チャットに戻る",
     "question": "何を変更しますか？",
     "intro": "{{agent}} の変更、テスト、説明ができます。",
     "placeholder": "このエージェントについてビルダーに質問",

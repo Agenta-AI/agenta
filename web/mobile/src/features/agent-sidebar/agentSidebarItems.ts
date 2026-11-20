@@ -8,10 +8,10 @@ import {Spinner} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
     BroadcastIcon,
-    ChartBarIcon,
     LightningIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
+import {ChartColumn} from "lucide-react"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
 import {groupByDay} from "./dayGroups"
@@ -215,7 +215,8 @@ export const agentSidebarItems = ({
             createElement(SlidersHorizontalIcon, {size: 16}),
         ),
         pageRow("channels", t("agentSidebar.channels"), createElement(BroadcastIcon, {size: 16})),
-        pageRow("analytics", t("agentSidebar.analytics"), createElement(ChartBarIcon, {size: 16})),
+        // The canvas draws Analytics as a bar chart with axes (Lucide); Phosphor has none.
+        pageRow("analytics", t("agentSidebar.analytics"), createElement(ChartColumn, {size: 16})),
         {
             key: AGENT_SIDEBAR_SESSIONS_KEY,
             title: t("agentSidebar.sessions"),

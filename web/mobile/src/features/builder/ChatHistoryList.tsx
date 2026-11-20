@@ -68,26 +68,29 @@ export const ChatHistoryList = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="builder-chat-history">
-            <div className={cn("shrink-0", phone ? "px-4 pt-3 pb-1" : "px-4 pt-3 pb-2")}>
+            {/* A label, so a tap 2 px above or below the 40 px phone field still focuses it: the
+                hit area is 44 px (tap rule), the field is drawn at the design's 40 px (M06). */}
+            <label className={cn("block shrink-0", phone ? "px-4 pt-3 pb-0.5" : "px-4 pt-3 pb-2")}>
                 <SearchInput
                     value={search}
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
-                    // Phone: a 44 px input (tap rule) and no clear button (M06).
+                    // Phone: no clear button (M06). The search glyph is tertiary (S09, M06).
                     allowClear={!phone}
                     className={cn(
-                        "border-colorBorderSecondary",
+                        "border-colorBorderSecondary px-2 [&>span:first-child]:text-colorTextTertiary",
                         phone
-                            ? "h-[46px] items-stretch py-0 text-[15px]"
-                            : "h-[30px] rounded-[6px] text-[13px] md:text-[13px]",
+                            ? "h-10 items-stretch rounded-[8px] py-0 [&_input]:text-[15px]"
+                            : "h-[30px] rounded-[6px] [&_input]:text-[13px] md:[&_input]:text-[13px]",
                     )}
                 />
-            </div>
+            </label>
             <div
                 className={cn(
                     "ag-scroll-quiet flex min-h-0 flex-1 flex-col overflow-y-auto",
-                    phone ? "pb-3" : "gap-px px-2 pb-3",
+                    // Desktop: the rows reach 2 px from the scrollbar gutter (S09).
+                    phone ? "pb-3" : "gap-px pb-3 pl-2 pr-0.5",
                 )}
             >
                 {body}
