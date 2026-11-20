@@ -111,8 +111,8 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import GatewayConnectToolWidget from "../../src/clientTools/GatewayConnectToolWidget"
-import {McpServersSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/McpServersSectionBody"
 import {McpServerFormView} from "../../src/DrillInView/SchemaControls/McpServerFormView"
+import {McpServersSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/McpServersSectionBody"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>

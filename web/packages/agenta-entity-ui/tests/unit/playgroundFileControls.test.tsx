@@ -1,7 +1,7 @@
 import {act} from "react"
+import {createRoot} from "react-dom/client"
 
 import {Provider, createStore} from "jotai"
-import {createRoot} from "react-dom/client"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const fixture = vi.hoisted(() => ({

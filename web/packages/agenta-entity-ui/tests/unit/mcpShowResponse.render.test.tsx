@@ -6,10 +6,11 @@
  */
 import {act, createElement} from "react"
 
-import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+
+import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 
 import {ShowResponsePanel} from "../../src/mcpEndpoint/components/ShowResponsePanel"
 

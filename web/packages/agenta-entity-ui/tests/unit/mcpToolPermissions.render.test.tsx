@@ -31,7 +31,6 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
-
 import {McpProtocolError, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 
 let host: HTMLDivElement

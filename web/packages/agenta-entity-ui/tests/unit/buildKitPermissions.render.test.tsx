@@ -27,11 +27,11 @@ vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/PermissionPolicySele
     ),
 }))
 
+import {BuildKitSection} from "../../src/DrillInView/SchemaControls/agentTemplate/BuildKitSection"
 import {
     describeBuildKitEmbed,
     describeBuildKitPlatformTool,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/buildKitDescriptors"
-import {BuildKitSection} from "../../src/DrillInView/SchemaControls/agentTemplate/BuildKitSection"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>

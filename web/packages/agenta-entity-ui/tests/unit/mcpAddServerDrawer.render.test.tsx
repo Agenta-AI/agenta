@@ -8,9 +8,10 @@
  */
 import {act, createElement} from "react"
 
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight, touchTargetHitArea} from "@agenta/ui/ui"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight, touchTargetHitArea} from "@agenta/ui/ui"
 
 import {
     McpAddServerDrawer,
