@@ -174,7 +174,7 @@ const MAX_SESSION_QUERY_LIMIT = 200
  * The longest `session_ids` list the sessions query accepts. Above it the server answers 422 and
  * the request returns nothing, so the id push-down has to stay inside it.
  */
-const MAX_SESSION_IDS_PER_QUERY = 500
+export const MAX_SESSION_IDS_PER_QUERY = 500
 
 /**
  * A tail read: the rows, and whether the server has more below the last one.

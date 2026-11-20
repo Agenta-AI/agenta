@@ -239,7 +239,9 @@ export const SessionFilterMenu = ({
     // defaults narrow to chat within 7 days, so a rail emptied by them still needs this control
     // to widen them again, and `dirty` reads false in exactly that case. Not while pending
     // either, or the control pops in after every load.
-    if (!sessions.pending && !sessions.any && !dirty) return null
+    // The main sidebar's check only: it reads the project's chats, and a list of one agent's
+    // sessions (automations included) keeps its menu.
+    if (arranges && !sessions.pending && !sessions.any && !dirty) return null
 
     return (
         // The trigger belongs to the shared menu, so the one rail-specific behaviour it needs is

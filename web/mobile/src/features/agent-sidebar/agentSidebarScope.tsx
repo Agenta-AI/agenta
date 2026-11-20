@@ -83,8 +83,16 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     const filtered = useAtomValue(
         sidebarSessionFiltersDirtyAtomFamily(agentSidebarFilterScope(agentId)),
     )
+    // The waiting list failed to load (the lookup answers null): "Waiting" cannot be answered.
+    const waitingFailed = filters.status === "waiting" && interactions.data === null
     const query = useQuery({
-        ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSION_LIMIT, narrowing ?? {}),
+        // Until the waiting list loads, a key of its own: never the unfiltered list's.
+        ...agentSessionsQuery(
+            projectId,
+            agentId,
+            AGENT_SIDEBAR_SESSION_LIMIT,
+            narrowing ?? {sessionIds: []},
+        ),
         // "Waiting" waits for the waiting list: without it the query would not be narrowed.
         enabled: Boolean(projectId) && narrowing !== null,
         // A filter change keeps the rows on screen until the narrowed page arrives.
@@ -95,28 +103,43 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     })
     const sessions = useMemo(
         () =>
-            (query.data?.sessions ?? []).map((row): AgentSidebarSession => {
-                const vm = sessionRowVm(row, {
-                    pinned: false,
-                    pending: pending?.get(row.session_id),
-                })
-                return {
-                    sessionId: vm.id,
-                    appId: vm.agentId,
-                    name: row.name ?? null,
-                    archived: Boolean(row.archived_at),
-                    ownerUserId: row.owner_user_id ?? null,
-                    title: vm.title,
-                    activityAt: vm.activityAt,
-                    status: vm.status.status,
-                    isAutomation: vm.isAutomation,
-                }
-            }),
-        [pending, query.data?.sessions],
+            (waitingFailed ? [] : (query.data?.sessions ?? []))
+                // "Idle" on the server is "no sandbox up", which also matches a session that
+                // still waits for the person. Waiting ranks first, so those leave the Idle list,
+                // as in the main sidebar.
+                .filter((row) => filters.status !== "idle" || !pending?.has(row.session_id))
+                .map((row): AgentSidebarSession => {
+                    const vm = sessionRowVm(row, {
+                        pinned: false,
+                        pending: pending?.get(row.session_id),
+                    })
+                    return {
+                        sessionId: vm.id,
+                        appId: vm.agentId,
+                        name: row.name ?? null,
+                        archived: Boolean(row.archived_at),
+                        ownerUserId: row.owner_user_id ?? null,
+                        title: vm.title,
+                        activityAt: vm.activityAt,
+                        status: vm.status.status,
+                        isAutomation: vm.isAutomation,
+                    }
+                }),
+        [filters.status, pending, query.data?.sessions, waitingFailed],
     )
-    const status = query.isPending ? "loading" : query.isError ? "error" : "ready"
+    const status = waitingFailed
+        ? "error"
+        : query.isPending
+          ? "loading"
+          : query.isError
+            ? "error"
+            : "ready"
     const {refetch} = query
-    const retry = useCallback(() => void refetch(), [refetch])
+    const {refetch: refetchInteractions} = interactions
+    const retry = useCallback(
+        () => void (waitingFailed ? refetchInteractions() : refetch()),
+        [refetch, refetchInteractions, waitingFailed],
+    )
     return {sessions, total: query.data?.total ?? null, status, retry, filtered} as const
 }
 

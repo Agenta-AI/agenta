@@ -1,5 +1,9 @@
 import {sessionListQueryOptions, type SessionListFilters} from "@agenta/entities/session"
-import {sidebarSessionRequestFilters, type SidebarSessionFilters} from "@agenta/navigation"
+import {
+    MAX_SESSION_IDS_PER_QUERY,
+    sidebarSessionRequestFilters,
+    type SidebarSessionFilters,
+} from "@agenta/navigation"
 
 /** What the agent sidebar's filter menu narrows the list by: server predicates only. */
 export type AgentSessionsNarrowing = Pick<
@@ -20,7 +24,11 @@ export const agentSessionsNarrowing = (
     const request = sidebarSessionRequestFilters(filters)
     return {
         flags: request.flags,
-        sessionIds: filters.status === "waiting" ? (waitingIds ?? []) : undefined,
+        // Capped as the main sidebar caps it: a longer list is a 422 from the server.
+        sessionIds:
+            filters.status === "waiting"
+                ? [...(waitingIds ?? [])].sort().slice(0, MAX_SESSION_IDS_PER_QUERY)
+                : undefined,
         origins: request.origin ? [request.origin] : undefined,
         excludeOrigins: request.excludeOrigin ? [request.excludeOrigin] : undefined,
         activityFloor: request.oldest,

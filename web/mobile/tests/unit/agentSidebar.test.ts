@@ -332,6 +332,11 @@ describe("the agent sidebar's filters as server predicates", () => {
 
     it("narrows Waiting to the sessions with a pending interaction, and waits for that list", () => {
         expect(agentSessionsNarrowing({...all, status: "waiting"}, null)).toBeNull()
+        // The server takes at most 500 ids; a longer list would fail the request.
+        const many = Array.from({length: 600}, (_, index) => `s${String(index).padStart(3, "0")}`)
+        expect(agentSessionsNarrowing({...all, status: "waiting"}, many)?.sessionIds).toHaveLength(
+            500,
+        )
         expect(
             agentSessionsNarrowing({...all, status: "waiting"}, ["s1", "s2"])?.sessionIds,
         ).toEqual(["s1", "s2"])
