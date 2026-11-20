@@ -12,7 +12,10 @@ import {createContext, useContext} from "react"
 import type {AgentTemplateSectionDescriptor} from "./agentTemplate/AgentTemplateSectionList"
 import type {PanelSectionKey} from "./agentTemplate/sectionChanges"
 
-/** The panel's section keys: its accordion keys and Secrets. */
+/**
+ * The panel's section keys: its accordion keys and Secrets (`PanelSectionKey` leaves Secrets out,
+ * because the change rollup has no Secrets section).
+ */
 export type MarkableSectionKey = PanelSectionKey | "secrets"
 
 export interface SectionMarks {

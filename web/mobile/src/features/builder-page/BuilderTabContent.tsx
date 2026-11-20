@@ -29,7 +29,7 @@ export const BuilderTabContent = ({
     tab: BuilderTab
     /** The builders latest save of this tabs agent in this visit (the pane follows it). */
     builderSaveToolCallId: string | null
-    /** The person opened a section of this agent tab marked "Changed by the builder". */
+    /** The person opened or used a section of this agent tab marked "Changed by the builder". */
     onSectionOpened: (section: MarkableSectionKey) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string

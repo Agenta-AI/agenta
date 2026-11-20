@@ -68,7 +68,7 @@ export const AgentPane = ({
     builderSaveToolCallId?: string | null
     /** Agent panel sections the builder changed ("Changed by the builder"). */
     changedSections?: MarkableSectionKey[]
-    /** The person opened a section marked as changed. */
+    /** The person opened or used a section marked as changed. */
     onSectionOpened?: (section: MarkableSectionKey) => void
     /** The open pane tab's views, shared with the page so it can ask before a builder tab change. */
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
