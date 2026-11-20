@@ -1,0 +1,397 @@
+---
+title: "9 Best Company Brain Software & Tools in 2026 (Compared)"
+slug: best-company-brain-software
+date: 2026-10-25
+author: "Mahmoud Mabrouk"
+category: "Article"
+image: "/blog/best-company-brain-software/hero.webp"
+imageAlt: "9 Best Company Brain Software & Tools in 2026"
+heroImage: "/blog/best-company-brain-software/hero.webp"
+ogImage: "/blog/best-company-brain-software/hero.webp"
+description: "Compare the 9 best company brain software and organizational memory tools in 2026: Agenta, Dust, Slite, Sento, Sentra, Colrows, Glean, Notion, and Atlassian Rovo across architecture, governance, execution, and pricing."
+readingTime: "16 min read"
+tags:
+  - Company Brain
+  - AI Coworkers
+  - Knowledge Management
+  - AI Agents
+  - Open Source
+featured: false
+draft: false
+faq:
+  - question: "What is company brain software?"
+    answer: "Company brain software is a shared institutional memory and context layer that captures how an organization works (its product facts, metrics, decisions, customer history, and operating procedures), keeps that context accurate over time, and makes it usable by both human teammates and AI agents."
+  - question: "What is the difference between a company wiki and an operational company brain?"
+    answer: "A traditional company wiki is a passive library of pages that requires manual searching and quickly goes stale when nobody owns updates. An operational company brain pairs governed, persistent knowledge with active AI agents or MCP servers that read the shared context, flag outdated facts, answer questions with citations, and execute recurring workflows across Slack, GitHub, CRMs, and browsers."
+  - question: "What is the best open-source company brain software in 2026?"
+    answer: "Agenta is the best open-source company brain and AI coworker platform for teams. Released under the permissive MIT License and self-hostable via Docker Compose or Kubernetes Helm, Agenta gives non-technical and technical teammates shared persistent agent files (AI Drive), reusable skills, and real execution harnesses (Claude Code, Codex, and Pi) with isolated computer and browser sandboxes. For solo technical founders who only want a headless Postgres and Markdown daemon, GBrain is a popular MIT-licensed option."
+  - question: "Should we choose an auto-ingest memory tool or a governed company brain?"
+    answer: "Auto-ingest tools like Sentra are helpful when your biggest pain is losing track of verbal commitments across meetings, Slack threads, and emails. However, because raw chat and meeting transcripts include abandoned ideas and unverified opinions, most teams pair or prefer a governed company brain (such as Agenta, Sento, Slite, or Colrows) where canonical product facts, definitions, and playbooks have explicit human ownership and approval gates."
+  - question: "How much does company brain software cost for a growing team?"
+    answer: "Per-seat wikis and AI workspaces charge $10 to $30+ per user per month (for example, Slite Pro at $20/user/month, Notion Business at $20/user/month, and Dust Pro at EUR 24 to EUR 30/seat/month), while enterprise search platforms like Glean and Colrows require custom annual contracts. Agenta offers a free forever self-hosted open-source edition and a Cloud Starter plan at $29/month total with unlimited team members and no per-seat fees."
+---
+
+The best company brain software and organizational memory tools in 2026 are **[Agenta](https://agenta.ai)**, **[Dust](https://dust.tt)**, **[Slite](https://slite.com)**, **[Sento](https://www.sentohq.com)**, **[Sentra](https://www.sentra.app)**, **[Colrows](https://colrows.com)**, **[Glean](https://www.glean.com)**, **[Notion](https://www.notion.com)**, and **[Atlassian Rovo](https://www.atlassian.com/software/rovo)**.
+
+Most teams start looking for company brain software when they hit the same wall: individual teammates have become productive with ChatGPT, Claude, or Cursor on their own laptops, but everything they teach their AI stays trapped in private chat histories and scattered Markdown files. Every new conversation starts from zero, every new hire asks the same questions in Slack, and when two departments ask an AI assistant about a metric or product policy, they get two different answers.
+
+Choosing the right platform comes down to four practical questions:
+
+1. **Does the software only answer questions, or does it also execute work?** Many tools stop at search and Q&A: they retrieve a paragraph from Google Drive or expose a read-only [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) endpoint, leaving your team to do the actual work manually. By contrast, an **[open-source AI coworker platform](https://agenta.ai)** like **Agenta** pairs shared institutional memory (**AI Drive** and [persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge)) with real execution harnesses ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)) where each agent gets its own isolated computer and browser sandbox to research, draft deliverables, update files, and run scheduled or event-driven workflows.
+2. **Who on your team can build, steer, and maintain the brain?** Developer-only memory daemons require terminal commands and SQL migrations, while node-and-edge workflow builders require API debugging. If you want marketing, operations, customer support, sales, product, and agency teams to contribute knowledge and build their own specialized coworkers without waiting on engineering, the workspace has to work in plain language.
+3. **How does the system decide what is true when sources conflict?** Auto-ingest tools sweep every Slack message, Zoom call, and email into a timeline graph, which is great for tracking verbal commitments but risky when an outdated Slack brainstorm overrides an approved policy. Governed brains assign owners, verification states, or explicit approval gates so agents know the difference between canonical truth and raw chatter.
+4. **What happens to your bill and data sovereignty as the whole company joins?** Per-seat tools charging $20 to $30+ per user per month become expensive as soon as you invite casual readers across the company, and closed cloud SaaS platforms lock your institutional memory inside proprietary databases. Permissive **[MIT-licensed](https://opensource.org/license/mit)** platforms like **Agenta** let you self-host for free or run on Cloud with **unlimited users and no per-seat tax** starting at $29/month.
+
+| Software                                                      | Best For                                                                                                       | Category & Architecture                                                               | Governance & Memory Model                                                                                                                                                                                                                                                                                                                                          | License & Deployment                                                                                                                                              | Pricing (2026)                                                                                                          |
+| :------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
+| **[Agenta](https://agenta.ai)**                               | Cross-functional teams (marketing, ops, support, product & engineering) building AI coworkers on shared memory | **[Open-source AI coworker platform](https://agenta.ai)** & operational company brain | AI Drive ([persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge) + temporary session files), [plain-language instructions](https://agenta.ai/docs/concepts/instructions), [reusable skills](https://agenta.ai/docs/concepts/skills), version history & [human approvals](https://agenta.ai/docs/guides/control-what-an-agent-can-do) | **[MIT License](https://opensource.org/license/mit)**; Agenta Cloud or self-hosted ([Docker Compose](https://docs.docker.com/compose/), [Helm](https://helm.sh/)) | Self-hosted **Free forever**; Cloud Hobby **$0**, Starter **$29/mo** (unlimited users), Business **$299/mo**            |
+| **[Dust](https://dust.tt)**                                   | Organizations standardizing on a hosted multi-model `@agent` workspace                                         | Enterprise AI agent & company knowledge workspace                                     | Managed connectors (Slack, Notion, GitHub, Drive), permissioned **Spaces**, **Pods**, and **Frames**                                                                                                                                                                                                                                                               | Proprietary cloud SaaS (US & EU residency; SOC 2 Type II)                                                                                                         | Business: Free **EUR 0**, Pro **EUR 24/seat/mo** (annual), Max **EUR 120/seat/mo**; Enterprise custom                   |
+| **[Slite](https://slite.com)**                                | Teams replacing a stale internal wiki with a self-maintaining knowledge base                                   | Verified AI knowledge base with drift detection & MCP                                 | Verified docs ranked first, **Slite Agent** drift alerts across Slack/GitHub/Linear, **Knowledge Management Panel**, Slite MCP                                                                                                                                                                                                                                     | Proprietary cloud SaaS (EU-hosted, SOC 2 Type II, HIPAA)                                                                                                          | Basic **$10/user/mo**, Pro **$20/user/mo** (billed yearly); Enterprise custom                                           |
+| **[Sento](https://www.sentohq.com)**                          | Teams wanting a governed semantic layer of metrics, terms, and skills over MCP                                 | Multiplayer governed context layer (**Sento Foundation**)                             | Typed entries (`Metric`, `List`, `Text`) with named human owners, expiration rules, per-entry read/write ACLs, and scheduled routines                                                                                                                                                                                                                              | Proprietary cloud context layer + MCP server                                                                                                                      | Custom / early-access team onboarding                                                                                   |
+| **[Sentra](https://www.sentra.app)**                          | Exec, ops, and engineering leads tracking decisions and commitments across meetings & chat                     | Automated organizational memory & meeting/chat graph                                  | Auto-ingests meetings, Slack, Gmail, Outlook, GitHub & Linear into a commitment tracker, Risk Radar, and role-scoped graph                                                                                                                                                                                                                                         | Proprietary cloud SaaS (SOC 2 & SSO on Enterprise)                                                                                                                | Team (2-20 users) promotional **$0** (regularly **$16/user/mo**); Enterprise (20+ users) custom                         |
+| **[Colrows](https://colrows.com)**                            | Regulated enterprises unifying SQL data warehouses and document corpora                                        | Autonomous semantic layer & governed text-to-SQL + doc brain                          | Typed Ontologies, Semantic Knowledge Graph (16+ warehouses & catalogs), Statistical Profiles, and cited 1,000-doc sweeps                                                                                                                                                                                                                                           | Proprietary enterprise deployment (~8-week forward-deployed handover)                                                                                             | Custom enterprise contract                                                                                              |
+| **[Glean](https://www.glean.com)**                            | Mid-market and enterprise organizations (500+ seats) needing cross-SaaS search                                 | Enterprise Work AI & permission-aware search graph                                    | **Enterprise Graph** across 100+ SaaS connectors, strict source ACL mirror, Glean Assistant, Agents, and headless MCP                                                                                                                                                                                                                                              | Proprietary enterprise cloud / VPC                                                                                                                                | Custom enterprise annual contract                                                                                       |
+| **[Notion](https://www.notion.com)**                          | Teams that want docs, relational databases, meeting notes, and AI Q&A in one editor                            | All-in-one collaborative workspace & wiki suite                                       | Block pages, relational databases, page verification, **Notion Agent**, **AI Meeting Notes**, **Enterprise Search Beta**                                                                                                                                                                                                                                           | Proprietary cloud SaaS                                                                                                                                            | Free **$0**, Plus **$10/member/mo**, Business **$20/member/mo**, Enterprise custom; Custom Agents **$10/1,000 credits** |
+| **[Atlassian Rovo](https://www.atlassian.com/software/rovo)** | Software and IT teams running their workflows in Jira, Confluence, and Bitbucket                               | Suite-bundled Teamwork Graph search, chat & agents                                    | **Atlassian Teamwork Graph (TWG)** across Jira, Confluence, Bitbucket & third-party connectors + Rovo MCP server                                                                                                                                                                                                                                                   | Proprietary cloud suite (with Data Center hybrid connectors)                                                                                                      | Bundled on Atlassian Cloud Standard, Premium & Enterprise plans (metered via Rovo credits)                              |
+
+---
+
+## The 5 Types of Company Brain Software in 2026
+
+The phrase "company brain" gets used by five very different categories of software. Understanding how these architectures split saves weeks of evaluating tools that solve the wrong half of the problem. (If you want a step-by-step architectural blueprint for structuring your institutional memory layers, see our companion guide on [how to build a company AI brain](/blog/how-to-build-a-company-ai-brain).)
+
+![How Company Brain Software Splits Across Five Architectures](/blog/best-company-brain-software/company-brain-software-categories.webp)
+
+### 1. Operational AI Coworker & Company Brain Platforms ([Agenta](https://agenta.ai), [Dust](https://dust.tt))
+
+These platforms treat the company brain not as a passive filing cabinet, but as the shared working memory of active AI coworkers. In **[Agenta](https://agenta.ai)**, every agent combines **[persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge)** (AI Drive), [plain-language instructions](https://agenta.ai/docs/concepts/instructions), and [reusable skills](https://agenta.ai/docs/concepts/skills) with a full execution harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), or [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)) and its own isolated computer and browser sandbox. Non-technical teammates in marketing, operations, support, or sales can ask an agent to research a market, update a shared playbook, generate a report, or run a daily 6:00 AM automation, and the agent updates its durable knowledge files as it works. **Dust** takes a cloud-hosted workspace approach, connecting company data sources into permissioned Spaces that custom `@agent` assistants query inside chat and Slack.
+
+### 2. Governed Context Layers & Self-Maintaining Knowledge Bases ([Slite](https://slite.com), [Sento](https://www.sentohq.com), [Colrows](https://colrows.com))
+
+These tools focus on curing knowledge drift: the moment when your wiki says one thing, your Slack says another, and your data warehouse says a third.
+
+- **Slite** pairs a collaborative wiki with **Slite Agent**, which monitors Slack, Linear, GitHub, and codebases for changes, drafts documentation updates, and routes them to a human owner to approve.
+- **Sento** (**Sento Foundation**) acts as a multiplayer semantic layer where every company term, metric, list, and skill is a typed entry with a named human owner, an expiration timer, and strict read/write rules, exposed over MCP to whatever AI clients your team already uses.
+- **Colrows** builds a governed semantic graph across structured SQL warehouses (Snowflake, Databricks, BigQuery, Postgres) and unstructured documents (S3, Google Drive, OneDrive) so analytics and document queries resolve deterministically.
+
+### 3. Auto-Ingest Organizational Memory Graphs ([Sentra](https://www.sentra.app))
+
+Instead of asking humans to curate pages first, auto-ingest systems connect directly to meetings, Slack channels, emails, calendars, pull requests, and tickets to compile a continuous timeline of who decided what, why priorities shifted, and which commitments are still open. This works well for executive visibility, pre-meeting briefs, and handoffs, though teams still need a governed place for canonical policies so raw meeting chatter is not mistaken for final truth.
+
+### 4. Enterprise Search & Bundled Workspace Suites ([Glean](https://www.glean.com), [Notion](https://www.notion.com), [Atlassian Rovo](https://www.atlassian.com/software/rovo))
+
+If your company already has thousands of documents spread across Google Workspace, SharePoint, Jira, Confluence, Salesforce, and Slack, enterprise search and suite-bundled brains index those repositories while respecting existing access control lists (ACLs). **Glean** leads for independent 100+ connector enterprise search across large organizations; **Notion** combines its wiki and relational databases with Notion Agent and Enterprise Search; and **Atlassian Rovo** activates the Teamwork Graph across Jira, Confluence, and Bitbucket.
+
+### 5. DIY Open-Source Markdown & Postgres Vaults ([GBrain](https://github.com/garrytan/gbrain), [Obsidian](https://obsidian.md))
+
+For solo technical founders and engineers who want to wire their own local or VPS-hosted memory daemon, tools like Y Combinator President Garry Tan's MIT-licensed **[GBrain](https://github.com/garrytan/gbrain)** (Postgres + `pgvector` + Markdown entity pages exposed over MCP) or an **[Obsidian](https://obsidian.md)** Markdown vault give direct file and database control. They are great personal or single-operator brains, though rolling them out across non-technical departments requires building your own multi-user UI, sandboxes, and approval workflows.
+
+---
+
+## Passive Wiki & Retrieval vs. an Operational Company Brain
+
+Before diving into individual tool reviews, it helps to look at why so many internal knowledge initiatives stall after month two. When a company brain is just a search bar over static documents, humans still have to read the retrieved chunks, synthesize the answer, open five tabs, run the scripts, and remember to update the wiki afterward.
+
+![Passive Wiki & Retrieval vs. Operational AI Coworker Company Brain](/blog/best-company-brain-software/passive-wiki-vs-operational-company-brain.webp)
+
+An operational company brain closes that loop. When an agent runs inside a real computer and browser sandbox with access to **[persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge)**, it reads the team's current positioning, pricing, and playbooks before starting a task, executes the work across connected tools, and writes verified findings back into the shared drive (with human approval gates where required) so the next run starts smarter.
+
+---
+
+## The 9 Best Company Brain Software & Tools in 2026: Detailed Reviews
+
+### 1. Agenta: Best Open-Source AI Coworker Platform & Operational Company Brain
+
+**[Agenta](https://agenta.ai)** is an **[open-source AI coworker platform](https://agenta.ai)** where teams build, share, and run customized AI coworkers backed by persistent institutional memory, reusable skills, and real computer and browser execution sandboxes.
+
+![Agenta open-source AI coworker platform and company brain workspace](/blog/best-company-brain-software/agenta.webp)
+
+While most company brain software stops at answering questions in a chat box or serving read-only context over MCP, Agenta is built so **everyone on the team, especially non-technical teammates in marketing, operations, customer support, sales, product, and agencies alongside software engineers, can turn shared company knowledge into autonomous coworkers that get real work done**. You configure and steer agents in plain language through conversation, without writing Python glue code or wiring brittle node-and-edge flowcharts.
+
+#### How Agenta Works as a Company Brain
+
+- **AI Drive & Two-Scope File Memory:** As documented in Agenta's [Files and knowledge architecture](https://agenta.ai/docs/concepts/files-and-knowledge), every agent has two distinct storage scopes. **Session files** act as the temporary desk for today's conversation (such as an uploaded CSV, a scratch draft, or intermediate downloads). **[Persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge)** (AI Drive) survive across every session and conversation, holding your brand voice guide, ICP positioning, product specs, approved examples, research reports, and decision logs. Because files add zero token overhead until an agent opens them, your company brain can scale to hundreds of structured Markdown files and folders without bloating every prompt.
+- **Plain-Language Instructions & Reusable Skills:** Instead of burying company rules in fragile system prompts, teams define [plain-language instructions](https://agenta.ai/docs/concepts/instructions) that point agents to the right knowledge folders, and package recurring procedures into on-demand [reusable skills](https://agenta.ai/docs/concepts/skills) (imported from the open agent skill ecosystem or authored by your team).
+- **Real Execution Harnesses ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)):** Every Agenta agent runs on a battle-tested agentic harness: Anthropic's **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)**, OpenAI's **[Codex](https://github.com/openai/codex)** ([supported natively in Agenta](https://agenta.ai/docs/changelog/codex-harness)), or **[Pi](https://agenta.ai/docs/concepts/harnesses-and-models)** (Agenta's multi-provider harness supporting OpenAI, Anthropic, Google Gemini, Mistral, xAI, Groq, Cohere, Perplexity, OpenRouter, AWS Bedrock, Azure OpenAI, and Google Vertex AI).
+- **Isolated Computer & Browser Sandbox:** Each agent gets its own sandboxed Linux computer (supporting [Daytona](https://www.daytona.io/) and container runtimes) and headless Chromium browser. Using the company brain as context, an agent can inspect live websites, run Python or Node scripts, analyze spreadsheets, open GitHub pull requests, and generate visual assets.
+- **1,000+ Integrations, MCP Servers, Automations & Channels:** Connect your stack via 1,000+ pre-built integrations and custom [MCP servers](https://agenta.ai/docs/guides/add-an-mcp-server). Run coworkers on cron schedules or event subscriptions ([automations](https://agenta.ai/docs/guides/create-an-automation)), enforce granular [tool permissions and human approvals](https://agenta.ai/docs/guides/control-what-an-agent-can-do), and deploy coworkers directly into [Slack](https://agenta.ai/docs/guides/connect-slack), [WhatsApp](https://agenta.ai/docs/guides/connect-whatsapp), Telegram, or an [embedded website chat widget](https://agenta.ai/docs/guides/embed-an-agent) (`Publish > Embed`).
+- **Versioning, Traces & Evaluations:** Every change to an agent's instructions, skills, tools, and model settings is versioned, and every turn logs full execution traces, token usage, and side-by-side playground evaluations.
+
+#### License & Pricing
+
+- **License:** Permissive **[MIT License](https://opensource.org/license/mit)** under the [OSI Open Source Definition](https://opensource.org/osd), deployable on your own infrastructure via [Docker Compose](https://docs.docker.com/compose/) or [Kubernetes Helm](https://helm.sh/).
+- **Self-Hosted Pricing:** **Open Source is Free forever** (unlimited users, projects, agents, automations, schedules, triggers, AI Drive, RBAC, and SSO); **Self-Hosted Enterprise** is custom (adds audit logs, custom domains, deployment/upgrade support, and SLA).
+- **Agenta Cloud Pricing (no per-seat fees on paid plans):**
+  - **Hobby ($0 forever):** 500 bonus signup credits + 75 free credits/day (up to 10 days/month), 2 concurrent tasks, 1 project, 2 team members.
+  - **Starter ($29/month total):** 2,900 monthly credits ($10 per 1,000 extra credits), 20 concurrent tasks, **unlimited team members with no per-seat price**, unlimited projects, schedules, and triggers.
+  - **Business ($299/month total):** 32,000 monthly credits, 50 concurrent tasks, SSO, RBAC, SOC 2 Type II report, and priority Slack support.
+  - **Enterprise (Custom):** Custom credits, custom data retention, audit logs, and custom SLA.
+
+#### Pros & Cons
+
+- **Pros:** Combines a persistent file-based company brain (AI Drive) with real agent execution (computer, browser, code, 1,000+ integrations, schedules); accessible to non-technical teams in plain language; permissive MIT open-source license; $29/month Cloud Starter includes unlimited users with zero per-seat tax; supports bring-your-own API keys and ChatGPT/Claude subscriptions.
+- **Cons:** If you only want a passive enterprise search bar over 100+ legacy on-prem systems without building or running AI coworkers, a dedicated search index like Glean is more specialized for pure search.
+
+---
+
+### 2. Dust: Best Enterprise AI Agent & Company Knowledge Workspace
+
+**[Dust](https://dust.tt)** is a cloud-hosted enterprise AI workspace that connects your company's internal documents and communication tools to custom `@agent` assistants powered by 20+ frontier models.
+
+![Dust enterprise AI agent and company knowledge workspace](/blog/best-company-brain-software/dust.webp)
+
+#### How Dust Works as a Company Brain
+
+Dust acts as a centralized hub where teams sync company data from managed connectors (including Slack, Notion, Google Drive, GitHub, Confluence, Zendesk, Intercom, and Snowflake) and partition that knowledge into permissioned **Spaces**. Inside the workspace or directly in Slack, employees mention `@agent` assistants tailored to specific roles (such as `@support-triage`, `@sales-prep`, or `@eng-onboarding`).
+
+Recent platform updates also add **Pods** (collaborative workspaces with shared context), **Frames** (interactive dashboards and mini-apps generated by agents), multi-agent orchestration on schedules and triggers, and support for remote MCP servers.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary cloud SaaS with US and EU data residency, SOC 2 Type II certification, and single-tenant deployment on Enterprise.
+- **Pricing:**
+  - **Business Plan (for teams up to 100 people):** Admins can mix and match three seat types: **Free seats at EUR 0** (500 lifetime credits), **Pro seats at EUR 24/seat/month billed yearly** or **EUR 30/seat/month monthly** (8,000 credits/month), and **Max seats at EUR 120/seat/month billed yearly** or **EUR 150/seat/month monthly** (40,000 credits/month). The Business plan includes up to 3 data source connectors, 5 Spaces, and 5 remote MCP servers.
+  - **Enterprise Plan (Custom):** Unlocks unlimited data connectors and MCP servers, workspace-pooled credits, SCIM provisioning, audit logs, and dedicated customer success.
+
+#### Pros & Cons
+
+- **Pros:** Polished `@agent` UX in web chat and Slack; clean permission boundaries via Spaces; strong multi-model selection (OpenAI, Anthropic, Gemini, Mistral, DeepSeek).
+- **Cons:** Proprietary cloud-only SaaS with no self-hosted open-source edition; capping the self-serve Business plan at 3 data source connectors and 5 Spaces pushes multi-tool teams toward custom Enterprise contracts; per-seat pricing adds up across larger organizations.
+
+---
+
+### 3. Slite: Best Self-Maintaining AI Knowledge Base for Fighting Doc Drift
+
+**[Slite](https://slite.com)** (which also powers the **[super.work](https://super.work)** AI knowledge experience) is a collaborative knowledge base built around a simple premise: company wikis fail because documents go stale the week after they are written, and AI agents hallucinate when they retrieve outdated pages.
+
+![Slite self-maintaining AI knowledge base and Slite Agent](/blog/best-company-brain-software/slite.webp)
+
+#### How Slite Works as a Company Brain
+
+Slite combines a clean team wiki with three mechanisms that keep the company brain accurate:
+
+1. **Slite Agent for Knowledge Drift Detection:** Slite Agent monitors connected tools like Slack, Linear, GitHub, and your codebase. When a pull request merges, an escalation runbook changes, or a pricing tier launches in Slack, the agent detects the discrepancy against your existing docs, drafts a redline diff, and routes it to the document owner to approve or reject in one click.
+2. **Verified Knowledge Ranking:** Every document in Slite can carry a verification badge with an owner and review cadence. When teammates or connected agents query **Ask** (Slite's enterprise AI search across Slite docs and connected tools), verified documents rank first and unverified or stale sources carry an explicit trust signal.
+3. **Slite MCP Server:** Slite exposes its verified knowledge layer over an MCP server (including actions to search docs, read blocks, create/update pages, and verify docs) so teammates using Claude, ChatGPT, or Cursor can pull governed company answers directly inside their existing tools.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary cloud SaaS (EU-hosted, SOC 2 Type II, GDPR, and HIPAA compliant).
+- **Pricing:**
+  - **Basic ($10/user/month billed yearly):** Unlimited docs, Ask AI search and answers, doc verification workflow, Knowledge Management Panel for bulk hygiene, and MCP + API access.
+  - **Pro ($20/user/month billed yearly):** Adds the **Slite Agent**, search across connected external tools, automated doc fact-checking with suggested fixes, agent workflows, 50 monthly credits per seat, and OpenID SSO.
+  - **Enterprise (Custom):** Adds reader-only seats, SCIM, audit logs, custom agent data sources, and SLA.
+
+#### Pros & Cons
+
+- **Pros:** Directly solves wiki rot with automated drift detection and suggested diffs; ranks verified docs above stale pages; includes MCP access even on the $10/user/month Basic tier; HIPAA and EU-hosting support.
+- **Cons:** Primarily a knowledge base and Q&A layer rather than a general-purpose agent execution sandbox with its own computer, browser, or code runtime; per-user pricing applies across editors.
+
+---
+
+### 4. Sento: Best Governed Multiplayer Context Layer for MCP Stacks
+
+**[Sento](https://www.sentohq.com)** builds **Sento Foundation**, a governed multiplayer context layer designed for companies where employees already use tools like Claude, ChatGPT, Cursor, and Codex, and want a single, structured source of company truth that every assistant reads over MCP.
+
+![Sento Foundation multiplayer governed context layer](/blog/best-company-brain-software/sento.webp)
+
+#### How Sento Works as a Company Brain
+
+Instead of treating company knowledge as long-form wiki essays or raw chat dumps, Sento structures institutional memory into discrete, typed entries:
+
+- **Typed, Owned Entries with Expiration Rules:** Every piece of context in Sento Foundation has a defined type (`Metric`, `List`, or `Text`), a named human owner, and an explicit expiration schedule (`Daily`, `Weekly`, `Monthly`, or `None`). For example, a `DAU` metric entry carries its exact formula, what counts as good or bad, its owner, and a daily expiration flag fed by PostHog, while a `Renewal risk` list is owned by revenue operations and refreshed weekly.
+- **Granular Per-Entry Read/Write Rules:** Each entry specifies which humans, agents, and scheduled routines have read access and write access (connecting systems like PostHog, HubSpot, GitHub, Granola meeting transcripts, Intercom support tickets, and Google Analytics).
+- **Missing-Knowledge Feedback Loop:** When an agent queries Sento over MCP for a term, metric, or policy that has not been defined yet, Sento logs the missing-knowledge request rather than guessing, showing domain owners exactly which gaps to fill next.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary cloud platform with MCP distribution and full read/write version logging.
+- **Pricing:** Custom team onboarding (available via direct access request at `sentohq.com`).
+
+#### Pros & Cons
+
+- **Pros:** High signal-to-noise ratio because every metric and term is typed, versioned, and owned by a specific person; works natively with existing MCP clients (Claude, ChatGPT, Codex); explicit expiration timers prevent silent metric drift.
+- **Cons:** Requires deliberate initial structuring of company terms and metrics; does not provide a self-hosted open-source edition or an all-in-one browser/computer sandbox for non-technical teams who do not already run their own AI clients.
+
+---
+
+### 5. Sentra: Best Automated Organizational Memory for Meetings & Commitments
+
+**[Sentra](https://www.sentra.app)** (at `sentra.app`, distinct from the cloud data security vendor of the same name) is an automated organizational memory platform that listens to how your company works across meetings, Slack, email, code, and deals, compiling activity into a real-time context graph.
+
+![Sentra managed organization memory and commitment tracker](/blog/best-company-brain-software/sentra.webp)
+
+#### How Sentra Works as a Company Brain
+
+Sentra targets the "coordination tax" that happens when a decision is made on a Zoom call on Monday, modified in a Slack thread on Wednesday, and forgotten in Jira by Friday:
+
+- **Continuous Cross-Channel Capture:** Sentra records meetings (via meeting bots or desktop recording) and integrates with Slack, Gmail, Google Calendar, Outlook, GitHub, and Linear to map who said what, why a decision shifted, and which promises remain open.
+- **Commitment Tracker, Risk Radar & Pre-Meeting Briefs:** For executives, chiefs of staff, engineering leads, and customer success teams, Sentra surfaces unowned action items, flags conflicting assumptions across pods, and delivers automatic pre-call account briefs 30 minutes before a renewal or sync.
+- **Role-Scoped Graph & Code Memory:** Teammates and agents query the memory graph with role-based permissions. On Enterprise plans, Sentra exposes API and MCP access so coding and BI agents can work from resolved organizational facts rather than re-crawling repositories and chat logs on every turn.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary cloud SaaS (SOC 2 compliance, SSO/SAML, custom data retention, and BAA available on Enterprise).
+- **Pricing:**
+  - **Team Plan (for teams of 2 to 20 users):** Currently offered at **$0 / Free** (regularly listed at **$16/user/month**), including 2,000 Action Credits/user/month, Slack/Gmail/Calendar/Outlook/GitHub/Linear integrations, unlimited meeting recording, AI meeting notes, Deep Research, Risk Radar, and Commitment Tracker.
+  - **Enterprise Plan (for 20+ users, Custom):** Adds API and MCP integration, Temporal Swimlanes, self-generating reports, SSO/SAML, SOC 2, fine-grained RBAC, and audit logs.
+
+#### Pros & Cons
+
+- **Pros:** Zero-authoring setup that immediately captures meeting transcripts, Slack decisions, and open commitments; strong executive and operations visibility via Risk Radar; generous promotional Team tier for 2 to 20 users.
+- **Cons:** API and MCP access are gated to the 20+ user Enterprise plan; because auto-ingest captures raw conversations, teams still need human curation when separating informal brainstorming from binding policy.
+
+---
+
+### 6. Colrows: Best Governed Semantic Layer & Data + Document Brain for Enterprises
+
+**[Colrows](https://colrows.com)** is an enterprise semantic layer and governed company brain built for regulated industries (such as pharmaceuticals, banking, financial services, and retail) where AI hallucinations in SQL metrics or policy documents create compliance risks.
+
+![Colrows autonomous semantic layer for enterprise AI agents](/blog/best-company-brain-software/colrows.webp)
+
+#### How Colrows Works as a Company Brain
+
+Most company brain tools focus purely on unstructured text (wikis and Slack), leaving structured business data in Snowflake or Databricks completely disconnected. Colrows unifies both through a deterministic compilation pipeline:
+
+- **Three-Layer Semantic Substrate:** Colrows automatically crawls 16+ data warehouses (Snowflake, Databricks, BigQuery, Redshift, Postgres, MySQL), data catalogs (Alation, Atlan, Collibra, Dataplex), and BI tools (Power BI, dbt) to maintain three stores: **Ontologies** (domain concepts, hierarchies, definitions, and synonyms), a **Semantic Knowledge Graph** (entities, edges, and proven SQL join paths), and **Statistical Profiles** (value distributions and query patterns that detect schema or semantic drift).
+- **Governed Document Sweep:** Alongside verified text-to-SQL, Colrows connects read-only to AWS S3, Google Drive, and OneDrive, sweeping up to 1,000 PDF and DOCX files per query to return cited, quoted answers that abstain when evidence is missing.
+- **Compile-Time Governance & Forward-Deployed Delivery:** Every query enforces RBAC, ABAC, and row/column-level security predicates before execution. Colrows pairs its software with forward-deployed engineers who map your data and hand over the production graph, agents, and audit trail in roughly eight weeks.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary enterprise deployment running against your existing cloud data warehouses and storage buckets.
+- **Pricing:** Custom fixed-scope enterprise deployment and subscription pricing (via sales consultation).
+
+#### Pros & Cons
+
+- **Pros:** Bridges the gap between structured warehouse metrics (SQL) and unstructured enterprise documents; compile-time RBAC/ABAC and row-level security; automatic drift detection when upstream dbt models or database schemas change.
+- **Cons:** Built for mid-to-large enterprises with dedicated data warehouses rather than small startups looking for a self-serve $29/month workspace.
+
+---
+
+### 7. Glean: Best Enterprise Search & Permission-Aware Knowledge Graph (500+ Seats)
+
+**[Glean](https://www.glean.com)** is the category heavyweight for large enterprises that have tens of thousands of documents, tickets, and messages scattered across 100+ SaaS applications and need a permission-aware search and assistant layer across all of them.
+
+![Glean Enterprise Work AI and Enterprise Graph platform](/blog/best-company-brain-software/glean.webp)
+
+#### How Glean Works as a Company Brain
+
+- **Glean Enterprise Context & Graph:** Glean indexes content, people, and activity signals across Google Drive, SharePoint, OneDrive, Slack, Microsoft Teams, Jira, Confluence, Salesforce, Zendesk, GitHub, and ServiceNow, mapping how people, projects, and documents relate across the organization.
+- **Strict ACL Enforcement & Glean Protect:** Every search result and AI response strictly honors the underlying source system's permissions in real time, paired with **Glean Protect** to prevent sensitive data leakage or prompt injection.
+- **Glean Search, Assistant, Agents & Open Platform:** Employees use Glean Search and Glean Assistant for cross-company research, build natural-language workflows in Glean Agents (routed across 40+ frontier and open models via Glean Intelligence), or connect external tools via Glean's Search API, Chat API, Agents API, and headless MCP support.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary enterprise SaaS or customer-hosted cloud VPC deployment.
+- **Pricing:** Custom annual enterprise contracts (typically scoped for organizations with several hundred to tens of thousands of seats).
+
+#### Pros & Cons
+
+- **Pros:** Industry-leading breadth of 100+ enterprise SaaS connectors with battle-tested real-time permission mirroring; headless MCP and API support for larger engineering orgs.
+- **Cons:** High annual contract minimums and multi-week enterprise procurement make it impractical for small or mid-sized teams; closed-source proprietary stack.
+
+---
+
+### 8. Notion: Best All-in-One Wiki, Database & AI Workspace Suite
+
+**[Notion](https://www.notion.com)** is already the default company wiki and project tracker for thousands of startups and digital agencies, making **Notion AI** and **Notion Agent** the most familiar starting point for teams that want their docs and AI assistant under one roof.
+
+![Notion collaborative workspace, wiki, and Notion Agent](/blog/best-company-brain-software/notion.webp)
+
+#### How Notion Works as a Company Brain
+
+- **Wikis, Verified Pages & Relational Databases:** Teams organize handbooks, SOPs, product roadmaps, and content calendars using Notion pages and relational databases, with page verification badges and expiration dates on Business and Enterprise plans to mark canonical docs.
+- **Notion Agent, AI Meeting Notes & Enterprise Search:** On the Business and Enterprise plans, Notion includes **Notion Agent** (for chatting, drafting, autofilling database properties, and running Research mode Beta), **AI Meeting Notes**, and **Enterprise Search Beta** across connected apps like Slack, Google Drive, GitHub, and Jira.
+- **Custom Agents & Workers Beta:** Teams can configure **Custom Agents** to automate repetitive workspace tasks (billed via Notion credits) and use **Workers Beta** to extend Notion with custom code and external data syncs.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary cloud SaaS (Enterprise adds zero data retention with LLM providers, SCIM, audit logs, and DLP/SIEM integrations).
+- **Pricing:**
+  - **Free ($0/member/month)** and **Plus ($10/member/month):** Core workspace with a limited trial of Notion AI.
+  - **Business ($20/member/month):** Recommended tier that unlocks **Notion Agent**, **AI Meeting Notes**, **Enterprise Search Beta**, SAML SSO, page verification, and granular database permissions.
+  - **Enterprise (Custom):** Adds zero data retention with LLM providers, SCIM, audit log, and advanced security controls.
+  - **Custom Agents Add-On:** Free to try, then **$10 per 1,000 monthly Notion credits**.
+
+#### Pros & Cons
+
+- **Pros:** Zero context switching if your company already writes every spec, wiki page, and task in Notion; flexible relational databases; built-in AI Meeting Notes on the $20/member/month Business plan.
+- **Cons:** Classic wiki sprawl: without strict team discipline, pages multiply and go stale, causing AI search to cite outdated spring brainstorms as current policy; Custom Agents consume extra metered credits on top of per-member seat fees; no isolated Linux computer/browser sandbox or self-hosted open-source option.
+
+---
+
+### 9. Atlassian Rovo: Best Bundled Company Brain for Jira & Confluence Teams
+
+**[Atlassian Rovo](https://www.atlassian.com/software/rovo)** is Atlassian's organizational knowledge and GenAI layer powered by the **Atlassian Teamwork Graph (TWG)**, connecting projects, goals, code, documentation, and people across the Atlassian Cloud ecosystem.
+
+![Atlassian Rovo organizational knowledge and Teamwork Graph](/blog/best-company-brain-software/atlassian-rovo.webp)
+
+#### How Atlassian Rovo Works as a Company Brain
+
+- **Atlassian Teamwork Graph:** Rovo connects native Atlassian data (Jira epics and issues, Confluence pages, Jira Service Management tickets, Bitbucket repositories, and Compass components) with third-party SaaS connectors (such as Google Drive, Slack, SharePoint, GitHub, and Figma) and hybrid Data Center connectors.
+- **Rovo Search, Rovo Chat & Rovo Studio Agents:** Engineers, product managers, and IT service teams can search across all connected tools, ask Rovo Chat to trace the history of a feature from a Confluence PRD to Jira blockers and Bitbucket commits, and build custom **Rovo Agents** in Rovo Studio to triage backlogs, draft release notes, or clean up stale Confluence pages.
+- **Rovo MCP Server & TWG CLI:** Developers can also access enriched Teamwork Graph context programmatically through the Teamwork Graph CLI and the Atlassian Rovo Model Context Protocol (MCP) server.
+
+#### License & Pricing
+
+- **License & Hosting:** Proprietary cloud platform (SOC 2 and ISO 27001 certified), with Data Center connectors available for hybrid cloud synchronization.
+- **Pricing:** Rovo is **included on Atlassian Cloud Standard, Premium, and Enterprise plans** for Jira, Confluence, Service Collection, and Teamwork Collection. Usage of AI features, Rovo Agents, and enriched Teamwork Graph / MCP calls is metered against your plan's included **Rovo credits** allowance.
+
+#### Pros & Cons
+
+- **Pros:** Included directly in Standard, Premium, and Enterprise Atlassian Cloud subscriptions; deeply understands the relationships between Jira tickets, Confluence specs, and engineering releases.
+- **Cons:** Built primarily for Atlassian-centric engineering and IT workflows; non-technical go-to-market, agency, or operations teams working outside Jira and Confluence will find it less adaptable than a general-purpose AI coworker workspace.
+
+---
+
+## What About DIY Open-Source Vaults Like GBrain and Obsidian?
+
+If you read technical Twitter or Hacker News, you have likely seen founders building personal or small-team brains using **[GBrain](https://github.com/garrytan/gbrain)** or **[Obsidian](https://obsidian.md)**:
+
+- **[GBrain](https://github.com/garrytan/gbrain) (MIT License, 31k+ GitHub stars):** Created by Y Combinator President Garry Tan to power his OpenClaw and Hermes agents, GBrain combines a Postgres + `pgvector` database with structured Markdown entity pages (separating compiled truth from an append-only chronological timeline) and exposes the brain over MCP (`gbrain mcp expose`) or via the hosted `gbrain.io` service.
+- **[Obsidian](https://obsidian.md) + Filesystem MCP:** A local folder of Markdown notes with wikilinks and frontmatter, connected to Claude Desktop or Cursor via a local MCP server.
+
+**When DIY vaults work well:** If you are a solo founder, researcher, or developer who wants a personal second brain inside your terminal or IDE, starting with Markdown files or GBrain is fast and educational.
+
+**Where DIY vaults hit a wall for company-wide rollout:** As soon as you want your marketing lead, customer support team, operations manager, and sales reps to collaborate on the same company brain, a raw CLI daemon or local Markdown folder breaks down. Non-technical teammates do not run `pgvector` migrations or debug local MCP JSON files. That is why teams graduating from a solo vault move to an **[open-source AI coworker platform](https://agenta.ai)** like **Agenta** (which preserves the clean, inspectable Markdown file model inside shared **AI Drive** folders while wrapping it in a multi-user web workspace, isolated computer/browser sandboxes, Slack/Telegram/WhatsApp channels, and human approval gates) or a governed context layer like **Slite** or **Sento**.
+
+---
+
+## How to Choose the Right Company Brain Software for Your Team
+
+Use this decision checklist to match your team's immediate bottleneck to the right tool:
+
+1. **You want an open-source platform where both non-technical teams and engineers build AI coworkers that read/write shared company knowledge and execute real tasks:** Choose **[Agenta](https://agenta.ai)**. You get AI Drive ([persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge) + temporary session files), [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models) harnesses, isolated computer and browser sandboxes, 1,000+ integrations, permissive **[MIT-licensed](https://opensource.org/license/mit)** self-hosting, or Cloud Starter at **$29/month for unlimited users**. (See our broader comparison of [AI coworker platforms for business](/blog/ai-coworker-platforms-for-business) and [best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms) for more on execution runtimes.)
+2. **You want a cloud-hosted `@agent` workspace with Spaces and multi-model chat for up to 100+ seats:** Choose **[Dust](https://dust.tt)**.
+3. **Your biggest problem is an outdated internal wiki that contradicts Slack, Linear, and GitHub:** Choose **[Slite](https://slite.com)** for its Slite Agent drift detection and verified knowledge ranking.
+4. **Everyone already uses Claude, ChatGPT, or Codex and you need a governed semantic dictionary of company metrics, lists, and terms over MCP:** Choose **[Sento](https://www.sentohq.com)**.
+5. **Decisions and action items keep getting lost between Zoom calls, Slack threads, and emails:** Choose **[Sentra](https://www.sentra.app)** for automated organizational memory and commitment tracking.
+6. **You are a regulated enterprise that needs governed, deterministic text-to-SQL across Snowflake/Databricks plus cited document sweeps:** Choose **[Colrows](https://colrows.com)**.
+7. **You have 500 to 10,000+ employees and need permission-aware enterprise search across 100+ SaaS apps:** Choose **[Glean](https://www.glean.com)**.
+8. **You want your wiki, relational databases, meeting notes, and AI assistant inside a single collaborative doc editor:** Choose **[Notion](https://www.notion.com)** (Business plan or higher).
+9. **Your engineering and product organization lives in Jira, Confluence, and Bitbucket Cloud:** Activate **[Atlassian Rovo](https://www.atlassian.com/software/rovo)** on your existing Atlassian Cloud plan.
+
+---
+
+## Frequently Asked Questions
+
+### What is company brain software?
+
+Company brain software is a shared institutional memory and context layer that captures how an organization works (its product facts, metrics, decisions, customer history, and operating procedures), keeps that context accurate over time, and makes it usable by both human teammates and AI agents.
+
+### What is the difference between a company wiki and an operational company brain?
+
+A traditional company wiki is a passive library of pages that requires manual searching and quickly goes stale when nobody owns updates. An operational company brain pairs governed, persistent knowledge with active AI agents or MCP servers that read the shared context, flag outdated facts, answer questions with citations, and execute recurring workflows across Slack, GitHub, CRMs, and browsers.
+
+### What is the best open-source company brain software in 2026?
+
+**[Agenta](https://agenta.ai)** is the best open-source company brain and AI coworker platform for teams. Released under the permissive **[MIT License](https://opensource.org/license/mit)** and self-hostable via [Docker Compose](https://docs.docker.com/compose/) or [Kubernetes Helm](https://helm.sh/), Agenta gives non-technical and technical teammates shared persistent agent files (AI Drive), reusable skills, and real execution harnesses ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)) with isolated computer and browser sandboxes. For solo technical founders who only want a headless Postgres and Markdown daemon, **[GBrain](https://github.com/garrytan/gbrain)** is a popular MIT-licensed option.
+
+### Should we choose an auto-ingest memory tool or a governed company brain?
+
+Auto-ingest tools like **[Sentra](https://www.sentra.app)** are helpful when your biggest pain is losing track of verbal commitments across meetings, Slack threads, and emails. However, because raw chat and meeting transcripts include abandoned ideas and unverified opinions, most teams pair or prefer a governed company brain (such as **[Agenta](https://agenta.ai)**, **[Sento](https://www.sentohq.com)**, **[Slite](https://slite.com)**, or **[Colrows](https://colrows.com)**) where canonical product facts, definitions, and playbooks have explicit human ownership and approval gates.
+
+### How much does company brain software cost for a growing team?
+
+Per-seat wikis and AI workspaces charge $10 to $30+ per user per month (for example, Slite Pro at $20/user/month, Notion Business at $20/user/month, and Dust Pro at EUR 24 to EUR 30/seat/month), while enterprise search platforms like Glean and Colrows require custom annual contracts. **[Agenta](https://agenta.ai)** offers a free forever self-hosted open-source edition and a Cloud Starter plan at **$29/month total with unlimited team members and no per-seat fees**.
