@@ -1,18 +1,25 @@
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 
+import {cn} from "@/lib/utils"
+
 import type {BuilderChatRow} from "./useBuilderChatList"
 import {useChatAgeLabel} from "./useChatAgeLabel"
 
-/** One chat in "Recent chats" and "Chat history": its title and age. */
+/**
+ * One chat in "Recent chats" and "Chat history": its title and age. On a phone a recent chat is a
+ * 44 px row (M04), and a history row is 56 px with a line under it (M06).
+ */
 export const ChatRow = ({
     row,
     now,
     onOpen,
+    size = "panel",
 }: {
     row: BuilderChatRow
     now: number
     onOpen: (sessionId: string) => void
+    size?: "panel" | "phone" | "phoneList"
 }) => {
     const t = useT(builderPanelCatalog)
     const age = useChatAgeLabel()
@@ -21,7 +28,13 @@ export const ChatRow = ({
             type="button"
             data-testid="builder-chat-row"
             onClick={() => onOpen(row.session_id)}
-            className="flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[13px] text-colorText hover:bg-colorFillTertiary"
+            className={cn(
+                "flex w-full min-w-0 shrink-0 cursor-pointer items-center border-0 bg-transparent text-left text-colorText hover:bg-colorFillTertiary",
+                size === "panel" && "h-8 gap-2 rounded-md px-2 text-[13px]",
+                size === "phone" && "h-11 gap-2 rounded-md px-1 text-[15px]",
+                size === "phoneList" &&
+                    "min-h-14 gap-3 border-b border-solid border-colorBorderSecondary py-1.5 pl-4 pr-2 text-[15px]",
+            )}
         >
             <span className="min-w-0 flex-1 truncate">
                 {row.name?.trim() || t("builder.panel.untitledChat")}

@@ -71,8 +71,15 @@ vi.mock("@/features/sessions/useLivenessPoll", () => ({
 vi.mock("@/features/agent-layout/useAgentRow", () => ({
     useAgentRow: () => ({row: {id: "agent-1", name: "Support triage"}}),
 }))
+const panel = vi.hoisted(() => ({phone: false, closed: 0}))
 vi.mock("@/features/agent-layout/agentPanelContext", () => ({
-    useAgentPanel: () => ({close: vi.fn()}),
+    useAgentPanel: () => ({
+        phone: panel.phone,
+        close: async () => {
+            panel.closed += 1
+            return true
+        },
+    }),
 }))
 vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
@@ -200,6 +207,8 @@ beforeEach(() => {
     list.asked = []
     live.running = []
     headers.rows = {}
+    panel.phone = false
+    panel.closed = 0
     store = createStore()
     // A user per test: the panel keeps the last shown chat per user for a remount.
     userCount += 1
@@ -525,5 +534,55 @@ describe("BuilderPanel: same-agent switch", () => {
         await render()
         expect(seen.props?.sessionId).toBe(sessionId)
         expect(byTestId("builder-ready-requests")?.textContent).toContain("Run it every morning")
+    })
+})
+
+describe("BuilderPanel: on a phone (M04, M06)", () => {
+    beforeEach(() => {
+        panel.phone = true
+    })
+
+    it("has the phone header: back to the session, the title menu and +, no Open in the builder and no close", async () => {
+        store.set(pageSessionIdAtom, "s1")
+        await render()
+        const back = container.querySelector('[aria-label="Back to Session"]')
+        expect(back?.textContent).toBe("Session")
+        expect(byTestId("builder-chat-title")?.textContent).toContain("New chat")
+        expect(container.querySelector('[aria-label="New chat"]')).not.toBeNull()
+        expect(byTestId("builder-open-in-builder")).toBeNull()
+        expect(container.querySelector('[aria-label="Close the builder"]')).toBeNull()
+        await click(back)
+        expect(panel.closed).toBe(1)
+    })
+
+    it("reads Back when the page has no session", async () => {
+        await render()
+        expect(container.querySelector('[aria-label="Back"]')).not.toBeNull()
+        expect(container.querySelector('[aria-label="Back to Session"]')).toBeNull()
+    })
+
+    it("shows the quick actions with their icons and 44 px recent chats", async () => {
+        rememberBuilderChat(user(), "p1", "agent-1", "old-chat")
+        list.rows = [{session_id: "old-chat", name: "Daily summary", updated_at: hoursAgo(100)}]
+        await render()
+        const test = button("Test")
+        expect(test?.querySelector("svg")).not.toBeNull()
+        expect(test?.className).toContain("h-10")
+        expect(byTestId("builder-chat-row")?.className).toContain("h-11")
+    })
+
+    it("opens the history full screen with a back arrow to the chat, and Back returns to the same chat", async () => {
+        rememberBuilderChat(user(), "p1", "agent-1", "old-chat")
+        list.rows = [{session_id: "old-chat", name: "Daily summary", updated_at: hoursAgo(100)}]
+        await render()
+        const sessionId = seen.props!.sessionId
+        await click(button("View all"))
+        expect(container.querySelector("h1")?.textContent).toBe("Chat history")
+        expect(byTestId("builder-chat-row")?.className).toContain("min-h-14")
+        await click(container.querySelector('[aria-label="Back to Chat"]'))
+        expect(byTestId("builder-chat-history")).toBeNull()
+        expect(seen.props?.sessionId).toBe(sessionId)
+        // The history's back arrow returns to the chat; it does not close the builder.
+        expect(panel.closed).toBe(0)
     })
 })

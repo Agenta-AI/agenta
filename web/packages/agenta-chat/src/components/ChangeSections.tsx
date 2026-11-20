@@ -10,6 +10,7 @@ import {useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import {computeTextDiffLines} from "@agenta/ui/diff"
+import {useIsPhone} from "@agenta/ui/phone"
 import {
     ArrowRight,
     BookOpen,
@@ -33,6 +34,8 @@ import type {
     ApprovalChangeRiskLine,
     ApprovalChangeSection,
 } from "../skin/types"
+
+import {PhoneDetailScreen, useInPhoneDetail} from "./PhoneDetailScreen"
 
 const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
     instructions: FileText,
@@ -167,13 +170,27 @@ const DiffRows = ({rows}: {rows: DiffRow[]}) => (
     </>
 )
 
-const TextDiff = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>}) => {
+/**
+ * A text diff: the first rows in the card, and "View full diff" for the rest. On the desktop the
+ * link opens the whole diff in place; on a phone it opens it full screen (M05), titled by `title`.
+ */
+const TextDiff = ({
+    detail,
+    title,
+}: {
+    detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>
+    title: string
+}) => {
     const t = useT(chatChangeCardCatalog)
+    const phone = useIsPhone()
+    // A phone detail screen already shows the whole diff.
+    const inDetail = useInPhoneDetail()
     const [full, setFull] = useState(false)
     const rows = diffRows(detail)
-    const shown = full ? rows.full : rows.short.slice(0, INLINE_DIFF_LINES)
+    const inPlace = (full && !phone) || inDetail
+    const shown = inPlace ? rows.full : rows.short.slice(0, INLINE_DIFF_LINES)
     const more =
-        !full && (rows.short.length > INLINE_DIFF_LINES || rows.full.length > rows.short.length)
+        !inPlace && (rows.short.length > INLINE_DIFF_LINES || rows.full.length > rows.short.length)
     return (
         <div className="flex flex-col gap-1">
             <div
@@ -186,11 +203,26 @@ const TextDiff = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "text_
                 <button
                     type="button"
                     onClick={() => setFull(true)}
-                    className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-colorTextSecondary hover:text-colorText"
+                    className={`cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-colorTextSecondary hover:text-colorText ${
+                        // A 44 px hit area around the 16 px line.
+                        phone
+                            ? "relative after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
+                            : ""
+                    }`}
                     data-testid="change-full-diff"
                 >
                     {t("chat.changeCard.viewFullDiff", {count: rows.full.length})}
                 </button>
+            ) : null}
+            {phone && !inDetail ? (
+                <PhoneDetailScreen open={full} onOpenChange={setFull} title={title}>
+                    <div
+                        className="overflow-x-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 font-mono text-xs leading-[1.7]"
+                        data-testid="change-diff-full"
+                    >
+                        <DiffRows rows={rows.full} />
+                    </div>
+                </PhoneDetailScreen>
             ) : null}
         </div>
     )
@@ -286,13 +318,16 @@ const Item = ({
 const Detail = ({
     detail,
     section,
+    title,
 }: {
     detail: ApprovalChangeDetail
     section: ApprovalChangeSection
+    /** The name of the change, the title of its full screen detail on a phone. */
+    title: string
 }) => {
     switch (detail.kind) {
         case "text_diff":
-            return <TextDiff detail={detail} />
+            return <TextDiff detail={detail} title={title} />
         case "value_change":
             return <ValueChange detail={detail} />
         case "item":
@@ -379,7 +414,12 @@ export const Block = ({
         />
         {block.changes.map((change, index) =>
             change.detail ? (
-                <Detail key={index} detail={change.detail} section={change.section} />
+                <Detail
+                    key={index}
+                    detail={change.detail}
+                    section={change.section}
+                    title={block.path.join(" › ") || block.title}
+                />
             ) : null,
         )}
         {block.risks.map((risk) => (

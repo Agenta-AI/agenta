@@ -25,14 +25,17 @@ const ICONS: Record<QuickAction, Icon> = {
 
 /**
  * The quick actions under the composer of a new chat. One opens its ready requests under the row;
- * a pick puts the request in the composer and sends nothing.
+ * a pick puts the request in the composer and sends nothing. On a phone (M04) the actions are
+ * 40 px with their icon and a 44 px hit area.
  */
 export const QuickActions = ({
     sessionId,
     onPick,
+    phone = false,
 }: {
     sessionId: string
     onPick: (text: string) => void
+    phone?: boolean
 }) => {
     const t = useT(builderPanelCatalog)
     const [open, setOpenState] = useState(() => readOpenQuickAction(sessionId))
@@ -43,23 +46,36 @@ export const QuickActions = ({
     const RowIcon = open ? ICONS[open] : null
     return (
         <div className="flex flex-col gap-2" data-testid="builder-quick-actions">
-            <div className="flex flex-wrap justify-center gap-1.5">
-                {QUICK_ACTIONS.map((action) => (
-                    <button
-                        key={action}
-                        type="button"
-                        aria-pressed={open === action}
-                        onClick={() => setOpen(open === action ? null : action)}
-                        className={cn(
-                            "inline-flex h-[30px] cursor-pointer items-center rounded-full border-0 px-3 text-[13px] text-colorTextSecondary ring-1 ring-inset",
-                            open === action
-                                ? "bg-colorFillSecondary ring-colorBorder"
-                                : "bg-transparent ring-colorBorderSecondary hover:bg-colorFillTertiary",
-                        )}
-                    >
-                        {t(QUICK_ACTION_LABELS[action])}
-                    </button>
-                ))}
+            <div className={cn("flex flex-wrap justify-center", phone ? "gap-2" : "gap-1.5")}>
+                {QUICK_ACTIONS.map((action) => {
+                    const ActionIcon = ICONS[action]
+                    return (
+                        <button
+                            key={action}
+                            type="button"
+                            aria-pressed={open === action}
+                            onClick={() => setOpen(open === action ? null : action)}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center rounded-full border-0 text-colorTextSecondary ring-1 ring-inset",
+                                phone
+                                    ? "relative h-10 gap-1.5 px-3.5 text-sm after:absolute after:-inset-0.5 after:content-['']"
+                                    : "h-[30px] px-3 text-[13px]",
+                                open === action
+                                    ? "bg-colorFillSecondary ring-colorBorder"
+                                    : "bg-transparent ring-colorBorderSecondary hover:bg-colorFillTertiary",
+                            )}
+                        >
+                            {phone ? (
+                                <ActionIcon
+                                    aria-hidden
+                                    size={14}
+                                    className="text-colorTextSecondary"
+                                />
+                            ) : null}
+                            {t(QUICK_ACTION_LABELS[action])}
+                        </button>
+                    )
+                })}
             </div>
             {open && RowIcon ? (
                 <div className="flex flex-col" data-testid="builder-ready-requests">

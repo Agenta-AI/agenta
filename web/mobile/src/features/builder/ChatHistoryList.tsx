@@ -2,6 +2,8 @@ import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import {SearchInput, SkeletonRows} from "@agenta/ui/ui"
 
+import {cn} from "@/lib/utils"
+
 import {ChatListFailed} from "./ChatListFailed"
 import {ChatRow} from "./ChatRow"
 import type {BuilderChatRow} from "./useBuilderChatList"
@@ -16,6 +18,8 @@ export interface ChatHistoryListProps {
     onSearch: (search: string) => void
     onRetry: () => void
     onOpen: (sessionId: string) => void
+    /** On a phone (M06): rows of 56 px with a line under each, edge to edge. */
+    phone?: boolean
 }
 
 /** The search field and the rows of "Chat history", newest first. */
@@ -27,6 +31,7 @@ export const ChatHistoryList = ({
     onSearch,
     onRetry,
     onOpen,
+    phone = false,
 }: ChatHistoryListProps) => {
     const t = useT(builderPanelCatalog)
     const now = Date.now()
@@ -44,23 +49,35 @@ export const ChatHistoryList = ({
         body = (
             <>
                 {rows.map((row) => (
-                    <ChatRow key={row.session_id} row={row} now={now} onOpen={onOpen} />
+                    <ChatRow
+                        key={row.session_id}
+                        row={row}
+                        now={now}
+                        onOpen={onOpen}
+                        size={phone ? "phoneList" : "panel"}
+                    />
                 ))}
             </>
         )
 
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="builder-chat-history">
-            <div className="shrink-0 px-3 pt-3 pb-2">
+            <div className={cn("shrink-0", phone ? "px-4 pt-3 pb-1" : "px-3 pt-3 pb-2")}>
                 <SearchInput
                     value={search}
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
                     allowClear
+                    className={phone ? "h-11 text-[15px]" : undefined}
                 />
             </div>
-            <div className="ag-scroll-quiet flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-3">
+            <div
+                className={cn(
+                    "ag-scroll-quiet flex min-h-0 flex-1 flex-col overflow-y-auto",
+                    phone ? "pb-3" : "gap-0.5 px-3 pb-3",
+                )}
+            >
                 {body}
             </div>
         </div>
