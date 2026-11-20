@@ -14,9 +14,10 @@ class SessionStartResult(BaseModel):
 
 
 class SessionInputEnqueueResult(BaseModel):
-    """What `enqueue_session_input` did. `state` is `pending` when the input waits in
-    the queue and `promoted` when it started a turn (or a turn already runs it), and
-    `execution_id` is that turn's execution."""
+    """What `enqueue_session_input` did. `state` is the row's stored queue state:
+    `pending` while it waits, `promoted` once an execution id is assigned to it, or
+    `removed` for a repeat of a key whose row a person removed. `execution_id` is the
+    assigned execution id; a replay can return it before that turn has started."""
 
     input_id: UUID
     state: PendingInputState
