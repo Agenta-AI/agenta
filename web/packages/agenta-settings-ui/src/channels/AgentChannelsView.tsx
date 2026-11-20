@@ -5,7 +5,7 @@ import agentChannelsCatalog from "@agenta/i18n/catalogs/agentPages.channels"
 import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, Sheet, SheetContent, SheetTitle, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight} from "@phosphor-icons/react"
 
 import {
@@ -253,21 +253,27 @@ const ChannelRowsSkeleton = () => (
 const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPanelRenderProps) => {
     const t = useT(channelsPageCatalog, commonCatalog)
     // On a phone the manage view and the connect steps cover the screen, with a back arrow to the
-    // step before or to Channels (M13).
+    // step before or to Channels (M13). The sheet keeps focus inside; Escape goes back too.
     const phone = useIsPhone()
     if (phone) {
+        const back = onBack ?? onClose
         return (
-            <div
-                className="fixed inset-0 z-50 flex flex-col bg-colorBgContainer"
-                data-testid="agent-channels-open-view-phone"
-            >
-                <PhoneScreenHeader
-                    title={title}
-                    backTitle={onBack ? undefined : t("channels.page.title")}
-                    onBack={onBack ?? onClose}
-                />
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
-            </div>
+            <Sheet open onOpenChange={(open) => (open ? undefined : back())}>
+                <SheetContent
+                    side="right"
+                    aria-describedby={undefined}
+                    className="inset-0 w-full max-w-none rounded-none bg-colorBgContainer shadow-none sm:max-w-none"
+                    data-testid="agent-channels-open-view-phone"
+                >
+                    <SheetTitle className="sr-only">{title}</SheetTitle>
+                    <PhoneScreenHeader
+                        title={title}
+                        backTitle={onBack ? undefined : t("channels.page.title")}
+                        onBack={back}
+                    />
+                    <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+                </SheetContent>
+            </Sheet>
         )
     }
     return (
