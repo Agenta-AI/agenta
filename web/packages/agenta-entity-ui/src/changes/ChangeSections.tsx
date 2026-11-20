@@ -477,9 +477,12 @@ function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
             {summaryLines(hunks).map((line, i) => (
                 <div
                     key={i}
-                    className="flex px-2.5 py-1"
+                    // The design's flat tints (#eaf2e3, #f9e5e5): the success and error fills.
+                    className={cn(
+                        "flex px-2.5 py-1",
+                        line.type === "added" ? "bg-colorSuccessBg" : "bg-colorErrorBg",
+                    )}
                     style={{
-                        background: line.type === "added" ? ADD_BG : DEL_BG,
                         color:
                             line.type === "added"
                                 ? "var(--ag-colorSuccess)"
