@@ -146,6 +146,21 @@ describe("Daytona provider create", () => {
     assert.equal(daemonStartCommand(3000), found(3000));
     assert.equal(daemonStartCommand(4123), found(4123));
   });
+
+  it("reports the same name and cwd as sandbox-agent's own Daytona provider", async () => {
+    const key = process.env.DAYTONA_API_KEY;
+    process.env.DAYTONA_API_KEY = "test-only";
+    try {
+      const { daytona } = await import("sandbox-agent/daytona");
+      const vendored = daytona({});
+      const ours = daytonaWithLifecycle({}, { client: {} as any });
+      assert.equal(ours.name, vendored.name);
+      assert.equal(ours.defaultCwd, vendored.defaultCwd);
+    } finally {
+      if (key === undefined) delete process.env.DAYTONA_API_KEY;
+      else process.env.DAYTONA_API_KEY = key;
+    }
+  });
 });
 
 describe("Daytona provider preview token", () => {
