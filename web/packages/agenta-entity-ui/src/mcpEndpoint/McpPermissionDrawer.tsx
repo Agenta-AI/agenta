@@ -607,7 +607,8 @@ export function useMcpPermissionSource({
 
     const catalog = useMemo<PermissionDrawerCatalog>(() => {
         if (!slug) return {status: "error", tools: [], complete: false, errorNode}
-        // Not read: no list and no error. The default permission above stays editable.
+        // Not read: no list and no error. The default permission stays editable, except the
+        // preset that names read-only tools, which needs the list.
         if (!listTools) return {status: "error", tools: [], complete: false, errorNode: null}
         if (tools.status === "loading" || tools.status === "idle") {
             return {status: "loading", tools: [], complete: false}

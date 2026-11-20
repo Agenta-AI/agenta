@@ -321,6 +321,16 @@ describe("MCP server view", () => {
         expect(document.body.textContent).not.toContain("Couldn't read this server's tools")
     })
 
+    it("lists the tools of each person's own entry while the project is signed in", async () => {
+        const own = withMcpAccountSource(linear, "user")
+        writer.agent = {mcps: [own]}
+        toolReads.count = 0
+        await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
+        await findByText("List issues")
+        expect(toolReads.count).toBe(1)
+        expect(byText("Reconnect")).toBeUndefined()
+    })
+
     it("shows the removed state when the server left the agent", async () => {
         writer.agent = {mcps: [docs]}
         await openIn(mcpServerView, {item: mcpItemRef(linear, [linear])!})
