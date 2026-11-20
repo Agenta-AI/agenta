@@ -523,10 +523,12 @@ function SummarySection({section}: {section: ChangeSection}) {
                     {section.title}
                 </span>
                 {status ? (
-                    <span className={cn("shrink-0 text-xs", textColors.tertiary)}>{status}</span>
+                    <span className={cn("shrink-0 text-[12px] leading-4", textColors.tertiary)}>
+                        {status}
+                    </span>
                 ) : null}
             </div>
-            <div className="mx-2 overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] text-[12.5px] leading-5">
+            <div className="mx-2 overflow-hidden rounded-[6px] border border-solid border-[var(--ag-colorBorderSecondary)] text-[12.5px] leading-5">
                 {section.items?.length ? (
                     <CappedItems items={section.items} padX={SUMMARY_ROW_PAD} />
                 ) : null}
