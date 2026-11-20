@@ -10,7 +10,7 @@ import {ConnectedSubagentList} from "../ConnectedSubagents"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
-import {SubagentCurrentName} from "../SubagentAgent"
+import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
 import {subagentItemRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
 
@@ -140,6 +140,7 @@ const SubagentSectionBody = ({
                     <SubagentCurrentName
                         bridge={workflowReference}
                         slug={removing.slug}
+                        savedSlugs={savedSubagentSlugs(entries.map(({item}) => item))}
                         fallback={removing.name}
                     >
                         {(name) => (

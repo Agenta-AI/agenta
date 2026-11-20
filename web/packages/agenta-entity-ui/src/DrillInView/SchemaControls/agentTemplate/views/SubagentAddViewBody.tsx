@@ -6,7 +6,7 @@ import {useDrillInUI, type WorkflowReferencePayload} from "@agenta/ui/drill-in"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
 import {ConnectedAddSubagentList} from "../ConnectedSubagents"
-import {toolReferenceSlug} from "../itemDescriptors"
+import {savedSubagentSlugs} from "../SubagentAgent"
 import {
     addSubagentReference,
     buildSubagentReference,
@@ -39,13 +39,7 @@ const SubagentAddViewBody = ({target}: ViewProps<SubagentAddViewParams>) => {
         [update],
     )
     // What the list marks as added, read from the saved tools rather than the list's state.
-    const savedSlugs = useMemo(
-        () =>
-            toolsOf(writer.agent)
-                .map(toolReferenceSlug)
-                .filter((slug): slug is string => Boolean(slug)),
-        [writer.agent],
-    )
+    const savedSlugs = useMemo(() => savedSubagentSlugs(toolsOf(writer.agent)), [writer.agent])
     if (!workflowReference?.enabled) return null
     return (
         <ConnectedAddSubagentList

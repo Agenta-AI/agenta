@@ -79,6 +79,8 @@ const AGENTS = [
 ]
 
 const retries = {catalog: 0, detail: 0}
+/** Every slug set the catalog was asked for: one set is one cached batch. */
+const catalogKeys = new Set<string>()
 
 const bridge = (options: {failedSlugs?: string[]; detailFailed?: boolean} = {}) =>
     ({
@@ -89,7 +91,8 @@ const bridge = (options: {failedSlugs?: string[]; detailFailed?: boolean} = {}) 
         resolveInputSchema: async () => ({type: "object", properties: {q: {type: "string"}}}),
         // Stable per set of slugs, as the real query atoms are.
         useWorkflowReferenceCatalog: (slugs: string[]) => {
-            const key = slugs.join("\n")
+            const key = [...slugs].sort().join("\n")
+            catalogKeys.add(key)
             return useMemo(
                 () => ({
                     bySlug: Object.fromEntries(
@@ -287,15 +290,20 @@ describe("Subagent view", () => {
 describe("Subagents section", () => {
     it("the row bin asks with the name the row shows, then removes by key", async () => {
         const removed: unknown[] = []
+        catalogKeys.clear()
         const tool = reference("email-writer")
+        const other = reference("lead-finder")
         const section = subagentsSection({
             t: ((key: string) => key) as never,
             hasTools: true,
             sectionIndicator: () => undefined,
             openAddSubagents: undefined,
-            subagentCount: 1,
+            subagentCount: 2,
             workflowReference: bridge(),
-            subagentTools: [{item: tool, index: 0}],
+            subagentTools: [
+                {item: tool, index: 0},
+                {item: other, index: 1},
+            ],
             openSubagent: () => undefined,
             removeSubagent: (item) => removed.push(item),
             toolStatusFor: () => undefined,
@@ -309,9 +317,12 @@ describe("Subagents section", () => {
             ),
         )
         const bin = await findByText("", 'button[aria-label^="Remove"]')
+        expect(document.body.textContent).toContain("Email writer")
         await click(bin)
         const dialog = await findByText("", '[data-testid="remove-from-agent-dialog"]')
         expect(dialog.textContent).toContain("Remove Email writer from this agent?")
+        // The dialog reads the name through the rows' own cached batch, not a second request.
+        expect([...catalogKeys]).toEqual(["email-writer\nlead-finder"])
         expect(removed).toEqual([])
         await click(byText("Remove"))
         expect(removed).toEqual([{list: "tools", key: "email-writer"}])

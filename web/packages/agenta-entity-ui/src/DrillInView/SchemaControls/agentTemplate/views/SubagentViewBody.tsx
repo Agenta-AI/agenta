@@ -11,7 +11,7 @@ import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {ReferenceToolFormView} from "../../ReferenceToolFormView"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {SubagentRemoveDialog} from "../sections/SubagentsSection"
-import {SubagentCurrentName, SubagentOpenAgentButton} from "../SubagentAgent"
+import {savedSubagentSlugs, SubagentCurrentName, SubagentOpenAgentButton} from "../SubagentAgent"
 import {
     findSubagentIndex,
     removeSubagentByRef,
@@ -123,7 +123,12 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
         </div>
     )
     return workflowReference ? (
-        <SubagentCurrentName bridge={workflowReference} slug={slug} fallback={fallbackTitle}>
+        <SubagentCurrentName
+            bridge={workflowReference}
+            slug={slug}
+            savedSlugs={savedSubagentSlugs(tools)}
+            fallback={fallbackTitle}
+        >
             {content}
         </SubagentCurrentName>
     ) : (
