@@ -12,15 +12,6 @@ import {Check, Plus, Robot} from "@phosphor-icons/react"
 
 import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
 
-/** One connected app on an agent. Kept for the package's public types; the picker no longer
- *  draws these (canvas F03 f1). */
-export interface SubagentIntegration {
-    /** Integration key, e.g. "github". Doubles as the React key and the fallback label. */
-    key: string
-    name?: string
-    logo?: string | null
-}
-
 /** One selectable agent. */
 export interface SubagentOption {
     /** The agent's identity, and the key the caller adds and removes by. */
