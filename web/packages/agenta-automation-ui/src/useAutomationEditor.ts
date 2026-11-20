@@ -22,6 +22,8 @@ export const useAutomationEditor = (automationId: string | undefined) => {
     const {
         automations,
         isLoading: listLoading,
+        error: listError,
+        refetch,
         agentNames,
         agentsReady,
         resolveAgentId,
@@ -90,7 +92,10 @@ export const useAutomationEditor = (automationId: string | undefined) => {
         failureReason,
         /** Neither the list nor the entity has it — the id is stale. */
         // A row that exists but whose binding has not settled is loading, not missing.
-        missing: !automation && !listLoading && !listed,
+        missing: !automation && !listLoading && !listed && !listError,
+        /** The list could not load, so whether the id exists is unknown. `retry` loads it again. */
+        loadFailed: !automation && !listLoading && !listed && Boolean(listError),
+        retry: refetch,
         loading: !automation && (listLoading || !!listed),
         onRename,
         onToggle,
