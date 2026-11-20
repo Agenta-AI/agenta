@@ -18,14 +18,38 @@ const noop = () => undefined
 const BUILTIN: SkillListItem = {
     id: "__ag__web-search",
     slug: "web-search",
+    workflowSlug: "__ag__web-search",
     name: "web-search",
     description: "Search the web and cite sources.",
     origin: "builtin",
 }
 
-/** A built-in skill: no queries, the read-only preview. */
+// The registry list the drawer resolves a workflow slug against (archived skills included).
+const registryKey = (projectId: string) => ["skills", "registry", "list", projectId, "", true]
+
+/** A built-in skill: the read-only preview. */
 export const BuiltInSkill: Story = {
-    args: {open: true, onClose: noop, projectId: "storybook-project", skill: BUILTIN},
+    args: {open: true, onClose: noop, skill: BUILTIN},
+    parameters: {
+        agenta: {
+            queries: (scope) => [
+                [
+                    registryKey(scope.projectId),
+                    {
+                        count: 0,
+                        skills: [],
+                        builtin: [
+                            {
+                                workflow_slug: "__ag__web-search",
+                                skill_name: "web-search",
+                                description: BUILTIN.description,
+                            },
+                        ],
+                    },
+                ],
+            ],
+        } satisfies AgentaDataParameters,
+    },
 }
 
 // The usage query key, restated: `skillUsageQueryKey` is not exported from the package root.
@@ -34,10 +58,10 @@ const usageKey = (projectId: string, workflowId: string) =>
 
 const projectSkill: AgentaDataParameters = {
     args: (scope) => ({
-        projectId: scope.projectId,
         skill: {
             id: scope.id("skill"),
             slug: "laptop-replacement-policy",
+            workflowSlug: "laptop-replacement-policy-7q2m",
             name: "laptop-replacement-policy",
             description: "When and how an employee gets a new laptop, and who approves it.",
             origin: "project",
@@ -45,6 +69,23 @@ const projectSkill: AgentaDataParameters = {
         } satisfies SkillListItem,
     }),
     queries: (scope) => [
+        [
+            registryKey(scope.projectId),
+            {
+                count: 1,
+                skills: [
+                    {
+                        workflow_id: scope.id("skill"),
+                        workflow_slug: "laptop-replacement-policy-7q2m",
+                        skill_name: "laptop-replacement-policy",
+                        description:
+                            "When and how an employee gets a new laptop, and who approves it.",
+                        version: "v2",
+                    },
+                ],
+                builtin: [],
+            },
+        ],
         [
             skillRevisionsQueryKey(scope.projectId, scope.id("skill")),
             [
@@ -67,6 +108,6 @@ const projectSkill: AgentaDataParameters = {
 
 /** A project skill, with its head revision seeded. */
 export const ProjectSkill: Story = {
-    args: {open: true, onClose: noop, projectId: "", skill: null},
+    args: {open: true, onClose: noop, skill: null},
     parameters: {agenta: projectSkill},
 }

@@ -22,17 +22,32 @@ import {useSetAtom} from "jotai"
 
 import {SectionAddButton} from "./SectionAddButton"
 
+/** One manual row of the menu: an icon tile, a name, a one-line hint. */
+export interface CreateWithAIMenuItem {
+    key: string
+    icon: ReactNode
+    title: string
+    hint: string
+    onSelect: () => void
+}
+
 export interface CreateWithAIAddMenuProps {
     /** Accessible name of the "+" ("Add skill"). */
     label: string
     /** Text the composer receives. The caret lands after it, so it reads as an open sentence. */
     starterPrompt: string
     /** The section's existing add flow. */
-    onManual: () => void
+    onManual?: () => void
     /** Row copy for the manual add ("Add manually"). */
-    manualTitle: string
-    manualHint: string
-    manualIcon: ReactNode
+    manualTitle?: string
+    manualHint?: string
+    manualIcon?: ReactNode
+    /** Several manual rows in place of the one above (for example one per kind). */
+    manualItems?: CreateWithAIMenuItem[]
+    /** "Create with AI" goes after the manual rows instead of before them. */
+    aiLast?: boolean
+    /** The hint under "Create with AI", when the section has its own words for it. */
+    aiHint?: string
 }
 
 /** One row: an icon tile, a name, a one-line hint. Same shape as the header's Share menu. */
@@ -70,6 +85,9 @@ export function CreateWithAIAddMenu({
     manualTitle,
     manualHint,
     manualIcon,
+    manualItems,
+    aiLast = false,
+    aiHint,
 }: CreateWithAIAddMenuProps) {
     const t = useT(configItemsCatalog)
     const requestPrefill = useSetAtom(composerPrefillRequestAtom)
@@ -80,6 +98,28 @@ export function CreateWithAIAddMenu({
         choseAIRef.current = true
         requestPrefill({id: Date.now(), text: starterPrompt})
     }, [requestPrefill, starterPrompt])
+
+    const aiRow = (
+        <MenuRow
+            icon={<Sparkle size={16} />}
+            title={t("entityUi.configItems.createWithAi")}
+            hint={aiHint ?? t("entityUi.configItems.createWithAiHint")}
+            onSelect={createWithAI}
+        />
+    )
+    const manualRows: CreateWithAIMenuItem[] =
+        manualItems ??
+        (onManual
+            ? [
+                  {
+                      key: "manual",
+                      icon: manualIcon,
+                      title: manualTitle ?? "",
+                      hint: manualHint ?? "",
+                      onSelect: onManual,
+                  },
+              ]
+            : [])
 
     return (
         <DropdownMenu>
@@ -95,18 +135,17 @@ export function CreateWithAIAddMenu({
                     event.preventDefault()
                 }}
             >
-                <MenuRow
-                    icon={<Sparkle size={16} />}
-                    title={t("entityUi.configItems.createWithAi")}
-                    hint={t("entityUi.configItems.createWithAiHint")}
-                    onSelect={createWithAI}
-                />
-                <MenuRow
-                    icon={manualIcon}
-                    title={manualTitle}
-                    hint={manualHint}
-                    onSelect={onManual}
-                />
+                {aiLast ? null : aiRow}
+                {manualRows.map((item) => (
+                    <MenuRow
+                        key={item.key}
+                        icon={item.icon}
+                        title={item.title}
+                        hint={item.hint}
+                        onSelect={item.onSelect}
+                    />
+                ))}
+                {aiLast ? aiRow : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )

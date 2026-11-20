@@ -139,9 +139,6 @@ function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
                 <ConnectDrawer
                     open={connectOpen}
                     integrationKey={item.name}
-                    integrationName={name}
-                    integrationLogo={logo ?? undefined}
-                    authSchemes={integration?.auth_schemes ?? ["oauth"]}
                     owners={["user"]}
                     onClose={() => setConnectOpen(false)}
                     onSuccess={() => setConnectOpen(false)}

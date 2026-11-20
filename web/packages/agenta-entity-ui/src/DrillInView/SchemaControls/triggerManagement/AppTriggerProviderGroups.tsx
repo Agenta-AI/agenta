@@ -3,14 +3,12 @@ import {useCallback, useMemo, type ReactNode} from "react"
 
 import {
     isEntityActive,
-    triggerSubscriptionDrawerAtom,
     useTriggerCatalogIntegrations,
     useTriggerConnectionsQuery,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
-import {useSetAtom} from "jotai"
 
 import {SubscriptionChildRow} from "./SubscriptionChildRow"
 
@@ -43,17 +41,19 @@ export function AppTriggerProviderGroups({
     entityId,
     disabled,
     subscriptionMenu,
+    onOpenSubscription,
 }: {
     scopedSubscriptions: TriggerSubscription[]
     entityId: string | null
     disabled?: boolean
     /** Builds a row's composed "⋯" menu body (`DropdownMenuItem` JSX). */
     subscriptionMenu: (record: TriggerSubscription) => ReactNode
+    /** A row click: opens the automation. */
+    onOpenSubscription: (id: string) => void
 }) {
     const t = useT(triggersCatalog)
     const {connections} = useTriggerConnectionsQuery()
     const {integrations} = useTriggerCatalogIntegrations()
-    const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
 
     const connById = useMemo(
         () => new Map(connections.map((c) => [c.id, c] as const)),
@@ -153,13 +153,7 @@ export function AppTriggerProviderGroups({
                                 eventKey={record.data?.event_key ?? undefined}
                                 playgroundEntityId={entityId}
                                 runDisabled={disabled || !record.id}
-                                onOpen={() =>
-                                    record.id &&
-                                    openSubscriptionDrawer({
-                                        subscriptionId: record.id,
-                                        playgroundEntityId: entityId ?? undefined,
-                                    })
-                                }
+                                onOpen={() => record.id && onOpenSubscription(record.id)}
                                 menu={subscriptionMenu(record)}
                             />
                         )

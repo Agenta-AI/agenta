@@ -2,6 +2,7 @@ import {AutomationRunConversationUnavailable} from "@agenta/automation-ui"
 import dynamic from "next/dynamic"
 
 import {conversationKey} from "../chat/conversationKey"
+import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
 import {ChatLoading} from "../chat/states/ChatStates"
 import {useAgentEntity} from "../chat/useAgentEntity"
@@ -57,7 +58,9 @@ export const AutomationRunConversation = ({
     }
 
     return (
-        <>
+        // "embedded": a run's conversation sits beside the page's own (the session in the
+        // panel's host), so a key press with the focus in neither answers only the page's card.
+        <ConversationRoleContext.Provider value="embedded">
             <LiveConversation
                 // Per session — the pane swaps transcripts as runs are picked, and the engine's
                 // per-session state must not survive that swap.
@@ -75,6 +78,6 @@ export const AutomationRunConversation = ({
                 sharedReader={sharedReader}
             />
             <CatalogDrawer />
-        </>
+        </ConversationRoleContext.Provider>
     )
 }
