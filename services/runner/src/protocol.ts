@@ -172,6 +172,8 @@ export interface ResolvedToolSpec {
    * Layer-3 permission: `allow` runs with no prompt, `ask` raises a
    * human-in-the-loop request, `deny` never runs. Absent = fall back to the global
    * permission plan. The SDK derives a default from `readOnly` when the author set none.
+   * For the three session writes it is `ask` unless the configured permission is `deny`; the
+   * configured permission is then in `configuredPermission`.
    */
   permission?: ToolPermission;
   /**

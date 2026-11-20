@@ -6,6 +6,7 @@ import {
 import {
   declinedByUserText,
   deniedByPolicyText,
+  targetNotAllowedText,
 } from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
 import type {
@@ -68,20 +69,22 @@ export function buildExecutableToolGate({
         readOnlyHint: request.spec.readOnly,
         args: request.input,
       };
+      let preApproved = false;
       const verdict = await responder.onPermission({
         id: request.id,
-        // No tool call id: the seam's id is minted per request and is not the harness's id, so a
-        // kept server answer could never match it. A session write that the harness gate already
-        // asked about is asked again here.
         availableReplies: ["once", "reject"],
         gate,
         raw: { spec: request.spec },
+        // Only a call the seam would otherwise park looks for a grant, so a policy allow or deny
+        // still wins outright and grants are spent only where they change the outcome. A grant
+        // also stands for a server allow at the harness gate, so the server is not asked twice.
+        takeGrant: () => {
+          preApproved = Boolean(
+            executionGrants?.consume(request.spec.name, request.input),
+          );
+          return preApproved;
+        },
       });
-      // Only a call the seam would otherwise park looks for a grant, so a policy allow or deny
-      // still wins outright and grants are spent only where they change the outcome.
-      const preApproved =
-        verdict.kind === "pendingApproval" &&
-        Boolean(executionGrants?.consume(request.spec.name, request.input));
       if (process.env.AGENTA_RUNNER_DEBUG_TOOLS) {
         log(
           `[executable-tool] ${request.toolName} id=${request.toolCallId} ` +
@@ -89,20 +92,18 @@ export function buildExecutableToolGate({
             (preApproved ? " grant=consumed" : ""),
         );
       }
-      if (preApproved) return { kind: "allow" };
-      if (verdict.kind === "allow") {
-        // A server allow at the harness gate also left a grant. Spend it here, so it cannot
-        // later answer a call with the same arguments that the server sends to a card.
-        if (verdict.gateAnswerBasis !== undefined) {
-          executionGrants?.consume(request.spec.name, request.input);
-        }
-        return { kind: "allow" };
-      }
+      if (verdict.kind === "allow") return { kind: "allow" };
       if (verdict.kind === "deny") {
-        // A server deny at the gate is a policy refusal too (a denied target), never a person's.
+        // A server deny at the gate refuses one target (D34), not the tool and not a person's
+        // answer, so the model may still pick another target.
+        if (verdict.byGateAnswer) {
+          return {
+            kind: "deny",
+            reason: targetNotAllowedText(request.toolName),
+          };
+        }
         const byPolicy =
           !permissionPlan ||
-          verdict.gateAnswerBasis !== undefined ||
           effectivePermission(gate, permissionPlan) === "deny";
         return {
           kind: "deny",

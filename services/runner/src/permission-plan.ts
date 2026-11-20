@@ -66,8 +66,8 @@ export type Verdict =
   | {
       kind: "allow" | "deny";
       interactionToken?: string;
-      /** Set when the server answered at the gate (`resolve_gate`), with its basis. */
-      gateAnswerBasis?: string;
+      /** Set when the server answered at the gate (`resolve_gate`), not the configuration. */
+      byGateAnswer?: true;
     }
   | { kind: "pendingApproval" };
 

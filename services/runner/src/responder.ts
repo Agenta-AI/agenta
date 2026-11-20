@@ -25,7 +25,7 @@ import {
   type StoredPermissionDecisions,
   type Verdict,
 } from "./permission-plan.ts";
-import type { GateAnswer, GateAnswerFetcher } from "./tools/gate-answer.ts";
+import type { GateAnswerFetcher } from "./tools/gate-answer.ts";
 
 export type PermissionDecision = "allow" | "deny";
 
@@ -37,6 +37,13 @@ export interface PermissionGateRequest {
   id: string;
   /** The harness's id for the gated call, when the gate knows it. */
   toolCallId?: string;
+  /**
+   * Spends an approval that an earlier gate of this same call left (an execution grant), and
+   * says whether there was one. Called only when the configuration would show a card, before
+   * the server is asked, so a call that a person or the server already allowed runs once and
+   * the server is not asked a second time.
+   */
+  takeGrant?: () => boolean;
   availableReplies: string[];
   gate: GateDescriptor;
   raw?: unknown;
@@ -348,15 +355,6 @@ export class ConversationDecisions implements StoredPermissionDecisions {
  * stored browser output is already available"; `deny` refuses the call.
  */
 export class ApprovalResponder implements Responder {
-  /**
-   * Server answers kept for the next gate of the same call, keyed by `approvedCallKey` plus the
-   * tool call id, so a harness that raises the gate of one call again does not ask the server
-   * again. The id alone is not enough: some harnesses reuse short ids, so a key by id could
-   * answer a later call with other arguments. The next gate of the call takes the entry out, and
-   * a gate with no tool call id keeps nothing.
-   */
-  private readonly gateAnswers = new Map<string, GateAnswer>();
-
   constructor(
     private readonly plan: PermissionPlan,
     private readonly decisions: ConversationDecisions,
@@ -367,13 +365,16 @@ export class ApprovalResponder implements Responder {
   async onPermission(request: PermissionGateRequest): Promise<Verdict> {
     const permission = effectivePermission(request.gate, this.plan);
     let verdict = decide(request.gate, this.plan, this.decisions);
-    // Only a call that would show a card asks the server, and only for a runner-executed tool:
-    // the answer can remove that card or refuse the call, never skip a policy decision.
+    // Only a call that would show a card spends a grant or asks the server, and only for a
+    // runner-executed tool: the answer can remove that card or refuse the call, never skip a
+    // policy decision. A grant that an earlier gate of this call left answers first.
     if (
       verdict.kind === "pendingApproval" &&
       request.gate.executor === "relay"
     ) {
-      verdict = await this.serverVerdict(request);
+      verdict = request.takeGrant?.()
+        ? { kind: "allow" }
+        : await this.serverVerdict(request);
     }
     this.log(
       `[HITL] gate toolName=${JSON.stringify(request.gate.toolName)} ` +
@@ -385,25 +386,16 @@ export class ApprovalResponder implements Responder {
   private async serverVerdict(
     request: PermissionGateRequest,
   ): Promise<Verdict> {
-    const { gate, toolCallId } = request;
-    const callKey = approvedCallKey(gate.toolName, gate.args);
-    const cacheKey =
-      callKey && toolCallId ? `${callKey}#${toolCallId}` : undefined;
-    let answer = cacheKey ? this.gateAnswers.get(cacheKey) : undefined;
-    if (answer) {
-      this.gateAnswers.delete(cacheKey!);
-    } else {
-      const pending = this.fetchGateAnswer?.({
-        toolName: gate.toolName,
-        toolCallId,
-        args: gate.args,
-      });
-      if (!pending) return { kind: "pendingApproval" };
-      answer = await pending;
-      if (cacheKey) this.gateAnswers.set(cacheKey, answer);
+    const { gate } = request;
+    const answer = await this.fetchGateAnswer?.({
+      toolName: gate.toolName,
+      callId: request.toolCallId ?? request.id,
+      args: gate.args,
+    });
+    if (!answer || answer.permission === "ask") {
+      return { kind: "pendingApproval" };
     }
-    if (answer.permission === "ask") return { kind: "pendingApproval" };
-    return { kind: answer.permission, gateAnswerBasis: answer.basis };
+    return { kind: answer.permission, byGateAnswer: true };
   }
 
   async onClientTool(

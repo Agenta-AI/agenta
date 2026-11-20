@@ -50,7 +50,8 @@ export interface GateAnswer {
  */
 export type GateAnswerFetcher = (input: {
   toolName: string | undefined;
-  toolCallId: string | undefined;
+  /** The harness's tool call id, or the gate's own request id when the gate has none. */
+  callId: string;
   args: unknown;
 }) => Promise<GateAnswer> | undefined;
 
@@ -62,20 +63,22 @@ export function buildGateAnswerFetcher(input: {
   executionId: string;
   signal?: AbortSignal;
   log?: (message: string) => void;
+  /** Tests only; the runner uses `GATE_ANSWER_TIMEOUT_MS`. */
+  timeoutMs?: number;
 }): GateAnswerFetcher {
   const specsByName = new Map(
     input.toolSpecs.map((spec) => [spec.name, spec] as const),
   );
-  return ({ toolName, toolCallId, args }) => {
+  return ({ toolName, callId, args }) => {
     const spec = toolName ? specsByName.get(toolName) : undefined;
     if (!spec?.callRef || !GATE_ANSWER_CALL_REFS.has(spec.callRef))
       return undefined;
-    return fetchAnswer(spec, toolCallId, args);
+    return fetchAnswer(spec, callId, args);
   };
 
   async function fetchAnswer(
     spec: ResolvedToolSpec,
-    toolCallId: string | undefined,
+    callId: string,
     args: unknown,
   ): Promise<GateAnswer> {
     const started = Date.now();
@@ -91,12 +94,14 @@ export function buildGateAnswerFetcher(input: {
         input.runContext,
       );
       // `callAgentaTool` adds a grace window to its own budget, so the limit rides the signal.
-      const limit = AbortSignal.timeout(GATE_ANSWER_TIMEOUT_MS);
+      const limit = AbortSignal.timeout(
+        input.timeoutMs ?? GATE_ANSWER_TIMEOUT_MS,
+      );
       const raw = await callAgentaTool(
         endpoint,
         input.callback?.credential(),
         RESOLVE_GATE_CALL_REF,
-        `resolve-gate-${toolCallId ?? spec.name}`,
+        `resolve-gate-${callId}`,
         {
           call_ref: spec.callRef,
           arguments: callArgs,
@@ -111,13 +116,13 @@ export function buildGateAnswerFetcher(input: {
       answer = parseAnswer(raw);
     } catch (error) {
       input.log?.(
-        `[HITL] resolve_gate failed tool=${spec.name}; the card shows: ` +
+        `[HITL] resolve_gate failed toolName=${JSON.stringify(spec.name)}; the card shows: ` +
           `${error instanceof Error ? error.message : String(error)}`,
       );
       answer = { permission: "ask" };
     }
     input.log?.(
-      `[HITL] resolve_gate tool=${spec.name} permission=${answer.permission} ` +
+      `[HITL] resolve_gate toolName=${JSON.stringify(spec.name)} permission=${answer.permission} ` +
         `basis=${answer.basis ?? "none"} ms=${Date.now() - started}`,
     );
     return answer;

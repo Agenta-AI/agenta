@@ -58,7 +58,9 @@ When the run's permissions say `ask` for `start_session`, `send_session_message`
 names, and whether a person sent the turn. `allow` runs the call with no card, `deny` refuses
 it with no card, and `ask` shows the card. A fault, an unknown op or no answer within 5 seconds
 reads as `ask`, so the card shows as before. The runner logs each answer as
-`[HITL] resolve_gate tool=... permission=... basis=... ms=...`. Other tools never ask the API.
+`[HITL] resolve_gate toolName=... permission=... basis=... ms=...`. Other tools never ask the
+API. On Claude and Codex the harness gate asks the API, and an `allow` leaves an execution
+grant that the runner's tool seam spends, so the API is asked once per call.
 
 ## Output and ingest limits
 

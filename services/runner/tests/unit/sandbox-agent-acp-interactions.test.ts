@@ -133,7 +133,7 @@ describe("attachPermissionResponder", () => {
     assert.equal(seen.permission?.[0].gate.toolName, "edit");
     assert.equal(seen.permission?.[0].gate.executor, "harness");
     assert.deepEqual(seen.permission?.[0].gate.args, { path: "a" });
-    // The server answer at the gate is kept per call, so the gate passes the call's id.
+    // The gate passes the call's id, which names the server request at the gate.
     assert.equal(seen.permission?.[0].toolCallId, "tool-1");
   });
 

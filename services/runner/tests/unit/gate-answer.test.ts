@@ -87,6 +87,7 @@ function stubFetch(
 function fetcher(
   toolSpecs: ResolvedToolSpec[] = [START, COMMIT],
   logs: string[] = [],
+  timeoutMs?: number,
 ): GateAnswerFetcher {
   return buildGateAnswerFetcher({
     callback: fixedToolCallback({
@@ -97,6 +98,7 @@ function fetcher(
     toolSpecs,
     executionId: EXECUTION,
     log: (line) => logs.push(line),
+    timeoutMs,
   });
 }
 
@@ -107,16 +109,16 @@ describe("buildGateAnswerFetcher", () => {
     );
     const fetch = fetcher();
     assert.equal(
-      fetch({ toolName: "commit_revision", toolCallId: "c1", args: {} }),
+      fetch({ toolName: "commit_revision", callId: "c1", args: {} }),
       undefined,
       "another platform op keeps its card and makes no call",
     );
     assert.equal(
-      fetch({ toolName: "unknown_tool", toolCallId: "c1", args: {} }),
+      fetch({ toolName: "unknown_tool", callId: "c1", args: {} }),
       undefined,
     );
     assert.equal(
-      fetch({ toolName: undefined, toolCallId: "c1", args: {} }),
+      fetch({ toolName: undefined, callId: "c1", args: {} }),
       undefined,
     );
     for (const callRef of [
@@ -126,7 +128,7 @@ describe("buildGateAnswerFetcher", () => {
     ]) {
       const asked = fetcher([{ name: "op", callRef }])({
         toolName: "op",
-        toolCallId: "c1",
+        callId: "c1",
         args: {},
       });
       assert.ok(asked, `${callRef} asks the server`);
@@ -139,7 +141,7 @@ describe("buildGateAnswerFetcher", () => {
     );
     const answer = await fetcher()({
       toolName: "start_session",
-      toolCallId: "call-1",
+      callId: "call-1",
       args: {
         agent: "email-writer",
         message: "Draft it",
@@ -180,7 +182,7 @@ describe("buildGateAnswerFetcher", () => {
       { name: "cancel_session", callRef: "tools.agenta.cancel_session" },
     ])({
       toolName: "cancel_session",
-      toolCallId: "c",
+      callId: "c",
       args: { session_id: "s" },
     });
     assert.deepEqual(answer, { permission: "ask" });
@@ -195,7 +197,7 @@ describe("buildGateAnswerFetcher", () => {
     );
     const answer = await fetcher()({
       toolName: "start_session",
-      toolCallId: "c",
+      callId: "c",
       args: {},
     });
     assert.deepEqual(answer, {
@@ -235,7 +237,7 @@ describe("buildGateAnswerFetcher", () => {
         logs,
       )({
         toolName: "start_session",
-        toolCallId: "c",
+        callId: "c",
         args: {},
       });
       assert.deepEqual(result, { permission: "ask" });
@@ -252,7 +254,7 @@ describe("buildGateAnswerFetcher", () => {
       runContext: undefined,
       toolSpecs: [START],
       executionId: EXECUTION,
-    })({ toolName: "start_session", toolCallId: "c", args: {} });
+    })({ toolName: "start_session", callId: "c", args: {} });
     assert.deepEqual(answer, { permission: "ask" });
     assert.equal(sent.length, 0);
   });
@@ -263,42 +265,43 @@ describe("buildGateAnswerFetcher", () => {
     );
     const answer = await fetcher([
       { ...START, contextBindings: { session_id: "$ctx.session.id" } },
-    ])({ toolName: "start_session", toolCallId: "c", args: {} });
+    ])({ toolName: "start_session", callId: "c", args: {} });
     assert.deepEqual(answer, { permission: "ask" });
     assert.equal(sent.length, 0);
   });
 
-  it(
-    "gives up after the time limit and reads ask",
-    async () => {
-      stubFetch(
-        () =>
-          new Promise<Response>(() => {
-            // Never answers.
-          }),
-      );
-      // The stub ignores the signal, so wire the abort the way the platform fetch does.
-      const hanging = globalThis.fetch;
-      globalThis.fetch = ((url: any, init: any) =>
-        new Promise<Response>((resolve, reject) => {
-          init?.signal?.addEventListener("abort", () =>
-            reject(init.signal.reason ?? new Error("aborted")),
-          );
-          void hanging(url, init).then(resolve, reject);
-        })) as typeof fetch;
-      const started = Date.now();
-      const answer = await fetcher()({
-        toolName: "start_session",
-        toolCallId: "c",
-        args: {},
-      });
-      const waited = Date.now() - started;
-      assert.deepEqual(answer, { permission: "ask" });
-      assert.ok(waited >= GATE_ANSWER_TIMEOUT_MS - 50, `waited ${waited} ms`);
-      assert.ok(waited < GATE_ANSWER_TIMEOUT_MS + 2_000, `waited ${waited} ms`);
-    },
-    GATE_ANSWER_TIMEOUT_MS + 5_000,
-  );
+  it("gives up after the time limit and reads ask", async () => {
+    assert.equal(GATE_ANSWER_TIMEOUT_MS, 5_000);
+    stubFetch(
+      () =>
+        new Promise<Response>(() => {
+          // Never answers.
+        }),
+    );
+    // The stub ignores the signal, so wire the abort the way the platform fetch does.
+    const hanging = globalThis.fetch;
+    globalThis.fetch = ((url: any, init: any) =>
+      new Promise<Response>((resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(init.signal.reason ?? new Error("aborted")),
+        );
+        void hanging(url, init).then(resolve, reject);
+      })) as typeof fetch;
+    const limit = 100;
+    const started = Date.now();
+    const answer = await fetcher(
+      undefined,
+      undefined,
+      limit,
+    )({
+      toolName: "start_session",
+      callId: "c",
+      args: {},
+    });
+    const waited = Date.now() - started;
+    assert.deepEqual(answer, { permission: "ask" });
+    assert.ok(waited >= limit - 20, `waited ${waited} ms`);
+  });
 });
 
 function relayGate(overrides: Partial<GateDescriptor> = {}): GateDescriptor {
@@ -315,7 +318,7 @@ function relayGate(overrides: Partial<GateDescriptor> = {}): GateDescriptor {
 function fakeFetcher(permission: "allow" | "ask" | "deny") {
   const calls: Array<{
     toolName?: string;
-    toolCallId?: string;
+    callId: string;
     args: unknown;
   }> = [];
   const fetch: GateAnswerFetcher = (input) => {
@@ -356,10 +359,10 @@ describe("ApprovalResponder at the gate", () => {
     const verdict = await ask(responder(fetch), relayGate(), "call-1");
     assert.deepEqual(verdict, {
       kind: "allow",
-      gateAnswerBasis: "configured_permission",
+      byGateAnswer: true,
     });
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].toolCallId, "call-1");
+    assert.equal(calls[0].callId, "call-1");
   });
 
   it("refuses the call with no card when the server answers deny", async () => {
@@ -367,7 +370,7 @@ describe("ApprovalResponder at the gate", () => {
     const verdict = await ask(responder(fetch), relayGate(), "call-1");
     assert.deepEqual(verdict, {
       kind: "deny",
-      gateAnswerBasis: "configured_permission",
+      byGateAnswer: true,
     });
   });
 
@@ -427,18 +430,50 @@ describe("ApprovalResponder at the gate", () => {
     assert.equal(calls.length, 0);
   });
 
-  it("answers the second gate of the same call from the kept answer, once", async () => {
-    const { calls, fetch } = fakeFetcher("allow");
-    const r = responder(fetch);
-    assert.equal((await ask(r, relayGate(), "call-1")).kind, "allow");
-    assert.equal((await ask(r, relayGate(), "call-1")).kind, "allow");
-    assert.equal(calls.length, 1, "the second gate reads the kept answer");
-    // The second gate took the entry out, so a third gate asks again.
-    await ask(r, relayGate(), "call-1");
-    assert.equal(calls.length, 2);
+  it("spends a grant that an earlier gate left, and does not ask the server", async () => {
+    const { calls, fetch } = fakeFetcher("deny");
+    let taken = 0;
+    const verdict = await responder(fetch).onPermission({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      gate: relayGate(),
+      takeGrant: () => {
+        taken += 1;
+        return true;
+      },
+    });
+    assert.deepEqual(verdict, { kind: "allow" });
+    assert.equal(taken, 1);
+    assert.equal(calls.length, 0);
   });
 
-  it("asks again for a reused tool call id with other arguments", async () => {
+  it("asks the server when no grant is left", async () => {
+    const { calls, fetch } = fakeFetcher("allow");
+    const verdict = await responder(fetch).onPermission({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      gate: relayGate(),
+      takeGrant: () => false,
+    });
+    assert.deepEqual(verdict, { kind: "allow", byGateAnswer: true });
+    assert.equal(calls.length, 1);
+  });
+
+  it("does not spend a grant when the configuration already decided", async () => {
+    let taken = 0;
+    await responder(fakeFetcher("allow").fetch).onPermission({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      gate: relayGate({ specPermission: "deny" }),
+      takeGrant: () => {
+        taken += 1;
+        return true;
+      },
+    });
+    assert.equal(taken, 0);
+  });
+
+  it("asks the server for every gate, with no kept answer", async () => {
     const { calls, fetch } = fakeFetcher("allow");
     const r = responder(fetch);
     await ask(r, relayGate(), "call-1");
@@ -454,19 +489,9 @@ describe("ApprovalResponder at the gate", () => {
     });
   });
 
-  it("asks again for the same arguments under another tool call id", async () => {
+  it("names the server request by the gate's id when there is no tool call id", async () => {
     const { calls, fetch } = fakeFetcher("allow");
-    const r = responder(fetch);
-    await ask(r, relayGate(), "call-1");
-    await ask(r, relayGate(), "call-2");
-    assert.equal(calls.length, 2);
-  });
-
-  it("keeps no answer when the gate has no tool call id", async () => {
-    const { calls, fetch } = fakeFetcher("allow");
-    const r = responder(fetch);
-    await ask(r, relayGate());
-    await ask(r, relayGate());
-    assert.equal(calls.length, 2);
+    await ask(responder(fetch), relayGate());
+    assert.equal(calls[0].callId, "perm-1");
   });
 });
