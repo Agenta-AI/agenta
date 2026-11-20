@@ -387,7 +387,8 @@ export function decisionsFromInteractionRows(
     if (!token) continue;
     const request = row.data?.request;
     if (!request || typeof request.tool !== "string" || !request.tool) continue;
-    if (request.args === undefined || request.args === null) continue;
+    // No `args` is a call with no arguments (the write drops an undefined value);
+    // `approvedCallKey` keys it as `{}`, the same key the gate computes.
     const decision =
       verdictOf(row.data?.resolution) ?? verdictOf(row.resolution);
     if (!decision) continue;

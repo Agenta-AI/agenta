@@ -121,12 +121,6 @@ describe("decisionsFromInteractionRows", () => {
       row({ data: {} }),
       row({
         data: {
-          request: { tool: "run_tool" },
-          resolution: { verdict: "approved" },
-        },
-      }),
-      row({
-        data: {
           request: { tool: "", args },
           resolution: { verdict: "approved" },
         },
@@ -141,6 +135,22 @@ describe("decisionsFromInteractionRows", () => {
     ];
 
     assert.deepEqual(decisionsFromInteractionRows(malformed), []);
+  });
+
+  it("seeds an answered call that has no arguments under the gate's no-argument key", () => {
+    // The write drops an undefined `args`, so the stored request has no `args` at all.
+    const seeded = decisionsFromInteractionRows([
+      row({
+        data: {
+          request: { tool: "run_tool" },
+          resolution: { verdict: "approved" },
+        },
+      }),
+    ]);
+    assert.deepEqual(
+      seeded.map((entry) => entry.key),
+      [approvedCallKey("run_tool", undefined)],
+    );
   });
 
   it("reads the contract spelling, resolution.verdict", () => {
