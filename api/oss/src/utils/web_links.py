@@ -41,7 +41,7 @@ def web_path(*segments: object) -> str:
 def agent_page_url(
     *,
     web_url: Optional[str],
-    workspace_id: Optional[UUID],
+    organization_id: Optional[UUID],
     project_id: UUID,
     agent_id: UUID,
 ) -> Optional[str]:
@@ -52,7 +52,7 @@ def agent_page_url(
     app's own gate (``decideMobileGate`` in ``@agenta/shared/utils/mobileGate``).
     """
     base = web_base_url(web_url)
-    if base is None or workspace_id is None:
+    if base is None or organization_id is None:
         return None
-    path = web_path("m", "w", workspace_id, "p", project_id, "agents", agent_id)
+    path = web_path("m", "w", organization_id, "p", project_id, "agents", agent_id)
     return f"{base}/{path}"
