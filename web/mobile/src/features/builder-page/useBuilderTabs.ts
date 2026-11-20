@@ -102,7 +102,9 @@ export const useBuilderTabs = ({
     }, [addressKey, onThisChat, sessionId])
 
     const onMessagesChanged = useCallback(
-        (messages: UIMessage[]) =>
+        (messages: UIMessage[]) => {
+            // No message yet (a new chat, or history still loading): nothing names an agent.
+            if (!messages.length) return
             commit((current) =>
                 followBuilderResults(
                     current,
@@ -110,7 +112,8 @@ export const useBuilderTabs = ({
                     latestContextAgent(messages) ??
                         (linkedAgentId ? {id: linkedAgentId, name: ""} : null),
                 ),
-            ),
+            )
+        },
         [commit, linkedAgentId],
     )
 

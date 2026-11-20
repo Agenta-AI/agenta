@@ -6,6 +6,7 @@
  * with "N more".
  */
 import {act, renderHook} from "@testing-library/react"
+import type {UIMessage} from "ai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
@@ -177,7 +178,11 @@ describe("useBuilderTabs and the address", () => {
         const hook = renderHook(() =>
             useBuilderTabs({...base, routeChatId: null, linkedAgentId: "linked", tab: undefined}),
         )
+        // History still loading: no tab yet.
         act(() => hook.result.current.onMessagesChanged([]))
+        expect(hook.result.current.state.active).toBeNull()
+        const hello = {id: "u1", role: "user", parts: [{type: "text", text: "hello"}]} as UIMessage
+        act(() => hook.result.current.onMessagesChanged([hello]))
         expect(hook.result.current.state.active).toBe("agent:linked")
     })
 

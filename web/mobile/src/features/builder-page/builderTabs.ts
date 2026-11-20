@@ -174,9 +174,9 @@ export const applyAddressTab = (
 /**
  * The chat's builder results as they stand (on load and after each change). A chat with no tab
  * yet opens one for the agent of its latest result, else `fallbackAgent` (the page context, else
- * the browser link), and counts every result so far as followed. After that, each result not yet followed is recorded, and a saved
- * one opens its agent's tab with a dot (`followBuilderResult`); a result with no change, a
- * refusal or a denied call changes no tab.
+ * the browser link), and counts every result so far as followed. After that, each result not
+ * yet followed is recorded, and a saved one opens its agent's tab with a dot
+ * (`followBuilderResult`); a result with no change, a refusal or a denied call changes no tab.
  */
 export const followBuilderResults = (
     state: BuilderTabsState,

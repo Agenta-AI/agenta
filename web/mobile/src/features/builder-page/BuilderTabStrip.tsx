@@ -61,6 +61,8 @@ const TabButton = ({
             data-tab-key={builderTabKey(tab)}
             onClick={onActivate}
             onKeyDown={(event) => {
+                // Keys on the close button are the button's own.
+                if (event.target !== event.currentTarget) return
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()
                     onActivate?.()
