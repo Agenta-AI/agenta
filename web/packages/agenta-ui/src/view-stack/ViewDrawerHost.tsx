@@ -5,6 +5,7 @@ import {useIsPhone} from "../phone/useIsPhone"
 
 import {useViewStack} from "./context"
 import {DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"
+import {PhoneViewChrome} from "./PhoneViewChrome"
 import type {ViewDef, ViewStack, ViewTarget} from "./types"
 import {ViewStackHost} from "./ViewStackHost"
 
@@ -38,7 +39,8 @@ export const ViewDrawerHost = <P,>({
     stackRef?: MutableRefObject<ViewStack | null>
 }) => {
     const [open, setOpen] = useState(true)
-    // On a phone the drawer covers the screen, so it follows the phone rules (read-only views).
+    // On a phone the drawer covers the screen with the phone chrome (back arrow, 44 px buttons)
+    // and follows the phone rules (read-only views).
     const phone = useIsPhone()
     const ownStackRef = useRef<ViewStack | null>(null)
     const stackRef = outerStackRef ?? ownStackRef
@@ -62,10 +64,15 @@ export const ViewDrawerHost = <P,>({
             // inside a view takes its own Escape first.
             keyboard={false}
             onEscapeKeyDown={() => void stackRef.current?.back()}
-            styles={{body: {padding: 0, display: "flex", flexDirection: "column"}}}
+            styles={{
+                body: {padding: 0, display: "flex", flexDirection: "column"},
+                ...(phone
+                    ? {content: {inset: 0, width: "100%", maxWidth: "100%", borderRadius: 0}}
+                    : null),
+            }}
         >
             <DrawerCloseContext.Provider value={close}>
-                <ViewStackHost chrome={DrawerViewChrome} phone={phone}>
+                <ViewStackHost chrome={phone ? PhoneViewChrome : DrawerViewChrome} phone={phone}>
                     <OpenOnMount
                         request={request as ViewRequest}
                         stackRef={stackRef}

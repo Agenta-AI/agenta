@@ -18,8 +18,9 @@ import {selectedRevisionAtomFamily} from "../chat/selectedRevision"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {useAgentPanel} from "./agentPanelContext"
-import {ConfigurationRoot, shownConfigTab} from "./ConfigurationRoot"
+import {ConfigurationRoot} from "./ConfigurationRoot"
 import {PanelViewChrome} from "./PanelViewChrome"
+import {shownConfigTab} from "./shownConfigTab"
 import {StackGuards} from "./StackGuards"
 
 // The channel read loads on its own: its code is not part of the Configuration chunk.
