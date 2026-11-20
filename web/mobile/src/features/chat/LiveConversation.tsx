@@ -157,6 +157,7 @@ export const LiveConversation = ({
     inputRef,
     hideSlashCommands = false,
     userMessageAccessory,
+    canSwitchModel = true,
     onMessagesChanged,
 }: {
     entityId: string
@@ -208,6 +209,8 @@ export const LiveConversation = ({
     hideSlashCommands?: boolean
     /** Shown with each sent user message, from the message as stored (with its full text). */
     userMessageAccessory?: (message: UIMessage) => ReactNode
+    /** The person may switch this agent's model (not in the builder chat: the platform picks it). */
+    canSwitchModel?: boolean
     /** Called after the messages change (the builder page reads its tool results). */
     onMessagesChanged?: (messages: UIMessage[]) => void
 }) => {
@@ -1168,6 +1171,7 @@ export const LiveConversation = ({
                                             (personalSetup.open && !readOnly && !accessPending)
                                         }
                                         onSwitchModel={() => modelPickerRef.current?.()}
+                                        canSwitchModel={canSwitchModel}
                                     />
                                 </ContentRail>
                             </div>

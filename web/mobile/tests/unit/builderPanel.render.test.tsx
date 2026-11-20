@@ -24,6 +24,7 @@ interface SeenProps {
     belowComposer?: ReactNode
     composerPlaceholder?: string
     hideSlashCommands?: boolean
+    canSwitchModel?: boolean
     userMessageAccessory?: (message: UIMessage) => ReactNode
 }
 const seen = vi.hoisted(() => ({
@@ -223,6 +224,7 @@ describe("BuilderPanel: which chat opens", () => {
         expect(seen.props?.entityId).toBe("builder-rev")
         expect(seen.role).toBe("embedded")
         expect(seen.props?.hideSlashCommands).toBe(true)
+        expect(seen.props?.canSwitchModel).toBe(false)
         expect(seen.props?.composerPlaceholder).toBe("Ask the builder about this agent")
     })
 

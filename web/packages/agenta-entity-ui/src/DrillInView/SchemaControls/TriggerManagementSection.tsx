@@ -54,7 +54,7 @@ import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 const tNow = createT(triggersCatalog)
 const tScreens = createT(automationsScreensCatalog)
 
-export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
+export {AddAutomationPhoneAction, AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
 export {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
@@ -84,6 +84,11 @@ export interface TriggerManagementSectionProps {
      * cannot import it directly (that package depends on this one), so the host passes it in.
      */
     automationDrawer: ReactNode
+    /**
+     * The phone shape (M10): flat rows whose line wraps, a switch on each row of a person who
+     * can edit, and 44 px controls. The host decides it (`useIsPhone`).
+     */
+    phone?: boolean
 }
 
 export function TriggerManagementSection({
@@ -92,6 +97,7 @@ export function TriggerManagementSection({
     onOpenRunHistory,
     onOpenAutomation,
     automationDrawer,
+    phone,
 }: TriggerManagementSectionProps) {
     const t = useT(triggersCatalog, automationsPanelCatalog)
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
@@ -325,13 +331,17 @@ export function TriggerManagementSection({
             {label}
         </h3>
     )
+    // On a phone each row has a switch that acts like "Activate" and "Deactivate" (M10). A person
+    // who cannot edit gets no switch: a read-only view shows no edit control.
+    const switches = phone && !disabled
+    const groupClass = `flex flex-col ${phone ? "gap-1" : "gap-2"}`
 
     return (
-        <div className="flex flex-col gap-3 py-3">
+        <div className={`flex flex-col py-3 ${phone ? "gap-4" : "gap-3"}`}>
             {/* Two groups, "Scheduled triggers" first; a group with no automation does not
                 show (F05 f1). App triggers stay grouped by the app they arrive from. */}
             {scopedSchedules.length > 0 ? (
-                <section className="flex flex-col gap-2">
+                <section className={groupClass}>
                     {groupHeading(t("automations.panel.scheduledTriggers"))}
                     {scopedSchedules.map((record) => (
                         <ScheduleTriggerRow
@@ -340,13 +350,24 @@ export function TriggerManagementSection({
                             disabled={disabled}
                             onOpen={() => record.id && openSchedule(record.id)}
                             menu={scheduleMenu(record)}
+                            phone={phone}
+                            onToggle={
+                                switches && record.id
+                                    ? (next) =>
+                                          void toggleAutomation(
+                                              setScheduleActive,
+                                              record.id as string,
+                                              next,
+                                          )
+                                    : undefined
+                            }
                         />
                     ))}
                 </section>
             ) : null}
 
             {scopedSubscriptions.length > 0 ? (
-                <section className="flex flex-col gap-2">
+                <section className={groupClass}>
                     {groupHeading(t("automations.panel.appTriggers"))}
                     <AppTriggerProviderGroups
                         scopedSubscriptions={scopedSubscriptions}
@@ -354,6 +375,19 @@ export function TriggerManagementSection({
                         disabled={disabled}
                         subscriptionMenu={subscriptionMenu}
                         onOpenSubscription={openSubscription}
+                        phone={phone}
+                        onToggleSubscription={
+                            switches
+                                ? (record, next) => {
+                                      if (record.id)
+                                          void toggleAutomation(
+                                              setSubscriptionActive,
+                                              record.id,
+                                              next,
+                                          )
+                                  }
+                                : undefined
+                        }
                     />
                 </section>
             ) : null}
