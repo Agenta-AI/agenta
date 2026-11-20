@@ -33,7 +33,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscription,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
-from oss.src.core.triggers.utils import compose_event_inputs, delete_hidden_schedule
+from oss.src.core.triggers.utils import compose_event_inputs, purge_hidden_schedule
 from oss.src.core.sessions.inputs.types import SessionInputError
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.dtos import (
@@ -435,7 +435,7 @@ class TriggersDispatcher:
             update.get("error"),
         )
         if schedule.flags.is_hidden:
-            await delete_hidden_schedule(
+            await purge_hidden_schedule(
                 dao=self.triggers_dao,
                 project_id=project_id,
                 schedule_id=schedule.id,

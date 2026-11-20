@@ -88,6 +88,11 @@ def _schedule_is_visible():
     ).is_(False)
 
 
+def _schedule_is_hidden():
+    """A hidden schedule (`flags.is_hidden`)."""
+    return TriggerScheduleDBE.flags.contains({"is_hidden": True})
+
+
 def _delivery_is_visible():
     """Not a delivery of a hidden schedule."""
     return ~(
@@ -95,7 +100,7 @@ def _delivery_is_visible():
         .where(
             TriggerScheduleDBE.project_id == TriggerDeliveryDBE.project_id,
             TriggerScheduleDBE.id == TriggerDeliveryDBE.schedule_id,
-            TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+            _schedule_is_hidden(),
         )
         .exists()
     )
@@ -1325,7 +1330,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
-                TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+                _schedule_is_hidden(),
             )
             stored = (await session.execute(stmt)).scalar_one_or_none()
             if stored is None:
@@ -1347,7 +1352,7 @@ class TriggersDAO(TriggersDAOInterface):
                 .where(
                     TriggerScheduleDBE.project_id == project_id,
                     TriggerScheduleDBE.id == schedule_id,
-                    TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+                    _schedule_is_hidden(),
                 )
                 .returning(TriggerScheduleDBE)
             )
@@ -1374,7 +1379,7 @@ class TriggersDAO(TriggersDAOInterface):
         stale = (
             select(TriggerScheduleDBE.project_id, TriggerScheduleDBE.id)
             .where(
-                TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+                _schedule_is_hidden(),
                 select(TriggerDeliveryDBE.id)
                 .where(
                     TriggerDeliveryDBE.project_id == TriggerScheduleDBE.project_id,

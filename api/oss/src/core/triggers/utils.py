@@ -196,7 +196,7 @@ def compose_event_inputs(
     return {**inputs, "messages": [*messages[:-1], {**last, "content": content}]}
 
 
-async def delete_hidden_schedule(
+async def purge_hidden_schedule(
     *,
     dao: Any,
     project_id: UUID,
@@ -213,15 +213,15 @@ async def delete_hidden_schedule(
     )
     if removed is None:
         return False
-    log_hidden_schedule_deleted(project_id=project_id, schedule=removed)
+    log_hidden_schedule_purged(project_id=project_id, schedule=removed)
     return True
 
 
-def log_hidden_schedule_deleted(*, project_id: UUID, schedule: Any) -> None:
-    """The log line of every delete of a hidden schedule: the schedule id, the target
+def log_hidden_schedule_purged(*, project_id: UUID, schedule: Any) -> None:
+    """The log line of every purge of a hidden schedule: the schedule id, the target
     session and the principal."""
     log.info(
-        "[SCHEDULE] Deleted hidden schedule",
+        "[SCHEDULE] Purged hidden schedule",
         schedule_id=str(schedule.id),
         project_id=str(project_id),
         session_id=schedule.data.session_id,

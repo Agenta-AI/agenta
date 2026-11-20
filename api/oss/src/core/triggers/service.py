@@ -72,8 +72,8 @@ from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.utils import (
     WebhookSecretResolver,
-    delete_hidden_schedule,
-    log_hidden_schedule_deleted,
+    purge_hidden_schedule,
+    log_hidden_schedule_purged,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
@@ -1977,7 +1977,7 @@ class TriggersService:
             raise ValueError("The schedule id names a schedule that is not hidden.")
         return schedule
 
-    async def delete_session_schedule(
+    async def purge_session_schedule(
         self,
         *,
         project_id: UUID,
@@ -1986,7 +1986,7 @@ class TriggersService:
     ) -> bool:
         """Remove a hidden schedule and its deliveries from the table, by id. A
         schedule that is gone is left as it is (False)."""
-        return await delete_hidden_schedule(
+        return await purge_hidden_schedule(
             dao=self.dao,
             project_id=project_id,
             schedule_id=schedule_id,
@@ -2201,7 +2201,7 @@ class TriggersService:
                 f"[SCHEDULE] Error removing stale hidden schedules: {e}", exc_info=True
             )
         for project_id, schedule in stale:
-            log_hidden_schedule_deleted(project_id=project_id, schedule=schedule)
+            log_hidden_schedule_purged(project_id=project_id, schedule=schedule)
 
         try:
             schedules = await self.dao.fetch_due_one_time_schedules(

@@ -324,7 +324,8 @@ class TriggerScheduleFlags(BaseModel):
     is_active: bool = True
     # A schedule that server code created (`TriggersService.create_session_schedule`).
     # The reads of the public routes leave it and its deliveries out, and the public
-    # create and edit routes refuse `true`.
+    # create and edit routes refuse `true`. Like every server-created schedule, it is
+    # purged (removed from the table) after its fire.
     is_hidden: bool = False
 
 

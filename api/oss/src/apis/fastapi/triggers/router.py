@@ -161,9 +161,9 @@ def _refuse_server_only_schedule_fields(
     only; the public create and edit routes refuse them."""
 
     server_only = {
-        "run_at": data.run_at is not None,
-        "session_id": data.session_id is not None,
-        "session_input": data.session_input is not None,
+        "data.run_at": data.run_at is not None,
+        "data.session_id": data.session_id is not None,
+        "data.session_input": data.session_input is not None,
         "flags.is_hidden": flags.is_hidden,
     }
     for field, is_set in server_only.items():

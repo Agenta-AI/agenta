@@ -262,10 +262,10 @@ class TestDeleteSessionSchedule:
         monkeypatch.setattr("oss.src.core.triggers.utils.log.info", logged)
         service = _service(dao)
 
-        assert await service.delete_session_schedule(
+        assert await service.purge_session_schedule(
             project_id=project_id, schedule_id=schedule.id
         )
-        assert not await service.delete_session_schedule(
+        assert not await service.purge_session_schedule(
             project_id=project_id, schedule_id=schedule.id
         )
 
