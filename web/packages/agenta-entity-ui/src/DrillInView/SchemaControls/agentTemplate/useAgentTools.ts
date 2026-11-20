@@ -4,7 +4,7 @@
  * writes plus the derived sets the section needs; subagents are written by their own views
  * (`subagentReference.ts`).
  */
-import {useCallback, useMemo, type MutableRefObject} from "react"
+import {useCallback, useMemo} from "react"
 
 import {migrateIntegration} from "../gatewayMigration"
 import {DEFAULT_INTEGRATION_PERMISSIONS, mergeToolPermission} from "../integrationPolicy"
@@ -26,13 +26,10 @@ import type {ItemKind} from "./itemKinds"
 export function useAgentTools({
     config,
     onChange,
-    configRef,
     openCreate,
 }: {
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
-    /** Latest config, so an async write does not clobber a concurrent edit. */
-    configRef: MutableRefObject<Record<string, unknown>>
     /** Opens the shared item-config drawer in "create" mode (for inline function tools). */
     openCreate: (kind: ItemKind, seed: Record<string, unknown>, view: "form" | "json") => void
 }) {

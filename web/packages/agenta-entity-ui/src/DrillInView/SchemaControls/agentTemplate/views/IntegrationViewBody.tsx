@@ -35,8 +35,6 @@ const noCreate = () => undefined
 const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewParams>) => {
     const t = useT(integrationViewsCatalog)
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
-    const configRef = useRef(writer.agent)
-    configRef.current = writer.agent
     const onChange = useCallback(
         (next: Record<string, unknown>) => writer.update(() => next),
         [writer],
@@ -46,7 +44,7 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
         setIntegrationAccount,
         setIntegrationPermissions,
         setIntegrationToolPermission,
-    } = useAgentTools({config: writer.agent, onChange, configRef, openCreate: noCreate})
+    } = useAgentTools({config: writer.agent, onChange, openCreate: noCreate})
     const integrationTarget = useMemo(() => integrationTargetOf(params.item), [params.item])
     // Found by key in the list as it is now: a builder save that changes the list under the open
     // view never puts another integration here.

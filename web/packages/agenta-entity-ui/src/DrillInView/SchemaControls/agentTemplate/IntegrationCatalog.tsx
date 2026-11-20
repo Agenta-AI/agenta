@@ -761,7 +761,8 @@ export function IntegrationCatalog({
         catalogRows.length === 0
     // Under a heading such as the project switch the group stays, except in a search.
     const showConnected = connectedGroups.length > 0 || (Boolean(connectedLabel) && !searching)
-    const yoursFooter = yours?.error ?? (!searching && yoursGroups.length === 0 ? yours?.empty : null)
+    const yoursFooter =
+        yours?.error ?? (!searching && yoursGroups.length === 0 ? yours?.empty : null)
 
     const search = (
         <SearchInput
