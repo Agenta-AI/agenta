@@ -2,7 +2,11 @@
 // A role without `view_spans` gets no trace action in a chat. That the trace atoms themselves
 // read nothing is covered in `@agenta/entities` (tests/unit/trace-access-gate.test.ts).
 import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
-import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {flushSync} from "react-dom"
@@ -46,6 +50,8 @@ const renderSettledTurn = () => {
     })
     const store = createStore()
     store.set(activeUserIdAtom, "qa-user")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     store.set(playgroundInspectorEnabledAtom, true)
     host = document.createElement("div")
     document.body.append(host)

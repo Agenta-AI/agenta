@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
-import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {flushSync} from "react-dom"
@@ -44,6 +48,8 @@ const renderAssistantTurn = (inspectorEnabled: boolean) => {
     })
     const store = createStore()
     store.set(activeUserIdAtom, "qa-user")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     store.set(playgroundInspectorEnabledAtom, inspectorEnabled)
     host = document.createElement("div")
     document.body.append(host)

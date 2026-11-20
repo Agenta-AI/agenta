@@ -69,6 +69,8 @@ beforeEach(() => {
     root = createRoot(host)
     store = createStore()
     store.set(activeUserIdAtom, "user-1")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     api.page.mockReset()
     api.canEdit = true
     window.matchMedia = ((query: string) => ({
@@ -162,7 +164,7 @@ describe("archived test sets route", () => {
             return [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
         }
 
-        // The deployment shows the view, but the reader is not in beta developer mode.
+        // The deployment shows the view, but the reader is not in Developer Mode.
         await mount()
         expect((await menuItems()).map((item) => item.textContent)).toEqual([
             "View details",
@@ -174,9 +176,6 @@ describe("archived test sets route", () => {
         document.body.appendChild(host)
         root = createRoot(host)
 
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-        localStorage.setItem("agenta:settings:user-1:beta-developer-mode", JSON.stringify(true))
-        // A fresh store reads the stored switch, as a page load does.
         store = createStore()
         store.set(activeUserIdAtom, "user-1")
         store.set(navSimplifiedOverrideAtom, false)

@@ -13,11 +13,6 @@ vi.mock("@/features/developer/developerViews", async () => ({
     DEVELOPER_VIEWS: (await import("./developerViewFixtures")).TEST_DEVELOPER_VIEWS,
 }))
 
-vi.mock("@agenta/shared/hooks", () => ({
-    desktopEscapeHref: () => "/w",
-    writeClassicModeCookie: vi.fn(),
-}))
-
 vi.mock("@agenta/ui/theme", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     useThemeMode: () => ({themeMode: "light", setMode: () => undefined}),

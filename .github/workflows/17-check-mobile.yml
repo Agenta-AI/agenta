@@ -221,8 +221,8 @@ jobs:
           }
           expect_status /m 200
           expect_status /m/__env.js 200
-          # basePath /m owns the prefix, so the bare root belongs to nothing.
-          expect_status / 404
+          # Root URLs are old desktop links: next.config.ts redirects them into /m.
+          expect_status / 307
           docker rm -f mobile-smoke
 
       - name: Check first-load JavaScript budget (/m must not get heavier)

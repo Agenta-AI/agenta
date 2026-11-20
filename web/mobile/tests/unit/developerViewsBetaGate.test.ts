@@ -5,7 +5,7 @@ import {
     navSimplifiedOverrideAtom,
 } from "@agenta/shared/state"
 import {createStore} from "jotai"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {
     developerViewPreviewSwitchesAtom,
@@ -13,24 +13,21 @@ import {
 } from "@/features/developer/developerViewAccess"
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 
-// The real registry on purpose: beta developer mode must turn on every view that ships.
-const store = (beta: boolean) => {
+// The real registry on purpose: Developer Mode must turn on every view that ships.
+const store = (developerMode: boolean) => {
     const s = createStore()
     s.set(activeUserIdAtom, "u1")
-    s.set(navSimplifiedOverrideAtom, false)
-    s.set(betaDeveloperModeFlagAtom, beta)
+    s.set(navSimplifiedOverrideAtom, !developerMode)
+    // The deployment flag is unset and the stored beta switch is off: neither plays a part.
+    s.set(betaDeveloperModeFlagAtom, false)
     return s
 }
 
-beforeEach(() => {
-    vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-})
 afterEach(() => {
-    vi.unstubAllGlobals()
     localStorage.clear()
 })
 
-describe("beta developer mode is the one gate", () => {
+describe("Developer Mode is the one gate", () => {
     it("turns on every developer view, including the ones every cross link checks", () => {
         const ids = store(true)
             .get(enabledDeveloperViewsAtom)
@@ -56,7 +53,7 @@ describe("beta developer mode is the one gate", () => {
         expect(store(true).get(developerViewPreviewSwitchesAtom)).toEqual([])
     })
 
-    it("with beta off keeps the stages and one switch per preview view", () => {
+    it("with Developer Mode off keeps the stages and one switch per preview view", () => {
         const s = store(false)
         const ids = s.get(enabledDeveloperViewsAtom)?.map((view) => view.id)
         expect(ids).toEqual(DEVELOPER_VIEWS.filter((v) => v.stage === "on").map((v) => v.id))

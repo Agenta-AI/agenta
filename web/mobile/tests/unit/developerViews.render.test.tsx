@@ -2,7 +2,7 @@
 import {act, type ReactNode} from "react"
 
 import {NavMenu} from "@agenta/navigation-ui"
-import {activeUserIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -86,6 +86,8 @@ describe("developer views", () => {
         root = createRoot(host)
         store = createStore()
         store.set(activeUserIdAtom, "u1")
+        // Developer Mode off: it alone would turn every developer view on.
+        store.set(navSimplifiedOverrideAtom, true)
     })
 
     afterEach(() => {

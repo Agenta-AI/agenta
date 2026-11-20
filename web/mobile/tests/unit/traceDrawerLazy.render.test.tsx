@@ -8,7 +8,12 @@ import {act} from "react"
 
 import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
 import {workspaceMembersAtom} from "@agenta/entities/organization"
-import {activeUserIdAtom, playgroundInspectorEnabledAtom, projectIdAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    playgroundInspectorEnabledAtom,
+    projectIdAtom,
+} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -127,6 +132,8 @@ const render = async (node: React.ReactNode) => {
     const store = createStore()
     store.set(projectIdAtom, "proj-1")
     store.set(activeUserIdAtom, "qa-user")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     store.set(playgroundInspectorEnabledAtom, true)
     host = document.createElement("div")
     document.body.append(host)

@@ -3,7 +3,6 @@ import {Html, Head, Main, NextScript, type DocumentProps} from "next/document"
 import Script from "next/script"
 
 import {isEmbedPath} from "@/features/embed/embedRoute"
-import {mobileGateScript} from "@/lib/mobileGateScript"
 
 // Runs synchronously before paint to apply the persisted theme, preventing a
 // flash of the wrong theme on load. Same localStorage key as the desktop app
@@ -37,8 +36,6 @@ export default function Document({__NEXT_DATA__}: DocumentProps) {
                 <meta property="og:image:height" content="1050" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="twitter:image" content="https://agenta.ai/og/default.png" />
-                {/* Before anything else: it may leave the page. */}
-                <script dangerouslySetInnerHTML={{__html: mobileGateScript}} />
                 <script dangerouslySetInnerHTML={{__html: themeInitScript}} />
                 {/* Pages are prerendered, so the language cookie is applied before paint. */}
                 {hidesUntilTranslated && (

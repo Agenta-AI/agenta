@@ -125,7 +125,7 @@ describe("isDocumentNavigation", () => {
 describe("mapDesktopToMobile", () => {
     it("maps desktop auth to the mobile sign-in page", () => {
         expect(mapDesktopToMobile("/auth", "")).toBe("/m/auth")
-        expect(mapDesktopToMobile("/auth/reset-password", "")).toBe("/m/auth")
+        expect(mapDesktopToMobile("/auth/reset-password", "")).toBe("/m/auth/reset-password")
     })
     it("maps an observability session deep link to the mobile chat", () => {
         expect(mapDesktopToMobile("/w/ws1/p/pr1/observability", "?session=abc&span=s1")).toBe(
@@ -160,6 +160,56 @@ describe("mapDesktopToMobile", () => {
         expect(mapDesktopToMobile("/w", "")).toBe("/m/")
         expect(mapDesktopToMobile("/w/ws1", "")).toBe("/m/")
         expect(mapDesktopToMobile("/settings", "")).toBe("/m/")
+    })
+})
+
+describe("mapDesktopToMobile — legacy desktop URLs", () => {
+    const legacy = (path: string) => {
+        const url = new URL(path, "http://localhost")
+        return mapDesktopToMobile(url.pathname, url.search, {developerViews: true})
+    }
+    const cases: [string, string][] = [
+        // tracing.py builds this link for every SDK trace.
+        ["/w/ws1/p/pr1/observability?trace=t1", "/m/w/ws1/p/pr1/observability?trace=t1"],
+        [
+            "/w/ws1/p/pr1/observability?trace=t1&span=s1&x=1",
+            "/m/w/ws1/p/pr1/observability?trace=t1&span=s1",
+        ],
+        // evaluations/runs.py; no cookie is read, so a fresh browser lands on the run.
+        ["/w/ws1/p/pr1/evaluations/results/run1", "/m/w/ws1/p/pr1/evaluations/results/run1"],
+        // organization_service.py emails this link.
+        ["/w/org1/p/pr1/settings?tab=workspace", "/m/w/org1/p/pr1/settings?tab=workspace"],
+        ["/settings", "/m/"],
+        ["/workspaces/accept?token=t&organization_id=o1", "/m/auth?token=t&organization_id=o1"],
+        ["/workspaces/accept", "/m/invite"],
+        ["/post-signup", "/m/"],
+        ["/ws1/apps/app1", "/m/"],
+        ["/no/such/page?secret=s", "/m/"],
+        [
+            "/auth?token=t&email=a%40b.c&organization_id=o&workspace_id=w&project_id=p",
+            "/m/auth?token=t&email=a%40b.c&organization_id=o&workspace_id=w&project_id=p",
+        ],
+        ["/auth?auth_error=sso_required", "/m/auth?auth_error=sso_required"],
+        [
+            "/auth/reset-password?token=t&tenantId=public",
+            "/m/auth/reset-password?token=t&tenantId=public",
+        ],
+        [
+            "/auth/callback/sso:acme:okta?code=c&state=s",
+            "/m/auth/callback/sso:acme:okta?code=c&state=s",
+        ],
+        ["/auth/verify-email?x=1", "/m/auth?x=1"],
+    ]
+
+    it.each(cases)("maps %s → %s", (path, expected) => {
+        expect(legacy(path)).toBe(expected)
+    })
+
+    it("names no /m page for a path it sends to the root, so the proxy can log it", () => {
+        expect(mobileRouteFor("/no/such/page", "", {developerViews: true})).toBeNull()
+        expect(
+            mobileRouteFor("/w/ws1/p/pr1/evaluations/results/run1", "", {developerViews: true}),
+        ).toBe("/m/w/ws1/p/pr1/evaluations/results/run1")
     })
 })
 
@@ -198,7 +248,7 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/apps/archived", "", null],
         ["/w/ws1/p/pr1/agents/archived", "", null],
         ["/settings", "", null],
-        ["/workspaces/accept", "", null],
+        ["/workspaces/accept", "", "/m/invite"],
         // A website template link opens that template's setup step on /m.
         ["/w", "?template=pr-reviewer", "/m/?template=pr-reviewer"],
         [
@@ -623,6 +673,11 @@ describe("decideDesktopGate — signed-out desktop visitor", () => {
 })
 
 describe("decideMobileGate", () => {
+    const cookiesOf =
+        (jar: Record<string, string>): GateInput["cookie"] =>
+        (name) =>
+            jar[name]
+
     it("lets a desktop browser stay on /m", () => {
         expect(
             decideMobileGate(
@@ -673,23 +728,15 @@ describe("decideMobileGate", () => {
         })
     })
 
-    it("bounces a Classic-mode-ON user out of /m, phone included", () => {
-        // The switch says "full desktop app", so it outranks the device heuristic here exactly
-        // as `wantsClassic` does on the desktop half.
-        const i = input({
-            pathname: "/w/ws1/p/pr1/sessions/abc",
-            headers: docHeaders(MOBILE_UA),
-        })
-        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
-        expect(decideMobileGate(i)).toEqual({
-            kind: "redirect",
-            location: "/w/ws1/p/pr1/observability?session=abc",
-        })
-
-        // And the desktop half must keep them there, or the two gates loop.
-        expect(decideDesktopGate({...i, pathname: "/w/ws1/p/pr1/observability"})).toEqual({
-            kind: "pass",
-        })
+    it("never sends a Classic-mode-ON user to the desktop, on any page or device", () => {
+        const classic = cookiesOf({[CLASSIC_MODE_COOKIE]: "1"})
+        for (const ua of [DESKTOP_UA, MOBILE_UA]) {
+            for (const pathname of ["/", "/w", "/w/ws1/p/pr1/sessions/abc", "/w/ws1/p/pr1/apps"]) {
+                expect(
+                    decideMobileGate(input({pathname, headers: docHeaders(ua), cookie: classic})),
+                ).toEqual({kind: "pass"})
+            }
+        }
     })
 
     it("keeps a Classic-mode-ON user on /m when they opted in", () => {
@@ -822,10 +869,8 @@ describe("invite links", () => {
         expect(decideMobileGate(input({pathname: "/invite", headers, cookie: classic}))).toEqual({
             kind: "pass",
         })
-        // A plain sign-in visit still follows the preference.
         expect(decideMobileGate(input({pathname: "/auth", headers, cookie: classic}))).toEqual({
-            kind: "redirect",
-            location: "/auth",
+            kind: "pass",
         })
     })
 })

@@ -29,8 +29,8 @@ const router = vi.hoisted(() => ({
 }))
 
 vi.mock("next/router", () => ({useRouter: () => router}))
-// The beta developer mode switch, as a plain atom: the real one also needs the deployment env and
-// the user's stored preferences. Everything that reads it (the developer view access) is real.
+// Developer Mode, as a plain atom: the real one needs the user's stored preferences.
+// Everything that reads it (the developer view access) is real.
 vi.mock("@agenta/shared/state", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/shared/state")>()
     const {atom} = await import("jotai")

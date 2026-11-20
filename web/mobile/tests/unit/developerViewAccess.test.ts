@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {activeUserIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {createStore} from "jotai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
@@ -24,6 +24,8 @@ const NONE = new Set<string>()
 const signedInStore = () => {
     const store = createStore()
     store.set(activeUserIdAtom, "u1")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     return store
 }
 const enabledIds = (store: ReturnType<typeof createStore>) =>
@@ -74,6 +76,7 @@ describe("enabledDeveloperViewsAtom", () => {
         expect(localStorage.getItem("agenta:settings:u1:developer-view:lab-preview")).toBe("true")
 
         store.set(activeUserIdAtom, "u2")
+        store.set(navSimplifiedOverrideAtom, true)
         expect(enabledIds(store)).toEqual(["lab-on"])
     })
 

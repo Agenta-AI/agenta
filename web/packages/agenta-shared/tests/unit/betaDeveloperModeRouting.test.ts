@@ -148,7 +148,7 @@ describe("beta developer mode routing", () => {
         }
     })
 
-    describe("unchanged from v0.128.7", () => {
+    describe("beta off, or Developer Mode off", () => {
         it("Developer Mode off: publishes 0 and lives in /m, beta or not", () => {
             for (const state of [
                 {createdAt: OLD, developerMode: false},
@@ -163,14 +163,12 @@ describe("beta developer mode routing", () => {
             }
         })
 
-        it("Developer Mode on by choice, beta off: /m sends the user to /w, phone included", () => {
+        it("Developer Mode on by choice, beta off: /m keeps the user, phone included", () => {
             for (const beta of [undefined, false]) {
                 const cookie = cookieFor({createdAt: OLD, developerMode: true, beta})
                 expect(cookie).toBe("1")
-                expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual({
-                    kind: "redirect",
-                    location: W_PAGE,
-                })
+                expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
+                expect(gate(decideMobileGate, W_PAGE, PHONE_UA, cookie)).toEqual(PASS)
                 expect(gate(decideDesktopGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
                 expect(gate(decideDesktopGate, W_PAGE, PHONE_UA, cookie)).toEqual(PASS)
             }
@@ -186,15 +184,12 @@ describe("beta developer mode routing", () => {
             }
         })
 
-        it("turning beta off stores Developer Mode as a choice, so /m sends the user to /w", () => {
+        it("turning beta off stores Developer Mode as a choice, and /m still keeps the user", () => {
             // Both switches store Developer Mode on together with beta off.
             for (const createdAt of [OLD, NEW]) {
                 const cookie = cookieFor({createdAt, developerMode: true, beta: false})
                 expect(cookie).toBe("1")
-                expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual({
-                    kind: "redirect",
-                    location: W_PAGE,
-                })
+                expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
             }
         })
 
