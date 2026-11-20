@@ -409,7 +409,7 @@ async def test_transition_route_refuses_an_approval_answer_from_a_run(
         await _transition(interactions_service, body, credential_kind)
 
     assert caught.value.status_code == 403
-    interactions_service.transition_interaction.assert_not_awaited()
+    interactions_service.transition_interaction.assert_not_called()
 
 
 async def test_transition_route_keeps_the_stored_answer_when_a_run_settles_it():

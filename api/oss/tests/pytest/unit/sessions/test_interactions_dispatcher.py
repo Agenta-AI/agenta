@@ -1433,10 +1433,10 @@ async def test_respond_refuses_an_answer_sent_with_a_run_credential():
         approved_by=_run_credential_approval(),
     )
 
-    worker.interactions_service.fetch_interaction.assert_not_awaited()
-    worker.interactions_service.cancel_session_pending.assert_not_awaited()
-    worker.interactions_service.transition_interaction.assert_not_awaited()
-    dispatch_fn.assert_not_awaited()
+    worker.interactions_service.fetch_interaction.assert_not_called()
+    worker.interactions_service.cancel_session_pending.assert_not_called()
+    worker.interactions_service.transition_interaction.assert_not_called()
+    dispatch_fn.assert_not_called()
 
 
 async def test_respond_many_refuses_an_envelope_approved_with_a_run_credential():
@@ -1454,5 +1454,5 @@ async def test_respond_many_refuses_an_envelope_approved_with_a_run_credential()
             envelope=make_envelope(approved_by=_run_credential_approval()),
         )
 
-    worker.interactions_service.fetch_interaction.assert_not_awaited()
-    dispatch_fn.assert_not_awaited()
+    worker.interactions_service.fetch_interaction.assert_not_called()
+    dispatch_fn.assert_not_called()
