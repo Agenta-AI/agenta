@@ -23,7 +23,6 @@ BUILDER_AGENT_DESCRIPTION = (
 # The drive slug rule for a static agent: `<agent slug>__<drive name>`.
 BUILDER_LEARNING_DRIVE_SLUG = f"{BUILDER_AGENT_SLUG}__learning"
 
-# Create and edit ask the person first; the reads run without asking.
 BUILDER_AGENT_TOOLS: dict[str, str] = {
     "list_agents": "allow",
     "read_agent_config": "allow",
