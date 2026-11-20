@@ -1,10 +1,11 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import {ViewStackHost} from "@agenta/ui/view-stack"
 import {useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {selectedRevisionAtomFamily} from "../chat/selectedRevision"
@@ -14,6 +15,9 @@ import {useAgentPanel} from "./agentPanelContext"
 import {ConfigurationRoot} from "./ConfigurationRoot"
 import {PanelViewChrome} from "./PanelViewChrome"
 import {StackGuards} from "./StackGuards"
+
+// The channel read loads on its own: its code is not part of the Configuration chunk.
+const AgentChannelPresence = dynamic(() => import("./AgentChannelPresence"), {ssr: false})
 
 export interface ConfigurationContentProps {
     agentId: string
@@ -38,9 +42,11 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
     // lock and unlock.
     const editAccess = useProjectPermissionState(props.projectId, "edit_workflows")
     const readOnly = !editAccess.pending && !editAccess.allowed
+    // A channel run has no person: integrations that use each person's own account warn.
+    const [hasChannel, setHasChannel] = useState<boolean | undefined>(undefined)
     const editor = useMemo<AgentEditor>(
-        () => ({revisionId: props.revisionId, readOnly}),
-        [props.revisionId, readOnly],
+        () => ({revisionId: props.revisionId, readOnly, hasChannel}),
+        [props.revisionId, readOnly, hasChannel],
     )
     return (
         // Open agent views follow the revision on screen (auto-save replaces it) and the edit right.
@@ -50,6 +56,7 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
             projectId={props.projectId}
             onWorkflowRevisionCommitted={pinRevision}
         >
+            <AgentChannelPresence agentId={props.agentId} onChange={setHasChannel} />
             <AgentEditorContext.Provider value={editor}>
                 <ViewStackHost
                     chrome={PanelViewChrome}

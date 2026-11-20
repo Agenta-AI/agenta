@@ -1,24 +1,31 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
+import {usePersonalToolConnections, useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {Button} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useAtomValue} from "jotai"
 
+import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {readRunnerPermission} from "../../agentConfigPatch"
 import {findIntegrationRow, integrationRowConnection} from "../../toolUtils"
 import {IntegrationAccountBlock} from "../accounts/IntegrationAccountBlock"
+import {useRunsWithoutPerson} from "../accounts/useRunsWithoutPerson"
 import {
     IntegrationDrawerBody,
     IntegrationTitle,
     UnmigratedNotice,
-} from "../IntegrationPermissionDrawer"
+} from "../IntegrationPermissionList"
 import {integrationTargetOf, removeIntegrationByRef} from "../itemKinds/tool"
 import {IntegrationRemoveDialog} from "../sections/IntegrationsSection"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import {useAgentTools} from "../useAgentTools"
 
+import {integrationConnectView} from "./integrationConnectView"
 import type {IntegrationViewParams} from "./integrationView"
 
 const noCreate = () => undefined
@@ -38,7 +45,7 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
         setIntegrationPermissions,
         setIntegrationToolPermission,
     } = useAgentTools({config: writer.agent, onChange, configRef, openCreate: noCreate})
-    const integrationTarget = integrationTargetOf(params.item)
+    const integrationTarget = useMemo(() => integrationTargetOf(params.item), [params.item])
     // Found by key in the list as it is now: a builder save that changes the list under the open
     // view never puts another integration here.
     const row = integrationTarget
@@ -52,6 +59,33 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
         [writer.revisionId, writer.agent],
     )
     const [confirming, setConfirming] = useState(false)
+    const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(writer.revisionId)) ?? ""
+    const runsWithoutPerson = useRunsWithoutPerson(workflowId)
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const {connections: personal} = usePersonalToolConnections()
+    const {push} = nav
+    // Connect from the account part: the viewer's own account, or a shared one the agent then uses.
+    const connect = useCallback(
+        (owner: "user" | "project") => {
+            if (!integrationTarget) return
+            void push?.(
+                integrationConnectView,
+                {
+                    integrationKey: integrationTarget.integration,
+                    owners: [owner],
+                    onCreated: (created) => {
+                        if (created.owner === "project")
+                            setIntegrationAccount(integrationTarget, {
+                                accountSource: "agent",
+                                slug: created.slug,
+                            })
+                    },
+                },
+                {kind: "project"},
+            )
+        },
+        [push, integrationTarget, setIntegrationAccount],
+    )
 
     if (!integrationTarget || !row) {
         return (
@@ -67,6 +101,9 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
     }
 
     const connectionSlug = integrationRowConnection(row) ?? ""
+    const eachPerson = row.entry?.accountSource === USER_ACCOUNT_SOURCE
+    const notConnected =
+        eachPerson && access === "on" && personalConnectionsFor(personal, integrationTarget).length === 0
     const remove = () => {
         setConfirming(false)
         writer.update((agent) => ({
@@ -82,7 +119,11 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="shrink-0 px-4 pb-1 pt-3">
-                <IntegrationTitle target={integrationTarget} connectionSlug={connectionSlug} />
+                <IntegrationTitle
+                    target={integrationTarget}
+                    connectionSlug={eachPerson ? "" : connectionSlug}
+                    notConnected={notConnected}
+                />
             </div>
             <div className="flex min-h-0 flex-1 flex-col">
                 {row.entry?.permissions ? (
@@ -107,6 +148,8 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                                     onChange={(account) =>
                                         setIntegrationAccount(integrationTarget, account)
                                     }
+                                    onConnect={connect}
+                                    runsWithoutPerson={runsWithoutPerson}
                                     disabled={writer.readOnly}
                                 />
                             ) : undefined

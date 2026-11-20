@@ -1,0 +1,19 @@
+{
+    "chooseWhose": "Choose whose {{name}} account the agent uses",
+    "eachPersonsOwn": "Each person's own",
+    "eachPersonsOwnNote": "Everyone uses their own {{name}} account.",
+    "oneShared": "One shared account",
+    "oneSharedNote": "Everyone uses the account you pick.",
+    "yourAccount": "Your account",
+    "yourAccountNote": "The {{name}} account your own runs use",
+    "sharedAccount": "Shared account",
+    "sharedAccountNote": "Every run uses this account, whoever starts it",
+    "useMyDefault": "Use my default",
+    "connectAnotherShared": "Connect another shared account",
+    "noAccountYet": "No account yet",
+    "connectApp": "Connect {{name}}",
+    "noSharedAccountYet": "No shared account yet",
+    "noPersonWarning": "Runs from a channel or from an automation created with an API key have no person. They cannot use each person's own account, so this integration is not available to them.",
+    "onlyMeShort": "Only your own runs use it.",
+    "everyoneShort": "Agents in this project can use it."
+}
