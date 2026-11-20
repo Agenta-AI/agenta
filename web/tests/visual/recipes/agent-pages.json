@@ -1,0 +1,146 @@
+[
+    {
+        "id": "agent-pages-a02-sessions-light",
+        "route": "/m/w/{workspace}/p/{project}/agents/{agent_support}?view=sessions",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "Search sessions"
+            }
+        ]
+    },
+    {
+        "id": "agent-pages-a10-sessions-filter-light",
+        "route": "/m/w/{workspace}/p/{project}/agents/{agent_support}?view=sessions",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "Search sessions"
+            },
+            {
+                "click": "button:Filter and group sessions"
+            },
+            {
+                "wait": "Group by"
+            }
+        ]
+    },
+    {
+        "id": "agent-pages-a04-configuration-agent-light",
+        "route": "/m/w/{workspace}/p/{project}/agents/{agent_support}?view=configuration&tab=agent",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "Instructions"
+            }
+        ]
+    },
+    {
+        "id": "agent-pages-a05-configuration-automations-light",
+        "route": "/m/w/{workspace}/p/{project}/agents/{agent_support}?view=configuration&tab=automations",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": 2000
+            }
+        ]
+    },
+    {
+        "id": "agent-pages-a06-configuration-access-light",
+        "route": "/m/w/{workspace}/p/{project}/agents/{agent_support}?view=configuration&tab=access",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": 2000
+            }
+        ]
+    },
+    {
+        "id": "agent-pages-a07-channels-light",
+        "route": "/m/w/{workspace}/p/{project}/agents/{agent_support}?view=channels",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "Add a channel"
+            }
+        ]
+    },
+    {
+        "id": "agent-pages-a09-analytics-light",
+        "route": "/m/w/{workspace}/p/{project}/agents/{agent_support}?view=analytics",
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "Explore"
+            }
+        ]
+    },
+    {
+        "id": "agent-pages-channels-connected-light",
+        "story": "builderlayout-a06-a07-agent-pages--channels-connected",
+        "width": 800,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-page-story\"]",
+        "ready": "text=Connected"
+    },
+    {
+        "id": "agent-pages-channels-connected-dark",
+        "story": "builderlayout-a06-a07-agent-pages--channels-connected",
+        "width": 800,
+        "height": 700,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-page-story\"]",
+        "ready": "text=Connected"
+    },
+    {
+        "id": "agent-pages-channels-needs-attention-light",
+        "story": "builderlayout-a06-a07-agent-pages--channels-needs-attention",
+        "width": 800,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-page-story\"]",
+        "ready": "text=Needs attention"
+    },
+    {
+        "id": "agent-pages-channels-needs-attention-dark",
+        "story": "builderlayout-a06-a07-agent-pages--channels-needs-attention",
+        "width": 800,
+        "height": 700,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-page-story\"]",
+        "ready": "text=Needs attention"
+    },
+    {
+        "id": "agent-pages-access-private-owner-light",
+        "story": "builderlayout-a06-a07-agent-pages--access-private-owner",
+        "width": 800,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-page-story\"]",
+        "ready": "text=Transfer ownership"
+    },
+    {
+        "id": "agent-pages-access-private-owner-dark",
+        "story": "builderlayout-a06-a07-agent-pages--access-private-owner",
+        "width": 800,
+        "height": 700,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-page-story\"]",
+        "ready": "text=Transfer ownership"
+    }
+]
