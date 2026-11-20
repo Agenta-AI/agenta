@@ -34,5 +34,23 @@
         "theme": "light",
         "selector": "[data-testid=\"run-history-panel\"]",
         "ready": "text=No runs yet"
+    },
+    {
+        "id": "automations-automation-view-light",
+        "story": "builderlayout-automations-automation-view--daily-summary",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"automation-view-panel\"]",
+        "ready": "text=Settings"
+    },
+    {
+        "id": "automations-delete-dialog-light",
+        "story": "builderlayout-automations-automation-view--delete-dialog",
+        "width": 700,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"automation-delete-dialog\"]",
+        "ready": "text=Delete this automation?"
     }
 ]

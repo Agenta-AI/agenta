@@ -547,6 +547,17 @@
         "failureStopped": "840abf73f310",
         "failureWithDetail": "e6ce80637395"
     },
+    "automations.panel": {
+        "scheduledTriggers": "cfee87726b0a",
+        "appTriggers": "1a1ea828148d",
+        "deleteFailed": "4d480851f792",
+        "runs": "848f54e89660",
+        "settings": "74a883a037bc",
+        "history": "0e7696009337",
+        "seeAllRuns": "dbde4358f25d",
+        "lastRun": "512a48218ba2",
+        "didNotFinish": "64df366eed4a"
+    },
     "automations.runHistory": {
         "openInNewTab": "2afea81ea379",
         "openRunInNewTab": "a57d4f0a2c21"

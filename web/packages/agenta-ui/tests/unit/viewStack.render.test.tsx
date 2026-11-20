@@ -174,7 +174,8 @@ describe("ViewStackHost", () => {
         await screen.findByText("picker at depth 2")
         fireEvent.click(screen.getByText("choose"))
         await screen.findByLabelText("field chosen")
-        expect(screen.getByText("here:chosen")).toBeTruthy()
+        // The crumb title arrives in an effect after the form mounts.
+        await screen.findByText("here:chosen")
         expect(screen.queryByText("picker at depth 2")).toBeNull()
         expect(stackRef?.depth).toBe(2)
         type("chosen", "x")
