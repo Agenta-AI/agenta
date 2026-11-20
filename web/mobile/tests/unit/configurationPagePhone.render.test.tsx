@@ -59,10 +59,10 @@ vi.mock("@/features/agent-pages/ConfigurationAgentTab", () => ({
     ConfigurationAgentTab: () => {
         const phone = useContext(PhoneSectionsContext)
         if (!phone) return <div data-testid="accordion" />
-        return phone.openKey ? (
-            <div data-testid="open-section">{phone.openKey}</div>
+        return phone.shownKey ? (
+            <div data-testid="open-section">{phone.shownKey}</div>
         ) : (
-            <button type="button" onClick={() => phone.open("tools", "Integrations")}>
+            <button type="button" onClick={() => phone.show("tools", "Integrations")}>
                 Integrations row
             </button>
         )
@@ -123,7 +123,8 @@ describe("Configuration page on a phone", () => {
         expect(state.statusProps.at(-1)).toMatchObject({
             revisionId: "rev-4",
             historyWorkflowId: "support",
-            phone: {backTitle: "Configuration"},
+            phone: true,
+            backTitle: "Configuration",
         })
     })
 
@@ -142,6 +143,6 @@ describe("Configuration page on a phone", () => {
         state.phone = false
         await mount()
         expect(host.querySelector('[data-testid="accordion"]')).not.toBeNull()
-        expect(state.statusProps.at(-1)?.phone).toBeUndefined()
+        expect(state.statusProps.at(-1)?.phone).toBe(false)
     })
 })

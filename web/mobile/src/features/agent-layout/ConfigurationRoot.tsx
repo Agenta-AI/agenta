@@ -1,3 +1,4 @@
+import type {PhoneSection} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
@@ -17,7 +18,7 @@ import {useAgentPanel} from "./agentPanelContext"
 import type {ConfigTab} from "./agentPanelState"
 import {AutomationsTab} from "./AutomationsTab"
 import {ChannelsTab} from "./ChannelsTab"
-import type {ConfigurationContentProps, PhoneSection} from "./ConfigurationContent"
+import type {ConfigurationContentProps} from "./ConfigurationContent"
 
 const TABS: {key: ConfigTab; label: "agent" | "automations" | "channels" | "access"}[] = [
     {key: "agent", label: "agent"},
@@ -141,7 +142,8 @@ export const ConfigurationRoot = ({
                                 historyWorkflowId={agentId}
                                 onUpdate={pinRevision}
                                 checkKey={sessionId}
-                                phone={{backTitle: t("agentLayout.header.configuration")}}
+                                phone
+                                backTitle={t("agentLayout.header.configuration")}
                                 className="shrink-0"
                             />
                         </div>
@@ -150,18 +152,16 @@ export const ConfigurationRoot = ({
             ) : (
                 <div className="flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-3">
                     {tabList}
-                    {
-                        <SimpleTooltip title={t("agentLayout.panel.close")}>
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={t("agentLayout.panel.close")}
-                                onClick={() => void panel.close()}
-                            >
-                                <X size={16} />
-                            </Button>
-                        </SimpleTooltip>
-                    }
+                    <SimpleTooltip title={t("agentLayout.panel.close")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("agentLayout.panel.close")}
+                            onClick={() => void panel.close()}
+                        >
+                            <X size={16} />
+                        </Button>
+                    </SimpleTooltip>
                 </div>
             )}
             <div
