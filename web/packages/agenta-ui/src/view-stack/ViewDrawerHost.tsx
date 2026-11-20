@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState, type MutableRefObject} from "react"
 
 import {EnhancedDrawer} from "../drawer/EnhancedDrawer"
+import {useIsPhone} from "../phone/usePhone"
 
 import {useViewStack} from "./context"
 import {DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"
@@ -37,6 +38,8 @@ export const ViewDrawerHost = <P,>({
     stackRef?: MutableRefObject<ViewStack | null>
 }) => {
     const [open, setOpen] = useState(true)
+    // On a phone the drawer covers the screen, so it follows the phone rules (read-only views).
+    const phone = useIsPhone()
     const ownStackRef = useRef<ViewStack | null>(null)
     const stackRef = outerStackRef ?? ownStackRef
     const close = useCallback(() => {
@@ -62,7 +65,7 @@ export const ViewDrawerHost = <P,>({
             styles={{body: {padding: 0, display: "flex", flexDirection: "column"}}}
         >
             <DrawerCloseContext.Provider value={close}>
-                <ViewStackHost chrome={DrawerViewChrome}>
+                <ViewStackHost chrome={DrawerViewChrome} phone={phone}>
                     <OpenOnMount
                         request={request as ViewRequest}
                         stackRef={stackRef}

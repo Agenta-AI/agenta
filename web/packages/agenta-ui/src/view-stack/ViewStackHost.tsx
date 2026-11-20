@@ -60,6 +60,7 @@ export const ViewStackHost = ({
     chrome: Chrome,
     rootTitle,
     onEscapeAtRoot,
+    phone = false,
     children,
 }: {
     chrome: ComponentType<ViewChromeProps>
@@ -67,6 +68,8 @@ export const ViewStackHost = ({
     rootTitle?: string
     /** Escape with an empty stack: the panel closes itself; a page passes nothing. */
     onEscapeAtRoot?: () => void
+    /** A phone container: views with `readOnlyOnPhone` get `readOnly`. */
+    phone?: boolean
     children: ReactNode
 }) => {
     const [entries, setEntries] = useState<Entry[]>([])
@@ -359,6 +362,7 @@ export const ViewStackHost = ({
                         crumbs={crumbs}
                         apply={top.view.apply}
                         wide={Boolean(top.view.wide)}
+                        readOnly={phone && Boolean(top.view.readOnlyOnPhone)}
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
@@ -373,6 +377,7 @@ export const ViewStackHost = ({
                                 isTop={entry === top}
                                 saving={saving}
                                 depth={(index + 1) as 1 | 2}
+                                readOnly={phone && Boolean(entry.view.readOnlyOnPhone)}
                                 setForms={setForms}
                                 setTitles={setTitles}
                                 push={push}
@@ -400,6 +405,7 @@ const MountedView = ({
     isTop,
     saving,
     depth,
+    readOnly,
     setForms,
     setTitles,
     push,
@@ -411,6 +417,7 @@ const MountedView = ({
     isTop: boolean
     saving: boolean
     depth: 1 | 2
+    readOnly: boolean
     setForms: (update: (prev: Record<number, ViewForm>) => Record<number, ViewForm>) => void
     setTitles: (update: (prev: Record<number, string>) => Record<number, string>) => void
     push: <C>(
@@ -468,7 +475,12 @@ const MountedView = ({
             aria-busy={isTop && saving}
         >
             <ViewEntryContext.Provider value={api}>
-                <Component params={entry.params} target={entry.target} nav={nav} />
+                <Component
+                    params={entry.params}
+                    target={entry.target}
+                    nav={nav}
+                    readOnly={readOnly || undefined}
+                />
             </ViewEntryContext.Provider>
         </div>
     )
