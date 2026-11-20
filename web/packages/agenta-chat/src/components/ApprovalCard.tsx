@@ -14,6 +14,7 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
 import chatApprovalCardCatalog from "@agenta/i18n/catalogs/chat.approvalCard"
+import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
@@ -21,11 +22,12 @@ import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
+import {useChangeVersions} from "../hooks/useChangeVersions"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 import {describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
 
-import {ChangeSections} from "./ChangeSections"
+import {ChangeSections, removesOnly, RiskLine} from "./ChangeSections"
 
 export interface ApprovalCardProps {
     /** Pending gates for the paused turn — index 0 is the one a single decision answers. */
@@ -89,6 +91,7 @@ export const ApprovalCard = ({
     const batched = count > 1
 
     const t = useT(chatApprovalCardCatalog)
+    const tChange = useT(chatChangeCardCatalog)
     const [detailsOpen, setDetailsOpen] = useState(false)
     // Which detail rows are expanded from their one-line preview to the full text.
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
@@ -157,7 +160,7 @@ export const ApprovalCard = ({
     // One agent change shows its changes in place; the rows behind the toggle would repeat them.
     // A refused change with no rows still shows its notice.
     const changes =
-        !batched && (preview?.changes?.length || preview?.cannotApply)
+        !batched && (preview?.changes?.length || preview?.cannotApply || preview?.header)
             ? (preview.changes ?? [])
             : null
     const items = useMemo(
@@ -170,7 +173,15 @@ export const ApprovalCard = ({
         [batched, approvals, homeSlug, preview, changes],
     )
 
+    // "Saves as v{base + 1}", and the conflict state when a newer version landed after the base.
+    const {baseVersion, latestVersion} = useChangeVersions(changes ? preview?.base : undefined)
+    const conflict =
+        baseVersion !== undefined && latestVersion !== undefined && latestVersion > baseVersion
+
     if (!current || !preview) return null
+
+    const removes = changes ? removesOnly(changes) : false
+    const risky = Boolean(changes?.some((change) => change.risks.length))
 
     // A batch answers as a whole, so the grant covers every tool it would approve, not just the
     // first gate's. Ineligible members (a commit op mixed in) simply stay gated.
@@ -243,33 +254,55 @@ export const ApprovalCard = ({
     })
 
     return (
-        <div ref={rootRef} className={`flex flex-col rounded-lg ${className}`}>
-            {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. */}
-            <div className="flex items-center gap-1.5">
-                <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
-                <span className="text-xs font-medium text-colorText">
-                    {answered
-                        ? recoverable
-                            ? t("chat.approvalCard.answerSavedRetry")
-                            : t("chat.approvalCard.answeredWaiting")
-                        : t("chat.approvalCard.needsApproval")}
-                </span>
-            </div>
+        <div
+            ref={rootRef}
+            className={`flex flex-col rounded-lg ${className} ${
+                risky ? "!border-colorWarningBorder" : ""
+            }`}
+        >
+            {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. A change card's
+                header is the change itself, so it shows the eyebrow only once answered. */}
+            {changes && !answered ? null : (
+                <div className="flex items-center gap-1.5">
+                    <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
+                    <span className="text-xs font-medium text-colorText">
+                        {answered
+                            ? recoverable
+                                ? t("chat.approvalCard.answerSavedRetry")
+                                : t("chat.approvalCard.answeredWaiting")
+                            : t("chat.approvalCard.needsApproval")}
+                    </span>
+                </div>
+            )}
 
             {/* The whole ask, in one sentence — what happens, and what it costs. */}
-            <span
-                className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]"
-                title={current.toolName}
-            >
-                {preview.sentence}
-            </span>
-
             {changes ? (
                 <ChangeSections
                     changes={changes}
                     proposedValues={preview.proposedValues}
                     cannotApply={preview.cannotApply}
+                    agentName={preview.agentName}
+                    header={preview.header}
+                    sentence={preview.sentence}
                 />
+            ) : (
+                <span
+                    className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]"
+                    title={current.toolName}
+                >
+                    {preview.sentence}
+                </span>
+            )}
+
+            {changes && conflict ? (
+                <div data-testid="change-conflict">
+                    <RiskLine>
+                        {tChange("chat.changeCard.conflict", {
+                            latest: latestVersion,
+                            base: baseVersion,
+                        })}
+                    </RiskLine>
+                </div>
             ) : null}
 
             {items.length ? (
@@ -351,6 +384,14 @@ export const ApprovalCard = ({
                     {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
                     instead of shoving Approve off a narrow screen. */}
                     <div className="flex flex-wrap items-center gap-2">
+                        {changes && baseVersion !== undefined ? (
+                            <span
+                                className="text-xs text-colorTextSecondary"
+                                data-testid="change-saves-as"
+                            >
+                                {tChange("chat.changeCard.savesAs", {version: baseVersion + 1})}
+                            </span>
+                        ) : null}
                         {canAlwaysAllow ? (
                             <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
                                 <Checkbox
@@ -399,6 +440,7 @@ export const ApprovalCard = ({
                                 ) : null}
                             </LoadingButton>
                             <LoadingButton
+                                variant={removes ? "destructive" : undefined}
                                 disabled={responding}
                                 loading={responding && firedAction === "approve"}
                                 className={touchCls}
@@ -407,7 +449,9 @@ export const ApprovalCard = ({
                             >
                                 {batched
                                     ? t("chat.approvalCard.approveAll")
-                                    : t("chat.approvalCard.approve")}
+                                    : removes
+                                      ? tChange("chat.changeCard.remove")
+                                      : t("chat.approvalCard.approve")}
                                 {showKeys ? (
                                     <ShortcutKeys
                                         id="approval.approve"

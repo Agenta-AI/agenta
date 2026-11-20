@@ -1,13 +1,13 @@
-// A stored token through the real atoms: the Fern call, the vault refetch, then the connected view.
+// A stored token through the real atoms: the Fern call, the vault refetch, then the view goes back.
 import {act, useState} from "react"
 
 import type {ProviderConnection, SecretKind} from "@agenta/entities/secret"
 import {projectIdAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {SubscriptionSignInDialog} from "../../src/secretProvider/SubscriptionSignInDialog"
+import {loadSubscriptionViews, SubscriptionViewStage} from "./subscriptionViewHarness"
 
 const {client, refetch} = vi.hoisted(() => ({
     client: {setSubscriptionToken: vi.fn()},
@@ -42,14 +42,7 @@ const claude = (loginState: string): ProviderConnection => ({
 const Page = () => {
     const [connection, setConnection] = useState(claude("pending_login"))
     refetch.current = () => setConnection(claude("ready"))
-    return (
-        <SubscriptionSignInDialog
-            open
-            onClose={() => undefined}
-            provider="claude"
-            connection={connection}
-        />
-    )
+    return <SubscriptionViewStage provider="claude" connection={connection} />
 }
 
 let host: HTMLDivElement
@@ -61,6 +54,8 @@ const button = (label: string): HTMLButtonElement =>
     ) as HTMLButtonElement
 
 const input = () => document.querySelector("input") as HTMLInputElement
+
+beforeAll(() => loadSubscriptionViews(), 400_000)
 
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
@@ -77,8 +72,8 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-describe("a stored Claude token", () => {
-    it("reaches the API scoped to the project, then shows the connected view with no token kept", async () => {
+describe("a stored Claude token", {timeout: 30_000}, () => {
+    it("reaches the API scoped to the project, then goes back with no token kept", async () => {
         const store = createStore()
         store.set(projectIdAtom, "project-1")
         await act(async () => {
@@ -88,6 +83,7 @@ describe("a stored Claude token", () => {
                 </Provider>,
             )
         })
+        await act(() => vi.waitFor(() => expect(input()).toBeTruthy()))
 
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
         await act(async () => {
@@ -103,11 +99,8 @@ describe("a stored Claude token", () => {
             {secret_id: "claude-1", token: TOKEN},
             {queryParams: {project_id: "project-1"}},
         )
-        expect(document.body.textContent).toContain("Ready. Pick a Claude model in any agent.")
+        await act(() => vi.waitFor(() => expect(document.body.textContent).toContain("depth:0")))
         expect(document.body.textContent).not.toContain(TOKEN)
-
-        await act(async () => button("Replace token").click())
-        expect(input().value).toBe("")
     })
 
     it("joins a token a terminal line wrap split with spaces", async () => {
@@ -120,6 +113,7 @@ describe("a stored Claude token", () => {
                 </Provider>,
             )
         })
+        await act(() => vi.waitFor(() => expect(input()).toBeTruthy()))
 
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
         await act(async () => {

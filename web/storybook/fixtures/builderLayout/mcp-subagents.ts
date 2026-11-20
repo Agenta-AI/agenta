@@ -150,3 +150,102 @@ export function subagentQueries(scope: StoryScope): [readonly unknown[], unknown
 }
 
 export const subagentRevisionId = (scope: StoryScope): string => workflowIds(scope).revisionId
+
+/* ── MCP servers (F03 f4 to f7) ─────────────────────────────────────────────────────────── */
+
+interface McpFixtureOptions {
+    linearExpired?: boolean
+    /** linear uses each person's own sign-in on the agent. */
+    eachPerson?: boolean
+    /** The viewer's own sign-in to linear: null for none. */
+    linearSignIn?: {is_ready: boolean; account_name?: string} | null
+}
+
+const mcpEndpoint = (slug: string, health: "healthy" | "expired", host: string) => ({
+    id: `mcp-${slug}`,
+    slug,
+    name: slug,
+    namespace: "custom",
+    auth_mode: health === "healthy" ? "none" : "oauth",
+    secret_id: health === "healthy" ? null : "secret-1",
+    flags: {is_active: true, is_valid: health === "healthy"},
+    data: {route: {base_url: `https://${host}/mcp`}},
+})
+
+/** The project's servers on the canvas: linear (added), docs-search, billing (expired). */
+export function mcpEndpointRows(options: McpFixtureOptions = {}) {
+    // linear signs in with OAuth, so each person can hold an own sign-in to it.
+    const linear = {
+        ...mcpEndpoint("linear", options.linearExpired ? "expired" : "healthy", "mcp.linear.app"),
+        auth_mode: "oauth",
+        secret_id: "secret-linear",
+        user_sign_in: options.linearSignIn === undefined ? null : options.linearSignIn,
+    }
+    return [
+        linear,
+        mcpEndpoint("docs-search", "healthy", "mcp.acme.io"),
+        mcpEndpoint("billing", "expired", "billing.acme.io"),
+    ]
+}
+
+/** The linear tools of the canvas: read-only ones and write ones, by the server's annotations. */
+export const LINEAR_MCP_TOOLS = [
+    {
+        name: "list_issues",
+        title: "List issues",
+        description: "List issues in a team or a project.",
+        annotations: {readOnlyHint: true},
+    },
+    {
+        name: "get_issue",
+        title: "Get issue",
+        description: "Get one issue with its comments.",
+        annotations: {readOnlyHint: true},
+    },
+    {
+        name: "create_issue",
+        title: "Create issue",
+        description: "Create a new issue in a team.",
+        annotations: {readOnlyHint: false},
+    },
+    {
+        name: "update_issue",
+        title: "Update issue",
+        description: "Change the state, the assignee or the labels of an issue.",
+        annotations: {readOnlyHint: false},
+    },
+]
+
+/** The agent with linear as its one MCP server, as a saved revision, and the project's servers. */
+export function mcpQueries(
+    scope: StoryScope,
+    options: McpFixtureOptions = {},
+): [readonly unknown[], unknown][] {
+    const fixture = makeAgentConfigFixture(scope)
+    const mcps = [
+        {
+            name: "linear",
+            connection: {
+                type: "gateway",
+                namespace: "custom",
+                slug: "linear",
+                ...(options.eachPerson ? {account_source: "user"} : {}),
+            },
+            policy: {tools: {mode: "all"}},
+        },
+    ]
+    const revision = (ids: WorkflowIds): Workflow =>
+        workflowRevision(ids, {
+            name: "Support triage",
+            data: {
+                uri: "agenta:builtin:agent:v0",
+                parameters: {agent: {...fixture.value, mcps}},
+                schemas: {parameters: {type: "object", properties: {agent: AGENT_SCHEMA}}},
+            },
+        } as Partial<Workflow>)
+    return [
+        ...fixture.queries.filter(([key]) => key[0] !== "mcp-endpoints"),
+        [["mcp-endpoints", undefined, scope.projectId], mcpEndpointRows(options)],
+        ...variantNameCellQueries(scope, {revision}),
+    ]
+}

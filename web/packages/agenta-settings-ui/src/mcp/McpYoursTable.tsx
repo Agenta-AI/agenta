@@ -8,6 +8,7 @@ import {useCallback, useMemo, useState} from "react"
 import {usePersonalMcpSignIn, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {useT, createT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import mcpAccountCatalog from "@agenta/i18n/catalogs/entityUi.mcpAccount"
 import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
@@ -61,7 +62,7 @@ export const McpYoursTable = ({
 }: McpYoursTableProps) => {
     const {pendingId, error, signIn, signInWithToken, signOut} = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
-    const t = useT(commonCatalog, settingsMcpCatalog)
+    const t = useT(commonCatalog, settingsMcpCatalog, mcpAccountCatalog)
     const translatedColumns = useMemo(
         () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
         [t],
@@ -122,6 +123,13 @@ export const McpYoursTable = ({
                         minWidth={0}
                         renderRow={(record) => {
                             const signedIn = isSignedIn(record)
+                            // The account name, when the server gave one at sign-in.
+                            const accountName = record.user_sign_in?.account_name
+                            const statusLabel = !signedIn
+                                ? t("settings.mcp.notSignedIn")
+                                : accountName
+                                  ? t("entityUi.mcpAccount.signedInAs", {account: accountName})
+                                  : t("settings.mcp.signedInAsYou")
                             // One sign-in action at a time: the hook tracks one.
                             const pending = pendingId !== null
                             return (
@@ -149,11 +157,7 @@ export const McpYoursTable = ({
                                     >
                                         <StatusIndicator
                                             tone={signedIn ? "success" : "default"}
-                                            label={
-                                                signedIn
-                                                    ? t("settings.mcp.signedInAsYou")
-                                                    : t("settings.mcp.notSignedIn")
-                                            }
+                                            label={statusLabel}
                                             className="min-w-0 text-[13px]"
                                         />
                                         {signedIn ? null : (

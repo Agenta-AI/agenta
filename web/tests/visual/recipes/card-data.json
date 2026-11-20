@@ -1,0 +1,110 @@
+[
+    {
+        "id": "card-data-edit-instructions-light",
+        "story": "builderlayout-card-data-change-cards--edit-instructions",
+        "width": 520,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Saves as v5"
+    },
+    {
+        "id": "card-data-edit-instructions-dark",
+        "story": "builderlayout-card-data-change-cards--edit-instructions",
+        "width": 520,
+        "height": 700,
+        "theme": "dark",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Saves as v5"
+    },
+    {
+        "id": "card-data-edit-skill-file-light",
+        "story": "builderlayout-card-data-change-cards--edit-skill-file",
+        "width": 520,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Edit a skill file"
+    },
+    {
+        "id": "card-data-change-model-light",
+        "story": "builderlayout-card-data-change-cards--change-model",
+        "width": 520,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Reasoning"
+    },
+    {
+        "id": "card-data-add-skill-light",
+        "story": "builderlayout-card-data-change-cards--add-skill",
+        "width": 520,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=can run as a program"
+    },
+    {
+        "id": "card-data-add-mcp-server-light",
+        "story": "builderlayout-card-data-change-cards--add-mcp-server",
+        "width": 520,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=mcp.linear.app/sse"
+    },
+    {
+        "id": "card-data-change-permission-light",
+        "story": "builderlayout-card-data-change-cards--change-permission",
+        "width": 520,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Close ticket"
+    },
+    {
+        "id": "card-data-change-permission-dark",
+        "story": "builderlayout-card-data-change-cards--change-permission",
+        "width": 520,
+        "height": 500,
+        "theme": "dark",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Close ticket"
+    },
+    {
+        "id": "card-data-remove-integration-light",
+        "story": "builderlayout-card-data-change-cards--remove-integration",
+        "width": 520,
+        "height": 500,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=No longer available to the agent"
+    },
+    {
+        "id": "card-data-no-preview-light",
+        "story": "builderlayout-card-data-change-cards--no-preview",
+        "width": 520,
+        "height": 600,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Proposed values"
+    },
+    {
+        "id": "card-data-several-changes-light",
+        "story": "builderlayout-card-data-change-cards--several-changes",
+        "width": 520,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=3 changes to support-triage"
+    },
+    {
+        "id": "card-data-conflict-light",
+        "story": "builderlayout-card-data-change-cards--conflict",
+        "width": 520,
+        "height": 600,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Someone saved v5"
+    }
+]

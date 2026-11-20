@@ -1,0 +1,4 @@
+{
+    "waitingToConfirm": "正在等待 {{name}} 确认",
+    "waitingToConfirmBody": "在 {{name}} 中输入代码后，登录会在几秒钟后到达这里。你无需在此页面执行任何操作。登录到达后，此页面会自动返回列表。"
+}

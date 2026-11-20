@@ -21,6 +21,7 @@ export const DrawerCloseContext = createContext<(() => void) | null>(null)
 export const DrawerViewChrome = ({
     crumbs,
     apply,
+    readOnly,
     form,
     onBack,
     onCancel,
@@ -73,15 +74,17 @@ export const DrawerViewChrome = ({
                 ) : null}
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
-            <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4 py-3">
-                <ViewFormActions
-                    apply={apply}
-                    form={form}
-                    onBack={onBack}
-                    onCancel={onCancel}
-                    onSave={onSave}
-                />
-            </div>
+            {readOnly ? null : (
+                <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4 py-3">
+                    <ViewFormActions
+                        apply={apply}
+                        form={form}
+                        onBack={onBack}
+                        onCancel={onCancel}
+                        onSave={onSave}
+                    />
+                </div>
+            )}
         </div>
     )
 }

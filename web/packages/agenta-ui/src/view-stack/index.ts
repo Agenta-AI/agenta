@@ -1,11 +1,13 @@
 export {useOptionalViewStack, useViewStack} from "./context"
 export {DrawerViewChrome} from "./DrawerViewChrome"
 export {defineView, useViewForm, useViewTitle} from "./hooks"
+export {PhoneViewChrome, PhoneViewHeader} from "./PhoneViewChrome"
 export {UnsavedChangesDialog, type LeaveAnswer} from "./UnsavedChangesDialog"
 export {ViewFormActions} from "./ViewFormActions"
 export {ViewDrawerHost, type ViewRequest} from "./ViewDrawerHost"
 export {ViewStackHost} from "./ViewStackHost"
 export {useViewOpener} from "./useViewOpener"
+export {ReportOpenViewItemContext, type OpenViewItem} from "./openItem"
 export type {
     ConfigItemRef,
     ViewApply,

@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {Robot} from "@phosphor-icons/react"
@@ -11,10 +12,13 @@ import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
-import {subagentItemRef} from "../subagentReference"
+import {findSubagentIndex, subagentItemRef, subagentSlugRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
+
+// Read when the section is built, so it is in the active language.
+const tNow = createT(commonCatalog)
 
 type WorkflowReferenceBridge = Parameters<typeof ConnectedSubagentList>[0]["bridge"]
 
@@ -32,6 +36,8 @@ export interface SubagentsSectionParams {
     openSubagent: (item: ConfigItemRef) => void
     /** Removes the subagent from the agent, after the row bin's question. */
     removeSubagent: (item: ConfigItemRef) => void
+    /** Removes an entry that has no key, by its index in `tools`. */
+    removeSubagentAt: (index: number) => void
     toolStatusFor: SubagentListProps["statusFor"]
 }
 
@@ -47,6 +53,7 @@ export const subagentsSection = ({
     subagentTools,
     openSubagent,
     removeSubagent,
+    removeSubagentAt,
     toolStatusFor,
 }: SubagentsSectionParams): SectionResult =>
     hasTools &&
@@ -54,7 +61,8 @@ export const subagentsSection = ({
         key: "subagents",
         icon: <Robot size={16} />,
         title: t("entityUi.agentTemplate.subagents"),
-        summary: countSummary(subagentCount, "subagent"),
+        // "None" when empty, as the canvas draws the Agent tab.
+        summary: countSummary(subagentCount, "subagent") || tNow("common.none"),
         indicator: sectionIndicator("subagents"),
         // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
         // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its
@@ -75,6 +83,7 @@ export const subagentsSection = ({
                 statusFor={toolStatusFor}
                 openSubagent={openSubagent}
                 removeSubagent={removeSubagent}
+                removeSubagentAt={removeSubagentAt}
             />
         ),
     }
@@ -89,6 +98,7 @@ const SubagentSectionBody = ({
     statusFor,
     openSubagent,
     removeSubagent,
+    removeSubagentAt,
 }: {
     entries: SubagentListProps["entries"]
     workflowReference: WorkflowReferenceBridge | undefined
@@ -96,9 +106,12 @@ const SubagentSectionBody = ({
     statusFor: SubagentListProps["statusFor"]
     openSubagent: (item: ConfigItemRef) => void
     removeSubagent: (item: ConfigItemRef) => void
+    removeSubagentAt: (index: number) => void
 }) => {
     const [removing, setRemoving] = useState<{
-        item: ConfigItemRef
+        /** By slug when the entry has one, so a write that drops a copied name keeps it. */
+        item: ConfigItemRef | null
+        index: number
         slug: string
         name: string
     } | null>(null)
@@ -114,17 +127,23 @@ const SubagentSectionBody = ({
         },
         removeItem: (_kind, index) => {
             const tool = entries.find((entry) => entry.index === index)?.item
-            const item = subagentItemRef(tool, subagentItems)
-            if (item)
-                setRemoving({
-                    item,
-                    slug: toolReferenceSlug(tool) ?? "",
-                    name: describeSubagent(tool).name,
-                })
+            const slug = toolReferenceSlug(tool)
+            const ref = slug ? subagentSlugRef(slug) : subagentItemRef(tool, subagentItems)
+            setRemoving({
+                // Two identical entries share every address: then only the index names this one.
+                item: ref && findSubagentIndex(subagentItems, ref) >= 0 ? ref : null,
+                index,
+                slug: slug ?? "",
+                name: describeSubagent(tool).name,
+            })
         },
     }
     const confirmRemove = () => {
-        if (removing) removeSubagent(removing.item)
+        // An entry with no key at all (no slug, no name) can only be removed where it is.
+        if (removing) {
+            if (removing.item) removeSubagent(removing.item)
+            else removeSubagentAt(removing.index)
+        }
         setRemoving(null)
     }
     return (

@@ -44,10 +44,9 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
         const opened = findSubagentIndex(tools, params.item)
         return opened < 0 ? undefined : toolReferenceSlug(tools[opened])
     })
-    const itemRef: ConfigItemRef =
-        findSubagentIndex(tools, params.item) < 0 && openedSlug
-            ? subagentSlugRef(openedSlug)
-            : params.item
+    // The entry the view opened on, by its slug when it has one: a key can move to another
+    // entry when writes elsewhere drop copied names.
+    const itemRef: ConfigItemRef = openedSlug ? subagentSlugRef(openedSlug) : params.item
     const index = findSubagentIndex(tools, itemRef)
     const entry = index < 0 ? null : (tools[index] as Record<string, unknown>)
     // The text the view opened with. A builder save meanwhile does not reset the person's edits.

@@ -13,7 +13,10 @@ import {
 } from "@/features/builder/builderChatLink"
 import {
     CONTEXT_LINE_PREFIX,
+    pagePartKey,
     parseContextLine,
+    parseSentContextLine,
+    resolvePagePart,
     withContextLine,
     type PageContext,
 } from "@/features/builder/pageContext"
@@ -118,5 +121,90 @@ describe("the builder chat link", () => {
     it("ignores stored values of the wrong shape", () => {
         window.localStorage.setItem(builderChatsKey("u1", "p1"), '{"agent-1": "chat-a"}')
         expect(readBuilderChats("u1", "p1", "agent-1")).toEqual([])
+    })
+})
+
+describe("the page part", () => {
+    const configuration = {
+        kind: "configuration" as const,
+        tab: "agent" as const,
+        item: {list: "skills" as const, key: "ticket-triage", name: "ticket-triage"},
+    }
+
+    it("takes the Configuration part over the page session", () => {
+        expect(
+            resolvePagePart(configuration, {id: "s1", pending: false, row: {name: "A"}}),
+        ).toEqual(configuration)
+    })
+
+    it("gives the session id and name on a session", () => {
+        expect(
+            resolvePagePart(null, {
+                id: "s1",
+                pending: false,
+                row: {name: "Charged twice for March"},
+            }),
+        ).toEqual({kind: "session", session: {id: "s1", name: "Charged twice for March"}})
+    })
+
+    it("gives the session id with no name while the row loads", () => {
+        expect(resolvePagePart(null, {id: "s1", pending: true, row: undefined})).toEqual({
+            kind: "session",
+            session: {id: "s1"},
+        })
+    })
+
+    it("gives no page part for a session with no row yet, or off a session", () => {
+        expect(resolvePagePart(null, {id: "s1", pending: false, row: null})).toBeNull()
+        expect(resolvePagePart(null, null)).toBeNull()
+    })
+
+    it("keys a page part by what it names", () => {
+        expect(pagePartKey({kind: "session", session: {id: "s1", name: "A"}})).toBe(
+            pagePartKey({kind: "session", session: {id: "s1"}}),
+        )
+        expect(pagePartKey(configuration)).not.toBe(
+            pagePartKey({kind: "configuration", tab: "agent"}),
+        )
+        expect(pagePartKey(null)).toBeNull()
+    })
+
+    it("round-trips a line with the session part, and a line with the agent only", () => {
+        const onSessionPage: PageContext = {
+            agent,
+            page: {kind: "session", session: {id: "s1", name: "Charged twice for March"}},
+            has_unsaved_draft: false,
+        }
+        const sent = withContextLine(onSessionPage, "Why medium?")
+        expect(parseContextLine(sent, "Why medium?")).toEqual(onSessionPage)
+        const removed = withContextLine({agent, has_unsaved_draft: false}, "Why medium?")
+        expect(parseContextLine(removed, "Why medium?")?.page).toBeUndefined()
+    })
+})
+
+describe("the sent context line", () => {
+    it("drops a page part of an unknown shape and keeps the agent", () => {
+        const line = `${CONTEXT_LINE_PREFIX} ${JSON.stringify({
+            agent,
+            page: {kind: "session"},
+            has_unsaved_draft: false,
+        })}\n\nHi`
+        expect(parseContextLine(line, "Hi")).toEqual({agent, has_unsaved_draft: false})
+    })
+
+    it("reads the original line of an edited message", () => {
+        const original = withContextLine(onConfiguration, "Make it shorter")
+        const edited = `${original}\n\nUpdated user request (replaces the earlier visible request; retain its supporting context):\nMake it much shorter`
+        expect(parseContextLine(edited, "Make it much shorter")).toBeNull()
+        expect(parseSentContextLine(edited, "Make it much shorter")).toEqual(onConfiguration)
+    })
+
+    it("reads only a browser line: typed words shaped like a line, with no edit, count as none", () => {
+        const typed = withContextLine(onConfiguration, "x")
+        expect(parseSentContextLine(`${typed}\n\nmore words`, "other words")).toBeNull()
+    })
+
+    it("finds no line in a message with none", () => {
+        expect(parseSentContextLine("Hello\n\nthere", "there")).toBeNull()
     })
 })
