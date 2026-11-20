@@ -46,9 +46,13 @@ const {writer, fx} = vi.hoisted(() => ({
     },
 }))
 
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", () => ({
-    useAgentConfigWriter: () => writer,
-}))
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (original) => ({
+        ...(await original<object>()),
+        useAgentConfigWriter: () => writer,
+    }),
+)
 vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
     getEnabledSandboxProviders: () => fx.environments,

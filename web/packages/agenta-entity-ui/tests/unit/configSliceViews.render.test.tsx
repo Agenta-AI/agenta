@@ -60,9 +60,13 @@ const {writer, created} = vi.hoisted(() => ({
     created: {calls: [] as unknown[]},
 }))
 
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", () => ({
-    useAgentConfigWriter: () => writer,
-}))
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (original) => ({
+        ...(await original<object>()),
+        useAgentConfigWriter: () => writer,
+    }),
+)
 
 // The shared Markdown editor is a Lexical editor; a textarea stands in for it here.
 vi.mock("../../src/DrillInView/SchemaControls/MarkdownEditor", () => ({

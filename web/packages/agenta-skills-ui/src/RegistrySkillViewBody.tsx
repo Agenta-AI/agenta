@@ -225,7 +225,7 @@ const RegistrySkillEditor = ({
     }
     const headValue = useMemo(() => toFormValue(head?.skill), [head])
     const value = draft ?? headValue
-    const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(headValue)
+    const dirty = !readOnly && draft !== null && JSON.stringify(draft) !== JSON.stringify(headValue)
     const valid =
         !readOnly &&
         skillContentSchema.safeParse(value).success &&
