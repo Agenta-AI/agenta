@@ -330,8 +330,11 @@ export function SkillFormView({
     const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null)
     const [bodyView, setBodyView] = useState<MarkdownView>("rendered")
 
+    // Menus render inside the form, so a modal drawer around it keeps their lists scrollable.
+    const [formRoot, setFormRoot] = useState<HTMLDivElement | null>(null)
+
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div ref={setFormRoot} className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center gap-2 px-4 pb-2">
                 <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                     <PopoverTrigger asChild>
@@ -352,7 +355,12 @@ export function SkillFormView({
                             <CaretDown size={12} className="shrink-0 text-muted-foreground" />
                         </button>
                     </PopoverTrigger>
-                    <PopoverContent align="start" sideOffset={4} className="w-[320px] p-0">
+                    <PopoverContent
+                        align="start"
+                        sideOffset={4}
+                        container={formRoot}
+                        className="w-[320px] p-0"
+                    >
                         <SkillFileMenu
                             files={files}
                             selected={selected}

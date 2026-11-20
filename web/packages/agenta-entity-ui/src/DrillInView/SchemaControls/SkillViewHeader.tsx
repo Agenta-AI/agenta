@@ -80,8 +80,10 @@ export function SkillViewHeader({
     const open = menuOpen ?? ownOpen
     const setOpen = onMenuOpenChange ?? setOwnOpen
     const hasMenu = actions.length > 0 || Boolean(menuTop)
+    // The menu renders inside the header, so a modal drawer around it keeps it scrollable.
+    const [headerRoot, setHeaderRoot] = useState<HTMLDivElement | null>(null)
     return (
-        <div className="flex shrink-0 flex-col gap-1 px-4 pb-3 pt-3">
+        <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 pb-3 pt-3">
             <div className="flex min-w-0 items-start gap-2">
                 <SkillMark size={24} />
                 <div className="flex min-w-0 flex-1 flex-col">
@@ -111,6 +113,7 @@ export function SkillViewHeader({
                         <PopoverContent
                             align="end"
                             sideOffset={6}
+                            container={headerRoot}
                             className="flex w-[220px] flex-col p-1"
                         >
                             {menuTop}

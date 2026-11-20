@@ -15,7 +15,7 @@
         "height": 900,
         "theme": "light",
         "selector": "[data-testid=\"agent-panel\"]",
-        "ready": "text=Find a file"
+        "ready": "[placeholder=\"Find a file\"]"
     },
     {
         "id": "skill-editor-f3-light",
@@ -114,7 +114,7 @@
         "height": 900,
         "theme": "light",
         "selector": "[data-testid=\"agent-panel\"]",
-        "ready": "text=Find a file"
+        "ready": "[placeholder=\"Find a file\"]"
     },
     {
         "id": "skill-editor-skills-page-light",

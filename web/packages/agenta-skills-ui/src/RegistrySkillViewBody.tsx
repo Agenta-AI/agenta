@@ -292,6 +292,8 @@ const RegistrySkillEditor = ({
         [onLeave, projectId, t, workflowId],
     )
 
+    // Flyouts render inside the view, so a modal drawer around it keeps their lists scrollable.
+    const [editorRoot, setEditorRoot] = useState<HTMLDivElement | null>(null)
     // "Add to agent" opens the agent picker as a flyout, on hover as the filter menu rows do.
     const [menuOpen, setMenuOpen] = useState(false)
     const {
@@ -323,6 +325,7 @@ const RegistrySkillEditor = ({
                     align="start"
                     sideOffset={6}
                     aria-label={t("skills.gallery.addToAgent")}
+                    container={editorRoot}
                     className="flex w-[280px] flex-col gap-0 p-0"
                     onOpenAutoFocus={(event) => event.preventDefault()}
                     onMouseEnter={openAgents}
@@ -412,6 +415,7 @@ const RegistrySkillEditor = ({
     const usage =
         !inAgent && usedBy.length ? (
             <UsedBy
+                container={editorRoot}
                 usedBy={usedBy}
                 agentHref={agentHref}
                 dirty={dirty}
@@ -421,7 +425,7 @@ const RegistrySkillEditor = ({
         ) : null
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div ref={setEditorRoot} className="flex min-h-0 flex-1 flex-col">
             <SkillViewHeader
                 name={skillTitle(skill)}
                 status={status}
@@ -546,12 +550,14 @@ const RegistrySkillEditor = ({
 
 /** "Used by N agents" on the Skills page; the names wait behind a hover, each a link to its agent. */
 const UsedBy = ({
+    container,
     usedBy,
     agentHref,
     dirty,
     onLeave,
     onAskLeave,
 }: {
+    container: HTMLElement | null
     usedBy: SkillUsageRef[]
     agentHref: ((agentId: string) => string) | null
     dirty: boolean
@@ -582,6 +588,7 @@ const UsedBy = ({
                 align="start"
                 sideOffset={6}
                 aria-label={t("skills.gallery.agentsUsingAria")}
+                container={container}
                 className="flex w-[240px] flex-col gap-px p-1"
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 onMouseEnter={show}
