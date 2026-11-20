@@ -66,6 +66,7 @@ from oss.src.core.access.context import (
     get_request_memo,
 )
 from oss.src.core.sharing.interfaces import SharingDAOInterface
+from oss.src.core.sharing.widening import SharedItemReaders
 from oss.src.core.sharing.types import (
     HOME_DRIVE_NOT_ALLOWED,
     DriveNotOwned,
@@ -692,6 +693,26 @@ class SharingService(ResourcePolicyInterface):
             project_id=project_id, session_id=session_id
         )
         return access
+
+    async def session_readers(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SharedItemReaders]:
+        """Who can read the session now, for `is_wider`: its policy and its grantees,
+        through the same cache as every access decision. None when no row exists."""
+
+        access = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        if access is None or access.policy is None:
+            return None
+        return SharedItemReaders(
+            policy=access.policy,
+            grantee_user_ids=frozenset(grant.user_id for grant in access.grants),
+            is_channel=bool(access.is_channel or access.channel_binding_id),
+        )
 
     async def _session_access_or_tombstone(
         self,

@@ -357,6 +357,19 @@ class RecordsService:
             session_id=session_id,
         )
 
+    async def get_ending_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionRecord]:
+        """The `done` and `error` records of every execution of the session, in send
+        order: what a turn's status, stop reason and error are read from."""
+        return await self.records_dao.get_ending_records(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
     async def get_event(
         self,
         *,

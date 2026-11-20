@@ -818,6 +818,23 @@ class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
     late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
+    # Running child sessions of one calling session. Above it, a start or a send that
+    # would start a child turn answers `child_session_limit_reached`.
+    child_sessions_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT") or 5
+    )
+    # Queued messages from one calling session in one child session. Above it, a send
+    # answers `child_queue_limit_reached`.
+    child_queued_messages_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_QUEUED_MESSAGES_LIMIT")
+        or 3
+    )
+    # Minutes after which a child turn that still runs sends the calling session one
+    # still-running update, when the start or the send gives no `update_after_minutes`.
+    still_running_update_minutes: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_STILL_RUNNING_UPDATE_MINUTES")
+        or 30
+    )
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
