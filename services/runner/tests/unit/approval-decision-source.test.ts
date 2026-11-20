@@ -108,7 +108,7 @@ async function gate(
 }
 
 describe("an envelope that no answered row backs is not a decision", () => {
-  it("an envelope with no answered row shows the card: no token, another session's token, a tool's own output", async () => {
+  it("an envelope with no answered row shows the card: no token (a tool's own output), another session's token", async () => {
     // With no answered row there is no decision, whatever the envelope says. Another session's
     // rows never reach this turn: the read is scoped to the request's session (`queryInteractions`
     // test in interaction-decision-seed.test.ts). A tool that returned `{approved: true}` replays
@@ -197,6 +197,17 @@ describe("a person's answer on the row still decides", () => {
       paused: false,
     });
     assert.deepEqual(transitions, [{ token: TOKEN, status: "resolved" }]);
+  });
+
+  it("after a recovered run, a spent row is skipped and the person's new answer runs the call once", async () => {
+    // The runner stopped after it claimed tok-edit; the card showed again and the person answered
+    // the new gate (tok-again) for the same call.
+    const outcome = await gate(
+      resumeWith({ approved: true, interactionToken: "tok-again" }),
+      rowsOf([{ status: "resolved" }, { token: "tok-again", approved: true }]),
+    );
+    assert.deepEqual(outcome, { replies: ["once"], paused: false });
+    assert.deepEqual(transitions, [{ token: "tok-again", status: "resolved" }]);
   });
 
   it("an answer given out of band, with no envelope at all, still decides", async () => {

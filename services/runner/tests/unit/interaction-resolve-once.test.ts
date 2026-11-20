@@ -87,7 +87,7 @@ describe("a row the caller already claimed", () => {
       undefined,
       deps,
       {
-        // What `loadDurableDecisions` hands in AFTER it has resolved the row.
+        // What `TurnApprovalRows.claimAll` hands in AFTER it has resolved the row.
         seededDecisions: [
           {
             key: "Write#{}",
