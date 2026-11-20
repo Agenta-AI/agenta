@@ -2,6 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {
     Button,
@@ -11,7 +12,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {ArrowsOutSimple, CaretDown, CaretLeft, Hammer, Plus, X} from "@phosphor-icons/react"
+import {ArrowsOutSimple, CaretDown, CaretLeft, Plus, X} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {cn} from "@/lib/utils"
@@ -67,7 +68,7 @@ export const BuilderHeader = ({
     const iconButton = (label: string, icon: ReactNode, onClick: () => void) => (
         <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-compact"
             aria-label={label}
             title={label}
             onClick={onClick}
@@ -89,7 +90,7 @@ export const BuilderHeader = ({
                             : "h-[30px] rounded-[6px] px-2 text-sm",
                     )}
                 >
-                    <Hammer aria-hidden size={14} className="shrink-0" />
+                    <BuilderIcon size={14} className="shrink-0" />
                     <span className="min-w-0 truncate" title={title}>
                         {title}
                     </span>
@@ -120,15 +121,16 @@ export const BuilderHeader = ({
     )
     if (phone) {
         const newChat = (
-            <button
-                type="button"
+            <Button
+                variant="ghost"
+                size="icon-compact"
                 aria-label={t("builder.panel.newChat")}
                 title={t("builder.panel.newChat")}
                 onClick={onNewChat}
-                className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-colorText active:bg-colorFillTertiary"
+                className="shrink-0"
             >
-                <Plus aria-hidden size={20} />
-            </button>
+                <Plus aria-hidden />
+            </Button>
         )
         return (
             <PhoneScreenHeader
@@ -156,7 +158,7 @@ export const BuilderHeader = ({
                 <Button
                     asChild
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon-compact"
                     className="shrink-0"
                     aria-label={t("builder.panel.openInBuilder")}
                     title={t("builder.panel.openInBuilder")}

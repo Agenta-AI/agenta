@@ -2,7 +2,7 @@ import {Fragment, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {formatNumber, useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown, Plus} from "@phosphor-icons/react"
 
 import {AgentPicker} from "./AgentPicker"
@@ -198,14 +198,15 @@ export const BuilderTabStrip = ({
             <AgentPicker
                 onPick={onOpenAgent}
                 trigger={
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
+                        size="icon-compact"
                         aria-label={t("builder.page.openItem")}
                         title={t("builder.page.openItem")}
-                        className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                        className="shrink-0"
                     >
-                        <Plus aria-hidden size={16} />
-                    </button>
+                        <Plus aria-hidden />
+                    </Button>
                 }
             />
         </div>

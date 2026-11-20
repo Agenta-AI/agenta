@@ -237,13 +237,13 @@ export const BuilderPage = ({
                     <SimpleTooltip title={t("builder.page.openItems")}>
                         <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             aria-label={t("builder.page.openItems")}
                             onClick={() =>
                                 phone ? setPhonePane(true) : setLayout({hidden: false})
                             }
                         >
-                            <SidebarSimple size={16} className="-scale-x-100" />
+                            <SidebarSimple className="-scale-x-100" />
                         </Button>
                     </SimpleTooltip>
                 ) : null}
@@ -256,11 +256,11 @@ export const BuilderPage = ({
                         trigger={
                             <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon-compact"
                                 aria-label={t("builder.page.openItem")}
                                 title={t("builder.page.openItem")}
                             >
-                                <Plus size={16} />
+                                <Plus />
                             </Button>
                         }
                     />
@@ -305,23 +305,19 @@ export const BuilderPage = ({
                     <SimpleTooltip title={t("builder.page.fullScreen")}>
                         <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             aria-label={t("builder.page.fullScreen")}
                             aria-pressed={layout.fullScreen}
                             onClick={() => setLayout({fullScreen: !layout.fullScreen})}
                         >
-                            {layout.fullScreen ? (
-                                <ArrowsInSimple size={16} />
-                            ) : (
-                                <ArrowsOutSimple size={16} />
-                            )}
+                            {layout.fullScreen ? <ArrowsInSimple /> : <ArrowsOutSimple />}
                         </Button>
                     </SimpleTooltip>
                 )}
                 <SimpleTooltip title={t("builder.page.hideOpenItems")}>
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-compact"
                         aria-label={t("builder.page.hideOpenItems")}
                         onClick={() =>
                             phone
@@ -329,7 +325,7 @@ export const BuilderPage = ({
                                 : setLayout({hidden: true, fullScreen: false})
                         }
                     >
-                        <SidebarSimple size={16} className="-scale-x-100" />
+                        <SidebarSimple className="-scale-x-100" />
                     </Button>
                 </SimpleTooltip>
             </div>

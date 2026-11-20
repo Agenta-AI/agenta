@@ -96,12 +96,12 @@ export const BuilderChatTitle = ({
                 <DropdownMenuTrigger asChild>
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-compact"
                         aria-label={t("sessions.rows.actionsFor", {name: title})}
                         title={t("sessions.rows.actionsFor", {name: title})}
                         className="shrink-0"
                     >
-                        <DotsThree aria-hidden size={16} weight="bold" />
+                        <DotsThree aria-hidden weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onCloseAutoFocus={handleCloseAutoFocus}>

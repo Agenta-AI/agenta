@@ -1,8 +1,9 @@
-import {useMemo, useState} from "react"
+import {useMemo, useState, type ComponentType} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {Button, Dialog, DialogClose, DialogContent, DialogTitle, SearchInput} from "@agenta/ui/ui"
 import {
     Book,
@@ -11,12 +12,10 @@ import {
     ClockCounterClockwise,
     Lightning,
     List,
-    Sparkle,
     SlidersHorizontal,
     Users,
     Wrench,
     X,
-    type Icon,
 } from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
@@ -30,9 +29,12 @@ import {
     type PageKey,
 } from "./ideas"
 
-const CATEGORY_ICONS: Record<IdeaCategory | "all", Icon> = {
+/** A category or idea glyph: a Phosphor icon, or the Builder mark for "Getting started". */
+type Glyph = ComponentType<{size?: number; className?: string}>
+
+const CATEGORY_ICONS: Record<IdeaCategory | "all", Glyph> = {
     all: List,
-    gettingStarted: Sparkle,
+    gettingStarted: BuilderIcon,
     support: Chat,
     sales: Users,
     operations: ClockCounterClockwise,
@@ -43,7 +45,7 @@ const CATEGORY_ICONS: Record<IdeaCategory | "all", Icon> = {
 }
 
 /** Ideas whose icon is not their category's (B02). */
-const IDEA_ICONS: Partial<Record<PageKey, Icon>> = {
+const IDEA_ICONS: Partial<Record<PageKey, Glyph>> = {
     "builder.page.ideaHelpCenter": Book,
 }
 
@@ -107,11 +109,11 @@ export const BrowseIdeasDialog = ({
                     <DialogClose asChild>
                         <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             aria-label={t("common.close")}
-                            className="shrink-0 text-colorTextSecondary"
+                            className="shrink-0"
                         >
-                            <X aria-hidden size={16} />
+                            <X aria-hidden />
                         </Button>
                     </DialogClose>
                 </div>
