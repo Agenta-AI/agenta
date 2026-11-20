@@ -172,23 +172,18 @@ describe("mobile schema-driven agent permissions", () => {
         expect(writes).not.toHaveBeenCalled()
     })
 
-    it("keeps permission editors out of the real Advanced drawer", async () => {
+    it("keeps permission editors out of Advanced", async () => {
         fixture.environments = ["local", "daytona"]
         await mount()
+        // Advanced opens its own views now (their tests live in @agenta/entity-ui); its row and
+        // a remote request to open it show no permission editor here.
         await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
-        // The drawer mounts its body two frames after it opens. Wait for the body.
-        await act(async () => {
-            await vi.waitFor(() => {
-                expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-                    "Execution environment",
-                )
-            })
-        })
-        const drawer = document.querySelector('[role="dialog"]')!
-        expect(drawer).not.toBeNull()
-        expect(drawer.textContent).toContain("Execution environment")
-        expect(drawer.querySelector('[aria-label="Policy"]')).toBeNull()
-        expect(drawer.textContent).not.toMatch(
+        const advanced = [...document.querySelectorAll("button")].find(
+            (node) => node.textContent?.includes("Advanced"),
+        )
+        expect(advanced).toBeTruthy()
+        expect(document.querySelectorAll('[aria-label="Policy"]').length).toBeLessThanOrEqual(1)
+        expect(document.body.textContent).not.toMatch(
             /Network|Filesystem|Enforcement|Allow rules|Deny rules/,
         )
         expect(writes).not.toHaveBeenCalled()

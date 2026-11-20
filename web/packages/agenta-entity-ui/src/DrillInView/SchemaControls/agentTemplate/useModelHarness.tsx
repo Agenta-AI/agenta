@@ -1,7 +1,8 @@
 /**
- * useModelHarness — the Model, Permissions, and Advanced sections. One
+ * useModelHarness — the Model and Permissions sections, and the Advanced section's row. One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  * The bodies themselves live in `./sections/` (one file per section); this hook owns the state.
+ * Advanced opens its own views (`views/advancedView`).
  */
 import {useCallback, useEffect, useMemo} from "react"
 
@@ -11,11 +12,9 @@ import {
     harnessCapabilitiesAtomFamily,
     harnessCatalogFailedAtom,
     retryHarnessCatalogAtom,
-    type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
-import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -35,7 +34,6 @@ import {
     vaultPickedProviderFamily,
     type ConnectionMode,
 } from "../connectionUtils"
-import {getEnumOptions} from "../EnumSelectControl"
 import {selectableHarnesses} from "../harnessMeta"
 import {
     isPermissionPolicy,
@@ -43,13 +41,12 @@ import {
     permissionPolicyOptionsForEnum,
 } from "../permissionPolicy"
 
-import {useAgentaTools} from "./AgentaToolsSection"
+import {useAgentaToolsData} from "./AgentaToolsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
-import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
+import {useSandboxChoice} from "./sandboxChoice"
 import {useAdvancedSectionBody} from "./sections/AdvancedSectionBody"
 import {modelSectionBody} from "./sections/ModelSectionBody"
 import {permissionsSectionBody} from "./sections/PermissionsSectionBody"
-import {useSecretsSection} from "./sections/SecretsSection"
 import {useBuildKit} from "./useBuildKit"
 
 // Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
@@ -61,9 +58,6 @@ export function useModelHarness({
     disabled,
     withTooltip,
     revisionId,
-    buildKitOverride,
-    credentialOperationsBlocked = false,
-    onCredentialRevisionCommitted,
     normalizeSandbox = false,
     onlyCurrentConnection = false,
 }: {
@@ -73,12 +67,6 @@ export function useModelHarness({
     disabled?: boolean
     withTooltip?: boolean
     revisionId?: string | null
-    /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
-    buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
-    /** The owning section drawer has unsaved local state outside the workflow draft atom. */
-    credentialOperationsBlocked?: boolean
-    /** Tell the owning section drawer which revision a credential commit is about to adopt. */
-    onCredentialRevisionCommitted?: (nextRevisionId: string) => void
     /** Only the live panel owner normalizes; mounting a section body never does. */
     normalizeSandbox?: boolean
     /** The picker lists only the stored connection's models (a model it no longer offers). */
@@ -93,7 +81,6 @@ export function useModelHarness({
     )
     const harnessProps = subProps("harness")
     const runnerProps = subProps("runner")
-    const sandboxProps = subProps("sandbox")
 
     const asObject = useCallback(
         (key: string): Record<string, unknown> =>
@@ -104,21 +91,14 @@ export function useModelHarness({
     )
     const harness = asObject("harness")
     const runner = asObject("runner")
-    const sandbox = asObject("sandbox")
-    const savedSandboxKind = typeof sandbox.kind === "string" ? sandbox.kind : null
-    // Where Daytona is enabled, `inprocess` is not a choice of its own. For either value the runner
-    // runs Pi in-process and every other harness on Daytona (`routeSandboxForHarness`), so the
-    // picker offers Daytona alone and shows an agent saved with `inprocess` as Daytona, without
-    // rewriting it. A deployment without Daytona keeps `inprocess` as it is.
-    const daytonaEnabled = getEnabledSandboxProviders().includes("daytona")
-    const shownSandboxKind =
-        daytonaEnabled && savedSandboxKind === "inprocess" ? "daytona" : savedSandboxKind
-    const sandboxOptions = useMemo(() => {
-        const enabled = new Set(getEnabledSandboxProviders())
-        return getEnumOptions(sandboxProps.kind).filter(
-            (o) => enabled.has(o.value) && !(daytonaEnabled && o.value === "inprocess"),
-        )
-    }, [sandboxProps.kind, daytonaEnabled])
+    const {
+        sandboxProps,
+        sandbox,
+        savedSandboxKind,
+        shownSandboxKind,
+        sandboxOptions,
+        hasExecutionGroup,
+    } = useSandboxChoice(schema, config)
 
     const runnerPermissions =
         runner.permissions && typeof runner.permissions === "object"
@@ -197,14 +177,7 @@ export function useModelHarness({
     const customSecrets = useAtomValue(customSecretsAtom)
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
-    const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
-    const handleCredentialRevisionCommitted = useCallback(
-        (nextRevisionId: string) => {
-            onCredentialRevisionCommitted?.(nextRevisionId)
-            onWorkflowRevisionCommitted?.(nextRevisionId)
-        },
-        [onCredentialRevisionCommitted, onWorkflowRevisionCommitted],
-    )
+    const {llmProviderConfig} = useDrillInUI()
 
     // Harness-filtered model options: the inspect catalog PLUS the vault custom_provider models,
     // so a configured Bedrock model is selectable. Empty when the harness publishes none AND the
@@ -367,17 +340,9 @@ export function useModelHarness({
         policy: permissionPolicyLabel(currentRunnerPermission) ?? currentRunnerPermission,
     })
 
-    const agentaToolsSection = useAgentaTools({
-        config,
-        onChange,
-        revisionId: revisionId ?? null,
-        disabled,
-    })
-    const {hasBuildKitOverlay, buildKitSection} = useBuildKit({
-        revisionId: revisionId ?? null,
-        disabled,
-        stateOverride: buildKitOverride,
-    })
+    // Advanced lists only the parts that apply to the agent.
+    const agentaTools = useAgentaToolsData(config, revisionId ?? null)
+    const {hasBuildKitOverlay} = useBuildKit({revisionId: revisionId ?? null, disabled})
 
     // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
     // config panel showing only what changed — a body renders only what owns one of them.
@@ -389,8 +354,7 @@ export function useModelHarness({
     // `harness.kind` a picked row sets, so a change filter keeps it whenever either is in scope.
     const modelInFocus = useHasFocusUnder("llm.model")
 
-    const hasExecutionGroup = sandboxOptions.length > 1
-    const hasAdvanced = hasExecutionGroup || hasBuildKitOverlay || Boolean(revisionId)
+    const hasAdvanced = hasExecutionGroup || hasBuildKitOverlay || agentaTools.status !== "none"
 
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
     // (below); the model picker also needs it, to cross each connection with the harnesses that
@@ -440,17 +404,7 @@ export function useModelHarness({
         disabled,
     })
 
-    const {secretBindings, secretsBody, secretsSummary, setSecretsHeaderSlot} = useSecretsSection({
-        t,
-        sandbox,
-        revisionId,
-        disabled,
-        credentialOperationsBlocked,
-        canEditSecrets: permissions?.canEditSecrets ?? false,
-        onRevisionCommitted: handleCredentialRevisionCommitted,
-    })
-
-    const {advancedSummary, advancedDrawerBody} = useAdvancedSectionBody({
+    const {advancedSummary, advancedChangeBody} = useAdvancedSectionBody({
         t,
         disabled,
         withTooltip,
@@ -460,13 +414,6 @@ export function useModelHarness({
         shownSandboxKind,
         setSection,
         sandbox,
-        agentaToolsSection,
-        buildKitSection,
-        hasBuildKitOverlay,
-        secretBindings,
-        secretsSummary,
-        secretsBody,
-        setSecretsHeaderSlot,
     })
 
     return {
@@ -480,8 +427,6 @@ export function useModelHarness({
         permissionsBody,
         runnerPermissionSummary,
         advancedSummary,
-        advancedDrawerBody,
-        // 50px past the integration drawer: the rail takes room from the panel.
-        advancedDrawerWidth: INTEGRATION_DRAWER_WIDTH + 50,
+        advancedChangeBody,
     }
 }

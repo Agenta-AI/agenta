@@ -3,7 +3,7 @@
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
  * of collapsible accordion sections (Model, Instructions, Integrations, Subagents,
- * MCP servers, Permissions, Advanced), built on the reusable {@link ConfigAccordionSection} primitive
+ * MCP servers, Skills, Secrets, Permissions, Advanced), built on the reusable {@link ConfigAccordionSection} primitive
  * so the same pattern can roll out to other config surfaces.
  *
  * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
@@ -31,9 +31,6 @@ import {
     modelRequirement,
     requirementAtPath,
     requirementForItem,
-    workflowBuildKitUiStateAtomFamily,
-    migrateBuildKitStateAtom,
-    type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {createT, getActiveLanguage, useT, type CatalogKey} from "@agenta/i18n"
@@ -53,13 +50,13 @@ import {
 } from "@agenta/ui/ui"
 import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
 import {UploadSimple} from "@phosphor-icons/react"
-import deepEqual from "fast-deep-equal"
-import {useAtom, useAtomValue, useStore} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 
-import {ChangedPathsProvider} from "../../drawers/shared"
+import {readSecretBindings} from "../../secret/secretBindings"
+import {secretAttachView} from "../../secret/views/secretAttachView"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
+import {readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {
     AgentTemplateSectionList,
@@ -93,6 +90,7 @@ import {
 import {ModelHarnessSectionBody} from "./agentTemplate/sections/ModelHarnessSectionBody"
 import {modelSection} from "./agentTemplate/sections/ModelSection"
 import {permissionsSection} from "./agentTemplate/sections/PermissionsSection"
+import {secretsSection} from "./agentTemplate/sections/SecretsSection"
 import {skillsSection} from "./agentTemplate/sections/SkillsSection"
 import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
 import {SubagentDrawerContainer} from "./agentTemplate/SubagentDrawerContainer"
@@ -102,6 +100,7 @@ import {AgentEditorContext, type AgentEditor} from "./agentTemplate/useAgentConf
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
+import {advancedView} from "./agentTemplate/views/advancedViews"
 import {instructionsView} from "./agentTemplate/views/instructionsView"
 import {integrationAddView} from "./agentTemplate/views/integrationAddView"
 import {integrationView} from "./agentTemplate/views/integrationView"
@@ -110,7 +109,6 @@ import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {modelIdFromConfig} from "./connectionUtils"
 import {SkillFormSkeleton} from "./DrawerSkeletons"
 import {JsonObjectEditor} from "./JsonObjectEditor"
-import {SectionDrawer} from "./SectionDrawer"
 import {
     integrationRowIndices,
     parseGatewayEntry,
@@ -168,8 +166,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     className,
 }: AgentTemplateControlProps) {
     const t = useT(agentTemplateCatalog)
-    const {gatewayTools, workflowReference, skills: skillsBridge} = useDrillInUI()
+    const {
+        gatewayTools,
+        workflowReference,
+        skills: skillsBridge,
+        permissions,
+        onWorkflowRevisionCommitted,
+    } = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
+    // The agent's secret attachments (`sandbox.credentials`), for the Secrets section.
+    const secretBindings = useMemo(() => readSecretBindings(config), [config])
 
     // Latest config, so an async write (e.g. after a schema lookup) doesn't clobber concurrent edits.
     const configRef = useRef(config)
@@ -239,70 +245,24 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (viewTarget) void openView(instructionsView, {file: "AGENTS.md" as const}, viewTarget)
     }, [openView, viewTarget, disabled])
 
-    // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
-    // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
-    // we opened with). The build-kit state lives OUTSIDE the config (playground-only atoms), so it is
-    // buffered alongside the config draft and committed to the atoms on Save.
-    const [openSection, setOpenSection] = useState<null | "advanced">(null)
-    const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
-    const [draftBuildKit, setDraftBuildKit] = useState<BuildKitUiState | null>(null)
-    const sectionBaseline = useRef<{
-        config: Record<string, unknown>
-        buildKit: BuildKitUiState
-    } | null>(null)
-    // The revision the open drawer was snapshotted against. State, not a ref: the drawer BODY reads
-    // it during render, and both its overlay and Save must stay on it even if the active revision
-    // changes underneath. Null whenever no section drawer is open.
-    const [sectionRevision, setSectionRevision] = useState<string | null>(null)
-    const store = useStore()
-    const revisionIdRef = useRef<string | null>(null)
-    const applyDraftConfig = useCallback(
-        (next: Record<string, unknown>) => setDraftConfig(next),
-        [],
-    )
-    // Single source of truth for "the currently open section has unsaved edits" — shared by the
-    // open-a-new-section guard below and the Save-button gate (`sectionDirty`) so they can't drift.
-    const isCurrentSectionDirty = useCallback(
-        () =>
-            openSection !== null &&
-            sectionBaseline.current !== null &&
-            (!deepEqual(draftConfig, sectionBaseline.current.config) ||
-                !deepEqual(draftBuildKit, sectionBaseline.current.buildKit)),
-        [openSection, draftConfig, draftBuildKit],
-    )
+    // Advanced opens its view: in the container's stack, or in a drawer of its own.
+    const openAdvanced = useCallback(() => {
+        if (viewTarget) void openView(advancedView, {}, viewTarget)
+    }, [openView, viewTarget])
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
-            // The Model section is a view now; only Advanced keeps its drawer.
-            if (key === "model-harness") {
-                openModel()
-                return
-            }
-            // Same section already open: never re-snapshot over a live draft.
-            if (openSection === key) return
-            // Another section is open with unsaved edits: drop the request rather than clobber it.
-            if (isCurrentSectionDirty()) return
-            const snapshotConfig = (value ?? {}) as Record<string, unknown>
-            const snapshotRevision = revisionIdRef.current ?? ""
-            store.set(migrateBuildKitStateAtom, snapshotRevision)
-            const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(snapshotRevision))
-            setDraftConfig(snapshotConfig)
-            setDraftBuildKit(snapshotBuildKit)
-            setSectionRevision(snapshotRevision)
-            sectionBaseline.current = {
-                config: snapshotConfig,
-                buildKit: snapshotBuildKit,
-            }
-            setOpenSection(key)
+            if (key === "model-harness") openModel()
+            else openAdvanced()
         },
-        [value, store, openSection, isCurrentSectionDirty, openModel],
+        [openModel, openAdvanced],
     )
-    const closeSectionDraft = useCallback(() => {
-        setOpenSection(null)
-        setDraftConfig(null)
-        setDraftBuildKit(null)
-        setSectionRevision(null)
-        sectionBaseline.current = null
-    }, [])
+    // A secret row and the Secrets "+" open "Attach a secret".
+    const openSecretAttach = useCallback(
+        (envVar?: string) => {
+            if (viewTarget) void openView(secretAttachView, {envVar}, viewTarget)
+        },
+        [openView, viewTarget],
+    )
 
     // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → the Model section).
     const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
@@ -313,41 +273,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         openSectionDrawer(openSectionRequest)
         setOpenSectionRequest(null)
     }, [openSectionRequest, openSectionDrawer, setOpenSectionRequest])
-    // Cancel: nothing was written live, so just drop the draft.
-    const cancelSection = closeSectionDraft
-    const saveSection = useCallback(() => {
-        if (sectionRevision !== (revisionIdRef.current ?? "")) {
-            closeSectionDraft()
-            return
-        }
-        if (draftConfig !== null && sectionBaseline.current !== null) {
-            onChange(
-                mergeAgentConfigDraft(
-                    configRef.current,
-                    sectionBaseline.current.config,
-                    draftConfig,
-                    openSection ?? undefined,
-                ),
-            )
-        }
-        if (draftBuildKit !== null && sectionBaseline.current !== null) {
-            const revision = sectionRevision ?? revisionIdRef.current ?? ""
-            if (!deepEqual(draftBuildKit, sectionBaseline.current.buildKit))
-                store.set(workflowBuildKitUiStateAtomFamily(revision), draftBuildKit)
-        }
-        closeSectionDraft()
-    }, [
-        draftConfig,
-        draftBuildKit,
-        openSection,
-        sectionRevision,
-        onChange,
-        store,
-        closeSectionDraft,
-    ])
-    // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
-    const sectionDirty = isCurrentSectionDirty()
-
     // `config` IS the agent template (`parameters.agent`); `schema` is the `agent-template` type and
     // decides which sections exist. Portable fields (instructions / llm / tools / mcps / skills) are
     // FLAT; execution parts (harness / runner / sandbox) are nested sub-objects (see useModelHarness).
@@ -359,7 +284,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config, onChange],
     )
 
-    revisionIdRef.current = revisionId
     // The server's needs-setup check for this saved revision; null until it answers.
     // A personal requirement belongs to each person who runs the agent, so the editor skips it.
     // The path and item lookups skip it themselves; the section summaries below filter it here.
@@ -375,40 +299,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const mcpNeedsSetup = Boolean(
         editorRequirements?.some((r) => r.kind === "mcp_server" || r.kind === "mcp_sign_in"),
     )
-    // A secret attach/edit/remove commits a new revision from inside the open drawer. Keep the
-    // drawer open on it: re-snapshot the (clean) draft from the adopted revision instead of closing.
-    const credentialRebaseTarget = useRef<string | null>(null)
-    const rebaseSectionOnCredentialCommit = useCallback((nextRevisionId: string) => {
-        credentialRebaseTarget.current = nextRevisionId
-    }, [])
-    useEffect(() => {
-        if (!openSection || sectionRevision === (revisionId ?? "")) return
-        const rebase =
-            revisionId !== null &&
-            credentialRebaseTarget.current === revisionId &&
-            !isCurrentSectionDirty()
-        credentialRebaseTarget.current = null
-        if (!rebase) {
-            closeSectionDraft()
-            return
-        }
-        const snapshotConfig = (value ?? {}) as Record<string, unknown>
-        store.set(migrateBuildKitStateAtom, revisionId)
-        const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(revisionId))
-        setDraftConfig(snapshotConfig)
-        setDraftBuildKit(snapshotBuildKit)
-        setSectionRevision(revisionId)
-        sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
-    }, [
-        revisionId,
-        sectionRevision,
-        openSection,
-        closeSectionDraft,
-        isCurrentSectionDirty,
-        value,
-        store,
-    ])
-
     // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
     // the sibling AgentOperationsSections; this shares the same deduped query).
     const {count: triggerCount} = useAgentTriggers(revisionId)
@@ -487,11 +377,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         revisionId,
         normalizeSandbox: true,
     })
-    const draftBuildKitOverride = useMemo(
-        () =>
-            draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
-        [draftBuildKit],
-    )
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -678,23 +563,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // and the indicators, the drawers' property marks, and any summary can never disagree.
     const draftSectionKeys = sectionChanges.draft.panelKeys
 
-    // Revert for the SECTION DRAWERS: restore the given paths to their committed values through the
-    // drawer's scoped draft (`applyDraftConfig`), never straight to the entity — so an undo behaves
-    // like any other edit in there and Cancel/Save still mean what they say.
-    const drawerChangedPaths = useMemo(
-        () => ({
-            ...sectionChanges.draft,
-            revert: disabled
-                ? undefined
-                : (paths: string[]) =>
-                      applyDraftConfig(revertPathsTo(draftConfig ?? config, committed, paths)),
-        }),
-        [sectionChanges.draft, applyDraftConfig, committed, draftConfig, config, disabled],
-    )
-
     // Revert for the PANEL's own inline bodies: writes the entity draft straight through `onChange`,
     // matching how the panel's other inline sections (Tools, Instructions) already behave. Distinct
-    // from `drawerChangedPaths` above — the drawer has a scoped draft to respect, the panel doesn't.
     const panelChangedPaths = useMemo(
         () => ({
             ...sectionChanges.draft,
@@ -985,7 +855,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (key === "model-harness" && modelReq) return modelNeedsSetupMessage()
         if (key === "tools" && toolResolutionSummary.needsSetup > 0) return needsSetupLabel()
         if (key === "mcp" && mcpNeedsSetup) return needsSetupLabel()
-        if (key === "advanced" && secretReq) return needsSetupLabel()
+        if (key === "secrets" && secretReq) return needsSetupLabel()
         return null
     }
     const headerIndicator = (
@@ -1115,15 +985,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             closeEditor,
             skillStatusFor,
         }),
-        permissionsSection({t, mh, sectionIndicator, panelChangedPaths, bodyProps}),
-        advancedSection({
-            t,
-            mh,
+        secretsSection({
             sectionIndicator,
-            secretReq,
-            advancedChangeBody,
-            openSectionDrawer,
+            bindings: secretBindings,
+            revisionId,
+            disabled,
+            canEditSecrets: permissions?.canEditSecrets ?? false,
+            openAttach: openSecretAttach,
+            onRevisionCommitted: onWorkflowRevisionCommitted,
         }),
+        permissionsSection({t, mh, sectionIndicator, panelChangedPaths, bodyProps}),
+        advancedSection({t, mh, sectionIndicator, advancedChangeBody, openAdvanced}),
     ].filter(Boolean) as AgentTemplateSectionDescriptor[]
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
@@ -1290,33 +1162,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       )
                   })()
                 : null}
-
-            <SectionDrawer
-                open={openSection === "advanced"}
-                title={t("entityUi.agentTemplate.advanced")}
-                onCancel={cancelSection}
-                onSave={saveSection}
-                disabled={disabled || !sectionDirty}
-                dirty={sectionDirty}
-                width={mh.advancedDrawerWidth}
-                // No top or bottom gutter: the rail and its divider run header to footer.
-                bodyPadding="0 12px"
-            >
-                <ChangedPathsProvider changes={drawerChangedPaths}>
-                    <ModelHarnessSectionBody
-                        section="advanced"
-                        schema={schema}
-                        config={draftConfig ?? config}
-                        onChange={applyDraftConfig}
-                        disabled={disabled}
-                        withTooltip={withTooltip}
-                        revisionId={sectionRevision ?? revisionId}
-                        buildKitOverride={draftBuildKitOverride}
-                        credentialOperationsBlocked={sectionDirty}
-                        onCredentialRevisionCommitted={rebaseSectionOnCredentialCommit}
-                    />
-                </ChangedPathsProvider>
-            </SectionDrawer>
 
             {skillsBridge?.enabled ? (
                 <skillsBridge.PickerHost

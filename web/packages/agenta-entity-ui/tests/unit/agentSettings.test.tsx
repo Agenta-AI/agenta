@@ -11,7 +11,7 @@ const fixture = vi.hoisted(() => ({
     committed: null as Record<string, unknown> | null,
     overlay: null as Record<string, unknown> | null,
     revision: null as string | null,
-    saveSection: null as (() => void) | null,
+    opened: [] as string[],
 }))
 
 vi.mock("@agenta/shared/api", async (original) => ({
@@ -47,43 +47,20 @@ vi.mock("@agenta/entities/workflow", async (original) => {
 vi.mock("../../src/DrillInView/SchemaControls/TriggerManagementSection", () => ({
     useAgentTriggers: () => ({count: 0}),
 }))
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/AgentSecretsSection", () => ({
-    AgentSecretsSection: ({localDraftDirty}: {localDraftDirty?: boolean}) => (
-        <div data-testid="custom-secrets" data-draft-dirty={String(localDraftDirty)} />
-    ),
-}))
 vi.mock("../../src/DrillInView/components/MoleculeDrillInContext", async (original) => ({
     ...(await original<object>()),
     useOptionalDrillIn: () => (fixture.revision ? {entityId: fixture.revision} : null),
 }))
-// Keep drawer lifecycle and section composition real; replace only portal/animation chrome.
-vi.mock("../../src/DrillInView/SchemaControls/SectionDrawer", () => ({
-    SectionDrawer: ({
-        open,
-        title,
-        children,
-        onSave,
-        onCancel,
-        disabled,
-    }: {
-        open: boolean
-        title: ReactNode
-        children: ReactNode
-        onSave: () => void
-        onCancel: () => void
-        disabled: boolean
-    }) => {
-        if (open) fixture.saveSection = onSave
-        return open ? (
-            <div role="dialog" aria-label={String(title)}>
-                {children}
-                <button onClick={onCancel}>Cancel</button>
-                <button onClick={onSave} disabled={disabled}>
-                    Save
-                </button>
-            </div>
-        ) : null
-    },
+// Advanced and the Model open views; the views have their own tests.
+vi.mock("@agenta/ui/view-stack", async (original) => ({
+    ...(await original<object>()),
+    useViewOpener: () => ({
+        open: async (view: {id: string}) => {
+            fixture.opened.push(view.id)
+            return true
+        },
+        drawer: null,
+    }),
 }))
 vi.mock("@agenta/ui/components/presentational", async (original) => ({
     ...(await original<object>()),
@@ -233,7 +210,7 @@ beforeEach(() => {
     fixture.committed = null
     fixture.overlay = null
     fixture.revision = null
-    fixture.saveSection = null
+    fixture.opened = []
     writes.mockClear()
     store = createStore()
     host = document.createElement("div")
@@ -246,57 +223,14 @@ afterEach(async () => {
 })
 
 describe("shared agent settings", () => {
-    it("Restore and Save preserve restrictions added after a pruned sandbox snapshot", async () => {
-        const {sandbox: _sandbox, ...committed} = saved()
-        fixture.committed = committed
-        await mount({...committed, sandbox: {kind: "local"}})
-        await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
-        const drawer = document.querySelector('[role="dialog"][aria-label="Advanced"]')!
-        await click(button("Execution", drawer))
-        await click(button("Sandbox", drawer))
-        await click(button("Remove change"))
-        await act(async () =>
-            update({...committed, sandbox: {kind: "local", permissions: {network: "off"}}}),
-        )
-        await click(button("Save", drawer))
-        expect(writes.mock.calls[0]?.[0].sandbox).toEqual({permissions: {network: "off"}})
-        expect((live.sandbox as {permissions: unknown}).permissions).toEqual({network: "off"})
-    })
-
-    // The Model section is a view now (a pick applies at once); only Advanced keeps a drawer draft.
-    it.each(["advanced"] as const)(
-        "discards %s drafts on revision changes and rejects stale Save callbacks",
-        async (section) => {
-            fixture.revision = "old-revision"
-            await mount()
-            await act(async () => store.set(openAgentConfigSectionAtom, section))
-            await click(button("Execution"))
-            await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
-            const staleSave = fixture.saveSection!
-            const newer = {...saved("claude"), llm: {model: "sonnet", provider: "anthropic"}}
-            await act(async () => {
-                fixture.revision = "new-revision"
-                update(newer)
-            })
-            expect(document.querySelector('[role="dialog"]')).toBeNull()
-            await act(async () => staleSave())
-            expect(writes).not.toHaveBeenCalled()
-            expect(live).toEqual(newer)
-        },
-    )
     it.each(["pi_core", "claude", "codex"])(
         "shows only the shared policy for %s, outside Advanced",
         async (kind) => {
             await mount(saved(kind))
             const permissions = host.querySelector('section[aria-label="Permissions"]')!
             expect(permissions.querySelector('[aria-label="Policy"]')).not.toBeNull()
-            await click(button("Advanced"))
-            await click(button("Execution"))
-            const drawer = document.querySelector('[role="dialog"]')!
-            expect(drawer.querySelector('[aria-label="Policy"]')).toBeNull()
-            expect(drawer.textContent).not.toMatch(
-                /Network|Filesystem|Enforcement|harness|Permission|Allow rules|Deny rules/,
-            )
+            const advanced = host.querySelector('section[aria-label="Advanced"]')!
+            expect(advanced.querySelector('[aria-label="Policy"]')).toBeNull()
             await choose(permissions.querySelector('[aria-label="Policy"]'), "Allow all")
             expect((live.runner as ReturnType<typeof saved>["runner"]).permissions.default).toBe(
                 "allow",
@@ -316,92 +250,24 @@ describe("shared agent settings", () => {
         },
     )
 
-    describe("the in-process sandbox", () => {
-        const withInprocess = ["local", "daytona", "inprocess"]
-        async function sandboxChoices() {
-            await click(button("Advanced"))
-            await click(button("Execution"))
-            const trigger = document.querySelector('[role="dialog"] [role="combobox"]')!
-            await act(async () =>
-                trigger.dispatchEvent(
-                    new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true}),
-                ),
-            )
-            return [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent)
-        }
-
-        it("is never offered: the runner picks it for Pi under Daytona", async () => {
-            fixture.environments = withInprocess
-            await mount(saved(), {environments: withInprocess})
-            expect(await sandboxChoices()).toEqual(["Local", "Daytona"])
-            expect(writes).not.toHaveBeenCalled()
-        })
-
-        it("shows a saved Inprocess agent as Daytona and leaves it as it is", async () => {
-            fixture.environments = withInprocess
-            const value = {...saved(), sandbox: {...saved().sandbox, kind: "inprocess"}}
-            await mount(value, {environments: withInprocess})
-            expect(writes).not.toHaveBeenCalled()
-            expect((live.sandbox as {kind: string}).kind).toBe("inprocess")
-            expect(await sandboxChoices()).toEqual(["Local", "Daytona"])
-            const selected = document.querySelector('[role="option"][aria-selected="true"]')
-            expect(selected?.textContent).toBe("Daytona")
-        })
-
-        it("keeps a saved Inprocess agent on a deployment without Daytona", async () => {
-            const withoutDaytona = ["local", "inprocess"]
-            fixture.environments = withoutDaytona
-            const value = {...saved(), sandbox: {...saved().sandbox, kind: "inprocess"}}
-            await mount(value, {environments: withoutDaytona})
-            expect(writes).not.toHaveBeenCalled()
-            expect((live.sandbox as {kind: string}).kind).toBe("inprocess")
-        })
-    })
-
-    it("keeps build-kit availability but hides its sandbox policy and hint", async () => {
-        fixture.environments = ["local"]
-        fixture.overlay = {
-            tools: [{type: "platform", op: "commit_revision"}],
-            sandbox: {permissions: {network: "on"}},
-        }
-        const overlay = structuredClone(fixture.overlay)
-        await mount()
-        await click(button("Advanced"))
-        await click(button("Build kit"))
-        expect(document.querySelector('[aria-label="Default permission"]')).not.toBeNull()
-        expect(document.body.textContent).toContain("Write")
-        expect(button("Execution")).toBeUndefined()
-        expect(document.body.textContent).not.toMatch(/Sandbox permissions|Build kit overrides/)
-        expect(fixture.overlay).toEqual(overlay)
-        expect(writes).not.toHaveBeenCalled()
-    })
-
-    it("keeps Custom secrets without a build kit or environment choice", async () => {
-        fixture.environments = ["local"]
+    it("opens the Advanced view from its row, and on a remote request", async () => {
         fixture.revision = "saved-revision"
         await mount()
         await click(button("Advanced"))
-        expect(button("Execution")).toBeUndefined()
-        // One Advanced panel needs no rail, so Custom secrets is the body itself.
+        await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
+        expect(fixture.opened).toEqual(["agent.advanced", "agent.advanced"])
+        expect(writes).not.toHaveBeenCalled()
+    })
+
+    it("shows Secrets as its own section after Skills, and not in Advanced", async () => {
+        fixture.revision = "saved-revision"
+        await mount()
+        const titles = [...host.querySelectorAll("section")].map((s) =>
+            s.getAttribute("aria-label"),
+        )
+        expect(titles).toContain("Secrets")
+        expect(titles.indexOf("Secrets")).toBeLessThan(titles.indexOf("Permissions"))
         expect(button("Custom secrets")).toBeUndefined()
-        expect(document.querySelector('[data-testid="custom-secrets"]')).not.toBeNull()
-        expect(document.querySelector('[role="dialog"] [aria-label="Policy"]')).toBeNull()
-        expect(writes).not.toHaveBeenCalled()
-    })
-
-    it("blocks credential operations while the Advanced section is dirty", async () => {
-        fixture.revision = "saved-revision"
-        await mount()
-        await click(button("Advanced"))
-        await click(button("Custom secrets"))
-        const secrets = () => document.querySelector('[data-testid="custom-secrets"]')!
-        expect(secrets().getAttribute("data-draft-dirty")).toBe("false")
-        await click(button("Execution"))
-        await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
-        // The rail shows one panel at a time, so come back to the secrets pane to read it.
-        await click(button("Custom secrets"))
-        expect(secrets().getAttribute("data-draft-dirty")).toBe("true")
-        expect(writes).not.toHaveBeenCalled()
     })
 
     it("does not normalize an invalid sandbox on a disabled surface", async () => {
@@ -430,28 +296,6 @@ describe("shared agent settings", () => {
         await mount({...saved(), sandbox: {...saved().sandbox, kind: "removed"}})
         expect(writes).toHaveBeenCalledTimes(1)
         expect((live.sandbox as {kind: string}).kind).toBe("local")
-        expectRules()
-    })
-
-    it("saves and cancels Advanced environment edits without changing stored restrictions", async () => {
-        await mount()
-        await click(button("Advanced"))
-        await click(button("Execution"))
-        await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
-        expect(live.sandbox).toEqual(saved().sandbox)
-        await click(button("Cancel"))
-        expect(live).toEqual(saved())
-        await click(button("Advanced"))
-        await click(button("Execution"))
-        await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
-        const newer = {
-            ...saved(),
-            runner: {permissions: {...saved().runner.permissions, default: "deny"}},
-        }
-        await act(async () => update(newer))
-        await click(button("Save"))
-        expect((live.sandbox as {kind: string}).kind).toBe("daytona")
-        expect(live.runner).toEqual(newer.runner)
         expectRules()
     })
 
@@ -494,32 +338,4 @@ describe("shared agent settings", () => {
         expect((live.sandbox as {kind: string}).kind).toBe("local")
         expectRules(dirty)
     })
-
-    it.each(["Save", "Cancel"])(
-        "buffers environment group Revert until %s and never reverts sandbox rules",
-        async (action) => {
-            fixture.committed = saved()
-            const dirty = {
-                ...saved(),
-                sandbox: {
-                    ...saved().sandbox,
-                    kind: "daytona",
-                    permissions: {...saved().sandbox.permissions, network: "on"},
-                },
-            }
-            await mount(dirty)
-            await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
-            const drawer = document.querySelector('[role="dialog"][aria-label="Advanced"]')!
-            await click(button("Revert", drawer))
-            await click(
-                button("Revert", document.querySelector('[aria-label="Revert this group?"]')!),
-            )
-            expect(live).toEqual(dirty)
-            await click(button(action, drawer))
-            expect((live.sandbox as {kind: string}).kind).toBe(
-                action === "Save" ? "local" : "daytona",
-            )
-            expectRules(dirty)
-        },
-    )
 })
