@@ -2,9 +2,11 @@ import {useEffect, useId, useRef} from "react"
 
 /**
  * The browser and system back on a phone. Each open level (a full screen panel, a section
- * screen, a view) holds one history entry on the same URL. Back removes the top entry and runs
- * that level's own back, which may ask first; when the person stays, the entry comes back. A
- * level the app closes itself (back arrow, Cancel, Save) gives its entry back with `history.go`.
+ * screen, a view) holds one history entry on the same URL. A back is undone at once (the entry
+ * is pushed again), then the top level runs its own back, which may ask first. When the level
+ * closes, it gives its entry back with `history.go`, as when the app closes it (back arrow,
+ * Cancel, Save). So the history always matches the open levels, and a second back while the
+ * first one asks does nothing.
  *
  * The entries copy the page's history state, so the Next router still knows the URL when the
  * person comes back to an old one after a navigation. While a level is open this module takes
@@ -37,14 +39,22 @@ let entries: Entry[] = []
 /** Pops this module caused itself (app closes), which it must let pass. */
 let ownPops = 0
 let toRemove = 0
+/** A level's back is running (its question may be open): further backs are only undone. */
+let pending = false
 let installed = false
 
 const currentPage = () => (window.history.state as {key?: unknown} | null)?.key ?? null
 const countOf = (id: string) => entries.filter((entry) => entry.owner === id).length
 
+/** The position in this page's history: 0 on the page itself, n on the n-th level entry. */
+const positionOf = (state: unknown) => (state as {agSystemBack?: number} | null)?.agSystemBack ?? 0
+
+const pushState = (position: number) =>
+    window.history.pushState({...window.history.state, agSystemBack: position}, "")
+
 const pushEntry = (id: string) => {
     entries.push({owner: id, page: currentPage()})
-    window.history.pushState({...window.history.state, agSystemBack: entries.length}, "")
+    pushState(entries.length)
 }
 
 const flush = () => {
@@ -91,18 +101,29 @@ const onPopState = (event: PopStateEvent) => {
         return
     }
     if (entries.length === 0) return
-    // This back is a level's: the router must not treat it as a route change.
+    // This move is a level's: the router must not treat it as a route change.
     event.stopImmediatePropagation()
+    const position = positionOf(event.state)
+    if (position >= entries.length) {
+        // Forward onto an entry of a level that closed: go back to where the levels are.
+        if (position > entries.length) {
+            ownPops += 1
+            window.history.go(entries.length - position)
+        }
+        return
+    }
+    // Undo the back at once; the level gives its entry back only when it really closes.
+    for (let p = position + 1; p <= entries.length; p++) pushState(p)
+    if (pending) return
     const rankAt = (i: number) => RANK[owners.get(entries[i].owner)?.rank ?? "panel"]
     // The highest rank wins; among equals, the latest entry.
     let index = entries.length - 1
     for (let i = entries.length - 2; i >= 0; i--) if (rankAt(i) > rankAt(index)) index = i
-    const [{owner: id}] = entries.splice(index, 1)
-    const owner = owners.get(id)
+    const owner = owners.get(entries[index].owner)
     if (!owner) return
-    void Promise.resolve(owner.onBack()).then((left) => {
-        // The person stayed: the level is still open, so its entry comes back.
-        if (left === false && owners.has(id)) sync(id)
+    pending = true
+    void Promise.resolve(owner.onBack()).finally(() => {
+        pending = false
     })
 }
 
@@ -115,7 +136,9 @@ const install = () => {
 
 /**
  * Call after a navigation to a new page (not a shallow change): the open levels' entries belong
- * to the old page, so each open level gets a new entry on the new page.
+ * to the old page, so each open level gets a new entry on the new page. Only a level that stays
+ * open across a navigation needs it (the agent panel, which stays open when the session changes);
+ * a level that unmounts drops its old-page entries by itself.
  */
 export const restartSystemBack = () => {
     entries = []
@@ -157,5 +180,6 @@ export const resetSystemBackForTests = () => {
     entries = []
     ownPops = 0
     toRemove = 0
+    pending = false
     owners.clear()
 }
