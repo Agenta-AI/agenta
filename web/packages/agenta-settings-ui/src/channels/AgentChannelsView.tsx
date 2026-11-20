@@ -212,20 +212,20 @@ const ChannelGroup = ({
 }) =>
     phone ? (
         <section className="flex flex-col">
-            <h3 className="m-0 px-4 pb-1.5 pt-4 text-xs font-medium leading-5 text-colorTextTertiary">
+            <h3 className="m-0 px-4 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-colorTextTertiary">
                 {title}
             </h3>
             <div className="flex flex-col">{children}</div>
         </section>
     ) : (
         <section className="flex flex-col gap-2">
-            <h3 className="m-0 text-xs font-medium leading-4 text-muted-foreground">{title}</h3>
+            <h3 className="m-0 text-[12px] font-medium leading-4 text-muted-foreground">{title}</h3>
             {children}
         </section>
     )
 
 const ROW_DESKTOP =
-    "box-border flex w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left text-sm leading-5"
+    "box-border flex w-full items-center gap-2.5 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left text-sm leading-5"
 const ROW_PHONE =
     "box-border flex min-h-14 w-full items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer py-1.5 pl-4 pr-2 text-left text-[15px] leading-5"
 
@@ -262,7 +262,7 @@ const ChannelRow = ({
                     {platformLabel(platform)}
                     {tag}
                 </span>
-                <span className={`text-xs leading-4 ${phone ? "" : "truncate"} ${subClass}`}>
+                <span className={`text-[12px] leading-4 ${phone ? "" : "truncate"} ${subClass}`}>
                     {sub}
                 </span>
             </span>
@@ -300,7 +300,7 @@ const ChannelRow = ({
                 // On a phone 36 px high with a 44 px hit area, as drawn (M13).
                 className={
                     phone
-                        ? "relative mr-2 h-9 rounded-lg text-sm after:absolute after:-inset-1 after:content-['']"
+                        ? "relative mr-2 h-9 rounded-md text-sm after:absolute after:-inset-1 after:content-['']"
                         : undefined
                 }
                 onClick={onClick}

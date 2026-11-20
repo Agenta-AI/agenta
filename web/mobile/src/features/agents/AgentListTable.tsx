@@ -109,10 +109,10 @@ export const AgentListTable = ({
             // Affordable for the same reason: the minima fit every width this page is read at,
             // so the frame's own horizontal scroller was never doing anything.
             stickyHeader
-            // As drawn (A03): quiet 12 px column names over a line, a light line under each row.
-            headerClassName="border-colorBorderSecondary text-xs font-normal text-colorTextTertiary"
-            // 56 px rows with a light line under each (A03).
-            rowClassName="min-h-14 border-b border-solid border-colorSplit py-0"
+            // As drawn (A03): quiet 12 px column names between two lines, 56 px rows with a light
+            // line under each, and the cells 8 px in from the table edge.
+            headerClassName="border-t border-colorBorderSecondary px-2 text-[12px] font-normal text-colorTextTertiary"
+            rowClassName="min-h-14 border-b border-solid border-colorSplit px-5 py-0"
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.id}

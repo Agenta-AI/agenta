@@ -29,7 +29,7 @@ export const LockedAgentChip = ({
             {variant === "inline" ? (
                 <span
                     data-testid="locked-agent-chip"
-                    className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-muted-foreground"
+                    className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-[6px] bg-muted px-2 text-[12px] text-muted-foreground"
                 >
                     <LockSimple size={12} aria-hidden className="shrink-0" />
                     <span className="max-w-[260px] truncate">
@@ -39,7 +39,7 @@ export const LockedAgentChip = ({
             ) : (
                 <span
                     data-testid="locked-agent-chip"
-                    className="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-lg bg-muted pl-2.5 pr-1 text-[13px]"
+                    className="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md bg-muted pl-2.5 pr-1 text-[13px]"
                 >
                     <span className="text-muted-foreground">
                         {t("agentPages.lockedFilter.agent")}

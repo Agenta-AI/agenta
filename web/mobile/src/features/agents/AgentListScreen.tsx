@@ -231,7 +231,7 @@ export const AgentListScreen = ({
                                 <ListTableToolbar
                                     // A 300 x 30 field with a light border, 10 px above the
                                     // table (A03).
-                                    className="mb-2.5 md:[&_[data-slot=input-group]]:h-[30px] md:[&_[data-slot=input-group]]:max-w-[300px] md:[&_[data-slot=input-group]]:rounded-md md:[&_[data-slot=input-group]]:border-colorBorderSecondary"
+                                    className="mb-2.5 md:[&_[data-slot=input-group]]:h-[30px] md:[&_[data-slot=input-group]]:max-w-[300px] md:[&_[data-slot=input-group]]:rounded-[6px] md:[&_[data-slot=input-group]]:border-colorBorderSecondary"
                                     search={search}
                                     onSearchChange={setSearch}
                                     searchPlaceholder={t("agents.list.searchPlaceholder")}
