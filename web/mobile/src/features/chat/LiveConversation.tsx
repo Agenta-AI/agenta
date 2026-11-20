@@ -84,8 +84,8 @@ import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
-import {CONVERSATION_ROLE_ATTR, ownsConversationShortcut} from "./conversationFocus"
-import {useConversationRole} from "./conversationRole"
+import {ownsShortcutAt} from "./conversationFocus"
+import {ConversationRoot} from "./ConversationRoot"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
@@ -854,10 +854,6 @@ export const LiveConversation = ({
 
     // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
     const scrollerRef = autoScroll.ref
-    // The role comes from the container as a value, so a role change keeps this mount and its
-    // state. Two conversations can be on screen; a shortcut acts on the focused one only.
-    const role = useConversationRole()
-    const conversationRootRef = useRef<HTMLDivElement>(null)
     // Read through a ref: `pendingApprovals` is rebuilt every streamed commit, so depending on it
     // would re-register the listener on the hot path.
     const shortcutRef = useRef({streamingHere, pendingApprovals, approvalActions, stopHere, locked})
@@ -870,7 +866,8 @@ export const LiveConversation = ({
             // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
             if (e.defaultPrevented || isOverlayOpen()) return
             if (!isOnScreen(scrollerRef.current)) return
-            if (!ownsConversationShortcut(conversationRootRef.current)) return
+            // Two conversations can be on screen; a shortcut acts on the focused one only.
+            if (!ownsShortcutAt(scrollerRef.current)) return
             const current = shortcutRef.current
             if (stopKey && current.streamingHere) {
                 e.preventDefault()
@@ -1191,13 +1188,9 @@ export const LiveConversation = ({
         </ConnectionFocusProvider>
     )
 
-    // The root that tells which conversation holds the focus. `contents`: it adds no box, so the
-    // scaffold keeps its place in the parent's layout.
-    const rootedScaffold = (
-        <div ref={conversationRootRef} {...{[CONVERSATION_ROLE_ATTR]: role}} className="contents">
-            {scaffold}
-        </div>
-    )
+    // The role comes from the container as a value, so a role change keeps this mount and its
+    // state.
+    const rootedScaffold = <ConversationRoot>{scaffold}</ConversationRoot>
 
     // Embedded: the workspace owns the shell and the pane geometry.
     return embedded ? (

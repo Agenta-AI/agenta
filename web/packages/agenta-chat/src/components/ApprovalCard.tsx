@@ -57,6 +57,12 @@ export interface ApprovalCardProps {
     readOnly?: boolean
     /** Shown in place of the actions while `readOnly`; the host words it (it names the owner). */
     readOnlyNote?: string | null
+    /**
+     * Whether the keys (Cmd/Ctrl+Enter, Escape) belong to this card now. A host with two
+     * conversations on screen answers by the focus, so one key answers one card. Omitted, the
+     * card on screen takes them.
+     */
+    ownsShortcut?: (card: HTMLElement) => boolean
 }
 
 export const ApprovalCard = ({
@@ -73,6 +79,7 @@ export const ApprovalCard = ({
     onDenyAll,
     readOnly = false,
     readOnlyNote,
+    ownsShortcut,
     className = "gap-2.5 border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5",
 }: ApprovalCardProps) => {
     const current = approvals[0]
@@ -201,6 +208,7 @@ export const ApprovalCard = ({
             // The listener is on `window`, and a parallel run parks a gate in a session you are
             // not looking at. Without this, one Cmd+Enter answered every hidden card too.
             if (rootRef.current && !isOnScreen(rootRef.current)) return
+            if (rootRef.current && ownsShortcut && !ownsShortcut(rootRef.current)) return
             if (steerOpen) return
             // Escape must not deny while the user is typing (e.g. clearing a queued message in the
             // composer). Cmd/Ctrl+Enter still fires from a field — it mirrors the composer's send.
