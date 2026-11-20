@@ -26,6 +26,9 @@ export {
     subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 
+export type {BuiltinModelsRow, ModelProviderList, SubscriptionRow} from "./modelProviderList"
+export {buildModelProviderList, builtinModelsOf} from "./modelProviderList"
+
 export type {
     AgentSecretBinding,
     CreateSecretDto,

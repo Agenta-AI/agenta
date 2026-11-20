@@ -29,10 +29,12 @@ import {
     ManageProvidersRow,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
+import {useOptionalViewStack} from "@agenta/ui/view-stack"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
+import {providerListView} from "../../../secretProvider/views/providerViews"
 import {
     buildConnectionPickerRows,
     displayedModelRow,
@@ -141,10 +143,17 @@ const ModelPickerControl = ({
         () => (modelId && harness ? {modelId, provider, mode, slug, namespace, harness} : null),
         [modelId, provider, mode, slug, namespace, harness],
     )
+    // In a container with a view stack (the panel, a view drawer), Model providers takes the
+    // Model view's place; elsewhere the provider drawer opens.
+    const stack = useOptionalViewStack()
     const openProviderDrawer = useCallback(() => {
+        if (stack) {
+            void stack.open(providerListView, {}, {kind: "project"})
+            return
+        }
         drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
         setDrawerOpen(true)
-    }, [connections])
+    }, [connections, stack])
     const providerSaved = useCallback(
         async (savedConnectionId?: string) => {
             const previousConnectionKeys = drawerConnectionKeysRef.current

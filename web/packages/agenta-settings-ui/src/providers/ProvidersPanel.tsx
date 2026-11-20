@@ -205,8 +205,11 @@ export const ProvidersPanel = ({
     loading = false,
     renderRemoveDialog,
     subscriptionDocsUrl,
+    catalog = true,
 }: {
     groups: ProvidersGroup[]
+    /** Lists the provider catalog under the groups. Off where an add view offers it instead. */
+    catalog?: boolean
     /** The project's ChatGPT and Claude cards. Absent hides them. */
     subscriptions?: ProviderConnection[]
     /** The drawer's "Who can use it" for a new connection of this kind; absent, it is the project's. */
@@ -370,6 +373,7 @@ export const ProvidersPanel = ({
             onOpen: () => setDrawerTarget({kind: entry.kind}),
         })
 
+        if (!catalog) return owned
         return [
             ...owned,
             {
@@ -383,7 +387,7 @@ export const ProvidersPanel = ({
                 items: CLOUD_PLATFORMS.map(catalogRow),
             },
         ]
-    }, [ownerGroups, canRemoveIn, requestRemoval, t])
+    }, [ownerGroups, canRemoveIn, requestRemoval, t, catalog])
 
     const plans = useMemo(
         () => subscriptionPlans(chatgpt, claude, openProjectSignIn, t),

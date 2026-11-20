@@ -79,6 +79,8 @@ export {
     agentModelSelectionMode,
     agentVaultProviderFamily,
     buildAgentModelCandidates,
+    buildModelProviderList,
+    builtinModelsOf,
     connectionModelIds,
     effectiveHarnesses,
     firstAgentModelForConnection,
@@ -266,6 +268,7 @@ export {
 // ============================================================================
 
 export type {BuildConnectionModelGroupsArgs, PromptModelGroup, PromptModelOption} from "./core"
+export type {BuiltinModelsRow, ModelProviderList, SubscriptionRow} from "./core"
 export {
     CURRENT_SELECTION_GROUP_CAPTION,
     CURRENT_SELECTION_GROUP_KEY,

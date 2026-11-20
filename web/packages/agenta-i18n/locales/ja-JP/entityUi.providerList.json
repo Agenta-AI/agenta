@@ -1,0 +1,15 @@
+{
+    "add": "追加",
+    "addProviderOrSubscription": "プロバイダーまたはサブスクリプションを追加",
+    "agenta": "Agenta",
+    "apiKeys": "API キー",
+    "builtIn": "組み込み",
+    "formLeaveDescription": "変更を保存してこの接続をプロジェクトに保存しますか？それとも破棄しますか？",
+    "loadFailed": "Agenta はモデルプロバイダーを読み込めませんでした。",
+    "providedByAgenta": "Agenta が提供",
+    "saveConnection": "接続を保存",
+    "signInNeeded": "サインインが必要",
+    "subscriptions": "サブスクリプション",
+    "useApiKey": "API キーを使用",
+    "useSubscription": "サブスクリプションを使用"
+}
