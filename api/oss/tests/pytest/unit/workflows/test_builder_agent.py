@@ -196,7 +196,9 @@ def test_text_names_no_tool_the_builder_does_not_have():
 
     for name in _LATER_TOOLS:
         assert name not in text, name
-        assert not any(tool.get("name") == name for tool in _agent()["tools"]), name
+        assert not any(
+            name in (tool.get("name"), tool.get("op")) for tool in _agent()["tools"]
+        ), name
 
 
 @pytest.mark.asyncio

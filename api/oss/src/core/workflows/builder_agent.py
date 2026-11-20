@@ -404,8 +404,8 @@ _CONFIG_FIELDS_PREFACE = """\
 
 > **A connected app is one tool entry.** After the person connects an app, add one entry to \
 `parameters.agent.tools` of the agent you build: `{ "type": "gateway_connection", \
-"connection": { "integration": "<key, for example gmail>", "slug": "<the connection slug \
-that request_connection or list_connections returns>" } }`. Never invent the slug. The \
+"connection": { "provider": "composio", "integration": "<key, for example gmail>", \
+"slug": "<the connection slug that request_connection or list_connections returns>" } }`. Never invent the slug. The \
 optional `policy` sets a permission per tool: `{ "permissions": { "default": "allow", \
 "tools": { "<tool key>": "ask" } } }`. Each value is `allow`, `ask`, `deny`, `allow_reads` \
 (a tool that only reads runs, any other asks) or `inherit` (the agent-wide runner policy). A \
