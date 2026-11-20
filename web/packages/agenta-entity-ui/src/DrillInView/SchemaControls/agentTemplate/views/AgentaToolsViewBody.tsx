@@ -45,7 +45,7 @@ const AgentaToolsViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
                     onChange={setDraft}
                     access={data.access}
                     buildKitOps={data.buildKitOps}
-                    disabled={writer.readOnly}
+                    readOnly={writer.readOnly}
                 />
             ) : null}
         </div>

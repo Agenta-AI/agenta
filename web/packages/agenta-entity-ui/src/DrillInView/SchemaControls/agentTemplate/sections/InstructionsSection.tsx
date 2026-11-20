@@ -4,6 +4,7 @@ import {FileText} from "@phosphor-icons/react"
 
 import {InstructionsFileRow, type ItemRowStatus} from "../ItemRow"
 import type {PanelSectionKey} from "../sectionChanges"
+import {SectionPageAction} from "../SectionPageAction"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
@@ -54,6 +55,7 @@ export const instructionsSection = ({
             phoneSummary,
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
+            pageAction: <SectionPageAction action="edit" onClick={openInstruction} />,
             content: (
                 <div className="flex flex-col gap-2">
                     <InstructionsFileRow

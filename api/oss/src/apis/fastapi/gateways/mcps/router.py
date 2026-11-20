@@ -50,7 +50,8 @@ from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
     entitled_agenta_tools,
 )
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
-from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools, run_accounts
+from oss.src.core.account_choices.claims import exchange_run_accounts
+from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
 from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.utils.context import AuthScope, get_auth_scope
@@ -388,7 +389,9 @@ class MCPGatewayRouter:
             audience=GATEWAY_TOKEN_AUDIENCE,
             # Held in the sandbox for the whole turn; nothing re-mints it there.
             expires_in=env.gateway_credentials.ttl_seconds,
-            run_accounts=run_accounts(request),
+            run_accounts=await exchange_run_accounts(
+                request, envelope=envelope, workflow_id=None, item_keys=None
+            ),
             envelope=envelope,
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")

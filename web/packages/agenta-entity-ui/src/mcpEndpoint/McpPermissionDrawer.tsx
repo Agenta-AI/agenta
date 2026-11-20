@@ -20,6 +20,7 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref} from "react"
 
+import type {AccountSource} from "@agenta/entities/accountChoice"
 import {
     askWritesPolicy,
     fromGatewayPermissions,
@@ -369,10 +370,16 @@ export type McpPermissionSourceInput = Pick<
     /** Show the login-expired banner. A container that says it in its own title passes false. */
     banner?: boolean
     /**
-     * Read the tool list. Defaults to true. False when the list cannot be read with the project's
-     * credential (a person's own sign-in only): the body then shows no list and no error.
+     * Read the tool list. Defaults to true. False when no sign-in can read it (a person's own
+     * sign-in only, and the viewer has none yet): the body then shows no list and no error.
      */
     listTools?: boolean
+    /**
+     * The relay's `account_source` for this read: whose sign-in reads the tool list, the
+     * project's (`"agent"`, the default) or the viewer's own (`"user"`). It is not the item's
+     * account source: a "user" item reads with the project's sign-in while the project has one.
+     */
+    accountSource?: AccountSource
 }
 
 /**
@@ -384,6 +391,7 @@ export function useMcpPermissionSource({
     open = true,
     banner: showBanner = true,
     listTools = true,
+    accountSource = "agent",
     slug,
     connectionName,
     status = "connected",
@@ -400,30 +408,39 @@ export function useMcpPermissionSource({
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
     const name = connectionName || slug || t("entityUi.mcpPermissions.thisServer")
 
-    // Which connection the visible list belongs to. A tool list is fetched per connection and
-    // arrives whenever it arrives, so without this, switching connections mid-flight rendered the
-    // previous one's tools under the new one's name (M4).
-    const shownFor = useRef<string | undefined>(undefined)
+    // The newest read. A tool list is fetched per connection and sign-in and arrives whenever it
+    // arrives, so without this, switching connections mid-flight rendered the previous one's
+    // tools under the new one's name (M4), and an older read with the other sign-in could replace
+    // the list of the newer one.
+    const latestRead = useRef<object | null>(null)
 
     const loadTools = useCallback(async () => {
         if (!slug) return
-        shownFor.current = slug
+        const read = {}
+        latestRead.current = read
         setTools({status: "loading"})
         try {
             const listed = loadToolsFrom
                 ? await loadToolsFrom(slug)
-                : await listMcpTools(slug, projectId)
-            if (shownFor.current !== slug) return
+                : await listMcpTools(slug, projectId, {accountSource})
+            if (latestRead.current !== read) return
             setTools({status: "ready", tools: listed})
         } catch (error) {
-            if (shownFor.current !== slug) return
+            if (latestRead.current !== read) return
             console.error("[mcp] the tool list could not be read", error)
             setTools({status: "failed", ...toolListFailure(error)})
         }
-    }, [loadToolsFrom, projectId, slug])
+    }, [accountSource, loadToolsFrom, projectId, slug])
 
     useEffect(() => {
-        if (!open || !listTools) return
+        // No sign-in reads the list any more (the viewer signed out): drop the list and any read
+        // in flight, so no preset keeps writing tool names from a list that is gone.
+        if (!listTools) {
+            latestRead.current = null
+            setTools({status: "idle"})
+            return
+        }
+        if (!open) return
         if (slug) void loadTools()
         else setTools({status: "idle"})
     }, [listTools, loadTools, open, slug])
