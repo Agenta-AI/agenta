@@ -25,7 +25,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {useAgentRow} from "../agent-layout/useAgentRow"
 import {openMainSidebar} from "../agent-sidebar/selectedSidebar"
 import {builderChatHref} from "../builder/builderChatHref"
-import {linkedAgentOf} from "../builder/builderChatLink"
+import {linkedAgentIdOf} from "../builder/builderChatLink"
 import {newBuilderSessionId} from "../builder/newBuilderSession"
 import {SessionWorkspaceDrawers} from "../chat/SessionWorkspaceDrawers"
 import {ChatLoading} from "../chat/states/ChatStates"
@@ -39,8 +39,8 @@ import {AgentPane} from "./AgentPane"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
-    readBuilderLayout,
-    writeBuilderLayout,
+    readBuilderPaneLayout,
+    writeBuilderPaneLayout,
     type BuilderPaneLayout,
 } from "./builderLayout"
 import {BuilderPageChat} from "./BuilderPageChat"
@@ -50,7 +50,6 @@ import {
     latestResultAgent,
     paneAgentId,
     parseTabParam,
-    tabParam,
     type AgentRef,
 } from "./paneAgent"
 
@@ -120,22 +119,24 @@ export const BuilderPage = ({
     )
     const resultAgent = facts?.sessionId === sessionId ? facts.result : null
     const contextAgent = facts?.sessionId === sessionId ? facts.context : null
-    const linkedAgent = useMemo(
-        () => (userId ? linkedAgentOf(userId, projectId, sessionId) : null),
+    const linkedAgentId = useMemo(
+        () => (userId ? linkedAgentIdOf(userId, projectId, sessionId) : null),
         [projectId, sessionId, userId],
     )
     const tabRef = parseTabParam(tab)
-    const agentId = paneAgentId({tab: tabRef, resultAgent, contextAgent, linkedAgent})
+    const agentId = paneAgentId({tab: tabRef, resultAgent, contextAgent, linkedAgentId})
 
-    // The address holds the active tab, written with a replace (no history entry).
+    // The address holds the active tab, written with a replace (no history entry). One writer
+    // per moment: before the address names this chat, the first send writes chat and tab at once.
     useEffect(() => {
-        if (!agentId || (tabRef?.kind === "agent" && tabRef.id === agentId)) return
+        if (!agentId || routeChatId !== sessionId) return
+        if (tabRef?.kind === "agent" && tabRef.id === agentId) return
         void router.replace(
-            {query: {...router.query, tab: tabParam({kind: "agent", id: agentId})}},
+            builderChatHref({workspaceId, projectId, sessionId, agentId}),
             undefined,
             {shallow: true},
         )
-    }, [agentId, router, tabRef?.id, tabRef?.kind])
+    }, [agentId, projectId, routeChatId, router, sessionId, tabRef?.id, tabRef?.kind, workspaceId])
 
     const onFirstSend = useCallback(
         (agent: AgentRef | null) => {
@@ -166,11 +167,11 @@ export const BuilderPage = ({
         [agentId, agentName],
     )
 
-    const [layout, setLayoutState] = useState<BuilderPaneLayout>(readBuilderLayout)
+    const [layout, setLayoutState] = useState<BuilderPaneLayout>(readBuilderPaneLayout)
     const setLayout = (next: Partial<BuilderPaneLayout>) =>
         setLayoutState((held) => {
             const value = {...held, ...next}
-            writeBuilderLayout(value)
+            writeBuilderPaneLayout(value)
             return value
         })
 

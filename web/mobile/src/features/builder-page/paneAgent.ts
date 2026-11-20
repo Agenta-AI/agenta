@@ -29,8 +29,6 @@ export const parseTabParam = (value: unknown): BuilderTabRef | null => {
     return TAB_KINDS.includes(kind) && id ? {kind, id} : null
 }
 
-export const tabParam = (ref: BuilderTabRef) => `${ref.kind}:${ref.id}`
-
 /** The builder tools whose result names the agent they created or saved. */
 const AGENT_RESULT_TOOLS = new Set(["create_agent", "edit_agent_config"])
 
@@ -100,13 +98,13 @@ export const paneAgentId = ({
     tab,
     resultAgent,
     contextAgent,
-    linkedAgent,
+    linkedAgentId,
 }: {
     tab: BuilderTabRef | null
     resultAgent: AgentRef | null
     contextAgent: AgentRef | null
-    linkedAgent: string | null
+    linkedAgentId: string | null
 }): string | null => {
     if (tab?.kind === "agent") return tab.id
-    return resultAgent?.id ?? contextAgent?.id ?? linkedAgent ?? null
+    return resultAgent?.id ?? contextAgent?.id ?? linkedAgentId ?? null
 }

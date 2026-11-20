@@ -10,7 +10,7 @@ const noop = () => undefined
 
 /**
  * The middle of the builder page for a new chat (B01) and with "Browse ideas" open (B02). The
- * hero, the title, the quick actions (under the composer, as on the page) and the ideas dialog are the page's own components; the
+ * hero, the title, the quick actions and the ideas dialog are the page's own components; the
  * composer frame stands in for the production composer, which needs a live conversation.
  */
 const NewChatFrame = ({ideas}: {ideas: boolean}) => {

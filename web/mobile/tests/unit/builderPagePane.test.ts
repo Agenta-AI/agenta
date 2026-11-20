@@ -8,13 +8,13 @@
 import type {UIMessage} from "ai"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {builderChatsKey, linkedAgentOf} from "@/features/builder/builderChatLink"
+import {builderChatsKey, linkedAgentIdOf} from "@/features/builder/builderChatLink"
 import {withContextLine} from "@/features/builder/pageContext"
 import {
     BUILDER_LAYOUT_KEY,
-    DEFAULT_BUILDER_LAYOUT,
-    readBuilderLayout,
-    writeBuilderLayout,
+    DEFAULT_BUILDER_PANE_LAYOUT,
+    readBuilderPaneLayout,
+    writeBuilderPaneLayout,
 } from "@/features/builder-page/builderLayout"
 import {chatDayLabel} from "@/features/builder-page/chatDayLabel"
 import {filterIdeas} from "@/features/builder-page/ideas"
@@ -104,31 +104,31 @@ describe("latestContextAgent", () => {
     })
 })
 
-describe("linkedAgentOf", () => {
+describe("linkedAgentIdOf", () => {
     it("finds the agent the browser linked the chat to", () => {
         window.localStorage.setItem(
             builderChatsKey("user-1", "project-1"),
             JSON.stringify({"agent-a": ["chat-1", "chat-2"], "agent-b": ["chat-3"]}),
         )
-        expect(linkedAgentOf("user-1", "project-1", "chat-3")).toBe("agent-b")
-        expect(linkedAgentOf("user-1", "project-1", "chat-9")).toBeNull()
-        expect(linkedAgentOf("user-2", "project-1", "chat-3")).toBeNull()
+        expect(linkedAgentIdOf("user-1", "project-1", "chat-3")).toBe("agent-b")
+        expect(linkedAgentIdOf("user-1", "project-1", "chat-9")).toBeNull()
+        expect(linkedAgentIdOf("user-2", "project-1", "chat-3")).toBeNull()
     })
 })
 
 describe("paneAgentId", () => {
-    const none = {tab: null, resultAgent: null, contextAgent: null, linkedAgent: null}
+    const none = {tab: null, resultAgent: null, contextAgent: null, linkedAgentId: null}
     it("takes the address first, then the result, the page context and the link", () => {
         const all = {
             tab: {kind: "agent" as const, id: "from-tab"},
             resultAgent: {id: "from-result", name: ""},
             contextAgent: {id: "from-context", name: ""},
-            linkedAgent: "from-link",
+            linkedAgentId: "from-link",
         }
         expect(paneAgentId(all)).toBe("from-tab")
         expect(paneAgentId({...all, tab: null})).toBe("from-result")
         expect(paneAgentId({...all, tab: null, resultAgent: null})).toBe("from-context")
-        expect(paneAgentId({...none, linkedAgent: "from-link"})).toBe("from-link")
+        expect(paneAgentId({...none, linkedAgentId: "from-link"})).toBe("from-link")
     })
 
     it("shows no pane for a chat with nothing to show", () => {
@@ -139,10 +139,10 @@ describe("paneAgentId", () => {
 
 describe("builder layout storage", () => {
     it("keeps the width, the hidden state and full screen, and clamps the width", () => {
-        writeBuilderLayout({width: 5000, hidden: true, fullScreen: false})
-        expect(readBuilderLayout()).toEqual({width: 1100, hidden: true, fullScreen: false})
+        writeBuilderPaneLayout({width: 5000, hidden: true, fullScreen: false})
+        expect(readBuilderPaneLayout()).toEqual({width: 1100, hidden: true, fullScreen: false})
         window.localStorage.setItem(BUILDER_LAYOUT_KEY, "not json")
-        expect(readBuilderLayout()).toEqual(DEFAULT_BUILDER_LAYOUT)
+        expect(readBuilderPaneLayout()).toEqual(DEFAULT_BUILDER_PANE_LAYOUT)
     })
 })
 
