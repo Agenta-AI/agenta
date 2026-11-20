@@ -1,11 +1,4 @@
-/**
- * A switch with two (or more) choices side by side, each with a label and one short sentence.
- * The selected choice is a raised card on a tinted track (canvas F10, F03 f7, F02 f5).
- *
- * It holds no rule of its own: the caller passes the choices, the value and the texts. The
- * integration view uses it for "Each person's own" or "One shared account", the MCP server view
- * for the same choice of a sign-in, and the connect form for "Who can use it".
- */
+/** Two or more choices side by side, each a label and a short note; the caller passes all text. */
 import {useRef, type KeyboardEvent} from "react"
 
 import {cn} from "@agenta/ui"
@@ -13,7 +6,7 @@ import {cn} from "@agenta/ui"
 export interface AccountSwitchChoice<Value extends string> {
     value: Value
     label: string
-    /** One short sentence under the label: what choosing it means. */
+    /** One short sentence under the label. */
     note?: string
 }
 
@@ -21,7 +14,7 @@ export interface AccountSwitchProps<Value extends string> {
     value: Value
     choices: AccountSwitchChoice<Value>[]
     onChange: (next: Value) => void
-    /** Names the group for assistive tech; the host draws the visible label. */
+    /** Names the group for assistive tech. */
     "aria-label": string
     disabled?: boolean
     className?: string
@@ -41,7 +34,7 @@ export function AccountSwitch<Value extends string>({
         choices.findIndex((choice) => choice.value === value),
     )
 
-    // Radio group keys: the arrows move the choice and the focus together.
+    // Arrow keys move the choice and the focus together.
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
         if (disabled) return
         const step =

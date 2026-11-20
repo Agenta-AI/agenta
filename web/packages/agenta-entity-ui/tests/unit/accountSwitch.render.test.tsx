@@ -1,7 +1,4 @@
-/**
- * The two-choice account switch: one choice is checked, a click or an arrow key picks the other,
- * and a disabled switch picks nothing.
- */
+/** The account switch: checked state, click, arrow keys and focus, disabled. */
 import {act, createElement} from "react"
 
 import {createRoot} from "react-dom/client"
