@@ -41,18 +41,38 @@ let ownPops = 0
 let toRemove = 0
 /** A level's back is running (its question may be open): further backs are only undone. */
 let pending = false
+/**
+ * The run of open levels the entries belong to, from the first open level to the last close.
+ * An entry of an earlier run (an old page, a closed panel) carries another run, so its position
+ * is not read as one of these levels.
+ */
+const LOAD = Math.random().toString(36).slice(2)
+let runs = 0
+let run = ""
 let installed = false
 
 const currentPage = () => (window.history.state as {key?: unknown} | null)?.key ?? null
 const countOf = (id: string) => entries.filter((entry) => entry.owner === id).length
 
-/** The position in this page's history: 0 on the page itself, n on the n-th level entry. */
-const positionOf = (state: unknown) => (state as {agSystemBack?: number} | null)?.agSystemBack ?? 0
+interface Stamp {
+    agSystemBack?: number
+    agSystemBackRun?: string
+}
+
+/** The position in this run: 0 under the levels (any entry of another run), n on the n-th level. */
+const positionOf = (state: unknown) => {
+    const stamp = state as Stamp | null
+    return stamp?.agSystemBackRun === run ? (stamp.agSystemBack ?? 0) : 0
+}
 
 const pushState = (position: number) =>
-    window.history.pushState({...window.history.state, agSystemBack: position}, "")
+    window.history.pushState(
+        {...window.history.state, agSystemBack: position, agSystemBackRun: run},
+        "",
+    )
 
 const pushEntry = (id: string) => {
+    if (entries.length === 0) run = `${LOAD}:${++runs}`
     entries.push({owner: id, page: currentPage()})
     pushState(entries.length)
 }

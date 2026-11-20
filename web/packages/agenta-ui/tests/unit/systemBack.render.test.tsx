@@ -33,13 +33,17 @@ const Level = ({
     return open ? <p>{rank} open</p> : null
 }
 
-/** A browser move to the history entry at `position` (0: the page itself). */
-const move = (position: number) =>
+/** A browser move to the level entry at `position` of the current run (0: the page itself). */
+const move = (position: number) => {
+    const run = (push.mock.lastCall?.[0] as {agSystemBackRun?: string} | undefined)?.agSystemBackRun
     act(() =>
         window.dispatchEvent(
-            new PopStateEvent("popstate", {state: position ? {agSystemBack: position} : null}),
+            new PopStateEvent("popstate", {
+                state: position ? {agSystemBack: position, agSystemBackRun: run} : null,
+            }),
         ),
     )
+}
 const settle = () => act(async () => await Promise.resolve())
 
 let push: ReturnType<typeof vi.spyOn>
@@ -124,6 +128,21 @@ describe("useSystemBack", () => {
         await settle()
         expect(onBack).not.toHaveBeenCalled()
         expect(go).toHaveBeenCalledWith(-1)
+    })
+
+    it("reads an entry of an earlier run as the page under the levels", async () => {
+        const onBack = vi.fn()
+        const {unmount} = render(<Level />)
+        const earlier = push.mock.calls[0][0]
+        unmount()
+        await settle()
+        // The pop of that history.go (mocked here).
+        move(0)
+        render(<Level onBack={onBack} />)
+        // Back onto an entry of the earlier run, which still says "position 1".
+        act(() => window.dispatchEvent(new PopStateEvent("popstate", {state: earlier})))
+        await settle()
+        expect(onBack).toHaveBeenCalledTimes(1)
     })
 
     it("gives the entries of a panel and its view back with one history.go", async () => {
