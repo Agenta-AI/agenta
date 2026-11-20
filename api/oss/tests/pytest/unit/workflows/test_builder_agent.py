@@ -41,6 +41,13 @@ from oss.src.core.workflows.static_catalog import (
 _CLIENT_TOOLS = ["request_input", "request_connection"]
 
 
+def _dao() -> AsyncMock:
+    """A DAO for a project that never committed the builder's editable fields."""
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = None
+    return workflows_dao
+
+
 def _agent() -> dict:
     revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
     return revision.data.parameters["agent"]
@@ -48,7 +55,7 @@ def _agent() -> dict:
 
 async def _resolved_template() -> AgentTemplate:
     """The entry as a run sees it: embeds resolved from the static catalogue, no database."""
-    workflows_dao = AsyncMock()
+    workflows_dao = _dao()
     service = WorkflowsService(
         workflows_dao=workflows_dao, static_catalog=StaticWorkflowCatalog()
     )
@@ -59,9 +66,16 @@ async def _resolved_template() -> AgentTemplate:
         workflow_ref=Reference(slug=BUILDER_AGENT_SLUG),
     )
 
-    workflows_dao.fetch_revision.assert_not_awaited()
-    workflows_dao.fetch_artifact.assert_not_awaited()
+    _assert_reads_only_the_builder_variant(workflows_dao)
     return AgentTemplate.from_params(resolved.data.parameters)
+
+
+def _assert_reads_only_the_builder_variant(workflows_dao: AsyncMock) -> None:
+    """The one database read is the project's commit of the editable fields."""
+    revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
+    for call in workflows_dao.fetch_revision.await_args_list:
+        assert call.kwargs["variant_ref"].id == revision.workflow_variant_id
+    workflows_dao.fetch_artifact.assert_not_awaited()
 
 
 def test_entry_is_a_static_agent():
@@ -93,14 +107,14 @@ def test_entry_resolves_by_each_of_its_ids():
     "ref",
     ["slug", "id"],
 )
-async def test_entry_resolves_in_any_project_without_a_database_read(ref):
+async def test_entry_resolves_in_any_project_from_code(ref):
     revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
     reference = (
         Reference(slug=BUILDER_AGENT_SLUG)
         if ref == "slug"
         else Reference(id=revision.workflow_id)
     )
-    workflows_dao = AsyncMock()
+    workflows_dao = _dao()
     service = WorkflowsService(
         workflows_dao=workflows_dao,
         static_catalog=StaticWorkflowCatalog(),
@@ -114,8 +128,7 @@ async def test_entry_resolves_in_any_project_without_a_database_read(ref):
         assert resolved is not None
         assert resolved.id == revision.id
 
-    workflows_dao.fetch_revision.assert_not_awaited()
-    workflows_dao.fetch_artifact.assert_not_awaited()
+    _assert_reads_only_the_builder_variant(workflows_dao)
 
 
 def _platform_tools():
@@ -257,7 +270,7 @@ def test_a_run_by_slug_carries_the_builder_artifact_id():
 @pytest.mark.asyncio
 async def test_resolved_references_name_the_builder_by_id():
     service = WorkflowsService(
-        workflows_dao=AsyncMock(), static_catalog=StaticWorkflowCatalog()
+        workflows_dao=_dao(), static_catalog=StaticWorkflowCatalog()
     )
     request = WorkflowServiceRequest(
         references={"workflow": {"slug": BUILDER_AGENT_SLUG}}
@@ -273,7 +286,7 @@ async def test_resolved_references_name_the_builder_by_id():
 @pytest.mark.asyncio
 async def test_writes_by_the_builder_are_attributed_to_it_by_name():
     revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
-    workflows_dao = AsyncMock()
+    workflows_dao = _dao()
     service = WorkflowsService(
         workflows_dao=workflows_dao, static_catalog=StaticWorkflowCatalog()
     )
@@ -301,7 +314,7 @@ async def test_writes_by_the_builder_are_attributed_to_it_by_name():
 )
 async def test_the_builder_cannot_read_or_edit_itself(handler, by):
     revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
-    workflows_dao = AsyncMock()
+    workflows_dao = _dao()
     service = WorkflowsService(
         workflows_dao=workflows_dao, static_catalog=StaticWorkflowCatalog()
     )

@@ -28,6 +28,7 @@ from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope, Visibility
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.dtos import WorkflowArtifact
 from oss.src.core.workflows.interfaces import WorkflowsDAOInterface
+from oss.src.core.workflows.types import STATIC_SLUG_PREFIX
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.sharing.dbes import AgentAccessDBE
 from oss.src.dbs.postgres.git.mappings import map_dbe_to_dto
@@ -40,6 +41,23 @@ from oss.src.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+# A static workflow's rows, created at its first commit in a project. The fixed ids and the
+# reserved slug are the same in every project, so a conflict on either is the row a concurrent
+# first commit wrote, and it is the row this call wanted.
+_ENSURE_STATIC_ARTIFACT_SQL = """
+INSERT INTO workflow_artifacts (project_id, id, slug, name, created_at, created_by_id)
+VALUES (:project_id, :artifact_id, :slug, :name, now(), :user_id)
+ON CONFLICT DO NOTHING
+"""
+
+_ENSURE_STATIC_VARIANT_SQL = """
+INSERT INTO workflow_variants
+    (project_id, id, artifact_id, slug, name, created_at, created_by_id)
+VALUES (:project_id, :variant_id, :artifact_id, :slug, :name, now(), :user_id)
+ON CONFLICT DO NOTHING
+"""
 
 
 # One statement. The CTE takes the artifact row lock before the insert, so the insert
@@ -196,6 +214,19 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
             AgentAccessDBE.owner_user_id.is_distinct_from(read_scope.owner_user_id),
         )
 
+    def _static_rows_filter(self, *, project_id: UUID, artifact_id_column):
+        """Leave out the rows of a static workflow. They hold a project's commits of its
+        editable fields; the workflow is served from code and is not listed. A query
+        that names refs keeps them, because it asked for those rows. Inside the query's
+        own statement, before windowing."""
+
+        artifact = aliased(self.ArtifactDBE)
+        return ~exists().where(
+            artifact.project_id == project_id,
+            artifact.id == artifact_id_column,
+            artifact.slug.startswith(STATIC_SLUG_PREFIX, autoescape=True),
+        )
+
     @suppress_exceptions(default=[])
     async def query_artifacts(
         self,
@@ -223,6 +254,15 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     project_id=project_id,
                     artifact_id_column=self.ArtifactDBE.id,
                     read_scope=read_scope,
+                ),
+                *(
+                    ()
+                    if artifact_refs
+                    else (
+                        ~self.ArtifactDBE.slug.startswith(
+                            STATIC_SLUG_PREFIX, autoescape=True
+                        ),
+                    )
                 ),
             ),
         )
@@ -282,6 +322,16 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     artifact_id_column=self.VariantDBE.artifact_id,
                     read_scope=read_scope,
                 ),
+                *(
+                    ()
+                    if artifact_refs or variant_refs
+                    else (
+                        self._static_rows_filter(
+                            project_id=project_id,
+                            artifact_id_column=self.VariantDBE.artifact_id,
+                        ),
+                    )
+                ),
             ),
         )
 
@@ -319,6 +369,16 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     artifact_id_column=self.RevisionDBE.artifact_id,
                     read_scope=read_scope,
                 ),
+                *(
+                    ()
+                    if artifact_refs or variant_refs or revision_refs
+                    else (
+                        self._static_rows_filter(
+                            project_id=project_id,
+                            artifact_id_column=self.RevisionDBE.artifact_id,
+                        ),
+                    )
+                ),
             ),
         )
 
@@ -348,6 +408,10 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                     project_id=project_id,
                     artifact_id_column=self.RevisionDBE.artifact_id,
                     read_scope=read_scope,
+                ),
+                self._static_rows_filter(
+                    project_id=project_id,
+                    artifact_id_column=self.RevisionDBE.artifact_id,
                 ),
             ),
         )
@@ -508,6 +572,29 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                 error_type=type(e).__name__,
             )
             raise AgentCreationFailed() from e
+
+    async def ensure_static_workflow_rows(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_id: UUID,
+        variant_id: UUID,
+        slug: str,
+        name: Optional[str] = None,
+    ) -> None:
+        params = {
+            "project_id": project_id,
+            "artifact_id": artifact_id,
+            "variant_id": variant_id,
+            "slug": slug,
+            "name": name,
+            "user_id": user_id,
+        }
+        async with self.engine.transaction() as connection:
+            await connection.execute(text(_ENSURE_STATIC_ARTIFACT_SQL), params)
+            await connection.execute(text(_ENSURE_STATIC_VARIANT_SQL), params)
 
     async def ensure_first_agent_access(
         self,

@@ -59,6 +59,19 @@ class StaticWorkflowProvider(ABC):
         """Whether a static workflow reference may be used inside an embed."""
 
     @abstractmethod
+    def editable_paths(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+    ) -> List[str]:
+        """The dotted ``data`` paths a project may commit for this static workflow.
+
+        Empty for an unknown reference and for an entry without an ``editable`` list, which
+        stays read-only.
+        """
+
+    @abstractmethod
     def retrieve_revision(
         self,
         *,
@@ -123,6 +136,23 @@ class WorkflowsDAOInterface(GitDAOInterface):
         has no row yet. Takes the
         artifact row lock first, like every agent policy write. True when a row was
         inserted."""
+
+    @abstractmethod
+    async def ensure_static_workflow_rows(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_id: UUID,
+        variant_id: UUID,
+        slug: str,
+        name: Optional[str] = None,
+    ) -> None:
+        """Create the artifact and variant rows of a static workflow in the project, with
+        its fixed ids and its reserved slug, unless they exist. Two calls at once both
+        succeed (`ON CONFLICT DO NOTHING`). No access row: a static workflow is
+        project-visible and has no owner."""
 
     @abstractmethod
     async def fetch_agent_artifact_id(

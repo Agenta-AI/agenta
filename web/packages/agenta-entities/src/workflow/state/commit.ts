@@ -39,6 +39,7 @@ import {
 import {generateSlug, type Workflow} from "../core"
 
 import {workflowsListDataAtom} from "./allWorkflows"
+import {invalidateBuilderAgentRevisionCache} from "./builderAgent"
 import {
     buildCreatePayloadFromEphemeral,
     prepareCommitParameters,
@@ -316,6 +317,9 @@ export const commitWorkflowRevisionAtom = atom(
             // The picker lists by VARIANT, so without this the revision just created is missing
             // from the dropdown until something else refetches.
             if (variantId) invalidateWorkflowRevisionsByVariantCache(variantId)
+            // A committed static workflow is one with editable fields, which today is only the
+            // builder. Its chats read its revision id from their own query.
+            if (entity.flags?.is_static) invalidateBuilderAgentRevisionCache()
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
             }
