@@ -36,8 +36,9 @@ describe("applyCodexMode", () => {
     );
 
     assert.equal(applied, "agent");
-    assert.deepEqual(calls, [["mode", "agent"]]);
-    assert.deepEqual(logs, ["[codex-mode] applied mode=agent"]);
+    // codex-acp 2.x: its `agent` id is "Auto review"; the user-approves preset is `workspace-write`.
+    assert.deepEqual(calls, [["mode", "workspace-write"]]);
+    assert.deepEqual(logs, ["[codex-mode] applied mode=agent (codex-acp workspace-write)"]);
   });
 
   it("logs and returns undefined when mode application fails", async () => {
@@ -56,7 +57,7 @@ describe("applyCodexMode", () => {
 
     assert.equal(applied, undefined);
     assert.deepEqual(logs, [
-      "[codex-mode] setConfigOption failed mode=agent-full-access: bridge unavailable",
+      "[codex-mode] setConfigOption failed mode=agent-full-access (codex-acp agent-full-access): bridge unavailable",
     ]);
   });
 });
