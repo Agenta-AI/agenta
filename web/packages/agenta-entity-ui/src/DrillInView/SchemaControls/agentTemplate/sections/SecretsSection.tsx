@@ -136,7 +136,8 @@ export const SecretsSectionBody = ({
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId))
     const commit = useSetAtom(commitAgentCredentialsAtom)
     const {dirty, committed, canChange} = useCanChange(revisionId, canEditSecrets, disabled)
-    const [removeIndex, setRemoveIndex] = useState<number | null>(null)
+    // The row the dialog is for, by its variable: a commit elsewhere can reorder the list.
+    const [removing, setRemoving] = useState<string | null>(null)
 
     const namesBySlug = useMemo(
         () =>
@@ -150,15 +151,15 @@ export const SecretsSectionBody = ({
 
     // The agent can change while the dialog is open (a builder edit); the dialog then says why.
     const remove = async () => {
-        if (removeIndex === null) return
+        if (removing === null) return
         if (!committed) throw new Error(t("entityUi.agentSecrets.saveAgentFirst"))
         if (dirty) throw new Error(t("entityUi.agentSecrets.saveOrDiscardFirst"))
         const result = await commit({
             revisionId,
-            bindings: bindings.filter((_, index) => index !== removeIndex),
+            bindings: bindings.filter((binding) => binding.binding.name !== removing),
         })
         onRevisionCommitted?.(result.revisionId)
-        setRemoveIndex(null)
+        setRemoving(null)
     }
 
     const notice = !canEditSecrets
@@ -185,7 +186,7 @@ export const SecretsSectionBody = ({
                     {t("entityUi.agentSecrets.noSecretsAttached")}
                 </div>
             ) : (
-                bindings.map((binding, index) => {
+                bindings.map((binding) => {
                     const envVar = binding.binding.name
                     const secretName = isUserSecretBinding(binding)
                         ? ACCOUNT_COPY.userSecretRow
@@ -226,14 +227,14 @@ export const SecretsSectionBody = ({
                                 status={status}
                                 disabled={!canChange}
                                 onEdit={() => openAttach(envVar)}
-                                onRemove={() => setRemoveIndex(index)}
+                                onRemove={() => setRemoving(envVar)}
                             />
                         </div>
                     )
                 })
             )}
-            {removeIndex !== null ? (
-                <SecretRemoveDialog onRemove={remove} onClose={() => setRemoveIndex(null)} />
+            {removing !== null ? (
+                <SecretRemoveDialog onRemove={remove} onClose={() => setRemoving(null)} />
             ) : null}
         </div>
     )
