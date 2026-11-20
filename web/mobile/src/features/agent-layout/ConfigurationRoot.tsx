@@ -19,6 +19,7 @@ import type {ConfigTab} from "./agentPanelState"
 import {AutomationsTab} from "./AutomationsTab"
 import {ChannelsTab} from "./ChannelsTab"
 import type {ConfigurationContentProps} from "./ConfigurationContent"
+import {shownConfigTab} from "./shownConfigTab"
 
 const TABS: {key: ConfigTab; label: "agent" | "automations" | "channels" | "access"}[] = [
     {key: "agent", label: "agent"},
@@ -54,7 +55,7 @@ export const ConfigurationRoot = ({
     const panel = useAgentPanel()
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const tabs = panel.phone ? PHONE_TABS : TABS
-    const configTab = panel.phone && panel.configTab === "channels" ? "agent" : panel.configTab
+    const configTab = shownConfigTab(panel)
     const selectTab = (tab: ConfigTab) => {
         onCloseSection()
         panel.setConfigTab(tab)

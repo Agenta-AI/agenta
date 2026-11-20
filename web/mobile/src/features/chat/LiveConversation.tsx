@@ -158,6 +158,7 @@ export const LiveConversation = ({
     hideSlashCommands = false,
     userMessageAccessory,
     canSwitchModel = true,
+    onMessagesChanged,
 }: {
     entityId: string
     sessionId: string
@@ -210,6 +211,8 @@ export const LiveConversation = ({
     userMessageAccessory?: (message: UIMessage) => ReactNode
     /** The person may switch this agent's model (not in the builder chat: the platform picks it). */
     canSwitchModel?: boolean
+    /** Called after the messages change (the builder page reads its tool results). */
+    onMessagesChanged?: (messages: UIMessage[]) => void
 }) => {
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
@@ -345,6 +348,12 @@ export const LiveConversation = ({
     }, [conversation.messages])
     // A builder in this conversation saved another agent: that agent's open sessions check for it.
     useBuilderCommitChecks(conversation.messages)
+    // From an effect: the host reads the messages without rendering this conversation again.
+    const onMessagesChangedRef = useRef(onMessagesChanged)
+    onMessagesChangedRef.current = onMessagesChanged
+    useEffect(() => {
+        onMessagesChangedRef.current?.(conversation.messages)
+    }, [conversation.messages])
     // A stable reader, so the memoized turn rows do not render again on every streamed chunk.
     const messagesRef = useRef(conversation.messages)
     messagesRef.current = conversation.messages

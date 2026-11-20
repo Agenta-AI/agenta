@@ -20,6 +20,7 @@ import {useProjectPermissionState} from "../context/useProjectPermission"
 import {useAgentPanel} from "./agentPanelContext"
 import {ConfigurationRoot} from "./ConfigurationRoot"
 import {PanelViewChrome} from "./PanelViewChrome"
+import {shownConfigTab} from "./shownConfigTab"
 import {StackGuards} from "./StackGuards"
 
 // The channel read loads on its own: its code is not part of the Configuration chunk.
@@ -66,7 +67,7 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
             onWorkflowRevisionCommitted={pinRevision}
         >
             {/* Read again each time the Agent tab opens, so a change in the Channels tab shows. */}
-            {panel.configTab === "agent" ? (
+            {shownConfigTab(panel) === "agent" ? (
                 <AgentChannelPresence agentId={props.agentId} onChange={setHasChannel} />
             ) : null}
             <AgentEditorContext.Provider value={editor}>

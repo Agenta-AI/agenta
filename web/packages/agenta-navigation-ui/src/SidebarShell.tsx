@@ -1,4 +1,12 @@
-import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef} from "react"
+import React, {
+    type CSSProperties,
+    memo,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
@@ -18,6 +26,7 @@ import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 
 import {NavMenu} from "./NavMenu"
+import {SidebarLayoutContext} from "./sidebarLayout"
 
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
@@ -168,6 +177,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const t = useT(navigationCatalog)
     // Only a drawer can dismiss the rail, so this is also how the shell knows it is in a sheet.
     const isOverlay = Boolean(onDismiss)
+    // The phone sheet sets its own width; the rail fills it.
+    const phone = useContext(SidebarLayoutContext) === "phone"
     const [collapsed, setCollapsed] = useAtom(collapsedAtom)
     const railRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -314,7 +325,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 .trim()}
             style={
                 {
-                    "--ag-sidebar-w": `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
+                    "--ag-sidebar-w": phone
+                        ? "100%"
+                        : `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
                 } as CSSProperties
             }
             onClick={handleFrameClick}

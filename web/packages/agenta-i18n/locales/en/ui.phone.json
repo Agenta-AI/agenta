@@ -2,5 +2,6 @@
     "back": "Back",
     "backTo": "Back to {{title}}",
     "cancel": "Cancel",
-    "closeSidebar": "Close the sidebar"
+    "closeSidebar": "Close the sidebar",
+    "openSidebar": "Open the sidebar"
 }

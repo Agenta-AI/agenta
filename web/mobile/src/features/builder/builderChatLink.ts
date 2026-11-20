@@ -29,9 +29,25 @@ const readLinks = (key: string): ChatLinks => {
     }
 }
 
+/** The agent whose list holds `sessionId`, or null. */
+const ownerOf = (links: ChatLinks, sessionId: string): string | null =>
+    Object.keys(links).find((agentId) => links[agentId]?.includes(sessionId)) ?? null
+
 /** The builder chat ids about `agentId`, newest first. Empty when storage cannot be read. */
 export const readBuilderChats = (userId: string, projectId: string, agentId: string): string[] =>
     readLinks(builderChatsKey(userId, projectId))[agentId] ?? []
+
+/**
+ * The agent this browser linked `sessionId` to, or null when no agent lists it or storage cannot
+ * be read.
+ */
+export const linkedAgentIdOf = (
+    userId: string,
+    projectId: string,
+    sessionId: string,
+): string | null => {
+    return ownerOf(readLinks(builderChatsKey(userId, projectId)), sessionId)
+}
 
 /**
  * Puts `sessionId` first in the list of `agentId`. A chat stays with its first agent: a chat already
@@ -45,7 +61,7 @@ export const rememberBuilderChat = (
 ): boolean => {
     const key = builderChatsKey(userId, projectId)
     const links = readLinks(key)
-    const owner = Object.keys(links).find((id) => links[id]?.includes(sessionId))
+    const owner = ownerOf(links, sessionId)
     if (owner && owner !== agentId) return false
     const chats = [sessionId, ...(links[agentId] ?? []).filter((id) => id !== sessionId)]
     links[agentId] = chats.slice(0, MAX_CHATS_PER_AGENT)

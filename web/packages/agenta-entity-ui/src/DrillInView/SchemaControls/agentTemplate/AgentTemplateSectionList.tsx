@@ -39,7 +39,8 @@ export interface AgentTemplateSectionDescriptor {
     defaultOpen?: boolean
     /**
      * On a phone, the section screen's one primary action ("Add integration"): a full-width button
-     * at the bottom of the screen, in place of `extra`.
+     * at the bottom of the screen, in place of `extra`. The phone host must make its scroll column
+     * a size container (`[container-type:size]`), or the screen is a full viewport tall.
      */
     phoneAction?: {label: string; icon?: ReactNode; onClick: () => void}
     /** When set, the header opens a drawer instead of expanding inline. */
@@ -152,8 +153,12 @@ const PhoneSectionList = ({
     const shown = sections.find((s) => s.key === phoneSections.shownKey && !s.onOpen)
     if (shown) {
         return (
-            // The column fills the screen, so the primary action sits at its bottom.
-            <div data-config-section={shown.key} className="flex min-h-full flex-col gap-3 pt-3">
+            <div
+                data-config-section={shown.key}
+                // With a primary action the column fills its container's height (the phone
+                // container is a size container), so the action sits at the bottom of the screen.
+                className={`flex flex-col gap-3 pt-3 ${shown.phoneAction ? "min-h-[100cqh]" : "pb-6"}`}
+            >
                 {shown.extra && !shown.phoneAction ? (
                     <div className="flex justify-end">{shown.extra}</div>
                 ) : null}
@@ -166,9 +171,7 @@ const PhoneSectionList = ({
                     >
                         {shown.phoneAction.label}
                     </PhonePrimaryAction>
-                ) : (
-                    <div className="pb-3" />
-                )}
+                ) : null}
             </div>
         )
     }

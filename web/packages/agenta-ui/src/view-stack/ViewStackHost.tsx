@@ -367,7 +367,10 @@ export const ViewStackHost = ({
                         crumbs={crumbs}
                         apply={top.view.apply}
                         wide={Boolean(top.view.wide)}
-                        readOnly={phone && Boolean(top.view.readOnlyOnPhone)}
+                        readOnly={
+                            (phone && Boolean(top.view.readOnlyOnPhone)) ||
+                            top.view.actionRow === false
+                        }
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
