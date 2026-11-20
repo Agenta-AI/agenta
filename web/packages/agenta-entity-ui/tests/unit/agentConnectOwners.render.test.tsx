@@ -254,6 +254,8 @@ describe("the catalog with no agent (chat, playground, prompts)", () => {
             {slug: "gmail-main", integration_key: "gmail", provider_key: "composio", flags: valid},
         ]
         await render(createElement(IntegrationCatalog, {onConnect}))
+        // The row is there; only its Add is not.
+        expect(document.body.textContent).toContain("Connected")
         expect(document.querySelector('[aria-label="Add Gmail"]')).toBeNull()
         expect(document.body.textContent).not.toContain("Added")
     })

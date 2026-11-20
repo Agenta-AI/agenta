@@ -65,7 +65,7 @@ const IntegrationAddViewBody = ({target, nav}: ViewProps<IntegrationAddViewParam
             : t("entityUi.toolCatalog.browseIntegrations"),
     )
     // A sign-in here can fix a tagged integration without a new revision: check again on leaving.
-    useEffect(() => () => void invalidateAgentRequirements(), [])
+    useEffect(() => (forAgent ? () => void invalidateAgentRequirements() : undefined), [forAgent])
     // With personal accounts on, Connect asks "Who can use it", as Settings does.
     const askOwner = useAtomValue(personalAccountsAccessAtom) === "on"
     const {push} = nav

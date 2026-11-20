@@ -5,7 +5,7 @@ import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {GITHUB_DETAIL, GITHUB_WORK, integrationQueries} from "../../fixtures/gatewayIntegration"
 
 /**
- * **Data-connected modal story.** Making a connection to an integration.
+ * **Data-connected drawer story.** Making a connection to an integration, through the connect view.
  *
  * The author names the connection and nothing else. The slug is derived from that name and never
  * shown: it is a wire identifier (it ends up inside `tools__composio__github__ACTION__<slug>`),
