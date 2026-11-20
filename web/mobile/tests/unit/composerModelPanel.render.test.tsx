@@ -1,11 +1,22 @@
 /** @vitest-environment jsdom */
 import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
-import {afterEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {ComposerModelPanel} from "@/features/chat/ComposerModelPanel"
 
 afterEach(cleanup)
+
+// A mouse: the search takes the caret. A touch screen keeps it, so its keyboard stays down.
+const pointer = {fine: true}
+beforeEach(() => {
+    window.matchMedia = ((query: string) => ({
+        matches: query === "(pointer: fine)" ? pointer.fine : false,
+    })) as unknown as typeof window.matchMedia
+    pointer.fine = true
+    // jsdom does not lay out, so it has no scrolling.
+    Element.prototype.scrollIntoView = vi.fn()
+})
 
 const groups: ProviderGroup[] = [
     {
@@ -99,5 +110,35 @@ describe("ComposerModelPanel", () => {
         expect(handlers.onDismiss).toHaveBeenCalledWith("outside")
         fireEvent.keyDown(document, {key: "Escape"})
         expect(handlers.onDismiss).toHaveBeenCalledWith("escape")
+    })
+
+    it("leaves the caret alone on a touch screen", () => {
+        pointer.fine = false
+        renderPanel()
+        expect(document.activeElement).not.toBe(screen.getByPlaceholderText("Search models"))
+    })
+
+    it("walks the rows with the arrow keys and goes back with Left from an empty search", () => {
+        const onBackToCommands = vi.fn()
+        renderPanel({onBackToCommands})
+        const search = screen.getByPlaceholderText("Search models")
+        fireEvent.keyDown(search, {key: "ArrowDown"})
+        expect(document.activeElement).toBe(screen.getByRole("button", {name: /Gemini 3.8 Flash/}))
+        fireEvent.keyDown(document.activeElement!, {key: "ArrowDown"})
+        expect(document.activeElement).toBe(screen.getByRole("button", {name: /Gemini 4 Argon/}))
+        fireEvent.keyDown(document.activeElement!, {key: "ArrowUp"})
+        fireEvent.keyDown(document.activeElement!, {key: "ArrowUp"})
+        expect(document.activeElement).toBe(search)
+        fireEvent.keyDown(search, {key: "ArrowLeft"})
+        expect(onBackToCommands).toHaveBeenCalledOnce()
+    })
+
+    it("keeps a press on its own button from closing it as a press outside", () => {
+        const trigger = document.createElement("button")
+        document.body.appendChild(trigger)
+        const handlers = renderPanel({triggerRef: {current: trigger}})
+        fireEvent.pointerDown(trigger)
+        expect(handlers.onDismiss).not.toHaveBeenCalled()
+        trigger.remove()
     })
 })

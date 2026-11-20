@@ -164,7 +164,6 @@ export const BuilderPageChat = ({
                     beforeSend={beforeSend}
                     inputRef={inputRef}
                     hideSlashCommands
-                    modelButton
                     composerPlaceholder={
                         hasMessages
                             ? t("builder.page.placeholder")

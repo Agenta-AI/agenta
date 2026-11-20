@@ -1,4 +1,10 @@
-import {useEffect, useRef} from "react"
+import {
+    useEffect,
+    useRef,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type RefObject,
+} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
@@ -25,6 +31,7 @@ export const ComposerModelPanel = ({
     onDismiss,
     onManageProviders,
     onBackToCommands,
+    triggerRef,
 }: {
     groups: ProviderGroup[]
     selectedKey: string | null | undefined
@@ -35,6 +42,8 @@ export const ComposerModelPanel = ({
     onManageProviders: () => void
     /** Only when `/model` opened the list. */
     onBackToCommands?: () => void
+    /** The model button: a press on it is its own toggle, not a press outside. */
+    triggerRef?: RefObject<HTMLElement | null>
 }) => {
     const t = useT(chatMobileComposerCatalog, uiLlmProviderCatalog)
     const rootRef = useRef<HTMLDivElement | null>(null)
@@ -43,6 +52,7 @@ export const ComposerModelPanel = ({
         const onPointerDown = (event: PointerEvent) => {
             const node = event.target as Node | null
             if (node && rootRef.current?.contains(node)) return
+            if (node && triggerRef?.current?.contains(node)) return
             onDismiss("outside")
         }
         const onKeyDown = (event: KeyboardEvent) => {
@@ -55,11 +65,51 @@ export const ComposerModelPanel = ({
             document.removeEventListener("pointerdown", onPointerDown, true)
             document.removeEventListener("keydown", onKeyDown, true)
         }
-    }, [onDismiss])
+    }, [onDismiss, triggerRef])
+    // The current model in view when the list opens, as the design draws it.
+    useEffect(() => {
+        rootRef.current
+            ?.querySelector<HTMLElement>("li button[aria-pressed=true]")
+            ?.scrollIntoView({block: "nearest"})
+    }, [])
+    // A touch keyboard would cover the list, so the caret goes to the search only with a mouse.
+    const [finePointer] = useState(
+        () => typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches,
+    )
+
+    // Up and Down walk the search field and the rows; Enter presses the focused row. Left in an
+    // empty search goes back to the commands when `/model` opened the list.
+    const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const root = rootRef.current
+        if (!root) return
+        const search = root.querySelector<HTMLInputElement>("input")
+        if (
+            event.key === "ArrowLeft" &&
+            onBackToCommands &&
+            event.target === search &&
+            !search?.value
+        ) {
+            event.preventDefault()
+            onBackToCommands()
+            return
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+        const stops = [
+            ...(search ? [search] : []),
+            ...root.querySelectorAll<HTMLElement>("li button:not(:disabled)"),
+        ]
+        const at = stops.indexOf(document.activeElement as HTMLElement)
+        const next = event.key === "ArrowDown" ? at + 1 : at - 1
+        if (next < 0 || next >= stops.length) return
+        event.preventDefault()
+        stops[next].focus()
+        stops[next].scrollIntoView({block: "nearest"})
+    }
 
     return (
         <div
             ref={rootRef}
+            onKeyDown={onKeyDown}
             role="dialog"
             aria-label={t("chat.mobileComposer.searchModels")}
             className="bg-popover text-popover-foreground shadow-overlay flex max-h-[min(540px,60dvh)] flex-col rounded-xl p-1.5"
@@ -71,7 +121,7 @@ export const ComposerModelPanel = ({
                 onChange={onPick}
                 searchPlaceholder={t("chat.mobileComposer.searchModels")}
                 searchSuffix="/model"
-                autoFocusSearch
+                autoFocusSearch={finePointer}
                 panelFooter={
                     <div className="border-border border-0 border-t border-solid pt-2">
                         <Button variant="outline" className="w-full" onClick={onManageProviders}>

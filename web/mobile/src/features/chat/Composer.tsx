@@ -80,7 +80,6 @@ export const Composer = ({
     headerExtra,
     hideSlashCommands = false,
     modelButtonHidden = false,
-    modelButton = !hideSlashCommands,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
     entityId: string
@@ -129,13 +128,11 @@ export const Composer = ({
      * agent is the platform's builder, whose model and permissions are not the person's to change.
      */
     hideSlashCommands?: boolean
-    /** The model needs setup (the "Connect a model" strip shows): no model button. */
-    modelButtonHidden?: boolean
     /**
-     * Show the model button. On by default where the palette is; the builder chats turn it on
-     * with no palette, since the builder's model is the project's to pick.
+     * The model needs setup (the "Connect a model" strip shows): no model button. The button
+     * shows with no palette too: the builder chats pick the builder's model with it.
      */
-    modelButton?: boolean
+    modelButtonHidden?: boolean
 }) => {
     const t = useT(chatMobileComposerCatalog, uiLlmProviderCatalog)
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
@@ -206,12 +203,10 @@ export const Composer = ({
         closePicker()
         setProvidersOpen(true)
     }, [closePicker])
-    // No button where the host turned it off, while the model needs setup, or with no model or
-    // no list to pick from.
+    const modelButtonRef = useRef<HTMLButtonElement>(null)
+    // No button while the model needs setup, or with no model or no list to pick from.
     const modelButtonModel =
-        modelButton && !modelButtonHidden && slash.modelGroups.length > 0
-            ? slash.currentModel
-            : null
+        !modelButtonHidden && slash.modelGroups.length > 0 ? slash.currentModel : null
     // Held until the draft and tray leave the composer, not for the whole send.
     const sending = useRef(false)
     const presets = useMotionPresets()
@@ -419,6 +414,7 @@ export const Composer = ({
                                                 ? backToCommands
                                                 : undefined
                                         }
+                                        triggerRef={modelButtonRef}
                                     />
                                 </motion.div>
                             ) : null}
@@ -443,6 +439,7 @@ export const Composer = ({
                                         disabled={disabled}
                                         onOpen={openModelPicker}
                                         onClose={closePicker}
+                                        buttonRef={modelButtonRef}
                                     />
                                 ) : null
                             }
