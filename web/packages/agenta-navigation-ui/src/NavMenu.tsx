@@ -669,7 +669,7 @@ const NavMenuImpl = ({
             if (!hasChildren) {
                 const icon = (
                     <div
-                        className={clsx(
+                        className={cn(
                             // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
                             // side and the icons read as tiles rather than as a nav.
                             "relative mx-auto flex size-7 items-center justify-center rounded-md",
@@ -705,7 +705,7 @@ const NavMenuImpl = ({
                             type="button"
                             aria-label={item.title}
                             disabled={item.disabled}
-                            className={clsx(
+                            className={cn(
                                 // [font-family:inherit]: preflight is off, so a bare <button>
                                 // renders Arial while the <div> rows around it render Inter.
                                 "mx-auto flex min-w-0 shrink-0 items-center rounded-md border-0 bg-transparent [font-family:inherit]",
