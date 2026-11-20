@@ -25,8 +25,7 @@ import {useSectionListLayout} from "./sectionListLayout"
  * On the Configuration page (canvas A04) the rows are flat inside the section's one card: no
  * border of their own, a line above each row. The card hides the first row's line.
  */
-const PAGE_ROW =
-    "gap-3 rounded-none border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3.5 py-3"
+const PAGE_ROW = "gap-3 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3.5 py-3"
 
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
@@ -174,13 +173,17 @@ export function ItemRow({
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
+                "group flex items-center transition-colors",
+                // `cn` does not drop a class another one overrides: the page row and the panel
+                // card take their padding and frame from one place each.
+                page
+                    ? PAGE_ROW
+                    : "gap-2.5 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
                 interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
-                page && PAGE_ROW,
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor

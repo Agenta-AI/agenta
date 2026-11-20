@@ -121,12 +121,24 @@ export function McpServersSectionBody({
         [endpointForItem, items, openForm, openServer, requirementFor],
     )
 
+    // The rows name a server as every other place does, by its connection's name
+    // ("audit2-mock"), not by the tool prefix the item stores ("audit2_mock"). Only the rows
+    // see these copies: every handler below reads the saved item by its index.
+    const shownItems = useMemo(
+        () =>
+            items.map((item) => {
+                const name = endpointForItem(item)?.name
+                return name ? {...(item as Record<string, unknown>), name} : item
+            }),
+        [items, endpointForItem],
+    )
+
     return (
         <>
             <ConfigItemList
                 kind="mcp"
-                items={items}
-                openEdit={openRow}
+                items={shownItems}
+                openEdit={(kind, index) => openRow(kind, index, items[index])}
                 removeItem={(_kind, index) => {
                     const item = items[index]
                     const ref = mcpItemRef(item, items)
@@ -144,7 +156,7 @@ export function McpServersSectionBody({
                 }}
                 closeEditor={noop}
                 disabled={disabled}
-                statusFor={statusForRow}
+                statusFor={(_item, index) => statusForRow(items[index], index)}
             />
             {removing ? (
                 <RemoveFromAgentDialog
