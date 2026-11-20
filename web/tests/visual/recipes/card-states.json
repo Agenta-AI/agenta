@@ -1,0 +1,92 @@
+[
+    {
+        "id": "card-states-result-rows-light",
+        "story": "builderlayout-card-states-change-card-states--result-rows",
+        "width": 520,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Try again"
+    },
+    {
+        "id": "card-states-result-rows-dark",
+        "story": "builderlayout-card-states-change-card-states--result-rows",
+        "width": 520,
+        "height": 700,
+        "theme": "dark",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Try again"
+    },
+    {
+        "id": "card-states-grouped-card-light",
+        "story": "builderlayout-card-states-change-card-states--grouped-card",
+        "width": 520,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Open a row to see its details"
+    },
+    {
+        "id": "card-states-grouped-card-dark",
+        "story": "builderlayout-card-states-change-card-states--grouped-card",
+        "width": 520,
+        "height": 700,
+        "theme": "dark",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Open a row to see its details"
+    },
+    {
+        "id": "card-states-grouped-conflict-light",
+        "story": "builderlayout-card-states-change-card-states--grouped-conflict",
+        "width": 520,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Someone saved v5"
+    },
+    {
+        "id": "card-states-two-calls-one-base-light",
+        "story": "builderlayout-card-states-change-card-states--two-calls-one-base",
+        "width": 520,
+        "height": 300,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Saved as v5"
+    },
+    {
+        "id": "card-states-answered-light",
+        "story": "builderlayout-card-states-change-card-states--answered",
+        "width": 520,
+        "height": 300,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Waiting for the agent"
+    },
+    {
+        "id": "card-states-read-only-light",
+        "story": "builderlayout-card-states-change-card-states--read-only",
+        "width": 520,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Only the owner can approve"
+    },
+    {
+        "id": "card-states-agent-own-chat-light",
+        "story": "builderlayout-card-states-change-card-states--agent-own-chat",
+        "width": 520,
+        "height": 600,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Edit the instructions"
+    },
+    {
+        "id": "card-states-agent-tool-call-light",
+        "story": "builderlayout-card-states-change-card-states--agent-tool-call",
+        "width": 520,
+        "height": 400,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Approve"
+    }
+]

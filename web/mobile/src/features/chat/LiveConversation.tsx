@@ -62,9 +62,6 @@ import {useQueryClient} from "@tanstack/react-query"
 import type {FileUIPart} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
-import {ContentRail} from "@/components/ContentRail"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {useBuilderCommitChecks} from "../builder/useBuilderCommitChecks"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {
@@ -80,6 +77,7 @@ import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
+import {ChangeResultHostContext} from "./changeResultHost"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
@@ -105,6 +103,9 @@ import {usePersonalSetupStep} from "./usePersonalSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+
+import {ContentRail} from "@/components/ContentRail"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 const tNow = createT(chatMobileLiveCatalog)
 
@@ -450,6 +451,17 @@ export const LiveConversation = ({
             sessionId,
             store,
         ],
+    )
+    // A result row's "Try again" sends a fixed message as the person, as the composer does.
+    const changeResultHost = useMemo(
+        () => ({
+            readOnly: locked,
+            send: (text: string) => {
+                if (lockedRef.current) return
+                void send({text, executionText: beforeSend?.(text)}).catch(() => undefined)
+            },
+        }),
+        [locked, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
@@ -963,19 +975,21 @@ export const LiveConversation = ({
                         ) : null}
                     </div>
                 ) : null}
-                <TranscriptTurns
-                    turns={visibleTurns}
-                    scrollerRef={autoScroll.ref}
-                    sessionId={sessionId}
-                    remoteRunning={showingTurnActivity && !streamingHere}
-                    waitingOnUser={parkedOnUser}
-                    resuming={resumingAfterAnswer}
-                    pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
-                    // A tool answer and a rewind both write: someone who cannot send here cannot
-                    // answer a tool or re-run a turn (retry rides rewind) either.
-                    onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
-                    onRewind={locked ? undefined : handleRewind}
-                />
+                <ChangeResultHostContext.Provider value={changeResultHost}>
+                    <TranscriptTurns
+                        turns={visibleTurns}
+                        scrollerRef={autoScroll.ref}
+                        sessionId={sessionId}
+                        remoteRunning={showingTurnActivity && !streamingHere}
+                        waitingOnUser={parkedOnUser}
+                        resuming={resumingAfterAnswer}
+                        pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                        // A tool answer and a rewind both write: someone who cannot send here cannot
+                        // answer a tool or re-run a turn (retry rides rewind) either.
+                        onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
+                        onRewind={locked ? undefined : handleRewind}
+                    />
+                </ChangeResultHostContext.Provider>
             </ContentRail>
         )
     }

@@ -41,6 +41,7 @@ import {cn} from "@/lib/utils"
 
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
+import {ChangeResults} from "./ChangeResults"
 import {isLiveTextItem} from "./markdownStream"
 import {quotedMessageParts} from "./quotedMessageParts"
 import {describeRunFailure, type RunFailureView} from "./RunErrorMessage"
@@ -308,6 +309,8 @@ const TurnRowInner = ({
                         : undefined
                 }
             />
+            {/* What each answered change call came to; outside the fold, which starts closed. */}
+            <ChangeResults parts={turn.message.parts} />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
                     {activity.messages.map((message, at) => (

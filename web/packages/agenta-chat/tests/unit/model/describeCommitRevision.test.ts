@@ -197,3 +197,36 @@ describe("describeCommitRevision", () => {
         expect(describeCommitRevision(commit({operations: []}), undefined)).toBeNull()
     })
 })
+
+describe("the agent's own change card (task 26.3)", () => {
+    it("gives an ordered commit the same change data as the builder's card", () => {
+        const preview = describeCommitRevision(
+            {
+                workflow_revision: {
+                    base_revision_id: "rev-4",
+                    delta: {
+                        operations: [
+                            {
+                                operation: "edit_text",
+                                target: ["parameters", "agent", "instructions", "agents_md"],
+                                edits: [{old_text: "Be kind.", new_text: "Be brief."}],
+                            },
+                        ],
+                    },
+                },
+            },
+            undefined,
+        )
+        expect(preview?.changes?.[0].title).toBe("Edit the instructions")
+        expect(preview?.changes?.[0].path).toEqual(["Instructions", "AGENTS.md"])
+        // No server preview for commit_revision: the proposed values, with the label.
+        expect(preview?.proposedValues).toBe(true)
+        expect(preview?.base).toEqual({revisionId: "rev-4"})
+    })
+
+    it("keeps the rows of a legacy delta", () => {
+        const preview = describeCommitRevision(commit({set: {instructions: "x"}}), undefined)
+        expect(preview?.changes).toBeUndefined()
+    })
+})
+
