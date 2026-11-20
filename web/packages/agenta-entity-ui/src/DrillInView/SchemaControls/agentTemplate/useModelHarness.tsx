@@ -41,13 +41,11 @@ import {
     permissionPolicyOptionsForEnum,
 } from "../permissionPolicy"
 
-import {useAgentaToolsData} from "./AgentaToolsSection"
+import {useAdvancedParts} from "./advancedParts"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
-import {useSandboxChoice} from "./sandboxChoice"
 import {useAdvancedSectionBody} from "./sections/AdvancedSectionBody"
 import {modelSectionBody} from "./sections/ModelSectionBody"
 import {permissionsSectionBody} from "./sections/PermissionsSectionBody"
-import {useBuildKit} from "./useBuildKit"
 
 // Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
 
@@ -91,14 +89,15 @@ export function useModelHarness({
     )
     const harness = asObject("harness")
     const runner = asObject("runner")
+    const advancedParts = useAdvancedParts(schema, config, revisionId ?? null)
     const {
         sandboxProps,
         sandbox,
-        savedSandboxKind,
+        sandboxKind,
         shownSandboxKind,
         sandboxOptions,
         hasExecutionGroup,
-    } = useSandboxChoice(schema, config)
+    } = advancedParts.sandbox
 
     const runnerPermissions =
         runner.permissions && typeof runner.permissions === "object"
@@ -125,7 +124,7 @@ export function useModelHarness({
         if (disabled || !normalizeSandbox) return
         if (sandboxOptions.some((option) => option.value === shownSandboxKind)) return
         const availableValue = sandboxOptions[0]?.value ?? null
-        if (availableValue && availableValue !== savedSandboxKind) {
+        if (availableValue && availableValue !== sandboxKind) {
             setSection("sandbox", {...sandbox, kind: availableValue})
         }
     }, [
@@ -133,7 +132,7 @@ export function useModelHarness({
         normalizeSandbox,
         sandbox,
         sandboxOptions,
-        savedSandboxKind,
+        sandboxKind,
         shownSandboxKind,
         setSection,
     ])
@@ -340,10 +339,6 @@ export function useModelHarness({
         policy: permissionPolicyLabel(currentRunnerPermission) ?? currentRunnerPermission,
     })
 
-    // Advanced lists only the parts that apply to the agent.
-    const agentaTools = useAgentaToolsData(config, revisionId ?? null)
-    const {hasBuildKitOverlay} = useBuildKit({revisionId: revisionId ?? null, disabled})
-
     // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
     // config panel showing only what changed — a body renders only what owns one of them.
     const policyInFocus = useIsPathVisible("runner.permissions.default")
@@ -354,7 +349,8 @@ export function useModelHarness({
     // `harness.kind` a picked row sets, so a change filter keeps it whenever either is in scope.
     const modelInFocus = useHasFocusUnder("llm.model")
 
-    const hasAdvanced = hasExecutionGroup || hasBuildKitOverlay || agentaTools.status !== "none"
+    // Advanced shows only when one of its parts applies to the agent.
+    const hasAdvanced = advancedParts.any
 
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
     // (below); the model picker also needs it, to cross each connection with the harnesses that

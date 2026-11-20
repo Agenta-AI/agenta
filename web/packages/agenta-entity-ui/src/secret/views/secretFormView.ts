@@ -1,7 +1,7 @@
 import {defineView} from "@agenta/ui/view-stack"
 
 import {lazyView} from "../../DrillInView/SchemaControls/agentTemplate/views/lazyView"
-import type {SecretOwner} from "../attach/useSecretAttachForm"
+import type {SecretOwner} from "../agentSecretRules"
 
 export interface SecretFormViewParams {
     /** The secret to edit, by its vault id. Absent: a new secret. */

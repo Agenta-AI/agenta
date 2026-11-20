@@ -12,7 +12,7 @@ export interface SecretAttachViewParams {
  * does (`commitAgentCredentialsAtom`); a new secret goes to the vault first.
  */
 export const secretAttachView = defineView<SecretAttachViewParams>({
-    id: "agent.secretAttach",
+    id: "agent.secret.attach",
     apply: "on_save",
     Component: lazyView(() => import("./SecretAttachViewBody")),
 })

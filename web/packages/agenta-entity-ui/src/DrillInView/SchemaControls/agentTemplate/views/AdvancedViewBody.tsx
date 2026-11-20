@@ -6,10 +6,9 @@ import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import {useViewTitle, type ViewDef, type ViewProps} from "@agenta/ui/view-stack"
 import {CaretRight, Cube, Hammer, Toolbox} from "@phosphor-icons/react"
 
-import {agentaToolsPreset, agentaToolsPresetLabel, useAgentaToolsData} from "../AgentaToolsSection"
-import {useSandboxChoice} from "../sandboxChoice"
+import {useAdvancedParts} from "../advancedParts"
+import {agentaToolsPreset, agentaToolsPresetLabel} from "../AgentaToolsSection"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
-import {useBuildKit} from "../useBuildKit"
 
 import {
     agentaToolsView,
@@ -29,15 +28,15 @@ interface PartRow {
 const AdvancedViewBody = ({target, nav}: ViewProps<AdvancedViewParams>) => {
     const t = useT(modelHarnessCatalog, advancedViewCatalog)
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
-    const {hasExecutionGroup, sandbox} = useSandboxChoice(writer.schema, writer.agent)
-    const agentaTools = useAgentaToolsData(writer.agent, writer.revisionId)
-    const {hasBuildKitOverlay} = useBuildKit({revisionId: writer.revisionId})
+    const parts = useAdvancedParts(writer.schema, writer.agent, writer.revisionId)
+    const {sandbox} = parts.sandbox
+    const {agentaTools} = parts
     useViewTitle(t("entityUi.modelHarness.advanced"))
 
     const toolCount = Object.keys(agentaTools.access).length
     const rows = (
         [
-            hasExecutionGroup && {
+            parts.execution && {
                 key: "execution",
                 icon: <Cube size={16} />,
                 title: t("entityUi.modelHarness.execution"),
@@ -46,7 +45,7 @@ const AdvancedViewBody = ({target, nav}: ViewProps<AdvancedViewParams>) => {
                     : undefined,
                 view: executionView,
             },
-            agentaTools.status !== "none" && {
+            parts.tools && {
                 key: "agenta-tools",
                 icon: <Toolbox size={16} />,
                 title: t("entityUi.modelHarness.agentaTools"),
@@ -61,7 +60,7 @@ const AdvancedViewBody = ({target, nav}: ViewProps<AdvancedViewParams>) => {
                         : undefined,
                 view: agentaToolsView,
             },
-            hasBuildKitOverlay && {
+            parts.buildKit && {
                 key: "build-kit",
                 icon: <Hammer size={16} />,
                 title: t("entityUi.modelHarness.buildKit"),

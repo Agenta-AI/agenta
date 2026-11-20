@@ -264,12 +264,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [openView, viewTarget],
     )
 
-    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → the Model section).
+    // Remote request to open a section's view (e.g. the chat's connect-a-model banner → the Model view).
     const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
     useEffect(() => {
         if (!openSectionRequest) return
-        // Always clears the request, even when openSectionDrawer no-ops on a dirty open section —
-        // the request is intentionally dropped rather than queued.
+        // Always clears the request: it opens the view once and is never queued.
         openSectionDrawer(openSectionRequest)
         setOpenSectionRequest(null)
     }, [openSectionRequest, openSectionDrawer, setOpenSectionRequest])
@@ -564,7 +563,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const draftSectionKeys = sectionChanges.draft.panelKeys
 
     // Revert for the PANEL's own inline bodies: writes the entity draft straight through `onChange`,
-    // matching how the panel's other inline sections (Tools, Instructions) already behave. Distinct
+    // matching how the panel's other inline sections (Tools, Instructions) already behave.
     const panelChangedPaths = useMemo(
         () => ({
             ...sectionChanges.draft,

@@ -232,36 +232,3 @@ export const withAgentaTools = (
     ...config,
     tools: writeAgentaTools(Array.isArray(config.tools) ? config.tools : [], next),
 })
-
-/** The section for the agent in `config`, editing its `agenta_tools` entry in the draft. */
-export function useAgentaTools({
-    config,
-    onChange,
-    revisionId,
-    disabled,
-}: {
-    config: Record<string, unknown>
-    onChange: (next: Record<string, unknown>) => void
-    revisionId: string | null
-    disabled?: boolean
-}) {
-    const t = useT(buildKitCatalog)
-    const data = useAgentaToolsData(config, revisionId)
-    if (data.status === "error") {
-        return (
-            <span className="text-xs text-colorError">
-                {t("entityUi.buildKit.couldNotLoadAgentaTools")}
-            </span>
-        )
-    }
-    if (data.status === "none") return null
-    return (
-        <AgentaToolsSection
-            tools={data.tools}
-            onChange={(next) => onChange(withAgentaTools(config, next))}
-            access={data.access}
-            buildKitOps={data.buildKitOps}
-            disabled={disabled}
-        />
-    )
-}

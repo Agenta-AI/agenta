@@ -148,10 +148,9 @@ export const SecretsSectionBody = ({
         [namedSecrets],
     )
 
+    // The commit refuses an unsaved agent and unsaved changes itself, with the production text.
     const remove = async () => {
         if (removeIndex === null) return
-        if (!committed) throw new Error(t("entityUi.agentSecrets.saveAgentFirst"))
-        if (dirty) throw new Error(t("entityUi.agentSecrets.saveOrDiscardFirst"))
         const result = await commit({
             revisionId,
             bindings: bindings.filter((_, index) => index !== removeIndex),

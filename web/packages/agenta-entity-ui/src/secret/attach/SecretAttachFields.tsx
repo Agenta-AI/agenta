@@ -16,22 +16,22 @@ import {
 
 import {ACCOUNT_COPY} from "../../accounts/copy"
 import {useProjectName} from "../../accounts/useProjectName"
-import type {AgentSecretRequestSeed} from "../agentSecretRules"
+import type {AgentSecretRequestSeed, SecretOwner} from "../agentSecretRules"
 import {OwnerRadioGroup} from "../OwnerRadioGroup"
 import {SecretCreateFields} from "../SecretCreateFields"
 
 import {NEW_SECRET} from "./secretChoice"
-import type {SecretAttachForm, SecretListEntry, SecretOwner} from "./useSecretAttachForm"
+import type {SecretAttachForm, SecretListEntry} from "./useSecretAttachForm"
 
 const SECRET_FIELD_ID = "agent-secret-attach-secret"
 const ENV_FIELD_ID = "agent-secret-attach-env"
 
-/** Who can use a secret: "Everyone" or "Only me", at the right of its name. */
-export const SecretScopeTag = ({scope}: {scope: SecretListEntry["scope"]}) => {
+/** Whose a secret is: "Everyone" or "Only me", at the right of its name. */
+export const SecretOwnerTag = ({owner}: {owner: SecretListEntry["owner"]}) => {
     const t = useT(secretViewsCatalog)
     return (
         <span className="ml-auto shrink-0 rounded px-1.5 text-[11px] leading-[18px] text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary">
-            {scope === "everyone" ? t("entityUi.secretViews.everyone") : ACCOUNT_COPY.onlyMe}
+            {owner === "shared" ? t("entityUi.secretViews.everyone") : ACCOUNT_COPY.onlyMe}
         </span>
     )
 }
@@ -105,7 +105,7 @@ export function SecretAttachFields({
                                 className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                             >
                                 <span className="min-w-0 truncate">{entry.name}</span>
-                                <SecretScopeTag scope={entry.scope} />
+                                <SecretOwnerTag owner={entry.owner} />
                             </SelectItem>
                         ))}
                         {form.canCreate ? (
@@ -118,7 +118,7 @@ export function SecretAttachFields({
                         ) : null}
                     </SelectContent>
                 </Select>
-                {form.choice.kind === "own" ? (
+                {form.choice.kind === "user" ? (
                     <span className="text-xs text-colorTextSecondary">
                         {t("entityUi.secretViews.onlyYouLine")}
                     </span>

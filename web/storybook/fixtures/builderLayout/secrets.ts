@@ -12,8 +12,10 @@ import {AGENT_SCHEMA, makeAgentConfigFixture} from "./index"
 export const SECRETS_USER_ID = "user-secrets-story"
 
 /** A saved revision id: the needs-setup check runs only for a real (UUID) revision. */
-const revisionUuid = (scope: StoryScope) =>
-    `00000000-0000-4000-8000-${scope.key.padStart(12, "0").slice(-12)}`
+const revisionUuid = (scope: StoryScope) => {
+    const hex = [...scope.key].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+    return `00000000-0000-4000-8000-${hex.padStart(12, "0").slice(-12)}`
+}
 
 export const SECRET_ROWS = [
     {
@@ -83,7 +85,7 @@ export function secretsRevisionId(scope: StoryScope): string {
 
 export function secretsQueries(
     scope: StoryScope,
-    opts: {credentials?: unknown[]; projectSecrets?: unknown[]} = {},
+    opts: {credentials?: unknown[]; projectSecrets?: unknown[]; ownSecrets?: unknown[]} = {},
 ): [readonly unknown[], unknown][] {
     const fixture = makeAgentConfigFixture(scope)
     const ids = {...workflowIds(scope), revisionId: revisionUuid(scope)}
@@ -108,7 +110,10 @@ export function secretsQueries(
             ["vault", "secrets", SECRETS_USER_ID, scope.projectId],
             opts.projectSecrets ?? SECRET_ROWS,
         ],
-        [["vault", "personal-secrets", SECRETS_USER_ID, scope.projectId], OWN_SECRETS],
+        [
+            ["vault", "personal-secrets", SECRETS_USER_ID, scope.projectId],
+            opts.ownSecrets ?? OWN_SECRETS,
+        ],
         [
             ["workflows", "requirements", scope.projectId, ids.revisionId],
             {

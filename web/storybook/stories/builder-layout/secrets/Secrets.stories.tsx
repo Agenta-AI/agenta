@@ -182,7 +182,7 @@ export const AttachEveryone: Story = {args: {frame: "attach-everyone", revisionI
 /** F04 f7: no secret yet, so the view opens on "Create new secret" with "Who can use it". */
 export const AttachNewSecret: Story = {
     args: {frame: "attach-new", revisionId: ""},
-    parameters: seeded({credentials: [], projectSecrets: []}),
+    parameters: seeded({credentials: [], projectSecrets: [], ownSecrets: []}),
 }
 
 /** F06 f3: the remove dialog. */

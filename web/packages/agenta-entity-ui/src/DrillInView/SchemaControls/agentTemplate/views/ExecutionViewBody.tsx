@@ -13,7 +13,7 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import type {AdvancedViewParams} from "./advancedViews"
 
 /** The sandbox of the saved version, which Revert puts back. */
-const savedSandboxKindOf = (parameters: unknown): string | null => {
+const committedSandboxKindOf = (parameters: unknown): string | null => {
     const sandbox = (parameters as {agent?: {sandbox?: {kind?: unknown}}} | null)?.agent?.sandbox
     return typeof sandbox?.kind === "string" ? sandbox.kind : null
 }
@@ -21,11 +21,11 @@ const savedSandboxKindOf = (parameters: unknown): string | null => {
 const ExecutionViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
     const t = useT(modelHarnessCatalog)
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
-    const {sandboxProps, savedSandboxKind, shownSandboxKind, sandboxOptions} = useSandboxChoice(
+    const {sandboxProps, sandboxKind, shownSandboxKind, sandboxOptions} = useSandboxChoice(
         writer.schema,
         writer.agent,
     )
-    const committedKind = savedSandboxKindOf(
+    const committedKind = committedSandboxKindOf(
         useAtomValue(workflowMolecule.selectors.serverConfiguration(writer.revisionId)),
     )
     useViewTitle(t("entityUi.modelHarness.execution"))
@@ -34,7 +34,7 @@ const ExecutionViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
             ...agent,
             sandbox: {...((agent.sandbox as Record<string, unknown>) ?? {}), kind},
         }))
-    const changed = committedKind !== null && committedKind !== savedSandboxKind
+    const changed = committedKind !== null && committedKind !== sandboxKind
 
     return (
         <div className="flex flex-col gap-4 px-4 py-3">

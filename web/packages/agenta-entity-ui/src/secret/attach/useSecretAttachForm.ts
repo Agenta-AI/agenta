@@ -22,7 +22,6 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
-import type {OwnerKind} from "@agenta/shared/types"
 import {useAtomValue} from "jotai"
 
 import {ACCOUNT_COPY} from "../../accounts/copy"
@@ -34,6 +33,7 @@ import {
     matchRequestedSecret,
     newSecretOwners,
     preserveAgentSecretEnvOverride,
+    type SecretOwner,
     suggestedAgentSecretEnv,
     type AgentSecretRequestSeed,
 } from "../agentSecretRules"
@@ -41,19 +41,18 @@ import {useSecretForm, type SavedSecret, type SecretFormController} from "../Sec
 
 import {
     NEW_SECRET,
-    ownSecretValue,
-    projectSecretValue,
+    userSecretValue,
+    sharedSecretValue,
     readSecretChoice,
     type SecretChoice,
 } from "./secretChoice"
 
-export type SecretOwner = Exclude<OwnerKind, "organization">
-
-/** One entry of the "Secret" select: its value, its name and who can use it. */
+/** One entry of the "Secret" select: its value, its name, and whose it is (the tag). */
 export interface SecretListEntry {
     value: string
     name: string
-    scope: "everyone" | "only_me"
+    /** "shared": every run uses it ("Everyone"). "user": the person's own ("Only me"). */
+    owner: "shared" | "user"
 }
 
 export interface SecretAttachFormOptions {
@@ -165,14 +164,14 @@ export const useSecretAttachForm = ({
     const entries = useMemo<SecretListEntry[]>(
         () => [
             ...allProjectSecrets.map((secret) => ({
-                value: projectSecretValue(secret.slug ?? ""),
+                value: sharedSecretValue(secret.slug ?? ""),
                 name: secret.name ?? secret.slug ?? "",
-                scope: "everyone" as const,
+                owner: "shared" as const,
             })),
             ...ownSecrets.map((secret) => ({
-                value: ownSecretValue(secret.id as string),
+                value: userSecretValue(secret.id as string),
                 name: secret.name ?? "",
-                scope: "only_me" as const,
+                owner: "user" as const,
             })),
         ],
         [allProjectSecrets, ownSecrets],
@@ -206,10 +205,10 @@ export const useSecretAttachForm = ({
         const original = editingBinding?.value
         const initialValue =
             original && !isUserSecretBinding(original)
-                ? projectSecretValue(original.secret.slug ?? "")
+                ? sharedSecretValue(original.secret.slug ?? "")
                 : ""
         const initialSecret = projectSecrets.find(
-            (secret) => projectSecretValue(secret.slug ?? "") === initialValue,
+            (secret) => sharedSecretValue(secret.slug ?? "") === initialValue,
         )
         const startNew = canCreate && !original && initialMode === "create"
         choiceMade.current = Boolean(original && !isUserSecretBinding(original)) || startNew
@@ -233,7 +232,7 @@ export const useSecretAttachForm = ({
         setSelected(value)
         setError(null)
         const next = readSecretChoice(value)
-        if (keepEnv || next.kind !== "project") return
+        if (keepEnv || next.kind !== "shared") return
         const secret = allProjectSecrets.find((candidate) => candidate.slug === next.slug)
         setEnvVarState(
             preserveAgentSecretEnvOverride({
@@ -265,7 +264,7 @@ export const useSecretAttachForm = ({
     useEffect(() => {
         if (!open || !ownChoiceId || choiceMade.current) return
         if (ownSecrets.some((secret) => secret.id === ownChoiceId))
-            selectValue(ownSecretValue(ownChoiceId), false)
+            selectValue(userSecretValue(ownChoiceId), false)
     }, [open, ownChoiceId, ownSecrets])
 
     // Opening choice, once the vault has loaded: the matching secret, else a new one when there
@@ -273,7 +272,7 @@ export const useSecretAttachForm = ({
     useEffect(() => {
         if (!open || loading || !vaultFresh || choiceMade.current || editingOwn) return
         const match = matchRequestedSecret(projectSecrets, request)
-        if (match?.slug) selectValue(projectSecretValue(match.slug), false)
+        if (match?.slug) selectValue(sharedSecretValue(match.slug), false)
         else if (canCreate && projectSecrets.length === 0 && ownSecrets.length === 0)
             selectValue(NEW_SECRET, false)
         else choiceMade.current = true
@@ -351,8 +350,8 @@ export const useSecretAttachForm = ({
         setSubmitting(true)
         setError(null)
         try {
-            if (choice.kind === "project") return await attach({slug: choice.slug})
-            if (choice.kind === "own") return await attachOwn(choice.secretId)
+            if (choice.kind === "shared") return await attach({slug: choice.slug})
+            if (choice.kind === "user") return await attachOwn(choice.secretId)
             if (choice.kind !== "new") return false
             const saved = await createController.submit()
             if (!saved) return false
@@ -362,11 +361,11 @@ export const useSecretAttachForm = ({
             // The variable was chosen with the new secret; the pick below must not replace it.
             setEnvTouched(true)
             if (owner === "user") {
-                if (saved.id) selectValue(ownSecretValue(saved.id), false, true)
+                if (saved.id) selectValue(userSecretValue(saved.id), false, true)
                 return await attachOwn(saved.id, saved)
             }
             setCreatedSecret(saved)
-            selectValue(projectSecretValue(saved.slug), false, true)
+            selectValue(sharedSecretValue(saved.slug), false, true)
             return await attach({slug: saved.slug}, saved)
         } finally {
             setSubmitting(false)

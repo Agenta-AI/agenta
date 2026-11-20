@@ -1,26 +1,27 @@
 /**
- * The value of one entry of the "Secret" select. A project secret is named by its slug, a
- * person's own secret by its id, so the two lists cannot clash.
+ * The value of one entry of the "Secret" select. A shared secret (the project's, or an
+ * organization's the project may use) is named by its slug, a person's own secret by its id, so
+ * the two lists cannot clash.
  */
 export const NEW_SECRET = "__new__"
 
-const PROJECT = "project:"
-const OWN = "own:"
+const SHARED = "shared:"
+const USER = "user:"
 
 export type SecretChoice =
     | {kind: "none"}
     | {kind: "new"}
-    | {kind: "project"; slug: string}
-    | {kind: "own"; secretId: string}
+    | {kind: "shared"; slug: string}
+    | {kind: "user"; secretId: string}
 
-export const projectSecretValue = (slug: string) => `${PROJECT}${slug}`
-export const ownSecretValue = (secretId: string) => `${OWN}${secretId}`
+export const sharedSecretValue = (slug: string) => `${SHARED}${slug}`
+export const userSecretValue = (secretId: string) => `${USER}${secretId}`
 
 export const readSecretChoice = (value: string): SecretChoice => {
     if (value === NEW_SECRET) return {kind: "new"}
-    if (value.startsWith(PROJECT) && value.length > PROJECT.length)
-        return {kind: "project", slug: value.slice(PROJECT.length)}
-    if (value.startsWith(OWN) && value.length > OWN.length)
-        return {kind: "own", secretId: value.slice(OWN.length)}
+    if (value.startsWith(SHARED) && value.length > SHARED.length)
+        return {kind: "shared", slug: value.slice(SHARED.length)}
+    if (value.startsWith(USER) && value.length > USER.length)
+        return {kind: "user", secretId: value.slice(USER.length)}
     return {kind: "none"}
 }

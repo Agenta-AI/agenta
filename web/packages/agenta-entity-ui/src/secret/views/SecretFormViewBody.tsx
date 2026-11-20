@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useState} from "react"
 
 import {
     CustomSecretFormat,
@@ -10,38 +10,52 @@ import {useT} from "@agenta/i18n"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
 import secretFormSheetCatalog from "@agenta/i18n/catalogs/settings.secretFormSheet"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 
 import {ACCOUNT_COPY} from "../../accounts/copy"
 import {useProjectName} from "../../accounts/useProjectName"
-import type {SecretOwner} from "../attach/useSecretAttachForm"
+import type {SecretOwner} from "../agentSecretRules"
 import {OwnerRadioGroup} from "../OwnerRadioGroup"
 import {SecretForm, useSecretForm, type SecretFormController} from "../SecretForm"
-import {objectToRows} from "../SecretForm/primitives"
+import {rowsToObject} from "../SecretForm/primitives"
 
 import type {SecretFormViewParams} from "./secretFormView"
 
-/** The form differs from the secret it opened with (or, for a new one, holds any text). */
+/** The JSON value the form holds: the editor's text when it is open, else the grid. */
+const jsonValueOf = (
+    form: Pick<SecretFormController, "kvRows" | "jsonView" | "jsonText">,
+): unknown => {
+    if (form.jsonView === "grid") return rowsToObject(form.kvRows)
+    try {
+        return JSON.parse(form.jsonText)
+    } catch {
+        // Text that does not parse is an edit too.
+        return form.jsonText
+    }
+}
+
+/** The form differs from the secret it opened with (or, for a new one, holds any value). */
 export const secretFormDirty = (
-    form: Pick<SecretFormController, "name" | "textValue" | "defaultEnvVar" | "kvRows" | "format">,
+    form: Pick<
+        SecretFormController,
+        "name" | "textValue" | "defaultEnvVar" | "kvRows" | "jsonView" | "jsonText" | "format"
+    >,
     secret: NamedSecretRow | null,
 ): boolean => {
-    const keys = JSON.stringify(form.kvRows.filter((row) => row.key.trim() || row.value))
-    if (!secret) return Boolean(form.name.trim() || form.textValue.trim() || keys !== "[]")
-    const savedText = typeof secret.content === "string" ? secret.content : ""
-    const savedRows =
-        secret.format === CustomSecretFormat.Json &&
-        secret.content &&
-        typeof secret.content === "object"
-            ? JSON.stringify(objectToRows(secret.content))
-            : "[]"
-    return (
+    const json = jsonValueOf(form)
+    if (!secret) return Boolean(form.name.trim() || form.textValue.trim()) || !deepEqual(json, {})
+    if (
         form.name !== (secret.name ?? "") ||
         form.format !== secret.format ||
-        form.defaultEnvVar !== (secret.defaultEnvVar ?? "") ||
-        (form.format === CustomSecretFormat.Text
-            ? form.textValue !== savedText
-            : keys !== savedRows)
+        form.defaultEnvVar !== (secret.defaultEnvVar ?? "")
+    )
+        return true
+    if (form.format === CustomSecretFormat.Text)
+        return form.textValue !== (typeof secret.content === "string" ? secret.content : "")
+    return !deepEqual(
+        json,
+        secret.content && typeof secret.content === "object" ? secret.content : {},
     )
 }
 
@@ -65,15 +79,9 @@ const SecretFormViewBody = ({params}: ViewProps<SecretFormViewParams>) => {
     const controller = useSecretForm({
         open: true,
         initialSecret: secret,
-        ownerKind: secret
-            ? secret.ownerKind === "user"
-                ? "user"
-                : undefined
-            : owner === "user"
-              ? "user"
-              : undefined,
+        ownerKind: (secret ? secret.ownerKind : owner) === "user" ? "user" : undefined,
     })
-    const dirty = useMemo(() => secretFormDirty(controller, secret), [controller, secret])
+    const dirty = secretFormDirty(controller, secret)
     useViewTitle(
         secret
             ? t("settings.secretFormSheet.editTitle")
