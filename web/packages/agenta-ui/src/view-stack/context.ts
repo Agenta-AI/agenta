@@ -18,6 +18,12 @@ export const useViewStack = (): ViewStack => {
     return stack
 }
 
+/**
+ * The stack of the nearest `ViewStackHost`, or null outside one. For code that renders both in a
+ * container with a stack and in hosts without one; with null it opens the view in its own shell.
+ */
+export const useOptionalViewStack = (): ViewStack | null => useContext(ViewStackContext)
+
 export const useViewEntry = (hook: string): ViewEntryApi => {
     const entry = useContext(ViewEntryContext)
     if (!entry) throw new Error(`${hook} must be used inside a view of a ViewStackHost`)

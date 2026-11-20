@@ -6,6 +6,7 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
     defineView,
+    useOptionalViewStack,
     useViewForm,
     useViewStack,
     useViewTitle,
@@ -407,5 +408,33 @@ describe("ViewStackHost", () => {
         fireEvent.keyDown(screen.getByLabelText("field skill"), {key: "Escape"})
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
         expect(onEscape).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe("useOptionalViewStack", () => {
+    const Probe = () => {
+        const stack = useOptionalViewStack()
+        return <span>{stack ? `stack depth ${stack.depth}` : "no stack"}</span>
+    }
+
+    it("returns null outside a host, where useViewStack throws", () => {
+        render(<Probe />)
+        expect(screen.getByText("no stack")).toBeTruthy()
+        const Strict = () => {
+            useViewStack()
+            return null
+        }
+        vi.spyOn(console, "error").mockImplementation(() => {})
+        expect(() => render(<Strict />)).toThrow("useViewStack must be used inside a ViewStackHost")
+        vi.restoreAllMocks()
+    })
+
+    it("returns the host's stack inside a host", () => {
+        render(
+            <ViewStackHost chrome={TestChrome}>
+                <Probe />
+            </ViewStackHost>,
+        )
+        expect(screen.getByText("stack depth 0")).toBeTruthy()
     })
 })
