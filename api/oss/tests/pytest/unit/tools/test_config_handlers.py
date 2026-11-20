@@ -159,6 +159,29 @@ class TestFailuresComeBackAsTheEnvelope:
         assert result.content.retryable is False
         assert result.content.next_step
 
+    async def test_an_unrunnable_configuration_names_the_field(self):
+        from oss.src.core.workflows.types import InvalidAgentConfigurationError
+
+        service = _service()
+        service.commit_workflow_revision_checked.side_effect = (
+            InvalidAgentConfigurationError(
+                issues=["parameters.agent.skills[0].body is required"]
+            )
+        )
+
+        result = await handle_commit_revision(
+            arguments=_commit_args(),
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=service,
+        )
+
+        assert result.ok is False
+        assert result.content.code == "invalid_agent_configuration"
+        assert result.content.details["issues"] == [
+            "parameters.agent.skills[0].body is required"
+        ]
+
     async def test_a_moved_head_carries_the_current_revision_in_details(self):
         service = _service()
         current = str(uuid4())
