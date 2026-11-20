@@ -34,12 +34,16 @@ def _delivery(*, message="dispatched", session_id="s1", run_id="r1"):
     )
 
 
-def _settlement(*, session_id="s1", run_id="r1", outcome="completed", parent=None):
+def _settlement(
+    *, session_id="s1", run_id="r1", outcome="completed", parent=None, answered=False
+):
+    # `answered`: the child a person's answer started (it names its interaction).
     return SessionExecutionSettlement(
         project_id=_PROJECT,
         session_id=session_id,
         execution_id=run_id,
         parent_execution_id=parent,
+        source_interaction_id=uuid4() if answered else None,
         terminal_outcome=outcome,
         settled_by="runner" if outcome else None,
         settled_at=_SETTLED_AT if outcome else None,
@@ -193,7 +197,7 @@ async def test_running_child_execution_keeps_the_run_dispatched():
         deliveries=[_delivery()],
         executions=[
             _settlement(outcome="continued"),
-            _settlement(run_id="r2", outcome=None, parent="r1"),
+            _settlement(run_id="r2", outcome=None, parent="r1", answered=True),
         ],
     )
 
@@ -210,8 +214,8 @@ async def test_settled_child_execution_ends_the_run(outcome, message):
         deliveries=[_delivery()],
         executions=[
             _settlement(outcome="continued"),
-            _settlement(run_id="r2", outcome="continued", parent="r1"),
-            _settlement(run_id="r3", outcome=outcome, parent="r2"),
+            _settlement(run_id="r2", outcome="continued", parent="r1", answered=True),
+            _settlement(run_id="r3", outcome=outcome, parent="r2", answered=True),
         ],
     )
 
@@ -247,13 +251,13 @@ async def test_continued_with_no_child_yet_stays_dispatched():
     [(None, "dispatched"), ("completed", "success"), ("failed", "failed")],
 )
 async def test_lost_attempt_is_carried_on_by_its_replacement(replacement, message):
-    # A continuation attempt was lost; the retry runs as a replacement under the same root.
+    # A continuation attempt (c1) was lost; its replacement (c2) hangs from it.
     service, _ = _service(
         deliveries=[_delivery()],
         executions=[
             _settlement(outcome="continued"),
-            _settlement(run_id="c1", outcome="lost", parent="r1"),
-            _settlement(run_id="c2", outcome=replacement, parent="r1"),
+            _settlement(run_id="c1", outcome="lost", parent="r1", answered=True),
+            _settlement(run_id="c2", outcome=replacement, parent="c1"),
         ],
     )
 
@@ -262,15 +266,61 @@ async def test_lost_attempt_is_carried_on_by_its_replacement(replacement, messag
     assert result.status.message == message
 
 
+async def test_second_replacement_wins_over_a_lost_one():
+    # c2 was lost too; c3 replaced it, also under the first attempt c1.
+    service, _ = _service(
+        deliveries=[_delivery()],
+        executions=[
+            _settlement(outcome="continued"),
+            _settlement(run_id="c1", outcome="lost", parent="r1", answered=True),
+            _settlement(run_id="c2", outcome="lost", parent="c1"),
+            _settlement(run_id="c3", outcome="completed", parent="c1"),
+        ],
+    )
+
+    [result] = await service.query_deliveries(project_id=_PROJECT)
+
+    assert result.status.message == "success"
+
+
 async def test_lost_attempt_with_no_replacement_reads_failed():
     service, _ = _service(
         deliveries=[_delivery()],
         executions=[
             _settlement(outcome="continued"),
-            _settlement(run_id="c1", outcome="lost", parent="r1"),
+            _settlement(run_id="c1", outcome="lost", parent="r1", answered=True),
         ],
     )
 
     [result] = await service.query_deliveries(project_id=_PROJECT)
 
     assert result.status.message == "failed"
+
+
+async def test_queued_message_after_a_lost_first_run_does_not_hide_the_failure():
+    # The watchdog settled the run as lost and promoted a queued message under it.
+    service, _ = _service(
+        deliveries=[_delivery()],
+        executions=[
+            _settlement(outcome="lost"),
+            _settlement(run_id="q1", outcome="completed", parent="r1"),
+        ],
+    )
+
+    [result] = await service.query_deliveries(project_id=_PROJECT)
+
+    assert result.status.message == "failed"
+
+
+async def test_queued_message_is_not_the_continuation_of_an_answered_run():
+    service, _ = _service(
+        deliveries=[_delivery()],
+        executions=[
+            _settlement(outcome="continued"),
+            _settlement(run_id="q1", outcome="completed", parent="r1"),
+        ],
+    )
+
+    [result] = await service.query_deliveries(project_id=_PROJECT)
+
+    assert result.status.message == "dispatched"

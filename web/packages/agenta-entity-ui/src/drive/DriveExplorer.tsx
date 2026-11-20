@@ -651,6 +651,8 @@ export function DriveExplorer({
         onRetry: drive.retry,
         retrying: drive.isFetching,
     }
+    // The preview's comment mode, keyed by the open file; the toolbar's Comment toggle shares it.
+    const commentKey = selectedPath == null ? null : `${selectedMount?.id ?? ""}:${selectedPath}`
     let headerInToolbar = false
     // On a phone the one row spans the tree and the content, as row 1 does elsewhere.
     let phoneRow: ReactNode = null
@@ -869,84 +871,77 @@ export function DriveExplorer({
                 />
             )
         body = (
-            <PreviewCommentModeProvider
-                fileKey={selectedPath == null ? null : `${selectedMount?.id ?? ""}:${selectedPath}`}
-            >
-                <DriveTreePane
-                    pane={pane}
-                    mirrored={mirrored}
-                    treeScrollRef={treeScrollRef}
-                    onTreeKeyDown={onTreeKeyDown}
-                    treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
-                    contentHeader={shownContentHeader}
-                    railHeader={
-                        chrome ? (
-                            <Input
-                                allowClear
-                                size="sm"
-                                value={search}
-                                onValueChange={setSearch}
-                                placeholder={t("entityUi.driveBrowser.searchFiles")}
-                                className="w-full"
-                                prefix={
-                                    <MagnifyingGlass
-                                        size={12}
-                                        className="text-colorTextQuaternary"
-                                    />
-                                }
-                            />
-                        ) : null
-                    }
-                    rows={
-                        <DriveTreeList
-                            flatRows={flatRows}
-                            searchLoading={lazyTree.searchLoading}
-                            treeVirtualizer={treeVirtualizer}
-                            measureRow={measureRow}
-                            justLoadedDirs={justLoadedDirs}
-                            firstEverPaths={firstEverPaths}
-                            shownExpanded={shownExpanded}
-                            selectedPath={selectedPath}
-                            showOrigin={showOrigin}
-                            otherDrives={drive.otherDrives}
-                            isDirLoading={isDirLoading}
-                            scrollXFor={scrollXFor}
-                            onMeasureContent={onMeasureContent}
-                            canUpload={canUpload}
-                            drop={drop}
-                            pendingUploadByPath={pendingUploadByPath}
-                            onRetryUpload={retryUpload}
-                            onDismissUpload={dismissUpload}
-                            setExpanded={setExpanded}
-                            select={select}
-                            copyPath={copyPath}
-                            download={download}
-                            writes={itemWrites}
-                            depthOffset={chrome && !searchActive ? 1 : 0}
-                            rootRow={
-                                chrome && !searchActive ? (
-                                    <TreeRow
-                                        node={{
-                                            ...ROOT_NODE,
-                                            name: t("entityUi.driveExplorer.allFiles"),
-                                        }}
-                                        depth={0}
-                                        isOpen
-                                        selected={selectedPath === ""}
-                                        parent=""
-                                        scrollX={0}
-                                        onMeasureContent={noop}
-                                        onToggle={noop}
-                                        onSelect={select}
-                                    />
-                                ) : null
+            <DriveTreePane
+                pane={pane}
+                mirrored={mirrored}
+                treeScrollRef={treeScrollRef}
+                onTreeKeyDown={onTreeKeyDown}
+                treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
+                contentHeader={shownContentHeader}
+                railHeader={
+                    chrome ? (
+                        <Input
+                            allowClear
+                            size="sm"
+                            value={search}
+                            onValueChange={setSearch}
+                            placeholder={t("entityUi.driveBrowser.searchFiles")}
+                            className="w-full"
+                            prefix={
+                                <MagnifyingGlass size={12} className="text-colorTextQuaternary" />
                             }
                         />
-                    }
-                >
-                    {contentPane}
-                </DriveTreePane>
-            </PreviewCommentModeProvider>
+                    ) : null
+                }
+                rows={
+                    <DriveTreeList
+                        flatRows={flatRows}
+                        searchLoading={lazyTree.searchLoading}
+                        treeVirtualizer={treeVirtualizer}
+                        measureRow={measureRow}
+                        justLoadedDirs={justLoadedDirs}
+                        firstEverPaths={firstEverPaths}
+                        shownExpanded={shownExpanded}
+                        selectedPath={selectedPath}
+                        showOrigin={showOrigin}
+                        otherDrives={drive.otherDrives}
+                        isDirLoading={isDirLoading}
+                        scrollXFor={scrollXFor}
+                        onMeasureContent={onMeasureContent}
+                        canUpload={canUpload}
+                        drop={drop}
+                        pendingUploadByPath={pendingUploadByPath}
+                        onRetryUpload={retryUpload}
+                        onDismissUpload={dismissUpload}
+                        setExpanded={setExpanded}
+                        select={select}
+                        copyPath={copyPath}
+                        download={download}
+                        writes={itemWrites}
+                        depthOffset={chrome && !searchActive ? 1 : 0}
+                        rootRow={
+                            chrome && !searchActive ? (
+                                <TreeRow
+                                    node={{
+                                        ...ROOT_NODE,
+                                        name: t("entityUi.driveExplorer.allFiles"),
+                                    }}
+                                    depth={0}
+                                    isOpen
+                                    selected={selectedPath === ""}
+                                    parent=""
+                                    scrollX={0}
+                                    onMeasureContent={noop}
+                                    onToggle={noop}
+                                    onSelect={select}
+                                />
+                            ) : null
+                        }
+                    />
+                }
+            >
+                {contentPane}
+            </DriveTreePane>
         )
     }
     // The lazy per-directory subscribers render alongside EVERY branch (skeleton/empty/tree) so the
@@ -980,14 +975,18 @@ export function DriveExplorer({
                         }}
                     />
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
-                        {/* Inside the key handler: Back and history keys work from the row too. */}
-                        {phoneRow}
-                        {body}
+                        {/* Inside the key handler: Back and history keys work from the row too.
+                            The phone row holds the Comment toggle, so it shares the preview's
+                            comment mode. */}
+                        <PreviewCommentModeProvider fileKey={commentKey}>
+                            {phoneRow}
+                            {body}
+                        </PreviewCommentModeProvider>
                     </div>
                     {appAccess.dialog}
                 </div>
             ) : (
-                body
+                <PreviewCommentModeProvider fileKey={commentKey}>{body}</PreviewCommentModeProvider>
             )}
         </>
     )

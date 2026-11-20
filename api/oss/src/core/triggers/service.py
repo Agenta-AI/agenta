@@ -357,11 +357,22 @@ _HANDED_ON = ("continued", "lost")
 
 
 def _successor(
+    execution: SessionExecutionSettlement,
     candidates: List[SessionExecutionSettlement],
     seen: Set[str],
 ) -> Optional[SessionExecutionSettlement]:
-    """The child that carries the run on: one still going, else one that ended the run (the
-    last settled), else the last one handed on."""
+    """The child that carries the run on, or None when the run ended here.
+
+    After "continued", only the continuation a person's answer started counts (it names its
+    interaction); a queued message does not. After "lost", only a lost continuation attempt
+    is carried on, by its replacement; a lost first run stays failed, even when a queued
+    message starts after it. Among the children that count: one still going, else one that
+    ended the run (the last settled), else the last one handed on.
+    """
+    if execution.terminal_outcome == "continued":
+        candidates = [c for c in candidates if c.source_interaction_id is not None]
+    elif execution.parent_execution_id is None:
+        return None
     candidates = [c for c in candidates if c.execution_id not in seen]
     if not candidates:
         return None
@@ -2120,6 +2131,9 @@ class TriggersService:
         One read of the sessions' executions finds the last one of each run. A settled run
         reads `success` or `failed`; a run that still goes on keeps `dispatched`. The stored
         row does not change.
+
+        Not every child carries the run on: a message queued in the session also starts as a
+        child of the execution that just ended. See `_successor` for which children count.
         """
         if self.executions_dao is None:
             return deliveries
@@ -2160,6 +2174,7 @@ class TriggersService:
             ):
                 seen.add(execution.execution_id)
                 successor = _successor(
+                    execution,
                     children.get((execution.session_id, execution.execution_id), []),
                     seen,
                 )
