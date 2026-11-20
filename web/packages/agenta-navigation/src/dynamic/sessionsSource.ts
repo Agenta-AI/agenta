@@ -95,11 +95,11 @@ const scopeLimit = (scopeId: string) => SCOPE_SESSION_LIMIT[scopeId] ?? SIDEBAR_
 const GROUPED_SCOPES = new Set(["mobile-main", MAIN_SIDEBAR_SCOPE_ID])
 const scopeGroups = (scopeId: string) => GROUPED_SCOPES.has(scopeId)
 
-/** Every filter is a server predicate: narrowing a fetched page would filter the window, not
- * the set. Liveness maps onto the row's mirrored flags; the agent onto the turns' references. */
 /**
  * A sidebar's filters as the session list's server predicates. The main sidebar and the agent
- * sidebar both send these. "Waiting" is not here: it is an id set from the pending interactions.
+ * sidebar both send these. Every filter is a server predicate: narrowing a fetched page would
+ * filter the window, not the set. Liveness maps onto the row's mirrored flags; the agent onto
+ * the turns' references. "Waiting" is not here: it is an id set from the pending interactions.
  */
 export const sidebarSessionRequestFilters = (filters: SidebarSessionFilters) => {
     const flags: {is_running?: boolean; is_alive?: boolean} = {}

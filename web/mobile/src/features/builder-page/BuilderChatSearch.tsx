@@ -49,7 +49,8 @@ const BuilderChatSearchWindow = ({
                 key: "builder-chats",
                 // No heading: the window lists one kind of thing.
                 heading: "",
-                entries: chats.rows.map((row) => ({
+                // The previous term's rows are not matches for this one.
+                entries: (chats.stale ? [] : chats.rows).map((row) => ({
                     key: row.session_id,
                     label: row.name?.trim() || t("builder.page.untitledChat"),
                     icon: row.flags?.is_running
@@ -60,7 +61,7 @@ const BuilderChatSearchWindow = ({
                 })),
             },
         ]
-    }, [chats.rows, projectId, t, workspaceId])
+    }, [chats.rows, chats.stale, projectId, t, workspaceId])
     return (
         <CommandPalette
             open
@@ -68,7 +69,7 @@ const BuilderChatSearchWindow = ({
             query={query}
             onQueryChange={setQuery}
             groups={groups}
-            loading={chats.pending || term !== query.trim()}
+            loading={chats.pending || chats.stale || term !== query.trim()}
             onNavigate={(href) => void router.push(href)}
             placeholder={t("navigation.items.searchChats")}
         />

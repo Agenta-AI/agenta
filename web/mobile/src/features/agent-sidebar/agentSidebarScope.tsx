@@ -24,7 +24,7 @@ import {
 } from "@agenta/navigation-ui"
 import {sessionRowVm} from "@agenta/sessions/row"
 import {pendingBySessionId, useActionableInteractions} from "@agenta/sessions/state"
-import {useQuery} from "@tanstack/react-query"
+import {keepPreviousData, useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -66,8 +66,10 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     const filters = useAtomValue(sidebarSessionFiltersAtomFamily(agentSidebarFilterScope(agentId)))
     const interactions = useActionableInteractions(projectId)
     const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
-    // Joined, so a poll that returns the same waiting sessions keeps the same query.
-    const waitingKey = pending ? [...pending.keys()].sort().join(",") : null
+    // Joined, so a poll that returns the same waiting sessions keeps the same query. Read only
+    // under "Waiting": no other filter depends on who is waiting.
+    const waitingKey =
+        filters.status !== "waiting" ? "" : pending ? [...pending.keys()].sort().join(",") : null
     // Per filter change, not per render: the activity floor reads the clock, and a new floor on
     // every render would make a new query each time.
     const narrowing = useMemo(
@@ -85,6 +87,8 @@ const useAgentSessions = (projectId: string, agentId: string) => {
         ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSION_LIMIT, narrowing ?? {}),
         // "Waiting" waits for the waiting list: without it the query would not be narrowed.
         enabled: Boolean(projectId) && narrowing !== null,
+        // A filter change keeps the rows on screen until the narrowed page arrives.
+        placeholderData: keepPreviousData,
         refetchOnWindowFocus: true,
         // The main sidebar's cadence: faster while a session runs or is alive.
         refetchInterval: (query) => livePollInterval(query.state.data?.sessions),

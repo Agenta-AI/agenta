@@ -62,10 +62,15 @@ vi.mock("../../src/features/builder-page/useBuilderChats", () => ({
     useBuilderChats: (search = "") => {
         chatsCalls.push(search)
         return {
-            rows: search
-                ? chatRows.filter((row) => row.name.toLowerCase().includes(search.toLowerCase()))
-                : chatRows,
+            rows:
+                search && search !== "slow"
+                    ? chatRows.filter((row) =>
+                          row.name.toLowerCase().includes(search.toLowerCase()),
+                      )
+                    : chatRows,
             pending: false,
+            // "slow": the server has not answered this term yet; the rows are the last term's.
+            stale: search === "slow",
             failed: false,
             retry: () => undefined,
             loadMore: () => undefined,
@@ -174,5 +179,17 @@ describe("the search next to Chats", () => {
         fireEvent.click(within(dialog).getByText("Refund policy"))
         expect(routerPush).toHaveBeenCalledWith("/w/w1/p/p1/builder/s1")
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    })
+
+    it("does not show the previous term's rows as matches while the new search loads", async () => {
+        render(<Sidebar />)
+        fireEvent.click(screen.getByRole("button", {name: "Search chats"}))
+        const dialog = await screen.findByRole("dialog")
+        fireEvent.change(within(dialog).getByPlaceholderText("Search chats"), {
+            target: {value: "slow"},
+        })
+        await waitFor(() => expect(chatsCalls.at(-1)).toBe("slow"))
+        expect(within(dialog).queryByText("Weekly report")).toBeNull()
+        expect(within(dialog).getByText("Searching…")).toBeTruthy()
     })
 })

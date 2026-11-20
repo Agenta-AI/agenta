@@ -30,6 +30,8 @@ export const useBuilderChats = (search = "") => {
     return {
         rows,
         pending: !failed && (builder.isPending || !builderWorkflowId || list.isPending),
+        /** The rows are the previous search's, kept on screen while this one loads. */
+        stale: list.isPlaceholderData,
         failed,
         retry: () => void (builder.isError ? builder.refetch() : list.refetch()),
         loadMore: () => {
