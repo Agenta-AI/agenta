@@ -58,6 +58,7 @@ from oss.src.core.auth.helper import (
     parse_auth_info,
 )
 from oss.src.core.auth.service import AuthService
+from oss.src.core.telemetry.service import distinct_id_for
 from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
@@ -198,21 +199,24 @@ async def _create_account(email: str, uid: str) -> bool:
     # Both editions: create_accounts creates the user and, when the
     # allowlist permits, a personal organization. Users not allowed to
     # create an organization sign in org-less and join via invitation.
-    await create_accounts(payload)
+    user = await create_accounts(payload)
 
-    posthog = _load_posthog()
+    posthog = await _load_posthog()
     if posthog is not None:
         try:
+            properties = {
+                "source": "auth",
+                "is_ee": is_ee(),
+                "cloud_region": _get_signup_cloud_region(_get_signup_cloud_url()),
+            }
+            # Self-hosted events carry no email and no instance URL.
+            if env.stripe.enabled:
+                properties["cloud_url"] = _get_signup_cloud_url()
+                properties["$set"] = {"email": auth_info.email}
             posthog.capture(
-                distinct_id=auth_info.email,
+                distinct_id=await distinct_id_for(user.id, auth_info.email),
                 event="user_signed_up_v1",
-                properties={
-                    "source": "auth",
-                    "is_ee": is_ee(),
-                    "cloud_region": _get_signup_cloud_region(_get_signup_cloud_url()),
-                    "cloud_url": _get_signup_cloud_url(),
-                    "$set": {"email": auth_info.email},
-                },
+                properties=properties,
             )
         except Exception as exc:
             log.warning(

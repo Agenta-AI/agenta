@@ -11,6 +11,7 @@ import {
     writeInAnswer,
     writeInText,
     WRITE_IN_MAX,
+    withoutWriteIns,
 } from "@/features/onboarding/onboardingQuestions"
 import {onboardingSteps} from "@/features/onboarding/onboardingRoute"
 
@@ -142,6 +143,16 @@ describe("the signup survey event", () => {
             "person@example.com",
         )
         expect(properties["$survey_response_d71aec24-7e9b-4d89-9cd7-c8f366693367"]).toBe("Teacher")
+    })
+
+    it("drops the typed line of a write-in and keeps the other answers", () => {
+        expect(
+            withoutWriteIns({
+                persona: writeInAnswer("Other", "Teacher"),
+                size: "51-200",
+                source: ["GitHub", writeInAnswer("Other", "A friend's blog")],
+            }),
+        ).toEqual({persona: "Other", size: "51-200", source: ["GitHub", "Other"]})
     })
 
     it("omits an email it does not have", () => {

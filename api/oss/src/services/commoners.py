@@ -6,7 +6,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.locking import acquire_lock, release_lock
 from oss.src.utils.common import env, is_ee
 
-from oss.src.middlewares import analytics
+from oss.src.core.telemetry.service import schedule_install_ping
 from oss.src.services import db_manager
 from oss.src.services.user_service import create_new_user, delete_user
 from oss.src.models.db_models import (
@@ -155,15 +155,12 @@ async def create_organization_for_signup(
 ) -> OrganizationDB:
     """Create an organization for a newly signed-up user.
 
-    EE provisions the signup subscription + seeds the user gauge; OSS captures
-    a deployment-created analytics event for the first org.
+    EE provisions the signup subscription + seeds the user gauge.
     """
 
     user = await db_manager.get_user(str(user_id))
     if not user:
         raise ValueError(f"User {user_id} not found")
-
-    is_first_organization = not await db_manager.get_organizations()
 
     organization = await create_organization(
         user=user,
@@ -182,11 +179,8 @@ async def create_organization_for_signup(
             organization,
             organization_email=organization_email,
         )
-    elif is_first_organization:
-        analytics.capture_oss_deployment_created(
-            user_email=organization_email,
-            organization_id=str(organization.id),
-        )
+
+    schedule_install_ping()
 
     return organization
 
@@ -234,6 +228,8 @@ async def create_organization_for_user(
         )
 
         await provision_user_subscription(organization, organization_email=user.email)
+
+    schedule_install_ping()
 
     return organization
 

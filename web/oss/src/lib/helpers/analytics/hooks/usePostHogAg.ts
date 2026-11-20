@@ -1,15 +1,18 @@
 import {useCallback, useMemo, useRef} from "react"
 
-import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
-import {useAtom} from "jotai"
+import {
+    analyticsIdentity,
+    generateOrRetrieveDistinctId,
+    isCloudTelemetry,
+} from "@agenta/shared/analytics"
+import {getDefaultStore, useAtom, useAtomValue} from "jotai"
 import {type PostHog} from "posthog-js"
 
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {useProfileData} from "@/oss/state/profile"
 
 import {getEnv} from "../../dynamicEnv"
-import {posthogAtom} from "../store/atoms"
+import {instanceTelemetryAtom, posthogAtom} from "../store/atoms"
 
 interface ExtendedPostHog extends PostHog {
     identify: PostHog["identify"]
@@ -20,10 +23,13 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const trackingEnabled = getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== ""
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
+    const telemetry = useAtomValue(instanceTelemetryAtom)
+    const cloud = telemetry ? isCloudTelemetry(telemetry) : false
+    const instanceGroup = telemetry?.groups?.instance ?? null
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
     const {id: analyticsId, properties: personProps} = useMemo(
-        () => analyticsIdentity(user, isDemo(), baseDistinctId),
-        [user, baseDistinctId],
+        () => analyticsIdentity(user, cloud, telemetry?.distinct_id ?? ""),
+        [user, cloud, telemetry?.distinct_id],
     )
     const identifiedRef = useRef<string | null>(null)
     const personPropsIdentifiedRef = useRef<string | null>(null)
@@ -36,7 +42,8 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
-            if (trackingEnabled) {
+            // Read at call time: other hooks keep a bound copy of this wrapper.
+            if (trackingEnabled && getDefaultStore().get(instanceTelemetryAtom)?.enabled) {
                 return baseCapture?.(...args)
             }
             return undefined
@@ -69,7 +76,8 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
-        if (!analyticsId) return
+        // No answer from the API yet (or a new user): no identity to send.
+        if (!telemetry?.distinct_id || !analyticsId) return
         const shouldIdentify =
             identifiedRef.current !== analyticsId ||
             (identifiedPersonPropsKey !== null &&
@@ -77,7 +85,7 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
         if (!shouldIdentify) return
 
-        if (isDemo() && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
+        if (cloud && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
             posthog.alias?.(analyticsId, baseDistinctId)
             aliasedRef.current = true
         }
@@ -87,7 +95,17 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
             personPropsIdentifiedRef.current = identifiedPersonPropsKey
         }
         identify(analyticsId, personProps)
-    }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
+        if (instanceGroup) posthog.group?.("instance", instanceGroup)
+    }, [
+        analyticsId,
+        baseDistinctId,
+        cloud,
+        identify,
+        instanceGroup,
+        personProps,
+        posthog,
+        user?.email,
+    ])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog
