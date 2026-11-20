@@ -5,6 +5,7 @@ import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {ArrowUp, CircleNotch} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
+import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
 export interface ComposerSendButtonProps {
@@ -53,6 +54,9 @@ export function ComposerSendButton({
                 // The control radius, not a circle: the composer is a rounded rectangle and every
                 // other control on it follows that radius — a puck was the one round thing on it.
                 "rounded-control",
+                // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
+                "max-md:size-9",
+                PHONE_TOUCH_TARGET_CLASS,
                 disabled && !sending
                     ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
                     : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below

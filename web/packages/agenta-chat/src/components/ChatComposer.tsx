@@ -20,7 +20,7 @@ import {
     useStagedQuotes,
 } from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
@@ -291,8 +291,9 @@ export const ChatComposer = ({
                     onSubmit: withQuotes(action.onSubmit),
                 }))}
                 prefix={
-                    // Tight: these are one cluster of composer tools, not separate controls.
-                    <div className="flex items-center gap-0.5">
+                    // Tight: these are one cluster of composer tools, not separate controls. On a
+                    // phone 8 px apart, so the 44 px areas do not reach a neighbour.
+                    <div className="flex items-center gap-0.5 max-md:gap-2">
                         {extraPrefix}
                         {/* Gone while dictating: the row belongs to the wave, and attaching a file
                             mid-utterance is not a thing anyone is doing. */}
@@ -311,6 +312,9 @@ export const ChatComposer = ({
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the
+                                    // design canvas.
+                                    className={`max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.

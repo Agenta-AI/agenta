@@ -8,6 +8,7 @@ import {Stop} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
+import {PHONE_TOUCH_TARGET_CLASS} from "../../components/ui/touch-target"
 import {$isBlankMessage, submitEditorAsMarkdown, type SubmitHandler} from "../assets/submit"
 import {ComposerSendButton} from "../ComposerSendButton"
 
@@ -95,7 +96,8 @@ export function SendButton({
                         <Button
                             size="icon"
                             variant="ghost"
-                            className="rounded-control-round"
+                            // A phone: 36 px drawn and a 44 px area, as Send.
+                            className={`rounded-control-round max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
                             aria-label={
                                 stopping ? t("ui.chatInput.stopping") : t("ui.chatInput.stop")
                             }
