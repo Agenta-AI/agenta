@@ -25,7 +25,12 @@ from typing import Dict, List, Optional, Set, Tuple
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import TimeoutError as RedisTimeoutError
-from sqlalchemy.exc import DisconnectionError, InterfaceError, OperationalError
+from sqlalchemy.exc import (
+    DBAPIError,
+    DisconnectionError,
+    InterfaceError,
+    OperationalError,
+)
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
 from oss.src.core.sessions.child_updates.service import SessionChildUpdatesService
@@ -48,12 +53,36 @@ _SHORT_FAILURES = (
     ConnectionError,
     asyncio.TimeoutError,
 )
+# asyncpg's errors for a connection that is gone, matched by name so this module does
+# not import the driver.
+_LOST_CONNECTION_DRIVER_ERRORS = frozenset(
+    {"ConnectionDoesNotExistError", "ConnectionFailureError", "InterfaceError"}
+)
+
+
+def _is_lost_connection(error: BaseException) -> bool:
+    """A bare `DBAPIError` (the asyncpg dialect maps driver errors to it) for a
+    connection that dropped during a query."""
+    if not isinstance(error, DBAPIError):
+        return False
+    if error.connection_invalidated:
+        return True
+    cause: Optional[BaseException] = getattr(error, "orig", None)
+    while cause is not None:
+        if isinstance(cause, (ConnectionError, OSError)) or (
+            type(cause).__name__ in _LOST_CONNECTION_DRIVER_ERRORS
+        ):
+            return True
+        cause = cause.__cause__
+    return False
 
 
 def is_short_failure(error: BaseException) -> bool:
     """True for a failure that a retry can fix: the database or Redis unavailable, or
     a dispatch that could not be shown to have started (`SessionStartNotDurable`)."""
-    return isinstance(error, (*_SHORT_FAILURES, SessionStartNotDurable))
+    return isinstance(
+        error, (*_SHORT_FAILURES, SessionStartNotDurable)
+    ) or _is_lost_connection(error)
 
 
 class ChildUpdatesWorker(StreamConsumer):
@@ -138,8 +167,10 @@ class ChildUpdatesWorker(StreamConsumer):
                 processed_ids.append(msg_id)
                 self._not_durable.discard(msg_id)
             except Exception as error:
-                if isinstance(error, SessionStartNotDurable) and not isinstance(
-                    error.__cause__, _SHORT_FAILURES
+                cause = error.__cause__
+                if isinstance(error, SessionStartNotDurable) and not (
+                    isinstance(cause, _SHORT_FAILURES)
+                    or (cause is not None and _is_lost_connection(cause))
                 ):
                     # A lock Redis that is down also raises it (from the outage):
                     # that one is an outage, retried until it ends.

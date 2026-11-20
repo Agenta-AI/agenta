@@ -87,7 +87,7 @@ def _lines(result: ChildTurnResult) -> List[str]:
             entry.model_dump(mode="json", exclude_none=True)
             for entry in result.waiting_for
         ]
-        lines.append(f"waiting_for: {json.dumps(waiting_for, ensure_ascii=False)}")
+        lines.append(f"waiting_for: {json.dumps(waiting_for)}")
     if result.result_path:
         lines.append(f"result_path: {result.result_path}")
     if result.is_truncated:
