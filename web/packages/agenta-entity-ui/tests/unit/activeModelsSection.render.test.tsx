@@ -85,14 +85,14 @@ describe("Active models", () => {
     })
 
     it("follows the fetch with the stored key in the line under the list", async () => {
-        await render({refetching: true, onRefetch: vi.fn()})
+        await render({refreshing: true, onRefresh: vi.fn()})
         expect(text()).toContain("Updating the list…")
 
-        await render({unreachableNote: "Agenta could not reach OpenAI.", onRefetch: vi.fn()})
+        await render({unreachableNote: "Agenta could not reach OpenAI.", onRefresh: vi.fn()})
         expect(text()).toContain("Agenta could not reach OpenAI.")
         expect(text()).toContain("Update")
 
-        await render({fetchedAt: new Date().toISOString(), onRefetch: vi.fn()})
+        await render({fetchedAt: new Date().toISOString(), onRefresh: vi.fn()})
         expect(text()).toContain("List updated just now ·")
     })
 })

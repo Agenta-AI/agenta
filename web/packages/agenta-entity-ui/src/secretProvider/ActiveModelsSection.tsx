@@ -27,9 +27,9 @@ export interface ActiveModelsSectionProps {
     /** Set only when a live fetch answered: drives "List updated …" and "Update". */
     fetchedAt?: string | null
     /** "Update": fetch the list again without touching the key field. */
-    onRefetch?: () => void
+    onRefresh?: () => void
     /** A fetch with the stored key runs: the line under the list reads "Updating the list…". */
-    refetching?: boolean
+    refreshing?: boolean
     /** The last fetch with the stored key did not come back; the saved list stays. */
     unreachableNote?: string | null
     /** Locked: the list shows what is active, and nothing can be checked, cleared or added. */
@@ -46,8 +46,8 @@ const ActiveModelsSection = ({
     onAddManual,
     manualPlaceholder,
     fetchedAt,
-    onRefetch,
-    refetching,
+    onRefresh,
+    refreshing,
     unreachableNote,
     readOnly = false,
 }: ActiveModelsSectionProps) => {
@@ -80,18 +80,18 @@ const ActiveModelsSection = ({
         )
     // One line under the list: the fetch that runs, the one that did not come back, or when the
     // list was last fetched. "Update" sits beside the last two.
-    const updateButton = onRefetch ? (
+    const updateButton = onRefresh ? (
         <Button
             variant="link"
             size="sm"
             className="h-auto px-0"
-            onClick={onRefetch}
-            disabled={refetching}
+            onClick={onRefresh}
+            disabled={refreshing}
         >
             {t("entityUi.providerKeyForm.update")}
         </Button>
     ) : null
-    const listLine = refetching ? (
+    const listLine = refreshing ? (
         <span className="flex items-center gap-1 text-colorTextTertiary" role="status">
             <ArrowClockwise size={13} className="animate-spin" />
             {t("entityUi.providerKeyForm.updatingList")}

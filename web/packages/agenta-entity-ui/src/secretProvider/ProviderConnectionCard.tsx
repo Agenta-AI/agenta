@@ -939,8 +939,8 @@ const ProviderConnectionCard = ({
                         setCheckedModels([...effectiveChecked.filter((model) => model !== id), id])
                     }}
                     fetchedAt={discovered ? (probe?.fetched_at ?? null) : null}
-                    onRefetch={() => runCheck(chosenCredential, true)}
-                    refetching={checking && checkMode === "refresh"}
+                    onRefresh={() => runCheck(chosenCredential, true)}
+                    refreshing={checking && checkMode === "refresh"}
                     unreachableNote={unreachableNote}
                 />
             ) : isStandard ? (
