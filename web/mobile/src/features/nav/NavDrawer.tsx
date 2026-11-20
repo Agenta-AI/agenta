@@ -24,9 +24,10 @@ import {useRailScope} from "./railScope"
 const drawerExpandedAtom = atom(false)
 
 /**
- * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet sized to the
- * rail's own width. The hamburger hides at lg where the rail takes over, so a viewport never
- * shows both entries to the same nav.
+ * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet. Below 768 px
+ * it is the phone's 300 px sidebar sheet with 44 px rows; up to lg it is sized to the rail's own
+ * width. The hamburger hides at lg where the rail takes over, so a viewport never shows both
+ * entries to the same nav.
  */
 export const NavDrawer = ({
     workspaceId,
@@ -73,53 +74,40 @@ export const NavDrawer = ({
         />
     )
 
+    const menuButton = (label: string) => (
+        <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={label}
+            // 20px glyph, not the button's 16: the hamburger is the header's only mark.
+            className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] lg:hidden [&_svg:not([class*='size-'])]:size-5"
+        >
+            <ListIcon />
+        </Button>
+    )
+
     if (phone) {
+        // The sidebar brings its own Back and Close row (onDismiss), so the sheet draws none.
         return (
-            <>
-                {/* The sidebar brings its own Back and Close row (onDismiss), so the sheet draws
-                    none. */}
-                <SidebarSheet
-                    open={open}
-                    onOpenChange={setOpen}
-                    title={t("navigation.chrome.navigationTitle")}
-                    showHeader={false}
-                    trigger={
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={tPhone("ui.phone.openSidebar")}
-                            className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-5"
-                        >
-                            <ListIcon />
-                        </Button>
-                    }
-                    // Every small button and link of the sidebar (group +, row ⋯, search, help) is 44 x 44 px
-                    // here, so a finger reaches it; the icons keep their size.
-                    className="[&_a]:min-h-11 [&_a]:min-w-11 [&_button]:min-h-11 [&_button]:min-w-11"
-                >
-                    <SidebarLayoutContext.Provider value="phone">
-                        {shell}
-                    </SidebarLayoutContext.Provider>
-                </SidebarSheet>
-            </>
+            <SidebarSheet
+                open={open}
+                onOpenChange={setOpen}
+                title={t("navigation.chrome.navigationTitle")}
+                showHeader={false}
+                trigger={menuButton(tPhone("ui.phone.openSidebar"))}
+                // Every small button and link of the sidebar (group +, row ⋯, search, help) is 44 x 44 px
+                // here, so a finger reaches it; the icons keep their size.
+                className="[&_a]:min-h-11 [&_a]:min-w-11 [&_button]:min-h-11 [&_button]:min-w-11"
+            >
+                <SidebarLayoutContext.Provider value="phone">{shell}</SidebarLayoutContext.Provider>
+            </SidebarSheet>
         )
     }
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("navigation.chrome.openNavigation")}
-                    // 20px glyph, not the button's 16: the hamburger is the header's only mark.
-                    className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] lg:hidden [&_svg:not([class*='size-'])]:size-5"
-                >
-                    <ListIcon />
-                </Button>
-            </SheetTrigger>
+            <SheetTrigger asChild>{menuButton(t("navigation.chrome.openNavigation"))}</SheetTrigger>
             {/* Flush to the viewport's left edge, unlike the kit's floating panel: a nav drawer
                 reads as the rail sliding in, so only its open side is rounded. */}
             <SheetContent

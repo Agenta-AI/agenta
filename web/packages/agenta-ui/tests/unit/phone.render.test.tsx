@@ -261,3 +261,33 @@ describe("useIsPhone", () => {
         expect(renders[0]).toBe(true)
     })
 })
+
+describe("SidebarSheet without its header", () => {
+    it("draws no top row when the sidebar brings its own, and gives the focus back to its trigger", async () => {
+        const Opened = () => {
+            const [open, setOpen] = useState(false)
+            return (
+                <SidebarSheet
+                    open={open}
+                    onOpenChange={setOpen}
+                    title="Navigation"
+                    showHeader={false}
+                    trigger={<button type="button">Open the sidebar</button>}
+                >
+                    <button type="button" onClick={() => setOpen(false)}>
+                        Close navigation
+                    </button>
+                </SidebarSheet>
+            )
+        }
+        render(<Opened />)
+        const trigger = screen.getByRole("button", {name: "Open the sidebar"})
+        trigger.focus()
+        fireEvent.click(trigger)
+        await screen.findByTestId("sidebar-sheet")
+        expect(screen.queryByRole("button", {name: "Close the sidebar"})).toBeNull()
+        fireEvent.click(screen.getByRole("button", {name: "Close navigation"}))
+        await waitFor(() => expect(screen.queryByTestId("sidebar-sheet")).toBeNull())
+        await waitFor(() => expect(document.activeElement).toBe(trigger))
+    })
+})
