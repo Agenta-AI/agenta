@@ -9,8 +9,8 @@
  *   1. the real gate emits the approval card (production wiring, via `runSandboxAgent`);
  *   2. the Vercel egress projects it to the tool part the frontend persists
  *      (`projectApprovalAsVercelEgressWould`, mirroring `stream.py` — the one simulated hop);
- *   3. the next turn folds that part back into the message history and the runner reads it
- *      (`extractApprovalDecisions`, for real);
+ *   3. the person's answer is stored on the gate's interaction row, and the next turn takes the
+ *      decision from that row (`decisionsFromInteractionRows`, for real);
  *   4. the gate consults it (`ApprovalResponder` + the real gate, for real).
  *
  * Hop 2 is Python, so this file mirrors it rather than running it. Its twin runs the real thing:
@@ -32,6 +32,10 @@ import assert from "node:assert/strict";
 import type { AgentRunRequest, ChatMessage } from "../../src/protocol.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 import { approvedCallKey } from "../../src/responder.ts";
+import {
+  decisionsFromInteractionRows,
+  type SeededDecision,
+} from "../../src/sessions/interactions.ts";
 import { storedDecisionKeyShape } from "../../src/permission-plan.ts";
 import {
   GATEWAY_POLICY,
@@ -61,6 +65,25 @@ afterEach(() => {
   cleanupRelayDirs();
 });
 
+/** The row the person's answer leaves for the card: the persisted call, answered. */
+function answeredRow(
+  cardId: string,
+  persisted: { toolName: string; input: unknown },
+  approved: boolean,
+): SeededDecision[] {
+  return decisionsFromInteractionRows([
+    {
+      token: cardId,
+      kind: "user_approval",
+      status: "responded",
+      data: {
+        request: { tool: persisted.toolName, args: persisted.input },
+        resolution: { approved },
+      },
+    },
+  ]);
+}
+
 const THE_CALL = {
   integration: "github",
   tool: "CREATE_ISSUE",
@@ -87,6 +110,7 @@ describe("an approval answered on the card resolves the call the gate raised", (
     );
     const firstCalls = stubToolCall({ created: true });
     let persisted;
+    let cardId = "";
     try {
       await forgeRelayRequest(first.dir, "turn1-call", THE_CALL);
       await until(
@@ -99,11 +123,12 @@ describe("an approval answered on the card resolves the call the gate raised", (
       persisted = projectApprovalAsVercelEgressWould(
         approvalCards(first.events)[0],
       );
+      cardId = approvalCards(first.events)[0].id;
     } finally {
       await first.stop();
     }
 
-    // ---- Turn 2: the human said yes. The answer rides the history as the FE folds it. ----
+    // ---- Turn 2: the human said yes. The answer is on the row; the history carries the call. ----
     const second = await startRelayFromProductionWiring(
       gatewayRequest([
         { role: "user", content: "file the bug" },
@@ -129,6 +154,7 @@ describe("an approval answered on the card resolves the call the gate raised", (
           ],
         },
       ]),
+      answeredRow(cardId, persisted, true),
     );
     const secondCalls = stubToolCall({ created: true, number: 41 });
     try {
@@ -165,6 +191,7 @@ describe("an approval answered on the card resolves the call the gate raised", (
     );
     stubToolCall({ created: true });
     let persisted;
+    let cardId = "";
     try {
       await forgeRelayRequest(first.dir, "turn1-call", THE_CALL);
       await until(
@@ -174,6 +201,7 @@ describe("an approval answered on the card resolves the call the gate raised", (
       persisted = projectApprovalAsVercelEgressWould(
         approvalCards(first.events)[0],
       );
+      cardId = approvalCards(first.events)[0].id;
     } finally {
       await first.stop();
     }
@@ -203,6 +231,7 @@ describe("an approval answered on the card resolves the call the gate raised", (
           ],
         },
       ]),
+      answeredRow(cardId, persisted, true),
     );
     const calls = stubToolCall({ sent: true });
     try {

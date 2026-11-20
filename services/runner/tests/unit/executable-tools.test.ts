@@ -12,8 +12,8 @@ import {
   ApprovalResponder,
   ApprovedExecutionGrants,
   ConversationDecisions,
-  extractApprovalDecisions,
 } from "../../src/responder.ts";
+import { answeredDecisions } from "../utils/answered-decisions.ts";
 import type { ExecutableToolGateRequest } from "../../src/tools/executable-tool-gate.ts";
 import type { PermissionPlan } from "../../src/permission-plan.ts";
 import {
@@ -89,7 +89,7 @@ function seam(
   const responder = new ApprovalResponder(
     permissionPlan,
     new ConversationDecisions(
-      history ? extractApprovalDecisions(history) : new Map(),
+      history ? answeredDecisions(history) : new Map(),
     ),
   );
   const gate = buildExecutableToolGate({
