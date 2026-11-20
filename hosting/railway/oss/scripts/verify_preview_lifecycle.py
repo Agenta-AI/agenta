@@ -79,7 +79,7 @@ def main():
         # The normal comment workflow rebuilds. This test aliases the verified
         # successful build's manifests to its own unique tag to avoid building
         # the identical application a second time just for lifecycle evidence.
-        for name in ["api", "web", "web-mobile", "services", "runner"]:
+        for name in ["api", "web-mobile", "services", "runner"]:
             image = f"ghcr.io/agenta-ai/agenta-{name}"
             subprocess.run(
                 [

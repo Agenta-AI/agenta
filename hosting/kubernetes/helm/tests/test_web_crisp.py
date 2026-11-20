@@ -2,11 +2,11 @@
 # requires-python = ">=3.11"
 # dependencies = ["PyYAML>=6"]
 # ///
-"""Rendered-chart regression coverage: the web workloads carry the Crisp website id.
+"""Rendered-chart regression coverage: the web-mobile workload carries the Crisp website id.
 
 The web image's entrypoint turns CRISP_WEBSITE_ID into the browser's
-NEXT_PUBLIC_CRISP_WEBSITE_ID. The chart rendered it only in agenta.commonEnv, which the web
-and web-mobile pods do not include, so the live chat never loaded on any GKE stage even with
+NEXT_PUBLIC_CRISP_WEBSITE_ID. The chart rendered it only in agenta.commonEnv, which the
+web-mobile pods do not include, so the live chat never loaded on any GKE stage even with
 crisp.websiteId set (seen on GKE staging, 2026-10-04).
 
 Run: uv run hosting/kubernetes/helm/tests/test_web_crisp.py
@@ -75,15 +75,13 @@ def container_env(docs: list[dict], component: str) -> dict[str, str]:
 
 def test_web_workloads_carry_the_crisp_website_id() -> None:
     docs = render(["--set", "crisp.websiteId=test-website-id"])
-    for component in ("web", "web-mobile"):
-        env = container_env(docs, component)
-        assert env.get("CRISP_WEBSITE_ID") == "test-website-id", component
+    env = container_env(docs, "web-mobile")
+    assert env.get("CRISP_WEBSITE_ID") == "test-website-id"
 
 
 def test_web_workloads_omit_crisp_when_unset() -> None:
     docs = render()
-    for component in ("web", "web-mobile"):
-        assert "CRISP_WEBSITE_ID" not in container_env(docs, component), component
+    assert "CRISP_WEBSITE_ID" not in container_env(docs, "web-mobile")
 
 
 if __name__ == "__main__":

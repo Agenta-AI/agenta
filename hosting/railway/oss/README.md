@@ -20,15 +20,14 @@ baseline.
 - Deploy quickly using existing public images for Agenta core services.
 - Keep deployment scriptable and repeatable.
 - Use a single public gateway domain with path routing:
-  - `/` -> web
-  - `/m`, `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`)
+  - `/` and `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`;
+    it redirects `/` to `/m` and old desktop URLs to their `/m` pages)
   - `/api/` -> api
   - `/services/` -> services
 
 ## Layout
 
 - `gateway/` - lightweight Nginx gateway image for Railway
-- `web/` - web wrapper image and runtime config
 - `api/` - api wrapper image with explicit gunicorn command
 - `services/` - services wrapper image with explicit gunicorn command
 - `runner/` - agent runner image
@@ -250,15 +249,17 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 ./hosting/railway/oss/scripts/smoke.sh
 ```
 
-#### The mobile app (`/m`)
+#### The web app (`web-mobile`)
 
-`bootstrap.sh` creates a `web-mobile` service with every environment, and the
-gateway routes `/m` and `/m/*` to it. There is no flag for it. A phone on a
-desktop route is sent to `/m`, and a laptop can open `/m` directly.
+`bootstrap.sh` creates a `web-mobile` service with every environment. It is the
+only frontend: the gateway routes `/`, `/m` and every other path that `/api` and
+`/services` do not claim to it. `web-mobile` redirects `/` to `/m` and old desktop
+URLs to their `/m` pages.
 An environment bootstrapped before `web-mobile` became standard has no such
-service; re-run `bootstrap.sh` to add it. `configure.sh` and
-`deploy-from-images.sh` configure and deploy it whenever it exists.
-`ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
+service; re-run `bootstrap.sh` to add it. `configure.sh` stops when it is
+missing. `deploy-from-images.sh` requires `AGENTA_WEB_MOBILE_IMAGE` and always
+deploys it. `upgrade.sh` does not deploy it; use `deploy-from-images.sh` to move
+its image. `ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
 
 ### Upgrade Existing Deployment
 

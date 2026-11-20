@@ -2,12 +2,12 @@
 # requires-python = ">=3.11"
 # dependencies = ["PyYAML>=6"]
 # ///
-"""Rendered-chart regression coverage: the web workloads get both Turnstile keys.
+"""Rendered-chart regression coverage: the web-mobile workload gets both Turnstile keys.
 
 The web image's entrypoint writes NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY into the browser
 env only when it sees CLOUDFLARE_TURNSTILE_SITE_KEY and CLOUDFLARE_TURNSTILE_SECRET_KEY. The
-web and web-mobile pods get both from agenta.webOptionalEnv, not agenta.commonEnv. This
-test keeps the secret on those pods, including with secrets.existingSecret, so the chart
+web-mobile pods get both from agenta.webOptionalEnv, not agenta.commonEnv. This test
+keeps the secret on those pods, including with secrets.existingSecret, so the chart
 alone turns the sign-in widget on.
 
 Run: uv run hosting/kubernetes/helm/tests/test_web_turnstile.py
@@ -90,14 +90,11 @@ def container_env(docs: list[dict], component: str) -> dict[str, dict]:
 
 
 def assert_web_has_both_keys(docs: list[dict], secret_name: str) -> None:
-    for component in ("web", "web-mobile"):
-        env = container_env(docs, component)
-        assert env["CLOUDFLARE_TURNSTILE_SITE_KEY"]["value"] == "test-site-key", (
-            component
-        )
-        ref = env["CLOUDFLARE_TURNSTILE_SECRET_KEY"]["valueFrom"]["secretKeyRef"]
-        assert ref["name"] == secret_name, component
-        assert ref["key"] == "CLOUDFLARE_TURNSTILE_SECRET_KEY", component
+    env = container_env(docs, "web-mobile")
+    assert env["CLOUDFLARE_TURNSTILE_SITE_KEY"]["value"] == "test-site-key"
+    ref = env["CLOUDFLARE_TURNSTILE_SECRET_KEY"]["valueFrom"]["secretKeyRef"]
+    assert ref["name"] == secret_name
+    assert ref["key"] == "CLOUDFLARE_TURNSTILE_SECRET_KEY"
 
 
 def test_web_workloads_get_both_turnstile_keys() -> None:
@@ -111,9 +108,7 @@ def test_web_workloads_get_both_turnstile_keys_from_existing_secret() -> None:
 
 def test_web_workloads_omit_the_secret_when_turnstile_is_off() -> None:
     docs = render()
-    for component in ("web", "web-mobile"):
-        env = container_env(docs, component)
-        assert "CLOUDFLARE_TURNSTILE_SECRET_KEY" not in env, component
+    assert "CLOUDFLARE_TURNSTILE_SECRET_KEY" not in container_env(docs, "web-mobile")
 
 
 if __name__ == "__main__":

@@ -130,7 +130,6 @@ def collect_failures() -> list[str]:
     # absence is the whole point of this block.
     docs = render([])
     envs = {c: container_env(docs, c) for c in COMMON_ENV_COMPONENTS}
-    envs["web"] = container_env(docs, "web")
     envs["web-mobile"] = container_env(docs, "web-mobile")
     envs["runner"] = container_env(docs, "runner")
 
@@ -161,21 +160,19 @@ def collect_failures() -> list[str]:
             "AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS",
         )
 
-    # The web containers read the MCP switch themselves (web/entrypoint.sh normalizes it into
-    # NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED), and read none of the others.
-    for component in ("web", "web-mobile"):
-        expect(
-            failures, envs[component], component, "AGENTA_MCP_GATEWAY_ENABLED", "true"
-        )
-        for name in API_SIDE:
-            if name == "AGENTA_MCP_GATEWAY_ENABLED":
-                continue
-            expect_absent(failures, envs[component], component, name)
-        expect_absent(failures, envs[component], component, INSECURE_HTTP)
+    # The web-mobile container reads the MCP switch itself (web/entrypoint.sh normalizes it
+    # into NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED), and reads none of the others.
+    web_env = envs["web-mobile"]
+    expect(failures, web_env, "web-mobile", "AGENTA_MCP_GATEWAY_ENABLED", "true")
+    for name in API_SIDE:
+        if name == "AGENTA_MCP_GATEWAY_ENABLED":
+            continue
+        expect_absent(failures, web_env, "web-mobile", name)
+    expect_absent(failures, web_env, "web-mobile", INSECURE_HTTP)
 
     # The plain-http opt-in is unset by default too, so it reaches nobody at all until an
     # operator asks for it. Which legs it reaches once asked for is case 1b below.
-    for component in (*COMMON_ENV_COMPONENTS, "runner", "web", "web-mobile"):
+    for component in (*COMMON_ENV_COMPONENTS, "runner", "web-mobile"):
         expect_absent(failures, envs[component], component, INSECURE_HTTP)
 
     # The runner's environment stays narrow: none of the API-side switches reach it.
@@ -250,14 +247,13 @@ def collect_failures() -> list[str]:
         expect(
             failures, env, component, "AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS", "900"
         )
-    for component in ("web", "web-mobile"):
-        expect(
-            failures,
-            container_env(overrides, component),
-            component,
-            "AGENTA_MCP_GATEWAY_ENABLED",
-            "false",
-        )
+    expect(
+        failures,
+        container_env(overrides, "web-mobile"),
+        "web-mobile",
+        "AGENTA_MCP_GATEWAY_ENABLED",
+        "false",
+    )
     for component in ("services", "runner"):
         expect(
             failures,
@@ -349,7 +345,7 @@ def collect_failures() -> list[str]:
             "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED",
             "AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS",
         ),
-        "web": ("AGENTA_MCP_GATEWAY_ENABLED",),
+        "web-mobile": ("AGENTA_MCP_GATEWAY_ENABLED",),
         "runner": (INSECURE_HTTP,),
     }
     for component, names in typed.items():

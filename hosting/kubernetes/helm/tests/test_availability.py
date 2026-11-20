@@ -139,7 +139,6 @@ def the_budget_set_covers_the_components_the_chart_deploys() -> None:
     docs = render()
     expected = {
         "api",
-        "web",
         "web-mobile",
         "services",
         "runner",
@@ -155,10 +154,13 @@ def the_budget_set_covers_the_components_the_chart_deploys() -> None:
 
 
 def two_replicas_get_a_budget_and_a_spread() -> None:
-    docs = render(["--set", "api.replicas=2", "--set", "web.replicas=3"])
+    docs = render(["--set", "api.replicas=2", "--set", "webMobile.replicas=3"])
     found = budgets(docs)
     assert found["api"] == {"maxUnavailable": 1, "selector": selector("api")}
-    assert found["web"] == {"maxUnavailable": 1, "selector": selector("web")}
+    assert found["web-mobile"] == {
+        "maxUnavailable": 1,
+        "selector": selector("web-mobile"),
+    }
     revision = {
         "matchLabelKeys": ["pod-template-hash"],
         "labelSelector": selector("api"),
@@ -188,9 +190,9 @@ def overrides_replace_the_defaults() -> None:
             "--set",
             "api.pdb.minAvailable=2",
             "--set",
-            "web.replicas=2",
+            "webMobile.replicas=2",
             "--set",
-            "web.pdb.maxUnavailable=0",  # 0 is a real value, not an unset one
+            "webMobile.pdb.maxUnavailable=0",  # 0 is a real value, not an unset one
             "--set",
             "services.replicas=2",
             "--set",
@@ -203,7 +205,10 @@ def overrides_replace_the_defaults() -> None:
     )
     found = budgets(docs)
     assert found["api"] == {"minAvailable": 2, "selector": selector("api")}
-    assert found["web"] == {"maxUnavailable": 0, "selector": selector("web")}
+    assert found["web-mobile"] == {
+        "maxUnavailable": 0,
+        "selector": selector("web-mobile"),
+    }
     assert spread_of(docs, "services") == [
         {
             "maxSkew": 2,
@@ -383,39 +388,29 @@ def an_empty_spread_list_removes_the_constraints() -> None:
     asked to remove. The documented escape hatch did nothing.
     """
     docs = render(
-        ["--set", "web.replicas=2", "--set-json", "web.topologySpreadConstraints=[]"]
+        [
+            "--set",
+            "webMobile.replicas=2",
+            "--set-json",
+            "webMobile.topologySpreadConstraints=[]",
+        ]
     )
-    assert spread_of(docs, "web") is None, (
+    assert spread_of(docs, "web-mobile") is None, (
         "an empty list must remove the constraints, not regenerate them"
     )
     # The same render must leave another workload's generated constraints alone.
     docs = render(
         [
             "--set",
-            "web.replicas=2",
+            "webMobile.replicas=2",
             "--set",
             "services.replicas=2",
             "--set-json",
-            "web.topologySpreadConstraints=[]",
+            "webMobile.topologySpreadConstraints=[]",
         ]
     )
-    assert spread_of(docs, "web") is None
+    assert spread_of(docs, "web-mobile") is None
     assert len(spread_of(docs, "services") or []) == 2
-
-
-def the_mobile_app_keeps_its_budget_when_the_desktop_app_is_off() -> None:
-    """web-mobile renders unconditionally, so its budget must not depend on web.enabled.
-
-    agenta.workloads tied the mobile entry's `enabled` to the desktop app. Turning the
-    desktop app off therefore removed the mobile budget while the mobile Deployment kept
-    rendering, so the workload that was still serving lost its protection.
-    """
-    docs = render(["--set", "web.enabled=false", "--set", "webMobile.replicas=2"])
-    names = [d["metadata"]["name"] for d in docs if d.get("kind") == "Deployment"]
-    assert any("web-mobile" in n for n in names), (
-        "the mobile Deployment should still render"
-    )
-    assert "web-mobile" in budgets(docs), "the mobile app should still have a budget"
 
 
 def a_typo_in_either_switch_is_refused() -> None:
@@ -459,7 +454,6 @@ def main() -> int:
     redis_startup_allowance_is_configurable_per_instance()
     invalid_redis_startup_allowances_are_refused()
     an_empty_spread_list_removes_the_constraints()
-    the_mobile_app_keeps_its_budget_when_the_desktop_app_is_off()
     a_typo_in_either_switch_is_refused()
     print(
         "OK: disruption budgets, topology spread and redis startup probes render as designed."

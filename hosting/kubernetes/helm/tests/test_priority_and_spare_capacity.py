@@ -53,7 +53,6 @@ BASE_ARGS = [
 # values key -> app.kubernetes.io/component label of the rendered workload
 WORKLOADS = {
     "api": "api",
-    "web": "web",
     "webMobile": "web-mobile",
     "services": "services",
     "agentRunner": "runner",

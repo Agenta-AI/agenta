@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["PyYAML>=6"]
 # ///
-"""Rendered-chart regression coverage: the web workloads carry the sandbox provider registry.
+"""Rendered-chart regression coverage: the web-mobile workload carries the sandbox provider registry.
 
 The web image's entrypoint turns AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS into the browser's
 NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS. When the chart rendered the registry only on the
@@ -76,7 +76,7 @@ def container_env(docs: list[dict], component: str) -> dict[str, str]:
 
 def test_web_workloads_carry_the_registry_with_defaults() -> None:
     docs = render()
-    for component in ("web", "web-mobile", "runner"):
+    for component in ("web-mobile", "runner"):
         env = container_env(docs, component)
         assert env["AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS"] == "local", component
         assert env["AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER"] == "local", component
@@ -91,7 +91,7 @@ def test_web_workloads_follow_the_operator_registry() -> None:
             "agentRunner.providers.default=daytona",
         ]
     )
-    for component in ("web", "web-mobile", "api", "services", "runner"):
+    for component in ("web-mobile", "api", "services", "runner"):
         env = container_env(docs, component)
         assert env["AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS"] == "daytona", component
         assert env["AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER"] == "daytona", component
@@ -103,7 +103,7 @@ def test_web_registry_is_rendered_once() -> None:
         if doc.get("kind") != "Deployment":
             continue
         labels = doc.get("metadata", {}).get("labels", {})
-        if labels.get("app.kubernetes.io/component") not in ("web", "web-mobile"):
+        if labels.get("app.kubernetes.io/component") != "web-mobile":
             continue
         names = [
             e["name"] for e in doc["spec"]["template"]["spec"]["containers"][0]["env"]

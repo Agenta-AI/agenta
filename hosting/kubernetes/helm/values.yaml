@@ -383,13 +383,13 @@ redisDurable:
 # Chart defaults when a key is unset:
 #   strategy: Recreate on cron and redisVolatile, and on agentRunner when its
 #     providers include local; RollingUpdate with maxUnavailable 0, maxSurge 1
-#     on services, web, webMobile, workerStreams, workerQueues, supertokens,
+#     on services, webMobile, workerStreams, workerQueues, supertokens,
 #     api, and agentRunner with remote providers only.
 #   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
-#     workers, 60 on services, web and webMobile. On api it is
+#     workers, 60 on services and webMobile. On api it is
 #     api.gunicorn.gracefulTimeout plus 30 (930 by default), so a long LLM
 #     gateway stream can finish; see "api.gunicorn" below.
-#   lifecycle: a preStop exec `sleep 10` on agentRunner, api, services, web and
+#   lifecycle: a preStop exec `sleep 10` on agentRunner, api, services and
 #     webMobile. Setting a key replaces its default.
 # Liveness probes on cron, workerStreams and workerQueues come from the heartbeat file.
 # See the `heartbeat` section near the top of this file for what each one proves. Setting
@@ -401,7 +401,7 @@ redisDurable:
 #         path: /healthz
 #         port: 8080
 #
-# The keys work on api, services, web, webMobile, cron, workerStreams,
+# The keys work on api, services, webMobile, cron, workerStreams,
 # workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
 # store.seaweedfs and alembic. `strategy` is for Deployments only.
 # ================================================================== #
@@ -515,7 +515,7 @@ redisDurable:
 #     The class must already exist; create it yourself or with `extraObjects`.
 #     Give it to the workloads that run one pod and hold state, e.g. the
 #     bundled Redis instances, SuperTokens and SeaweedFS, so the scheduler
-#     evicts other pods before them. The key works on api, web, webMobile,
+#     evicts other pods before them. The key works on api, webMobile,
 #     services, agentRunner, supertokens, cron, workerStreams, workerQueues,
 #     redisVolatile, redisDurable, store.seaweedfs and alembic.
 #   * `spareCapacity` runs placeholder pods at priority -10 that only hold room.
