@@ -5,6 +5,7 @@ import {createStore, Provider} from "jotai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 const perms = vi.hoisted(() => ({edit: true}))
+const sessions = vi.hoisted(() => ({failed: false, retry: vi.fn()}))
 const actions = vi.hoisted(() => ({rename: vi.fn(), remove: vi.fn(), copy: vi.fn()}))
 vi.mock("next/router", () => ({useRouter: () => ({push: vi.fn(), query: {}, asPath: "/"})}))
 vi.mock("@agenta/entity-ui/agent", () => ({
@@ -22,6 +23,9 @@ vi.mock("@/features/chat/useSessionHeader", () => ({
 vi.mock("@/features/chat/SessionInspectorSheet", () => ({
     SessionInspectorSheet: ({open}: {open: boolean}) =>
         open ? <div data-testid="session-inspector" /> : null,
+}))
+vi.mock("@/features/agent-layout/useAgentSessionOrder", () => ({
+    useAgentSessionOrder: () => ({failed: sessions.failed, retry: sessions.retry}),
 }))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 vi.mock("@/features/context/useProjectPermission", () => ({
@@ -141,5 +145,16 @@ describe("the session header", () => {
         fireEvent.click(screen.getByTitle("Charged twice for March"))
         expect(await screen.findByRole("button", {name: "New session"})).toBeTruthy()
         expect(screen.queryByRole("button", {name: "Inspect session"})).toBeNull()
+    })
+
+    it("says the session list could not load, with Retry, and still offers New session", async () => {
+        sessions.failed = true
+        renderHeader(panel())
+        fireEvent.click(screen.getByTitle("Charged twice for March"))
+        expect(await screen.findByText("Could not load sessions")).toBeTruthy()
+        fireEvent.click(screen.getByRole("button", {name: "Retry"}))
+        expect(sessions.retry).toHaveBeenCalled()
+        expect(screen.getByRole("button", {name: "New session"})).toBeTruthy()
+        sessions.failed = false
     })
 })

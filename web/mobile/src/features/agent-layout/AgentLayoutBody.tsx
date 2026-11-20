@@ -113,22 +113,25 @@ export const AgentLayoutBody = ({
         [canConfigure, builder, agentId, agentHidden],
     )
     // A content the screen cannot show (no configuration, no builder) stays closed.
+    // The stored content decides what the panel shows. Files keeps its own open state (deep
+    // links, a staged drop, quick look); the panel follows its openings and its own close, and a
+    // swap only hides Files, so files staged by a drop survive a look at Configuration.
     const stored = state.content
-    const content: PanelContent | null = files.open
-        ? "files"
-        : stored === "configuration" && canConfigure
-          ? "configuration"
-          : stored === "builder" && builder && agentId
-            ? "builder"
-            : null
+    const content: PanelContent | null =
+        stored === "files"
+            ? "files"
+            : stored === "configuration" && canConfigure
+              ? "configuration"
+              : stored === "builder" && available.builder
+                ? "builder"
+                : null
 
-    // The Files pane's own close (and a deep link) moves the panel with it.
     // These two effects run in this order (restore, then follow): the restore resets
-    // `filesWasOpen`, so the follow never reads a scope change as a close.
+    // `filesWasOpen`, so the follow never reads a scope change as an opening or a close.
     const filesWasOpen = useRef(files.open)
-    // A stored Files content opens Files again after a reload, through its own open state. Files
-    // is scoped by agent, and the scope changes once the agent resolves: each new scope restores
-    // again, and a scope change is never read as a close.
+    // Files is scoped by agent, and the scope changes once the agent resolves: each new scope
+    // restores again. A stored Files content opens Files after a reload; a Files already open
+    // (a deep link) shows.
     const restoredScope = useRef<string | null>(null)
     useEffect(() => {
         // Keyed by the stored preference too: the user can resolve after the first render.
@@ -136,8 +139,9 @@ export const AgentLayoutBody = ({
         if (restoredScope.current === restoreKey) return
         restoredScope.current = restoreKey
         filesWasOpen.current = files.open
-        if (stored === "files" && !files.open) files.toggle()
-    }, [panelKey, filesScope, stored, files])
+        if (stored === "files" && !files.open) files.openPane()
+        else if (files.open && stored !== "files") setState({content: "files"})
+    }, [panelKey, filesScope, stored, files, setState])
 
     useEffect(() => {
         if (files.open && !filesWasOpen.current) setState({content: "files"})
@@ -147,12 +151,13 @@ export const AgentLayoutBody = ({
 
     const setContent = useCallback(
         (next: PanelContent | null) => {
-            if (next === "files") files.toggle()
-            else if (files.open) files.close()
+            if (next === "files") files.openPane()
+            // Closing the panel from Files closes Files, as its own close does. A swap only hides it.
+            else if (next === null && content === "files") files.close()
             setState({content: next})
             setWide(false)
         },
-        [files, setState],
+        [files, setState, content],
     )
 
     // The panel takes the focus when it opens, so Escape reaches it.

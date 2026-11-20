@@ -12,7 +12,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const media = vi.hoisted(() => ({width: 1440}))
-const files = vi.hoisted(() => ({toggle: vi.fn()}))
+const files = vi.hoisted(() => ({openPane: vi.fn(), close: vi.fn(), open: false}))
 vi.mock("@agenta/ui/hooks", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     useMediaQuery: (query: string) => media.width >= Number(/(\d+)px/.exec(query)?.[1] ?? 0),
@@ -50,7 +50,12 @@ vi.mock("@agenta/entity-ui/drive", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entity-ui/drive")>()),
     DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
     SessionFilesPane: () => <div data-testid="files" />,
-    useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: files.toggle}),
+    useSessionFilesPane: () => ({
+        open: files.open,
+        close: files.close,
+        openPane: files.openPane,
+        toggle: () => undefined,
+    }),
 }))
 vi.mock("@agenta/sessions-ui", () => ({
     useRequestSessionTabRename: () => () => undefined,
@@ -184,17 +189,17 @@ describe("the session screen on the agent layout", () => {
     })
 
     it("opens Files again after a reload when Files was the stored content", async () => {
-        files.toggle.mockClear()
+        files.openPane.mockClear()
         localStorage.setItem(
             panelStateKey("anonymous", "proj-1"),
             JSON.stringify({content: "files", width: 440, configTab: "agent"}),
         )
         await render(createStore())
-        expect(files.toggle).toHaveBeenCalledTimes(1)
+        expect(files.openPane).toHaveBeenCalledTimes(1)
     })
 
     it("restores Files again when the scope moves from the session to the resolved agent", async () => {
-        files.toggle.mockClear()
+        files.openPane.mockClear()
         localStorage.setItem(
             panelStateKey("anonymous", "proj-1"),
             JSON.stringify({content: "files", width: 440, configTab: "agent"}),
@@ -218,7 +223,7 @@ describe("the session screen on the agent layout", () => {
         await mount(undefined)
         await mount("agent-1")
         // Once for the session scope, once for the agent scope; never read as a close.
-        expect(files.toggle).toHaveBeenCalledTimes(2)
+        expect(files.openPane).toHaveBeenCalledTimes(2)
         expect(
             JSON.parse(localStorage.getItem(panelStateKey("anonymous", "proj-1"))!).content,
         ).toBe("files")
@@ -235,5 +240,24 @@ describe("the session screen on the agent layout", () => {
             store.set(composerPrefillRequestAtom, {id: 1, text: "Add a skill"})
         })
         expect(panel.className).toContain("hidden")
+    })
+
+    it("hides Files on a swap without closing it, so a staged drop survives", async () => {
+        files.close.mockClear()
+        files.open = true
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 440, configTab: "agent"}),
+        )
+        const store = createStore()
+        await render(store)
+        expect(q("files")).toHaveLength(1)
+        // Configuration through the reveal path: a swap, not a close.
+        await act(async () => {
+            store.set(configPaneRevealRequestAtom, Date.now())
+        })
+        expect(q("configuration")).toHaveLength(1)
+        expect(files.close).not.toHaveBeenCalled()
+        files.open = false
     })
 })
