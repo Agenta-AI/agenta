@@ -480,6 +480,8 @@ export type {
     AgentTemplateSectionListProps,
     AgentTemplateSectionDescriptor,
 } from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
+export {PhoneSectionsContext} from "./SchemaControls/agentTemplate/phoneSections"
+export type {PhoneSectionsApi} from "./SchemaControls/agentTemplate/phoneSections"
 export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
 // Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.

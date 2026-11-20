@@ -3,6 +3,7 @@ import {useEffect, useRef, useState} from "react"
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
+import revisionStatusCatalog from "@agenta/i18n/catalogs/playground.revisionStatus"
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitScheduledAtomFamily,
@@ -12,6 +13,7 @@ import {
     type LatestVersion,
 } from "@agenta/playground/state"
 import {projectIdAtom} from "@agenta/shared/state"
+import {cn} from "@agenta/ui/styles"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -48,6 +50,11 @@ export interface AgentRevisionStatusProps {
     autoUpdate?: boolean
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
+    /**
+     * On a phone: the chip says "Saved as vN" and has a 44 px hit area, and the version history
+     * covers the screen with a back arrow to `backTitle` (the screen the chip sits on).
+     */
+    phone?: {backTitle: string}
     className?: string
 }
 
@@ -67,9 +74,10 @@ export const AgentRevisionStatus = ({
     onUpdate,
     autoUpdate = false,
     checkKey,
+    phone,
     className,
 }: AgentRevisionStatusProps) => {
-    const t = useT(headerCatalog)
+    const t = useT(headerCatalog, revisionStatusCatalog)
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
     // the same agent is driven from another surface (the desktop playground and `/m` share one
     // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
@@ -205,7 +213,12 @@ export const AgentRevisionStatus = ({
                             status: dot.label,
                         })}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
+                        className={cn(
+                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText",
+                            phone
+                                ? "min-h-11 whitespace-nowrap px-2 text-[13px]"
+                                : "px-1.5 py-0.5 text-xs",
+                        )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
                         <span className="flex items-center gap-1">
@@ -217,9 +230,15 @@ export const AgentRevisionStatus = ({
                                     className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
                                 />
                             </span>
-                            v{version}
+                            {phone
+                                ? settled
+                                    ? t("playground.revisionStatus.savedAs", {version})
+                                    : dot.label
+                                : `v${version}`}
                         </span>
-                        {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
+                        {showLabel && !phone ? (
+                            <span className="hidden sm:inline">{dot.label}</span>
+                        ) : null}
                     </button>
                 </SimpleTooltip>
             ) : null}
@@ -267,7 +286,12 @@ export const AgentRevisionStatus = ({
                 <button
                     type="button"
                     onClick={() => onUpdate?.(newer.id)}
-                    className="shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
+                    // On a phone the pill keeps its size and gets a 44 px high hit area.
+                    className={cn(
+                        "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
+                        phone &&
+                            "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
+                    )}
                 >
                     {t("playground.agentHeader.updateAvailable", {version: newer.version})}
                 </button>
@@ -279,6 +303,7 @@ export const AgentRevisionStatus = ({
                     revisionId={revisionId}
                     currentVersion={version}
                     onUpdate={onUpdate}
+                    phone={phone}
                 />
             ) : null}
 
@@ -299,9 +324,11 @@ export const AgentRevisionStatus = ({
                                   }
                                 : undefined
                         }
-                        className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
-                            failed ? "cursor-pointer" : ""
-                        }`}
+                        className={cn(
+                            "flex items-center gap-1.5 text-xs text-colorTextTertiary",
+                            failed && "cursor-pointer",
+                            failed && phone && "min-h-11 min-w-11 justify-center",
+                        )}
                     >
                         {statusBody}
                     </span>
