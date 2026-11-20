@@ -186,8 +186,8 @@ class _World:
                 project_id=self.project_id,
                 organization_id=self.world.organization_id,
             ),
-            session_id=session.session_id,
-            agent_id=agent_id,
+            run_session_id=session.session_id,
+            run_agent_id=agent_id,
         )
 
     @staticmethod

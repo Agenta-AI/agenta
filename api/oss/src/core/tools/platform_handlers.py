@@ -2272,12 +2272,14 @@ class SessionScope:
 def session_scope_for(caller: SessionCaller) -> SessionScope:
     """The one function that sets the list and read scope of the session tools."""
 
-    if is_builder_agent(caller.agent_id):
+    if is_builder_agent(caller.run_agent_id):
         return SessionScope(calling_agent_ids=None)
     # A run that names no agent (an inline configuration) created no session.
     return SessionScope(
         calling_agent_ids=(
-            frozenset({caller.agent_id}) if caller.agent_id is not None else frozenset()
+            frozenset({caller.run_agent_id})
+            if caller.run_agent_id is not None
+            else frozenset()
         )
     )
 
@@ -2416,7 +2418,7 @@ async def _calling_readers(
     """Who can read the calling session. A calling session with no row reads as the
     widest item, so every private source is refused, never let through."""
     readers = await get_sharing_service().session_readers(
-        project_id=project_id, session_id=caller.session_id
+        project_id=project_id, session_id=caller.run_session_id
     )
     if readers is None:
         return SharedItemReaders(policy=OWNERLESS_PROJECT_POLICY, is_channel=True)
