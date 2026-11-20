@@ -39,13 +39,13 @@ import {
     type DateRangeValue,
 } from "@agenta/ui/ui"
 import {
-    CalendarBlank,
     Cloud,
     Check,
+    ClockCounterClockwise,
+    ListBullets,
     LockSimple,
     Minus,
     Robot,
-    Rows,
     Sparkle,
     X,
 } from "@phosphor-icons/react"
@@ -141,6 +141,8 @@ export const AnalyticsToolbar = ({
     ).map((value) => ({value, label: t(GROUP_LABEL[value]), icon: GROUP_ICONS[value]}))
     // The locked agent shows as its own chip, never as a removable filter.
     const dims = locked ? DIMS.filter((d) => d.key !== "agent") : DIMS
+    // The agent's own Analytics page draws its toolbar on the canvas scale (A09).
+    const controlSize = locked ? "compact" : "sm"
     const active = dims.filter((d) => filters[d.key].length)
     const label = (dim: FilterDim, key: string) => (dim === "agent" ? agentName(key) : key)
     const [customOpen, setCustomOpen] = useState(false)
@@ -153,8 +155,8 @@ export const AnalyticsToolbar = ({
                 <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>
                     <PopoverAnchor asChild>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm">
-                                <CalendarBlank data-icon="inline-start" />
+                            <Button variant="outline" size={controlSize}>
+                                <ClockCounterClockwise data-icon="inline-start" />
                                 {rangeLabel}
                             </Button>
                         </DropdownMenuTrigger>
@@ -249,6 +251,8 @@ export const AnalyticsToolbar = ({
                 label={label}
                 queryFilters={queryFilters}
                 dims={dims}
+                locked={locked}
+                size={controlSize}
             />
 
             <GroupMenu
@@ -260,7 +264,8 @@ export const AnalyticsToolbar = ({
                         ? t("observabilityUi.analytics.group")
                         : t("observabilityUi.analytics.groupWith", {group: t(GROUP_LABEL[group])})
                 }
-                icon={<Rows size={ICON} />}
+                icon={<ListBullets size={ICON} />}
+                size={controlSize}
             />
 
             {locked ? lockedAgentChip : null}
@@ -456,6 +461,8 @@ const AnalyticsFilterMenu = ({
     label,
     queryFilters,
     dims,
+    locked,
+    size,
 }: {
     filters: AnalyticsFilters
     onChange: (filters: AnalyticsFilters) => void
@@ -465,6 +472,9 @@ const AnalyticsFilterMenu = ({
     queryFilters: AnalyticsFilters
     /** The dimensions the menu offers. */
     dims: readonly (typeof DIMS)[number][]
+    /** The page is locked to one agent: the list is narrowed, so the Filter dot shows (A09). */
+    locked: boolean
+    size: "compact" | "sm"
 }) => {
     const t = useT(analyticsCatalog)
     const [open, setOpen] = useState(false)
@@ -529,7 +539,8 @@ const AnalyticsFilterMenu = ({
             sections={sections}
             searchPlaceholder={t("observabilityUi.analytics.searchAgentsAndModels")}
             align="start"
-            active={anyActive}
+            active={anyActive || locked}
+            size={size}
             onReset={() => onChange({agent: [], model: []})}
             resetDisabled={!anyActive}
         />

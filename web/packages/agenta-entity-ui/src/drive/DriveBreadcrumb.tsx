@@ -1,4 +1,4 @@
-import {Fragment} from "react"
+import {Fragment, useLayoutEffect, useRef} from "react"
 
 import {driveRootLabel} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
@@ -36,6 +36,12 @@ export const DriveBreadcrumb = ({
 }) => {
     const t = useT(driveExplorerCatalog)
     const segs = shown.split("/").filter(Boolean)
+    // A path wider than the row shows its end: the current folder or file.
+    const scrollRef = useRef<HTMLElement>(null)
+    useLayoutEffect(() => {
+        const el = scrollRef.current
+        if (el) el.scrollLeft = el.scrollWidth
+    }, [shown])
     if (variant === "icons") {
         // `inline-flex` restated: BreadcrumbLink's `inline-block` would stack glyph over label.
         const crumbLink =
@@ -44,8 +50,10 @@ export const DriveBreadcrumb = ({
             <Breadcrumb
                 className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 title={shown}
+                ref={scrollRef}
             >
-                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-[13px] sm:gap-0.5">
+                {/* Parts never shrink: a long path scrolls instead of cutting the last part. */}
+                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-[13px] sm:gap-0.5 [&>li]:shrink-0">
                     <BreadcrumbItem>
                         {segs.length === 0 ? (
                             <BreadcrumbPage className="flex h-auto items-center gap-1.5 px-1.5 py-[3px] font-medium">

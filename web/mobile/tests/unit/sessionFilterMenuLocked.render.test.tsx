@@ -20,14 +20,20 @@ interface Section {
     kind?: string
     value?: string
     options?: {value: string; disabled?: boolean}[]
+    locked?: boolean
     onChange: (value: never) => void
 }
-const captured = vi.hoisted(() => ({sections: [] as unknown[], active: false}))
+const captured = vi.hoisted(() => ({
+    sections: [] as unknown[],
+    active: false,
+    resetDisabled: false,
+}))
 
 vi.mock("@agenta/ui/filter-menu", () => ({
-    FilterMenu: (props: {sections: unknown[]; active: boolean}) => {
+    FilterMenu: (props: {sections: unknown[]; active: boolean; resetDisabled: boolean}) => {
         captured.sections = props.sections
         captured.active = props.active
+        captured.resetDisabled = props.resetDisabled
         return null
     },
 }))
@@ -76,14 +82,17 @@ describe("SessionFilterMenu on the Sessions page of an agent", () => {
         await mount()
         const agent = section("agent")
         expect(agent.value).toBe("support")
-        expect(agent.options).toEqual([expect.objectContaining({value: "support", disabled: true})])
+        expect(agent.locked).toBe(true)
+        expect(agent.options).toEqual([expect.objectContaining({value: "support"})])
         expect(section("group").options?.map((option) => option.value)).toEqual([
             "date",
             "status",
             "none",
         ])
-        // Group by Date and the locked agent are this page's defaults, not a filter.
-        expect(captured.active).toBe(false)
+        // The page is narrowed to its agent, so the Filter button shows the dot (A02). Group by
+        // Date and the locked agent are this page's defaults, so Reset has nothing to undo.
+        expect(captured.active).toBe(true)
+        expect(captured.resetDisabled).toBe(true)
     })
 
     it("writes the page's own filters, never the shared ones", async () => {

@@ -139,6 +139,27 @@ describe("the session screen on the agent layout", () => {
         expect(panel.style.width).toBe("520px")
     })
 
+    it("runs the panel full height beside the header, not under it", async () => {
+        openConfiguration()
+        await render(createStore())
+        const panel = q("agent-panel")[0]?.parentElement as HTMLElement
+        const header = q("session-header")[0] as HTMLElement
+        // The header sits in the conversation column; the panel is that column's sibling.
+        const column = panel.previousElementSibling as HTMLElement
+        expect(column.contains(header)).toBe(true)
+        expect(column.contains(q("chat-column")[0] as HTMLElement)).toBe(true)
+        expect(panel.className).toContain("h-full")
+        expect(panel.className).not.toContain("absolute")
+    })
+
+    it("keeps the overlay under the header under 1100 px, so the header icons stay in reach", async () => {
+        openConfiguration()
+        media.width = 1000
+        await render(createStore())
+        const panel = q("agent-panel")[0]?.parentElement as HTMLElement
+        expect(panel.className).toContain("top-12")
+    })
+
     it("never mounts the configuration of a hidden agent", async () => {
         openConfiguration()
         await render(createStore(), true)
