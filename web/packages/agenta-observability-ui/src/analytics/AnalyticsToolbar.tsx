@@ -39,13 +39,13 @@ import {
     type DateRangeValue,
 } from "@agenta/ui/ui"
 import {
-    CalendarBlank,
     Cloud,
     Check,
+    ClockCounterClockwise,
+    ListBullets,
     LockSimple,
     Minus,
     Robot,
-    Rows,
     Sparkle,
     X,
 } from "@phosphor-icons/react"
@@ -154,7 +154,7 @@ export const AnalyticsToolbar = ({
                     <PopoverAnchor asChild>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm">
-                                <CalendarBlank data-icon="inline-start" />
+                                <ClockCounterClockwise data-icon="inline-start" />
                                 {rangeLabel}
                             </Button>
                         </DropdownMenuTrigger>
@@ -249,6 +249,7 @@ export const AnalyticsToolbar = ({
                 label={label}
                 queryFilters={queryFilters}
                 dims={dims}
+                locked={locked}
             />
 
             <GroupMenu
@@ -260,7 +261,7 @@ export const AnalyticsToolbar = ({
                         ? t("observabilityUi.analytics.group")
                         : t("observabilityUi.analytics.groupWith", {group: t(GROUP_LABEL[group])})
                 }
-                icon={<Rows size={ICON} />}
+                icon={<ListBullets size={ICON} />}
             />
 
             {locked ? lockedAgentChip : null}
@@ -456,6 +457,7 @@ const AnalyticsFilterMenu = ({
     label,
     queryFilters,
     dims,
+    locked,
 }: {
     filters: AnalyticsFilters
     onChange: (filters: AnalyticsFilters) => void
@@ -465,6 +467,8 @@ const AnalyticsFilterMenu = ({
     queryFilters: AnalyticsFilters
     /** The dimensions the menu offers. */
     dims: readonly (typeof DIMS)[number][]
+    /** The page is locked to one agent: the list is narrowed, so the Filter dot shows (A09). */
+    locked: boolean
 }) => {
     const t = useT(analyticsCatalog)
     const [open, setOpen] = useState(false)
@@ -529,7 +533,7 @@ const AnalyticsFilterMenu = ({
             sections={sections}
             searchPlaceholder={t("observabilityUi.analytics.searchAgentsAndModels")}
             align="start"
-            active={anyActive}
+            active={anyActive || locked}
             onReset={() => onChange({agent: [], model: []})}
             resetDisabled={!anyActive}
         />

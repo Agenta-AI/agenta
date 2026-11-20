@@ -1,4 +1,4 @@
-import {ChevronRight} from "lucide-react"
+import {ChevronRight, Lock} from "lucide-react"
 
 import {Popover, PopoverAnchor, PopoverContent} from "../components/ui/popover"
 import {cn} from "../components/ui/utils"
@@ -80,6 +80,37 @@ export const FilterMenuRow = ({
     onKeyDown?: (event: React.KeyboardEvent<HTMLButtonElement>) => void
 }) => {
     const selected = selectedValues(section)
+
+    if (section.locked) {
+        // Read only: it says what the page is fixed to and opens nothing. It stays in the
+        // keyboard order so the reader can still reach and read it.
+        return (
+            <button
+                ref={rowRef}
+                type="button"
+                aria-disabled="true"
+                tabIndex={tabIndex}
+                onFocus={onRowFocus}
+                onKeyDown={onKeyDown}
+                className={cn(
+                    "box-border cursor-default appearance-none border-0 bg-transparent font-[inherit]",
+                    "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
+                    "text-[13px] text-colorTextTertiary outline-none focus-visible:bg-accent",
+                )}
+            >
+                {section.icon ? (
+                    <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+                        {section.icon}
+                    </span>
+                ) : null}
+                <span className="shrink-0">{section.label}</span>
+                <span className="min-w-0 flex-1 truncate text-right">
+                    {summaryLabel(section, section.options)}
+                </span>
+                <Lock size={12} className="shrink-0 text-colorTextTertiary" aria-hidden />
+            </button>
+        )
+    }
 
     const button = (
         <button

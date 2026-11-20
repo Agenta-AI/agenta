@@ -157,6 +157,15 @@ export interface ListTableBaseProps<Row> {
      * reader scans once.
      */
     density?: "default" | "compact"
+    /**
+     * The group heading's caret: `fill` (default) is the filled caret that turns; `chevron` is the
+     * light down chevron the agent pages draw (A02), turned to the right when collapsed.
+     */
+    groupCaret?: "fill" | "chevron"
+    /** A light line under each row (the Agents list, A03). */
+    rowDividers?: boolean
+    /** Extra classes for the column header row, merged over its defaults. */
+    headerClassName?: string
     /** Row selection with a select-all and a bulk bar. Absent ⇒ no checkbox column. */
     selection?: ListTableSelection<Row>
     className?: string
