@@ -70,10 +70,12 @@ export const RevertFooter = ({
                     })}
                 </span>
                 <span className="flex shrink-0 gap-2">
-                    <Button variant="outline" onClick={onCancel}>
+                    <Button variant="outline" size="compact" onClick={onCancel}>
                         {t("playground.versionHistory.dismiss")}
                     </Button>
-                    <Button onClick={onConfirm}>{t("playground.versionHistory.tryAgain")}</Button>
+                    <Button size="compact" onClick={onConfirm}>
+                        {t("playground.versionHistory.tryAgain")}
+                    </Button>
                 </span>
             </div>
         )
@@ -81,17 +83,17 @@ export const RevertFooter = ({
 
     return (
         <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" size="compact" onClick={onClose}>
                 {t("playground.versionHistory.cancel")}
             </Button>
             {onUpdate ? (
-                <Button onClick={onUpdate}>
+                <Button size="compact" onClick={onUpdate}>
                     {t("playground.versionHistory.updateToVersion", {
                         version: selectedVersion ?? "",
                     })}
                 </Button>
             ) : null}
-            <Button disabled={disabled} onClick={onRequestConfirm}>
+            <Button size="compact" disabled={disabled} onClick={onRequestConfirm}>
                 {selectedVersion === null
                     ? t("playground.versionHistory.revert")
                     : t("playground.versionHistory.revertToVersion", {version: selectedVersion})}

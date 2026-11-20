@@ -4,10 +4,10 @@ import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentPagesPhoneCatalog from "@agenta/i18n/catalogs/agentPages.phone"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"
-import {Hammer} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {ConfigPane} from "../chat/ConfigPane"
@@ -123,12 +123,11 @@ export const ConfigurationRoot = ({
                                 panel.available.builder ? (
                                     <Button
                                         variant="ghost"
-                                        size="icon-sm"
+                                        size="icon-compact"
                                         aria-label={t("agentLayout.header.builder")}
-                                        className="size-11"
                                         onClick={() => void panel.toggle("builder")}
                                     >
-                                        <Hammer size={18} />
+                                        <BuilderIcon />
                                     </Button>
                                 ) : null
                             }

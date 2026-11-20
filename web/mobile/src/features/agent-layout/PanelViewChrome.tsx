@@ -76,10 +76,9 @@ export const PanelViewChrome = ({
                     <SimpleTooltip title={t("agentLayout.panel.widen")}>
                         <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             aria-label={t("agentLayout.panel.widen")}
                             aria-pressed={panel.wide}
-                            className="rounded-[6px] text-colorTextSecondary"
                             onClick={() => setWide(!panel.wide)}
                         >
                             <ArrowsOutSimple size={16} />

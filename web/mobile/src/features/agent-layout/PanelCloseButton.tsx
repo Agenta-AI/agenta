@@ -13,9 +13,8 @@ export const PanelCloseButton = () => {
         <SimpleTooltip title={t("agentLayout.panel.close")}>
             <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-compact"
                 aria-label={t("agentLayout.panel.close")}
-                className="rounded-[6px] text-colorTextSecondary"
                 onClick={() => void panel.close()}
             >
                 <X size={16} />

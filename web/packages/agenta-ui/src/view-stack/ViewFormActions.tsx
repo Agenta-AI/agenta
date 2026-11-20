@@ -28,11 +28,14 @@ export const ViewFormActions = ({
     const t = useT(viewStackCatalog)
     const start = <span ref={startRef} className="mr-auto flex empty:hidden" />
     const button = phone ? "h-11 flex-1 rounded-[10px] text-[15px]" : undefined
+    // The canvas scale on the desktop (h28, r6, 13 px); a phone keeps 44 px buttons.
+    const size = phone ? undefined : "compact"
     if (apply === "immediate") {
         return (
             <div className="flex items-center justify-end gap-2">
                 {start}
                 <Button
+                    size={size}
                     className={phone ? "h-11 w-24 rounded-[10px] text-[15px]" : undefined}
                     onClick={onBack}
                 >
@@ -52,6 +55,7 @@ export const ViewFormActions = ({
                 {start}
                 <Button
                     variant="outline"
+                    size={size}
                     className={button}
                     disabled={form?.saving}
                     onClick={onCancel}
@@ -59,6 +63,7 @@ export const ViewFormActions = ({
                     {t("ui.viewStack.cancel")}
                 </Button>
                 <Button
+                    size={size}
                     className={button}
                     // Disabled until the view registers its form, and while it is clean or invalid.
                     disabled={!form || form.saving || !form.dirty || !form.valid}

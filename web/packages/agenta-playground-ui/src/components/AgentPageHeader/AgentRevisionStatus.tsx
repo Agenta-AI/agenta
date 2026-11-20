@@ -242,7 +242,11 @@ export const AgentRevisionStatus = ({
         return (
             <div className={cn("flex items-center gap-2", className)}>
                 {historyWorkflowId ? (
-                    <Button variant="ghost" onClick={() => openHistory(historyWorkflowId)}>
+                    <Button
+                        variant="ghost"
+                        size="compact"
+                        onClick={() => openHistory(historyWorkflowId)}
+                    >
                         {t("playground.revisionStatus.history")}
                     </Button>
                 ) : null}
@@ -251,6 +255,7 @@ export const AgentRevisionStatus = ({
                         {/* A status, not an action: enabled only as the retry of a failed save. */}
                         <Button
                             variant="outline"
+                            size="compact"
                             disabled={!failed}
                             aria-label={
                                 failed ? t("playground.agentHeader.retrySaving") : undefined

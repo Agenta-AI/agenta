@@ -36,6 +36,7 @@ export const useViewForm = (form: ViewForm): void => {
  * draws no action row; it leaves with the view.
  */
 export const ViewFooterStart = ({children}: {children: ReactNode}) => {
+    useViewEntry("ViewFooterStart") // only inside a view
     const footerStart = useContext(ViewFooterStartContext)
     return footerStart ? createPortal(children, footerStart) : null
 }

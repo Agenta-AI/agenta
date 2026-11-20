@@ -19,6 +19,14 @@ import {
 import {CaretRight, Trash} from "@phosphor-icons/react"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
+import {useSectionListLayout} from "./sectionListLayout"
+
+/**
+ * On the Configuration page (canvas A04) the rows are flat inside the section's one card: no
+ * border of their own, a line above each row. The card hides the first row's line.
+ */
+const PAGE_ROW =
+    "rounded-none border-0 border-t border-solid border-colorBorderSecondary px-3.5 py-3"
 
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
@@ -156,6 +164,7 @@ export function ItemRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
+    const page = useSectionListLayout() === "page"
     // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
@@ -170,6 +179,7 @@ export function ItemRow({
                 interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
+                page && PAGE_ROW,
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
@@ -336,6 +346,7 @@ export function InstructionsFileRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
+    const page = useSectionListLayout() === "page"
     const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
     const meta =
@@ -344,6 +355,17 @@ export function InstructionsFileRow({
             : t("entityUi.configItems.empty")
     // An empty file has no preview: `descriptor.description` already says "Empty file".
     const line = wordCount > 0 ? `${meta} · ${descriptor.description}` : meta
+    if (page) {
+        return (
+            <InstructionsPagePreview
+                filename={filename}
+                content={content}
+                meta={meta}
+                onOpen={onOpen}
+                status={status}
+            />
+        )
+    }
     return (
         <div
             role="button"
@@ -375,6 +397,67 @@ export function InstructionsFileRow({
                 </span>
             </div>
             <CollapseCaret size={12} />
+        </div>
+    )
+}
+
+/** How many lines of the file the page shows before it cuts. */
+const PREVIEW_LINES = 8
+
+/**
+ * The instructions file on the Configuration page (canvas A04): the filename and the word count
+ * on a header line, then the start of the file with its headings in bold. The whole card opens
+ * the editor.
+ */
+function InstructionsPagePreview({
+    filename,
+    content,
+    meta,
+    onOpen,
+    status,
+}: {
+    filename: string
+    content: string
+    meta: string
+    onOpen: () => void
+    status?: ItemRowStatus
+}) {
+    const lines = content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, PREVIEW_LINES)
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onOpen()
+                }
+            }}
+            className="flex cursor-pointer flex-col hover:bg-colorFillQuaternary"
+        >
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3.5 py-3">
+                <span className="truncate font-mono text-[13px] leading-[18px]">{filename}</span>
+                {status ? <StatusTag status={status} /> : null}
+                <span className="ml-auto shrink-0 text-[12px] leading-4 text-colorTextTertiary">
+                    {meta}
+                </span>
+            </div>
+            <div className="flex flex-col gap-1 px-3.5 py-3 text-sm text-colorText">
+                {lines.map((line, index) =>
+                    line.startsWith("#") ? (
+                        <span key={index} className="mt-1 font-semibold first:mt-0">
+                            {line.replace(/^#+\s*/, "")}
+                        </span>
+                    ) : (
+                        <span key={index}>{line}</span>
+                    ),
+                )}
+            </div>
         </div>
     )
 }

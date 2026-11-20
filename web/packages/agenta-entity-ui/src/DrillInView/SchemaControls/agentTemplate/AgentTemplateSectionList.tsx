@@ -277,7 +277,9 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                             onClick={s.onOpen}
                         />
                     ) : (
-                        <div className="flex flex-col gap-2 p-3">{s.content}</div>
+                        // Flat rows (they draw a line above themselves; -mt-px tucks the first one
+                        // under the card's edge), and no gap between rows inside the lists.
+                        <div className="-mt-px flex flex-col [&_*]:gap-y-0">{s.content}</div>
                     )}
                 </div>
             </section>

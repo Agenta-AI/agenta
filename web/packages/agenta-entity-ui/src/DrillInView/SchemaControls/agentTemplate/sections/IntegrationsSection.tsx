@@ -84,7 +84,7 @@ export const integrationsSection = ({
             !disabled && openAddIntegration
                 ? {
                       label: t("entityUi.agentTemplate.addIntegration"),
-                      icon: <Plus size={16} />,
+                      icon: <Plus size={14} />,
                       onClick: openAddIntegration,
                   }
                 : undefined,
