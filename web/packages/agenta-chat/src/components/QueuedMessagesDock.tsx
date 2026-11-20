@@ -14,7 +14,7 @@
  *    loads it into the input; this card only MARKS which row is under edit and offers the way out.
  *    See `useAgentChatQueue.commitEdit` for what the resulting send does.
  */
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatQueuedMessagesDockCatalog from "@agenta/i18n/catalogs/chat.queuedMessagesDock"
@@ -23,6 +23,7 @@ import {getCollapseLabel} from "@agenta/ui/components/presentational"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {Button} from "@agenta/ui/ui"
 import {
+    ArrowBendDownRight,
     CaretUp,
     File as FileIcon,
     PencilSimple,
@@ -34,6 +35,7 @@ import {
 } from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
 
+import type {ChildUpdate, ChildUpdateStatus} from "../assets/childUpdate"
 import {fileKind, filePartName} from "../assets/files"
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
@@ -111,6 +113,50 @@ const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
     )
 }
 
+/** One key per status, so each label is a whole phrase in every language. */
+const CHILD_UPDATE_STATUS_KEYS = {
+    running: "chat.queuedMessagesDock.childUpdateRunning",
+    paused: "chat.queuedMessagesDock.childUpdatePaused",
+    completed: "chat.queuedMessagesDock.childUpdateCompleted",
+    failed: "chat.queuedMessagesDock.childUpdateFailed",
+    cancelled: "chat.queuedMessagesDock.childUpdateCancelled",
+    lost: "chat.queuedMessagesDock.childUpdateLost",
+} as const satisfies Record<ChildUpdateStatus, string>
+
+/**
+ * A child update, as a notice rather than as the person's message: it names the child session
+ * (the host renders the link) and what the child did. Read from the row's structured part only;
+ * its message text is for the model and never shows here.
+ */
+const ChildUpdateNotice = ({
+    update,
+    renderChildSession,
+}: {
+    update: ChildUpdate | undefined
+    renderChildSession?: (update: ChildUpdate) => ReactNode
+}) => {
+    const t = useT(chatQueuedMessagesDockCatalog)
+    const label = t("chat.queuedMessagesDock.childUpdateFrom")
+    return (
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-xs">
+            <ArrowBendDownRight
+                size={12}
+                role="img"
+                aria-label={label}
+                className="shrink-0 text-colorTextTertiary"
+            />
+            <span className="min-w-0 truncate text-colorText">
+                {update && renderChildSession ? renderChildSession(update) : label}
+            </span>
+            {update?.status ? (
+                <span className="shrink-0 text-colorTextSecondary">
+                    {t(CHILD_UPDATE_STATUS_KEYS[update.status])}
+                </span>
+            ) : null}
+        </span>
+    )
+}
+
 const Row = ({
     message,
     editing,
@@ -120,6 +166,7 @@ const Row = ({
     onRemove,
     onSendNow,
     sendNowBlocked,
+    renderChildSession,
 }: {
     message: QueuedMessage
     editing: boolean
@@ -129,8 +176,12 @@ const Row = ({
     onRemove: (id: string) => void
     onSendNow?: (id: string) => void
     sendNowBlocked: boolean
+    renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
     const t = useT(chatQueuedMessagesDockCatalog)
+    // A server input is read-only: remove is its only control.
+    const serverInput = !!message.serverKind
+    const sendNow = serverInput ? undefined : onSendNow
     const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
     // A bare quote with no reply shows its excerpt instead.
     const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
@@ -144,9 +195,18 @@ const Row = ({
                 editing ? "bg-colorFillTertiary" : "hover:bg-colorFillTertiary"
             }`}
         >
-            {files.length > 0 && <Attachments files={files} />}
-            {quotes.length > 0 && <QuoteTile quotes={quotes} />}
-            {text ? (
+            {message.serverKind === "child_update" ? (
+                <ChildUpdateNotice
+                    update={message.childUpdate}
+                    renderChildSession={renderChildSession}
+                />
+            ) : (
+                <>
+                    {files.length > 0 && <Attachments files={files} />}
+                    {quotes.length > 0 && <QuoteTile quotes={quotes} />}
+                </>
+            )}
+            {message.serverKind === "child_update" ? null : text ? (
                 <span title={text} className="min-w-0 flex-1 truncate text-xs text-colorText">
                     {text}
                 </span>
@@ -167,12 +227,12 @@ const Row = ({
             {/* Keep Send Now visible without hover. */}
             <span
                 className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
-                    editing || touchCls || (onSendNow && message.source === "server")
+                    editing || touchCls || (sendNow && message.source === "server")
                         ? "opacity-100"
                         : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"
                 }`}
             >
-                {onSendNow && message.source === "server" ? (
+                {sendNow && message.source === "server" ? (
                     <Button
                         size="sm"
                         variant="ghost"
@@ -183,7 +243,7 @@ const Row = ({
                                 ? t("chat.queuedMessagesDock.sendBlocked")
                                 : undefined
                         }
-                        onClick={() => onSendNow(message.id)}
+                        onClick={() => sendNow(message.id)}
                     >
                         {sendingThis
                             ? t("chat.queuedMessagesDock.sending")
@@ -199,7 +259,7 @@ const Row = ({
                     >
                         {t("chat.queuedMessagesDock.cancel")}
                     </Button>
-                ) : onEdit && message.editable !== false ? (
+                ) : onEdit && message.editable !== false && !serverInput ? (
                     <Button
                         size="icon-sm"
                         variant="ghost"
@@ -262,6 +322,8 @@ export interface QueuedMessagesDockProps {
     editingId?: string | null
     /** Invisibly extended tap area; the chrome stays identical. */
     touch?: boolean
+    /** Names and links the child session of a child update row. Omitted: a plain label shows. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
     className?: string
 }
 
@@ -275,6 +337,7 @@ const QueuedMessagesDock = ({
     onCancelEdit,
     editingId = null,
     touch = false,
+    renderChildSession,
     className = "",
 }: QueuedMessagesDockProps) => {
     const t = useT(chatQueuedMessagesDockCatalog)
@@ -353,6 +416,7 @@ const QueuedMessagesDock = ({
                             onRemove={onRemove}
                             onSendNow={onSendNow}
                             sendNowBlocked={sendNowBlocked}
+                            renderChildSession={renderChildSession}
                         />
                     ))}
                 </div>

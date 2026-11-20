@@ -7,6 +7,7 @@ import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/stat
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
     Archive,
+    ArrowBendDownRight,
     CalendarBlank,
     ChatCircle,
     Clock,
@@ -67,8 +68,18 @@ export const SessionFilterMenu = ({
     onReset: () => void
 }) => {
     const t = useT(sessionsMobileListCatalog)
-    const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
-        useSessionFilters()
+    const {
+        agentId,
+        status,
+        mode,
+        archivedOnly,
+        showChildSessions,
+        setAgentId,
+        setStatus,
+        setMode,
+        setArchivedOnly,
+        setShowChildSessions,
+    } = useSessionFilters()
 
     const sections = useMemo<FilterMenuItem[]>(() => {
         return [
@@ -194,6 +205,20 @@ export const SessionFilterMenu = ({
                 checked: archivedOnly,
                 onChange: setArchivedOnly,
             },
+            // Sessions that an agent in another session created. Hidden by default and added to
+            // the chat list when on; the automations list is a different set, so it has no switch.
+            ...(mode
+                ? []
+                : [
+                      {
+                          kind: "toggle" as const,
+                          key: "childSessions",
+                          label: t("sessions.mobileList.showChildSessions"),
+                          icon: <ArrowBendDownRight size={ICON} />,
+                          checked: showChildSessions,
+                          onChange: setShowChildSessions,
+                      },
+                  ]),
             {
                 key: "group",
                 label: t("sessions.mobileList.groupBy"),
@@ -234,7 +259,9 @@ export const SessionFilterMenu = ({
         setAgentId,
         setArchivedOnly,
         setMode,
+        setShowChildSessions,
         setStatus,
+        showChildSessions,
         status,
         view,
         waitingCount,
@@ -248,6 +275,7 @@ export const SessionFilterMenu = ({
         status !== "all" ||
         mode ||
         archivedOnly ||
+        showChildSessions ||
         !isDefaultSessionListView(view)
 
     return (

@@ -120,7 +120,14 @@ export const sessionReferenceSchema = z.object({
     key: z.string().nullish().catch(undefined),
 })
 
-export const sessionOriginSchema = z.enum(["manual", "trigger"])
+/** How the session was created. `calling_session`: an agent in another session created it. */
+export const sessionOriginSchema = z.enum([
+    "manual",
+    "trigger",
+    "channel",
+    "api",
+    "calling_session",
+])
 export const sessionTriggerKindSchema = z.enum(["schedule", "subscription"])
 export const sessionExpansionSchema = z.enum(["last_message", "trigger"])
 
@@ -132,6 +139,14 @@ export const sessionTriggerSchema = z.object({
 
 export const sessionDeliverySchema = z.object({
     id: z.string(),
+})
+
+/** The session whose agent created this one (origin `calling_session`). */
+export const sessionCallingSessionSchema = z.object({
+    id: z.string(),
+    turn_id: z.string().nullish(),
+    agent_id: z.string().nullish(),
+    revision_id: z.string().nullish(),
 })
 
 export const sessionMessagePreviewSchema = z.object({
@@ -191,6 +206,7 @@ export const sessionStreamSchema = z.object({
     origin: sessionOriginSchema.nullish().catch(undefined),
     trigger: sessionTriggerSchema.nullish().catch(undefined),
     delivery: sessionDeliverySchema.nullish().catch(undefined),
+    calling_session: sessionCallingSessionSchema.nullish().catch(undefined),
     // Sharing (M3): who may see the session. `owner_user_id` is null for an ownerless session
     // (channel, API key, trigger). An unknown visibility degrades to undefined, as above.
     visibility: visibilitySchema.nullish().catch(undefined),
@@ -262,6 +278,10 @@ export const pendingSessionInputSchema = z.object({
     position: z.number(),
     state: z.enum(["pending", "promoted", "removed"]),
     policy: z.enum(["queue", "steer"]),
+    // What the input is. `message` (or absent, on older servers) is a person's message; any
+    // other kind is a server input, which nobody can edit. An open string, so a kind this client
+    // does not know yet still reads as a server input instead of failing the snapshot.
+    kind: z.string().nullish().catch(undefined),
     created_at: z.string().nullish(),
     promoted_execution_id: z.string().nullish(),
     /** The admitting client's `Idempotency-Key`: the echo id of the send it came from. */
@@ -340,6 +360,7 @@ export type SessionOrigin = z.infer<typeof sessionOriginSchema>
 export type SessionTriggerKind = z.infer<typeof sessionTriggerKindSchema>
 export type SessionExpansion = z.infer<typeof sessionExpansionSchema>
 export type SessionTrigger = z.infer<typeof sessionTriggerSchema>
+export type SessionCallingSession = z.infer<typeof sessionCallingSessionSchema>
 export type SessionDelivery = z.infer<typeof sessionDeliverySchema>
 export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
 export type SessionWindowing = z.infer<typeof sessionWindowingSchema>

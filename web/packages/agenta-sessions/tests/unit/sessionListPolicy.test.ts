@@ -12,6 +12,7 @@ import {
     sessionListRequestFilters,
     shouldLoadMoreForHiddenRows,
     startedSessions,
+    withChildSessionsPolicy,
 } from "../../src/state/sessionListPolicy"
 
 const streamRow = (row: Partial<SessionStream>): SessionStream =>
@@ -269,5 +270,29 @@ describe("awaitingHiddenRows", () => {
     it("is not waiting once a row shows, or at the last page", () => {
         expect(awaitingHiddenRows({visibleRows: 1, hasNextPage: true})).toBe(false)
         expect(awaitingHiddenRows({visibleRows: 0, hasNextPage: false})).toBe(false)
+    })
+})
+
+describe("child sessions in the session list", () => {
+    const human = {origin: "exclude-trigger", expansions: []} as const
+    const automation = {origin: "trigger-only", expansions: ["trigger"]} as const
+
+    it("hides sessions that another session created by default", () => {
+        const policy = withChildSessionsPolicy(human, false)
+        expect(sessionListRequestFilters(policy).excludeOrigins).toEqual([
+            "trigger",
+            "calling_session",
+        ])
+    })
+
+    it("shows them, still without automation runs, when the switch is on", () => {
+        const policy = withChildSessionsPolicy(human, true)
+        expect(sessionListRequestFilters(policy).excludeOrigins).toEqual(["trigger"])
+    })
+
+    it("leaves the automations list and the unfiltered surfaces alone", () => {
+        expect(withChildSessionsPolicy(automation, false)).toBe(automation)
+        const all = {origin: "all", expansions: []} as const
+        expect(withChildSessionsPolicy(all, false)).toBe(all)
     })
 })

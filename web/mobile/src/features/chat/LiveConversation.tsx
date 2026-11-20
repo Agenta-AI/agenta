@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     latestTurnId,
+    type ChildUpdate,
     resolveStopExecution,
     shouldShowStopControl,
     restoreRefusedSend as restoreRefusedSendInto,
@@ -79,6 +80,7 @@ import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
+import {ChildSessionLink} from "./ChildSessionLink"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
@@ -170,6 +172,17 @@ export const LiveConversation = ({
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    // A child update row in the queue names its child session and links it.
+    const renderChildSession = useCallback(
+        (update: ChildUpdate) => (
+            <ChildSessionLink
+                sessionId={update.sessionId}
+                projectId={projectId}
+                base={`/w/${workspaceId}/p/${projectId}`}
+            />
+        ),
+        [projectId, workspaceId],
+    )
     // The composer's input handle. Declared here because the released task puts its text back in
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
@@ -982,6 +995,7 @@ export const LiveConversation = ({
                                         onEdit={editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}
+                                        renderChildSession={renderChildSession}
                                         touch
                                     />
                                 </ContentRail>

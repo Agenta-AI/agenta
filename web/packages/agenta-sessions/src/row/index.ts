@@ -7,6 +7,7 @@ export {
     type SessionAutomationVm,
 } from "./sessionTrigger"
 export {sessionAgentId} from "./sessionAgent"
+export {isChildSession} from "./sessionChild"
 export {sessionRowTitle, type SessionRowTitle} from "./sessionRowTitle"
 export {sessionPreviewText} from "./sessionPreview"
 export {

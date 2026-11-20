@@ -12,6 +12,7 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import type {ChildUpdate} from "../assets/childUpdate"
 import {countUserMessages, durableUserTurnIds} from "../assets/pendingSendEchoes"
 import {
     applyQueueOps,
@@ -45,6 +46,13 @@ export interface QueuedMessage {
     promotedExecutionId?: string | null
     /** An edit of this row is still saving. */
     saving?: boolean
+    /**
+     * The input's kind when the server wrote it (anything but `message`). Such a row is
+     * read-only: it can be removed, never edited or sent by hand.
+     */
+    serverKind?: string
+    /** The structured part of a `child_update` row; absent when the row carries none. */
+    childUpdate?: ChildUpdate
 }
 
 /** `settledSeq`: a snapshot read with a higher sequence reflects this write. */

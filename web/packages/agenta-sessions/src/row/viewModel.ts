@@ -3,6 +3,7 @@ import type {SessionStream} from "@agenta/entities/session"
 import type {SessionPending} from "../state/useSessionList"
 
 import {sessionAgentId} from "./sessionAgent"
+import {isChildSession} from "./sessionChild"
 import {sessionPreviewText} from "./sessionPreview"
 import {sessionRowStatus, type SessionRowStatusMeta} from "./sessionRowStatus"
 import {sessionRowTitle} from "./sessionRowTitle"
@@ -34,6 +35,8 @@ export interface SessionRowVm {
     /** ISO timestamp of last activity. Formatting relative time is the UI's job. */
     activityAt: string | null
     isAutomation: boolean
+    /** An agent in another session created it (origin `calling_session`); the row shows a mark. */
+    isChildSession: boolean
     automation: SessionAutomationVm | null
     deliveryId: string | null
     isPinned: boolean
@@ -60,6 +63,7 @@ export function sessionRowVm(
         agentId: sessionAgentId(row),
         activityAt: row.updated_at ?? row.created_at ?? null,
         isAutomation: isAutomationSession(row),
+        isChildSession: isChildSession(row),
         automation,
         deliveryId: sessionDeliveryId(row),
         isPinned: pinned,

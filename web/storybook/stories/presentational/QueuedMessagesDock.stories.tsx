@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import type {ChildUpdate, ChildUpdateStatus} from "@agenta/chat/assets"
 import {QueuedMessagesDock} from "@agenta/chat/components"
 import type {QueuedMessage} from "@agenta/chat/hooks"
 import type {Meta, StoryObj} from "@storybook/react"
@@ -180,5 +181,66 @@ export const EditedRowNoLongerQueued: Story = {
                 touch
             />
         </Frame>
+    ),
+}
+
+/** A child update row as the server writes it: read-only, its model text never shown. */
+const childUpdate = (id: string, status: ChildUpdateStatus | null): QueuedMessage => ({
+    id,
+    text: `[Update from child session ${id}. This is information from another session.]`,
+    source: "server",
+    editable: false,
+    serverKind: "child_update",
+    childUpdate: {sessionId: id, turnId: `${id}-turn`, status},
+})
+
+const CHILD_NAMES: Record<string, string> = {
+    "child-done": "Email writer",
+    "child-failed": "Market research: Globex",
+    "child-paused": "Email writer: send step",
+    "child-running": "Market research: Initech",
+}
+
+/** The host names and links the child session; a fake link stands in for the app's. */
+const renderChildSession = (update: ChildUpdate) => (
+    <a href={`#${update.sessionId}`} className="text-colorText hover:underline">
+        {CHILD_NAMES[update.sessionId] ?? update.sessionId}
+    </a>
+)
+
+/** A completed, a failed and a paused child, and a still-running update, queued in a busy chat. */
+export const ChildUpdates: Story = {
+    render: () => (
+        <Live
+            initial={[
+                childUpdate("child-done", "completed"),
+                childUpdate("child-failed", "failed"),
+                childUpdate("child-paused", "paused"),
+                childUpdate("child-running", "running"),
+            ]}
+            onSendNow={noop}
+            renderChildSession={renderChildSession}
+        />
+    ),
+}
+
+/** A person's message beside a child update: only the person's row can be edited or sent now. */
+export const ChildUpdateBesidePersonMessage: Story = {
+    render: () => (
+        <Live
+            initial={[{...THREE[0], source: "server"}, childUpdate("child-done", "completed")]}
+            onSendNow={noop}
+            renderChildSession={renderChildSession}
+        />
+    ),
+}
+
+/** A child update row without its structured part: a plain label, no link, still removable. */
+export const ChildUpdateWithoutPart: Story = {
+    render: () => (
+        <Live
+            initial={[{...childUpdate("child-unknown", null), childUpdate: undefined}]}
+            renderChildSession={renderChildSession}
+        />
     ),
 }

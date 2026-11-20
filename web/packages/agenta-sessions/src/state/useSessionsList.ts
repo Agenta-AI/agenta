@@ -16,6 +16,7 @@ import {
     sessionSearchAtom,
     sessionShowArchivedAtom,
     sessionArchivedOnlyAtom,
+    sessionShowChildSessionsAtom,
     sessionShowTriggeredAtom,
     sessionStatusFilterAtom,
 } from "./filters"
@@ -25,6 +26,7 @@ import {
     selectedSessionListPolicy,
     sessionGroupRows,
     shouldLoadMoreForHiddenRows,
+    withChildSessionsPolicy,
     type SessionListRequestPolicy,
 } from "./sessionListPolicy"
 import {
@@ -122,6 +124,7 @@ export const useSessionsList = ({
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
     const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
     const showTriggered = useAtomValue(sessionShowTriggeredAtom)
+    const showChildSessions = useAtomValue(sessionShowChildSessionsAtom)
     const projectFiltersActive = useAtomValue(sessionFiltersActiveAtom)
     const scopedFiltersActive = useAtomValue(sessionFiltersActiveExceptAgentAtom)
     const filtersActive = scopedAgentId ? scopedFiltersActive : projectFiltersActive
@@ -138,7 +141,10 @@ export const useSessionsList = ({
         [pendingBySession],
     )
 
-    const policy = selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy)
+    const policy = withChildSessionsPolicy(
+        selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy),
+        showChildSessions,
+    )
     const shared = {
         originPolicy: policy.origin,
         expansions: policy.expansions,
@@ -275,12 +281,14 @@ export const useSessionFilters = () => {
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
     const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
     const mode = useAtomValue(sessionShowTriggeredAtom)
+    const showChildSessions = useAtomValue(sessionShowChildSessionsAtom)
     const setSearch = useSetAtom(sessionSearchAtom)
     const setAgentId = useSetAtom(sessionAgentFilterAtom)
     const setStatus = useSetAtom(sessionStatusFilterAtom)
     const setIncludeArchived = useSetAtom(sessionShowArchivedAtom)
     const setArchivedOnly = useSetAtom(sessionArchivedOnlyAtom)
     const setMode = useSetAtom(sessionShowTriggeredAtom)
+    const setShowChildSessions = useSetAtom(sessionShowChildSessionsAtom)
     const reset = useSetAtom(resetSessionFiltersAtom)
     return {
         search,
@@ -290,12 +298,15 @@ export const useSessionFilters = () => {
         archivedOnly,
         /** True = the automations mode: the list shows trigger-started sessions INSTEAD. */
         mode,
+        /** True = the list also shows sessions that another session created. */
+        showChildSessions,
         setSearch,
         setAgentId,
         setStatus,
         setIncludeArchived,
         setArchivedOnly,
         setMode,
+        setShowChildSessions,
         reset,
     }
 }

@@ -1,22 +1,48 @@
-import type {SessionExpansion, SessionListFilters, SessionStream} from "@agenta/entities/session"
+import type {
+    SessionExpansion,
+    SessionListFilters,
+    SessionOrigin,
+    SessionStream,
+} from "@agenta/entities/session"
 
 import {sessionAgentId} from "../row/sessionAgent"
 import {isAutomationSession} from "../row/sessionTrigger"
 
-export type SessionOriginPolicy = "all" | "exclude-trigger" | "trigger-only"
+export type SessionOriginPolicy =
+    | "all"
+    | "exclude-trigger"
+    | "exclude-trigger-and-calling-session"
+    | "trigger-only"
 
 export interface SessionListRequestPolicy {
     origin: SessionOriginPolicy
     expansions: readonly SessionExpansion[]
 }
 
+const EXCLUDED_ORIGINS: Partial<Record<SessionOriginPolicy, SessionOrigin[]>> = {
+    "exclude-trigger": ["trigger"],
+    "exclude-trigger-and-calling-session": ["trigger", "calling_session"],
+}
+
 export const sessionListRequestFilters = (
     policy: SessionListRequestPolicy,
 ): Pick<SessionListFilters, "origins" | "excludeOrigins" | "expand"> => ({
     origins: policy.origin === "trigger-only" ? ["trigger"] : undefined,
-    excludeOrigins: policy.origin === "exclude-trigger" ? ["trigger"] : undefined,
+    excludeOrigins: EXCLUDED_ORIGINS[policy.origin],
     expand: [...policy.expansions],
 })
+
+/**
+ * The session list hides child sessions (origin `calling_session`) unless the reader asks for
+ * them. Only the human list narrows: the automations list already shows trigger sessions alone.
+ */
+export const withChildSessionsPolicy = (
+    policy: SessionListRequestPolicy,
+    showChildSessions: boolean,
+): SessionListRequestPolicy =>
+    policy.origin === "exclude-trigger" && !showChildSessions
+        ? {...policy, origin: "exclude-trigger-and-calling-session"}
+        : policy
 
 export const selectedSessionListPolicy = (
     automationMode: boolean,
