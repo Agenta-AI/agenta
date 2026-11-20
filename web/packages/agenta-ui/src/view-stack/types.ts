@@ -47,6 +47,12 @@ export interface ViewNav {
      * opens over the dirty parent.
      */
     push: (<C>(view: ViewDef<C>, params: C, target: ViewTarget) => Promise<boolean>) | null
+    /**
+     * Put another view in this view's place, at the same depth (guarded like back). For a picker
+     * whose choice is the next step: the crumb shows the new view, and its Save or Back returns
+     * to this view's parent. A new view with a form needs a clean parent, as with `push`.
+     */
+    replace: <C>(view: ViewDef<C>, params: C, target: ViewTarget) => Promise<boolean>
     /** Guarded back: asks first when this view's form is dirty. */
     back: () => Promise<boolean>
     /** Cancel: discards the local form without asking, then goes back. */
@@ -81,7 +87,7 @@ export interface ViewForm {
 
 /** For the container's root and for the container itself. */
 export interface ViewStack {
-    /** Replace the stack with one view at depth 1. Resolves false when the person kept editing. */
+    /** Clear the stack and show one view at depth 1. Resolves false when the person kept editing. */
     open: <P>(view: ViewDef<P>, params: P, target: ViewTarget) => Promise<boolean>
     /** Leave every view. Resolves false when the person chose "Keep editing". */
     closeAll: () => Promise<boolean>

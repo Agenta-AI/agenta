@@ -165,7 +165,7 @@ export const ViewStackHost = ({
         [ask, runSave],
     )
 
-    /** Replace the stack. Forms and titles of views that leave go with them. */
+    /** Set the whole stack. Forms and titles of views that leave go with them. */
     const setStack = useCallback((next: Entry[]) => {
         const kept = new Set(next.map((entry) => entry.key))
         const keep = <T,>(prev: Record<number, T>) => {
@@ -254,25 +254,54 @@ export const ViewStackHost = ({
         setStack(entriesRef.current.slice(0, -1))
     }, [setStack])
 
+    /**
+     * One editable form at a time: a child with its own form needs a clean parent. A picker
+     * ("immediate") opens over the dirty parent, which keeps its edits. After Save or Discard the
+     * parent mounts again, so no stale dirty form stays under the child. False: kept editing.
+     */
+    const parentForChild = useCallback(
+        async (parent: Entry, child: ViewDef<unknown>): Promise<Entry | false> => {
+            if (child.apply !== "on_save") return parent
+            const settled = await settle([parent])
+            if (!settled) return false
+            return settled === "clean" ? parent : remount(parent)
+        },
+        [settle],
+    )
+
     const push = useCallback(
         <C,>(parentKey: number, view: ViewDef<C>, params: C, target: ViewTarget) =>
             exclusive(async () => {
                 const current = entriesRef.current
                 if (current.length !== 1 || current[0].key !== parentKey) return false
-                let parent = current[0]
-                // One editable form at a time: a child with its own form needs a clean parent.
-                // A picker ("immediate") opens over the dirty parent, which keeps its edits.
-                // After Save or Discard the parent mounts again, so no stale dirty form stays
-                // under the child.
-                if (view.apply === "on_save") {
-                    const settled = await settle([parent])
-                    if (!settled) return false
-                    if (settled !== "clean") parent = remount(parent)
-                }
+                const parent = await parentForChild(current[0], view as ViewDef<unknown>)
+                if (!parent) return false
                 setStack([parent, newEntry(view as ViewDef<unknown>, params, target)])
                 return true
             }),
-        [exclusive, settle, setStack],
+        [exclusive, parentForChild, setStack],
+    )
+
+    /**
+     * The view `entryKey` gives its place to a new view at the same depth. Its own form asks
+     * first; at depth 2 a new view with a form also needs a clean parent, as `push` does.
+     */
+    const replace = useCallback(
+        <C,>(entryKey: number, view: ViewDef<C>, params: C, target: ViewTarget) =>
+            exclusive(async () => {
+                const current = entriesRef.current
+                if (current.at(-1)?.key !== entryKey) return false
+                if (!(await settle(current.slice(-1)))) return false
+                const parents: Entry[] = []
+                if (current.length === 2) {
+                    const parent = await parentForChild(current[0], view as ViewDef<unknown>)
+                    if (!parent) return false
+                    parents.push(parent)
+                }
+                setStack([...parents, newEntry(view as ViewDef<unknown>, params, target)])
+                return true
+            }),
+        [exclusive, settle, parentForChild, setStack],
     )
 
     const save = useCallback(async () => {
@@ -347,6 +376,7 @@ export const ViewStackHost = ({
                                 setForms={setForms}
                                 setTitles={setTitles}
                                 push={push}
+                                replace={replace}
                                 back={back}
                                 cancel={cancel}
                             />
@@ -373,6 +403,7 @@ const MountedView = ({
     setForms,
     setTitles,
     push,
+    replace,
     back,
     cancel,
 }: {
@@ -384,6 +415,12 @@ const MountedView = ({
     setTitles: (update: (prev: Record<number, string>) => Record<number, string>) => void
     push: <C>(
         parentKey: number,
+        view: ViewDef<C>,
+        params: C,
+        target: ViewTarget,
+    ) => Promise<boolean>
+    replace: <C>(
+        entryKey: number,
         view: ViewDef<C>,
         params: C,
         target: ViewTarget,
@@ -413,10 +450,11 @@ const MountedView = ({
         () => ({
             depth,
             push: depth === 1 ? (view, params, target) => push(key, view, params, target) : null,
+            replace: (view, params, target) => replace(key, view, params, target),
             back,
             cancel,
         }),
-        [depth, key, push, back, cancel],
+        [depth, key, push, replace, back, cancel],
     )
     const Component = entry.view.Component
     return (
