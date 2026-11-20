@@ -274,3 +274,29 @@ async def test_leaving_an_organization_ends_the_persons_accounts():
         call == {"organization_id": organization_id, "user_id": user_id}
         for _, call in removed
     )
+
+
+async def test_a_re_mint_drops_the_claim_with_the_switch_off(monkeypatch):
+    """Every re-mint route goes through `exchange_run_accounts`: with personal accounts
+    off, a run credential's claim is not carried on."""
+    monkeypatch.setattr(
+        policy_module.env.agenta.access, "personal_accounts_enabled", False
+    )
+    choices = _Choices()
+    monkeypatch.setattr(service_module, "_account_choices_service", choices)
+    envelope = make_envelope(kind="human")
+    claim = [{"item_key": GMAIL, "gateway_connection_id": str(uuid4())}]
+    access = make_request_access(
+        envelope=envelope, credential_kind="run_credential"
+    ).model_copy(update={"run_accounts": run_accounts_from_claim(claim)})
+    request = _request()
+    request.state.run_accounts = access.run_accounts
+    token = set_request_access(access)
+    try:
+        carried = await exchange_run_accounts(
+            request, envelope=envelope, workflow_id=None, item_keys=[GMAIL]
+        )
+    finally:
+        reset_request_access(token)
+    assert carried is None
+    assert choices.calls == []

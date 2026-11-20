@@ -357,28 +357,41 @@ async def test_a_viewer_without_a_sign_in_gets_no_tools_and_no_colleagues(monkey
 
 
 async def test_the_account_read_is_scoped_to_the_sessions_project(monkeypatch):
-    """The account read takes the project and organization of the session, which the
-    statement scopes every sign-in to. The request body names neither."""
+    """The account read takes the project and organization of the session. A body that
+    also names another project or person changes nothing: the request has no such
+    field, and the claim is built from the authenticated request alone."""
     person, grant = uuid4(), uuid4()
     accounts = _install(monkeypatch, {person: grant})
     project_id, organization_id = uuid4(), uuid4()
+    body = GatewayCredentialsRequest.model_validate(
+        {"item_keys": [ITEM_KEY], "project_id": str(uuid4()), "user_id": str(uuid4())}
+    )
 
     with _session(
         person=person, project_id=project_id, organization_id=organization_id
-    ) as env_:
-        await _mint(monkeypatch, envelope=env_, item_keys=[ITEM_KEY])
+    ) as envelope:
+        scope = AuthScope(
+            organization_id=organization_id,
+            workspace_id=organization_id,
+            project_id=project_id,
+            user_id=person,
+        )
+        monkeypatch.setattr(credentials_router, "get_auth_scope", lambda: scope)
+        request = _request("/gateways/credentials")
+        request.state.run_envelope = envelope
+        response = await GatewayCredentialsRouter().issue_gateway_credentials(
+            request, body=body
+        )
 
     (call,) = accounts.calls
-    assert (call["project_id"], call["organization_id"]) == (
+    assert (call["project_id"], call["organization_id"], call["user_id"]) == (
         project_id,
         organization_id,
+        person,
     )
-    assert set(GatewayCredentialsRequest.model_fields) == {
-        "plane",
-        "session_id",
-        "agent_id",
-        "item_keys",
-    }
+    claims = _claims(response.credentials.removeprefix("Secret "))
+    assert claims["project_id"] == str(project_id)
+    assert claims["run_accounts"] == [{"item_key": ITEM_KEY, "secret_id": str(grant)}]
 
 
 async def test_a_server_with_a_project_sign_in_keeps_the_project_path(monkeypatch):
