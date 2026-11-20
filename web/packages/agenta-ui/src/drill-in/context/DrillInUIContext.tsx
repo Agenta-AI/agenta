@@ -229,16 +229,19 @@ export interface SkillsPickerHostProps {
 }
 
 /**
+ * The address of a registry skill: the workflow slug its `@ag.embed` reference stores (with its
+ * random suffix), never the skill name.
+ */
+export interface RegistrySkillParams {
+    slug: string
+}
+
+/**
  * Bridge for the registry-backed "Add skill" flow. Injected as a COMPONENT so this package
  * stays dependency-free: the implementation (registry list, create/upload/import drawers)
  * lives in @agenta/skills-ui and is wired by each host's DrillInUIProvider. Parallels
  * {@link GatewayToolsBridge}. Absent → the panel falls back to the inline-skill editor.
  */
-/** The address of a registry skill: the workflow slug its embed reference stores. */
-export interface RegistrySkillParams {
-    slug: string
-}
-
 export interface SkillsBridge {
     enabled: boolean
     PickerHost: ComponentType<SkillsPickerHostProps>

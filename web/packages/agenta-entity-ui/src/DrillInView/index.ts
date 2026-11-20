@@ -458,10 +458,13 @@ export {
     buildSkillDownload,
     composeSkillMarkdown,
     downloadSkill,
-    skillDownloadKind,
 } from "./SchemaControls/skillDownload"
 export {firstBadFile, skillFilesOf} from "./SchemaControls/skillFiles"
-export {SKILL_ACTION_ROW, SkillViewHeader} from "./SchemaControls/SkillViewHeader"
+export {
+    SKILL_ACTION_ROW,
+    SkillViewHeader,
+    useSkillDownloadAction,
+} from "./SchemaControls/SkillViewHeader"
 export type {SkillAction, SkillViewHeaderProps} from "./SchemaControls/SkillViewHeader"
 export type {SkillDownload} from "./SchemaControls/skillDownload"
 

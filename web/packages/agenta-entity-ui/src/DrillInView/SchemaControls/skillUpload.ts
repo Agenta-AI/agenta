@@ -226,12 +226,12 @@ const looksBinary = (bytes: Uint8Array): boolean => {
     return false
 }
 
-/**
- * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
- * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
- * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
- */
-export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
+/** The files of an upload, split into the text files and the files skipped with a reason. */
+function splitTextFiles(raw: RawFile[]): {
+    files: RawFile[]
+    usable: RawFile[]
+    skipped: {path: string; reason: string}[]
+} {
     const files = raw.filter((f) => f.bytes && !f.path.endsWith("/") && !IGNORED.test(f.path))
     const skipped: {path: string; reason: string}[] = []
     const usable: RawFile[] = []
@@ -241,6 +241,16 @@ export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
             skipped.push({path: f.path, reason: "too large"})
         else usable.push(f)
     }
+    return {files, usable, skipped}
+}
+
+/**
+ * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
+ * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
+ * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
+ */
+export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
+    const {files, usable, skipped} = splitTextFiles(raw)
 
     const skillFiles = usable.filter((f) => SKILL_MD.test(f.path))
     // Nested-skill boundaries come from EVERY SKILL.md, including skipped ones — a
@@ -290,15 +300,7 @@ export interface SkillUpload {
 
 /** Split an upload into its text files and the files that are skipped. */
 export function readSkillUpload(raw: RawFile[]): SkillUpload {
-    const files = raw.filter((f) => f.bytes && !f.path.endsWith("/") && !IGNORED.test(f.path))
-    const skipped: {path: string; reason: string}[] = []
-    const usable: RawFile[] = []
-    for (const f of files) {
-        if (looksBinary(f.bytes)) skipped.push({path: f.path, reason: "binary"})
-        else if (f.bytes.length > FILE_CONTENT_MAX)
-            skipped.push({path: f.path, reason: "too large"})
-        else usable.push(f)
-    }
+    const {usable, skipped} = splitTextFiles(raw)
     return {
         hasSkillMd: usable.some((f) => SKILL_MD.test(f.path)),
         skill: buildSkillFromFiles(usable),

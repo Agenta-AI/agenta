@@ -139,15 +139,13 @@ export const SkillListScreen = ({
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
-    // `?skill=<slug>` opens that skill: the "skill registry" link of an agent's skill view.
+    // `?skill=<workflow slug>` opens that skill: the "skill registry" link of an agent's skill view.
     const router = useRouter()
     const linkedSkill = typeof router.query.skill === "string" ? router.query.skill : ""
     const [openedLink, setOpenedLink] = useState("")
     useEffect(() => {
         if (!linkedSkill || linkedSkill === openedLink) return
-        const row = rows.find(
-            (r) => r.item.workflowSlug === linkedSkill || r.item.slug === linkedSkill,
-        )
+        const row = rows.find((r) => r.item.workflowSlug === linkedSkill)
         if (!row) return
         setOpenedLink(linkedSkill)
         openRow(row)

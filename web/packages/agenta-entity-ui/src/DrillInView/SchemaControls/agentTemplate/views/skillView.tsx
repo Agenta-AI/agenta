@@ -37,7 +37,7 @@ const asSkill = (entry: unknown): Skill | null =>
     entry && typeof entry === "object" ? (entry as Skill) : null
 
 /** An agent-only skill whose name is `key`. */
-export const isInlineSkillWithKey = (entry: unknown, key: string): boolean => {
+export const isAgentOnlySkillWithKey = (entry: unknown, key: string): boolean => {
     const skill = asSkill(entry)
     return Boolean(skill && !isEmbedRefSkill(skill) && skill.name === key)
 }

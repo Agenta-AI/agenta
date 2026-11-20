@@ -6,11 +6,14 @@
 import {useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {SkillMark} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
-import {DotsThreeVertical} from "@phosphor-icons/react"
+import {DotsThreeVertical, DownloadSimple} from "@phosphor-icons/react"
+
+import {downloadSkill, skillDownloadKind} from "./skillDownload"
 
 /** A row of the actions menu: icon, label, full width. */
 export const SKILL_ACTION_ROW =
@@ -23,6 +26,24 @@ export interface SkillAction {
     onSelect: () => void
     danger?: boolean
     disabled?: boolean
+}
+
+/** "Download as .zip" (or "Download SKILL.md") for the "…" menu; none when there is nothing to download. */
+export const useSkillDownloadAction = (skill: Record<string, unknown>): SkillAction[] => {
+    const t = useT(skillFormCatalog)
+    const kind = skillDownloadKind(skill)
+    if (!kind) return []
+    return [
+        {
+            key: "download",
+            label:
+                kind === "zip"
+                    ? t("entityUi.skillForm.downloadZip")
+                    : t("entityUi.skillForm.downloadSkillMd"),
+            icon: <DownloadSimple size={14} className="text-muted-foreground" />,
+            onSelect: () => void downloadSkill(skill),
+        },
+    ]
 }
 
 export interface SkillViewHeaderProps {

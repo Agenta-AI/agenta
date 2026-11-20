@@ -1,9 +1,8 @@
 import {lazy, Suspense} from "react"
 
 import {SkillFormSkeleton} from "@agenta/entity-ui/drill-in"
+import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {defineView, type ViewProps} from "@agenta/ui/view-stack"
-
-import type {RegistrySkillParams} from "./RegistrySkillViewBody"
 
 const Body = lazy(() => import("./RegistrySkillViewBody"))
 
@@ -22,7 +21,7 @@ export const RegistrySkillBody = (props: ViewProps<RegistrySkillParams>) => (
 
 /** A registry skill as its own view, for the Skills page (target `project`). */
 export const registrySkillView = defineView<RegistrySkillParams>({
-    id: "skills.registrySkill",
+    id: "skill.registry",
     apply: "on_save",
     wide: true,
     Component: RegistrySkillBody,

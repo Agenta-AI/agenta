@@ -7,22 +7,20 @@
  * Mounted for an agent (target `agent_draft`): the status line links to the Skills page. Mounted on
  * the Skills page (target `project`): the header adds "Used by" and the menu adds "Add to agent".
  */
-import {createContext, useCallback, useContext, useMemo, useRef, useState} from "react"
+import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {
-    downloadSkill,
     firstBadFile,
     SKILL_ACTION_ROW,
     SkillFormSkeleton,
     SkillFormView,
     SkillViewHeader,
-    skillDownloadKind,
     skillFilesOf,
+    useSkillDownloadAction,
     type SkillAction,
 } from "@agenta/entity-ui/drill-in"
 import {richText, useT} from "@agenta/i18n"
-import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {getHostQueryClient} from "@agenta/shared/api"
@@ -36,6 +34,7 @@ import {
     unarchiveSkill,
 } from "@agenta/skills"
 import {invalidateSkillsListCache, skillsResolveQueryAtom} from "@agenta/skills/state"
+import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
     AlertDialog,
@@ -51,29 +50,22 @@ import {
     PopoverAnchor,
     PopoverContent,
     Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {
-    Archive,
-    ArrowUUpLeft,
-    DownloadSimple,
-    Lightning,
-    Plus,
-    WarningCircle,
-} from "@phosphor-icons/react"
+import {Archive, ArrowUUpLeft, Info, Lightning, Plus, WarningCircle} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {toSkillListItem, toSourceInfo} from "./registrySections"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem, SkillUsageRef} from "./types"
-
-export interface RegistrySkillParams {
-    /** The workflow slug an embed reference stores, or the skill name. */
-    slug: string
-}
 
 /** The head-revision query's key; the registry row's Download reads the same cache. */
 export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
@@ -102,12 +94,11 @@ const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> =
         : {}),
 })
 
-/** The registry entry the slug names: project skills (archived too), then built-ins. */
+/** The registry entry with this workflow slug: project skills (archived too), then built-ins. */
 const useRegistrySkill = (slug: string) => {
     const query = useAtomValue(skillsResolveQueryAtom)
     const item = useMemo<SkillListItem | null>(() => {
-        const matches = (entry: {workflow_slug?: string | null; skill_name?: string | null}) =>
-            entry.workflow_slug === slug || entry.skill_name === slug
+        const matches = (entry: {workflow_slug?: string | null}) => entry.workflow_slug === slug
         const project = query.data?.skills?.find(matches)
         if (project) {
             const mapped = toSkillListItem(project, project.origin ? "imported" : "project")
@@ -117,6 +108,25 @@ const useRegistrySkill = (slug: string) => {
         return builtin ? toSkillListItem(builtin, "builtin") : null
     }, [query.data, slug])
     return {item, query}
+}
+
+/** Open on hover, close a beat after the pointer leaves, so crossing a gap does not shut it. */
+const useHoverOpen = () => {
+    const [open, setOpen] = useState(false)
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const clear = () => {
+        if (timer.current) clearTimeout(timer.current)
+    }
+    useEffect(() => clear, [])
+    const show = useCallback(() => {
+        clear()
+        setOpen(true)
+    }, [])
+    const scheduleHide = useCallback(() => {
+        clear()
+        timer.current = setTimeout(() => setOpen(false), 140)
+    }, [])
+    return {open, setOpen, show, scheduleHide}
 }
 
 const RegistrySkillViewBody = ({params, target, nav}: ViewProps<RegistrySkillParams>) => {
@@ -168,7 +178,7 @@ const RegistrySkillEditor = ({
     inAgent: boolean
     nav: ViewProps<RegistrySkillParams>["nav"]
 }) => {
-    const t = useT(skillsGalleryCatalog, skillViewCatalog, skillFormCatalog)
+    const t = useT(skillsGalleryCatalog, skillViewCatalog)
     // Leave without a question: after an archive or a restore there is nothing left to save.
     const onLeave = nav.cancel
     const agentHref = useContext(SkillAgentHrefContext)
@@ -284,16 +294,12 @@ const RegistrySkillEditor = ({
 
     // "Add to agent" opens the agent picker as a flyout, on hover as the filter menu rows do.
     const [menuOpen, setMenuOpen] = useState(false)
-    const [agentsOpen, setAgentsOpen] = useState(false)
-    const agentsCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const openAgents = useCallback(() => {
-        if (agentsCloseTimer.current) clearTimeout(agentsCloseTimer.current)
-        setAgentsOpen(true)
-    }, [])
-    const scheduleCloseAgents = useCallback(() => {
-        if (agentsCloseTimer.current) clearTimeout(agentsCloseTimer.current)
-        agentsCloseTimer.current = setTimeout(() => setAgentsOpen(false), 140)
-    }, [])
+    const {
+        open: agentsOpen,
+        setOpen: setAgentsOpen,
+        show: openAgents,
+        scheduleHide: scheduleCloseAgents,
+    } = useHoverOpen()
     const addToAgent =
         !inAgent && !readOnly ? (
             <Popover open={agentsOpen} onOpenChange={setAgentsOpen}>
@@ -327,23 +333,11 @@ const RegistrySkillEditor = ({
             </Popover>
         ) : null
 
-    const downloadKind = skillDownloadKind(value)
+    const download = useSkillDownloadAction(value)
     const actions: SkillAction[] = isBuiltin
         ? []
         : [
-              ...(downloadKind
-                  ? [
-                        {
-                            key: "download",
-                            label:
-                                downloadKind === "zip"
-                                    ? t("entityUi.skillForm.downloadZip")
-                                    : t("entityUi.skillForm.downloadSkillMd"),
-                            icon: <DownloadSimple size={14} className="text-muted-foreground" />,
-                            onSelect: () => void downloadSkill(value),
-                        },
-                    ]
-                  : []),
+              ...download,
               ...(!skill.archived
                   ? [
                         {
@@ -357,7 +351,7 @@ const RegistrySkillEditor = ({
                   : []),
           ]
 
-    const registryLink = skillsPageHref(skill.workflowSlug ?? skill.slug)
+    const registryLink = skill.workflowSlug ? skillsPageHref(skill.workflowSlug) : null
     const status = isBuiltin ? (
         <span className="flex items-center gap-0.5">
             <Lightning size={10} weight="fill" />
@@ -383,6 +377,38 @@ const RegistrySkillEditor = ({
         t("skills.gallery.archived")
     ) : null
 
+    // Where an imported skill came from, behind an info mark beside the name.
+    const provenance = skill.source ? (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        aria-label={t("skills.gallery.provenanceAria")}
+                        className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
+                    >
+                        <Info size={14} aria-hidden />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="start">
+                    <span className="flex flex-col gap-0.5">
+                        <span>
+                            {richText(
+                                t("skills.gallery.importedFrom", {source: skill.source.label}),
+                                {mono: (text) => <span className="font-mono">{text}</span>},
+                            )}
+                        </span>
+                        {skill.source.detached ? (
+                            <span className="opacity-80">
+                                {t("skills.gallery.modifiedLocally")}
+                            </span>
+                        ) : null}
+                    </span>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    ) : null
+
     const usage =
         !inAgent && usedBy.length ? (
             <UsedBy
@@ -390,7 +416,7 @@ const RegistrySkillEditor = ({
                 agentHref={agentHref}
                 dirty={dirty}
                 onLeave={onLeave}
-                onAskLeave={() => void nav.back()}
+                onAskLeave={nav.back}
             />
         ) : null
 
@@ -399,7 +425,12 @@ const RegistrySkillEditor = ({
             <SkillViewHeader
                 name={skillTitle(skill)}
                 status={status}
-                extra={usage}
+                extra={
+                    <>
+                        {provenance}
+                        {usage}
+                    </>
+                }
                 actions={actions}
                 menuTop={addToAgent}
                 menuOpen={menuOpen}
@@ -525,20 +556,12 @@ const UsedBy = ({
     agentHref: ((agentId: string) => string) | null
     dirty: boolean
     onLeave: () => void
-    /** The guarded way out: asks first about the edits. */
-    onAskLeave: () => void
+    /** The guarded way out: asks first about the edits; resolves true when the view closed. */
+    onAskLeave: () => Promise<boolean>
 }) => {
     const t = useT(skillsGalleryCatalog)
-    const [open, setOpen] = useState(false)
-    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const show = () => {
-        if (closeTimer.current) clearTimeout(closeTimer.current)
-        setOpen(true)
-    }
-    const scheduleHide = () => {
-        if (closeTimer.current) clearTimeout(closeTimer.current)
-        closeTimer.current = setTimeout(() => setOpen(false), 140)
-    }
+    const router = useRouter()
+    const {open, setOpen, show, scheduleHide} = useHoverOpen()
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverAnchor asChild>
@@ -580,15 +603,18 @@ const UsedBy = ({
                             </span>
                         </>
                     )
-                    // With edits the first click asks about them; the link works after that.
-                    return agentHref ? (
+                    // With edits the link asks first, and goes on once the person saved or discarded.
+                    const href = agentHref?.(agent.id)
+                    return href ? (
                         <Link
                             key={agent.id}
-                            href={agentHref(agent.id)}
+                            href={href}
                             onClick={(event) => {
                                 if (!dirty) return onLeave()
                                 event.preventDefault()
-                                onAskLeave()
+                                void onAskLeave().then((left) => {
+                                    if (left) void router.push(href)
+                                })
                             }}
                             className={cn(SKILL_ACTION_ROW, "no-underline")}
                         >

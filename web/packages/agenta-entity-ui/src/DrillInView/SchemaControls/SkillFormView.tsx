@@ -54,6 +54,7 @@ import {
     fileEdited,
     fileName,
     filePathProblem,
+    pathOf,
     skillFilesOf,
     skillMdEdited,
     type FilePathProblem,
@@ -293,7 +294,8 @@ export function SkillFormView({
     const pathProblem = activeIndex === null ? undefined : filePathProblem(files, activeIndex)
     // An empty path waits for a submit before it says so, like an empty name.
     const shownPathProblem = pathProblem === "empty" && !showMissing ? undefined : pathProblem
-    const newFile = activeIndex !== null && !baselineFiles.some((f) => f.path === activeFile?.path)
+    const activePath = pathOf(activeFile)
+    const newFile = activeIndex !== null && !baselineFiles.some((f) => pathOf(f) === activePath)
 
     const edited = (entry: SkillFileSelection) =>
         entry === "skill" ? skillMdEdited(skill, baseline) : fileEdited(files, entry, baselineFiles)
@@ -303,7 +305,7 @@ export function SkillFormView({
         ? `${t("entityUi.skillView.files", {count: fileCount})} · ${t("entityUi.skillView.edited", {count: editedCount})}`
         : t("entityUi.skillView.files", {count: fileCount})
     const downloadKind = downloadable ? skillDownloadKind(skill) : null
-    const deletingName = deleting === null ? "" : fileName(files[deleting]?.path ?? "")
+    const deletingName = deleting === null ? "" : fileName(pathOf(files[deleting]))
 
     const expandButton = (
         <button
@@ -335,7 +337,7 @@ export function SkillFormView({
                     <PopoverTrigger asChild>
                         <button
                             type="button"
-                            title={activeFile?.path ?? "SKILL.md"}
+                            title={activeFile ? activePath : "SKILL.md"}
                             aria-haspopup="dialog"
                             className="box-border flex h-8 min-w-0 max-w-[70%] cursor-pointer items-center gap-1.5 rounded-control-sm border border-solid border-border bg-background px-2 font-[inherit] text-foreground hover:bg-accent"
                         >
@@ -344,9 +346,7 @@ export function SkillFormView({
                                 {uploading
                                     ? "SKILL.md"
                                     : activeFile
-                                      ? middleCut(
-                                            activeFile.path || t("entityUi.skillForm.untitled"),
-                                        )
+                                      ? middleCut(activePath || t("entityUi.skillForm.untitled"))
                                       : "SKILL.md"}
                             </span>
                             <CaretDown size={12} className="shrink-0 text-muted-foreground" />
@@ -633,7 +633,7 @@ export function SkillFormView({
                                 >
                                     <Input
                                         ref={pathInput}
-                                        value={activeFile?.path ?? ""}
+                                        value={activePath}
                                         onChange={(event) =>
                                             updateFile(activeIndex as number, {
                                                 path: event.target.value,
@@ -677,7 +677,7 @@ export function SkillFormView({
                                     onChange={(next) =>
                                         updateFile(activeIndex as number, {content: next})
                                     }
-                                    language={codeLanguageFromPath(activeFile?.path)}
+                                    language={codeLanguageFromPath(activePath)}
                                     placeholder={t("entityUi.skillForm.fileContent")}
                                     disabled={disabled}
                                     disableDebounce

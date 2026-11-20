@@ -3,29 +3,43 @@ import {useState} from "react"
 import {useT} from "@agenta/i18n"
 import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {DownloadSimple, UploadSimple} from "@phosphor-icons/react"
+import {UploadSimple} from "@phosphor-icons/react"
 
-import {downloadSkill, skillDownloadKind} from "../../skillDownload"
 import {firstBadFile, skillFilesOf} from "../../skillFiles"
 import {SkillFormView} from "../../SkillFormView"
 import {skillDraftError} from "../../skillName"
-import {SkillViewHeader, type SkillAction} from "../../SkillViewHeader"
+import {SkillViewHeader, useSkillDownloadAction, type SkillAction} from "../../SkillViewHeader"
 import {isEmbedRefSkill, isStaticSkill, staticEmbedSlug} from "../itemDescriptors"
 import {useAgentConfigWriter, type AgentConfigWriter} from "../useAgentConfigWriter"
 
-import {findSkillByKey, isInlineSkillWithKey, type SkillViewParams} from "./skillView"
+import {findSkillByKey, isAgentOnlySkillWithKey, type SkillViewParams} from "./skillView"
 
 type Skill = Record<string, unknown>
 
 const skillsOf = (agent: Skill): unknown[] => (Array.isArray(agent.skills) ? agent.skills : [])
 
+/**
+ * Replace the agent-only skill `key` in the agent configuration. False when it left the agent
+ * while the view was open: there is nothing to write into.
+ */
+const replaceAgentOnlySkill = (writer: AgentConfigWriter, key: string, next: Skill): boolean => {
+    let replaced = false
+    writer.update((agent) => {
+        const skills = skillsOf(agent)
+        const index = skills.findIndex((s) => isAgentOnlySkillWithKey(s, key))
+        if (index === -1) return agent
+        replaced = true
+        return {...agent, skills: skills.map((s, i) => (i === index ? next : s))}
+    })
+    return replaced
+}
+
 /** An agent-only skill: a copy is edited; Save writes it into the agent configuration. */
-const InlineSkillBody = ({
+const AgentOnlySkillBody = ({
     skillKey,
     entry,
     writer,
@@ -36,7 +50,7 @@ const InlineSkillBody = ({
     writer: AgentConfigWriter
     nav: ViewProps<SkillViewParams>["nav"]
 }) => {
-    const t = useT(skillViewCatalog, skillFormCatalog, configItemsCatalog, agentTemplateCatalog)
+    const t = useT(skillViewCatalog, configItemsCatalog, agentTemplateCatalog)
     const {skills: bridge} = useDrillInUI()
     // The skill as the view opened it. A builder save meanwhile does not reset the person's edits.
     const [original] = useState(entry)
@@ -53,18 +67,7 @@ const InlineSkillBody = ({
         dirty,
         valid: !readOnly && !invalid && !publishing,
         leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
-        save: async () => {
-            let written = false
-            writer.update((agent) => {
-                const skills = skillsOf(agent)
-                const index = skills.findIndex((s) => isInlineSkillWithKey(s, skillKey))
-                // The skill left the agent while the view was open: nothing to write into.
-                if (index === -1) return agent
-                written = true
-                return {...agent, skills: skills.map((s, i) => (i === index ? draft : s))}
-            })
-            return written
-        },
+        save: async () => replaceAgentOnlySkill(writer, skillKey, draft),
     })
 
     const publish = async () => {
@@ -78,15 +81,8 @@ const InlineSkillBody = ({
                 setPublishError(outcome.error)
                 return
             }
-            let swapped = false
-            writer.update((agent) => {
-                const skills = skillsOf(agent)
-                const index = skills.findIndex((s) => isInlineSkillWithKey(s, skillKey))
-                if (index === -1) return agent
-                swapped = true
-                return {...agent, skills: skills.map((s, i) => (i === index ? outcome.entry : s))}
-            })
-            if (!swapped) setPublishError(t("entityUi.agentTemplate.publishedRowChanged"))
+            if (!replaceAgentOnlySkill(writer, skillKey, outcome.entry))
+                setPublishError(t("entityUi.agentTemplate.publishedRowChanged"))
             // The view finds the published skill by its name; a renamed one has a new address.
             else if (draft.name !== skillKey) nav.cancel()
         } finally {
@@ -94,7 +90,7 @@ const InlineSkillBody = ({
         }
     }
 
-    const downloadKind = skillDownloadKind(draft)
+    const download = useSkillDownloadAction(draft)
     const actions: SkillAction[] = [
         ...(bridge?.publishInlineSkill && !readOnly
             ? [
@@ -109,19 +105,7 @@ const InlineSkillBody = ({
                   },
               ]
             : []),
-        ...(downloadKind
-            ? [
-                  {
-                      key: "download",
-                      label:
-                          downloadKind === "zip"
-                              ? t("entityUi.skillForm.downloadZip")
-                              : t("entityUi.skillForm.downloadSkillMd"),
-                      icon: <DownloadSimple size={14} className="text-muted-foreground" />,
-                      onSelect: () => void downloadSkill(draft),
-                  },
-              ]
-            : []),
+        ...download,
     ]
 
     return (
@@ -164,7 +148,12 @@ const SkillViewBody = ({params, target, nav}: ViewProps<SkillViewParams>) => {
     }
     if (entry && !isEmbedRefSkill(entry)) {
         return (
-            <InlineSkillBody skillKey={params.item.key} entry={entry} writer={writer} nav={nav} />
+            <AgentOnlySkillBody
+                skillKey={params.item.key}
+                entry={entry}
+                writer={writer}
+                nav={nav}
+            />
         )
     }
     return <RemovedSkill title={params.item.key} onBack={() => void nav.back()} />

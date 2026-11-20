@@ -21,8 +21,9 @@ import {
     UploadSimple,
 } from "@phosphor-icons/react"
 
-import {fileFolder, fileName, groupFilesByFolder, searchFiles} from "./skillFiles"
+import {fileFolder, fileName, groupFilesByFolder, pathOf, searchFiles} from "./skillFiles"
 import type {SkillFileEntry} from "./skillUpload"
+import {SKILL_ACTION_ROW} from "./SkillViewHeader"
 
 /** The open entry of the skill view: SKILL.md or a bundled file by index. */
 export type SkillFileSelection = "skill" | number
@@ -49,9 +50,6 @@ export interface SkillFileMenuProps {
 
 const ROW =
     "box-border flex w-full min-w-0 cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
-
-const FOOT_ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:opacity-50"
 
 const EditedDot = ({show}: {show: boolean}) =>
     show ? (
@@ -88,21 +86,22 @@ export function SkillFileMenu({
     const fileRow = (index: number, {withFolder = false} = {}) => {
         const file = files[index]
         if (!file) return null
-        const name = fileName(file.path) || t("entityUi.skillForm.untitled")
+        const path = pathOf(file)
+        const name = fileName(path) || t("entityUi.skillForm.untitled")
         return (
             <div key={index} className="group/row relative">
                 <button
                     type="button"
-                    title={file.path}
+                    title={path}
                     onClick={() => onOpen(index)}
                     className={cn(ROW, selected === index && "bg-accent", !withFolder && "pl-6")}
                 >
                     <FileIcon size={13} className="shrink-0 text-muted-foreground" />
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate font-mono text-xs">{name}</span>
-                        {withFolder && fileFolder(file.path) ? (
+                        {withFolder && fileFolder(path) ? (
                             <span className="truncate text-[11px] text-muted-foreground">
-                                {fileFolder(file.path)}
+                                {fileFolder(path)}
                             </span>
                         ) : null}
                     </span>
@@ -218,19 +217,23 @@ export function SkillFileMenu({
             ) : null}
             <div className="flex shrink-0 flex-col border-0 border-t border-solid border-border p-1">
                 {!disabled ? (
-                    <button type="button" onClick={onAddFile} className={FOOT_ROW}>
+                    <button type="button" onClick={onAddFile} className={SKILL_ACTION_ROW}>
                         <FilePlus size={14} className="text-muted-foreground" />
                         {t("entityUi.skillForm.addAFile")}
                     </button>
                 ) : null}
                 {!disabled && !searching ? (
-                    <button type="button" onClick={onUpload} className={FOOT_ROW}>
+                    <button type="button" onClick={onUpload} className={SKILL_ACTION_ROW}>
                         <UploadSimple size={14} className="text-muted-foreground" />
                         {t("entityUi.skillView.uploadFolderOrZip")}
                     </button>
                 ) : null}
                 {download && !searching ? (
-                    <button type="button" onClick={download.onDownload} className={FOOT_ROW}>
+                    <button
+                        type="button"
+                        onClick={download.onDownload}
+                        className={SKILL_ACTION_ROW}
+                    >
                         <DownloadSimple size={14} className="text-muted-foreground" />
                         <span className="flex-1">{download.label}</span>
                         <span className="text-[11px] text-muted-foreground">{countLine}</span>

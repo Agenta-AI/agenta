@@ -140,7 +140,7 @@ export const RowActions: Story = {
         const canvas = within(canvasElement)
         await userEvent.type(await canvas.findByPlaceholderText("my-skill"), "-v2")
         await openFile(canvasElement, "classify_ticket.py")
-        await userEvent.click(await canvas.findByRole("switch", {name: "Mark executable"}))
+        await userEvent.type(await canvas.findByPlaceholderText("scripts/foo.py"), "x")
         await waitFor(() => expect(canvas.getAllByText(/2 edited/).length).toBeGreaterThan(0))
         await openFileMenu(canvasElement)
     },

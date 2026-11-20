@@ -31,7 +31,8 @@ export function SkillDetailDrawer({
     agentHref,
     width,
 }: SkillDetailDrawerProps) {
-    const slug = skill ? (skill.workflowSlug ?? skill.slug) : ""
+    // A registry skill is addressed by its workflow slug, as an embed reference stores it.
+    const slug = skill?.workflowSlug ?? ""
     const request = useMemo<ViewRequest<{slug: string}>>(
         () => ({view: registrySkillView, params: {slug}, target: {kind: "project"}}),
         [slug],

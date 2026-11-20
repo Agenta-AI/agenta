@@ -17,6 +17,10 @@ export const isSafeSkillPath = (path: string): boolean =>
 export const skillFilesOf = (skill: Record<string, unknown>): SkillFileEntry[] =>
     Array.isArray(skill.files) ? (skill.files as SkillFileEntry[]) : []
 
+/** A file's path as text: a configuration written by hand may hold any value there. */
+export const pathOf = (file: SkillFileEntry | undefined): string =>
+    typeof file?.path === "string" ? file.path : ""
+
 export const fileName = (path: string): string => path.slice(path.lastIndexOf("/") + 1)
 export const fileFolder = (path: string): string =>
     path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""
@@ -31,11 +35,13 @@ export function filePathProblem(
     files: SkillFileEntry[],
     index: number,
 ): FilePathProblem | undefined {
-    const path = files[index]?.path ?? ""
+    const raw = files[index]?.path
+    if (raw != null && typeof raw !== "string") return "invalid"
+    const path = pathOf(files[index])
     if (!path.trim()) return "empty"
     if (path.toLowerCase() === "skill.md") return "skillMd"
     if (!isSafeSkillPath(path)) return "invalid"
-    if (files.some((file, i) => i !== index && file.path === path)) return "duplicate"
+    if (files.some((file, i) => i !== index && pathOf(file) === path)) return "duplicate"
     return undefined
 }
 
@@ -59,7 +65,7 @@ export interface FileMenuFolder {
 export function groupFilesByFolder(files: SkillFileEntry[]): FileMenuFolder[] {
     const groups = new Map<string, number[]>([["", []]])
     files.forEach((file, index) => {
-        const folder = fileFolder(file.path)
+        const folder = fileFolder(pathOf(file))
         const group = groups.get(folder)
         if (group) group.push(index)
         else groups.set(folder, [index])
@@ -73,7 +79,7 @@ export function searchFiles(files: SkillFileEntry[], query: string): number[] {
     if (!needle) return []
     return groupFilesByFolder(files)
         .flatMap((group) => group.files)
-        .filter((index) => (files[index]?.path ?? "").toLowerCase().includes(needle))
+        .filter((index) => pathOf(files[index]).toLowerCase().includes(needle))
 }
 
 const SKILL_MD_FIELDS = [
@@ -98,7 +104,7 @@ export const fileEdited = (
 ): boolean => {
     const file = files[index]
     if (!file) return false
-    const saved = baseline.find((entry) => entry.path === file.path)
+    const saved = baseline.find((entry) => pathOf(entry) === pathOf(file))
     return (
         !saved ||
         saved.content !== file.content ||
