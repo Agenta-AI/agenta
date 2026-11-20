@@ -127,23 +127,32 @@ def _structured_denial(response) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _is_turn(request: Request) -> bool:
+    """Whether the request is a turn (`POST .../invoke`)."""
+    url = getattr(request, "url", None)
+    return getattr(request, "method", None) == "POST" and str(
+        getattr(url, "path", "")
+    ).endswith("/invoke")
+
+
+async def _turn_body(request: Request) -> Optional[Dict[str, Any]]:
+    """The JSON object body of a turn, or None. Parsed whatever the content type says,
+    as the invoke route accepts it: a body that is not JSON fails the turn anyway."""
+    if not _is_turn(request):
+        return None
+    try:
+        body = await request.json()
+    except Exception:  # pylint: disable=broad-except
+        return None
+    return body if isinstance(body, dict) else None
+
+
 async def _run_accounts_params(request: Request) -> Dict[str, Any]:
     """The agent and the "user" item keys of the configuration a turn runs, read from the
     request body (`data.parameters`, and the agent from `references`). Empty when the
     body is not a turn, or names no agent and has no "user" items."""
-    # Only a turn (`.../invoke`) with a JSON body carries an agent configuration.
-    url = getattr(request, "url", None)
-    if getattr(request, "method", None) != "POST" or not str(
-        getattr(url, "path", "")
-    ).endswith("/invoke"):
-        return {}
-    if "json" not in (request.headers.get("content-type") or ""):
-        return {}
-    try:
-        body = await request.json()
-    except Exception:  # pylint: disable=broad-except
-        return {}
-    if not isinstance(body, dict):
+    body = await _turn_body(request)
+    if body is None:
         return {}
     data = body.get("data")
     parameters = data.get("parameters") if isinstance(data, dict) else None
@@ -179,20 +188,10 @@ async def _run_session_params(request: Request) -> Dict[str, Any]:
     `session_id` when it is set, else `header_session_id`. Empty when the request is
     not a turn or names no session: the credential then names no session, also when
     the running normalizer mints one for the turn later."""
-    url = getattr(request, "url", None)
-    if getattr(request, "method", None) != "POST" or not str(
-        getattr(url, "path", "")
-    ).endswith("/invoke"):
+    if not _is_turn(request):
         return {}
-    body = None
-    # The route reads a body with no content type as JSON too.
-    content_type = request.headers.get("content-type") or ""
-    if not content_type or "json" in content_type:
-        try:
-            body = await request.json()
-        except Exception:  # pylint: disable=broad-except
-            body = None
-    body_session_id = body.get("session_id") if isinstance(body, dict) else None
+    body = await _turn_body(request)
+    body_session_id = body.get("session_id") if body is not None else None
     if body_session_id is not None:
         session_id = body_session_id if isinstance(body_session_id, str) else None
     else:
