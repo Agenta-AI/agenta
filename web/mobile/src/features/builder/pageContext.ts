@@ -1,6 +1,8 @@
 import {useEffect} from "react"
 
+import {getDisplayContent} from "@agenta/chat/assets"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
+import type {UIMessage} from "ai"
 import {atom, useSetAtom} from "jotai"
 
 import type {ConfigTab} from "../agent-layout/agentPanelState"
@@ -157,4 +159,15 @@ export const parseSentContextLine = (text: string, displayContent: string): Page
     const original = text.slice(0, edit)
     const end = original.indexOf("\n\n")
     return end < 0 ? null : parseContextLine(original, original.slice(end + 2))
+}
+
+/** The page context line of a stored or live user message, rebuilt from its text. */
+export const sentContextOf = (message: UIMessage): PageContext | null => {
+    const words = getDisplayContent(message)
+    if (typeof words !== "string") return null
+    const text = message.parts
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("")
+    return parseSentContextLine(text, words)
 }
