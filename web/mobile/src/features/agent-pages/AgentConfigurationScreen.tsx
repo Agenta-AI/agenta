@@ -208,7 +208,7 @@ export const AgentConfigurationScreen = ({
                                 `flex h-full min-h-0 min-w-0 flex-col pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`,
                                 // On a phone the Agent and Automations tabs run edge to edge.
                                 phone && (tab === "agent" || tab === "automations")
-                                    ? "px-0 pt-0"
+                                    ? "px-0 pb-0 pt-0"
                                     : "px-4",
                             )}
                         >
