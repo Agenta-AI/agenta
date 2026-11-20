@@ -152,6 +152,11 @@ export const SecretsSectionBody = ({
     // The agent can change while the dialog is open (a builder edit); the dialog then says why.
     const remove = async () => {
         if (removing === null) return
+        // Already gone (removed elsewhere while the dialog was open): nothing to save.
+        if (!bindings.some((binding) => binding.binding.name === removing)) {
+            setRemoving(null)
+            return
+        }
         if (!committed) throw new Error(t("entityUi.agentSecrets.saveAgentFirst"))
         if (dirty) throw new Error(t("entityUi.agentSecrets.saveOrDiscardFirst"))
         const result = await commit({
