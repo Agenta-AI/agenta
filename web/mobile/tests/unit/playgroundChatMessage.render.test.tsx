@@ -7,6 +7,7 @@ import {act, useMemo} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {ChatMessage as StoredMessage, SimpleChatMessage} from "@agenta/playground"
+import {ChatMessage} from "@agenta/playground-ui/panels/chat"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {getAttachments} from "@agenta/shared/utils"
 import {QueryClient} from "@tanstack/react-query"
@@ -16,10 +17,6 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
-
-import {ChatMessage} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatMessage"
-
-// The chat panel has no package entry yet, so the message is imported by its path.
 
 const {http, router, toast} = vi.hoisted(() => ({
     http: {post: vi.fn(), get: vi.fn()},

@@ -13,6 +13,7 @@ import {
     playgroundController,
 } from "@agenta/playground"
 import type {ChatMessage as StoredMessage} from "@agenta/playground"
+import {ChatTurns} from "@agenta/playground-ui/panels/chat"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
@@ -21,10 +22,6 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
-
-import {ChatTurns} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatTurns"
-
-// The chat panel has no package entry yet, so the turns are imported by their path.
 
 const {http, router, toast, callTool} = vi.hoisted(() => ({
     http: {post: vi.fn(), get: vi.fn()},
