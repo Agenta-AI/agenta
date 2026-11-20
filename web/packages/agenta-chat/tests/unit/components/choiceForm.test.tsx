@@ -17,7 +17,8 @@ import {ElicitationDock} from "../../../src/components/ElicitationDock"
 
 afterEach(cleanup)
 
-// A fresh draft store per test: the card restores a saved draft by tool call id.
+// A fresh draft store per test. The card restores a saved draft by tool call id, so a draft from the
+// previous test would open the form on the wrong question.
 beforeEach(() => {
     let store = new Map<string, string>()
     const stub: Storage = {

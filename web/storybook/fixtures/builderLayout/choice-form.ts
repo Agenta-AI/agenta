@@ -61,7 +61,7 @@ export const CHOICE_FORM_INPUT = {
 export const CHOICE_FORM_NOTES = "Escalate any ticket that mentions a refund."
 
 /** The parked call, as the dock reads it from the transcript. */
-export const CHOICE_FORM_META = {
+const CHOICE_FORM_META = {
     toolCallId: "call_choice_form",
     toolName: "request_input",
     renderKind: "elicitation",
