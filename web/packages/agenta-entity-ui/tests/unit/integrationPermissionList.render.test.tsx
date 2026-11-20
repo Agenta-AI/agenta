@@ -26,7 +26,11 @@ afterEach(async () => {
 })
 
 const writeTools = (count: number) =>
-    Array.from({length: count}, (_, i) => ({key: `write_${i}`, name: `Write ${i}`, readOnly: false}))
+    Array.from({length: count}, (_, i) => ({
+        key: `write_${i}`,
+        name: `Write ${i}`,
+        readOnly: false,
+    }))
 
 const render = async (permissions: GatewayConnectionPermissions, toolCount = 3) => {
     await act(async () => {

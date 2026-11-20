@@ -49,7 +49,11 @@ export const sharedAccountOptions = (
         seen.add(connection.slug)
         options.push({slug: connection.slug, name: connection.name || connection.slug})
     }
-    if (entry.accountSource !== USER_ACCOUNT_SOURCE && entry.connection && !seen.has(entry.connection))
+    if (
+        entry.accountSource !== USER_ACCOUNT_SOURCE &&
+        entry.connection &&
+        !seen.has(entry.connection)
+    )
         options.push({slug: entry.connection, name: entry.connection})
     return options
 }

@@ -86,11 +86,13 @@ export function integrationAccountQueries(
             ["tools", "connections", scope.projectId],
             {connections: PROJECT_CONNECTIONS, count: PROJECT_CONNECTIONS.length},
         ],
-        [
-["tools", "connections", "user", VIEWER.id, scope.projectId], own],
+        [["tools", "connections", "user", VIEWER.id, scope.projectId], own],
         // Read once: personal accounts are on for this viewer.
         [["vault", "personal-secrets", VIEWER.id, scope.projectId], []],
-        [["triggers", "subscriptions", scope.projectId], {subscriptions, count: subscriptions.length}],
+        [
+            ["triggers", "subscriptions", scope.projectId],
+            {subscriptions, count: subscriptions.length},
+        ],
         [["triggers", "schedules", scope.projectId], {schedules: [], count: 0}],
         ...variantNameCellQueries(scope, {revision}),
     ]

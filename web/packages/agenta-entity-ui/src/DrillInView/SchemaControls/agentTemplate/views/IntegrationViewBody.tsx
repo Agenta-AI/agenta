@@ -99,7 +99,9 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
     const connectionSlug = integrationRowConnection(row) ?? ""
     const eachPerson = row.entry?.accountSource === USER_ACCOUNT_SOURCE
     const notConnected =
-        eachPerson && access === "on" && personalConnectionsFor(personal, integrationTarget).length === 0
+        eachPerson &&
+        access === "on" &&
+        personalConnectionsFor(personal, integrationTarget).length === 0
     const remove = () => {
         setConfirming(false)
         writer.update((agent) => ({

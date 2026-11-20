@@ -27,8 +27,10 @@ export type {
     PermissionPresetSource,
 } from "./IntegrationPermissionList"
 
-export interface IntegrationPermissionDrawerProps
-    extends Omit<IntegrationPermissionListProps, "permissions"> {
+export interface IntegrationPermissionDrawerProps extends Omit<
+    IntegrationPermissionListProps,
+    "permissions"
+> {
     open: boolean
     onClose: () => void
     /** Null when the integration has no connection entry — its legacy entries span two connections
@@ -115,4 +117,3 @@ export function IntegrationPermissionDrawer({
         </EnhancedDrawer>
     )
 }
-

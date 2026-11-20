@@ -11,7 +11,14 @@ import {
 } from "../../src/DrillInView/SchemaControls/agentTemplate/accounts/integrationAccountSwitch"
 
 const own = (id: string, extra: Record<string, unknown> = {}) =>
-    ({id, slug: id, name: id, integration_key: "zendesk", provider_key: "composio", ...extra}) as never
+    ({
+        id,
+        slug: id,
+        name: id,
+        integration_key: "zendesk",
+        provider_key: "composio",
+        ...extra,
+    }) as never
 
 describe("the account switch", () => {
     it("shows while personal accounts are on", () => {
@@ -30,12 +37,22 @@ describe("Your account", () => {
     it("reads Use my default when the viewer has no choice for this agent", () => {
         expect(yourAccountValue(undefined)).toBe(USE_MY_DEFAULT)
         expect(
-            yourAccountValue({item_key: "k", match: "default", gateway_connection_id: "a", is_ready: true}),
+            yourAccountValue({
+                item_key: "k",
+                match: "default",
+                gateway_connection_id: "a",
+                is_ready: true,
+            }),
         ).toBe(USE_MY_DEFAULT)
     })
     it("reads the chosen account when the viewer picked one", () => {
         expect(
-            yourAccountValue({item_key: "k", match: "choice", gateway_connection_id: "b", is_ready: true}),
+            yourAccountValue({
+                item_key: "k",
+                match: "choice",
+                gateway_connection_id: "b",
+                is_ready: true,
+            }),
         ).toBe("b")
     })
     it("Use my default follows the default account, also after it changes", () => {
