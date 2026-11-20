@@ -45,7 +45,6 @@ import {
     type SessionListView,
 } from "./sessionListView"
 import {sessionScopeFromRoute} from "./sessionRouteScope"
-import {useFiltersOpenOnArrival} from "./useFiltersOpenOnArrival"
 import {showSessionsOnboarding, useProjectHasSessions} from "./useProjectHasSessions"
 import {useSessionRowMenu} from "./useSessionRowMenu"
 
@@ -110,8 +109,6 @@ const SessionListBody = ({
     const routeMode = typeof router.query.mode === "string" ? router.query.mode : undefined
     const routeAgent = typeof router.query.agent === "string" ? router.query.agent : undefined
     const agentLinkEnabled = useDeveloperViewEnabled("observability-app-filter") === true
-    // The agent sidebar's Filter link lands here with the filter menu open, once.
-    const [filterOpen, setFilterOpen] = useFiltersOpenOnArrival()
 
     // Grouping is a display preference a reader sets once; the filters are a question they were
     // asking at the time, so only the first survives a reload — and the rest live in the shared
@@ -303,8 +300,6 @@ const SessionListBody = ({
                                                 onReset={resetView}
                                                 lockedAgent={lockedAgent}
                                                 defaultView={defaultView}
-                                                open={filterOpen}
-                                                onOpenChange={setFilterOpen}
                                             />
                                             {lockedAgent ? (
                                                 <LockedAgentChip

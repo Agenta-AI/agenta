@@ -29,33 +29,3 @@ describe("sidebar layout", () => {
         expect(row?.className).toContain("mb-0")
     })
 })
-
-describe("section heading content", () => {
-    const section = (key: string, title: string, extra = {}) => ({
-        key,
-        title,
-        alwaysOpen: true,
-        groupAction: <button type="button">{`${title} action`}</button>,
-        submenu: [{key: `${key}-row`, title: `${title} row`, link: `/${key}`}],
-        ...extra,
-    })
-
-    it("draws only the heading content in place of a heading's label and controls", () => {
-        render(
-            <NavMenu
-                items={[
-                    section("chats", "Chats", {headingContent: <input aria-label="Find chats" />}),
-                    section("sessions", "Sessions"),
-                ]}
-                collapsed={false}
-            />,
-        )
-        expect(screen.getByLabelText("Find chats")).toBeTruthy()
-        expect(screen.queryByText("Chats")).toBeNull()
-        expect(screen.queryByText("Chats action")).toBeNull()
-        // The rows stay, and the other heading draws as before.
-        expect(screen.getByText("Chats row")).toBeTruthy()
-        expect(screen.getByText("Sessions")).toBeTruthy()
-        expect(screen.getByText("Sessions action")).toBeTruthy()
-    })
-})

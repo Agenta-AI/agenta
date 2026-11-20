@@ -64,9 +64,6 @@ export interface SidebarConfig {
     /** Rendered beside a group's expand caret — a filter control, say. Interactive, so it sits
      * outside the row's stretched link anchor. Groups only; hidden when the rail is collapsed. */
     groupAction?: ReactNode
-    /** Section headings only (an always-open group with no icon): drawn in place of the heading's
-     * label and controls, so the whole row becomes this (a search field, say). */
-    headingContent?: ReactNode
     /** A leaf row's trailing control, revealed on hover or focus. Hidden when the rail is collapsed. */
     rowAction?: ReactNode
     /** Collapsed rail: a leaf's hover flyout in place of its tooltip. The icon still navigates.
@@ -136,4 +133,7 @@ export interface SidebarShellProps {
     /** Dismisses the rail. Passed ONLY by an overlay mount (the drawer), so the header slot can
      * offer a close instead of a collapse toggle without testing a viewport width. */
     onDismiss?: () => void
+    /** The side the rail's content slides in from when it mounts (a focus change between two
+     * sidebars). Unset: no slide. Reduced motion: no slide. */
+    enterFrom?: "start" | "end"
 }

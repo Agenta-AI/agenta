@@ -1,8 +1,7 @@
-import {createElement, useMemo, useState} from "react"
+import {createElement, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {
     SidebarScope,
     SidebarSection,
@@ -22,7 +21,7 @@ import {builderChatHref} from "../builder/builderChatHref"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 
-import {BuilderChatSearchButton, BuilderChatSearchField} from "./BuilderChatSearch"
+import {BuilderChatSearch} from "./BuilderChatSearch"
 import {chatDayLabel} from "./chatDayLabel"
 import {useBuilderChats} from "./useBuilderChats"
 
@@ -31,8 +30,8 @@ export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionI
 /**
  * The builder sidebar (B01): Back, the switcher on "Builder", "New chat" and "Chats", the
  * person's builder chats newest first with the day of their last message. "Back" shows the main
- * sidebar and leaves the page as it is. The search button turns the "Chats" heading into a
- * search field that narrows the chats by title.
+ * sidebar and leaves the page as it is. The search button next to "Chats" opens the search
+ * window over the builder chats.
  */
 export const createBuilderSidebarScope = (
     workspaceId: string,
@@ -52,16 +51,9 @@ export const createBuilderSidebarScope = (
 
     const useSections = (): SidebarSection[] => {
         const t = useT(builderPageCatalog)
-        const tNav = useT(navigationCatalog)
         const bottomItems = useMobileBottomNavItems(projectURL)
-        const [searchOpen, setSearchOpen] = useState(false)
-        const [term, setTerm] = useState("")
-        const chats = useBuilderChats(term)
+        const chats = useBuilderChats()
         return useMemo(() => {
-            const closeSearch = () => {
-                setSearchOpen(false)
-                setTerm("")
-            }
             const now = new Date()
             const words = {today: t("builder.page.today"), yesterday: t("builder.page.yesterday")}
             const rows = chats.rows.map((row) => {
@@ -109,16 +101,7 @@ export const createBuilderSidebarScope = (
                                   isLoading: true,
                               },
                           ]
-                        : term.trim()
-                          ? [
-                                {
-                                    key: "builder-chats-none-found",
-                                    title: tNav("navigation.items.noChatsFound"),
-                                    disabled: true,
-                                    isPlaceholder: true,
-                                },
-                            ]
-                          : []
+                        : []
             return [
                 {
                     key: "builder",
@@ -132,23 +115,18 @@ export const createBuilderSidebarScope = (
                             scrollChildren: true,
                             hideChildrenWhenCollapsed: true,
                             onReachEnd: chats.loadMore,
-                            groupAction: createElement(BuilderChatSearchButton, {
-                                onOpen: () => setSearchOpen(true),
+                            // The search window over every builder chat (B06). No filter.
+                            groupAction: createElement(BuilderChatSearch, {
+                                workspaceId,
+                                projectId,
                             }),
-                            headingContent: searchOpen
-                                ? createElement(BuilderChatSearchField, {
-                                      term,
-                                      onTermChange: setTerm,
-                                      onClose: closeSearch,
-                                  })
-                                : undefined,
                             submenu: [...rows, ...states],
                         },
                     ],
                 },
                 {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
             ]
-        }, [bottomItems, chats, searchOpen, t, tNav, term])
+        }, [bottomItems, chats, t])
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {

@@ -13,6 +13,7 @@ import {
     openMainSidebar,
 } from "../../src/features/agent-sidebar/selectedSidebar"
 import {switchTarget} from "../../src/features/agent-sidebar/switchAgent"
+import {sidebarEnterFrom} from "../../src/features/nav/railScope"
 
 const SESSION = "/w/[workspace_id]/p/[project_id]/sessions/[session_id]"
 const AGENT = "/w/[workspace_id]/p/[project_id]/agents/[agent_id]"
@@ -161,18 +162,17 @@ describe("the agent sidebar's session rows", () => {
             "agent-sidebar-analytics",
             "agent-sidebar-sessions",
         ])
-        // No icon and always open: the rail draws it as a heading link with a Filter button.
+        // No icon and always open: the rail draws it as a heading link.
         const group = sessionsGroup(items)
         expect(group.icon).toBeUndefined()
         expect(group.alwaysOpen).toBe(true)
-        expect(group.groupAction).toBeDefined()
     })
 
-    it("opens the Sessions page with the filter menu from Filter, and without it from Sessions", () => {
-        const group = sessionsGroup(agentSidebarItems(base))
+    it("links Sessions to the Sessions page and puts the host's search control on the heading", () => {
+        const sessionsActions = "search control"
+        const group = sessionsGroup(agentSidebarItems({...base, sessionsActions}))
         expect(group.link).toBe("/w/w1/p/p1/agents/a1?view=sessions")
-        const filter = group.groupAction as {props: {href: string}}
-        expect(filter.props.href).toBe("/w/w1/p/p1/agents/a1?view=sessions&filters=open")
+        expect(group.groupAction).toBe(sessionsActions)
     })
 
     it("shows Sessions without a number until the count loads, then the older sessions row", () => {
@@ -239,5 +239,19 @@ describe("the switcher's agent order", () => {
             "c",
             "d",
         ])
+    })
+})
+
+describe("the slide between the main sidebar and an agent sidebar", () => {
+    it("slides the agent sidebar in from the end, and the main sidebar back from the start", () => {
+        expect(sidebarEnterFrom("mobile-main", "agent-sidebar:a1")).toBe("end")
+        expect(sidebarEnterFrom("agent-sidebar:a1", "mobile-main")).toBe("start")
+        expect(sidebarEnterFrom("builder-sidebar", "agent-sidebar:a1")).toBe("end")
+    })
+
+    it("does not slide on the first mount, on the same sidebar, or from one agent to another", () => {
+        expect(sidebarEnterFrom(null, "agent-sidebar:a1")).toBeUndefined()
+        expect(sidebarEnterFrom("mobile-main", "mobile-main")).toBeUndefined()
+        expect(sidebarEnterFrom("agent-sidebar:a1", "agent-sidebar:a2")).toBeUndefined()
     })
 })

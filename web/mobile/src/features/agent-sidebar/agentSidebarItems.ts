@@ -9,11 +9,9 @@ import {
     ArrowClockwiseIcon,
     BroadcastIcon,
     ChartBarIcon,
-    FadersHorizontalIcon,
     LightningIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
-import Link from "next/link"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
 import {groupByDay} from "./dayGroups"
@@ -39,7 +37,6 @@ export type AgentSidebarText = (
         | "agentSidebar.earlier"
         | "agentSidebar.showOlderSessions"
         | "agentSidebar.showOlderSessionsShort"
-        | "agentSidebar.filter"
         | "agentSidebar.loading"
         | "agentSidebar.loadError"
         | "agentSidebar.retry",
@@ -48,9 +45,6 @@ export type AgentSidebarText = (
 
 export const AGENT_SIDEBAR_SESSIONS_KEY = "agent-sidebar-sessions"
 
-/** The query that asks the agent's Sessions page to open its filter menu on arrival. The
- * Sessions page reads `filters=open`. */
-export const SESSIONS_FILTERS_OPEN = "filters=open"
 export const agentSidebarSessionKey = (sessionId: string) => `agent-sidebar-session-${sessionId}`
 
 /** The row that marks an agent page as the current one. */
@@ -105,7 +99,7 @@ const sessionIcon = (session: AgentSidebarSession) => {
 
 /**
  * The rows of one agent's sidebar (A01): Configuration, Channels, Analytics, then the heading
- * link "Sessions" with the count and a Filter button, the latest sessions grouped by day, and
+ * link "Sessions" with the count and its search and filter controls, the latest sessions grouped by day, and
  * "Show N older sessions" when the agent has more. `total` is null until the count loads.
  * "New session" is a button in the sidebar's header, not a row.
  */
@@ -119,6 +113,7 @@ export const agentSidebarItems = ({
     t,
     phone = false,
     wrapSessionRow,
+    sessionsActions,
 }: {
     projectURL: string
     agentId: string
@@ -133,6 +128,8 @@ export const agentSidebarItems = ({
     phone?: boolean
     /** The row menu and inline rename, as the main sidebar has them. */
     wrapSessionRow?: (session: SessionRowTarget, node: ReactNode) => ReactElement
+    /** The controls at the right of the "Sessions" heading: search, then filter. */
+    sessionsActions?: ReactNode
 }): SidebarConfig[] => {
     const sessionsHref = agentPageHref(projectURL, agentId, "sessions")
     const pageRow = (view: AgentPageView, title: string, icon: ReactNode): SidebarConfig => ({
@@ -220,20 +217,8 @@ export const agentSidebarItems = ({
             scrollChildren: true,
             // No number until the count loads; the phone sheet draws none.
             suffix: total !== null && !phone ? formatNumber(total) : undefined,
-            // The filters live on the Sessions page of this agent: Filter opens it with the
-            // filter menu open.
-            groupAction: createElement(
-                Link,
-                {
-                    href: `${sessionsHref}&${SESSIONS_FILTERS_OPEN}`,
-                    prefetch: false,
-                    "aria-label": t("agentSidebar.filter"),
-                    title: t("agentSidebar.filter"),
-                    className:
-                        "flex size-6 items-center justify-center rounded-sm !text-colorTextSecondary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
-                },
-                createElement(FadersHorizontalIcon, {size: 14}),
-            ),
+            // Search and filter, as on the main sidebar's Sessions row (the host builds them).
+            groupAction: sessionsActions,
             submenu: rows,
         },
     ]

@@ -1,6 +1,5 @@
-import {useContext, useMemo, useState} from "react"
+import {useContext, useMemo, useState, type ReactNode} from "react"
 
-import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
@@ -10,7 +9,6 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
@@ -33,27 +31,59 @@ const agentName = (agent: SwitcherAgent | undefined) => agent?.name || agent?.sl
 export type SwitcherCurrent = {kind: "agent"; agentId: string} | {kind: "builder"}
 
 /** The builder's tile in the switcher: the agent tile's size, on the neutral fill. */
-const BuilderTile = () => (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorSplit text-colorText">
-        <BuilderIcon size={18} />
+const BuilderTile = ({small = false}: {small?: boolean}) => (
+    <span
+        className={`flex shrink-0 items-center justify-center bg-colorSplit text-colorText ${small ? "size-[22px] rounded-[5px]" : "size-8 rounded-md"}`}
+    >
+        <BuilderIcon size={small ? 14 : 18} />
     </span>
 )
 
+/** One row of the switcher menu. The current one is in medium weight with a check at the end. */
+const SwitcherMenuItem = ({
+    current,
+    tile,
+    label,
+    onSelect,
+    testId,
+}: {
+    current: boolean
+    tile: ReactNode
+    label: string
+    onSelect: () => void
+    testId?: string
+}) => (
+    <DropdownMenuItem
+        data-testid={testId}
+        aria-current={current ? "true" : undefined}
+        // The current one stays where it is: picking it changes nothing.
+        onSelect={current ? undefined : onSelect}
+        className={current ? "font-medium" : undefined}
+    >
+        {tile}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {current ? <CheckIcon aria-hidden size={14} className="shrink-0 text-colorText" /> : null}
+    </DropdownMenuItem>
+)
+
 /**
- * The sidebar switcher: the sidebar's agent (or the builder), and a menu with every agent the
- * person can see. In the builder sidebar the menu starts with "Builder", checked, and has no
- * search field. What a pick opens is the host's (`onPick`).
+ * The sidebar switcher: the sidebar's agent (or the builder), and a menu with "Builder" and every
+ * agent the person can see, the current one checked (B05, A13). The agent sidebar's menu gets a
+ * search field above 8 agents; the builder sidebar's has none. What a pick opens is the host's.
  */
 export const AgentSidebarSwitcher = ({
     agents,
     current,
     collapsed,
     onPick,
+    onPickBuilder,
 }: {
     agents: SwitcherAgent[]
     current: SwitcherCurrent
     collapsed: boolean
     onPick: (agentId: string) => void
+    /** "Builder" in the menu: opens the builder page. */
+    onPickBuilder: () => void
 }) => {
     const t = useT(agentSidebarCatalog)
     const tBuilder = useT(builderPageCatalog)
@@ -109,22 +139,7 @@ export const AgentSidebarSwitcher = ({
                     )}
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-[420px] w-[260px] overflow-y-auto">
-                {builder ? (
-                    <>
-                        <DropdownMenuItem data-testid="agent-sidebar-switcher-builder">
-                            <BuilderIcon size={16} />
-                            <span className="truncate">{name}</span>
-                            <CheckIcon
-                                aria-hidden
-                                size={14}
-                                className="ml-auto shrink-0 text-colorTextSecondary"
-                            />
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                    </>
-                ) : null}
-                <DropdownMenuLabel>{t("agentSidebar.agents")}</DropdownMenuLabel>
+            <DropdownMenuContent align="start" className="max-h-[420px] w-[222px] overflow-y-auto">
                 {!builder && agents.length > SEARCH_FROM ? (
                     <input
                         // Typing must reach the field, not the menu's type-ahead. ArrowDown moves
@@ -148,15 +163,22 @@ export const AgentSidebarSwitcher = ({
                         className="mx-1 mb-1 h-8 w-[calc(100%-8px)] rounded-md border border-solid border-colorBorder bg-transparent px-2 text-sm text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
                     />
                 ) : null}
+                <SwitcherMenuItem
+                    current={builder}
+                    tile={<BuilderTile small />}
+                    label={tBuilder("builder.page.builder")}
+                    onSelect={onPickBuilder}
+                    testId="agent-sidebar-switcher-builder"
+                />
+                <DropdownMenuSeparator />
                 {shown.map((agent) => (
-                    <DropdownMenuItem
+                    <SwitcherMenuItem
                         key={agent.id}
-                        disabled={agent.id === agentId}
+                        current={agent.id === agentId}
+                        tile={<SwitcherTile agentId={agent.id} small />}
+                        label={agentName(agent)}
                         onSelect={() => onPick(agent.id)}
-                    >
-                        <AgentChip workflowId={agent.id} box="size-4" glyph={10} />
-                        <span className="truncate">{agentName(agent)}</span>
-                    </DropdownMenuItem>
+                    />
                 ))}
             </DropdownMenuContent>
         </DropdownMenu>

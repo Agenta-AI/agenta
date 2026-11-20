@@ -1,73 +1,124 @@
+import {createElement, useCallback, useEffect, useMemo, useState} from "react"
+
 import {useT} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
-import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {MagnifyingGlassIcon, XIcon} from "@phosphor-icons/react"
+import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import {CommandPalette, type CommandPaletteGroup} from "@agenta/navigation-ui"
+import {Spinner} from "@agenta/ui/ui"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
+import {useRouter} from "next/router"
 
-const ICON_BUTTON =
-    "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-colorTextSecondary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
+import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
+import {builderChatHref} from "../builder/builderChatHref"
 
-/** The search button at the right of the "Chats" heading. */
-export const BuilderChatSearchButton = ({onOpen}: {onOpen: () => void}) => {
-    const t = useT(commonCatalog)
+import {chatDayLabel} from "./chatDayLabel"
+import {useBuilderChats} from "./useBuilderChats"
+
+/** The search waits this long after the last key: it is a server request. */
+const SEARCH_DEBOUNCE_MS = 300
+
+/**
+ * The search window over the builder chats (B06): the production search window, opened from
+ * the search button next to "Chats". It searches every builder chat by title on the server.
+ */
+const BuilderChatSearchWindow = ({
+    workspaceId,
+    projectId,
+    open,
+    onOpenChange,
+}: {
+    workspaceId: string
+    projectId: string
+    open: boolean
+    onOpenChange: (open: boolean) => void
+}) => {
+    const t = useT(builderPageCatalog, navigationCatalog)
+    const router = useRouter()
+    const [query, setQuery] = useState("")
+    const [term, setTerm] = useState("")
+    useEffect(() => {
+        const timer = setTimeout(() => setTerm(query.trim()), SEARCH_DEBOUNCE_MS)
+        return () => clearTimeout(timer)
+    }, [query])
+    // With no term this is the sidebar's own list query, so opening the window sends nothing new.
+    const chats = useBuilderChats(term)
+    const groups = useMemo<CommandPaletteGroup[]>(() => {
+        const now = new Date()
+        const words = {today: t("builder.page.today"), yesterday: t("builder.page.yesterday")}
+        return [
+            {
+                key: "builder-chats",
+                // No heading: the window lists one kind of thing.
+                heading: "",
+                entries: chats.rows.map((row) => ({
+                    key: row.session_id,
+                    label: row.name?.trim() || t("builder.page.untitledChat"),
+                    icon: row.flags?.is_running
+                        ? createElement(Spinner, {className: "size-3"})
+                        : sessionBullet("idle"),
+                    hint: chatDayLabel(row.updated_at, now, words),
+                    href: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),
+                })),
+            },
+        ]
+    }, [chats.rows, projectId, t, workspaceId])
+    const onWindowOpenChange = useCallback(
+        (next: boolean) => {
+            onOpenChange(next)
+            // Cleared on close, so a reopen starts on every chat.
+            if (!next) {
+                setQuery("")
+                setTerm("")
+            }
+        },
+        [onOpenChange],
+    )
     return (
-        <button
-            type="button"
-            aria-label={t("common.search")}
-            title={t("common.search")}
-            data-testid="builder-chats-search"
-            onClick={onOpen}
-            // The glyph sits where the design puts it (12 px from the row's end), and the 24 px
-            // target does not make the 20 px heading taller.
-            className={`${ICON_BUTTON} -my-0.5 -mr-[5px]`}
-        >
-            <MagnifyingGlassIcon size={14} />
-        </button>
+        <CommandPalette
+            open={open}
+            onOpenChange={onWindowOpenChange}
+            query={query}
+            onQueryChange={setQuery}
+            groups={groups}
+            loading={chats.pending || term !== query.trim()}
+            onNavigate={(href) => void router.push(href)}
+            placeholder={t("navigation.items.searchChats")}
+        />
     )
 }
 
-/**
- * The "Chats" heading row as a search field, with the cursor in it. It writes the term on a
- * debounce (the search is a server predicate). Escape or the x closes it and clears the term.
- */
-export const BuilderChatSearchField = ({
-    term,
-    onTermChange,
-    onClose,
+/** The search button at the right of the "Chats" heading, and the window it opens. */
+export const BuilderChatSearch = ({
+    workspaceId,
+    projectId,
 }: {
-    term: string
-    onTermChange: (term: string) => void
-    onClose: () => void
+    workspaceId: string
+    projectId: string
 }) => {
-    const t = useT(commonCatalog)
-    const search = useDebouncedAtomSearch(onTermChange, 300, term)
+    const t = useT(navigationCatalog)
+    const [open, setOpen] = useState(false)
     return (
-        // -my-1 keeps the heading row's height: the list under it does not move.
-        <div className="-my-1 flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md border border-solid border-colorBorder bg-colorBgContainer pl-2 pr-0.5 focus-within:border-colorPrimary">
-            <MagnifyingGlassIcon size={14} className="shrink-0 text-colorTextTertiary" />
-            <input
-                autoFocus
-                value={search.value}
-                onChange={(event) => search.onChange(event.target.value)}
-                onKeyDown={(event) => {
-                    if (event.key !== "Escape") return
-                    event.preventDefault()
-                    event.stopPropagation()
-                    onClose()
-                }}
-                placeholder={t("common.search")}
-                aria-label={t("common.search")}
-                data-testid="builder-chats-search-field"
-                className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] text-colorText outline-none [font-family:inherit] placeholder:text-colorTextTertiary"
-            />
+        <>
             <button
                 type="button"
-                aria-label={t("common.clearSearch")}
-                title={t("common.clearSearch")}
-                onClick={onClose}
-                className={ICON_BUTTON}
+                aria-label={t("navigation.items.searchChats")}
+                title={t("navigation.items.searchChats")}
+                data-testid="builder-chats-search"
+                onClick={() => setOpen(true)}
+                // The glyph sits where the design puts it (12 px from the row's end), and the
+                // 24 px target does not make the 20 px heading taller.
+                className="-my-0.5 -mr-[5px] flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-colorTextSecondary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
             >
-                <XIcon size={12} />
+                <MagnifyingGlassIcon size={14} />
             </button>
-        </div>
+            {open ? (
+                <BuilderChatSearchWindow
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    open={open}
+                    onOpenChange={setOpen}
+                />
+            ) : null}
+        </>
     )
 }

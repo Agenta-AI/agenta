@@ -1,7 +1,8 @@
-import {useCallback, useContext, useMemo} from "react"
+import {createElement, useCallback, useContext, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {livePollInterval} from "@agenta/navigation"
 import type {
     SidebarScope,
@@ -9,7 +10,12 @@ import type {
     SidebarSelection,
     SidebarSlotContext,
 } from "@agenta/navigation"
-import {SidebarBackButton, SidebarLayoutContext, SidebarToggleButton} from "@agenta/navigation-ui"
+import {
+    SessionSearchButton,
+    SidebarBackButton,
+    SidebarLayoutContext,
+    SidebarToggleButton,
+} from "@agenta/navigation-ui"
 import {sessionRowVm} from "@agenta/sessions/row"
 import {pendingBySessionId, useActionableInteractions} from "@agenta/sessions/state"
 import {useQuery} from "@tanstack/react-query"
@@ -18,7 +24,11 @@ import {useRouter} from "next/router"
 import {agentEntryHref} from "../agents/agentEntry"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
-import {useMobileBottomNavItems, useRailSessionRowWrapper} from "../nav/useMobileNavItems"
+import {
+    useMobileBottomNavItems,
+    usePaletteShortcut,
+    useRailSessionRowWrapper,
+} from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
 import {agentSessionsQuery} from "./agentSessionsQuery"
@@ -101,6 +111,17 @@ export const createAgentSidebarScope = (
         const bottomItems = useMobileBottomNavItems(projectURL)
         const wrapSessionRow = useRailSessionRowWrapper(projectURL)
         const {sessions, total, status, retry} = useAgentSessions(projectId, agentId)
+        const tNav = useT(navigationCatalog)
+        const paletteShortcut = usePaletteShortcut()
+        // The main sidebar's Sessions controls: search opens the search window.
+        const sessionsActions = useMemo(
+            () =>
+                createElement(SessionSearchButton, {
+                    label: tNav("navigation.items.search"),
+                    shortcut: paletteShortcut,
+                }),
+            [paletteShortcut, tNav],
+        )
 
         return useMemo(() => {
             const agent: SidebarSection = {
@@ -115,6 +136,7 @@ export const createAgentSidebarScope = (
                     t,
                     phone,
                     wrapSessionRow: phone ? undefined : wrapSessionRow,
+                    sessionsActions,
                 }),
             }
             return phone
@@ -123,7 +145,7 @@ export const createAgentSidebarScope = (
                       agent,
                       {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
                   ]
-        }, [bottomItems, phone, retry, sessions, status, t, total, wrapSessionRow])
+        }, [bottomItems, phone, retry, sessions, sessionsActions, status, t, total, wrapSessionRow])
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {

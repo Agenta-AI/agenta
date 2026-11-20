@@ -245,6 +245,18 @@ export const useRailSessionRowWrapper = (projectURL: string) => {
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
  */
+/** The chord that opens the search window, for the search buttons' tooltips. */
+export const usePaletteShortcut = () => {
+    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
+    const mac = useIsMacPlatform()
+    return useMemo(() => {
+        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
+        return shortcut
+            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
+            : undefined
+    }, [mac])
+}
+
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog)
     const tBuilder = useT(builderPageCatalog)
@@ -266,14 +278,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // call changes identity on every render — which busts the memo below, re-buckets every row,
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
-    const mac = useIsMacPlatform()
-    const paletteShortcut = useMemo(() => {
-        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
-        return shortcut
-            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
-            : undefined
-    }, [mac])
+    const paletteShortcut = usePaletteShortcut()
     const developerViews = useEnabledDeveloperViews()
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const wrapSession = useRailSessionRowWrapper(projectURL)
