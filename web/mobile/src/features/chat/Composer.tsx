@@ -137,12 +137,13 @@ export const Composer = ({
     })
     const openModelPicker = slash.openModelPicker
     useEffect(() => {
-        if (!modelPickerRef) return
+        // No palette, no picker: "Switch model" elsewhere does nothing here either.
+        if (!modelPickerRef || hideSlashCommands) return
         modelPickerRef.current = openModelPicker
         return () => {
             modelPickerRef.current = null
         }
-    }, [modelPickerRef, openModelPicker])
+    }, [modelPickerRef, openModelPicker, hideSlashCommands])
     // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
     // the still-focused panel leaves the DOM.
     const hadPickerRef = useRef(slash.picker)

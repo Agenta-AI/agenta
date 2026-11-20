@@ -14,7 +14,7 @@ import {ArrowLeft, ArrowsOut, CaretDown, Hammer, Plus, X} from "@phosphor-icons/
 import Link from "next/link"
 
 import {useChatAgeLabel} from "./ChatRows"
-import type {BuilderChatRow} from "./openRule"
+import type {BuilderChatRow} from "./useBuilderChatList"
 
 /** Chats in the title menu. */
 export const TITLE_MENU_CHATS = 5
@@ -28,7 +28,7 @@ const headerClass =
  */
 export const BuilderHeader = ({
     title,
-    history,
+    isHistory,
     menuRows,
     onBack,
     onOpenChat,
@@ -39,13 +39,14 @@ export const BuilderHeader = ({
 }: {
     title: string
     /** The history shows: a back arrow and "Chat history" take the title's place. */
-    history: boolean
+    isHistory: boolean
     menuRows: readonly BuilderChatRow[]
     onBack: () => void
     onOpenChat: (sessionId: string) => void
     onOpenHistory: () => void
     onNewChat: () => void
-    openInBuilderHref: string
+    /** Null while the panel picks the chat. */
+    openInBuilderHref: string | null
     onClose: () => void
 }) => {
     const t = useT(builderPanelCatalog)
@@ -65,7 +66,7 @@ export const BuilderHeader = ({
     )
     return (
         <div className={headerClass} data-testid="builder-panel-header">
-            {history ? (
+            {isHistory ? (
                 <>
                     {iconButton(t("builder.panel.back"), <ArrowLeft aria-hidden />, onBack)}
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">
@@ -116,18 +117,20 @@ export const BuilderHeader = ({
                 </div>
             )}
             {iconButton(t("builder.panel.newChat"), <Plus aria-hidden />, onNewChat)}
-            <Button
-                asChild
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                aria-label={t("builder.panel.openInBuilder")}
-                title={t("builder.panel.openInBuilder")}
-            >
-                <Link href={openInBuilderHref} data-testid="builder-open-in-builder">
-                    <ArrowsOut aria-hidden />
-                </Link>
-            </Button>
+            {openInBuilderHref ? (
+                <Button
+                    asChild
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0"
+                    aria-label={t("builder.panel.openInBuilder")}
+                    title={t("builder.panel.openInBuilder")}
+                >
+                    <Link href={openInBuilderHref} data-testid="builder-open-in-builder">
+                        <ArrowsOut aria-hidden />
+                    </Link>
+                </Button>
+            ) : null}
             {iconButton(t("builder.panel.close"), <X aria-hidden />, onClose)}
         </div>
     )

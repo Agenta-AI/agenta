@@ -376,7 +376,7 @@ describe("LiveConversation slots", () => {
         const inputRef = {current: null}
         await render({
             emptyState: <div data-testid="empty" />,
-            composerHeader: <span data-testid="chip" />,
+            composerHeaderExtra: <span data-testid="chip" />,
             belowComposer: <div data-testid="below" />,
             composerPlaceholder: "Ask the builder about this agent",
             inputRef,

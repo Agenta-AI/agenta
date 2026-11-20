@@ -1,7 +1,11 @@
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 
-import {chatAge, type BuilderChatRow} from "./openRule"
+import {chatAge} from "./openRule"
+import type {BuilderChatRow} from "./useBuilderChatList"
+
+/** Rows under "Recent chats". */
+export const RECENT_CHATS = 3
 
 /** "3d": the age of a chat by its last activity. */
 export const useChatAgeLabel = () => {
@@ -100,7 +104,7 @@ export const RecentChats = ({
                 <ChatListFailed onRetry={onRetry} />
             ) : (
                 rows
-                    .slice(0, 3)
+                    .slice(0, RECENT_CHATS)
                     .map((row) => (
                         <ChatRow key={row.session_id} row={row} now={now} onOpen={onOpen} />
                     ))

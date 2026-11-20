@@ -15,7 +15,7 @@ export interface PageContext {
     /** The agent of the screen. Always sent. */
     agent: {id: string; name: string}
     /** The part of the page, while the page has one to give. */
-    page?: PageContextPage
+    page?: PagePart
     /** An open view form has edits that are not applied to the agent yet. */
     has_unsaved_draft: boolean
 }
@@ -36,7 +36,7 @@ export interface SessionPagePart {
     session: {id: string; name?: string}
 }
 
-export type PageContextPage = ConfigurationPagePart | SessionPagePart
+export type PagePart = ConfigurationPagePart | SessionPagePart
 
 /**
  * The page part, written by the page that shows it (the Configuration page writes its tab and
@@ -75,7 +75,7 @@ export interface PageSessionState {
 export const resolvePagePart = (
     configuration: ConfigurationPagePart | null,
     session: PageSessionState | null,
-): PageContextPage | null => {
+): PagePart | null => {
     if (configuration) return configuration
     if (!session) return null
     if (session.pending) return {kind: "session", session: {id: session.id}}
@@ -85,7 +85,7 @@ export const resolvePagePart = (
 }
 
 /** One value per page part, so a removal can be tied to the page it was made on. */
-export const pagePartKey = (page: PageContextPage | null): string | null => {
+export const pagePartKey = (page: PagePart | null): string | null => {
     if (!page) return null
     if (page.kind === "session") return `session:${page.session.id}`
     return `configuration:${page.tab}:${page.item ? `${page.item.list}:${page.item.key}` : ""}`
@@ -128,14 +128,20 @@ export const parseContextLine = (text: string, displayContent: string): PageCont
     return (isPagePart(page) ? {...rest, page} : rest) as unknown as PageContext
 }
 
-const isPagePart = (page: unknown): page is PageContextPage => {
+const isPagePart = (page: unknown): page is PagePart => {
     if (!isRecord(page)) return false
     if (page.kind === "session")
-        return isRecord(page.session) && typeof page.session.id === "string"
+        return (
+            isRecord(page.session) &&
+            typeof page.session.id === "string" &&
+            (page.session.name === undefined || typeof page.session.name === "string")
+        )
     if (page.kind !== "configuration" || typeof page.tab !== "string") return false
     if (page.item === undefined) return true
     return isRecord(page.item) && typeof page.item.name === "string"
 }
+
+const EDIT_MARKER = "\n\nUpdated user request ("
 
 /**
  * The context of a sent message: its own line, or for an edited message (its text is the
@@ -144,8 +150,11 @@ const isPagePart = (page: unknown): page is PageContextPage => {
 export const parseSentContextLine = (text: string, displayContent: string): PageContext | null => {
     const own = parseContextLine(text, displayContent)
     if (own) return own
-    const end = text.indexOf("\n\n")
-    if (end < 0) return null
-    const rest = text.slice(end + 2)
-    return parseContextLine(text, rest)
+    // `editedExecutionText` (chat assets) keeps the original text and appends the edit after
+    // this marker; only such a text reads the line of its original.
+    const edit = text.indexOf(EDIT_MARKER)
+    if (edit < 0 || !text.endsWith(displayContent)) return null
+    const original = text.slice(0, edit)
+    const end = original.indexOf("\n\n")
+    return end < 0 ? null : parseContextLine(original, original.slice(end + 2))
 }

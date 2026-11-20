@@ -369,14 +369,12 @@ const TurnRowInner = ({
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
     const header =
-        accessory && attachmentStrip ? (
+        accessory || attachmentStrip ? (
             <>
                 {accessory}
                 {attachmentStrip}
             </>
-        ) : (
-            (accessory ?? attachmentStrip)
-        )
+        ) : null
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||

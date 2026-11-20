@@ -34,25 +34,26 @@ export const readBuilderChats = (userId: string, projectId: string, agentId: str
     readLinks(builderChatsKey(userId, projectId))[agentId] ?? []
 
 /**
- * Puts `chatId` first in the list of `agentId`. A chat stays with its first agent: a chat already
- * listed under another agent is left there. True when the chat is new to the list.
+ * Puts `sessionId` first in the list of `agentId`. A chat stays with its first agent: a chat already
+ * listed under another agent is left there. True when the chat is new to the list and stored.
  */
 export const rememberBuilderChat = (
     userId: string,
     projectId: string,
     agentId: string,
-    chatId: string,
+    sessionId: string,
 ): boolean => {
     const key = builderChatsKey(userId, projectId)
     const links = readLinks(key)
-    const owner = Object.keys(links).find((id) => links[id]?.includes(chatId))
+    const owner = Object.keys(links).find((id) => links[id]?.includes(sessionId))
     if (owner && owner !== agentId) return false
-    const chats = [chatId, ...(links[agentId] ?? []).filter((id) => id !== chatId)]
+    const chats = [sessionId, ...(links[agentId] ?? []).filter((id) => id !== sessionId)]
     links[agentId] = chats.slice(0, MAX_CHATS_PER_AGENT)
     try {
         window.localStorage.setItem(key, JSON.stringify(links))
     } catch {
         // Storage refused: the chat works, the panel just cannot find it again.
+        return false
     }
     return !owner
 }

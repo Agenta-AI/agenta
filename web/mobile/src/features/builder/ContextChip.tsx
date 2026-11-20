@@ -4,7 +4,7 @@ import {Plus, Robot, X} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
-import type {PageContext, PageContextPage} from "./pageContext"
+import type {PageContext, PagePart} from "./pageContext"
 import {usePagePart} from "./pagePart"
 
 const chipClass =
@@ -13,7 +13,7 @@ const chipClass =
 /** What follows the agent name on the chip, or null when the page part names nothing more. */
 const usePageLabel = () => {
     const t = useT(builderContextCatalog)
-    return (page: PageContextPage | undefined | null): string | null => {
+    return (page: PagePart | undefined | null): string | null => {
         if (!page) return null
         if (page.kind === "session") return page.session.name ?? null
         return page.item?.name ?? t("builder.context.configuration")

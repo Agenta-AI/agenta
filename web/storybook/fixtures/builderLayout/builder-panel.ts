@@ -1,4 +1,4 @@
-import type {BuilderChatRow} from "../../../mobile/src/features/builder/openRule"
+import type {BuilderChatRow} from "../../../mobile/src/features/builder/useBuilderChatList"
 
 /**
  * The builder chats about "Support triage" of canvas frames S07, S08 and S09, with their ages.

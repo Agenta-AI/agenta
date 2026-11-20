@@ -151,7 +151,7 @@ export const LiveConversation = ({
     embedded = false,
     beforeSend,
     emptyState,
-    composerHeader,
+    composerHeaderExtra,
     belowComposer,
     composerPlaceholder,
     inputRef,
@@ -196,7 +196,7 @@ export const LiveConversation = ({
     /** Shown in place of the agent's intro card while the conversation has no message. */
     emptyState?: ReactNode
     /** Inside the composer frame, above the editor (the builder's context chip). */
-    composerHeader?: ReactNode
+    composerHeaderExtra?: ReactNode
     /** Under the composer (the builder's quick actions and recent chats). */
     belowComposer?: ReactNode
     /** The composer's placeholder when it is not gated. */
@@ -1258,7 +1258,7 @@ export const LiveConversation = ({
                                 inputBusy={conversation.inputBusy}
                                 inputRef={composerRef}
                                 modelPickerRef={modelPickerRef}
-                                headerExtra={composerHeader}
+                                headerExtra={composerHeaderExtra}
                                 hideSlashCommands={hideSlashCommands}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={

@@ -53,7 +53,7 @@ const BuilderPanelFrame = ({
         >
             <BuilderHeader
                 title={t("builder.panel.newChat")}
-                history={view === "history"}
+                isHistory={view === "history"}
                 menuRows={BUILDER_CHATS.slice(0, 5)}
                 onBack={noop}
                 onOpenChat={noop}

@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {getDisplayContent} from "@agenta/chat/assets"
 import {markSessionFresh} from "@agenta/chat/state"
@@ -22,9 +22,9 @@ import {useSessionHeader} from "../chat/useSessionHeader"
 import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
+import {builderChatHref} from "./builderChatHref"
 import {rememberBuilderChat} from "./builderChatLink"
 import {BuilderHeader, TITLE_MENU_CHATS} from "./BuilderHeader"
-import {builderChatHref} from "./builderPageHref"
 import type {BuilderPanelProps} from "./BuilderPanel"
 import {ChatHistory} from "./ChatHistory"
 import {RecentChats} from "./ChatRows"
@@ -97,31 +97,28 @@ export const BuilderChat = ({
     const recent = useBuilderChatList({userId, projectId, agentId})
     const liveness = useLivenessPoll(projectId)
     const isRunning = useCallback(
-        (builderSessionId: string) =>
-            Boolean(
-                liveness.data?.find((stream) => stream.session_id === builderSessionId)?.flags
-                    ?.is_running,
-            ),
+        (id: string) =>
+            Boolean(liveness.data?.find((stream) => stream.session_id === id)?.flags?.is_running),
         [liveness.data],
     )
 
-    const show = useCallback(
-        (id: string) => {
-            lastShownChat.set(memoryKey, {agentId, builderSessionId: id})
-            setBuilderSessionId(id)
-            setView("chat")
-        },
-        [memoryKey, agentId],
-    )
+    const show = useCallback((id: string) => {
+        setBuilderSessionId(id)
+        setView("chat")
+    }, [])
     // The open rule, once the list answered (no stored chat answers at once). A failed list
     // opens a new chat; "Recent chats" then says it could not load.
-    if (builderSessionId === null && !recent.pending && !recent.stale) {
-        const id =
+    const ruleReady = builderSessionId === null && !recent.pending
+    useEffect(() => {
+        if (!ruleReady) return
+        setBuilderSessionId(
             (!recent.failed && sessionToOpen(recent.rows, Date.now(), isRunning)) ||
-            newBuilderSessionId()
-        lastShownChat.set(memoryKey, {agentId, builderSessionId: id})
-        setBuilderSessionId(id)
-    }
+                newBuilderSessionId(),
+        )
+    }, [ruleReady, recent.failed, recent.rows, isRunning])
+    useEffect(() => {
+        if (builderSessionId) lastShownChat.set(memoryKey, {agentId, builderSessionId})
+    }, [builderSessionId, memoryKey, agentId])
     // Not linked to the agent yet: a chat with no message.
     const isUnlinked = !builderSessionId || !recent.sessionIds.includes(builderSessionId)
 
@@ -157,10 +154,7 @@ export const BuilderChat = ({
         ],
     )
 
-    const header = useSessionHeader(
-        projectId,
-        isUnlinked || !builderSessionId ? "" : builderSessionId,
-    )
+    const header = useSessionHeader(projectId, isUnlinked ? "" : builderSessionId)
     const title =
         (!isUnlinked &&
             (header.data?.name?.trim() ||
@@ -206,19 +200,14 @@ export const BuilderChat = ({
                 inputRef={inputRef}
                 hideSlashCommands
                 composerPlaceholder={t("builder.panel.placeholder")}
-                composerHeader={<ContextChip projectId={projectId} agentName={agentName} />}
+                composerHeaderExtra={<ContextChip projectId={projectId} agentName={agentName} />}
                 emptyState={<NewChatIntro agentName={agentName} />}
                 belowComposer={
                     isUnlinked ? (
                         <div className="flex flex-col gap-4 px-3 pb-3">
-                            <QuickActions
-                                sessionId={builderSessionId}
-                                onPick={fillComposer}
-                            />
+                            <QuickActions sessionId={builderSessionId} onPick={fillComposer} />
                             <RecentChats
-                                rows={recent.rows.filter(
-                                    (entry) => entry.session_id !== builderSessionId,
-                                )}
+                                rows={recent.rows}
                                 failed={recent.failed}
                                 onRetry={recent.retry}
                                 onOpen={show}
@@ -235,18 +224,22 @@ export const BuilderChat = ({
         <div data-testid="builder-panel" className="flex h-full min-h-0 flex-col">
             <BuilderHeader
                 title={title}
-                history={view === "history"}
+                isHistory={view === "history"}
                 menuRows={recent.rows.slice(0, TITLE_MENU_CHATS)}
                 onBack={() => setView("chat")}
                 onOpenChat={show}
                 onOpenHistory={() => setView("history")}
                 onNewChat={() => show(newBuilderSessionId())}
-                openInBuilderHref={builderChatHref({
-                    workspaceId,
-                    projectId,
-                    sessionId: builderSessionId ?? "",
-                    agentId,
-                })}
+                openInBuilderHref={
+                    builderSessionId
+                        ? builderChatHref({
+                              workspaceId,
+                              projectId,
+                              sessionId: builderSessionId,
+                              agentId,
+                          })
+                        : null
+                }
                 onClose={() => void panel.close()}
             />
             {view === "history" ? (

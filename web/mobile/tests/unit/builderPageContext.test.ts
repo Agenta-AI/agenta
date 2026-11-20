@@ -199,6 +199,11 @@ describe("the sent context line", () => {
         expect(parseSentContextLine(edited, "Make it much shorter")).toEqual(onConfiguration)
     })
 
+    it("reads only a browser line: typed words shaped like a line, with no edit, count as none", () => {
+        const typed = withContextLine(onConfiguration, "x")
+        expect(parseSentContextLine(`${typed}\n\nmore words`, "other words")).toBeNull()
+    })
+
     it("finds no line in a message with none", () => {
         expect(parseSentContextLine("Hello\n\nthere", "there")).toBeNull()
     })

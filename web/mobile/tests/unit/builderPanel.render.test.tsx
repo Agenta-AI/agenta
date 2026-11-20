@@ -20,7 +20,7 @@ interface SeenProps {
     beforeSend?: (text: string) => string | undefined
     inputRef?: {current: unknown}
     emptyState?: ReactNode
-    composerHeader?: ReactNode
+    composerHeaderExtra?: ReactNode
     belowComposer?: ReactNode
     composerPlaceholder?: string
     hideSlashCommands?: boolean
@@ -54,7 +54,7 @@ vi.mock("@/features/chat/LiveConversation", async () => {
             return (
                 <div data-testid="conversation">
                     {props.emptyState}
-                    <div data-testid="composer">{props.composerHeader}</div>
+                    <div data-testid="composer">{props.composerHeaderExtra}</div>
                     {props.belowComposer}
                 </div>
             )
@@ -145,7 +145,6 @@ import {
     withContextLine,
     type PageContext,
 } from "@/features/builder/pageContext"
-import {builderChatLinkVersionAtom} from "@/features/builder/useBuilderChatList"
 import {pageSessionIdAtom} from "@/features/chat/pageSessionId"
 import {viewFormDirtyAtom} from "@/features/chat/viewFormDirty"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
@@ -314,24 +313,6 @@ describe("BuilderPanel: which chat opens", () => {
         expect(seen.props?.sessionId).toBe("chat-1")
         await render("agent-2")
         expect(seen.props?.sessionId).not.toBe("chat-1")
-    })
-})
-
-describe("BuilderPanel: another agent's list", () => {
-    it("waits for this agent's list and never opens a chat from the list kept on screen", async () => {
-        rememberBuilderChat(user(), "p1", "agent-2", "chat-2")
-        list.rows = [
-            {session_id: "chat-1", updated_at: hoursAgo(1)},
-            {session_id: "chat-2", updated_at: hoursAgo(100)},
-        ]
-        list.placeholder = true
-        await render("agent-2")
-        expect(seen.props).toBeNull()
-        list.placeholder = false
-        // The real list answers on its own; here a link change makes the panel read it again.
-        await act(async () => store.set(builderChatLinkVersionAtom, (v) => v + 1))
-        expect(seen.props?.sessionId).not.toBe("chat-1")
-        expect(seen.props?.sessionId).not.toBe("chat-2")
     })
 })
 

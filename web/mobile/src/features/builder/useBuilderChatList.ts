@@ -4,12 +4,19 @@ import {rowsFromPages, useSessionList} from "@agenta/sessions/state"
 import {atom, useAtomValue} from "jotai"
 
 import {readBuilderChats} from "./builderChatLink"
-import type {BuilderChatRow} from "./openRule"
 
 /** Moves when this browser links a new chat to an agent, so the lists read the link again. */
 export const builderChatLinkVersionAtom = atom(0)
 
 const NO_EXPANSIONS = [] as const
+
+/** A builder chat as the panel lists it: one row of the sessions query. */
+export interface BuilderChatRow {
+    session_id: string
+    name?: string | null
+    updated_at?: string | null
+    flags?: {is_running?: boolean | null} | null
+}
 
 /**
  * The stored builder chats of one agent, as the sessions query returns them: newest activity
@@ -52,19 +59,13 @@ export const useBuilderChatList = ({
     const pages = list.data?.pages
     // A page the server refused comes back as null; the list then failed.
     const failed = list.isError || Boolean(pages?.some((page) => page === null))
-    // Only this agent's chats: a list kept on screen while the next one loads may hold another's.
-    const rows = useMemo<BuilderChatRow[]>(
-        () => rowsFromPages(pages).filter((row) => sessionIds.includes(row.session_id)),
-        [pages, sessionIds],
-    )
+    const rows = useMemo<BuilderChatRow[]>(() => rowsFromPages(pages), [pages])
 
     return {
         sessionIds,
         rows,
         /** Waiting for the first answer of a query that runs. */
         pending: hasChats && list.isPending,
-        /** The rows shown are an earlier list's while this one loads. */
-        stale: hasChats && list.isPlaceholderData,
         failed: hasChats && failed,
         retry: () => void list.refetch(),
     }

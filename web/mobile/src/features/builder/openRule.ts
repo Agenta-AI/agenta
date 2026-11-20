@@ -1,10 +1,4 @@
-/** A builder chat as the panel lists it: one row of the sessions query. */
-export interface BuilderChatRow {
-    session_id: string
-    name?: string | null
-    updated_at?: string | null
-    flags?: {is_running?: boolean | null} | null
-}
+import type {BuilderChatRow} from "./useBuilderChatList"
 
 /** A chat with activity in the last 2 days opens again (design rule 1.3). */
 export const REOPEN_WINDOW_MS = 48 * 60 * 60 * 1000

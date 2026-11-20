@@ -21,30 +21,51 @@ export interface ReadyRequest {
     line: PanelKey
 }
 
-const ready = (name: string): ReadyRequest => ({
-    request: `builder.panel.ready${name}` as PanelKey,
-    line: `builder.panel.ready${name}Line` as PanelKey,
-})
-
 /** Three ready requests per quick action. */
 export const READY_REQUESTS: Record<QuickAction, readonly ReadyRequest[]> = {
-    improve: [ready("ImproveFind"), ready("ImproveShorter"), ready("ImproveFollow")],
-    test: [ready("TestSamples"), ready("TestRunAgain"), ready("TestFindWrong")],
-    skills: [ready("SkillsSuggest"), ready("SkillsCreate"), ready("SkillsCheck")],
-    automate: [ready("AutomateDaily"), ready("AutomateApp"), ready("AutomateSlack")],
-    explain: [ready("ExplainAgent"), ready("ExplainSession"), ready("ExplainAnswer")],
+    improve: [
+        {request: "builder.panel.readyImproveFind", line: "builder.panel.readyImproveFindLine"},
+        {
+            request: "builder.panel.readyImproveShorter",
+            line: "builder.panel.readyImproveShorterLine",
+        },
+        {request: "builder.panel.readyImproveFollow", line: "builder.panel.readyImproveFollowLine"},
+    ],
+    test: [
+        {request: "builder.panel.readyTestSamples", line: "builder.panel.readyTestSamplesLine"},
+        {request: "builder.panel.readyTestRunAgain", line: "builder.panel.readyTestRunAgainLine"},
+        {request: "builder.panel.readyTestFindWrong", line: "builder.panel.readyTestFindWrongLine"},
+    ],
+    skills: [
+        {request: "builder.panel.readySkillsSuggest", line: "builder.panel.readySkillsSuggestLine"},
+        {request: "builder.panel.readySkillsCreate", line: "builder.panel.readySkillsCreateLine"},
+        {request: "builder.panel.readySkillsCheck", line: "builder.panel.readySkillsCheckLine"},
+    ],
+    automate: [
+        {request: "builder.panel.readyAutomateDaily", line: "builder.panel.readyAutomateDailyLine"},
+        {request: "builder.panel.readyAutomateApp", line: "builder.panel.readyAutomateAppLine"},
+        {request: "builder.panel.readyAutomateSlack", line: "builder.panel.readyAutomateSlackLine"},
+    ],
+    explain: [
+        {request: "builder.panel.readyExplainAgent", line: "builder.panel.readyExplainAgentLine"},
+        {
+            request: "builder.panel.readyExplainSession",
+            line: "builder.panel.readyExplainSessionLine",
+        },
+        {request: "builder.panel.readyExplainAnswer", line: "builder.panel.readyExplainAnswerLine"},
+    ],
 }
 
 /**
- * The open quick action per builder chat. It outlives a remount of the panel (a move between a
+ * The open quick action per builder session. It outlives a remount of the panel (a move between a
  * session and an agent page), as the composer draft does (design D6).
  */
-const openQuickActionByChat = new Map<string, QuickAction>()
+const openQuickActionBySession = new Map<string, QuickAction>()
 
 export const readOpenQuickAction = (sessionId: string): QuickAction | null =>
-    openQuickActionByChat.get(sessionId) ?? null
+    openQuickActionBySession.get(sessionId) ?? null
 
 export const writeOpenQuickAction = (sessionId: string, action: QuickAction | null) => {
-    if (action) openQuickActionByChat.set(sessionId, action)
-    else openQuickActionByChat.delete(sessionId)
+    if (action) openQuickActionBySession.set(sessionId, action)
+    else openQuickActionBySession.delete(sessionId)
 }

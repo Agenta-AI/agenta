@@ -7,8 +7,9 @@ import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {readBuilderChats, rememberBuilderChat} from "@/features/builder/builderChatLink"
-import {chatAge, sessionToOpen, type BuilderChatRow} from "@/features/builder/openRule"
+import {chatAge, sessionToOpen} from "@/features/builder/openRule"
 import {QUICK_ACTION_LABELS, READY_REQUESTS} from "@/features/builder/quickActions"
+import type {BuilderChatRow} from "@/features/builder/useBuilderChatList"
 
 const NOW = Date.parse("2026-11-20T12:00:00Z")
 const hoursAgo = (hours: number) => new Date(NOW - hours * 3_600_000).toISOString()

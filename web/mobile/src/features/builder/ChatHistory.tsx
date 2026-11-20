@@ -5,7 +5,7 @@ import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import {SearchInput, SkeletonRows} from "@agenta/ui/ui"
 
 import {ChatListFailed, ChatRow} from "./ChatRows"
-import type {BuilderChatRow} from "./openRule"
+import type {BuilderChatRow} from "./useBuilderChatList"
 import {useBuilderChatList} from "./useBuilderChatList"
 
 /** What "Chat history" shows, for a list in any state. */
