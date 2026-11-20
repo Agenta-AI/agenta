@@ -1,18 +1,6 @@
-import {useCallback} from "react"
-
-import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {ModelSetupBanner} from "@agenta/chat/components"
-import {configPanelCollapsedAtom} from "@agenta/chat/state"
-import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
-import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
-import {useT} from "@agenta/i18n"
-import chatMobileConfigCatalog from "@agenta/i18n/catalogs/chat.mobileConfig"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
-import {shortcutAria} from "@agenta/shared/utils"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -35,31 +23,18 @@ import {useOpenModelSetup} from "./useOpenModelSetup"
 export const ConfigPane = ({
     entityId,
     sessionId,
-    filesScope,
     projectId,
 }: {
     entityId: string
     sessionId: string
-    filesScope: string
     projectId: string
 }) => {
-    const t = useT(chatMobileConfigCatalog)
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const openModelSetup = useOpenModelSetup()
     // A commit made here pins the new revision to this session.
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
-    // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
-    // rather than navigating away from the conversation.
-    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
     // The API refuses a Viewer's edits; this keeps the editor from offering them. The editor stays
     // open while the check is in flight, so the people who may edit do not see it lock and unlock.
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
-    const openRunHistory = useCallback(
-        ({id, kind}: TriggerOwnerRef) => {
-            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"})
-        },
-        [openDrawer],
-    )
 
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
@@ -67,6 +42,8 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     disabled={!editAccess.pending && !editAccess.allowed}
+                    // Automations and files have their own places in the panel.
+                    operations={false}
                     stickyHeaderTop={48}
                     banner={
                         <div className="px-4">
@@ -77,53 +54,14 @@ export const ConfigPane = ({
                             />
                         </div>
                     }
-                    storage={
-                        <StorageSection
-                            revisionId={entityId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
-                    }
-                    storageHeader={
-                        <StorageFilesHeader
-                            revisionId={entityId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
-                    }
-                    // `SessionWorkspace` mounts the drawers: a linked one must open with this pane collapsed.
+                    // The operational sections (and their drawers) live in the Automations tab.
                     automationDrawer={null}
-                    onOpenRunHistory={openRunHistory}
                     header={
                         <AgentConfigHeader
                             revisionId={entityId}
                             // `/m` mounts the auto-commit engine, so this header shows Save
                             // rather than Commit. The desktop playground keeps Commit.
                             autoSave
-                            // The desktop's collapse: the header owns "«", the top bar owns the
-                            // "»" that brings the panel back. Without a way OUT, the restore
-                            // control in the bar could never be reached.
-                            trailing={
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            {t("chat.mobileConfig.hideConfiguration")}{" "}
-                                            <ShortcutKeys id="panel.config" tone="inverse" />
-                                        </span>
-                                    }
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label={t("chat.mobileConfig.hideConfiguration")}
-                                        aria-keyshortcuts={shortcutAria("panel.config")}
-                                        onClick={() => setConfigCollapsed(true)}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <Sidebar size={16} weight="fill" mirrored />
-                                    </Button>
-                                </SimpleTooltip>
-                            }
                         />
                     }
                 />
