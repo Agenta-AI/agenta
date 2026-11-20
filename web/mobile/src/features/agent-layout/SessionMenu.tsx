@@ -1,13 +1,22 @@
 import {useCallback, useState} from "react"
 
+import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
-import {CaretDown} from "@phosphor-icons/react"
+import {
+    Button,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Sheet,
+    SheetContent,
+    SheetTitle,
+} from "@agenta/ui/ui"
+import {CaretDown, CaretUpDown, CircleIcon, CircleNotchIcon, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -18,7 +27,11 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {sessionMenuListArgs} from "./useAgentSessionOrder"
 
-/** The session menu of the session header: latest sessions, New session, Inspect session, Sessions. */
+/**
+ * The session menu of the session header: latest sessions, New session, Inspect session, Sessions.
+ * On a phone the session button opens them in a bottom sheet, and shows the production spinner
+ * while a run is active.
+ */
 export const SessionMenu = ({
     agentId,
     base,
@@ -26,6 +39,7 @@ export const SessionMenu = ({
     title,
     loadFailed,
     onRetry,
+    phone = false,
 }: {
     agentId: string
     base: string
@@ -34,6 +48,7 @@ export const SessionMenu = ({
     /** The agent's session list failed to load; "New session" still works. */
     loadFailed: boolean
     onRetry: () => void
+    phone?: boolean
 }) => {
     const t = useT(agentLayoutHeaderCatalog)
     const router = useRouter()
@@ -55,6 +70,99 @@ export const SessionMenu = ({
         setOpen(false)
         if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
     }
+    const running = useAtomValue(sessionStatusAtomFamily(sessionId)) === "running"
+
+    const loadError = loadFailed ? (
+        <div role="alert" className="flex items-center justify-between gap-2 px-2 py-1 text-xs">
+            <span className="text-colorTextSecondary">{t("agentLayout.header.loadFailed")}</span>
+            <Button variant="ghost" size="sm" onClick={onRetry}>
+                {t("agentLayout.header.retry")}
+            </Button>
+        </div>
+    ) : null
+    const inspector = inspectorEnabled ? (
+        <SessionInspectorSheet
+            sessionId={sessionId}
+            open={inspecting}
+            onOpenChange={setInspecting}
+        />
+    ) : null
+
+    if (phone) {
+        return (
+            <>
+                <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    title={title}
+                    className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-lg border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
+                    onClick={() => setOpen(true)}
+                >
+                    <span aria-hidden className="flex shrink-0 text-colorTextTertiary">
+                        {running ? (
+                            <CircleNotchIcon size={12} className="animate-spin" />
+                        ) : (
+                            <CircleIcon size={10} />
+                        )}
+                    </span>
+                    <span className="truncate">{title}</span>
+                    <CaretUpDown
+                        size={14}
+                        aria-hidden
+                        className="shrink-0 text-colorTextSecondary"
+                    />
+                </button>
+                <Sheet open={open} onOpenChange={setOpen}>
+                    <SheetContent
+                        side="bottom"
+                        data-testid="session-sheet"
+                        aria-describedby={undefined}
+                        className="max-h-[85vh] gap-0 rounded-t-2xl pb-6 pt-2"
+                    >
+                        <div
+                            aria-hidden
+                            className="mx-auto mb-2.5 h-[5px] w-9 shrink-0 rounded-full bg-colorBorder"
+                        />
+                        <SheetTitle className="px-4 pb-2 pt-1 text-base font-semibold">
+                            {t("agentLayout.header.sessions")}
+                        </SheetTitle>
+                        {loadError}
+                        <div className="min-h-0 flex-1 overflow-y-auto px-2">
+                            <SessionCardList
+                                {...sessionMenuListArgs(agentId)}
+                                showAgent={false}
+                                activeRowId={sessionId}
+                                emptyText=""
+                                onOpenRow={openRow}
+                            />
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-2 px-4 pt-2">
+                            <Button
+                                className="h-11 w-full gap-2 rounded-[10px] text-[15px]"
+                                onClick={newSession}
+                            >
+                                <Plus size={14} />
+                                {t("agentLayout.header.newSession")}
+                            </Button>
+                            {inspectorEnabled ? (
+                                <Button
+                                    variant="outline"
+                                    className="h-11 w-full rounded-[10px] text-[15px]"
+                                    onClick={() => {
+                                        setOpen(false)
+                                        setInspecting(true)
+                                    }}
+                                >
+                                    {tSessions("chat.mobileSessions.inspectSession")}
+                                </Button>
+                            ) : null}
+                        </div>
+                    </SheetContent>
+                </Sheet>
+                {inspector}
+            </>
+        )
+    }
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -69,19 +177,7 @@ export const SessionMenu = ({
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
-                {loadFailed ? (
-                    <div
-                        role="alert"
-                        className="flex items-center justify-between gap-2 px-2 py-1 text-xs"
-                    >
-                        <span className="text-colorTextSecondary">
-                            {t("agentLayout.header.loadFailed")}
-                        </span>
-                        <Button variant="ghost" size="sm" onClick={onRetry}>
-                            {t("agentLayout.header.retry")}
-                        </Button>
-                    </div>
-                ) : null}
+                {loadError}
                 <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
                     <SessionCardList
                         {...sessionMenuListArgs(agentId)}
@@ -120,13 +216,7 @@ export const SessionMenu = ({
                     </Button>
                 </div>
             </PopoverContent>
-            {inspectorEnabled ? (
-                <SessionInspectorSheet
-                    sessionId={sessionId}
-                    open={inspecting}
-                    onOpenChange={setInspecting}
-                />
-            ) : null}
+            {inspector}
         </Popover>
     )
 }
