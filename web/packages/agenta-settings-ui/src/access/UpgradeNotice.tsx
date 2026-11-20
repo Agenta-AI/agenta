@@ -1,5 +1,8 @@
 import type {ReactNode} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
+
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 
 export interface UpgradeNoticeProps {
@@ -13,17 +16,25 @@ export interface UpgradeNoticeProps {
     availability?: ReactNode
 }
 
+/** Where the feature is available, unless `availability` says otherwise: the cloud plans. */
+const DefaultAvailability = () => {
+    const t = useT(settingsAccessCatalog)
+    return (
+        <>
+            {richText(t("settings.access.availableOnPlans"), {
+                strong: (text) => <strong>{text}</strong>,
+            })}
+        </>
+    )
+}
+
 /** Stands in for a section the current plan does not include, framed like every empty page. */
 export const UpgradeNotice = ({
     icon,
     title,
     description,
     action,
-    availability = (
-        <>
-            Available on <strong>Business</strong> and <strong>Enterprise</strong> plans.
-        </>
-    ),
+    availability = <DefaultAvailability />,
 }: UpgradeNoticeProps) => (
     <SettingsEmpty
         icon={icon}

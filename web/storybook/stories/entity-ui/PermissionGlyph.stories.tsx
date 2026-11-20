@@ -28,9 +28,7 @@ const Legend = ({
 }: {
     rows: {value: React.ComponentProps<typeof PolicyGlyph>["value"]; label: string}[]
 }) => (
-    // `data-vrt-subject` is the harness's readiness marker; without it the a11y run has nothing
-    // visible to wait for. This is a showcase, not an antd parity pair — the glyphs are ours.
-    <div data-vrt-subject className="flex w-[320px] flex-col gap-3">
+    <div className="flex w-[320px] flex-col gap-3">
         {rows.map(({value, label}) => (
             <div key={value} className="flex items-center gap-3">
                 <PolicyGlyph value={value} size={16} />

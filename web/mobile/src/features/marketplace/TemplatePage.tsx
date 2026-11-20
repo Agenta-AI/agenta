@@ -1,4 +1,6 @@
 import {categorySlug, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {
     Badge,
     Breadcrumb,
@@ -16,6 +18,7 @@ import {AppTileStack} from "./AppTileStack"
 import {ExampleRun} from "./ExampleRun"
 import {HowItWorksSteps} from "./HowItWorksSteps"
 import {
+    categoryText,
     howItWorks,
     relatedTemplates,
     setupSteps,
@@ -44,6 +47,7 @@ export const TemplatePage = ({
     onUse: () => void
 }) => {
     const link = useCopyLink()
+    const t = useT(marketplaceCatalog)
     const tools = templateTools(template)
     const steps = howItWorks(template)
     const related = relatedTemplates(template, all)
@@ -63,13 +67,13 @@ export const TemplatePage = ({
                     <BreadcrumbList>
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild>
-                                <Link href={marketplaceHref}>Agent Marketplace</Link>
+                                <Link href={marketplaceHref}>{t("marketplace.page.title")}</Link>
                             </BreadcrumbLink>
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild>
-                                <Link href={categoryHref}>{template.category}</Link>
+                                <Link href={categoryHref}>{categoryText(template.category)}</Link>
                             </BreadcrumbLink>
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
@@ -85,7 +89,9 @@ export const TemplatePage = ({
                         ) : (
                             <LinkSimpleIcon data-icon="inline-start" />
                         )}
-                        {link.copied ? "Link copied" : "Copy link"}
+                        {link.copied
+                            ? t("marketplace.page.linkCopied")
+                            : t("marketplace.page.copyLink")}
                     </Button>
                 ) : null}
             </div>
@@ -100,12 +106,15 @@ export const TemplatePage = ({
                         {template.description}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-1.5">
-                        <Badge>{template.category}</Badge>
+                        <Badge>{categoryText(template.category)}</Badge>
                         {template.toolsSummary ? <Badge>{template.toolsSummary}</Badge> : null}
                     </div>
 
                     <div className="mt-4">
-                        <TemplateSection number={number("overview")} title="Overview">
+                        <TemplateSection
+                            number={number("overview")}
+                            title={t("marketplace.page.overview")}
+                        >
                             {template.overview ? (
                                 <p className="m-0 text-base leading-relaxed text-foreground lg:text-lg">
                                     {template.overview}
@@ -117,20 +126,29 @@ export const TemplatePage = ({
                             ) : null}
                         </TemplateSection>
                         {steps.length ? (
-                            <TemplateSection number={number("how")} title="How it works">
+                            <TemplateSection
+                                number={number("how")}
+                                title={t("marketplace.page.howItWorks")}
+                            >
                                 <HowItWorksSteps steps={steps} />
                             </TemplateSection>
                         ) : null}
                         {tools.length ? (
-                            <TemplateSection number={number("tools")} title="Tools it can use">
+                            <TemplateSection
+                                number={number("tools")}
+                                title={t("marketplace.page.toolsItCanUse")}
+                            >
                                 <TemplateToolList tools={tools} columns={2} />
                             </TemplateSection>
                         ) : null}
-                        <TemplateSection number={number("setup")} title="Set it up">
+                        <TemplateSection
+                            number={number("setup")}
+                            title={t("marketplace.page.setItUp")}
+                        >
                             <ol className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-3">
                                 {setupSteps(template).map((step, index) => (
                                     <li
-                                        key={step.title}
+                                        key={step.key}
                                         className="box-border flex flex-col gap-1.5 rounded-lg border border-solid border-border bg-card p-4"
                                     >
                                         <span className="text-muted-foreground font-mono text-xs">

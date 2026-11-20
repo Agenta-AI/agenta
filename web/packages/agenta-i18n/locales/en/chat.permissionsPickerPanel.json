@@ -1,0 +1,8 @@
+{
+    "backToCommands": "back to commands",
+    "changesDraft": "Changes this agent's draft config.",
+    "editRules": "Edit rules in config →",
+    "policyLabel": "Permission policy",
+    "subtitle": "what the agent may do before it must ask",
+    "title": "Permissions"
+}

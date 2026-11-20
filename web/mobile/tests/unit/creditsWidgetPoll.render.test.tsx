@@ -61,7 +61,17 @@ beforeEach(() => {
         mode: "enforce",
         spendable_musd: 2_000,
         active_credit_total_musd: 4_000,
-        credits: [],
+        credits: [
+            {
+                id: "c1",
+                credit_kind: "purchase",
+                amount_musd: 4_000,
+                remaining_musd: 2_000,
+                start_time: null,
+                end_time: null,
+                created_at: null,
+            },
+        ],
     })
 })
 afterEach(() => {
@@ -88,5 +98,31 @@ describe("CreditsRemainingWidget", () => {
         await act(async () => report(false))
         await idle(60_000)
         expect(api.summary.mock.calls.length).toBe(4)
+    })
+
+    it("polls once a minute on screen while the balance is healthy", async () => {
+        api.summary.mockResolvedValue({
+            mode: "enforce",
+            spendable_musd: 40_000_000,
+            active_credit_total_musd: 50_000_000,
+            credits: [
+                {
+                    id: "c1",
+                    credit_kind: "purchase",
+                    amount_musd: 50_000_000,
+                    remaining_musd: 40_000_000,
+                    start_time: null,
+                    end_time: null,
+                    created_at: null,
+                },
+            ],
+        })
+        await renderWidget()
+        await act(async () => report(true))
+        await idle(30_000)
+        expect(api.summary.mock.calls.length).toBe(1)
+
+        await idle(35_000)
+        expect(api.summary.mock.calls.length).toBe(2)
     })
 })

@@ -42,7 +42,9 @@ import {
   type SessionEnvironment,
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
+import { unsignableDrives, type RunDrive } from "../engines/sandbox_agent/run-drives.ts";
 import { SESSION_TURN_IN_USE_MESSAGE } from "../sessions/admission.ts";
+import type { PlatformCredentialSource } from "../sessions/auth.ts";
 import {
   teardownDisposition,
   type TeardownReason,
@@ -177,6 +179,15 @@ export interface KeepaliveEngine {
     authorization: string,
   ): Promise<LatestTurnIndexRead>;
   /**
+   * Sign one drive again with this turn's credential, by the route it was first signed with; null
+   * when it no longer signs. Required, like the turn-log read (see `unsignableDrives`).
+   */
+  signDrive(
+    drive: RunDrive,
+    authorization: string,
+    signal: AbortSignal | undefined,
+  ): Promise<MountCredentials | null>;
+  /**
    * Apply a reconciliation plan to a LIVE environment (lifecycle migration, step 6).
    *
    * Returns whether the WHOLE plan applied. The implementation must commit applied state only
@@ -206,7 +217,7 @@ export interface KeepaliveEngine {
     signal?: AbortSignal,
     presignedMount?: MountCredentials | null,
     clientGone?: () => boolean,
-    credential?: () => string,
+    credentialLease?: PlatformCredentialSource,
   ): Promise<AgentRunResult>;
 }
 
@@ -216,8 +227,8 @@ export interface KeepaliveContext {
   config: KeepaliveConfig;
   /** Reports a mid-turn client disconnect on the streaming edge (see `RunAgentOptions`). */
   clientGone?: () => boolean;
-  /** Latest session credential accessor supplied by the alive watchdog. */
-  credential?: () => string;
+  /** The alive watchdog's credential lease. */
+  credentialLease?: PlatformCredentialSource;
   /**
    * Called once with this run's project scope, as soon as it is known.
    *
@@ -267,13 +278,13 @@ export async function runWithKeepalive(
   signal: AbortSignal | undefined,
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
-  const { engine, pool, config, clientGone, credential, credentialWait } = ctx;
+  const { engine, pool, config, clientGone, credentialLease, credentialWait } = ctx;
   // Before the fingerprint, the live model change and the env all read it (see the helper).
   normalizeRequestModel(request);
-  const turnCredential = credential ? { credential } : {};
+  const turnCredential = credentialLease ? { credentialLease } : {};
   const sessionId = request.sessionId?.trim();
-  // Every execution carries an id: callers that omit `turnId` get one minted here, so the
-  // turns-ledger append and interaction rows are never written without their execution id.
+  // Every execution carries an id. The SDK sends one on every session run; a direct runner
+  // caller that omits it gets one minted here, so ledger and interaction rows always have one.
   request.turnId = request.turnId?.trim() || randomUUID();
 
   // Track whether anything reached the client on this streaming edge. A live continuation/resume
@@ -300,7 +311,7 @@ export async function runWithKeepalive(
       signal,
       undefined,
       clientGone,
-      credential,
+      credentialLease,
     );
   }
 
@@ -323,7 +334,7 @@ export async function runWithKeepalive(
       signal,
       signed,
       clientGone,
-      credential,
+      credentialLease,
     );
   }
   const key = scope.key;
@@ -623,7 +634,7 @@ export async function runWithKeepalive(
   const confirmTurnLogCurrent = async (
     existing: LiveSession<SessionEnvironment>,
   ): Promise<"current" | "moved" | AgentRunResult> => {
-    const authorization = credential?.() || runCredential(request);
+    const authorization = credentialLease?.credential() || runCredential(request);
     if (!authorization || !request.streamId) return "current";
     let read: LatestTurnIndexRead;
     try {
@@ -646,6 +657,20 @@ export async function runWithKeepalive(
       `turn-log-moved key=${key} parked=${parkedAt ?? "-"} latest=${read.turnIndex ?? "-"}`,
     );
     return "moved";
+  };
+
+  /**
+   * True when a drive this environment mounted no longer signs (`unsignableDrives`).
+   * Fails closed: any failed sign replaces the environment, and the cold acquire signs again.
+   */
+  const drivesRevoked = async (env: SessionEnvironment): Promise<boolean> => {
+    const authorization = credentialLease?.credential() || runCredential(request);
+    const lost = await unsignableDrives(env.drives, async (drive) =>
+      authorization ? engine.signDrive(drive, authorization, signal) : null,
+    );
+    if (lost.length === 0) return false;
+    klog(`drive-revoked key=${key} drives=[${lost.join(",")}]`);
+    return true;
   };
 
   /**
@@ -679,6 +704,7 @@ export async function runWithKeepalive(
     // same dead mount this probe just caught, so it must delete — and deleting is what lets the
     // cold acquire below mkdir and remount the path from scratch.
     if (mismatch === "mount-lost") return "runtime-incompatible";
+    if (mismatch === "drive-revoked") return "drive-revoked";
     // `config` covers every remaining configuration change, including a changed model connection
     // or MCP credential shape. Until the reconciliation router can say which facet moved, treat
     // it as runtime-level and delete. Delete is always sound; it only costs a rebuild.
@@ -1111,18 +1137,28 @@ export async function runWithKeepalive(
     if (!mismatch && (await mountLost(existing.environment)))
       mismatch = "mount-lost";
 
-    // Last of all, and only on a path about to reuse: the one check that costs an api round trip.
+    // Last of all, and only on a path about to reuse: the checks that cost an api round trip,
+    // run at the same time. A revoked drive wins: it must evict even when the log is unreadable.
     if (!mismatch) {
-      const turnLog = await confirmTurnLogCurrent(existing);
-      if (turnLog === "moved") mismatch = "turn-log";
+      const [revoked, turnLog] = await Promise.all([
+        drivesRevoked(existing.environment),
+        confirmTurnLogCurrent(existing),
+      ]);
+      if (revoked) mismatch = "drive-revoked";
+      else if (turnLog === "moved") mismatch = "turn-log";
       else if (turnLog !== "current") return turnLog;
+    } else if (await drivesRevoked(existing.environment)) {
+      // A rebuild for another reason may park the sandbox, which keeps the drive's credentials.
+      mismatch = "drive-revoked";
     }
 
     if (mismatch) {
       // The eviction is NAMED by the first unresolved reason and DISPOSED by all of them. The
       // backstops only fire when the list is already empty, so each stands alone.
       const allMismatches =
-        mismatch === "mount-lost" || mismatch === "turn-log"
+        mismatch === "mount-lost" ||
+        mismatch === "turn-log" ||
+        mismatch === "drive-revoked"
           ? [mismatch]
           : unresolvedMismatches();
       // A config mismatch names the changed FIELDS (names only — the digests never carry
@@ -1183,7 +1219,9 @@ export async function runWithKeepalive(
         // failure instead of being re-derived from a label. They agree today; the point is that
         // they cannot drift. Otherwise every unresolved reason gets a vote and the strictest
         // wins, so a continuity reason that merely sorts first cannot park a stale sandbox.
-        credentialTeardown ?? strictestTeardown(allMismatches),
+        mismatch === "drive-revoked"
+          ? "drive-revoked"
+          : (credentialTeardown ?? strictestTeardown(allMismatches)),
       );
       return coldAndPark();
     }
@@ -1354,6 +1392,10 @@ export async function runWithKeepalive(
     // losing its mount while it waits for the human.
     if (!mismatch && (await mountLost(existing.environment)))
       mismatch = "mount-lost";
+
+    // Checked on every path, mismatch or not: the eviction below may otherwise park a sandbox that
+    // holds credentials for a drive the agent lost.
+    if (await drivesRevoked(existing.environment)) mismatch = "drive-revoked";
 
     if (!mismatch && resumeDecisions.length > 0) {
       const turnLog = await confirmTurnLogCurrent(existing);

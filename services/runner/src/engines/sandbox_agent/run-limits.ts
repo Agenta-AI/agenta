@@ -62,6 +62,15 @@ export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000;
 export const TOOL_CALL_GRACE_MS = 120_000;
 
 /**
+ * The limit one tool call gets: the run's tool-call limit, or the tool's own budget (`timeoutMs`
+ * on its spec, set for reference tools) when that is longer. A tool with its own budget stops its
+ * call at that budget, so the watchdog must not end the turn before it.
+ */
+export function toolCallLimitMs(toolCallMs: number, budgetMs: number | undefined): number {
+  return budgetMs !== undefined && budgetMs > toolCallMs ? clampTimerMs(budgetMs) : toolCallMs;
+}
+
+/**
  * The timeout, in seconds, a shell command gets: what the model asked for, never more than the
  * per-tool-call limit. A command stopped at this timeout returns a tool error to the model, which
  * keeps the turn going; one that ran past it would trip the run-wide watchdog instead.
@@ -172,10 +181,12 @@ export function resolveRunLimits(
 export type RunLimitKind = "total" | "idle" | "ttfb" | "tool-call";
 
 export interface RunLimitsHandle {
-  /** Fires (once) the moment any limit trips; the caller wires this to its own `abort()`. */
-  onTrip(handler: (reason: string, kind: RunLimitKind) => void): void;
-  /** Call on every tool call announcement; the per-tool-call timer keys off this id. */
-  noteToolCallStart(id: string): void;
+  /** Fires (once) the moment any limit trips; the caller wires this to its own `abort()`.
+   *  `limitMs` is the limit that tripped (for a tool call, that call's own limit). */
+  onTrip(handler: (reason: string, kind: RunLimitKind, limitMs: number) => void): void;
+  /** Call on every tool call announcement; the per-tool-call timer keys off this id. `budgetMs`
+   *  is the tool's own budget, when its spec has one (see `toolCallLimitMs`). */
+  noteToolCallStart(id: string, budgetMs?: number): void;
   /** Call once the tool call's result lands; clears its per-call timer. */
   noteToolCallEnd(id: string): void;
   /** Call on every sign of turn progress (the tracer's `onProgress`): cancels TTFB on the first
@@ -204,7 +215,7 @@ export function createRunLimits(
 ): RunLimitsHandle {
   let tripped = false;
   let paused = false;
-  let tripHandler: ((reason: string, kind: RunLimitKind) => void) | undefined;
+  let tripHandler: ((reason: string, kind: RunLimitKind, limitMs: number) => void) | undefined;
   let sawFirstProgress = false;
 
   let totalTimer: NodeJS.Timeout | undefined;
@@ -224,12 +235,12 @@ export function createRunLimits(
     toolCallTimers.clear();
   };
 
-  const trip = (reason: string, kind: RunLimitKind): void => {
+  const trip = (reason: string, kind: RunLimitKind, limitMs: number): void => {
     if (tripped || paused) return;
     tripped = true;
     clearAll();
     log(`[run-limits] ${reason}`);
-    tripHandler?.(reason, kind);
+    tripHandler?.(reason, kind, limitMs);
   };
 
   const armIdle = (): void => {
@@ -239,17 +250,17 @@ export function createRunLimits(
       // A tool call in flight is bounded by its own timer, which waits for the stopped command's
       // result; a silent command must not be cut by the idle limit first (both default to 30 min).
       if (toolCallTimers.size > 0) return armIdle();
-      trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle");
+      trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle", limits.idleMs);
     }, limits.idleMs);
   };
 
   totalTimer = clock.setTimeout(
-    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`, "total"),
+    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`, "total", limits.totalMs),
     limits.totalMs,
   );
   ttfbTimer = clock.setTimeout(
     () =>
-      trip(`no first response within ${limits.ttfbMs}ms of run start`, "ttfb"),
+      trip(`no first response within ${limits.ttfbMs}ms of run start`, "ttfb", limits.ttfbMs),
     limits.ttfbMs,
   );
 
@@ -267,20 +278,22 @@ export function createRunLimits(
     onTrip(handler) {
       tripHandler = handler;
     },
-    noteToolCallStart(id) {
+    noteToolCallStart(id, budgetMs) {
       if (tripped || paused || !id) return;
       noteProgress();
       const existing = toolCallTimers.get(id);
       if (existing) clock.clearTimeout(existing);
+      const limitMs = toolCallLimitMs(limits.toolCallMs, budgetMs);
       toolCallTimers.set(
         id,
         clock.setTimeout(() => {
           toolCallTimers.delete(id);
           trip(
-            `tool call ${id} exceeded ${limits.toolCallMs}ms and returned no result within ${grace}ms more`,
+            `tool call ${id} exceeded ${limitMs}ms and returned no result within ${grace}ms more`,
             "tool-call",
+            limitMs,
           );
-        }, clampTimerMs(limits.toolCallMs + grace)),
+        }, clampTimerMs(limitMs + grace)),
       );
     },
     noteToolCallEnd(id) {

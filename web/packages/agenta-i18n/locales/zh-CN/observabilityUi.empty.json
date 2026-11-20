@@ -1,0 +1,16 @@
+{
+    "rateLimitReached": "已达到速率限制",
+    "quotaReached": "你已达到每月配额上限。请稍后重试，或升级套餐。",
+    "noTracesFound": "未找到追踪",
+    "adjustTraces": "请调整筛选条件或时间范围以查看追踪。",
+    "demoAlt": "展示追踪可视化的可观测性演示",
+    "noTracesYet": "暂无追踪",
+    "onboardingDescription": "只需添加几行代码，即可开始从你的 LLM 应用中捕获追踪。监控延迟和 Token 用量，并借助详细的洞察排查问题。",
+    "setUpTracing": "设置追踪",
+    "learnMore": "了解更多",
+    "noSessionsFound": "未找到会话",
+    "adjustSessions": "请调整筛选条件或时间范围以查看会话。",
+    "noSessionsObserved": "尚未观测到会话",
+    "sessionsDescription": "会话可让你追踪与 LLM 应用的多轮对话，包括其中的中间步骤。",
+    "gettingStartedSessions": "会话入门"
+}

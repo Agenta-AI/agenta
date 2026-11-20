@@ -2,6 +2,8 @@ import {useCallback, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {LockSimpleIcon} from "@phosphor-icons/react"
@@ -29,6 +31,7 @@ export const SessionTopBar = ({
     entityId,
     sessionId,
     onUpdate,
+    autoUpdate = false,
     agentId,
     agentHidden = false,
     canSend = true,
@@ -41,6 +44,8 @@ export const SessionTopBar = ({
     sessionId: string
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
+    /** Move to a newer version with no click; false keeps the version pill. */
+    autoUpdate?: boolean
     agentId?: string | null
     /** A private agent the reader cannot see: a lock and "Private agent", nothing to act on. */
     agentHidden?: boolean
@@ -49,6 +54,7 @@ export const SessionTopBar = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(chatMobileScreenCatalog)
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
     // A commit the session held back (unsaved config edits) is a reason to check for a newer
@@ -74,7 +80,10 @@ export const SessionTopBar = ({
                         {sharingCopy.privateAgent}
                     </span>
                 ) : (
-                    <AgentIdentity workflowId={agentId} name={name || "Agent"} />
+                    <AgentIdentity
+                        workflowId={agentId}
+                        name={name || t("chat.mobileScreen.agent")}
+                    />
                 )
             }
             revision={
@@ -83,6 +92,7 @@ export const SessionTopBar = ({
                         revisionId={entityId}
                         historyWorkflowId={agentId}
                         onUpdate={onUpdate}
+                        autoUpdate={autoUpdate}
                         checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
                     />
                 ) : undefined

@@ -1,4 +1,7 @@
+import {useState} from "react"
+
 import {MediaViewerHost} from "@agenta/entity-ui/drive"
+import {loadWithText} from "@agenta/i18n"
 import {isDrawerOpenAtom, traceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -8,7 +11,7 @@ import {useRouter} from "next/router"
 
 import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 import {FeatureGuideDialog} from "@/features/education/FeatureGuideDialog"
-import {WhatsNewDialog} from "@/features/education/WhatsNewDialog"
+import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
 import {useTraceDrawerFromUrl} from "@/features/observability/useTraceDrawerFromUrl"
@@ -24,6 +27,23 @@ const CreateQueueSheetHost = dynamic(
 const QueueSheetGate = () => {
     const enabled = useDeveloperViewEnabled("annotation-queues")
     return enabled ? <CreateQueueSheetHost /> : null
+}
+
+// The what's-new dialog and its text load on first open, not with the shell.
+const WhatsNewDialog = dynamic(
+    () =>
+        loadWithText(() => import("@/features/education/WhatsNewDialog")).then(
+            (m) => m.WhatsNewDialog,
+        ),
+    {ssr: false},
+)
+
+// Stays mounted after the first open, so the dialog can play its closing animation.
+const WhatsNewGate = () => {
+    const open = useAtomValue(whatsNewAtom) !== null
+    const [opened, setOpened] = useState(false)
+    if (open && !opened) setOpened(true)
+    return open || opened ? <WhatsNewDialog /> : null
 }
 
 // The member query loads with the drawer, not with the shell: no page needs it until a trace opens.
@@ -68,7 +88,7 @@ export const GlobalDrawers = () => {
             {traceOpen ? <TraceDrawerMembers /> : null}
             {/* These dialogs open by atom, so they mount wherever an entry point can set them. */}
             <FeatureGuideDialog />
-            <WhatsNewDialog />
+            <WhatsNewGate />
             <MediaViewerHost />
             <QueueSheetGate />
         </>

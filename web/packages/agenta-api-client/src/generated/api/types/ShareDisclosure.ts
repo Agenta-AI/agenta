@@ -8,6 +8,8 @@ import type * as AgentaApi from "../index.js";
  */
 export interface ShareDisclosure {
     connections: AgentaApi.DisclosedConnection[];
+    private_drives?: string[] | undefined;
+    agents_using_private_drives?: string[] | undefined;
     turns_use_run_credentials?: boolean | undefined;
     files_and_tool_results_shared?: boolean | undefined;
     trace_readers_can_read?: boolean | undefined;

@@ -2,11 +2,11 @@ import type {MutableRefObject} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
+import {useT} from "@agenta/i18n"
+import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {ArrowRight} from "lucide-react"
-
-import {FIRST_RUN_COPY} from "./firstRunCopy"
 
 /**
  * The create surface's composer: describe an agent, send, and it exists.
@@ -30,6 +30,7 @@ export const FirstRunComposer = ({
     creating: boolean
     onCreate: (text: string) => Promise<void>
 }) => {
+    const t = useT(agentsFirstRun)
     const start = async (text: string) => {
         if (!text.trim()) return
         await onCreate(text)
@@ -43,7 +44,7 @@ export const FirstRunComposer = ({
                 inputRef={inputRef}
                 onSubmit={start}
                 attachments={attachments}
-                placeholder={FIRST_RUN_COPY.placeholder}
+                placeholder={t("agents.firstRun.placeholder")}
                 disabled={creating}
                 composerDisabled={creating}
                 // The desktop names the action instead of showing a bare send arrow: this composer
@@ -55,7 +56,7 @@ export const FirstRunComposer = ({
                         disabled={creating}
                         onClick={() => void start(inputRef.current?.getMarkdown() ?? "")}
                     >
-                        {creating ? FIRST_RUN_COPY.creating : FIRST_RUN_COPY.create}
+                        {creating ? t("agents.firstRun.creating") : t("agents.firstRun.create")}
                         <ArrowRight size={14} />
                     </Button>
                 }

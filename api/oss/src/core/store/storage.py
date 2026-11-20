@@ -289,7 +289,9 @@ class ObjectStore:
         )
         return rules
 
-    def _scope_policy(self, *, bucket: str, prefix: str) -> str:
+    def _scope_policy(
+        self, *, bucket: str, prefix: str, read_only: bool = False
+    ) -> str:
         """Inline STS session policy scoping credentials to one mount prefix.
 
         Three statements, and the split matters:
@@ -306,25 +308,38 @@ class ObjectStore:
             condition is both populated and load-bearing.
         Isolation is enforced by ObjRW's prefix-scoped ARN; a cross-prefix write is denied at
         the object resource, not the bucket.
+
+        `read_only` swaps ObjRW for ObjRO: only GetObject and GetObjectAttributes, so the
+        credentials can read and list the prefix but never put, delete or upload.
         """
         scope = f"{prefix.strip('/')}/*"
+        objects = (
+            {
+                "Sid": "ObjRO",
+                "Effect": "Allow",
+                "Action": ["s3:GetObject", "s3:GetObjectAttributes"],
+                "Resource": [f"arn:aws:s3:::{bucket}/{scope}"],
+            }
+            if read_only
+            else {
+                "Sid": "ObjRW",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                    "s3:GetObjectAttributes",
+                    "s3:AbortMultipartUpload",
+                    "s3:ListMultipartUploadParts",
+                ],
+                "Resource": [f"arn:aws:s3:::{bucket}/{scope}"],
+            }
+        )
         return dumps(
             {
                 "Version": "2012-10-17",
                 "Statement": [
-                    {
-                        "Sid": "ObjRW",
-                        "Effect": "Allow",
-                        "Action": [
-                            "s3:GetObject",
-                            "s3:PutObject",
-                            "s3:DeleteObject",
-                            "s3:GetObjectAttributes",
-                            "s3:AbortMultipartUpload",
-                            "s3:ListMultipartUploadParts",
-                        ],
-                        "Resource": [f"arn:aws:s3:::{bucket}/{scope}"],
-                    },
+                    objects,
                     {
                         "Sid": "BktMeta",
                         "Effect": "Allow",
@@ -351,6 +366,7 @@ class ObjectStore:
         bucket: str,
         prefix: str,
         duration_seconds: int = 900,
+        read_only: bool = False,
     ) -> Credentials:
         """STS-sign short-lived credentials scoped to `<bucket>/<prefix>/*`.
 
@@ -373,7 +389,9 @@ class ObjectStore:
         if not self.enabled:
             raise MountStorageUnavailable()
 
-        scope_policy = self._scope_policy(bucket=bucket, prefix=prefix)
+        scope_policy = self._scope_policy(
+            bucket=bucket, prefix=prefix, read_only=read_only
+        )
         if not prefix.strip("/") or not scope_policy:
             raise MountStorageUnavailable(
                 "Refusing to sign store credentials without a prefix-scoped session policy."

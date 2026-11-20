@@ -39,10 +39,5 @@ export {
     type FocusPaths,
 } from "./FocusPathsContext"
 
-// Grouped-section primitives (uppercase sub-headers + collapsible provider cards) shared with the
-// config panel's Tools/Triggers sections, so app-layer previews render identical provider groups.
-export {
-    CollapsibleProviderGroup,
-    ProviderLogo,
-    SubSectionHeader,
-} from "../../DrillInView/SchemaControls/sectionGroups"
+// Grouped-section primitives (sub-headers + provider logos) shared with the config panel's sections.
+export {ProviderLogo, SubSectionHeader} from "../../DrillInView/SchemaControls/sectionGroups"

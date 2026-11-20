@@ -1,5 +1,7 @@
 import {Fragment, useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Check} from "lucide-react"
 
 import {cn} from "../components/ui/utils"
@@ -15,7 +17,7 @@ import type {FilterMenuOption} from "./types"
 export const FilterMenuOptionList = ({
     options,
     selected,
-    emptyText = "Nothing to choose from",
+    emptyText: emptyTextProp,
     autoFocus = true,
     onSelect,
     onDismiss,
@@ -31,6 +33,8 @@ export const FilterMenuOptionList = ({
     onDismiss?: () => void
     className?: string
 }) => {
+    const t = useT(uiControlsCatalog)
+    const emptyText = emptyTextProp ?? t("ui.controls.nothingToChoose")
     const refs = useRef<(HTMLButtonElement | null)[]>([])
     const firstEnabled = options.findIndex((option) => !option.disabled)
     const [active, setActive] = useState(() => (firstEnabled === -1 ? 0 : firstEnabled))

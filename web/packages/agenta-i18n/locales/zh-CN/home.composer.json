@@ -1,0 +1,7 @@
+{
+    "taskPlaceholder": "描述任务，或开始对话…",
+    "createPlaceholder": "描述你想要的 Agent：它做什么、何时运行…",
+    "clearTemplate": "清除此模板",
+    "newAgent": "新建 Agent",
+    "agent": "Agent"
+}

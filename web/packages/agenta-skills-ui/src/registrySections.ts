@@ -4,12 +4,16 @@
  * "This project" (skills with no origin), one section per imported repo (grouped
  * client-side by `origin.repository`), and the Agenta built-ins.
  */
+import {createT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {timeAgo} from "@agenta/shared/utils"
 import type {SkillOriginInfo, SkillRegistryItem} from "@agenta/skills"
 
 import type {SkillGallerySection} from "./SkillGallerySections"
 import type {SkillSourceNavEntry} from "./SkillsGalleryPage"
 import type {SkillListItem, SkillSourceInfo} from "./types"
+
+const tNow = createT(skillsGalleryCatalog)
 
 const toUnixMs = (value?: string | null): number | undefined => {
     if (!value) return undefined
@@ -24,7 +28,9 @@ export const toSkillListItem = (
     id: item.workflow_id ?? item.id ?? item.workflow_slug ?? "",
     // Registry identity is the SKILL name; workflow_slug is the storage slug (__ag__… builtins).
     slug: item.skill_name ?? item.name ?? item.workflow_slug ?? "",
-    name: item.name ?? item.skill_name ?? item.workflow_slug ?? "",
+    workflowSlug: item.workflow_slug ?? undefined,
+    // The SKILL.md name: the title, and the sibling `name` an embed stores (the command token).
+    name: item.skill_name ?? item.name ?? item.workflow_slug ?? "",
     description: item.description ?? item.skill_description ?? undefined,
     origin,
     // API sends "v1"; the stored form drops the prefix.
@@ -37,7 +43,7 @@ export const toSkillListItem = (
 
 /** Provenance the drawer and picker rows show for an imported skill. */
 export const toSourceInfo = (origin: SkillOriginInfo): SkillSourceInfo => ({
-    label: origin.repository ?? "Imported",
+    label: origin.repository ?? tNow("skills.gallery.sourceImported"),
     repoUrl: origin.repository ? `https://github.com/${origin.repository}` : undefined,
     commitSha: origin.resolved_version ?? undefined,
     detached: origin.detached ?? undefined,
@@ -91,7 +97,7 @@ export function buildRegistrySections(
     const allSections: SkillGallerySection[] = [
         {
             key: "project",
-            label: "This project",
+            label: tNow("skills.gallery.sectionThisProject"),
             skills: unsourced.map((item) => withSource(item, "project")),
         },
         ...sourceSections,
@@ -100,7 +106,7 @@ export function buildRegistrySections(
     const sources: SkillSourceNavEntry[] = [
         {
             key: "all",
-            label: "All skills",
+            label: tNow("skills.gallery.sectionAllSkills"),
             count: allSections.reduce((n, s) => n + s.skills.length, 0),
         },
         ...allSections.map((section) => ({

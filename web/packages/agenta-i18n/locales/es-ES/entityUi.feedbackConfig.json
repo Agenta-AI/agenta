@@ -1,0 +1,23 @@
+{
+    "formatBoolean": "Booleano (verdadero/falso)",
+    "formatContinuous": "Continuo (rango numérico)",
+    "formatCategorical": "Categórico (opciones predefinidas)",
+    "enterJsonSchema": "Introduce el esquema JSON...",
+    "responseFormat": "Formato de respuesta",
+    "responseFormatTooltip": "Elige el formato de los resultados de la evaluación",
+    "booleanInfo": "El evaluador dará una respuesta verdadera (1) o falsa (0) según los criterios de evaluación.",
+    "minimum": "Mínimo",
+    "minimumTooltip": "El valor mínimo del rango de puntuación numérica",
+    "maximum": "Máximo",
+    "maximumTooltip": "El valor máximo del rango de puntuación numérica",
+    "categories": "Categorías",
+    "categoriesTooltip": "Define los posibles valores de categoría para la evaluación",
+    "add": "Añadir",
+    "name": "Nombre",
+    "categoryName": "Nombre de la categoría {{number}}",
+    "description": "Descripción",
+    "categoryDescription": "Descripción de la categoría {{number}}",
+    "removeCategory": "Quitar categoría {{number}}",
+    "includeReasoning": "Incluir razonamiento",
+    "includeReasoningTooltip": "Si se activa, el evaluador también dará un comentario que explica la puntuación"
+}

@@ -14,6 +14,9 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
+
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import {ChipsInput} from "../../gatewayTool/components/schemaFormControls"
 
@@ -34,10 +37,14 @@ export interface PiPermissionsControlProps {
 
 const RULE_OPTIONS = [...PI_BUILTIN_RULE_NAMES]
 
-const ROWS: {list: PiPermissionList; label: string; help: string}[] = [
-    {list: "allow", label: "Allow", help: "Tools that run without asking."},
-    {list: "ask", label: "Ask", help: "Tools that ask before running."},
-    {list: "deny", label: "Deny", help: "Tools that are never allowed to run."},
+const ROWS: {
+    list: PiPermissionList
+    label: CatalogKey<typeof permissionsCatalog>
+    help: CatalogKey<typeof permissionsCatalog>
+}[] = [
+    {list: "allow", label: "entityUi.permissions.allow", help: "entityUi.permissions.allowHelp"},
+    {list: "ask", label: "entityUi.permissions.ask", help: "entityUi.permissions.askHelp"},
+    {list: "deny", label: "entityUi.permissions.deny", help: "entityUi.permissions.denyHelp"},
 ]
 
 export const PiPermissionsControl = memo(function PiPermissionsControl({
@@ -45,6 +52,7 @@ export const PiPermissionsControl = memo(function PiPermissionsControl({
     onChange,
     disabled = false,
 }: PiPermissionsControlProps) {
+    const t = useT(permissionsCatalog)
     const current = useMemo(() => readPiPermissionRules(value), [value])
 
     const write = useCallback(
@@ -61,7 +69,7 @@ export const PiPermissionsControl = memo(function PiPermissionsControl({
                     // The path the commit-diff classifier emits for this list, so an approval
                     // card's "Always allow" grant marks the row it actually wrote to.
                     path={`harness.permissions.${list}`}
-                    label={railInfoLabel(label, help)}
+                    label={railInfoLabel(t(label), t(help))}
                 >
                     <ChipsInput
                         value={current[list]}

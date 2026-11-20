@@ -93,6 +93,28 @@ describe("session spans", () => {
         unsubs.forEach((unsub) => unsub())
     })
 
+    it("reads only the invocation traces of a session, not its annotations", async () => {
+        fetchSessionsMock.mockResolvedValue({session_ids: ["a1"], count: 1})
+        executeTraceQueryMock.mockReset()
+        executeTraceQueryMock.mockResolvedValue({traces: [{span_id: "a1-span"}], traceCount: 1})
+
+        const store = createStore()
+        store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
+        store.set(projectIdAtom, "proj-4")
+        store.set(sessionAtom, true)
+        const unsubs = [store.sub(filteredSessionIdsAtom, () => {})]
+
+        await waitFor(() => expect(executeTraceQueryMock).toHaveBeenCalledTimes(1))
+        const [{params}] = executeTraceQueryMock.mock.calls[0]
+        expect(JSON.parse(params.filter).conditions).toContainEqual({
+            field: "trace_type",
+            operator: "is",
+            value: "invocation",
+        })
+
+        unsubs.forEach((unsub) => unsub())
+    })
+
     it("keeps a session listed and loading while its spans are in flight", async () => {
         let release: (value: unknown) => void = () => {}
         fetchSessionsMock.mockResolvedValue({session_ids: ["p1"], count: 1})

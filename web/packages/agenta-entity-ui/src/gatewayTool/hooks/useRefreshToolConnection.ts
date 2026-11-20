@@ -5,10 +5,15 @@ import {
     useToolConnectionActions,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {createT} from "@agenta/i18n"
+import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnections"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 
 import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
+
+// The toasts fire from the refresh callback, outside render.
+const tNow = createT(toolConnectionsCatalog)
 
 /**
  * Refreshes a connection: re-runs its provider sign-in when it needs one, else re-validates it.
@@ -56,7 +61,7 @@ export function useRefreshToolConnection() {
                             /* best-effort */
                         }
                         invalidateConnections()
-                        message.success("Connection refreshed")
+                        message.success(tNow("entityUi.toolConnections.connectionRefreshed"))
                     }
 
                     const trustedOrigins = new Set<string>([window.location.origin])
@@ -80,9 +85,7 @@ export function useRefreshToolConnection() {
 
                     // A blocked popup never closes, so polling for it would never end.
                     if (!popup) {
-                        message.error(
-                            "Your browser blocked the sign-in popup. Allow pop-ups and refresh again.",
-                        )
+                        message.error(tNow("entityUi.toolConnections.signInPopupBlocked"))
                         return
                     }
                     window.addEventListener("message", handler)
@@ -93,11 +96,11 @@ export function useRefreshToolConnection() {
                     }, 1000)
                 } else {
                     popup?.close()
-                    message.success("Connection refreshed")
+                    message.success(tNow("entityUi.toolConnections.connectionRefreshed"))
                 }
             } catch {
                 popup?.close()
-                message.error("Failed to refresh connection")
+                message.error(tNow("entityUi.toolConnections.failedToRefresh"))
             }
         },
         [handleRefresh, invalidateConnections],

@@ -1,0 +1,13 @@
+{
+    "titleCreate": "新建",
+    "titleSaveAs": "另存为",
+    "titleSave": "保存",
+    "missingName": "无法保存：缺少名称或类型",
+    "name": "名称",
+    "namePlaceholder": "输入名称...",
+    "saveAsNewCopy": "另存为新副本",
+    "original": "原始：<name>{{name}}</name>",
+    "saveFailed": "保存失败",
+    "saved": "保存成功",
+    "save": "保存"
+}

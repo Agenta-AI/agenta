@@ -1,0 +1,9 @@
+{
+    "attachTooltip": "Attach to message",
+    "delete": "Delete recording",
+    "deleteTooltip": "Delete recording (Esc)",
+    "sendTooltip": "Send voice message",
+    "stopAndAttach": "Stop recording and attach it to the message",
+    "stopAndSend": "Stop recording and send the voice message",
+    "timeLeft": "{{time}} left"
+}

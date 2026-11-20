@@ -235,6 +235,15 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     else:
         cleaned_ag["session"] = None
 
+    turn_dict = ag.get("turn")
+    if turn_dict and isinstance(turn_dict, dict):
+        cleaned_turn = {}
+        if "id" in turn_dict:
+            cleaned_turn["id"] = turn_dict["id"]
+        cleaned_ag["turn"] = cleaned_turn if cleaned_turn else None
+    else:
+        cleaned_ag["turn"] = None
+
     user_dict = ag.get("user")
     if user_dict and isinstance(user_dict, dict):
         cleaned_user = {}
@@ -243,6 +252,13 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         cleaned_ag["user"] = cleaned_user if cleaned_user else None
     else:
         cleaned_ag["user"] = None
+
+    annotation_dict = ag.get("annotation")
+    cleaned_ag["annotation"] = (
+        annotation_dict
+        if annotation_dict and isinstance(annotation_dict, dict)
+        else None
+    )
 
     for key in ["flags", "tags", "meta", "exception", "hashes", "selector"]:
         cleaned_ag[key] = ag.get(key, None)

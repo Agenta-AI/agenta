@@ -1,0 +1,11 @@
+{
+    "copyValue": "Copy value",
+    "deleteField": "Delete field",
+    "addItem": "Add item",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "goBack": "Go back",
+    "noItems": "No items to display",
+    "itemCount_one": "{{count}} item",
+    "itemCount_other": "{{count}} items"
+}

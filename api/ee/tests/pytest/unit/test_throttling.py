@@ -120,6 +120,7 @@ async def test_throttle_still_counts_browser_ingest_and_other_routes(
         ("GET", "/sessions/streams/"),
         ("GET", "/sessions/attachments/attachment-1/content"),
         ("POST", "/sessions/mounts/sign"),
+        ("POST", "/mounts/sign"),
         ("GET", "/access/permissions/check"),
         ("POST", "/secrets/secret-1/subscription-login/failure"),
     ],

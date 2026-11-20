@@ -1,0 +1,18 @@
+{
+    "describeRefine": "Describe cómo quieres refinar tu prompt",
+    "orPickSuggestion": "O elige una sugerencia de abajo",
+    "refining": "Refinando el prompt…",
+    "describePlaceholder": "Describe cómo refinar tu prompt…",
+    "send": "Enviar",
+    "submitToSee": "Envía instrucciones para ver el prompt refinado",
+    "messagePlaceholder": "Escribe el contenido del mensaje…",
+    "instructions": "Instrucciones",
+    "refinePrompt": "Refinar prompt",
+    "closeModal": "Cerrar ventana",
+    "chatWithAgent": "Chatea con un agente LLM para mejorar tu prompt",
+    "diff": "Diferencias",
+    "toggleDiff": "Alternar vista de diferencias",
+    "cancel": "Cancelar",
+    "useRefined": "Usar el prompt refinado",
+    "refineFailed": "No se pudo refinar el prompt. Inténtalo de nuevo."
+}

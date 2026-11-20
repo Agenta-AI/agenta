@@ -2,6 +2,8 @@ import {useMemo, useState} from "react"
 
 import type {Automation} from "@agenta/automation-ui"
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {Button} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
 
@@ -34,6 +36,7 @@ export const AutomationTestRunButton = ({
     /** Unsaved config edits — a test run would exercise a version that does not exist yet. */
     dirty: boolean
 }) => {
+    const t = useT(automationsScreensCatalog)
     const startTask = useStartTaskSession(base)
     const [starting, setStarting] = useState(false)
 
@@ -44,19 +47,20 @@ export const AutomationTestRunButton = ({
         [automation.raw.data?.inputs_fields],
     )
 
-    const blockedReason = testRunBlockedReason({agentId: automation.agentId, instruction, dirty})
+    const blocked = testRunBlockedReason({agentId: automation.agentId, instruction, dirty})
+    const blockedText = blocked ? t(TEST_RUN_BLOCKED_TEXT[blocked]) : undefined
 
     return (
         // A disabled button takes no pointer events, so the reason has to hang off something that
         // does.
-        <span title={blockedReason || undefined}>
+        <span title={blockedText}>
             <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 className="text-xs font-normal"
-                disabled={Boolean(blockedReason) || starting}
-                title={blockedReason || "Run this automation now in a new session"}
+                disabled={blocked !== null || starting}
+                title={blockedText ?? t("automations.screens.runNowTitle")}
                 onClick={async () => {
                     if (!automation.agentId) return
                     setStarting(true)
@@ -68,15 +72,24 @@ export const AutomationTestRunButton = ({
                 }}
             >
                 <Play aria-hidden className="size-3" />
-                Run now
+                {t("automations.screens.runNow")}
             </Button>
         </span>
     )
 }
 
+/** The words for each reason, shared by the button and the list row's menu action. */
+export const TEST_RUN_BLOCKED_TEXT = {
+    agent: "automations.screens.blockedAgent",
+    instruction: "automations.screens.blockedInstruction",
+    dirty: "automations.screens.blockedDirty",
+} as const
+
+export type TestRunBlockedReason = keyof typeof TEST_RUN_BLOCKED_TEXT
+
 /**
- * Why a test run cannot start, or "" when it can. Shared with the list row's menu action so
- * the two entry points refuse for the same reasons in the same words.
+ * Why a test run cannot start, or null when it can. Shared with the list row's menu action so
+ * the two entry points refuse for the same reasons.
  */
 export const testRunBlockedReason = ({
     agentId,
@@ -86,10 +99,10 @@ export const testRunBlockedReason = ({
     agentId: string | null
     instruction: string
     dirty?: boolean
-}): string => {
-    if (!agentId) return "Pick the agent this automation runs first"
+}): TestRunBlockedReason | null => {
+    if (!agentId) return "agent"
     // The run IS the instruction; with none there is nothing to send.
-    if (!instruction) return "Add an instruction to test this automation"
-    if (dirty) return "Save your changes first — a test run uses the saved automation"
-    return ""
+    if (!instruction) return "instruction"
+    if (dirty) return "dirty"
+    return null
 }

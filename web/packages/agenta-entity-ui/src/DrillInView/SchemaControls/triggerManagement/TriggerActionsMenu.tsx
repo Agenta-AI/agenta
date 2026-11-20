@@ -1,6 +1,8 @@
 /** The trigger rows' shared "⋯" actions menu (identical in both row shapes). */
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
 import {DotsThreeVertical} from "@phosphor-icons/react"
 
@@ -16,13 +18,14 @@ export function TriggerActionsMenu({
     /** Portal target; defaults to document.body (pass an element to render inline). */
     container?: HTMLElement | null
 }) {
+    const t = useT(triggersCatalog)
     return (
         <DropdownMenu open={open}>
             <DropdownMenuTrigger asChild>
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Open trigger actions"
+                    aria-label={t("entityUi.triggers.openTriggerActions")}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <DotsThreeVertical size={16} weight="bold" />

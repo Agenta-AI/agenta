@@ -55,5 +55,8 @@
       },
       "value": "github-secret"
     }
-  ]
+  ],
+  "drives": [],
+  "homeDrive": null,
+  "hasSessionDrive": false
 }

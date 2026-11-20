@@ -39,6 +39,8 @@ export type TeardownReason =
   | "runtime-incompatible"
   | "sandbox-incompatible"
   | "continuity-invalid"
+  /** A mounted project drive no longer signs; the sandbox holds its credentials, so it is deleted on every backend. */
+  | "drive-revoked"
   | "clean-resumable"
   /**
    * A turn that ran outside the keep-alive pool. No pool entry owns the sandbox, so nothing would
@@ -91,12 +93,14 @@ export function teardownDisposition(
 /**
  * The disposition of a command-only sandbox, whose harness runs in the runner. It holds no harness
  * state a failed turn could have wedged, so every ending keeps its disk for the next turn, except
- * a kill and a shutdown: after a shutdown no process reconnects to it.
+ * a kill, a shutdown (after it no process reconnects to it), and a revoked drive (the sandbox held
+ * that drive's credentials).
  */
 export function commandSandboxDisposition(
   reason: TeardownReason | undefined,
 ): TeardownDisposition {
   return reason === "kill" ||
+    reason === "drive-revoked" ||
     reason === "shutdown-idle" ||
     reason === "shutdown-in-flight"
     ? "delete"

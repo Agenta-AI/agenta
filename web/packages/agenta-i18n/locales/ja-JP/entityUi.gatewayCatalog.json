@@ -1,0 +1,13 @@
+{
+    "seeLess": "表示を減らす",
+    "seeMore": "もっと見る",
+    "viewAll": "すべて表示…",
+    "yourConnections": "あなたの接続",
+    "orConnectNew": "または新しいアプリを接続",
+    "connectApp": "アプリを接続",
+    "integrationCount_other": "{{count}} 件のインテグレーション",
+    "noIntegrations": "インテグレーションが見つかりません",
+    "goBack": "戻る",
+    "connect": "接続",
+    "itemCount_other": "{{count}} 件"
+}

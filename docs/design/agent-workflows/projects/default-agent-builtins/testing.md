@@ -5,7 +5,7 @@
 > now.
 
 All targets below are existing test suites in this repository. Run them with the commands in
-[docs/designs/testing/README.md](../../../../designs/testing/README.md): `cd services && py-run-tests`,
+[docs/design/testing/README.md](../../../../design/testing/README.md): `cd services && py-run-tests`,
 `cd sdks/python && py-run-tests`, `cd api && py-run-tests`, and `pnpm test` inside
 `services/runner`.
 

@@ -1,0 +1,21 @@
+{
+    "agentsBody": "Você descreve o trabalho, conecta os apps de que ele precisa e o melhora com feedback. Quando funcionar, compartilhe com sua equipe.",
+    "agentsHeadline": "Crie um agente conversando com ele",
+    "agentsHowItWorks": "Como os agentes funcionam",
+    "automationsBody": "Uma automação executa um dos seus agentes sem que você peça: em um agendamento ou quando algo acontece em um app que você conectou.",
+    "automationsHeadline": "Coloque seus agentes para trabalhar em segundo plano",
+    "automationsHowItWorks": "Como as automações funcionam",
+    "loadTemplatesError": "Não foi possível carregar os modelos",
+    "readDocs": "Ler a documentação",
+    "sessionsBody": "Cada chat com um agente é uma sessão. Retome de onde parou, pesquise em todas elas e inspecione cada chamada de modelo e de ferramenta.",
+    "sessionsHeadline": "Todas as conversas com um agente, em um só lugar",
+    "sessionsHowItWorks": "Como as sessões funcionam",
+    "skillsBody": "Defina seu agente com AGENTS.md, habilidades e servidores MCP. Você pode trazer para o Agenta habilidades e servidores MCP do ecossistema de agentes.",
+    "skillsHeadline": "Ensine a seus agentes como sua equipe trabalha",
+    "skillsHowItWorks": "Como as habilidades funcionam",
+    "startFromTemplate": "Comece com um modelo",
+    "viewAllTemplates": "Ver todos os modelos",
+    "walkthrough": "Tour por {{title}}",
+    "watch": "Assistir a {{title}}",
+    "watchVideo": "Assistir ao vídeo"
+}

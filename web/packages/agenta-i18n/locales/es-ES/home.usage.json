@@ -1,0 +1,12 @@
+{
+    "title": "Uso",
+    "requests": "Solicitudes",
+    "latency": "Latencia",
+    "totalCost": "Coste total",
+    "avgCost": "Coste medio",
+    "totalTokens": "Tokens totales",
+    "avgTokens": "Tokens medios",
+    "failureRate": "Tasa de fallos",
+    "collapse": "Contraer",
+    "expand": "Expandir"
+}

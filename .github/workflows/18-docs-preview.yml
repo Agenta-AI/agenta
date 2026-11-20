@@ -3,8 +3,27 @@ name: "18 - docs preview"
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    # Only the inputs of the built site. docs/ also holds design notes, plans,
+    # and drafts that the build never reads; a PR that touches only those must
+    # not spend a build and a preview comment.
     paths:
-      - 'docs/**'
+      - 'docs/docs/**'
+      - 'docs/versioned_docs/**'
+      - 'docs/versioned_sidebars/**'
+      - 'docs/versions.json'
+      - 'docs/blog/**'
+      - 'docs/src/**'
+      - 'docs/static/**'
+      - 'docs/patches/**'
+      - 'docs/scripts/**'
+      - 'docs/worker-assets/**'
+      - 'docs/sidebars.ts'
+      - 'docs/docusaurus.config.ts'
+      - 'docs/tailwind.config.js'
+      - 'docs/tsconfig.json'
+      - 'docs/package.json'
+      - 'docs/pnpm-lock.yaml'
+      - 'docs/wrangler.jsonc'
       - '.github/workflows/18-docs-preview.yml'
   workflow_dispatch:
     inputs:

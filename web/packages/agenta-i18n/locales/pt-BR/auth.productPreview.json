@@ -1,0 +1,19 @@
+{
+    "daysAgo": "há {{count}} d",
+    "elapsed": "{{seconds}} s",
+    "hoursAgo": "há {{count}} h",
+    "minutesAgo": "há {{count}} min",
+    "navAgents": "Agentes",
+    "navAutomations": "Automações",
+    "navHome": "Início",
+    "navSessions": "Sessões",
+    "navSettings": "Configurações",
+    "navSkills": "Skills",
+    "navTemplates": "Modelos",
+    "newAutomation": "Nova automação",
+    "now": "agora",
+    "starting": "Iniciando",
+    "subtitle": "Agentes que rodam em um agendamento ou quando algo acontece nos seus apps.",
+    "title": "Automações",
+    "workedFor": "Trabalhou por {{seconds}} s"
+}

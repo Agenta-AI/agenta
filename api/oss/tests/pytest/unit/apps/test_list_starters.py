@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
+from oss.src.core.apps import handlers as handlers_module
 from oss.src.core.apps.handlers import (
     LIST_STARTERS_TOOL_DEFINITION,
     handle_list_starters,
@@ -142,13 +144,66 @@ async def test_bundle_only_when_no_agent_mount(fake_mounts):
 # --- handler ---------------------------------------------------------------------
 
 
-async def test_handler_returns_rows_and_reaches_the_agent_mount(fake_mounts):
-    fake_mounts.files[".apps/starters/retro/SKILL.md"] = AGENT_STARTER
-    result = await handle_list_starters(
-        arguments={"session_id": "s", "artifact_id": "art-1"},
+ARTIFACT = uuid4()
+VARIANT = uuid4()
+
+
+class _Revisions:
+    """The variant's latest revision, with the agent configuration it states."""
+
+    def __init__(self, agent):
+        self.agent = agent
+
+    async def fetch_workflow_revision(self, *, project_id, workflow_variant_ref):
+        assert workflow_variant_ref.id == VARIANT
+        return SimpleNamespace(
+            workflow_id=ARTIFACT,
+            data=SimpleNamespace(parameters={"agent": self.agent}),
+        )
+
+
+class _Sharing:
+    """The drive rule and the home rule the handler asks for."""
+
+    def __init__(self):
+        self.allowed = True
+        self.home_refusal = None
+
+    async def may_use_mount(self, *, project_id, mount_id, context=None):
+        return self.allowed
+
+    async def home_drive_refusal(self, *, project_id, artifact_id, mount_id):
+        return self.home_refusal
+
+
+@pytest.fixture
+def run_may_use(monkeypatch):
+    sharing = _Sharing()
+    monkeypatch.setattr(handlers_module, "get_sharing_service", lambda: sharing)
+    return sharing
+
+
+async def _list(fake_mounts, agent, **arguments):
+    return await handle_list_starters(
+        arguments={
+            "session_id": "s",
+            "artifact_id": str(ARTIFACT),
+            "variant_id": str(VARIANT),
+            **arguments,
+        },
         project_id=PROJECT,
         user_id=uuid4(),
+        workflows_service=_Revisions(agent),
         mounts_service=fake_mounts,
+    )
+
+
+async def test_handler_reads_the_home_drive_of_the_configuration(
+    fake_mounts, run_may_use
+):
+    fake_mounts.files[".apps/starters/retro/SKILL.md"] = AGENT_STARTER
+    result = await _list(
+        fake_mounts, {"drives": [{"slug": "notes"}], "home_drive": "notes"}
     )
     assert result.ok is True
     assert [row["name"] for row in result.content] == ["board", "retro"]
@@ -161,7 +216,41 @@ async def test_handler_returns_rows_and_reaches_the_agent_mount(fake_mounts):
         "access",
         "source",
     }
-    assert fake_mounts.agent_calls == [{"project_id": PROJECT, "artifact_id": "art-1"}]
+    assert fake_mounts.agent_calls == [{"project_id": PROJECT, "slug": "notes"}]
+
+
+async def test_handler_without_a_home_drive_is_bundle_only(fake_mounts, run_may_use):
+    fake_mounts.files[".apps/starters/retro/SKILL.md"] = AGENT_STARTER
+    result = await _list(fake_mounts, {"drives": [], "home_drive": None})
+    assert [row["name"] for row in result.content] == ["board"]
+    assert fake_mounts.agent_calls == []
+
+
+async def test_a_legacy_configuration_reads_the_agents_drive(fake_mounts, run_may_use):
+    fake_mounts.files[".apps/starters/retro/SKILL.md"] = AGENT_STARTER
+    result = await _list(fake_mounts, {"llm": {}})
+    assert [row["name"] for row in result.content] == ["board", "retro"]
+    assert fake_mounts.agent_calls == [
+        {"project_id": PROJECT, "artifact_id": str(ARTIFACT)}
+    ]
+
+
+async def test_a_drive_the_run_may_not_use_reads_as_no_drive(fake_mounts, run_may_use):
+    fake_mounts.files[".apps/starters/retro/SKILL.md"] = AGENT_STARTER
+    run_may_use.allowed = False
+    result = await _list(
+        fake_mounts, {"drives": [{"slug": "notes"}], "home_drive": "notes"}
+    )
+    assert [row["name"] for row in result.content] == ["board"]
+
+
+async def test_a_home_drive_the_home_rule_refuses_reads_as_no_drive(
+    fake_mounts, run_may_use
+):
+    fake_mounts.files[".apps/starters/retro/SKILL.md"] = AGENT_STARTER
+    run_may_use.home_refusal = "home_drive_not_allowed"
+    result = await _list(fake_mounts, {"llm": {}})
+    assert [row["name"] for row in result.content] == ["board"]
 
 
 async def test_handler_is_bundle_only_without_an_artifact(fake_mounts):
@@ -177,4 +266,5 @@ def test_tool_definition_is_read_only_with_bound_context():
     assert LIST_STARTERS_TOOL_DEFINITION["context_bindings"] == {
         "session_id": "$ctx.session.id",
         "artifact_id": "$ctx.workflow.artifact.id",
+        "variant_id": "$ctx.workflow.variant.id",
     }

@@ -1,0 +1,21 @@
+{
+    "agentsBody": "You describe the work, connect the apps it needs, and improve it through feedback. Share it with your team when it works.",
+    "agentsHeadline": "Build an agent by chatting with it",
+    "agentsHowItWorks": "How agents work",
+    "automationsBody": "An automation runs one of your agents without you asking — on a schedule, or when something happens in an app you have connected.",
+    "automationsHeadline": "Put your agents to work in the background",
+    "automationsHowItWorks": "How automations work",
+    "loadTemplatesError": "Could not load templates",
+    "readDocs": "Read the docs",
+    "sessionsBody": "Each chat with an agent is a session. Pick one up where you left off, search across them, and inspect every model and tool call.",
+    "sessionsHeadline": "Every conversation with an agent, in one place",
+    "sessionsHowItWorks": "How sessions work",
+    "skillsBody": "Define your agent with AGENTS.md, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.",
+    "skillsHeadline": "Teach your agents how your team works",
+    "skillsHowItWorks": "How skills work",
+    "startFromTemplate": "Start from a template",
+    "viewAllTemplates": "View all templates",
+    "walkthrough": "{{title}} walkthrough",
+    "watch": "Watch {{title}}",
+    "watchVideo": "Watch video"
+}

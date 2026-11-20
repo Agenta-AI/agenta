@@ -1,0 +1,17 @@
+{
+    "chooseAnEvent": "Escolha um evento",
+    "addAppTrigger": "Adicionar um gatilho de app",
+    "searchIntegrations": "Pesquisar integrações…",
+    "searchEvents": "Pesquisar eventos…",
+    "connectionsHint": "Escolha um evento para criar um gatilho; nenhuma configuração é necessária.",
+    "noTriggers": "Este app não tem gatilhos",
+    "popupBlocked": "Pop-up bloqueado. Redirecionando nesta aba.",
+    "connectTo": "Conectar ao {{name}}",
+    "name": "Nome",
+    "nameTip": "Nome de exibição desta conexão",
+    "required": "Obrigatório",
+    "namePlaceholder": "ex.: Minha conta do {{name}}",
+    "authMethod": "Método de autenticação",
+    "apiKey": "Chave de API",
+    "connect": "Conectar"
+}

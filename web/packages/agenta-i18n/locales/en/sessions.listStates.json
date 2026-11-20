@@ -1,0 +1,10 @@
+{
+    "clearFilters": "Clear filters",
+    "loadFailed": "Could not load sessions",
+    "loadMore": "Load more",
+    "loading": "Loading sessions",
+    "loadingMore": "Loading…",
+    "noMatch": "No sessions match these filters.",
+    "noSessions": "No sessions yet.",
+    "startConversation": "Start a conversation with an agent and it will show up here."
+}

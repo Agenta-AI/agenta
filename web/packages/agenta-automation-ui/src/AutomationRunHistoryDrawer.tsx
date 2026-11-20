@@ -1,5 +1,7 @@
 import {useCallback, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtom} from "jotai"
 
@@ -62,6 +64,7 @@ const AutomationRunHistoryDrawerBody = ({
     onAfterOpenChange: (isOpen: boolean) => void
     renderConversation: (sessionId: string, agentId: string | null) => ReactNode
 }) => {
+    const t = useT(automationsEditorCatalog)
     const {automation} = useAutomation(automationId, kind)
     const render = useCallback(
         (sessionId: string) => renderConversation(sessionId, automation?.agentId ?? null),
@@ -76,7 +79,7 @@ const AutomationRunHistoryDrawerBody = ({
             afterOpenChange={onAfterOpenChange}
             // The automation's name: the view below carries its own "Run history" heading, and
             // the drawer title repeating it read as two headings for one thing.
-            title={automation?.name || "Automation"}
+            title={automation?.name || t("automations.editor.drawerTitle")}
             width={960}
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},

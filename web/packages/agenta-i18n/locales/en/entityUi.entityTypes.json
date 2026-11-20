@@ -1,0 +1,14 @@
+{
+    "testset_one": "Testset",
+    "testset_other": "Testsets",
+    "revision_one": "Revision",
+    "revision_other": "Revisions",
+    "variant_one": "Variant",
+    "variant_other": "Variants",
+    "evaluator_one": "Evaluator",
+    "evaluator_other": "Evaluators",
+    "application_one": "Application",
+    "application_other": "Applications",
+    "simpleQueue_one": "Annotation queue",
+    "simpleQueue_other": "Annotation queues"
+}

@@ -18,6 +18,9 @@
  * ```
  */
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
 import {Button} from "../ui/button"
 import {LoadingButton} from "../ui/button-composed"
@@ -62,14 +65,17 @@ export interface ModalFooterProps {
 export function ModalFooter({
     onCancel,
     onConfirm,
-    confirmLabel = "Confirm",
-    cancelLabel = "Cancel",
+    confirmLabel: confirmLabelProp,
+    cancelLabel: cancelLabelProp,
     isLoading = false,
     canConfirm = true,
     danger = false,
     hideCancel = false,
     className,
 }: ModalFooterProps) {
+    const t = useT(commonCatalog)
+    const confirmLabel = confirmLabelProp ?? t("common.confirm")
+    const cancelLabel = cancelLabelProp ?? t("common.cancel")
     return (
         <div
             className={cn(

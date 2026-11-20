@@ -1,0 +1,9 @@
+{
+    "addEmail": "Veuillez saisir votre adresse e-mail.",
+    "checking": "Vérification…",
+    "continue": "Continuer",
+    "emailAddress": "Adresse e-mail",
+    "emailPlaceholder": "Saisissez votre adresse e-mail",
+    "somethingWentWrong": "Une erreur s’est produite. Veuillez réessayer.",
+    "validEmail": "Veuillez saisir une adresse e-mail valide."
+}

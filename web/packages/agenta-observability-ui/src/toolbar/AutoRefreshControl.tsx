@@ -1,5 +1,7 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import toolbarCatalog from "@agenta/i18n/catalogs/observabilityUi.toolbar"
 import {autoRefreshAtom} from "@agenta/observability"
 import {Switch} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
@@ -21,6 +23,7 @@ export const AutoRefreshControl = ({
     resetTrigger,
     intervalMs = AUTO_REFRESH_INTERVAL,
 }: AutoRefreshControlProps) => {
+    const t = useT(toolbarCatalog)
     const [checked, onChange] = useAtom(autoRefreshAtom)
     const [progress, setProgress] = useState(0)
     const [key, setKey] = useState(0)
@@ -58,10 +61,12 @@ export const AutoRefreshControl = ({
                 size="sm"
                 checked={checked}
                 onCheckedChange={onChange}
-                aria-label="Auto-refresh"
+                aria-label={t("observabilityUi.toolbar.autoRefreshAria")}
             />
             <div className="relative inline-block">
-                <span className="text-[12px] text-colorTextSecondary">auto-refresh</span>
+                <span className="text-[12px] text-colorTextSecondary">
+                    {t("observabilityUi.toolbar.autoRefreshLabel")}
+                </span>
                 {checked ? (
                     <div
                         className="absolute bottom-0 left-0 h-[2px] bg-colorTextSecondary transition-[width] duration-100"

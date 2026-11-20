@@ -1,0 +1,17 @@
+{
+    "removeAsSubagent": "将 {{name}} 从子 Agent 中移除",
+    "addAsSubagent": "将 {{name}} 添加为子 Agent",
+    "noDescription": "无描述",
+    "appsConnectedTo": "已连接到 {{name}} 的应用",
+    "add": "添加",
+    "addSubagents": "添加子 Agent",
+    "pickAgents": "· 选择此 Agent 可以调用的 Agent。",
+    "done": "完成",
+    "searchAgents": "按名称搜索 Agent…",
+    "agentsNotLoaded_other": "有 {{count}} 个 Agent 无法加载，因此未列出。",
+    "retry": "重试",
+    "noAgentsMatch": "没有与你的搜索匹配的 Agent",
+    "noAgentsYet": "还没有 Agent",
+    "tryDifferentName": "试试其他名称。",
+    "createAgentFirst": "先创建一个 Agent，然后回到这里添加它。"
+}

@@ -1,7 +1,12 @@
+import {createT} from "@agenta/i18n"
+import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
+
 import {formatDate} from "../wallet/walletFormat"
 
 import type {InstanceLicense} from "./licenseApi"
 import {useInstanceLicense} from "./useInstanceLicense"
+
+const t = createT(settingsLicenseCatalog)
 
 const EXPIRY_NOTICE_DAYS = 30
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -11,18 +16,18 @@ export const licenseNotices = (license: InstanceLicense, now = Date.now()): stri
     const key = license.license
     if (!key) return []
     if (key.expires_at && new Date(key.expires_at).getTime() <= now) {
-        return [
-            `This license expired on ${formatDate(key.expires_at)}. The instance is on the Community plan.`,
-        ]
+        return [t("settings.license.noticeExpired", {date: formatDate(key.expires_at)})]
     }
     const notices: string[] = []
     if (key.expires_at && new Date(key.expires_at).getTime() - now <= EXPIRY_NOTICE_DAYS * DAY_MS) {
-        notices.push(`This license expires on ${formatDate(key.expires_at)}.`)
+        notices.push(t("settings.license.noticeExpires", {date: formatDate(key.expires_at)}))
     }
     if (key.seats !== null && license.usage.users > key.seats) {
-        const users = license.usage.users
         notices.push(
-            `This instance has ${users} ${users === 1 ? "user" : "users"}, more than the license allows (${key.seats} ${key.seats === 1 ? "seat" : "seats"}).`,
+            t("settings.license.noticeOverSeats", {
+                users: t("settings.license.userCount", {count: license.usage.users}),
+                seats: t("settings.license.seatCount", {count: key.seats}),
+            }),
         )
     }
     return notices

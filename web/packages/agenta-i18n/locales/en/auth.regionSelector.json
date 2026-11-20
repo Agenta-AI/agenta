@@ -1,0 +1,9 @@
+{
+    "dataResidency": "Data Residency",
+    "dataResidencyRegion": "Data residency region",
+    "learnMore": "Learn more",
+    "multipleRegions": "You can have accounts in multiple regions. Each requires a separate sign-up.",
+    "regionLabel": "{{region}} region",
+    "regionsIntro": "Agenta Cloud is available in two regions:",
+    "regionsIsolated": "Regions are completely isolated. No data is shared between regions. Choose a region based on data residency requirements and latency needs."
+}
