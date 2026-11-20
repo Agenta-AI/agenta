@@ -67,7 +67,8 @@ const ROW_HEIGHT = "h-7 text-sm leading-7"
 // shrink-0: the rows are flex children of a `min-h-0 flex-1` nav, so an overflowing rail
 // squeezed them below their own height instead of scrolling. The Sessions group owns the
 // scrolling; every other row holds its size.
-const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-md px-3 select-none`
+// rounded-sm: the 6 px radius the design gives every rail row.
+const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-sm px-3 select-none`
 const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
 // The rail's own selection tokens, not neutral fills: a raised pill with a hairline in both
 // themes. The ring is inset rather than a border so the row's box never changes size
@@ -81,9 +82,8 @@ const GROUP_CHILDREN =
 // A group with no collapse control is a SECTION of the rail, not a submenu you opened: its rows
 // are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
 const SECTION_CHILDREN = "flex flex-col"
-// Revealed with the row; always shown where there is no hover (touch), and while its popup is open.
-const ROW_ACTION =
-    "relative z-[1] mr-1 flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100"
+// Always shown: the design draws the Agents "+" at rest, not on hover.
+const ROW_ACTION = "relative z-[1] mr-1 flex shrink-0 items-center"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
     "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
@@ -242,7 +242,9 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 {...dragAttrs(item.dragItem)}
                 data-sticky-heading="true"
                 className={clsx(
-                    "m-0 w-full shrink-0 pb-0.5 pl-5 pr-5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none",
+                    // Sentence case, as the design writes the day labels ("Today", "Yesterday").
+                    "m-0 w-full shrink-0 pb-1 pl-5 pr-5 text-[12px] leading-5 select-none",
+                    phone ? "pt-1 text-colorTextTertiary" : "pt-1.5 text-colorTextQuaternary",
                     STICKY_HEADING,
                 )}
             >
@@ -259,7 +261,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             // ENTITY (an agent), and shouting a proper noun misspells it.
             data-sticky-heading="true"
             className={clsx(
-                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
+                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-1 pl-5 pr-2 pt-2.5 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText",
                 phone && "min-h-11",
                 STICKY_HEADING,
             )}
@@ -351,13 +353,86 @@ const PlaceholderRow = ({item}: {item: NavItem}) => (
     </p>
 )
 
-const LeafRow = memo(function LeafRow({
+/**
+ * The leading glyph of a top-level rail row. The design draws them a step lighter than the label
+ * (`zinc-8`), the selected row's in the label's own ink; in the phone sheet 18 px and tertiary.
+ * Rows inside a group (sessions, chats) keep their own glyph colour: it carries the run state.
+ */
+const iconClass = (topLevel: boolean, selected: boolean, phone: boolean) =>
+    clsx(
+        "flex shrink-0 items-center",
+        topLevel &&
+            (phone
+                ? "text-colorTextTertiary [&>svg]:size-[18px]"
+                : !selected && "text-[var(--ag-zinc-8)]"),
+    )
+
+/**
+ * A section heading: an always-open group with no icon ("Sessions" in the agent sidebar, "Chats"
+ * in the builder sidebar). A small 12 px label, a link when the group has one, its count right
+ * after it (`suffix`), and its controls (`groupAction`) at the right. The current page marks the
+ * label, not a whole row. `rowClassName` tunes the heading's own spacing.
+ */
+const SectionHeading = ({
     item,
     selected,
     onItemSelect,
 }: {
     item: NavItem
     selected: boolean
+    onItemSelect?: NavMenuProps["onItemSelect"]
+}) => {
+    const label = (
+        <>
+            {item.title}
+            {item.suffix != null ? (
+                <span className="ml-1.5 text-colorTextSecondary">{item.suffix}</span>
+            ) : null}
+        </>
+    )
+    return (
+        <div
+            className={cn(
+                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-[12px] leading-4 text-colorTextTertiary select-none",
+                item.rowClassName,
+            )}
+        >
+            {item.link && !item.disabled ? (
+                <Link
+                    href={item.link}
+                    prefetch={item.prefetch}
+                    title={item.tooltip}
+                    draggable={false}
+                    onClick={linkClickHandler(item, onItemSelect)}
+                    className={clsx(
+                        "-ml-1 inline-flex min-w-0 items-center rounded px-1 py-0.5 no-underline",
+                        selected
+                            ? "bg-colorFillTertiary !text-colorText"
+                            : "!text-colorTextTertiary hover:bg-colorFillTertiary hover:!text-colorText",
+                    )}
+                >
+                    {label}
+                </Link>
+            ) : (
+                <span className="min-w-0 truncate leading-5 text-colorTextSecondary">{label}</span>
+            )}
+            <span className="min-w-0 flex-1" />
+            {item.groupAction ? (
+                <span className="flex shrink-0 items-center">{item.groupAction}</span>
+            ) : null}
+        </div>
+    )
+}
+
+const LeafRow = memo(function LeafRow({
+    item,
+    selected,
+    topLevel,
+    onItemSelect,
+}: {
+    item: NavItem
+    selected: boolean
+    topLevel: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) {
     const phone = useContext(SidebarLayoutContext) === "phone"
@@ -375,10 +450,11 @@ const LeafRow = memo(function LeafRow({
             // decides the winner rather than this list does.
             className={cn(
                 ROW_BASE,
-                phone && PHONE_ROW_CLASS,
+                // The phone sheet's 44 px rows sit edge to edge, as the design draws them.
+                phone && `${PHONE_ROW_CLASS} mb-0`,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
-                item.rowAction && "group/row pr-0",
+                item.rowAction && "pr-0",
                 item.rowClassName,
                 isControl &&
                     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
@@ -396,7 +472,9 @@ const LeafRow = memo(function LeafRow({
                 onClick?.(event as unknown as MouseEvent)
             }}
         >
-            {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
+            {item.icon ? (
+                <span className={iconClass(topLevel, selected, phone)}>{item.icon}</span>
+            ) : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
             {/* Above the stretched link anchor, like a group's action. */}
             {item.rowAction ? <span className={ROW_ACTION}>{item.rowAction}</span> : null}
@@ -569,7 +647,8 @@ const NavMenuImpl = ({
     const inline = mode === "inline" && !collapsed
     const navRef = useRef<HTMLElement>(null)
 
-    const renderItem = (item: NavItem): ReactNode => {
+    // `depth` 0 is a row of the rail itself; deeper rows sit inside a group.
+    const renderItem = (item: NavItem, depth: number): ReactNode => {
         const selected = selectedKeys.includes(item.key)
         // A group that hides its children on the icon rail is a plain link there — no flyout, and
         // so no popup-open report, which keeps its gated source unsubscribed while collapsed.
@@ -668,75 +747,89 @@ const NavMenuImpl = ({
 
         if (hasChildren) {
             const open = openKeys.includes(item.key)
-            const childrenClass = item.alwaysOpen ? SECTION_CHILDREN : GROUP_CHILDREN
+            // A section's rows start 4 px under its row, as the design's list does.
+            const childrenClass = item.alwaysOpen ? clsx(SECTION_CHILDREN, "pt-1") : GROUP_CHILDREN
+            // An always-open group with no icon is a section heading, not a row ("Sessions" in
+            // the agent sidebar, "Chats" in the builder sidebar).
+            const heading = item.alwaysOpen && !item.icon
             return (
                 <Fragment key={item.key}>
-                    <div
-                        // cn, as LeafRow does: `pr-0` has to beat ROW_BASE's `px-3` on this list
-                        // rather than on Tailwind's emission order, and a group row carries its
-                        // own class like any other row.
-                        className={cn(
-                            ROW_BASE,
-                            phone && PHONE_ROW_CLASS,
-                            item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
-                            selected && ROW_SELECTED,
-                            "pr-0",
-                            item.rowClassName,
-                        )}
-                    >
-                        {item.icon ? (
-                            <span className="flex shrink-0 items-center">{item.icon}</span>
-                        ) : null}
-                        <RowLabel item={item} onItemSelect={onItemSelect} />
-                        {/* z-[1] for the same reason as the caret: the link anchor is stretched
+                    {heading ? (
+                        <SectionHeading
+                            item={item}
+                            selected={selected}
+                            onItemSelect={onItemSelect}
+                        />
+                    ) : (
+                        <div
+                            // cn, as LeafRow does: `pr-0` has to beat ROW_BASE's `px-3` on this list
+                            // rather than on Tailwind's emission order, and a group row carries its
+                            // own class like any other row.
+                            className={cn(
+                                ROW_BASE,
+                                phone && `${PHONE_ROW_CLASS} mb-0`,
+                                item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
+                                selected && ROW_SELECTED,
+                                "pr-0",
+                                item.rowClassName,
+                            )}
+                        >
+                            {item.icon ? (
+                                <span className={iconClass(depth === 0, selected, phone)}>
+                                    {item.icon}
+                                </span>
+                            ) : null}
+                            <RowLabel item={item} onItemSelect={onItemSelect} />
+                            {/* z-[1] for the same reason as the caret: the link anchor is stretched
                             over the whole row, and this has to stay clickable above it. */}
-                        {item.groupAction ? (
-                            <span className="relative z-[1] flex shrink-0 items-center">
-                                {item.groupAction}
-                            </span>
-                        ) : null}
-                        {item.alwaysOpen ? null : (
-                            <span
-                                role="button"
-                                tabIndex={0}
-                                aria-label={t(
-                                    open
-                                        ? "navigation.chrome.collapseGroup"
-                                        : "navigation.chrome.expandGroup",
-                                    {title: String(item.title)},
-                                )}
-                                // z-[1] keeps the toggle clickable above the stretched link anchor.
-                                // A 44 px target in the phone sheet; the 12 px caret keeps its size.
-                                className={clsx(
-                                    "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText",
-                                    phone ? "size-11" : "size-[22px]",
-                                )}
-                                onClick={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    onToggleOpenKey?.(item.key)
-                                }}
-                                onKeyDown={(event) => {
-                                    if (event.target !== event.currentTarget) return
-                                    if (event.key !== "Enter" && event.key !== " ") return
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    onToggleOpenKey?.(item.key)
-                                }}
-                            >
-                                <CaretRight
-                                    size={12}
-                                    className={clsx(
-                                        "transition-transform duration-200 ease-in-out",
-                                        open && "rotate-90",
+                            {item.groupAction ? (
+                                <span className="relative z-[1] flex shrink-0 items-center">
+                                    {item.groupAction}
+                                </span>
+                            ) : null}
+                            {item.alwaysOpen ? null : (
+                                <span
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={t(
+                                        open
+                                            ? "navigation.chrome.collapseGroup"
+                                            : "navigation.chrome.expandGroup",
+                                        {title: String(item.title)},
                                     )}
-                                />
-                            </span>
-                        )}
-                    </div>
+                                    // z-[1] keeps the toggle clickable above the stretched link anchor.
+                                    // A 44 px target in the phone sheet; the 12 px caret keeps its size.
+                                    className={clsx(
+                                        "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText",
+                                        phone ? "size-11" : "size-[22px]",
+                                    )}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                        onToggleOpenKey?.(item.key)
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.target !== event.currentTarget) return
+                                        if (event.key !== "Enter" && event.key !== " ") return
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                        onToggleOpenKey?.(item.key)
+                                    }}
+                                >
+                                    <CaretRight
+                                        size={12}
+                                        className={clsx(
+                                            "transition-transform duration-200 ease-in-out",
+                                            open && "rotate-90",
+                                        )}
+                                    />
+                                </span>
+                            )}
+                        </div>
+                    )}
                     {item.scrollChildren ? (
                         <ScrollGroupChildren className={childrenClass} onReachEnd={item.onReachEnd}>
-                            {(item.submenu ?? []).map(renderItem)}
+                            {(item.submenu ?? []).map((child) => renderItem(child, depth + 1))}
                         </ScrollGroupChildren>
                     ) : (
                         // `shrink-0`: HeightCollapse's wrapper is `overflow-hidden`, which drops a
@@ -744,7 +837,7 @@ const NavMenuImpl = ({
                         // shrank and clipped its own rows instead of holding its height.
                         <HeightCollapse open={open} className="shrink-0">
                             <div className={clsx(childrenClass, DRAG_GHOST)}>
-                                {(item.submenu ?? []).map(renderItem)}
+                                {(item.submenu ?? []).map((child) => renderItem(child, depth + 1))}
                             </div>
                         </HeightCollapse>
                     )}
@@ -758,7 +851,12 @@ const NavMenuImpl = ({
 
         return (
             <Fragment key={item.key}>
-                <LeafRow item={item} selected={selected} onItemSelect={onItemSelect} />
+                <LeafRow
+                    item={item}
+                    selected={selected}
+                    topLevel={depth === 0}
+                    onItemSelect={onItemSelect}
+                />
                 {item.divider ? (
                     <hr className="my-2 w-full border-0 border-t border-solid border-colorBorderSecondary" />
                 ) : null}
@@ -783,7 +881,7 @@ const NavMenuImpl = ({
                 className,
             )}
         >
-            {items.map(renderItem)}
+            {items.map((item) => renderItem(item, 0))}
             {inline ? <SidebarReorderLayer containerRef={navRef} /> : null}
         </nav>
     )

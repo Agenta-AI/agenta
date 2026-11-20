@@ -42,23 +42,26 @@ export const SidebarToggleButton = ({
                 // the list is as easy to hit as the rows under it. It was 22 with a -3px ::after
                 // extending only the POINTER area, which left a hover fill visibly smaller than
                 // the thing you were pointing at.
-                "shrink-0 !size-7 !p-0",
-                // 4px nearer the rail's right edge on the expanded rail only; collapsed, it centres.
-                !collapsed && "-mr-1",
+                // The secondary ink, as the design draws the rail's icon buttons.
+                "shrink-0 !size-7 !rounded-sm !p-0 !text-colorTextSecondary hover:!text-colorText",
+                // The phone sheet's close is a 44 px target (the sheet sets it) with a 20 px X.
                 className,
             )}
             aria-label={
                 onDismiss
                     ? t(phone ? "ui.phone.closeSidebar" : "navigation.chrome.closeNavigation")
-                    : undefined
+                    : t(collapsed ? "common.expand" : "common.collapse")
             }
             icon={
                 onDismiss ? (
-                    <X size={16} />
+                    // A size class: the button sizes any glyph without one.
+                    <X className={phone ? "size-5" : "size-4"} />
                 ) : (
                     <Sidebar
-                        size={16}
-                        className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
+                        className={clsx(
+                            "size-4 transition-transform",
+                            collapsed ? "rotate-180" : "",
+                        )}
                     />
                 )
             }

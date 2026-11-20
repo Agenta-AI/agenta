@@ -1,7 +1,7 @@
 /**
- * ModelPickerList: the model picker as one inline list grouped by connection (F01 f2), for a
- * container with room for it (the Model view). It takes the same groups as
- * `SelectLLMProviderBase`; the popover stays for the composer "/model" and the inline controls.
+ * ModelPickerList: the model picker as one inline list grouped by connection (F01 f2), for the
+ * Model view and the chat composer's model list. It takes the same groups as
+ * `SelectLLMProviderBase`, whose popover stays for the inline controls.
  *
  * Each group shows its logo, name and tag, then its models under their harness line
  * ("via Claude Code"). A row shows the readable name with the raw id under it. A disabled group
@@ -33,6 +33,10 @@ export interface ModelPickerListProps {
     disabledGroupAction?: {label: string; onClick: (group: ProviderGroup) => void}
     /** Fixed under the list (the full-width "Manage model providers"). */
     panelFooter?: ReactNode
+    /** Right-aligned in the search field (the `/model` command that opened the list). */
+    searchSuffix?: ReactNode
+    /** Put the caret in the search field on mount (a list that opens over a composer). */
+    autoFocusSearch?: boolean
 }
 
 /** The group's sections with only the options that match; a group with none drops out. */
@@ -62,6 +66,8 @@ const ModelPickerList = ({
     disabled,
     disabledGroupAction,
     panelFooter,
+    searchSuffix,
+    autoFocusSearch,
 }: ModelPickerListProps) => {
     const t = useT(uiLlmProviderCatalog, uiControlsCatalog)
     const [search, setSearch] = useState("")
@@ -80,7 +86,7 @@ const ModelPickerList = ({
                     aria-pressed={selected}
                     disabled={disabled}
                     onClick={() => onChange(option.value, option)}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left hover:bg-accent aria-pressed:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span className="flex min-w-0 items-center gap-1.5">
@@ -186,6 +192,14 @@ const ModelPickerList = ({
                     value={search}
                     allowClear
                     onValueChange={setSearch}
+                    autoFocus={autoFocusSearch}
+                    suffix={
+                        searchSuffix ? (
+                            <span className="font-mono text-[11px] text-colorTextTertiary">
+                                {searchSuffix}
+                            </span>
+                        ) : undefined
+                    }
                 />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">

@@ -89,7 +89,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
 vi.mock("@agenta/entity-ui/drill-in", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entity-ui/drill-in")>()),
     buildConnectionPickerRows: () => [],
-    buildPickerGroupsWithSections: () => [
+    listPickerGroups: () => [
         {key: "agenta", label: "Agenta", options: [{value: "gpt-5.5", label: "GPT-5.5"}]},
     ],
 }))

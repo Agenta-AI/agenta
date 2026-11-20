@@ -1,8 +1,9 @@
-import {useMemo, useState} from "react"
+import {useContext, useMemo, useState} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
+import {SidebarLayoutContext} from "@agenta/navigation-ui"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -11,6 +12,8 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {CaretUpDownIcon} from "@phosphor-icons/react"
+
+import {SwitcherTile} from "./SwitcherTile"
 
 /** Above this many agents the menu gets a search field. */
 const SEARCH_FROM = 8
@@ -39,6 +42,7 @@ export const AgentSidebarSwitcher = ({
     onPick: (agentId: string) => void
 }) => {
     const t = useT(agentSidebarCatalog)
+    const phone = useContext(SidebarLayoutContext) === "phone"
     const [search, setSearch] = useState("")
     const name = agentName(agents.find((agent) => agent.id === agentId))
 
@@ -58,15 +62,21 @@ export const AgentSidebarSwitcher = ({
                     className={
                         collapsed
                             ? "flex size-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 [font-family:inherit] hover:bg-colorFillTertiary"
-                            : "flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-left text-colorText [font-family:inherit] hover:bg-colorFillTertiary"
+                            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent text-left text-colorText [font-family:inherit] hover:bg-colorFillTertiary ${phone ? "h-[52px] px-2" : "h-[38px] px-1.5"}`
                     }
                 >
-                    <AgentChip workflowId={agentId} box="size-7" glyph={16} />
+                    <SwitcherTile agentId={agentId} />
                     {collapsed ? null : (
                         <>
                             <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-[14px] font-medium">{name}</span>
-                                <span className="text-xs leading-3 text-colorTextSecondary">
+                                <span
+                                    className={`truncate ${phone ? "text-[15px] font-medium leading-5" : "text-[14px]"}`}
+                                >
+                                    {name}
+                                </span>
+                                <span
+                                    className={`text-[12px] text-colorTextSecondary ${phone ? "leading-4" : "leading-3"}`}
+                                >
                                     {t("agentSidebar.agent")}
                                 </span>
                             </span>

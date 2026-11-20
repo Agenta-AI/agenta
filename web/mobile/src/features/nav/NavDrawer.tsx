@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
@@ -12,6 +12,12 @@ import {ListIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {
+    currentSidebar,
+    openAgentSidebar,
+    type SelectedSidebar,
+} from "../agent-sidebar/selectedSidebar"
+import {usePageAgentId} from "../agent-sidebar/useAgentSidebarSync"
 import {liveChatOpenAtom} from "../support/crispChat"
 
 import {useRailScope} from "./railScope"
@@ -22,6 +28,11 @@ import {useRailScope} from "./railScope"
  * icon strip inside a 236px sheet, with no toggle on this viewport to undo it.
  */
 const drawerExpandedAtom = atom(false)
+
+/** The agent's sidebar, unless the tab already shows an agent sidebar. */
+const showAgentSidebar = (agentId: string) => {
+    if (currentSidebar().kind === "main") openAgentSidebar(agentId, "main")
+}
 
 /**
  * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet. Below 768 px
@@ -55,6 +66,33 @@ export const NavDrawer = ({
     useEffect(() => {
         if (liveChatOpen) setOpen(false)
     }, [liveChatOpen])
+    // On a phone the menu button inside an agent opens that agent's sidebar. "Back" in the sheet
+    // shows the main sidebar; the next tap on the menu inside an agent shows the agent's again.
+    // A screen with its own rail keeps it.
+    const pageAgentId = usePageAgentId(projectId)
+    const agentSheet = phone && !scopeOverride
+    // The menu opened before the session's agent was known (its row still loading): the sidebar
+    // shown then. The agent's sidebar follows when the agent arrives, unless the person picked
+    // another sidebar meanwhile (Back, a switcher pick) or closed the sheet.
+    const waitingFor = useRef<SelectedSidebar | null>(null)
+    const onOpenChange = (next: boolean) => {
+        if (next && agentSheet) {
+            if (pageAgentId) showAgentSidebar(pageAgentId)
+            else waitingFor.current = currentSidebar()
+        }
+        setOpen(next)
+    }
+    useEffect(() => {
+        if (!open) waitingFor.current = null
+        if (!open || !waitingFor.current || !pageAgentId) return
+        const shown = waitingFor.current
+        waitingFor.current = null
+        if (currentSidebar() === shown) showAgentSidebar(pageAgentId)
+    }, [open, pageAgentId])
+    useEffect(() => {
+        // Fetch the agent sidebar's code ahead of the tap, so it is cached when the sheet opens.
+        if (agentSheet && pageAgentId) void import("../agent-sidebar/agentSidebarScope")
+    }, [agentSheet, pageAgentId])
     const scope = useRailScope(workspaceId, projectId, scopeOverride)
     const router = useRouter()
     // A pick in a rail flyout navigates from a button, which the shell's link-click close misses.
@@ -93,7 +131,7 @@ export const NavDrawer = ({
         return (
             <SidebarSheet
                 open={open}
-                onOpenChange={setOpen}
+                onOpenChange={onOpenChange}
                 title={t("navigation.chrome.navigationTitle")}
                 showHeader={false}
                 trigger={menuButton(tPhone("ui.phone.openSidebar"))}

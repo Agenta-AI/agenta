@@ -276,11 +276,13 @@ vi.mock("@/features/chat/Composer", () => ({
         headerExtra,
         hideSlashCommands,
         inputRef,
+        modelButtonHidden,
     }: {
         placeholder?: string
         headerExtra?: ReactNode
         hideSlashCommands?: boolean
         inputRef?: {current: unknown}
+        modelButtonHidden?: boolean
     }) => {
         composerSeen.inputRef = inputRef
         return (
@@ -288,6 +290,7 @@ vi.mock("@/features/chat/Composer", () => ({
                 data-testid="composer"
                 data-placeholder={placeholder ?? ""}
                 data-hide-slash-commands={hideSlashCommands ? "true" : "false"}
+                data-model-button-hidden={String(modelButtonHidden)}
             >
                 {headerExtra}
             </div>
@@ -367,6 +370,7 @@ describe("LiveConversation slots", () => {
         const composer = byId("composer")!
         expect(composer.getAttribute("data-placeholder")).toBe("")
         expect(composer.getAttribute("data-hide-slash-commands")).toBe("false")
+        expect(composer.getAttribute("data-model-button-hidden")).toBe("false")
         expect(composer.textContent).toBe("")
         expect(byId("accessory")!.textContent).toBe("none")
         expect(byId("below")).toBeNull()
@@ -391,9 +395,21 @@ describe("LiveConversation slots", () => {
         expect(composer.querySelector('[data-testid="chip"]')).not.toBeNull()
         expect(composer.getAttribute("data-placeholder")).toBe("Ask the builder about this agent")
         expect(composer.getAttribute("data-hide-slash-commands")).toBe("true")
+        // The builder chats keep the model button with no palette.
+        expect(composer.getAttribute("data-model-button-hidden")).toBe("false")
         expect(composerSeen.inputRef).toBe(inputRef)
         expect(byId("below")).not.toBeNull()
         // The accessory gets the stored message, full text and metadata included.
         expect(byId("sent-chip")?.textContent).toBe("seen")
+    })
+
+    it("hides the model button while the model needs setup", async () => {
+        modelSetup.blocked = true
+        try {
+            await render({hideSlashCommands: true})
+            expect(byId("composer")!.getAttribute("data-model-button-hidden")).toBe("true")
+        } finally {
+            modelSetup.blocked = false
+        }
     })
 })
