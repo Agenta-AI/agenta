@@ -262,13 +262,17 @@ export const storedCredentialFields = (
 /**
  * Whether a saved AWS connection signs in with access keys rather than a Bedrock API key.
  *
- * A write-only record returns no values, so the key names the vault reports are what tell.
+ * A write-only record returns no values, so the key names the vault reports are what tell. A row
+ * saved before a switch dropped the other way can hold both; the gateway then uses the API key,
+ * so the form opens on it too.
  */
-export const storesAwsAccessKeys = (connection: ProviderConnection | null | undefined): boolean =>
-    !!connection?.source.accessKeyId ||
-    !!connection?.source.storedCredentialKeys?.some(
-        (key) => key.toLowerCase() === "aws_access_key_id",
-    )
+export const storesAwsAccessKeys = (connection: ProviderConnection | null | undefined): boolean => {
+    const source = connection?.source
+    const stored = (name: string) =>
+        !!source?.storedCredentialKeys?.some((key) => key.toLowerCase() === name)
+    if (source?.bearerToken || stored("aws_bearer_token_bedrock")) return false
+    return !!source?.accessKeyId || stored("aws_access_key_id")
+}
 
 /** The probe request body: a credential to spend, or the vault row to spend one from. */
 export interface ProbeRequestBody {

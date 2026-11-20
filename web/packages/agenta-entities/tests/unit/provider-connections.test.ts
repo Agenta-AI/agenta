@@ -1329,6 +1329,20 @@ describe("storesAwsAccessKeys", () => {
         expect(storesAwsAccessKeys(bedrock({accessKeyId: "AKIA123"}))).toBe(true)
     })
 
+    it("opens a row that holds both ways on the API key, which the gateway uses", () => {
+        expect(
+            storesAwsAccessKeys(
+                bedrock({
+                    storedCredentialKeys: [
+                        "aws_access_key_id",
+                        "aws_bearer_token_bedrock",
+                        "aws_secret_access_key",
+                    ],
+                }),
+            ),
+        ).toBe(false)
+    })
+
     it("is false for an API key row and for a new connection", () => {
         expect(
             storesAwsAccessKeys(bedrock({storedCredentialKeys: ["aws_bearer_token_bedrock"]})),
