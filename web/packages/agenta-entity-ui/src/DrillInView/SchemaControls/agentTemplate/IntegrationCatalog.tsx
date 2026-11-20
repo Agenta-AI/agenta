@@ -232,10 +232,10 @@ function ConnectedRow({
 
     return (
         <CatalogListRow
-            highlighted={choosing}
+            highlighted={choosing && (Boolean(onAdd) || browseList)}
             actionLabel={onAdd ? t("entityUi.integrationDrawer.addName", {name}) : name}
             onClick={
-                choosing && !browseList
+                choosing && onAdd
                     ? undefined
                     : // As in Settings: a sign-in that never finished opens to finishing it.
                       attention === "pending"
@@ -317,7 +317,7 @@ function ConnectedRow({
                             )
                         })}
                     </div>
-                ) : choosing ? (
+                ) : choosing && onAdd ? (
                     <div className="ml-[42px] mt-2 flex flex-col gap-1">
                         <RadioGroup value={selected} onValueChange={setSelected}>
                             {group.connections.map((connection) => (
