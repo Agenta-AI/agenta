@@ -23,6 +23,7 @@ import {openFeatureGuideAtom} from "../education/featureGuideAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {LicenseNotices} from "./LicenseNotices"
 import {isNestedSettingsNavEnabled} from "./nestedNav"
 import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabContent} from "./SettingsTabContent"
@@ -111,6 +112,7 @@ export const SettingsScreen = ({
                         : undefined
                 }
             >
+                <LicenseNotices projectId={projectId} />
                 <SettingsTabContent tab={active} workspaceId={workspaceId} projectId={projectId} />
             </SettingsPageShell>
         </div>

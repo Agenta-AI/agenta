@@ -22,6 +22,8 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
+from ee.src.core.licenses.service import instance_plan
+from ee.src.core.licenses.cloud import is_cloud
 from ee.src.core.wallets.service import WalletsService
 
 log = get_module_logger(__name__)
@@ -164,7 +166,15 @@ class SubscriptionsService:
         *,
         organization_id: str,
     ) -> Optional[SubscriptionDTO]:
-        return await self.subscriptions_dao.read(organization_id=organization_id)
+        """The organization's subscription. Outside cloud, its plan is the instance
+        plan from the license key, whatever the stored row says; it is never written
+        back."""
+        subscription = await self.subscriptions_dao.read(
+            organization_id=organization_id
+        )
+        if subscription is None or is_cloud():
+            return subscription
+        return subscription.model_copy(update={"plan": await instance_plan()})
 
     async def update(
         self,
@@ -345,11 +355,11 @@ class SubscriptionsService:
     ) -> Optional[SubscriptionDTO]:
         """Provision the initial subscription for a newly signed-up organization.
 
-        - Stripe enabled, a pricing entry carries `"trial": N` → reverse trial.
-        - Stripe enabled, no trial entry     → onboard on the free plan.
-        - Stripe disabled                    → onboard on `get_default_plan()`.
+        - Cloud, a pricing entry carries `"trial": N` → reverse trial.
+        - Cloud, no trial entry                 → onboard on the free plan.
+        - Not cloud                             → onboard on `get_default_plan()`.
         """
-        if env.stripe.enabled:
+        if is_cloud():
             if trial_enabled():
                 return await self.start_reverse_trial(
                     organization_id=organization_id,
@@ -430,7 +440,10 @@ class SubscriptionsService:
         if not anchor:
             anchor = now.day
 
-        subscription = await self.read(organization_id=organization_id)
+        # The stored row, not `read`: this path writes the row back.
+        subscription = await self.subscriptions_dao.read(
+            organization_id=organization_id
+        )
 
         if not subscription:
             log.warn(
