@@ -177,9 +177,10 @@ export const SessionHeader = ({
                     ) : null}
                     {/* The version status: the save state, a failed save with its retry, and
                         the offer of a newer version. It keeps its drawn size; the hit area of
-                        each of its buttons grows to 44 px, as for the share control. */}
+                        each of its buttons grows to 44 px, as for the share control. The retry of a
+                        failed save is a span with the button role, so the rule matches that role. */}
                     {revisionStatus ? (
-                        <span className="flex shrink-0 items-center [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-2.5 [&_button]:after:content-[]">
+                        <span className="flex shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-2.5 [&_:is(button,[role=button])]:after:content-['']">
                             {revisionStatus}
                         </span>
                     ) : null}
