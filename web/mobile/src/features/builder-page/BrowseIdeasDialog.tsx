@@ -161,7 +161,7 @@ export const BrowseIdeasDialog = ({
                                     IDEA_ICONS[entry.key] ?? CATEGORY_ICONS[entry.category]
                                 return (
                                     <button
-                                        key={entry.title}
+                                        key={entry.key}
                                         type="button"
                                         data-testid="builder-idea"
                                         onClick={() => onPick(entry.prompt)}

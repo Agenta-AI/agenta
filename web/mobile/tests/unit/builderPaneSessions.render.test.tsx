@@ -79,7 +79,7 @@ vi.mock("@/features/sessions/SessionRowMenu", () => ({
 }))
 vi.mock("next/router", () => ({useRouter: () => ({basePath: "/m", push: vi.fn()})}))
 
-import {BuilderChatTitle} from "@/features/builder-page/BuilderChatMenu"
+import {BuilderChatTitle} from "@/features/builder-page/BuilderChatTitle"
 import {
     PaneSessionSwitcher,
     PaneSessions,

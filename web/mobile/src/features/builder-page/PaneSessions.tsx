@@ -43,13 +43,23 @@ export const usePaneSessions = (projectId: string, agentId: string) =>
         refetchInterval: (query) => livePollInterval(query.state.data?.sessions),
     })
 
-/** The session the Sessions pane tab shows: the one picked in the switcher, else the latest. */
+/**
+ * The session the Sessions pane tab shows: the latest one when the list first loads, then the one
+ * picked in the switcher. It stays on screen when newer sessions arrive or push it out of the list.
+ */
 export const usePaneSessionPick = (projectId: string, agentId: string) => {
     const query = usePaneSessions(projectId, agentId)
-    const [pickedId, setPickedId] = useState<string | null>(null)
     const rows = query.data?.sessions ?? []
-    const session = rows.find((row) => row.session_id === pickedId) ?? rows[0] ?? null
-    return {query, session, pick: setPickedId}
+    const [picked, setPicked] = useState<SessionStream | null>(null)
+    // Pinned while rendering, so the first load never shows another session first.
+    if (!picked && rows[0]) setPicked(rows[0])
+    // The fresh row when the list still has it (a new name or status), else the one held.
+    const session = rows.find((row) => row.session_id === picked?.session_id) ?? picked
+    const pick = (sessionId: string) => {
+        const row = rows.find((entry) => entry.session_id === sessionId)
+        if (row) setPicked(row)
+    }
+    return {query, session, pick}
 }
 export type PaneSessionPick = ReturnType<typeof usePaneSessionPick>
 
@@ -85,7 +95,7 @@ export const PaneSessionSwitcher = ({pick}: {pick: PaneSessionPick}) => {
                     data-testid="pane-session-switcher"
                     aria-haspopup="listbox"
                     // 44 px high on a phone (tap rule).
-                    className="box-border flex h-7 w-[172px] min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer pl-2.5 pr-2 text-left text-[13px] font-medium leading-5 text-colorText hover:bg-zinc-1 max-md:h-11 max-md:w-[140px]"
+                    className="box-border flex h-7 w-[172px] shrink-0 cursor-pointer items-center gap-2 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer pl-2.5 pr-2 text-left text-[13px] font-medium leading-5 text-colorText hover:bg-zinc-1 max-md:h-11 max-md:w-[140px]"
                 >
                     <SessionLabel session={current} />
                     <CaretUpDown

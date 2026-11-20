@@ -100,5 +100,6 @@ describe("BuilderPageChat", () => {
         expect(byId("composer")?.getAttribute("data-placeholder")).not.toBe(
             "What do you want to build?",
         )
+        expect(byId("above")?.childElementCount).toBe(0)
     })
 })

@@ -29,7 +29,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AgentPicker} from "./AgentPicker"
-import {BuilderChatTitle} from "./BuilderChatMenu"
+import {BuilderChatTitle} from "./BuilderChatTitle"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
