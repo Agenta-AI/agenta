@@ -27,9 +27,9 @@ amendment (2026-07-24). Two reasons:
    approval config in this file would only duplicate that decision.
 
 Texture caveat, now applying to EVERY mode (D-008 amendment, 2026-07-31: the runner image patches
-codex-acp's ``agent-full-access`` preset from ``approvalPolicy: "never"`` to ``on-request``, so
-tool approvals park warm): because no per-tool ``approval_mode`` is rendered, every tool call
-pauses at codex's OWN on-request gate (an ``allow``-permission tool is not pre-approved via
+codex-acp's ``agent-full-access`` preset from ``approvalPolicy: "never"``, to ``untrusted`` since
+2026-11-20, so tool approvals park warm): because no per-tool ``approval_mode`` is rendered, every
+tool call pauses at codex's OWN gate (an ``allow``-permission tool is not pre-approved via
 config). The runner then applies the tool's effective permission when it classifies that ACP gate,
 so an ``allow`` tool is answered in-process with no human round trip. This is the safe default; a
 Codex-native ``[mcp_servers.<name>] default_tools_approval_mode`` pre-allow would require the

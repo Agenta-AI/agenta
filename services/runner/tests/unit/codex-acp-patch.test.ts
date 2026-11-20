@@ -98,11 +98,11 @@ function patchedSource(source: string): string {
 }
 
 describe("applyCodexAcpApprovalPatch", () => {
-  it("flips the full-access preset from never to on-request", () => {
+  it("flips the full-access preset from never to untrusted", () => {
     const patched = patchedSource(AGENT_MODE_SECTION);
     assert.match(
       patched,
-      /"agent-full-access",[\s\S]*?"on-request",\s*"user",\s*\{ "type": "dangerFullAccess" \}/,
+      /"agent-full-access",[\s\S]*?"untrusted",\s*"user",\s*\{ "type": "dangerFullAccess" \}/,
     );
     assert.equal(patched.includes('"never"'), false);
   });
@@ -112,9 +112,9 @@ describe("applyCodexAcpApprovalPatch", () => {
     // The whole point is decoupling: full access must stay full access.
     assert.equal(patched.includes('{ "type": "dangerFullAccess" }'), true);
     assert.equal(patched.includes('"danger-full-access"'), true);
-    // read-only, workspace-write and agent were already on-request; the patch must not
-    // duplicate or drop them.
-    assert.equal(patched.split('"on-request"').length - 1, 4);
+    // read-only, workspace-write and agent stay on-request; the patch must not touch them.
+    assert.equal(patched.split('"on-request"').length - 1, 3);
+    assert.equal(patched.split('"untrusted"').length - 1, 1);
     assert.equal(patched.includes('type: "workspaceWrite"'), true);
   });
 
@@ -124,8 +124,20 @@ describe("applyCodexAcpApprovalPatch", () => {
       patched,
       AGENT_MODE_SECTION.replace(
         `    "never",\n    "user",\n    { "type": "dangerFullAccess" },`,
-        `    "on-request",\n    "user",\n    { "type": "dangerFullAccess" },`,
+        `    "untrusted",\n    "user",\n    { "type": "dangerFullAccess" },`,
       ),
+    );
+  });
+
+  it("moves an image patched to on-request by the earlier recipe on to untrusted", () => {
+    const earlier = AGENT_MODE_SECTION.replace(
+      `    "never",\n    "user",\n    { "type": "dangerFullAccess" },`,
+      `    "on-request",\n    "user",\n    { "type": "dangerFullAccess" },`,
+    );
+    assert.notEqual(earlier, AGENT_MODE_SECTION);
+    assert.match(
+      patchedSource(earlier),
+      /"agent-full-access",[\s\S]*?"untrusted",\s*"user",\s*\{ "type": "dangerFullAccess" \}/,
     );
   });
 
@@ -144,7 +156,7 @@ describe("applyCodexAcpApprovalPatch", () => {
   });
 
   it("refuses a full-access preset whose approvals are not reviewed by the user", () => {
-    // `on-request` only parks the approval for us when the user is the reviewer; an automatic
+    // Codex parks the approval for us only when the user is the reviewer; an automatic
     // reviewer would answer it inside Codex.
     const autoReviewed = AGENT_MODE_SECTION.replace(
       `    "never",\n    "user",\n    { "type": "dangerFullAccess" },`,

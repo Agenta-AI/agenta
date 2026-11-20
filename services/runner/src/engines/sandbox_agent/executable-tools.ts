@@ -39,7 +39,7 @@ export interface BuildExecutableToolGateInput {
   permissionPlan?: PermissionPlan;
   /**
    * Per-turn ledger of approval-equivalent allows. A harness that runs its OWN permission gates
-   * (Claude always; Codex since the full-access preset was patched to `on-request`) already
+   * (Claude always; Codex since the full-access preset was patched to ask) already
    * decided this call before issuing it, and records a grant. This seam consumes the grant so
    * one approval prompts the human once, not twice. No grant means no prior approval, so the
    * seam decides from scratch and an unapproved `ask` still parks — the check is fail closed.
