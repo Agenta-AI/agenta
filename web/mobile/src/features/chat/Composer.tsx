@@ -84,6 +84,7 @@ export const Composer = ({
     headerExtra,
     hideSlashCommands = false,
     modelButtonHidden = false,
+    className,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
     entityId: string
@@ -139,6 +140,8 @@ export const Composer = ({
      * shows with no palette too: the builder chats pick the builder's model with it.
      */
     modelButtonHidden?: boolean
+    /** The dock's padding where the host places the composer (merged over the default). */
+    className?: string
 }) => {
     const t = useT(chatMobileComposerCatalog, uiLlmProviderCatalog)
     // The builder page's new chat draws a taller box with a smaller paperclip (B01).
@@ -374,6 +377,7 @@ export const Composer = ({
             className={cn(
                 "bg-background shrink-0 px-3 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:px-4 md:pb-4",
                 pageNewChat && "md:pb-6",
+                className,
             )}
         >
             <ContentRail>

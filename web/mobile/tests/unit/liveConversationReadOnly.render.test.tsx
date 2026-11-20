@@ -346,6 +346,7 @@ const render = async (props: {
     readOnly?: SessionReadOnly | null
     canSend?: boolean
     accessPending?: boolean
+    hideComposer?: boolean
 }) => {
     await act(async () =>
         root.render(
@@ -417,6 +418,15 @@ describe("the live chat for a reader who cannot send", () => {
         await render({readOnly: null, canSend: false})
         expect(byId("read-only-composer")).toBeNull()
         expect(byId("composer")?.dataset.disabled).toBe("true")
+    })
+})
+
+describe("a read-only run (F05)", () => {
+    it("draws no composer and no notice, and its cards still answer", async () => {
+        await render({readOnly: null, canSend: true, hideComposer: true})
+        expect(byId("composer")).toBeNull()
+        expect(byId("read-only-composer")).toBeNull()
+        expect(byId("approval-card")?.dataset.readOnly).toBe("false")
     })
 })
 

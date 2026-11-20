@@ -368,6 +368,8 @@ export const BuilderPage = ({
                         paneMax={PANE_MAX_WIDTH}
                         fillMin={paneOpen && !paneFull ? CHAT_MIN_WIDTH : 0}
                         resizable={paneOpen && !paneFull}
+                        // B03: no grip on the line at rest.
+                        gripOnHover
                         barHidden={!paneOpen || paneFull}
                         paneGrow={paneFull}
                         onResize={(size) => setDragWidth(size)}

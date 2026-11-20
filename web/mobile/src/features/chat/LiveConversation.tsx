@@ -74,6 +74,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {ContentRail} from "@/components/ContentRail"
 import {ContentRailCapContext} from "@/components/contentRailCap"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {cn} from "@/lib/utils"
 
 import {useBuilderCommitChecks} from "../builder/useBuilderCommitChecks"
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -97,6 +98,7 @@ import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {ownsShortcutAt} from "./conversationFocus"
+import {useConversationRole} from "./conversationRole"
 import {ConversationRoot} from "./ConversationRoot"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
@@ -163,6 +165,7 @@ export const LiveConversation = ({
     composerPlaceholder,
     inputRef,
     hideSlashCommands = false,
+    hideComposer = false,
     userMessageAccessory,
     onMessagesChanged,
 }: {
@@ -219,6 +222,11 @@ export const LiveConversation = ({
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** The `/` palette would change the agent's own configuration: offer none (the builder). */
     hideSlashCommands?: boolean
+    /**
+     * No composer and no model or credit strips: a finished automation run is read here only
+     * (F05). Its approval and connect cards still answer.
+     */
+    hideComposer?: boolean
     /** Shown with each sent user message, from the message as stored (with its full text). */
     userMessageAccessory?: (message: UIMessage) => ReactNode
     /** Called after the messages change (the builder page reads its tool results). */
@@ -227,6 +235,7 @@ export const LiveConversation = ({
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // The builder's own chat: its answers carry the author line and its cards no always-allow.
     const builderChat = useIsBuilderChat()
+    const role = useConversationRole()
     // The composer reads "Message <agent>" in the agent's own chat.
     const agentName = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
@@ -455,14 +464,17 @@ export const LiveConversation = ({
         }
     }, [locked])
     const disabled = conversation.isHydrating || modelBlocked || walletPending || locked
+    // Not in a side conversation (the builder chats, a pane session): its composer waits at rest
+    // (S07, M04), and on a phone a focus there opens the keyboard over the page.
+    const sideConversation = builderChat || role === "embedded"
     useEffect(() => {
-        if (disabled) return
+        if (disabled || sideConversation || hideComposer) return
         const frame = requestAnimationFrame(() => {
             if (isTypingElsewhere(document.activeElement)) return
             composerRef.current?.focus()
         })
         return () => cancelAnimationFrame(frame)
-    }, [disabled, sessionId, composerRef])
+    }, [disabled, sideConversation, hideComposer, sessionId, composerRef])
 
     // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
@@ -1206,13 +1218,18 @@ export const LiveConversation = ({
                         ) : null}
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
-                        <ContentRail>
-                            <ConnectModelStrip gateActive={modelBlocked} />
-                            {modelBlocked ? null : (
-                                <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
-                            )}
-                        </ContentRail>
-                        {readOnly ? null : (
+                        {hideComposer ? null : (
+                            <ContentRail>
+                                <ConnectModelStrip gateActive={modelBlocked} />
+                                {modelBlocked ? null : (
+                                    <ModelSetupBanner
+                                        revisionId={entityId}
+                                        onSetUp={openModelSetup}
+                                    />
+                                )}
+                            </ContentRail>
+                        )}
+                        {readOnly || hideComposer ? null : (
                             <div className="bg-background shrink-0 px-3">
                                 <ContentRail>
                                     <CreditAlertStrip
@@ -1261,10 +1278,17 @@ export const LiveConversation = ({
                             />
                         ) : null}
                         {newChat ? aboveComposer : null}
-                        {readOnly ? (
+                        {hideComposer ? null : readOnly ? (
                             <ReadOnlyComposerNotice text={readOnly.notice} />
                         ) : (
                             <Composer
+                                className={cn(
+                                    // The builder pads 16 px on a phone too (M04).
+                                    builderChat && "px-4",
+                                    // A new chat's group: 16 px under the intro, and the quick
+                                    // actions 12 px under the box (S07), 14 px on a phone (M04).
+                                    groupLayout && belowComposer && "pt-0 pb-3.5 md:pb-3",
+                                )}
                                 entityId={entityId}
                                 sessionId={sessionId}
                                 agentName={builderChat ? undefined : agentName}
