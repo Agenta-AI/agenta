@@ -82,7 +82,7 @@ async def sign_run_accounts(
     if not items or not personal_accounts_enabled():
         return None
     if artifact_id is None:
-        log.info("[accounts] a run with user items names no agent id; no choices read")
+        log.info("[accounts] user items without an agent id; no account choices read")
     from oss.src.core.account_choices.service import (  # noqa: PLC0415
         get_account_choices_service,
     )

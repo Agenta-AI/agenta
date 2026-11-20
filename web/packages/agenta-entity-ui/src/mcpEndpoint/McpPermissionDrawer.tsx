@@ -375,8 +375,9 @@ export type McpPermissionSourceInput = Pick<
      */
     listTools?: boolean
     /**
-     * Whose sign-in reads the tool list: the project's (`"agent"`, the default) or the viewer's
-     * own (`"user"`), for a server the agent uses with each person's own sign-in.
+     * The relay's `account_source` for this read: whose sign-in reads the tool list, the
+     * project's (`"agent"`, the default) or the viewer's own (`"user"`). It is not the item's
+     * account source: a "user" item reads with the project's sign-in while the project has one.
      */
     accountSource?: AccountSource
 }
@@ -407,23 +408,25 @@ export function useMcpPermissionSource({
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
     const name = connectionName || slug || t("entityUi.mcpPermissions.thisServer")
 
-    // Which connection the visible list belongs to. A tool list is fetched per connection and
-    // arrives whenever it arrives, so without this, switching connections mid-flight rendered the
-    // previous one's tools under the new one's name (M4).
-    const shownFor = useRef<string | undefined>(undefined)
+    // The newest read. A tool list is fetched per connection and sign-in and arrives whenever it
+    // arrives, so without this, switching connections mid-flight rendered the previous one's
+    // tools under the new one's name (M4), and an older read with the other sign-in could replace
+    // the list of the newer one.
+    const latestRead = useRef<object | null>(null)
 
     const loadTools = useCallback(async () => {
         if (!slug) return
-        shownFor.current = slug
+        const read = {}
+        latestRead.current = read
         setTools({status: "loading"})
         try {
             const listed = loadToolsFrom
                 ? await loadToolsFrom(slug)
                 : await listMcpTools(slug, projectId, {accountSource})
-            if (shownFor.current !== slug) return
+            if (latestRead.current !== read) return
             setTools({status: "ready", tools: listed})
         } catch (error) {
-            if (shownFor.current !== slug) return
+            if (latestRead.current !== read) return
             console.error("[mcp] the tool list could not be read", error)
             setTools({status: "failed", ...toolListFailure(error)})
         }

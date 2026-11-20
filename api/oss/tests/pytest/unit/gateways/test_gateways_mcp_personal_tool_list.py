@@ -8,6 +8,7 @@ signing and verification, and the real relay; only the account read, the access 
 and the upstream are faked.
 """
 
+import json
 from contextlib import contextmanager
 from typing import Dict, List
 from uuid import UUID, uuid4
@@ -227,22 +228,23 @@ async def test_a_session_credential_carries_the_callers_own_sign_in(monkeypatch)
 
 async def test_item_keys_never_reach_another_persons_sign_in(monkeypatch):
     """The keys only name items: the account read is always for the session's person,
-    so a viewer with no sign-in gets nothing, even while a colleague has one."""
+    whatever the keys hold, so a viewer with no sign-in gets nothing while a colleague
+    has one on the same server."""
     colleague, viewer = uuid4(), uuid4()
     accounts = _install(monkeypatch, {colleague: uuid4()})
-    project_id, organization_id = uuid4(), uuid4()
 
-    with _session(
-        person=viewer, project_id=project_id, organization_id=organization_id
-    ) as envelope:
+    with _session(person=viewer, project_id=uuid4(), organization_id=uuid4()) as env_:
         token = await _mint(
             monkeypatch,
-            envelope=envelope,
+            envelope=env_,
+            # A key whose text is the colleague's id is still only an item name.
             item_keys=[ITEM_KEY, f"mcp_server:user/{colleague}"],
         )
 
     assert "run_accounts" not in _claims(token)
-    assert [call["user_id"] for call in accounts.calls] == [viewer]
+    (call,) = accounts.calls
+    assert call["user_id"] == viewer
+    assert [item.match_text for item in call["items"]] == [SLUG, str(colleague)]
 
 
 async def test_no_item_keys_read_no_account(monkeypatch):
@@ -289,8 +291,6 @@ async def test_both_exchanges_sign_the_same_claim_for_the_same_input(monkeypatch
             workflow_id=None,
             item_keys=[ITEM_KEY],
         )
-
-    import json  # noqa: PLC0415
 
     access_token = json.loads(allowed.body)["credentials"].removeprefix("Secret ")
     assert (
@@ -356,19 +356,29 @@ async def test_a_viewer_without_a_sign_in_gets_no_tools_and_no_colleagues(monkey
     assert adapter.relay_calls == 0
 
 
-async def test_a_sign_in_of_another_project_is_never_used(monkeypatch):
-    """The account read is scoped to the session's project. A credential minted in one
-    project carries nothing for a sign-in the person holds in another one."""
-    person = uuid4()
-    accounts = _install(monkeypatch, {})
-    home, other = uuid4(), uuid4()
+async def test_the_account_read_is_scoped_to_the_sessions_project(monkeypatch):
+    """The account read takes the project and organization of the session, which the
+    statement scopes every sign-in to. The request body names neither."""
+    person, grant = uuid4(), uuid4()
+    accounts = _install(monkeypatch, {person: grant})
+    project_id, organization_id = uuid4(), uuid4()
 
-    with _session(person=person, project_id=home, organization_id=uuid4()) as env_:
-        token = await _mint(monkeypatch, envelope=env_, item_keys=[ITEM_KEY])
+    with _session(
+        person=person, project_id=project_id, organization_id=organization_id
+    ) as env_:
+        await _mint(monkeypatch, envelope=env_, item_keys=[ITEM_KEY])
 
-    assert [call["project_id"] for call in accounts.calls] == [home]
-    assert other not in [call["project_id"] for call in accounts.calls]
-    assert "run_accounts" not in _claims(token)
+    (call,) = accounts.calls
+    assert (call["project_id"], call["organization_id"]) == (
+        project_id,
+        organization_id,
+    )
+    assert set(GatewayCredentialsRequest.model_fields) == {
+        "plane",
+        "session_id",
+        "agent_id",
+        "item_keys",
+    }
 
 
 async def test_a_server_with_a_project_sign_in_keeps_the_project_path(monkeypatch):
@@ -376,9 +386,9 @@ async def test_a_server_with_a_project_sign_in_keeps_the_project_path(monkeypatc
     the tool list reads the project's grant, as before."""
     dao = MockMCPEndpointsDAO()
     endpoint = await _server(dao, project_secret=True)
-    project_grant = _person_grant(endpoint=endpoint, person=uuid4())
+    project_sign_in = _person_grant(endpoint=endpoint, person=uuid4())
     _install(monkeypatch, {})
-    resolver = _RecordingResolver(secrets=[project_grant])
+    resolver = _RecordingResolver(secrets=[project_sign_in])
     service = _relay_service(
         mcp_endpoints_dao=dao,
         resolver=resolver,
