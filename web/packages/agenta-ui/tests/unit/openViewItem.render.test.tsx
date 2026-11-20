@@ -3,6 +3,8 @@
  * A page learns which configuration item an open view shows, in a container's stack or in a
  * drawer of its own: the deepest open view whose params carry an `item` address, with its title.
  */
+import {useEffect, useState} from "react"
+
 import {act, cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
@@ -43,6 +45,22 @@ const pickerView = defineView<Record<string, never>>({
     id: "test.picker",
     apply: "immediate",
     Component: PickerBody,
+})
+
+/** A view whose title arrives a moment after it opens. */
+let showLateTitle: (() => void) | null = null
+const LateTitleBody = ({params}: ViewProps<{item: ConfigItemRef; title: string}>) => {
+    const [title, setTitle] = useState("")
+    useEffect(() => {
+        showLateTitle = () => setTitle(params.title)
+    }, [params.title])
+    useViewTitle(title)
+    return null
+}
+const lateTitleView = defineView<{item: ConfigItemRef; title: string}>({
+    id: "test.late-title",
+    apply: "immediate",
+    Component: LateTitleBody,
 })
 
 let stack: ViewStack
@@ -87,6 +105,17 @@ describe("ReportOpenViewItemContext", () => {
         await act(async () => void pushPicker!())
         expect(stack.depth).toBe(2)
         expect(report).toHaveBeenLastCalledWith({...zendesk, name: "Zendesk"})
+    })
+
+    it("names no item while the next view has no title, then names it", async () => {
+        const report = vi.fn()
+        mount(report)
+        await act(async () => void stack.open(itemView, {item: zendesk, title: "Zendesk"}, AGENT))
+        const slack: ConfigItemRef = {list: "tools", key: "composio:slack"}
+        await act(async () => void stack.open(lateTitleView, {item: slack, title: "Slack"}, AGENT))
+        expect(report).toHaveBeenLastCalledWith(null)
+        await act(async () => showLateTitle?.())
+        expect(report).toHaveBeenLastCalledWith({...slack, name: "Slack"})
     })
 
     it("reports null when the host leaves", async () => {

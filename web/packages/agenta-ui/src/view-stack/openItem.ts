@@ -11,7 +11,7 @@ export interface OpenViewItem extends ConfigItemRef {
  * Lets a page learn which configuration item an open view shows, wherever the view opens (a
  * container's stack or a drawer of its own). A stack host under this context reports its deepest
  * open view whose params carry an `item` address, once that view has reported its title, and
- * null when no open view shows an item or when the host leaves.
+ * null before that, when no open view shows an item, or when the host leaves.
  */
 export const ReportOpenViewItemContext = createContext<
     ((item: OpenViewItem | null) => void) | null
@@ -41,9 +41,9 @@ export const useReportOpenViewItem = (
     const name = open ? titles[open.key] : undefined
     useEffect(() => {
         if (!report) return
-        if (!list || !key) report(null)
-        // Wait for the view's title, so the name is never the bare key.
-        else if (name) report({list, key, name})
+        // Until the view reports its title nothing is named (never the bare key, never the
+        // item of a view that just closed).
+        report(list && key && name ? {list, key, name} : null)
     }, [report, list, key, name])
     // Nothing is open once the host leaves.
     useEffect(() => (report ? () => report(null) : undefined), [report])
