@@ -64,7 +64,14 @@ vi.mock("@agenta/ui/hooks", async (importOriginal) => ({
     useMediaQuery: () => false,
 }))
 
-vi.mock("next/router", () => ({useRouter: () => ({push: vi.fn(), query: {}, asPath: "/"})}))
+vi.mock("next/router", () => ({
+    useRouter: () => ({
+        push: vi.fn(),
+        query: {},
+        asPath: "/",
+        events: {on: () => undefined, off: () => undefined, emit: () => undefined},
+    }),
+}))
 
 // The workspace's neighbours, none of which decide what this case asks about. The config pane is
 // stubbed at the module the dynamic loader reaches for, so resolving it does not pull the whole
@@ -73,10 +80,7 @@ vi.mock("@/features/chat/ConfigPane", () => ({ConfigPane: () => null}))
 vi.mock("@/features/nav/AppShell", () => ({
     AppShell: ({children}: {children: React.ReactNode}) => children,
 }))
-vi.mock("@/features/chat/SessionsPane", () => ({SessionsPane: () => null}))
-vi.mock("@/features/chat/CollapsedConfigRail", () => ({CollapsedConfigRail: () => null}))
-vi.mock("@/features/chat/SessionTabs", () => ({SessionTabs: () => null}))
-vi.mock("@/features/chat/SessionTopBar", () => ({SessionTopBar: () => null}))
+vi.mock("@/features/agent-layout/SessionHeader", () => ({SessionHeader: () => null}))
 vi.mock("@/features/chat/useSessionTabClose", () => ({useSessionTabClose: () => () => undefined}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({
     useStartBlankSession: () => () => undefined,

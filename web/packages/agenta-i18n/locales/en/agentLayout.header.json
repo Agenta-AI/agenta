@@ -1,0 +1,15 @@
+{
+    "archiveAgent": "Archive agent",
+    "builder": "Builder",
+    "configuration": "Configuration",
+    "exportAgent": "Export agent",
+    "files": "Files",
+    "history": "History",
+    "loadFailed": "Could not load sessions",
+    "newSession": "New session",
+    "rename": "Rename",
+    "retry": "Retry",
+    "sessions": "Sessions",
+    "shareConversation": "Share the conversation",
+    "untitledSession": "Untitled session"
+}

@@ -1439,6 +1439,7 @@ export async function runTurn(
       // must perform zero workspace reads.
       onResolveApprovedContent: approvedContent.onResolveApprovedContent,
       onResolveChangePreview: changePreview,
+      pauseSignal: pause.signal,
       shouldRegateStaleApproval: approvedContent.shouldRegateStaleApproval,
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn

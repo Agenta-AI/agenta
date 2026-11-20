@@ -1,0 +1,11 @@
+{
+    "cancel": "Cancelar",
+    "discard": "Descartar",
+    "done": "Listo",
+    "keepEditing": "Seguir editando",
+    "save": "Guardar",
+    "saveChanges": "Guardar cambios",
+    "saveFailed": "No se pudo guardar el cambio. Vuelve a intentarlo.",
+    "saving": "Guardando…",
+    "unsavedChanges": "Tienes cambios sin guardar"
+}

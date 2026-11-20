@@ -174,6 +174,7 @@ describe("the approval event of an agent write", () => {
   function gate(
     onResolveChangePreview: any,
     onResolveApprovedContent?: any,
+    pauseSignal?: Promise<unknown>,
   ): Promise<AgentEvent[]> {
     const events: AgentEvent[] = [];
     let handler: ((req: any) => void) | undefined;
@@ -189,6 +190,7 @@ describe("the approval event of an agent write", () => {
       toolSpecsByName: toolSpecsByName([EDIT_SPEC]),
       onResolveChangePreview,
       onResolveApprovedContent,
+      pauseSignal,
     } as never);
     handler?.({
       id: "permission-1",
@@ -235,6 +237,19 @@ describe("the approval event of an agent write", () => {
     const event = events[0] as { payload: Record<string, unknown> };
     assert.deepEqual(event.payload.manifest, manifest);
     assert.deepEqual(event.payload.preview, PREVIEW);
+  });
+
+  it("opens without the preview when a sibling gate pauses the turn first", async () => {
+    // The preview never answers; the turn pauses because another gate asked.
+    const events = await gate(
+      () => new Promise(() => {}),
+      undefined,
+      Promise.resolve(),
+    );
+
+    assert.equal(events.length, 1);
+    const event = events[0] as { payload: Record<string, unknown> };
+    assert.equal("preview" in event.payload, false);
   });
 
   it("carries the preview on the executable tool gate too", async () => {

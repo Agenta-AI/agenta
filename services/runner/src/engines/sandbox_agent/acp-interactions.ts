@@ -175,6 +175,12 @@ export interface AttachPermissionResponderInput {
    */
   onResolveChangePreview?: AgentChangePreviewFetcher;
   /**
+   * Resolves when the turn pauses. A card that still waits for its preview stops waiting
+   * then and opens without it, so a sibling gate's pause never ends the turn before the card
+   * exists.
+   */
+  pauseSignal?: Promise<unknown>;
+  /**
    * Whether a REPLAYED approval must not answer this gate, so the gate asks again.
    *
    * A cold resume destroys the environment, and with it the frozen bytes the human approved. The
@@ -234,6 +240,7 @@ export function attachPermissionResponder({
   onExecutableGateAllowed,
   onResolveApprovedContent,
   onResolveChangePreview,
+  pauseSignal,
   shouldRegateStaleApproval,
   piToolSpecsByName,
   toolSpecsByName,
@@ -290,7 +297,9 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
     manifest?: unknown,
-    resolvePreview?: () => Promise<Record<string, unknown> | undefined>,
+    resolvePreview?: () =>
+      | Promise<Record<string, unknown> | undefined>
+      | undefined,
   ): Promise<void> => {
     // Signal the parkable gate so a keep-alive resume can record the pending permission id and
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
@@ -309,7 +318,13 @@ export function attachPermissionResponder({
     if (toolCallId) onPausedToolCall?.(toolCallId);
     // Fetched after the call is marked paused, so a sibling gate that pauses the turn
     // meanwhile does not settle this call as an orphan.
-    const preview = await resolvePreview?.();
+    const pending = resolvePreview?.();
+    const preview = pending
+      ? await Promise.race([
+          pending,
+          ...(pauseSignal ? [pauseSignal.then(() => undefined)] : []),
+        ])
+      : undefined;
     run.emitEvent({
       type: "interaction_request",
       id: eventId,
