@@ -50,7 +50,8 @@ export const ListTableToolbar = ({
                     onChange={(event) => onSearchChange(event.target.value)}
                     placeholder={searchPlaceholder}
                     aria-label={searchAriaLabel ?? searchPlaceholder}
-                    className="text-[13px] md:text-[13px]"
+                    // Fills the 44 px group on a phone, so a tap anywhere in it lands on the field.
+                    className="text-[13px] max-md:h-full md:text-[13px]"
                 />
                 {search ? (
                     <InputGroupAddon align="inline-end">
