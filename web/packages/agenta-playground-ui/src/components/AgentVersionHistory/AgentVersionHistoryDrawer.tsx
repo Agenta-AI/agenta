@@ -206,7 +206,7 @@ export const AgentVersionHistoryDrawer = ({
             onClose={handleClose}
             title={
                 phone ? undefined : (
-                    <span className="text-sm font-normal">
+                    <span className="text-[13px] font-normal">
                         {t("playground.versionHistory.title")}
                     </span>
                 )
@@ -227,7 +227,11 @@ export const AgentVersionHistoryDrawer = ({
                               paddingBottom: "env(safe-area-inset-bottom)",
                           },
                       }
-                    : undefined
+                    : // Flush to the right edge, full height, square (canvas S06).
+                      {
+                          content: {top: 0, right: 0, bottom: 0, height: "100%", borderRadius: 0},
+                          header: {paddingLeft: 24},
+                      }
             }
             panelRef={setPanel}
             // px-3 so the buttons' outer edge lands on the same line as the section bands.

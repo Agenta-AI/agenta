@@ -161,7 +161,7 @@ export const AgentPane = ({
     else if (tab === "agent" && revisionId)
         body = (
             <SectionMarksContext.Provider value={sectionMarks}>
-                <ConfigPane entityId={revisionId} />
+                <ConfigPane entityId={revisionId} column />
             </SectionMarksContext.Provider>
         )
     else if (tab === "automations" && revisionId)

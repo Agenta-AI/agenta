@@ -40,7 +40,12 @@ import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {useViewOpener, type ConfigItemRef, type ViewTarget} from "@agenta/ui/view-stack"
+import {
+    useViewOpener,
+    type ConfigItemRef,
+    type ViewDef,
+    type ViewTarget,
+} from "@agenta/ui/view-stack"
 import {useAtom, useAtomValue} from "jotai"
 
 import {readSecretBindings} from "../../secret/secretBindings"
@@ -62,7 +67,7 @@ import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {integrationItemRef, removeIntegrationByRef} from "./agentTemplate/itemKinds/tool"
 import type {ItemRowStatus} from "./agentTemplate/ItemRow"
 import {removeMcpByRef} from "./agentTemplate/mcpRail"
-import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
+import {needsSetupStatus} from "./agentTemplate/needsSetup"
 import {modelNeedsSetupMessage, needsSetupLabel} from "./agentTemplate/needsSetupText"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -89,7 +94,7 @@ import {AgentEditorContext, type AgentEditor} from "./agentTemplate/useAgentConf
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
-import {advancedView} from "./agentTemplate/views/advancedViews"
+import {advancedView, type AdvancedViewParams} from "./agentTemplate/views/advancedViews"
 import {instructionsView} from "./agentTemplate/views/instructionsView"
 import {integrationAddView} from "./agentTemplate/views/integrationAddView"
 import {integrationView} from "./agentTemplate/views/integrationView"
@@ -236,14 +241,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (viewTarget) void openView(instructionsView, {file: "AGENTS.md" as const}, viewTarget)
     }, [openView, viewTarget, disabled])
 
-    // Advanced opens its view: in the container's stack, or in a drawer of its own.
-    const openAdvanced = useCallback(() => {
-        if (viewTarget) void openView(advancedView, {}, viewTarget)
-    }, [openView, viewTarget])
+    // Advanced, or one of its parts, opens its view: in the container's stack, or in a drawer of
+    // its own.
+    const openAdvanced = useCallback(
+        (view: ViewDef<AdvancedViewParams>) => {
+            if (viewTarget) void openView(view, {}, viewTarget)
+        },
+        [openView, viewTarget],
+    )
     const openSection = useCallback(
         (key: "model-harness" | "advanced") => {
             if (key === "model-harness") openModel()
-            else openAdvanced()
+            else openAdvanced(advancedView)
         },
         [openModel, openAdvanced],
     )
@@ -448,7 +457,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         tools: integrationCount > 0,
         subagents: subagentCount > 0,
         mcp: mcpServers.length > 0,
-        skills: skills.length > 0,
+        // Skills start closed (canvas S02 opens Instructions and Integrations only).
+        skills: false,
         triggers: triggerCount > 0,
     }))
     const setSectionOpenByKey = useCallback(
@@ -676,13 +686,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Section rollup counts for the header indicator/tooltips.
     const toolResolutionSummary = useMemo(() => {
         let unresolved = 0
-        let needsSetup = 0
         for (const index of gatewayToolViews.keys()) {
-            const s = toolResolutionStatus(index)
-            if (s?.tone === "invalid") unresolved += 1
-            else if (isNeedsSetupStatus(s)) needsSetup += 1
+            if (toolResolutionStatus(index)?.tone === "invalid") unresolved += 1
         }
-        return {unresolved, needsSetup}
+        return {unresolved}
     }, [gatewayToolViews, toolResolutionStatus])
 
     // A blocking resolution problem outranks draft markers; structural invalid stays first.
@@ -762,7 +769,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Structurally valid but missing setup the section needs to run (amber, ranks below invalid).
     const sectionIncompleteTip = (key: string): string | null => {
         if (key === "model-harness" && modelReq) return modelNeedsSetupMessage()
-        if (key === "tools" && toolResolutionSummary.needsSetup > 0) return needsSetupLabel()
+        // Integrations: no needs-setup dot on the header; the row's "Needs setup" tag says it
+        // (canvas F01, F02).
         if (key === "mcp" && mcpNeedsSetup) return needsSetupLabel()
         if (key === "secrets" && secretReq) return needsSetupLabel()
         return null
@@ -907,7 +915,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             onRevisionCommitted: onWorkflowRevisionCommitted,
         }),
         permissionsSection({t, mh, sectionIndicator, panelChangedPaths, bodyProps}),
-        advancedSection({t, mh, sectionIndicator, advancedChangeBody, openAdvanced}),
+        advancedSection({
+            t,
+            mh,
+            sectionIndicator,
+            advancedChangeBody,
+            openAdvanced,
+            schema,
+            config,
+            revisionId,
+        }),
     ].filter(Boolean) as AgentTemplateSectionDescriptor[]
     // A container's marks on sections (the builder page's "Changed by the builder").
     const marked = useSectionMarks(sections)

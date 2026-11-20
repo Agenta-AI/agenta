@@ -1,6 +1,6 @@
 import {createT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {HardDrives} from "@phosphor-icons/react"
+import {Broadcast} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
 import {McpServersSectionBody, type McpServersSectionBodyProps} from "../McpServersSectionBody"
@@ -45,7 +45,7 @@ export const agentMcpSection = ({
 }: AgentMcpSectionParams): SectionResult =>
     hasMcp && {
         key: "mcp",
-        icon: <HardDrives size={16} />,
+        icon: <Broadcast size={14} />,
         title: fieldTitle("mcps", t("entityUi.agentTemplate.mcpServers")),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(mcpServers.length, "server") || tNow("common.none"),

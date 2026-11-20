@@ -1,5 +1,5 @@
 /** The Automations region's "Add automation" menu (F05 f2), and its phone form (M10, M11). */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {
     triggerScheduleDrawerAtom,
@@ -10,11 +10,17 @@ import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperatio
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {BottomSheetMenu, PhonePrimaryAction} from "@agenta/ui/phone"
-import {Clock, Lightning, Plus, Sparkle} from "@phosphor-icons/react"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/ui/ui"
+import {Clock, Lightning, Plus} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-
-import {CreateWithAIAddMenu} from "../agentTemplate/CreateWithAIAddMenu"
 
 import {useAgentTriggers} from "./useAgentTriggers"
 
@@ -74,10 +80,10 @@ function useManualAutomationItems(entityId: string | null, onAdd?: OnAddAutomati
 }
 
 /**
- * "Add automation" (F05 f2): "App trigger", "Scheduled trigger" and "Create with AI". The kind is
- * chosen here, so the form it opens has no switch between the two kinds. A new automation is
- * bound to the open agent. "Create with AI" puts the starter "I want an automation that" in the
- * composer and sends nothing.
+ * "Add automation" (F05 f2): the bordered button at the top right of the list, and its menu with
+ * "App trigger", "Scheduled trigger" and "Create with AI". The kind is chosen here, so the form it
+ * opens has no switch between the two kinds. A new automation is bound to the open agent.
+ * "Create with AI" puts the starter "I want an automation that" in the composer and sends nothing.
  */
 export function AddTriggerDropdown({
     entityId,
@@ -86,17 +92,67 @@ export function AddTriggerDropdown({
     entityId: string | null
     onAdd?: OnAddAutomation
 }) {
-    const t = useT(triggersCatalog, agentOperationsCatalog)
+    const t = useT(triggersCatalog, agentOperationsCatalog, configItemsCatalog)
     const manualItems = useManualAutomationItems(entityId, onAdd)
+    const requestPrefill = useSetAtom(composerPrefillRequestAtom)
+    const starter = t("entityUi.agentOperations.automationStarter")
+    // The menu gives focus back to its button as it closes; after "Create with AI" the composer
+    // keeps it, or the caret the starter just placed is lost.
+    const choseAI = useRef(false)
+    const items = [
+        ...manualItems,
+        {
+            key: "ai",
+            icon: <BuilderIcon size={14} />,
+            title: t("entityUi.configItems.createWithAi"),
+            hint: t("entityUi.triggers.createWithAiSubtitle"),
+            onSelect: () => {
+                choseAI.current = true
+                requestPrefill({id: Date.now(), text: starter})
+            },
+        },
+    ]
 
     return (
-        <CreateWithAIAddMenu
-            label={t("entityUi.agentOperations.addAutomation")}
-            starterPrompt={t("entityUi.agentOperations.automationStarter")}
-            aiHint={t("entityUi.triggers.createWithAiSubtitle")}
-            aiLast
-            manualItems={manualItems}
-        />
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="compact" className="font-normal">
+                    <Plus size={14} />
+                    {t("entityUi.agentOperations.addAutomation")}
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+                align="end"
+                className="w-[270px]"
+                onCloseAutoFocus={(event) => {
+                    if (!choseAI.current) return
+                    choseAI.current = false
+                    event.preventDefault()
+                }}
+            >
+                {items.map((item) => (
+                    // A plain icon and a hint that wraps to a second line rather than being cut.
+                    <DropdownMenuItem
+                        key={item.key}
+                        onSelect={item.onSelect}
+                        className="items-start gap-2 p-2"
+                    >
+                        <span
+                            aria-hidden
+                            className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:size-3.5"
+                        >
+                            {item.icon}
+                        </span>
+                        <span className="flex min-w-0 flex-col">
+                            <span className="text-[13px] text-colorText">{item.title}</span>
+                            <span className="text-[12px] leading-4 text-colorTextTertiary">
+                                {item.hint}
+                            </span>
+                        </span>
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 
@@ -142,7 +198,7 @@ export function AddAutomationPhoneAction({
                     })),
                     {
                         key: "ai",
-                        icon: <Sparkle size={16} />,
+                        icon: <BuilderIcon size={18} />,
                         label: t("entityUi.configItems.createWithAi"),
                         description: t("entityUi.triggers.createWithAiSubtitle"),
                         onSelect: createWithAI,

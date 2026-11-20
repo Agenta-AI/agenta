@@ -125,6 +125,9 @@ export const AutomationRunHistoryView = ({
     }, [])
     const onBack = useCallback(() => setDismissed(true), [])
 
+    // The panel's empty history is the heading and the empty text only (F05 f9): no count line
+    // and no link to a full page with nothing on it.
+    const panelEmpty = frame === "panel" && !isLoading && !error && allRuns.length === 0
     const showPane = Boolean(selected)
     const showList = !showPane || canSplit
 
@@ -163,7 +166,7 @@ export const AutomationRunHistoryView = ({
                             </h1>
                             {showFilters ? (
                                 <AutomationRunFilterMenu view={view} onChange={setView} />
-                            ) : runHistoryHref ? (
+                            ) : runHistoryHref && !panelEmpty ? (
                                 <a
                                     href={runHistoryHref}
                                     target="_blank"
@@ -183,9 +186,11 @@ export const AutomationRunHistoryView = ({
                         {/* Empty until the deliveries land — the hook withholds the caption
                             rather than claiming "0 runs" off a query that has not run. The line
                             keeps its height so the list does not jump. */}
-                        <p className="m-0 mb-2.5 mt-1 min-h-[18px] pl-2.5 text-[13px] text-muted-foreground">
-                            {caption}
-                        </p>
+                        {panelEmpty ? null : (
+                            <p className="m-0 mb-2.5 mt-1 min-h-[18px] pl-2.5 text-[13px] text-muted-foreground">
+                                {caption}
+                            </p>
+                        )}
                         <AutomationRunList
                             runs={runs}
                             grouping={listView.group}
@@ -199,6 +204,7 @@ export const AutomationRunHistoryView = ({
                             loadingMore={loadingMore}
                             onEndReached={loadMore}
                             emptyAction={runNow}
+                            plainEmpty={frame === "panel"}
                             phone={phone}
                         />
                     </div>

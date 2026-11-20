@@ -24,7 +24,7 @@ export interface ViewDef<P> {
     /** Stable id that names the view in tests and logs. Never stored. Example: "agent.skill". */
     id: string
     apply: ViewApply
-    /** The panel chrome offers "Widen the panel" for this view. Other containers ignore it. */
+    /** A drawer container opens this view at its wide width (an editor). */
     wide?: boolean
     /**
      * A phone container shows this view to read only: it passes `readOnly`, and the chrome shows
@@ -134,13 +134,14 @@ export interface ViewChromeProps {
     /** The root crumb first (when the container names its root), then one crumb per view. */
     crumbs: {title: string; onSelect?: () => void}[]
     apply: ViewApply
-    wide: boolean
     /**
      * The chrome draws no action row: the top view is shown to read only, or it asks for none
      * (`ViewDef.actionRow: false`).
      */
     readOnly: boolean
     form: ViewChromeForm | null
+    /** The slot at the left of the action row, where the top view's `ViewFooterStart` renders. */
+    footerStartRef: (element: HTMLElement | null) => void
     /** Guarded back one level. */
     onBack: () => void
     /** Discard the top view's form and go back one level, without a question. */

@@ -14,7 +14,7 @@ import {
 } from "@agenta/playground/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {cn} from "@agenta/ui/styles"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -65,6 +65,11 @@ export interface AgentRevisionStatusProps {
     phone?: boolean
     /** On a phone, the name of the screen the history's back arrow returns to. */
     backTitle?: string
+    /**
+     * Lay out for a footer (the Configuration panel, canvas S02): a "History" button and the
+     * status as a bordered "Saved as vN". Needs `historyWorkflowId`.
+     */
+    footer?: boolean
     className?: string
 }
 
@@ -86,6 +91,7 @@ export const AgentRevisionStatus = ({
     checkKey,
     phone = false,
     backTitle,
+    footer = false,
     className,
 }: AgentRevisionStatusProps) => {
     const t = useT(headerCatalog, revisionStatusCatalog)
@@ -220,6 +226,57 @@ export const AgentRevisionStatus = ({
         </>
     )
 
+    const historyDrawer =
+        historyWorkflowId && historyMounted && drawsHistory ? (
+            <AgentVersionHistoryDrawer
+                workflowId={historyWorkflowId}
+                revisionId={revisionId}
+                currentVersion={version}
+                onUpdate={onUpdate}
+                phone={phone}
+                backTitle={backTitle}
+            />
+        ) : null
+
+    if (footer) {
+        return (
+            <div className={cn("flex items-center gap-2", className)}>
+                {historyWorkflowId ? (
+                    <Button
+                        variant="ghost"
+                        size="compact"
+                        onClick={() => openHistory(historyWorkflowId)}
+                    >
+                        {t("playground.revisionStatus.history")}
+                    </Button>
+                ) : null}
+                {version !== null ? (
+                    <StatusWrap tip={failed ? dot.tip : null}>
+                        {/* A status, not an action: enabled only as the retry of a failed save. */}
+                        <Button
+                            variant="outline"
+                            size="compact"
+                            disabled={!failed}
+                            aria-label={
+                                failed ? t("playground.agentHeader.retrySaving") : undefined
+                            }
+                            onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                            className={cn(
+                                "disabled:opacity-100",
+                                failed ? "text-colorError" : "text-colorTextSecondary",
+                            )}
+                        >
+                            {settled
+                                ? t("playground.revisionStatus.savedAs", {version})
+                                : dot.label}
+                        </Button>
+                    </StatusWrap>
+                ) : null}
+                {historyDrawer}
+            </div>
+        )
+    }
+
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {merged ? (
@@ -317,16 +374,7 @@ export const AgentRevisionStatus = ({
                 </button>
             ) : null}
 
-            {historyWorkflowId && historyMounted && drawsHistory ? (
-                <AgentVersionHistoryDrawer
-                    workflowId={historyWorkflowId}
-                    revisionId={revisionId}
-                    currentVersion={version}
-                    onUpdate={onUpdate}
-                    phone={phone}
-                    backTitle={backTitle}
-                />
-            ) : null}
+            {historyDrawer}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}
             {merged ? null : (
