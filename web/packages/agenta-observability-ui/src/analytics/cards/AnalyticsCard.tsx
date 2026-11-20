@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
-import {Button, SkeletonBlock, cn} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {CaretRight, ChartBar, WarningCircle} from "@phosphor-icons/react"
 
 export interface AnalyticsCardProps {
@@ -54,7 +54,7 @@ export const AnalyticsCard = ({
                     <Button
                         variant="ghost"
                         size="xs"
-                        className="-mr-2 text-muted-foreground max-md:relative max-md:after:absolute max-md:after:-inset-y-[10px] max-md:after:inset-x-0 max-md:after:content-['']"
+                        className={cn("-mr-2 text-muted-foreground", PHONE_TOUCH_TARGET_CLASS)}
                         onClick={onExplore}
                     >
                         {t("observabilityUi.analytics.explore")}

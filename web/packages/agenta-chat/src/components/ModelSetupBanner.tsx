@@ -1,8 +1,7 @@
 import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
 import {useT} from "@agenta/i18n"
 import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
-import {Alert, Button} from "@agenta/ui/ui"
+import {Alert, Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {Lock} from "@phosphor-icons/react"
 
 import {useAgentModelSetup} from "../hooks/useAgentModelSetup"
