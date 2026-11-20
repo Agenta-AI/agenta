@@ -36,7 +36,7 @@ vi.mock("@agenta/sessions/row", () => ({
 vi.mock("@agenta/sessions/state", async () => {
     const {atom} = await import("jotai")
     return {
-        pinnedSessionIdsAtom: atom([] as string[]),
+        pinnedSessionIdsAtom: atom(["pinned-1"]),
         // The source reads through the shared flight, so the stub is its options over `queryInteractions`.
         actionableInteractionsQueryOptions: (projectId: string) => ({
             queryKey: ["sessions-page", "actionable-interactions", projectId],
@@ -90,9 +90,9 @@ describe("the rail across a remount", () => {
     it("joins the read in flight instead of aborting it and reading again", async () => {
         const {MAIN_SIDEBAR_SCOPE_ID} = await import("../../src/constants")
         const {sidebarSessionsListAtomFamily} = await import("../../src/dynamic/sessionsSource")
-        let answer!: (rows: unknown[]) => void
+        const answers: ((rows: unknown[]) => void)[] = []
         querySessions.mockImplementation(
-            () => new Promise<unknown[]>((resolve) => (answer = resolve)),
+            () => new Promise<unknown[]>((resolve) => answers.push(resolve)),
         )
         queryInteractions.mockResolvedValue([])
         const store = createStore()
@@ -101,21 +101,24 @@ describe("the rail across a remount", () => {
             new QueryClient({defaultOptions: {queries: {retry: false, gcTime: 60_000}}}),
         )
         const list = sidebarSessionsListAtomFamily(MAIN_SIDEBAR_SCOPE_ID)
+        const reads = () => ({
+            head: querySessions.mock.calls.filter(([args]) => !args.sessionIds).length,
+            pinned: querySessions.mock.calls.filter(([args]) => args.sessionIds).length,
+        })
 
-        // The rail mounts and starts its read; the switch unmounts it and mounts it again.
+        // The rail mounts and starts its reads; the switch unmounts it and mounts it again.
         const first = store.sub(list, () => {})
         store.get(list)
         await settle()
-        expect(querySessions).toHaveBeenCalledTimes(1)
+        expect(reads()).toEqual({head: 1, pinned: 1})
         first()
         await settle()
         const second = store.sub(list, () => {})
         store.get(list)
         await settle()
 
-        expect(querySessions).toHaveBeenCalledTimes(1)
-        expect(querySessions.mock.calls[0][0].abortSignal).toBeUndefined()
-        answer([])
+        expect(reads()).toEqual({head: 1, pinned: 1})
+        for (const answer of answers) answer([])
         await settle()
         second()
     })

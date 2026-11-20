@@ -330,7 +330,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             ],
             // No abort signal: a session switch remounts the rail, and a read aborted with its
             // last observer started again for the next one. Without the signal the remounted rail
-            // joins the read in flight, so one switch makes one read.
+            // joins the head read in flight.
             queryFn: () =>
                 queryByAgents(agentIds, (references) =>
                     querySessions({
@@ -573,6 +573,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
+            //
             // No abort signal, as for the head rows above: a remount joins the read in flight.
             queryFn: () =>
                 queryByAgents(agentIds, (references) =>
