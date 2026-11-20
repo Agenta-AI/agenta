@@ -5,7 +5,7 @@ import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import RunEnvelope, RunSender
 from oss.src.core.sessions.inputs.dtos import (
     PendingInput,
     PendingInputAdmission,
@@ -541,7 +541,11 @@ class SessionInputsService:
         input_id: UUID,
         user_id: Optional[UUID],
         update: PendingInputUpdate,
+        sender: Optional[RunSender],
     ) -> PendingInput:
+        """`sender` is the sender of the editing request's own envelope. An API key
+        request has none, so it cannot edit, even when its key's creator sent the row:
+        the edited text would run with that person's stored envelope."""
         async with self._dao.transaction() as transaction:
             item = await self._dao.lock_pending_for_edit(
                 project_id=project_id,
@@ -551,7 +555,9 @@ class SessionInputsService:
             )
             if item is None:
                 raise SessionInputNotFound(str(input_id))
-            refusal = edit_refusal(item, editor_user_id=user_id)
+            refusal = edit_refusal(
+                item, editor_user_id=sender.user_id if sender is not None else None
+            )
             if refusal is not None:
                 raise SessionInputEditRefused(str(input_id), reason=refusal)
             content = edit_pending_input_content(item.content, update)
