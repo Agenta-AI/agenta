@@ -1,57 +1,59 @@
-{
-    "slug": "builder-phone",
-    "recipes": [
-        {
-            "frame": "M04",
-            "name": "Builder on a phone, new chat with quick actions and recent chats",
-            "kind": "story",
-            "story": "builderlayout-builder-phone-builder-on-a-phone--new-chat",
-            "crop": "[data-testid=\"builder-phone-story\"]",
-            "viewport": [390, 844],
-            "design": "mobile/png/M04-builder-new-chat.png",
-            "themes": ["light", "dark"]
-        },
-        {
-            "frame": "M05",
-            "name": "Builder on a phone, change card with 44 px Deny and Approve",
-            "kind": "story",
-            "story": "builderlayout-builder-phone-builder-on-a-phone--change-card",
-            "crop": "[data-testid=\"builder-phone-story\"]",
-            "viewport": [390, 844],
-            "design": "mobile/png/M05-builder-change-card.png",
-            "themes": ["light"]
-        },
-        {
-            "frame": "M06",
-            "name": "Builder on a phone, chat history",
-            "kind": "story",
-            "story": "builderlayout-builder-phone-builder-on-a-phone--chat-history",
-            "crop": "[data-testid=\"builder-phone-story\"]",
-            "viewport": [390, 844],
-            "design": "mobile/png/M06-builder-history.png",
-            "themes": ["light"]
-        },
-        {
-            "frame": "M04",
-            "name": "Builder full screen on a session, new chat",
-            "kind": "screen",
-            "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
-            "steps": ["Click the header button \"Builder\""],
-            "capture": "page",
-            "viewport": [390, 844],
-            "design": "mobile/png/M04-builder-new-chat.png",
-            "themes": ["light"]
-        },
-        {
-            "frame": "M06",
-            "name": "Builder full screen, chat history",
-            "kind": "screen",
-            "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
-            "steps": ["Click the header button \"Builder\"", "Click \"View all\""],
-            "capture": "page",
-            "viewport": [390, 844],
-            "design": "mobile/png/M06-builder-history.png",
-            "themes": ["light"]
-        }
-    ]
-}
+[
+    {
+        "id": "builder-phone-m04-light",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--new-chat",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=What should we change?"
+    },
+    {
+        "id": "builder-phone-m04-dark",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--new-chat-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=What should we change?"
+    },
+    {
+        "id": "builder-phone-m05-light",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--change-card",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=Approve"
+    },
+    {
+        "id": "builder-phone-m06-light",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--chat-history",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=Chat history"
+    },
+    {
+        "id": "builder-phone-m04-screen",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [{"click": "button:Builder"}, {"wait": "text=What should we change?"}]
+    },
+    {
+        "id": "builder-phone-m06-screen",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [
+            {"click": "button:Builder"},
+            {"wait": "text=What should we change?"},
+            {"click": "button:View all"},
+            {"wait": "text=Chat history"}
+        ]
+    }
+]

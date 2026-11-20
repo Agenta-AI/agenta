@@ -37,8 +37,10 @@ export const RecentChats = ({
         <div className="flex flex-col gap-0.5" data-testid="builder-recent-chats">
             <div
                 className={cn(
-                    "flex items-center pb-1 text-colorTextSecondary",
-                    phone ? "px-1 text-[13px]" : "px-2 text-xs",
+                    "flex items-center text-colorTextSecondary",
+                    // The 44 px hit area of "View all" reaches 14 px below the line: the gap
+                    // keeps it off the first row.
+                    phone ? "px-1 pb-3.5 text-[13px]" : "px-2 pb-1 text-xs",
                 )}
             >
                 <span className="flex-1">{t("builder.panel.recentChats")}</span>

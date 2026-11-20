@@ -130,6 +130,9 @@ type Story = StoryObj<typeof meta>
 /** M04: the new chat with the chip, the five quick actions and three recent chats. */
 export const NewChat: Story = {}
 
+/** M04 in the dark theme. */
+export const NewChatDark: Story = {globals: {theme: "dark"}}
+
 /** M05: the change card at full width with 44 px Deny and Approve. */
 export const ChangeCard: Story = {args: {view: "card"}}
 

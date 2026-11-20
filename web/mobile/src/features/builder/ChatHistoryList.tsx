@@ -37,7 +37,13 @@ export const ChatHistoryList = ({
     const now = Date.now()
 
     let body
-    if (pending) body = <SkeletonRows count={6} rowClassName="h-8 rounded-md" />
+    if (pending)
+        body = phone ? (
+            // The phone rows are 56 px with no gap between them (M06).
+            <SkeletonRows count={6} className="gap-0 px-4" rowClassName="my-2 h-10 rounded-md" />
+        ) : (
+            <SkeletonRows count={6} rowClassName="h-8 rounded-md" />
+        )
     else if (failed) body = <ChatListFailed onRetry={onRetry} />
     else if (rows.length === 0)
         body = (

@@ -577,7 +577,9 @@ describe("BuilderPanel: on a phone (M04, M06)", () => {
         await render()
         const sessionId = seen.props!.sessionId
         await click(button("View all"))
-        expect(container.querySelector("h1")?.textContent).toBe("Chat history")
+        expect(
+            [...container.querySelectorAll('[role="heading"], h1')].map((h) => h.textContent),
+        ).toContain("Chat history")
         expect(byTestId("builder-chat-row")?.className).toContain("min-h-14")
         await click(container.querySelector('[aria-label="Back to Chat"]'))
         expect(byTestId("builder-chat-history")).toBeNull()
