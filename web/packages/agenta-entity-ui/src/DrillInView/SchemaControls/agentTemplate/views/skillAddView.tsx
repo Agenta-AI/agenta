@@ -6,11 +6,7 @@ import {lazyView} from "./lazyView"
 
 export type SkillAddViewParams = Record<string, never>
 
-/**
- * "Add skills" (F04 f2): a picker over the skill registry. A click on a row adds the skill to the
- * agent at once and follows its latest version; a click on an added row removes it. "New skill"
- * opens the new skill view at depth 2. Done goes back.
- */
+/** "Add skills": a click adds or removes a registry skill at once; "New skill" opens at depth 2. */
 export const skillAddView = defineView<SkillAddViewParams>({
     id: "agent.skill.add",
     apply: "immediate",

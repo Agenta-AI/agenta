@@ -1,8 +1,4 @@
-/**
- * The body of the agent's "Add skills" view (F04 f2), handed over by the skills bridge. Each row
- * is one toggle: a click adds the skill and follows its latest version, a click on an added row
- * removes it. The agent's own view writes each click into the agent configuration.
- */
+/** The registry list of the agent's "Add skills" view: each row toggles one reference. */
 import {useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"

@@ -4,11 +4,7 @@ import {lazyView} from "./lazyView"
 
 export type SkillNewViewParams = Record<string, never>
 
-/**
- * "New skill" (F07 f12 to f15): choose how, then write, upload or import, as steps of this one
- * view. "Create skill" or "Import N skills" is the save: the skill goes to the skill registry
- * and the agent gains a reference to it.
- */
+/** "New skill": choose how, then write, upload or import; Save adds it to the registry and the agent. */
 export const skillNewView = defineView<SkillNewViewParams>({
     id: "agent.skill.new",
     apply: "on_save",

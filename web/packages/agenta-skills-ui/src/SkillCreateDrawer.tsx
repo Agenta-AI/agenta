@@ -1,7 +1,4 @@
-/**
- * The Skills page's "New skill" drawer: a thin drawer around the one new skill view (F07 f12 to
- * f15), opened on the way the page menu picked. Hosts keep their props.
- */
+/** The Skills page's "New skill" drawer: a thin drawer around the one new skill view. */
 import {useMemo} from "react"
 
 import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"

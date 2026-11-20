@@ -1,8 +1,4 @@
-/**
- * The body of the "New skill" view (F07 f12 to f15): choose how, then write, upload or import, as
- * steps of one view. "Create skill" or "Import N skills" is the view's save. The skill goes to the
- * skill registry; in an agent, `onCreated` also adds it to the agent.
- */
+/** The steps of the "New skill" view; in an agent, `onCreated` adds each new skill to it. */
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
@@ -333,7 +329,11 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         const imported = response.imported ?? []
         const notes: string[] = []
         if (onCreated && imported.length) {
-            const {entries, missed} = await entriesOfImported(imported)
+            // The import is in; a failed lookup only means the agent misses the references.
+            const {entries, missed} = await entriesOfImported(imported).catch(() => ({
+                entries: [] as Skill[],
+                missed: imported.map((item) => item.name || item.path_in_repo),
+            }))
             if (entries.length) onCreated(entries)
             if (missed.length)
                 notes.push(t("entityUi.skillNew.notAddedToAgent", {names: missed.join(", ")}))
