@@ -47,36 +47,26 @@ export function CategorySelect({
 
     const loading = isLoading && !categories.length
     return (
-        // The canvas draws an up-down icon (F02 f4): the trigger's own chevron is hidden and this
-        // one sits in the room `pr-7` keeps for it. While loading, the trigger's spinner shows.
-        <span className="relative flex w-full shrink-0">
-            <Combobox
-                aria-label={t("entityUi.integrationDrawer.category")}
-                // Narrower on a phone so the search keeps room for its placeholder. The canvas
-                // size on the desktop (F02 f4): 120 px, 28 px high, radius 6, 12 px. The last
-                // child is the trigger's chevron and clear; "All categories" clears instead.
-                className="w-36 shrink-0 pr-7 sm:w-48 md:h-7 md:w-[120px] md:rounded-[6px] md:pl-2 md:text-[12px] [&>span:last-child]:hidden"
-                // The list may be wider than its field, so names stay on one line on a phone.
-                contentClassName="w-56"
-                options={options}
-                value={value?.id ?? ALL}
-                placeholder={t("entityUi.integrationDrawer.allCategories")}
-                emptyText={t("entityUi.integrationDrawer.noMatchingCategory")}
-                loading={loading}
-                container={container}
-                onChange={(id) => {
-                    if (!id || id === ALL) return onChange(null)
-                    const match = categories.find((category) => category.id === id)
-                    onChange(match ? {id: match.id, name: match.name} : null)
-                }}
-            />
-            {loading ? null : (
-                <CaretUpDown
-                    aria-hidden
-                    size={14}
-                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-colorTextTertiary"
-                />
-            )}
-        </span>
+        <Combobox
+            aria-label={t("entityUi.integrationDrawer.category")}
+            // Narrower on a phone so the search keeps room for its placeholder. The canvas size
+            // on the desktop (F02 f4): 120 px, 28 px high, radius 6, 12 px, an up-down icon.
+            // "All categories" clears instead of a clear button.
+            className="w-36 shrink-0 sm:w-48 md:h-7 md:w-[120px] md:rounded-[6px] md:pl-2 md:text-[12px]"
+            icon={<CaretUpDown aria-hidden size={14} className="text-colorTextTertiary" />}
+            // The list may be wider than its field, so names stay on one line on a phone.
+            contentClassName="w-56"
+            options={options}
+            value={value?.id ?? ALL}
+            placeholder={t("entityUi.integrationDrawer.allCategories")}
+            emptyText={t("entityUi.integrationDrawer.noMatchingCategory")}
+            loading={loading}
+            container={container}
+            onChange={(id) => {
+                if (!id || id === ALL) return onChange(null)
+                const match = categories.find((category) => category.id === id)
+                onChange(match ? {id: match.id, name: match.name} : null)
+            }}
+        />
     )
 }

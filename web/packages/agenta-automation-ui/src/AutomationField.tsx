@@ -23,7 +23,7 @@ export const AutomationField = ({
     children: ReactNode
 }) => (
     <div className="flex flex-col gap-[7px]">
-        <span className="text-[13px] font-medium text-foreground">{label}</span>
+        <span className="text-[12px] font-medium leading-4 text-muted-foreground">{label}</span>
         {children}
         {error ? (
             <span role="alert" className="text-[12px] leading-snug text-destructive">

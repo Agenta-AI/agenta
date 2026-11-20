@@ -12,6 +12,7 @@ import {
     connectionNameProblem,
     hostnameLabel,
     normalizeConnectionName,
+    serverAddressLabel,
     suggestConnectionName,
 } from "../../src/mcpEndpoint/core/connectionName"
 
@@ -26,6 +27,26 @@ describe("hostnameLabel", () => {
 
     it("says nothing about a string that is not a URL", () => {
         expect(hostnameLabel("not a url")).toBe("")
+    })
+})
+
+describe("serverAddressLabel", () => {
+    it("names the service, not the endpoint host (canvas F03: linear)", () => {
+        expect(serverAddressLabel("https://mcp.linear.app/sse")).toBe("linear")
+        expect(serverAddressLabel("https://api.acme.example.com/mcp")).toBe("example")
+    })
+
+    it("skips a second-level label under a country code", () => {
+        expect(serverAddressLabel("https://mcp.acme.co.uk/")).toBe("acme")
+    })
+
+    it("keeps a single-label host as it is", () => {
+        expect(serverAddressLabel("http://mock-mcp-gateway:8000/mcp")).toBe("mock-mcp-gateway")
+        expect(serverAddressLabel("http://localhost:3000/")).toBe("localhost")
+    })
+
+    it("says nothing about a string that is not a URL", () => {
+        expect(serverAddressLabel("not a url")).toBe("")
     })
 })
 
@@ -47,9 +68,9 @@ describe("suggestConnectionName", () => {
         ).toBe("Acme Tools")
     })
 
-    it("falls back to the hostname, which is all a protected server offers before consent", () => {
+    it("falls back to the address, which is all a protected server offers before consent", () => {
         expect(suggestConnectionName({serverName: null, url: "https://mcp.acme.test/"})).toBe(
-            "mcp.acme.test",
+            "acme",
         )
     })
 

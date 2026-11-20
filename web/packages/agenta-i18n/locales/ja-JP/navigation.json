@@ -1,7 +1,9 @@
 {
     "chrome.closeNavigation": "ナビゲーションを閉じる",
     "chrome.collapseGroup": "{{title}}を折りたたむ",
+    "chrome.collapseSidebar": "サイドバーを折りたたむ",
     "chrome.expandGroup": "{{title}}を展開",
+    "chrome.expandSidebar": "サイドバーを展開",
     "chrome.itemFallback": "項目",
     "chrome.itemMoved": "{{item}} を {{total}} 件中 {{position}} 番目に移動しました",
     "chrome.navigationTitle": "ナビゲーション",

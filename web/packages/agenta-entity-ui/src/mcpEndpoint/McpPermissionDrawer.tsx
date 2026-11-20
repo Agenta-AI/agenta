@@ -242,9 +242,8 @@ function DrawerTitle({
                     <CaretLeft />
                 </Button>
             ) : null}
-            {/* One generic glyph for every server: an MCP endpoint has no branding to show, and a
-                per-server logo would have to be guessed from a URL (decision 3). */}
-            <McpServerMark size={24} />
+            {/* One generic glyph for every server (decision 3); the tile color follows the name. */}
+            <McpServerMark size={24} name={connectionName} />
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
                 <span className="truncate text-[15px] font-semibold">{connectionName}</span>
                 {toolPrefix ? (
@@ -295,7 +294,7 @@ function RemoveFromAgent({
         <Button
             variant="ghost"
             onClick={() => setConfirming(true)}
-            className="-ml-2 px-2 font-normal !text-colorError hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)]"
+            className="-ml-2 px-2 font-normal !text-[var(--ag-danger-text)] hover:bg-[color-mix(in_srgb,var(--ag-danger-text)_10%,transparent)]"
         >
             <Trash data-icon="inline-start" />
             {t("entityUi.mcpPermissions.removeFromAgent")}

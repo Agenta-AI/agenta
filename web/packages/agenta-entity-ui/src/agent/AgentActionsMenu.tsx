@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {
+    cn,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -11,7 +12,7 @@ import {
     Archive,
     Broadcast,
     Copy,
-    DotsThreeVertical,
+    DotsThree,
     ArrowCounterClockwise,
     Note,
     PencilSimple,
@@ -88,9 +89,12 @@ export const AgentActionsMenu = ({
                     type="button"
                     aria-label={t("entityUi.agentActions.agentActions")}
                     // ::after hit extender: 28px is under the touch guideline.
-                    className={`relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText ${className ?? ""}`}
+                    className={cn(
+                        "relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText",
+                        className,
+                    )}
                 >
-                    <DotsThreeVertical size={16} weight="bold" />
+                    <DotsThree size={16} weight="bold" />
                 </button>
             </DropdownMenuTrigger>
             {/* Sized to its longest verb rather than to a number: at a fixed 180 "Open

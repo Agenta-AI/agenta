@@ -1,7 +1,6 @@
 import {useContext} from "react"
 
 import {useT} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
@@ -28,7 +27,7 @@ export const SidebarToggleButton = ({
     onDismiss,
     className,
 }: SidebarToggleButtonProps) => {
-    const t = useT(navigationCatalog, commonCatalog, phoneCatalog)
+    const t = useT(navigationCatalog, phoneCatalog)
     // The phone sheet names itself "the sidebar", as its menu button does ("Open the sidebar").
     const phone = useContext(SidebarLayoutContext) === "phone"
     const [collapsed, setCollapsed] = useAtom(collapsedAtom)
@@ -50,7 +49,11 @@ export const SidebarToggleButton = ({
             aria-label={
                 onDismiss
                     ? t(phone ? "ui.phone.closeSidebar" : "navigation.chrome.closeNavigation")
-                    : t(collapsed ? "common.expand" : "common.collapse")
+                    : t(
+                          collapsed
+                              ? "navigation.chrome.expandSidebar"
+                              : "navigation.chrome.collapseSidebar",
+                      )
             }
             icon={
                 onDismiss ? (
@@ -73,7 +76,11 @@ export const SidebarToggleButton = ({
                 onDismiss
                     ? undefined
                     : {
-                          title: collapsed ? t("common.expand") : t("common.collapse"),
+                          title: t(
+                              collapsed
+                                  ? "navigation.chrome.expandSidebar"
+                                  : "navigation.chrome.collapseSidebar",
+                          ),
                           mouseEnterDelay: 1,
                           placement: "right",
                       }

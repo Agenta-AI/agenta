@@ -6,9 +6,10 @@
  * unique per project, so a suggestion that collides is disambiguated here rather than
  * bounced back at the person as a validation error on a field they never filled in.
  *
- * `serverInfo.name` is preferred when the probe got one, and the hostname is the fallback:
+ * `serverInfo.name` is preferred when the probe got one, and the address is the fallback:
  * an authenticated server may refuse to say anything about itself before consent, which is
- * exactly when the person is being asked for a name.
+ * exactly when the person is being asked for a name. The address gives the service's own
+ * name ("linear" for `https://mcp.linear.app/sse`), as the canvas names it.
  */
 
 /** The ordinals the integrations flow uses, so both surfaces read the same. */
@@ -38,6 +39,27 @@ export const normalizeConnectionName = (name: string): string =>
 
 const normalize = normalizeConnectionName
 
+/** Host labels that name the endpoint, not the service: `mcp.linear.app` is Linear's. */
+const ENDPOINT_LABELS = new Set(["www", "mcp", "api"])
+/** Second-level labels under a country code: `acme.co.uk` is Acme's, not "co". */
+const SECOND_LEVEL_LABELS = new Set(["co", "com", "org", "net", "gov", "ac", "edu"])
+
+/**
+ * The service a URL points at: the registrable part of its host without the top-level
+ * domain ("linear" for `https://mcp.linear.app/sse`). A single-label host (a container name,
+ * `localhost`) and an IP address stay as they are.
+ */
+export function serverAddressLabel(url: string): string {
+    const host = hostnameLabel(url)
+    if (!host || /^[\d.]+$/.test(host) || host.includes(":")) return host
+    const labels = host.split(".").filter(Boolean)
+    if (labels.length < 2) return host
+    labels.pop()
+    if (labels.length > 1 && SECOND_LEVEL_LABELS.has(labels[labels.length - 1])) labels.pop()
+    const named = labels.filter((label) => !ENDPOINT_LABELS.has(label))
+    return named[named.length - 1] ?? labels[labels.length - 1] ?? host
+}
+
 /**
  * A display name for a new connection that no existing connection already uses.
  *
@@ -56,7 +78,7 @@ export function suggestConnectionName({
     url: string
     existingNames?: (string | null | undefined)[]
 }): string {
-    const base = (serverName || "").trim() || hostnameLabel(url) || "MCP server"
+    const base = (serverName || "").trim() || serverAddressLabel(url) || "MCP server"
     const taken = new Set(existingNames.filter((name): name is string => !!name).map(normalize))
 
     if (!taken.has(normalize(base))) return base

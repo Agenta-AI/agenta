@@ -609,6 +609,17 @@ export const status = {
     warningText: {light: "#8a6400", dark: "#ebc96a"},
 } satisfies Record<string, Pair>
 
+/**
+ * Builder-layout canvas tones with no older role. Light values are the canvas colors.
+ * `scheduleTile` is a fill under a white glyph, so it stays the same in dark. The two text
+ * tones take the existing dark steps of the same hue (the blue tag text, the error text).
+ */
+export const canvasTone = {
+    scheduleTile: {light: "#5b5bd6", dark: "#5b5bd6"}, // schedule automation tile (canvas F05, A05, M10)
+    latestText: {light: "#1c6fa8", dark: TAG_SLOT.blue.text.dark as string}, // "Latest" tag (canvas .ltag)
+    dangerText: {light: "#a01e1e", dark: status.errorText.dark as string}, // quiet danger action (canvas .neg)
+} satisfies Record<string, Pair>
+
 /** Evaluations "Application" cell tones. */
 export const appVariantCell = {
     row: {light: INK_SECONDARY, dark: "rgba(255, 255, 255, 0.65)"}, // mirrors text.secondary
@@ -930,6 +941,7 @@ export const palette = {
     composer,
     drawerDark,
     status,
+    canvasTone,
     appVariantCell,
     templateStrip,
     tintedSurface,
