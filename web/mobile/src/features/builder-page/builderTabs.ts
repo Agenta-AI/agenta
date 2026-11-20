@@ -224,10 +224,26 @@ export const followBuilderResults = (
     state: BuilderTabsState,
     results: readonly AgentResult[],
     fallbackAgent: AgentRef | null,
+    /**
+     * The tool calls the chat loaded with in this visit. Without it every result is history. A
+     * saved result outside it is fresh: when it opens the chat's first tab, the tab keeps its
+     * changed sections ("Changed by the builder").
+     */
+    history?: ReadonlySet<string>,
 ): BuilderTabsState => {
     if (isUntouched(state)) {
         const latest = results.at(-1)?.agent ?? fallbackAgent
-        const fresh = latest ? followBuilderResult(state, agentTab(latest)) : state
+        const marked = history
+            ? results
+                  .filter(
+                      (result) =>
+                          result.saved &&
+                          !history.has(result.toolCallId) &&
+                          result.agent.id === latest?.id,
+                  )
+                  .flatMap((result) => result.changedSections)
+            : []
+        const fresh = latest ? followBuilderResult(state, agentTab(latest, marked)) : state
         return markFollowed(
             fresh,
             results.map((result) => result.toolCallId),

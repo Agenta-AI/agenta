@@ -110,7 +110,9 @@ export const AgentPane = ({
     // unless the person clicked in the pane in the last 10 seconds or a form has edits; then the
     // Agent pane tab gets a dot.
     const lastPointerDown = useRef<number | null>(null)
-    const followed = useRef(builderSaveToolCallId)
+    // Null at mount: a pane that mounts after the save (the save opened its tab, or the tab
+    // opened while the builder saved) still shows it. The page only passes a save of this agent.
+    const followed = useRef<string | null>(null)
     useEffect(() => {
         if (!builderSaveToolCallId || builderSaveToolCallId === followed.current) return
         followed.current = builderSaveToolCallId

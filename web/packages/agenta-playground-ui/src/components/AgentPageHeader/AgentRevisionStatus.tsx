@@ -289,7 +289,7 @@ export const AgentRevisionStatus = ({
     // The bordered "Saved as vN" of the footer and the page header. A status, not an action:
     // enabled only as the retry of a failed save.
     const savedAsButton =
-        version !== null ? (
+        (footer || page) && version !== null ? (
             <StatusWrap tip={failed ? dot.tip : null}>
                 <Button
                     variant="outline"

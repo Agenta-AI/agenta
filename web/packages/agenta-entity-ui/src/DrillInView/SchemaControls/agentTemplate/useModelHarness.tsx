@@ -418,7 +418,12 @@ export function useModelHarness({
         modelSummary,
         // The Configuration page's Model card (canvas A04): the readable name, the raw id and
         // the harness it runs through.
-        modelCard: {name: modelName || undefined, id: bareModel, harness: harnessName || undefined},
+        // A label that only repeats the id (a model outside the catalog) is no name.
+        modelCard: {
+            name: modelName && modelName !== bareModel ? modelName : undefined,
+            id: bareModel,
+            harness: harnessName || undefined,
+        },
         modelHarnessBody,
         hasAdvanced,
         hasExecutionGroup,
