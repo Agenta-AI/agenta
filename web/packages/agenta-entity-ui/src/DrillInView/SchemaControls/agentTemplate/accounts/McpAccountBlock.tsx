@@ -45,10 +45,11 @@ export function McpAccountBlock({
     const access = useAtomValue(personalAccountsAccessAtom)
     const name = endpoint?.name || endpoint?.slug || ""
     const eachPerson = source === USER_ACCOUNT_SOURCE
-    // Each person's own sign-in exists for project servers that take a sign-in, with personal
-    // accounts on. A saved "each person's own" stays visible when the switch is off.
+    // Each person's own sign-in exists for a project server (the view resolves only those) that
+    // takes a sign-in, with personal accounts on. A saved "each person's own" stays visible
+    // when personal accounts are off.
     const showSwitch =
-        (endpoint?.namespace ?? "custom") === "custom" &&
+        Boolean(endpoint) &&
         mcpAccountOptions({
             source,
             personalAccounts: access === "on",

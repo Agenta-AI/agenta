@@ -62,8 +62,7 @@ export const McpYoursTable = ({
 }: McpYoursTableProps) => {
     const {pendingId, error, signIn, signInWithToken, signOut} = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
-    const t = useT(commonCatalog, settingsMcpCatalog)
-    const tAccount = useT(mcpAccountCatalog)
+    const t = useT(commonCatalog, settingsMcpCatalog, mcpAccountCatalog)
     const translatedColumns = useMemo(
         () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
         [t],
@@ -124,6 +123,13 @@ export const McpYoursTable = ({
                         minWidth={0}
                         renderRow={(record) => {
                             const signedIn = isSignedIn(record)
+                            // The account name when the server gave one (PR 8373).
+                            const accountName = record.user_sign_in?.account_name
+                            const statusLabel = !signedIn
+                                ? t("settings.mcp.notSignedIn")
+                                : accountName
+                                  ? t("entityUi.mcpAccount.signedInAs", {name: accountName})
+                                  : t("settings.mcp.signedInAsYou")
                             // One sign-in action at a time: the hook tracks one.
                             const pending = pendingId !== null
                             return (
@@ -151,19 +157,7 @@ export const McpYoursTable = ({
                                     >
                                         <StatusIndicator
                                             tone={signedIn ? "success" : "default"}
-                                            label={
-                                                signedIn
-                                                    ? record.user_sign_in?.account_name
-                                                        ? tAccount(
-                                                              "entityUi.mcpAccount.signedInAs",
-                                                              {
-                                                                  name: record.user_sign_in
-                                                                      .account_name,
-                                                              },
-                                                          )
-                                                        : t("settings.mcp.signedInAsYou")
-                                                    : t("settings.mcp.notSignedIn")
-                                            }
+                                            label={statusLabel}
                                             className="min-w-0 text-[13px]"
                                         />
                                         {signedIn ? null : (

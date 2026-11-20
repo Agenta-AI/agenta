@@ -105,7 +105,7 @@ describe("the account switch", () => {
         expect(onChange).toHaveBeenCalledWith("user")
     })
 
-    it("is hidden with personal accounts off, for a server with no sign-in, and for Agenta's own", async () => {
+    it("is hidden with personal accounts off, for a server with no sign-in, and with no server", async () => {
         access.value = "off"
         await render({source: "agent"})
         expect(radio("Each person's own")).toBeUndefined()
@@ -115,7 +115,7 @@ describe("the account switch", () => {
         await render({server: endpoint({auth_mode: "none"}), source: "agent"})
         expect(radio("Each person's own")).toBeUndefined()
 
-        await render({server: endpoint({namespace: "builtin"}), source: "agent"})
+        await render({server: null as unknown as MCPEndpoint, source: "agent"})
         expect(radio("Each person's own")).toBeUndefined()
     })
 
