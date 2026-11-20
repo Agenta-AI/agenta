@@ -22,7 +22,9 @@ const instructionsOf = (agent: Record<string, unknown>): Record<string, unknown>
  */
 const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams>) => {
     const t = useT(instructionsViewCatalog, configItemsCatalog)
-    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "", {
+        readOnly: params.readOnly,
+    })
     // The text the view opened with. A builder save meanwhile does not reset the person's edits.
     const [original] = useState(
         () => (instructionsOf(writer.agent).agents_md as string | null | undefined) ?? "",

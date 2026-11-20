@@ -88,8 +88,6 @@ export interface IntegrationCatalogProps {
      * and the catalog adds that one once it is valid. A cancelled form calls nothing.
      */
     onConnect: (integrationKey: string, onCreated: (created: CreatedConnection) => void) => void
-    /** Where the catalog's dialogs open (a drawer panel); absent, the page. */
-    container?: HTMLElement | null
 }
 
 interface ConnectedGroup {
@@ -370,9 +368,11 @@ export function IntegrationCatalog({
     onAddIntegration,
     onAddPersonalIntegration,
     onConnect,
-    container = null,
 }: IntegrationCatalogProps) {
     const t = useT(integrationDrawerCatalog)
+    // The catalog's own box: its dialogs and the category list open inside it, so they stay in
+    // a drawer host and scroll under the drawer's lock.
+    const [container, setContainer] = useState<HTMLDivElement | null>(null)
     const [query, setQuery] = useState("")
     const [category, setCategoryState] = useState<CategorySelection | null>(null)
     const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
@@ -533,7 +533,7 @@ export function IntegrationCatalog({
     const nothingFound = !catalogLoading && connectedGroups.length === 0 && catalogRows.length === 0
 
     return (
-        <div className="flex min-h-0 flex-1">
+        <div ref={setContainer} className="relative flex min-h-0 flex-1">
             {/* One column: the category filter sits beside the search, so apps get the width. */}
             {/* min-w-0: without it the one-line descriptions stretch the column past the drawer. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">

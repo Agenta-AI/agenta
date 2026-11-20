@@ -98,7 +98,7 @@ import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
 import {SubagentDrawerContainer} from "./agentTemplate/SubagentDrawerContainer"
 import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
-import {useRecordRevisionSuccessor} from "./agentTemplate/useAgentConfigWriter"
+import {AgentRevisionContext} from "./agentTemplate/useAgentConfigWriter"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -183,8 +183,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const revisionId = drillIn?.entityId ?? null
     // Rows and "+" open views: in the container's stack, or, in a host with none, in a drawer.
     const views = useViewOpener()
-    // An open view follows the revision that auto-save puts in place of this one.
-    useRecordRevisionSuccessor(revisionId)
     const openView = views.open
     const viewTarget = useMemo<ViewTarget | null>(
         () => (revisionId ? {kind: "agent_draft", revisionId} : null),
@@ -1353,7 +1351,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 />
             )}
 
-            {views.drawer}
+            {/* A view in this drawer follows the revision on screen, as auto-save replaces it. */}
+            <AgentRevisionContext.Provider value={revisionId}>
+                {views.drawer}
+            </AgentRevisionContext.Provider>
             {removingIntegration ? (
                 <IntegrationRemoveDialog
                     row={removingIntegration}

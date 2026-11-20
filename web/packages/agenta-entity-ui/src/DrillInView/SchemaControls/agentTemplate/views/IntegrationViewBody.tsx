@@ -25,7 +25,9 @@ const noCreate = () => undefined
 
 const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewParams>) => {
     const t = useT(integrationViewsCatalog)
-    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "", {
+        readOnly: params.readOnly,
+    })
     const configRef = useRef(writer.agent)
     configRef.current = writer.agent
     const onChange = useCallback(
@@ -131,7 +133,12 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
             <RemoveFromAgentDialog
                 open={confirming}
                 name={name}
-                description={t("entityUi.integrationViews.connectionStays")}
+                description={
+                    // An entry with each person's own account names no project connection.
+                    row.entry?.accountSource === "user"
+                        ? t("entityUi.integrationViews.accountsStay")
+                        : t("entityUi.integrationViews.connectionStays")
+                }
                 onRemove={remove}
                 onClose={() => setConfirming(false)}
             />

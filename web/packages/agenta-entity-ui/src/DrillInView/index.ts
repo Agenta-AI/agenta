@@ -461,6 +461,9 @@ export {
 } from "./SchemaControls/skillDownload"
 export type {SkillDownload} from "./SchemaControls/skillDownload"
 
+// The revision a container shows now; its open agent views follow it.
+export {AgentRevisionContext} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
+
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the
 // control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,
 // zero atom reads, so the Storybook component inventory can render each surface directly.

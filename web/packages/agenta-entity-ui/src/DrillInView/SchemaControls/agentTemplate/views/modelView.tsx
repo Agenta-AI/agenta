@@ -25,7 +25,9 @@ export interface ModelViewParams {
  */
 const ModelViewBody = ({params, target}: ViewProps<ModelViewParams>) => {
     const t = useT(agentTemplateCatalog)
-    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "", {
+        readOnly: params.readOnly,
+    })
     const store = useStore()
     // The server's needs-setup check of the model; a personal requirement is each runner's own.
     const requirements = useAtomValue(agentRequirementsAtomFamily(writer.revisionId))

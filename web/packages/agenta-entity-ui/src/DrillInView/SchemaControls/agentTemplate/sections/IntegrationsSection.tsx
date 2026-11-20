@@ -91,7 +91,12 @@ export const IntegrationRemoveDialog = ({
         <RemoveFromAgentDialog
             open
             name={integration?.name || row.integration}
-            description={t("entityUi.integrationViews.connectionStays")}
+            description={
+                // An entry with each person's own account names no project connection.
+                row.entry?.accountSource === "user"
+                    ? t("entityUi.integrationViews.accountsStay")
+                    : t("entityUi.integrationViews.connectionStays")
+            }
             onRemove={onRemove}
             onClose={onClose}
         />

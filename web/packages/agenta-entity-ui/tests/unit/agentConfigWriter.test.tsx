@@ -5,13 +5,12 @@
  */
 import {act, createElement} from "react"
 
-import {atom, createStore, Provider, type PrimitiveAtom, type WritableAtom} from "jotai"
+import {atom, createStore, Provider, type PrimitiveAtom} from "jotai"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {
-    followRevision,
-    revisionSuccessorsAtom,
+    AgentRevisionContext,
     useAgentConfigWriter,
     type AgentConfigWriter,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter"
@@ -47,9 +46,19 @@ const Probe = ({revisionId}: {revisionId: string}) => {
     return null
 }
 
-const mount = async (revisionId: string) => {
+/** `shown` is the revision the container shows now, when it provides one. */
+const mount = async (revisionId: string, shown?: string) => {
+    const probe = createElement(Probe, {revisionId})
     await act(async () =>
-        root.render(createElement(Provider, {store}, createElement(Probe, {revisionId}))),
+        root.render(
+            createElement(
+                Provider,
+                {store},
+                shown === undefined
+                    ? probe
+                    : createElement(AgentRevisionContext.Provider, {value: shown}, probe),
+            ),
+        ),
     )
 }
 
@@ -82,13 +91,11 @@ describe("useAgentConfigWriter", () => {
         })
     })
 
-    it("follows the revision that replaced the one the view opened on", async () => {
-        await mount("rev-1")
-        await act(async () =>
-            store.set(revisionSuccessorsAtom as WritableAtom<unknown, [unknown], void>, {
-                "rev-1": "rev-2",
-            }),
-        )
+    it("follows the revision the container shows now", async () => {
+        await mount("rev-1", "rev-1")
+        expect(writer.revisionId).toBe("rev-1")
+        // Auto-save replaced rev-1 with rev-2 while the view stayed open.
+        await mount("rev-1", "rev-2")
         expect(writer.revisionId).toBe("rev-2")
         await act(async () => writer.update((agent) => ({...agent, llm: {model: "m"}})))
         expect(writer.agent).toEqual({
@@ -97,12 +104,12 @@ describe("useAgentConfigWriter", () => {
             llm: {model: "m"},
         })
     })
-})
 
-describe("followRevision", () => {
-    it("follows a chain and stops on a loop", () => {
-        expect(followRevision({a: "b", b: "c"}, "a")).toBe("c")
-        expect(followRevision({a: "b", b: "a"}, "a")).toBe("a")
-        expect(followRevision({}, "a")).toBe("a")
+    it("writes nothing while the configuration has not loaded", async () => {
+        await mount("rev-missing")
+        const next = vi.fn((agent: Record<string, unknown>) => agent)
+        await act(async () => writer.update(next))
+        expect(next).not.toHaveBeenCalled()
+        expect(writer.agent).toEqual({})
     })
 })
