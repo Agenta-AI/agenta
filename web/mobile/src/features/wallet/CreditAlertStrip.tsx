@@ -43,7 +43,6 @@ export const CreditAlertStrip = ({
     hidden,
     dockOpen,
     onSwitchModel,
-    canSwitchModel = true,
 }: {
     projectId: string
     entityId: string
@@ -51,8 +50,6 @@ export const CreditAlertStrip = ({
     /** A dock above the composer (approval, question, connection, secret) asks the user first. */
     dockOpen: boolean
     onSwitchModel: () => void
-    /** False where the agent's model is not the person's to change: no "Switch model" part. */
-    canSwitchModel?: boolean
 }) => {
     // On its own key or subscription the agent's model spends no credits, so nothing shows or polls.
     const funding = useModelFunding(entityId)
@@ -108,7 +105,6 @@ export const CreditAlertStrip = ({
                             alert={current.alert}
                             funding={current.funding}
                             canBuy={canBuy}
-                            canSwitchModel={canSwitchModel}
                             onAction={(action) => run[action]()}
                             onDismiss={() =>
                                 setDismissed({...dismissed, [projectId]: current.alert.kind})

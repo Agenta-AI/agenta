@@ -1,0 +1,23 @@
+{
+    "slug": "builder-page",
+    "recipes": [
+        {
+            "frame": "B01",
+            "name": "Builder page, new chat",
+            "kind": "story",
+            "story": "builderlayout-builder-page-builder-page--new-chat",
+            "crop": "[data-testid=\"builder-page-story\"]",
+            "design": "boards/builder__B01-new-chat.png",
+            "themes": ["light", "dark"]
+        },
+        {
+            "frame": "B02",
+            "name": "Builder page, Browse ideas",
+            "kind": "story",
+            "story": "builderlayout-builder-page-builder-page--browse-ideas",
+            "crop": "[data-testid=\"builder-ideas\"]",
+            "design": "boards/builder__B02-browse-ideas.png",
+            "themes": ["light"]
+        }
+    ]
+}

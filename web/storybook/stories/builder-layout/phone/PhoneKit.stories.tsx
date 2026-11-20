@@ -1,10 +1,10 @@
 import {useEffect, useState, type ReactNode} from "react"
 
+import {NavMenu, SidebarLayoutContext, type NavItem} from "@agenta/navigation-ui"
 import {
     BottomSheetMenu,
     PhonePrimaryAction,
     PhoneScreenHeader,
-    SIDEBAR_SHEET_ROW_CLASS,
     SidebarSheet,
 } from "@agenta/ui/phone"
 import {
@@ -162,6 +162,12 @@ const SheetMenu = () => {
 const Sidebar = () => {
     const [open, setOpen] = useState(true)
     const icons = [<SlidersHorizontal key="c" />, <WifiHigh key="ch" />, <ChartBar key="a" />]
+    const rows: NavItem[] = PHONE_SIDEBAR_ROWS.map((title, index) => ({
+        key: title,
+        title,
+        link: "#",
+        icon: icons[index],
+    }))
     return (
         <Phone>
             <SidebarSheet
@@ -178,16 +184,9 @@ const Sidebar = () => {
                     </button>
                 }
             >
-                <nav className="flex flex-col pt-2">
-                    {PHONE_SIDEBAR_ROWS.map((row, index) => (
-                        <a key={row} href="#" className={SIDEBAR_SHEET_ROW_CLASS}>
-                            <span className="flex shrink-0 text-colorTextSecondary [&_svg]:size-5">
-                                {icons[index]}
-                            </span>
-                            <span>{row}</span>
-                        </a>
-                    ))}
-                </nav>
+                <SidebarLayoutContext.Provider value="phone">
+                    <NavMenu items={rows} collapsed={false} className="pt-2" />
+                </SidebarLayoutContext.Provider>
             </SidebarSheet>
         </Phone>
     )

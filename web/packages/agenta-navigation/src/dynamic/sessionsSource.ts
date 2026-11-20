@@ -328,7 +328,10 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.type,
                 waiting ? waitingIds : null,
             ],
-            queryFn: ({signal}) =>
+            // No abort signal: a session switch remounts the rail, and a read aborted with its
+            // last observer started again for the next one. Without the signal the remounted rail
+            // joins the head read in flight.
+            queryFn: () =>
                 queryByAgents(agentIds, (references) =>
                     querySessions({
                         projectId: projectId ?? "",
@@ -341,7 +344,6 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         // No server predicate for "awaiting input" — ids are pushed down instead.
                         sessionIds: waiting ? (waitingIds ?? []) : undefined,
                         limit: scopeLimit(scopeId),
-                        abortSignal: signal,
                         lowPriority: true,
                     }),
                 ),
@@ -571,7 +573,9 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
-            queryFn: ({signal}) =>
+            //
+            // No abort signal, as for the head rows above: a remount joins the read in flight.
+            queryFn: () =>
                 queryByAgents(agentIds, (references) =>
                     querySessions({
                         projectId: projectId ?? "",
@@ -581,7 +585,6 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         origin,
                         excludeOrigin,
                         sessionIds: pinnedIds,
-                        abortSignal: signal,
                         lowPriority: true,
                     }),
                 ),

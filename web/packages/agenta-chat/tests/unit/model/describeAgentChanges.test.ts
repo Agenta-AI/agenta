@@ -111,3 +111,13 @@ describe("the transcript row", () => {
         expect(resolveActivityIcon("platform", "edit_agent_config")).toBe("commit")
     })
 })
+
+describe("savedVersion", () => {
+    it("reads the version of a committed edit and of a created agent", async () => {
+        const {savedVersion} =
+            await import("../../../src/model/approvalDescribers/describeAgentChanges")
+        expect(savedVersion({status: "committed", revision: {id: "r5", version: "5"}})).toBe("5")
+        expect(savedVersion({status: "created", revision: {id: "r1", version: "1"}})).toBe("1")
+        expect(savedVersion({status: "no_change"})).toBeNull()
+    })
+})

@@ -88,6 +88,7 @@ import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
+import {ChangeResultHostContext} from "./changeResultHost"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
@@ -157,7 +158,7 @@ export const LiveConversation = ({
     inputRef,
     hideSlashCommands = false,
     userMessageAccessory,
-    canSwitchModel = true,
+    onMessagesChanged,
 }: {
     entityId: string
     sessionId: string
@@ -208,8 +209,8 @@ export const LiveConversation = ({
     hideSlashCommands?: boolean
     /** Shown with each sent user message, from the message as stored (with its full text). */
     userMessageAccessory?: (message: UIMessage) => ReactNode
-    /** The person may switch this agent's model (not in the builder chat: the platform picks it). */
-    canSwitchModel?: boolean
+    /** Called after the messages change (the builder page reads its tool results). */
+    onMessagesChanged?: (messages: UIMessage[]) => void
 }) => {
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
@@ -345,6 +346,12 @@ export const LiveConversation = ({
     }, [conversation.messages])
     // A builder in this conversation saved another agent: that agent's open sessions check for it.
     useBuilderCommitChecks(conversation.messages)
+    // From an effect: the host reads the messages without rendering this conversation again.
+    const onMessagesChangedRef = useRef(onMessagesChanged)
+    onMessagesChangedRef.current = onMessagesChanged
+    useEffect(() => {
+        onMessagesChangedRef.current?.(conversation.messages)
+    }, [conversation.messages])
     // A stable reader, so the memoized turn rows do not render again on every streamed chunk.
     const messagesRef = useRef(conversation.messages)
     messagesRef.current = conversation.messages
@@ -500,6 +507,23 @@ export const LiveConversation = ({
             sessionId,
             store,
         ],
+    )
+    // A result row's "Try again" sends a fixed message as the person, as the composer does.
+    const changeResultHost = useMemo(
+        () => ({
+            readOnly: locked,
+            // The composer's own gates: the row sends only when the composer could.
+            send:
+                disabled || setupBlocked
+                    ? undefined
+                    : (text: string) => {
+                          if (lockedRef.current) return
+                          void send({text, executionText: beforeSend?.(text)}).catch(
+                              () => undefined,
+                          )
+                      },
+        }),
+        [locked, disabled, setupBlocked, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
@@ -1014,19 +1038,21 @@ export const LiveConversation = ({
                     </div>
                 ) : null}
                 <UserMessageAccessoryContext.Provider value={readUserMessageAccessory}>
-                    <TranscriptTurns
-                        turns={visibleTurns}
-                        scrollerRef={autoScroll.ref}
-                        sessionId={sessionId}
-                        remoteRunning={showingTurnActivity && !streamingHere}
-                        waitingOnUser={parkedOnUser}
-                        resuming={resumingAfterAnswer}
-                        pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
-                        // A tool answer and a rewind both write: someone who cannot send here cannot
-                        // answer a tool or re-run a turn (retry rides rewind) either.
-                        onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
-                        onRewind={locked ? undefined : handleRewind}
-                    />
+                    <ChangeResultHostContext.Provider value={changeResultHost}>
+                        <TranscriptTurns
+                            turns={visibleTurns}
+                            scrollerRef={autoScroll.ref}
+                            sessionId={sessionId}
+                            remoteRunning={showingTurnActivity && !streamingHere}
+                            waitingOnUser={parkedOnUser}
+                            resuming={resumingAfterAnswer}
+                            pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                            // A tool answer and a rewind both write: someone who cannot send here cannot
+                            // answer a tool or re-run a turn (retry rides rewind) either.
+                            onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
+                            onRewind={locked ? undefined : handleRewind}
+                        />
+                    </ChangeResultHostContext.Provider>
                 </UserMessageAccessoryContext.Provider>
             </ContentRail>
         )
@@ -1162,7 +1188,6 @@ export const LiveConversation = ({
                                             (personalSetup.open && !readOnly && !accessPending)
                                         }
                                         onSwitchModel={() => modelPickerRef.current?.()}
-                                        canSwitchModel={canSwitchModel}
                                     />
                                 </ContentRail>
                             </div>
