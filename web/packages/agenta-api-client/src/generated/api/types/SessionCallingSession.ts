@@ -10,5 +10,5 @@ export interface SessionCallingSession {
     id: string;
     turn_id: string;
     agent_id: string;
-    revision_id?: string;
+    revision_id?: (string | null) | undefined;
 }

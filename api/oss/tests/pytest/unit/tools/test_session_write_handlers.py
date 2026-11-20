@@ -579,8 +579,9 @@ async def test_a_retried_tool_call_uses_the_same_request_key(world):
             wait_ms=0,
             tool_call_id="call-1",
         )
-    first, second = world.starts.starts
-    assert first["request_key"] == second["request_key"]
+    # The retry answers the first start; it starts nothing again.
+    [first] = world.starts.starts
+    assert first["request_key"].endswith(":call-1")
     created = world.triggers.created
     assert len(created) == 2 and created[0]["schedule_id"] == created[1]["schedule_id"]
 
@@ -1609,9 +1610,77 @@ async def test_a_retried_start_at_the_cap_answers_its_first_result(world):
     retry = await _call(world, "start_session", caller, **arguments)
     assert first.ok and retry.ok
     assert retry.content == first.content
-    assert (
-        world.starts.starts[0]["request_key"] == world.starts.starts[1]["request_key"]
+    assert len(world.starts.starts) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_retried_start_after_a_new_revision_answers_the_first_start(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    arguments = dict(agent="market-research", text="Go", wait_ms=0, tool_call_id="t")
+    first = await _call(world, "start_session", caller, **arguments)
+    # The author saves a new revision before the retry.
+    research.latest = uuid4()
+    world.workflows.revisions[research.latest] = SimpleNamespace(
+        id=research.latest, version="10", data=None
     )
+    retry = await _call(world, "start_session", caller, **arguments)
+    assert first.ok and retry.ok
+    assert len(world.starts.starts) == 1
+    assert retry.content.splitlines()[0] == first.content.splitlines()[0]
+
+
+@pytest.mark.asyncio
+async def test_a_start_that_cannot_be_confirmed_is_a_retryable_refusal(world):
+    from oss.src.core.sessions.starts.types import (  # noqa: PLC0415
+        SessionStartNotDurable,
+    )
+
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+
+    async def not_durable(**_):
+        raise SessionStartNotDurable()
+
+    world.starts.start_once = not_durable
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t",
+    )
+    error = _error(result)
+    assert error["code"] == "session_start_not_durable"
+    assert error["retryable"] is True
+    assert "list_sessions" in error["next_step"]
+
+
+@pytest.mark.asyncio
+async def test_the_short_wait_fits_in_what_the_call_has_left(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    original = world.starts.start_once
+
+    async def slow_start(**kwargs):
+        # The lock and the dispatch took 30 seconds.
+        world.clock.now += 30
+        return await original(**kwargs)
+
+    world.starts.start_once = slow_start
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        wait_ms=60_000,
+        tool_call_id="t",
+    )
+    assert result.ok
+    # 75 s limit, less the 5 s reserve and the 30 s used: 40 s of short wait.
+    assert world.clock.now == pytest.approx(70)
 
 
 @pytest.mark.asyncio
@@ -1643,3 +1712,74 @@ async def test_a_retried_send_at_the_queue_cap_is_not_counted_again(world):
     )
     assert result.ok
     assert world.starts.enqueued[0]["idempotency_key"] == key
+
+
+@pytest.mark.asyncio
+async def test_a_wait_on_a_child_that_fewer_people_can_read_is_refused(world):
+    research = world.workflows.add("market-research")
+    # The calling session is project-visible; Ana made the child private.
+    caller, _ = world.calling(
+        agent=research,
+        policy=AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=world.ana),
+    )
+    child = world.child(caller, agent=research)
+    result = await _call(
+        world, "wait_for_sessions", caller, session_ids=[child.session_id]
+    )
+    assert _error(result)["code"] == "sharing_would_widen"
+
+
+@pytest.mark.asyncio
+async def test_an_update_that_fails_to_be_removed_stays_pending(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    child = world.child(caller, agent=research)
+    first = world.update_row(caller, child.session_id, status=ChildTurnStatus.failed)
+    second = world.update_row(
+        caller, child.session_id, status=ChildTurnStatus.completed
+    )
+    original = world.store.remove_pending
+
+    async def flaky(*, input_id, **kwargs):
+        if input_id == second.id:
+            raise RuntimeError("database gone")
+        return await original(input_id=input_id, **kwargs)
+
+    world.store.remove_pending = flaky
+    result = await _call(
+        world, "wait_for_sessions", caller, session_ids=[child.session_id]
+    )
+    assert "failed answer" in result.content
+    assert first.state == PendingInputState.removed
+    assert second.state == PendingInputState.pending
+
+
+@pytest.mark.asyncio
+async def test_a_queued_send_whose_turn_already_ended_removes_its_schedule(world):
+    email = world.workflows.add("email-writer")
+    caller, execution_id = world.calling(agent=None)
+    child = world.child(caller, agent=email, is_running=True)
+    world.starts.enqueue_state = PendingInputState.pending
+    # The queue promoted the message and its turn ended before the schedule existed.
+    ended = str(uuid4())
+    world.store.inputs.setdefault(child.session_id, []).append(
+        SimpleNamespace(
+            id=uuid4(),
+            state=PendingInputState.promoted,
+            kind=PendingInputKind.message,
+            idempotency_key=f"ag:send:s-calling:{execution_id}:t",
+            promoted_execution_id=ended,
+            run_envelope=None,
+        )
+    )
+    world.store.executions[ended] = SimpleNamespace(terminal_outcome="completed")
+    result = await _call(
+        world,
+        "send_session_message",
+        caller,
+        session_id=child.session_id,
+        text="Also a P.S.",
+        tool_call_id="t",
+    )
+    assert result.ok
+    assert world.triggers.purged == [world.triggers.created[0]["schedule_id"]]
