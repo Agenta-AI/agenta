@@ -31,6 +31,8 @@ from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.access.dtos import (
+    Decision,
+    DecisionReason,
     RunApproval,
     RunEnvelope,
 )
@@ -416,12 +418,22 @@ class InteractionsDispatcher:
         continuation_execution_id: Optional[str] = None,
     ) -> None:
         """Rebuild the resumed envelope from the interaction row. The approver is
-        `approved_by`, from the trusted caller; it is never rebuilt from a user id.
+        `approved_by`, from the trusted caller; it is never rebuilt from a user id. An
+        answer that came with a run credential is refused and changes nothing.
 
         A refusal is terminal and is not raised, so no task retry repeats it: a row
         without an envelope (parked before M2) or a principal that lost access cancels
         the turn's pending interactions and runs nothing."""
 
+        if approved_by.is_run_credential:
+            # An agent run may not answer an interaction. The interaction stays as it
+            # is, so a person can still answer it.
+            log.warning(
+                "[interactions] response refused: answered with a run credential",
+                project_id=str(project_id),
+                interaction_id=str(interaction_id),
+            )
+            return
         interaction = await self.interactions_service.fetch_interaction(
             project_id=project_id,
             interaction_id=interaction_id,
@@ -514,6 +526,13 @@ class InteractionsDispatcher:
         continuation_execution_id: Optional[str] = None,
         session_turn_id: Optional[str] = None,
     ) -> None:
+        """Resume the turn under `envelope`. Raises `AccessDenied` before anything
+        runs when its approver answered with a run credential."""
+
+        if envelope.approved_by is not None and envelope.approved_by.is_run_credential:
+            raise AccessDenied(
+                decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED)
+            )
         resolved = [
             (
                 await self.interactions_service.fetch_interaction(

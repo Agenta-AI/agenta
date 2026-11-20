@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional, Tuple, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.account_choices.dtos import RunAccount
@@ -144,6 +144,11 @@ class RunApproval(BaseModel):
     principal: PrincipalRef  # the approving principal
     user_id: Optional[UUID] = None  # acting user of the approver
     external_key: Optional[str] = None  # channel answer only
+    # True when the answer came with a run credential, which may not approve anything.
+    # Set only by `approval_from_request`. Serialized only when true, and a missing key
+    # reads as false: an older pod refuses unknown keys, and no stored envelope carries
+    # true, because every path refuses it before it stores anything.
+    is_run_credential: bool = Field(default=False, exclude_if=lambda value: not value)
 
 
 class RunEnvelope(BaseModel):
