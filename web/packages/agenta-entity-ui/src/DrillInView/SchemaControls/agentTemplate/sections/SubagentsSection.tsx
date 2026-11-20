@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {Robot} from "@phosphor-icons/react"
@@ -15,6 +16,9 @@ import {findSubagentIndex, subagentItemRef, subagentSlugRef} from "../subagentRe
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
+
+// Read when the section is built, so it is in the active language.
+const tNow = createT(commonCatalog)
 
 type WorkflowReferenceBridge = Parameters<typeof ConnectedSubagentList>[0]["bridge"]
 
@@ -57,7 +61,8 @@ export const subagentsSection = ({
         key: "subagents",
         icon: <Robot size={16} />,
         title: t("entityUi.agentTemplate.subagents"),
-        summary: countSummary(subagentCount, "subagent"),
+        // "None" when empty, as the canvas draws the Agent tab.
+        summary: countSummary(subagentCount, "subagent") || tNow("common.none"),
         indicator: sectionIndicator("subagents"),
         // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
         // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its

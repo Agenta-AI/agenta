@@ -1,3 +1,5 @@
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {HardDrives} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
@@ -5,6 +7,9 @@ import {McpServersSectionBody, type McpServersSectionBodyProps} from "../McpServ
 import {SectionAddButton} from "../SectionAddButton"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
+
+// Read when the section is built, so it is in the active language.
+const tNow = createT(commonCatalog)
 
 export interface AgentMcpSectionParams {
     t: AgentTemplateT
@@ -41,7 +46,8 @@ export const agentMcpSection = ({
         key: "mcp",
         icon: <HardDrives size={16} />,
         title: fieldTitle("mcps", t("entityUi.agentTemplate.mcpServers")),
-        summary: countSummary(mcpServers.length, "server"),
+        // "None" when empty, as the canvas draws the Agent tab.
+        summary: countSummary(mcpServers.length, "server") || tNow("common.none"),
         indicator: sectionIndicator("mcp"),
         extra:
             !disabled && openAddMcpServer ? (

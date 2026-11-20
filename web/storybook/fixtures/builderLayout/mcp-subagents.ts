@@ -153,6 +153,14 @@ export const subagentRevisionId = (scope: StoryScope): string => workflowIds(sco
 
 /* ── MCP servers (F03 f4 to f7) ─────────────────────────────────────────────────────────── */
 
+interface McpFixtureOptions {
+    linearExpired?: boolean
+    /** linear uses each person's own sign-in on the agent. */
+    eachPerson?: boolean
+    /** The viewer's own sign-in to linear: null for none. */
+    linearSignIn?: {is_ready: boolean; account_name?: string} | null
+}
+
 const mcpEndpoint = (slug: string, health: "healthy" | "expired", host: string) => ({
     id: `mcp-${slug}`,
     slug,
@@ -165,9 +173,16 @@ const mcpEndpoint = (slug: string, health: "healthy" | "expired", host: string) 
 })
 
 /** The project's servers on the canvas: linear (added), docs-search, billing (expired). */
-export function mcpEndpointRows(options: {linearExpired?: boolean} = {}) {
+export function mcpEndpointRows(options: McpFixtureOptions = {}) {
+    // linear signs in with OAuth, so each person can hold an own sign-in to it.
+    const linear = {
+        ...mcpEndpoint("linear", options.linearExpired ? "expired" : "healthy", "mcp.linear.app"),
+        auth_mode: "oauth",
+        secret_id: "secret-linear",
+        user_sign_in: options.linearSignIn === undefined ? null : options.linearSignIn,
+    }
     return [
-        mcpEndpoint("linear", options.linearExpired ? "expired" : "healthy", "mcp.linear.app"),
+        linear,
         mcpEndpoint("docs-search", "healthy", "mcp.acme.io"),
         mcpEndpoint("billing", "expired", "billing.acme.io"),
     ]
@@ -204,13 +219,18 @@ export const LINEAR_MCP_TOOLS = [
 /** The agent with linear as its one MCP server, as a saved revision, and the project's servers. */
 export function mcpQueries(
     scope: StoryScope,
-    options: {linearExpired?: boolean} = {},
+    options: McpFixtureOptions = {},
 ): [readonly unknown[], unknown][] {
     const fixture = makeAgentConfigFixture(scope)
     const mcps = [
         {
             name: "linear",
-            connection: {type: "gateway", namespace: "custom", slug: "linear"},
+            connection: {
+                type: "gateway",
+                namespace: "custom",
+                slug: "linear",
+                ...(options.eachPerson ? {account_source: "user"} : {}),
+            },
             policy: {tools: {mode: "all"}},
         },
     ]

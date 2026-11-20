@@ -70,5 +70,32 @@
         "theme": "light",
         "selector": "[data-testid=\"agent-panel\"]",
         "ready": "text=Reconnect"
+    },
+    {
+        "id": "mcp-subagents-server-each-person-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-each-persons-own",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Not signed in yet"
+    },
+    {
+        "id": "mcp-subagents-server-signin-name-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-your-sign-in-with-name",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Your sign-in: Lena at Acme"
+    },
+    {
+        "id": "mcp-subagents-server-signin-noname-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-your-sign-in-no-name",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Signed in"
     }
 ]

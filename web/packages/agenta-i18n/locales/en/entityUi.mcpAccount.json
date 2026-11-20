@@ -1,0 +1,15 @@
+{
+    "chooseWhose": "Choose whose {{name}} sign-in the agent uses",
+    "eachPersonsOwnNote": "Everyone uses their own {{name}} sign-in.",
+    "oneShared": "One shared sign-in",
+    "oneSharedNote": "Everyone uses the sign-in of the project.",
+    "sharedSignIn": "Shared sign-in",
+    "sharedSignInNote": "Every run uses this sign-in, whoever starts it",
+    "yourSignIn": "Your sign-in",
+    "yourSignInNote": "The {{name}} sign-in your own runs use",
+    "notSignedInYet": "Not signed in yet",
+    "signInTo": "Sign in to {{name}}",
+    "signedInAs": "Your sign-in: {{account}}",
+    "signedIn": "Signed in",
+    "noPersonWarning": "Runs from a channel or from an automation created with an API key have no person. They cannot use each person's own sign-in, so this server is not available to them."
+}
