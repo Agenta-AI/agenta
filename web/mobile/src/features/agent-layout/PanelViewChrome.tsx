@@ -32,8 +32,12 @@ export const PanelViewChrome = ({
     const t = useT(agentLayoutPanelCatalog)
     const panel = useAgentPanel()
     const {setWide, phone} = panel
-    // The widen lasts while this view is open: back restores the stored width.
+    // The widen lasts while the views are open: closing them restores the stored width.
     useEffect(() => () => setWide(false), [setWide])
+    // A view with no widen button never stays wide: it has no button to narrow it again.
+    useEffect(() => {
+        if (!showWiden) setWide(false)
+    }, [showWiden, setWide])
 
     return (
         <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -43,47 +47,52 @@ export const PanelViewChrome = ({
                 <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pl-2 pr-1.5">
                     {/* Parent crumbs 13 px fg2, "›" between, the open view 13 px / 600. When the
                         row is short, the parent crumbs give up their width first (down to 48 px
-                        each), so the open view keeps its full name while it fits (F05-06). */}
+                        each; the shrink factors are 100 and 0.01), so the open view keeps its full
+                        name while it fits (F05-06). */}
                     <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">
-                        {crumbs.map((crumb, index) => (
-                            <span
-                                key={index}
-                                className={cn(
-                                    "flex items-center gap-1.5",
-                                    index === crumbs.length - 1
-                                        ? "min-w-0"
-                                        : "min-w-12 shrink-[100]",
-                                )}
-                            >
-                                {index > 0 ? (
-                                    <span aria-hidden className="text-sm text-colorTextTertiary">
-                                        ›
-                                    </span>
-                                ) : null}
-                                {crumb.onSelect ? (
-                                    <button
-                                        type="button"
-                                        title={crumb.title}
-                                        className="h-7 min-w-0 truncate rounded-md px-1.5 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
-                                        onClick={crumb.onSelect}
-                                    >
-                                        {crumb.title}
-                                    </button>
-                                ) : (
-                                    <span
-                                        title={crumb.title}
-                                        className={cn(
-                                            "truncate",
-                                            index === crumbs.length - 1
-                                                ? "font-semibold text-colorText"
-                                                : "px-1.5 text-colorTextSecondary",
-                                        )}
-                                    >
-                                        {crumb.title}
-                                    </span>
-                                )}
-                            </span>
-                        ))}
+                        {crumbs.map((crumb, index) => {
+                            const last = index === crumbs.length - 1
+                            return (
+                                <span
+                                    key={index}
+                                    className={cn(
+                                        "flex items-center gap-1.5",
+                                        last ? "min-w-0 shrink-[0.01]" : "min-w-12 shrink-[100]",
+                                    )}
+                                >
+                                    {index > 0 ? (
+                                        <span
+                                            aria-hidden
+                                            className="text-sm text-colorTextTertiary"
+                                        >
+                                            ›
+                                        </span>
+                                    ) : null}
+                                    {crumb.onSelect ? (
+                                        <button
+                                            type="button"
+                                            title={crumb.title}
+                                            className="h-7 min-w-0 truncate rounded-md px-1.5 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                                            onClick={crumb.onSelect}
+                                        >
+                                            {crumb.title}
+                                        </button>
+                                    ) : (
+                                        <span
+                                            title={crumb.title}
+                                            className={cn(
+                                                "truncate",
+                                                last
+                                                    ? "font-semibold text-colorText"
+                                                    : "px-1.5 text-colorTextSecondary",
+                                            )}
+                                        >
+                                            {crumb.title}
+                                        </span>
+                                    )}
+                                </span>
+                            )
+                        })}
                     </nav>
                     {showWiden ? (
                         <SimpleTooltip title={t("agentLayout.panel.widen")}>
