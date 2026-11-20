@@ -65,6 +65,11 @@ describe("useConfigurationRevision", () => {
         expect(seen.revisionId).toBe("rev-5")
     })
 
+    it("holds its revision when a version is saved elsewhere", () => {
+        act(() => store.set(latestAtom(), "rev-6"))
+        expect(seen.revisionId).toBe("rev-4")
+    })
+
     it("ignores a save made from another revision", () => {
         act(() => handlers.get("configuration-page:support")?.("rev-2", "rev-9"))
         expect(seen.revisionId).toBe("rev-4")
