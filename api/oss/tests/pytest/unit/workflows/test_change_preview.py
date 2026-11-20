@@ -427,6 +427,42 @@ class TestTheBaseIsInsideTheBound:
         )
 
 
+class TestAListChangeTheItemDiffCannotShow:
+    def test_a_reordered_list_is_a_list_change(self):
+        base = _base()
+        base["parameters"]["agent"]["skills"] = [TRIAGE, REFUND]
+        preview = _preview(
+            base, [{"operation": "set", "target": SKILLS, "value": [REFUND, TRIAGE]}]
+        )
+
+        (change,) = preview["changes"]
+        assert change["path"] == SKILLS
+        assert change["new"] == [REFUND, TRIAGE]
+
+    def test_a_list_that_appears_empty_is_a_list_change(self):
+        base = _base()
+        del base["parameters"]["agent"]["skills"]
+        preview = _preview(base, [{"operation": "set", "target": SKILLS, "value": []}])
+
+        (change,) = preview["changes"]
+        assert change == {
+            "path": SKILLS,
+            "operation_indexes": [0],
+            "kind": "added",
+            "new": [],
+        }
+
+
+class TestARefusalIsBounded:
+    def test_a_long_error_and_many_operations_are_cut(self):
+        operations = [{"operation": "x" * 5_000, "target": SKILLS}] * 100
+        preview = _failed(_base(), operations)
+
+        assert preview["truncated"] is True
+        assert len(preview["operations"]) == 64
+        assert len(json.dumps(preview).encode()) < MAX_PREVIEW_BYTES
+
+
 class TestTheBoundsAreBytes:
     def test_a_value_is_measured_in_utf8_bytes(self):
         # 2,000 characters of Chinese text are about 6,000 bytes: over the value bound.
@@ -458,7 +494,8 @@ class TestAnOperationThatDoesNotApply:
         assert preview["applies"] is False
         assert preview["changes"] == []
         first, failed, after = preview["operations"]
-        assert first == {"index": 0, "applies": True}
+        # The engine may refuse before any operation runs: the others are not checked.
+        assert first == {"index": 0, "applies": None}
         assert failed["applies"] is False
         assert failed["error"]["code"] == "text_not_found"
         # The engine stops at the first failure, so the rest were not checked.

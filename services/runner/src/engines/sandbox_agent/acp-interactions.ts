@@ -284,14 +284,14 @@ export function attachPermissionResponder({
   // approval prompt on the same tool-call id (the F-024 clobber). The turn instead ends via
   // `onPause` (session teardown resolves the RPC as cancelled, not rejected) and the next
   // turn's stored decision answers the re-raised gate.
-  const pauseUserApproval = (
+  const pauseUserApproval = async (
     req: any,
     id: string,
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
     manifest?: unknown,
-    preview?: Record<string, unknown>,
-  ): void => {
+    resolvePreview?: () => Promise<Record<string, unknown> | undefined>,
+  ): Promise<void> => {
     // Signal the parkable gate so a keep-alive resume can record the pending permission id and
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
     // gated calls in one turn all render and all park (the plural approval path).
@@ -307,6 +307,9 @@ export function attachPermissionResponder({
     });
     const eventId = interactionEventId(id, toolCallId);
     if (toolCallId) onPausedToolCall?.(toolCallId);
+    // Fetched after the call is marked paused, so a sibling gate that pauses the turn
+    // meanwhile does not settle this call as an orphan.
+    const preview = await resolvePreview?.();
     run.emitEvent({
       type: "interaction_request",
       id: eventId,
@@ -370,14 +373,16 @@ export function attachPermissionResponder({
     availableReplies: string[],
     toolCallId: string | undefined,
   ): Promise<void> => {
-    const preview = () =>
-      onResolveChangePreview?.({
-        toolName: gate.toolName,
-        toolCallId,
-        args: gate.args,
-      });
+    const preview = onResolveChangePreview
+      ? () =>
+          onResolveChangePreview({
+            toolName: gate.toolName,
+            toolCallId,
+            args: gate.args,
+          })
+      : undefined;
     if (!onResolveApprovedContent) {
-      pauseUserApproval(req, id, gate, gateType, undefined, await preview());
+      await pauseUserApproval(req, id, gate, gateType, undefined, preview);
       return;
     }
     const outcome = await onResolveApprovedContent({
@@ -386,13 +391,13 @@ export function attachPermissionResponder({
       args: gate.args,
     });
     if (outcome.ok) {
-      pauseUserApproval(
+      await pauseUserApproval(
         req,
         id,
         gate,
         gateType,
         outcome.manifest,
-        await preview(),
+        preview,
       );
       return;
     }

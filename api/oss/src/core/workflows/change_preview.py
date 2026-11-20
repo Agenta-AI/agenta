@@ -129,7 +129,15 @@ def _list_changes(
     list_name = group.path[-1]
     old_items = _keyed(list_name, [] if old_list is _MISSING else old_list)
     new_items = _keyed(list_name, [] if new_list is _MISSING else new_list)
-    if old_items is None or new_items is None:
+    if (
+        old_items is None
+        or new_items is None
+        # A list added or removed, or kept items in another order: the item diff by
+        # key cannot show it, so the whole list is the change.
+        or (old_list is _MISSING) != (new_list is _MISSING)
+        or [k for k in old_items if k in new_items]
+        != [k for k in new_items if k in old_items]
+    ):
         change = _change(old_list, new_list, group.path, group.indexes)
         return [change] if change else []
 
@@ -300,31 +308,38 @@ def build_change_preview(
     return preview
 
 
+# The tools accept 64 operations at most; a refusal lists no more statuses than that.
+MAX_OPERATION_STATUSES = 64
+MAX_ERROR_MESSAGE_CHARS = 1_024
+
+
 def failed_change_preview(
     *,
     operations: Sequence[Dict[str, Any]],
     error: ChangeSetError,
 ) -> Dict[str, Any]:
     """The preview of a change set the engine refused. One failed operation stops the
-    engine, so the operations before it apply, the failed one does not, and the ones after
-    it were not checked (``applies`` is null)."""
+    engine. The engine can refuse it in a check that runs before any operation does, so
+    the other operations are reported as not checked (``applies`` is null), never as
+    applied."""
     failed = error.operation_index
-    statuses: List[Dict[str, Any]] = []
-    for index in range(len(operations)):
-        if failed is None or index > failed:
-            statuses.append({"index": index, "applies": None})
-        elif index < failed:
-            statuses.append({"index": index, "applies": True})
-        else:
-            statuses.append(
-                {
-                    "index": index,
-                    "applies": False,
-                    "error": {"code": error.reason, "message": error.message},
-                }
-            )
+    message = error.message[:MAX_ERROR_MESSAGE_CHARS]
+    statuses: List[Dict[str, Any]] = [
+        (
+            {
+                "index": index,
+                "applies": False,
+                "error": {"code": error.reason, "message": message},
+            }
+            if index == failed
+            else {"index": index, "applies": None}
+        )
+        for index in range(min(len(operations), MAX_OPERATION_STATUSES))
+    ]
     preview: Dict[str, Any] = {"applies": False, "operations": statuses, "changes": []}
-    if failed is None:
-        # Refused as a whole, not at one operation.
-        preview["error"] = {"code": error.reason, "message": error.message}
+    if failed is None or failed >= MAX_OPERATION_STATUSES:
+        # Refused as a whole, not at one operation that is listed.
+        preview["error"] = {"code": error.reason, "message": message}
+    if len(operations) > MAX_OPERATION_STATUSES or len(error.message) > len(message):
+        preview["truncated"] = True
     return preview
