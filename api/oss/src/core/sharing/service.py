@@ -329,6 +329,40 @@ class SharingService(ResourcePolicyInterface):
         ).policy
         return self.check_home_drive(agent_policy, policy)
 
+    async def session_wider_than_drive(
+        self, *, project_id: UUID, session_id: str, mount_id: UUID
+    ) -> bool:
+        """Whether a person who cannot read the drive can read the session: the rule
+        `is_wider(calling session, drive)` of design D11 for this one pair, until the
+        general `is_wider` replaces it. A drive's text that the builder reads lands in
+        the calling session, so a drive is read only into a session that no other
+        person reads.
+
+        A project-visible drive is never narrower than a session of its project. A
+        private drive is read by its owner only, so it is narrower than every session
+        that someone else reads: a project-visible session, a channel session (its
+        channel shows the text outside the project), a private session of another
+        owner, and a private session with a grant to another person. A session or a
+        drive with no row is treated as wider."""
+
+        drive = await self.fetch_mount_policy(project_id=project_id, mount_id=mount_id)
+        if drive is None:
+            return True
+        if drive.visibility == Visibility.PROJECT:
+            return False
+        session = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        if session is None or session.policy is None:
+            return True
+        if session.is_channel or session.channel_binding_id is not None:
+            return True
+        if session.policy.visibility != Visibility.PRIVATE:
+            return True
+        if session.policy.owner_user_id != drive.owner_user_id:
+            return True
+        return any(grant.user_id != drive.owner_user_id for grant in session.grants)
+
     async def may_use_mount(
         self,
         *,

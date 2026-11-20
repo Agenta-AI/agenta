@@ -35,6 +35,8 @@ BUILDER_AGENT_TOOLS: dict[str, str] = {
     "list_deliveries": "allow",
     "get_current_session": "allow",
     "rename_session": "allow",
+    "list_agent_drives": "allow",
+    "read_drive": "allow",
 }
 
 BUILDER_AGENT_INSTRUCTIONS = """\
