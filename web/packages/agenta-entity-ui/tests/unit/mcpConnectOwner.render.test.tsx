@@ -207,6 +207,14 @@ describe("Connect server, Who can use it", () => {
         expect(lastOwner()).toBe("project")
     })
 
+    it("uses the one permitted owner without asking", async () => {
+        stubJourney(journeyState("naming"))
+        await openWith({owners: ["user"]})
+        await findByText("Connect", "button")
+        expect(byText("Who can use it")).toBeUndefined()
+        expect(lastOwner()).toBe("user")
+    })
+
     it("does not ask on a reconnect, which repairs the project's sign-in", async () => {
         stubJourney(journeyState("naming"))
         await openWith({

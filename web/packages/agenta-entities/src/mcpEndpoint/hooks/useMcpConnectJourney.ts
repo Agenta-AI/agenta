@@ -1209,6 +1209,8 @@ export function useMcpConnectJourney({
         }
         // A failed attempt can keep a row the list never fetched.
         if (endpoint) await refreshEndpoints()
+        // A person's own sign-in may have finished unseen; the API then kept the row.
+        if (endpoint && consentOwnerRef.current === "user") await invalidatePersonalAccountReads()
     }, [abandonAttempt, projectId, refreshEndpoints, state])
 
     /**

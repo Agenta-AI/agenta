@@ -36,11 +36,13 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     )
     const reconnect = params.reconnect ?? null
     const [connected, setConnected] = useState<McpConnectedEndpoint | null>(null)
-    // "Who can use it" asks only for a new server, and only when the opener allows both owners.
-    const owners = !reconnect && params.owners && params.owners.length > 1 ? params.owners : null
-    const [chosenOwner, setOwner] = useState<ConnectionOwner>(params.owners?.[0] ?? "project")
-    // Without the question the sign-in is the project's, as a reconnect's always is.
-    const owner = owners?.includes(chosenOwner) ? chosenOwner : "project"
+    // A reconnect repairs the project's sign-in. Otherwise the first permitted owner is the
+    // default, as in the integration connect form.
+    const permitted = reconnect ? null : (params.owners ?? null)
+    // "Who can use it" asks only when the opener allows both owners.
+    const owners = permitted && permitted.length > 1 ? permitted : null
+    const [chosenOwner, setOwner] = useState<ConnectionOwner>(permitted?.[0] ?? "project")
+    const owner = permitted?.includes(chosenOwner) ? chosenOwner : (permitted?.[0] ?? "project")
     const projectName = useProjectName(owners !== null)
     const journey = useMcpConnectJourney({
         existingNames,
