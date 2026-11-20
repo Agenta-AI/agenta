@@ -54,16 +54,22 @@ export const useDriveUrlSync = ({
 
     const openRef = useRef(open)
     openRef.current = open
+    const sessionRef = useRef(sessionId)
+    sessionRef.current = sessionId
     // Written a task later: on a phone the open pane's back entry is pushed in a microtask after
     // the pane mounts, and the explorer reports its first selection before that. Written at once,
-    // the link would land on the page entry under the back entry. A pane that closed meanwhile
-    // writes nothing (its close cleared the link).
-    const onSelectionChange = useCallback((item: DriveLinkItem) => {
-        const value = driveParam(item)
-        setTimeout(() => {
-            if (openRef.current) replaceQueryParam(DRIVE_QUERY_PARAM, value)
-        }, 0)
-    }, [])
+    // the link would land on the page entry under the back entry. A pane that closed, or a session
+    // that changed, in the meantime writes nothing.
+    const onSelectionChange = useCallback(
+        (item: DriveLinkItem) => {
+            const value = driveParam(item)
+            setTimeout(() => {
+                if (openRef.current && sessionRef.current === sessionId)
+                    replaceQueryParam(DRIVE_QUERY_PARAM, value)
+            }, 0)
+        },
+        [sessionId],
+    )
 
     const copy = useCopyText()
     const copyLink = useCallback(
