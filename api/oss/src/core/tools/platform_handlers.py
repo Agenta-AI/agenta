@@ -1853,6 +1853,17 @@ async def handle_create_agent(
                     "an agent the whole project sees."
                 ),
             ) from e
+        if visibility == Visibility.PRIVATE and first_agent_owner_user_id is None:
+            # A run with no person (an API key) cannot own an agent, and an agent
+            # with no owner is visible to the project. Refused, so a private request
+            # never makes a project-visible agent.
+            raise _ArgumentsRefused(
+                "This run has no person to own a private agent. No agent was created.",
+                next_step=(
+                    "Send `visibility: project` to create an agent the whole project "
+                    "sees, or create it from a chat with a person."
+                ),
+            )
         operations = _operations(parsed, required=False)
         attribution = await _attribution(
             workflows_service=workflows_service,

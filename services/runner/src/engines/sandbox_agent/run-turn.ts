@@ -1369,7 +1369,8 @@ export async function runTurn(
     // The server preview on an agent write's approval card, for both gate paths below.
     const changePreview = buildAgentChangePreviewFetcher({
       callback: toolCallback.runtime,
-      runContext: request.runContext,
+      // The context the relay binds with: it carries the session id.
+      runContext: toolRunContext,
       toolSpecs: plan.tools.toolSpecs,
       signal,
       log: logger,

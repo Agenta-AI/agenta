@@ -5588,7 +5588,8 @@ class SimpleWorkflowsService:
             workflow=outcome.workflow,
             revision=outcome.revision,
             head=head,
-            message=message,
+            # A replay returns the stored revision, and with it its stored message.
+            message=(outcome.revision.message if outcome.revision else None) or message,
             warnings=warnings,
             visibility=applied,
         )
