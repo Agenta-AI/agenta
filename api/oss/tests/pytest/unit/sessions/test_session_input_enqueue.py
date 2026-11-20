@@ -342,6 +342,25 @@ async def test_an_idle_session_claims_and_dispatches_the_input():
 
 
 @pytest.mark.asyncio
+async def test_a_relayed_message_asks_the_runner_to_keep_the_sandbox_warm():
+    """Only the session tool handlers pass `keep_session_warm`; every other caller
+    keeps the default, and the request is unchanged."""
+    harness = _Harness()
+    await harness.enqueue(
+        key="ag:send:calling:x1:call-1",
+        kind=PendingInputKind.message,
+        keep_session_warm=True,
+    )
+    invoke = harness.workflows.invoke_workflow_detached.await_args.kwargs
+    assert invoke["keep_session_warm"] is True
+
+    other = _Harness()
+    await other.enqueue()
+    invoke = other.workflows.invoke_workflow_detached.await_args.kwargs
+    assert invoke["keep_session_warm"] is False
+
+
+@pytest.mark.asyncio
 async def test_a_busy_session_queues_the_input():
     harness = _Harness(running=True)
 

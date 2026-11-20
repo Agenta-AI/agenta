@@ -828,6 +828,23 @@ class SessionsConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT")
         or 20
     )
+    # Running child sessions of one calling session. `start_session`, and a send that
+    # would start a turn in an idle child, are refused at this count.
+    child_sessions_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT") or 5
+    )
+    # Queued messages from one calling session in one child session. A send that would
+    # queue one more is refused.
+    child_queued_messages_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_QUEUED_MESSAGES_LIMIT")
+        or 3
+    )
+    # Minutes after a start or a send before the calling session gets the still-running
+    # update, when the agent gives no `update_after_minutes`.
+    still_running_update_minutes: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_STILL_RUNNING_UPDATE_MINUTES")
+        or 30
+    )
 
     model_config = ConfigDict(extra="ignore")
 

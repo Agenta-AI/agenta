@@ -39,7 +39,7 @@ from oss.src.core.sharing.service import (
     channel_session_policy,
     created_session_access,
 )
-from oss.src.core.sessions.streams.dtos import SessionStreamCreate
+from oss.src.core.sessions.streams.dtos import SessionNameSource, SessionStreamCreate
 from oss.src.core.sessions.types import SessionCallingSession
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.types import (
@@ -229,6 +229,7 @@ class SessionStartsService:
         envelope: RunEnvelope,
         channel_binding_id: Optional[UUID] = None,
         calling_session: Optional[SessionCallingSession] = None,
+        name: Optional[str] = None,
     ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
         heartbeat, a rename, another start with the same key) already created it: that
@@ -245,6 +246,8 @@ class SessionStartsService:
                     channel_binding_id=channel_binding_id,
                     run_envelope=envelope,
                     calling_session=calling_session,
+                    name=name,
+                    name_source=SessionNameSource.automatic if name else None,
                 ),
             )
         except SessionStreamAlreadyExists:
@@ -361,6 +364,7 @@ class SessionStartsService:
         kind: PendingInputKind,
         admitted_agent_id: Optional[UUID],
         calling_turn_id: Optional[str] = None,
+        keep_session_warm: bool = False,
     ) -> tuple[PendingInput, bool]:
         """Write and promote the input for `execution_id`, then invoke it once. Call it
         under `_start_lock`, after the run was admitted.
@@ -423,6 +427,7 @@ class SessionStartsService:
                 run_id=execution_id,
                 strict_start=True,
                 admitted_agent_id=admitted_agent_id,
+                keep_session_warm=keep_session_warm,
             )
         except Exception as exc:
             error = exc
@@ -458,6 +463,7 @@ class SessionStartsService:
         run_envelope: RunEnvelope,
         dispatch_boundary: str,
         calling_turn_id: Optional[str] = None,
+        keep_session_warm: bool = False,
     ) -> SessionInputEnqueueResult:
         """Put one input that server code writes into an existing session.
 
@@ -482,7 +488,9 @@ class SessionStartsService:
 
         `calling_turn_id` is the first execution id of the calling turn of a child
         input. Only server code that sends a child input passes it; the row stores
-        it and no response returns it."""
+        it and no response returns it. `keep_session_warm` asks the runner to park the
+        session's sandbox after a turn that this call dispatches at once; only the
+        session tool handlers pass it."""
         if run_envelope.authority.project_id != project_id:
             raise SessionInputEnvelopeMismatch()
         if not is_reserved_input_key(idempotency_key):
@@ -618,6 +626,7 @@ class SessionStartsService:
                 kind=kind,
                 admitted_agent_id=agent_artifact_id,
                 calling_turn_id=calling_turn_id,
+                keep_session_warm=keep_session_warm,
             )
             return SessionInputEnqueueResult(
                 input_id=claimed.id,
@@ -639,6 +648,9 @@ class SessionStartsService:
         access: AccessPolicy | None = None,
         calling_session: SessionCallingSession | None = None,
         calling_turn_id: str | None = None,
+        boundary: str = TEMPLATE_START_BOUNDARY,
+        name: str | None = None,
+        keep_session_warm: bool = False,
     ) -> SessionStartResult:
         """`access` is the first session's initial policy (the caller's requested
         visibility, through `initial_policy`). When given, the session row is created
@@ -650,7 +662,12 @@ class SessionStartsService:
         the run origin `calling_session` and an `access`, because only the row that
         the start creates carries the record. `calling_turn_id` is the first execution
         id of the calling turn; the first input row stores it for the producer of
-        child updates."""
+        child updates.
+
+        `boundary` is the admission point every check of this start logs (the template
+        loader's by default; `start_session` passes the child run's). `name` names the
+        session row that this start creates. `keep_session_warm` asks the runner to park
+        the sandbox after the first turn."""
         if calling_session is not None and access is None:
             raise ValueError("a calling session record needs the initial policy")
         # The start runs as the request's principal; recheck before anything is
@@ -688,7 +705,7 @@ class SessionStartsService:
                 session_id=session_id,
                 project_id=project_id,
                 request=request,
-                boundary=TEMPLATE_START_BOUNDARY,
+                boundary=boundary,
             )
             if channel_binding_id is not None and access is not None:
                 access = await channel_session_policy(
@@ -712,13 +729,14 @@ class SessionStartsService:
                     envelope=envelope,
                     channel_binding_id=channel_binding_id,
                     calling_session=calling_session,
+                    name=name,
                 )
                 if not created:
                     await self._run_admission.admit(
                         envelope=envelope,
                         session_id=session_id,
                         agent_artifact_id=None,
-                        boundary=TEMPLATE_START_BOUNDARY,
+                        boundary=boundary,
                     )
 
             claimed, replayed = await self._claim_and_dispatch(
@@ -733,6 +751,7 @@ class SessionStartsService:
                 kind=PendingInputKind.message,
                 admitted_agent_id=agent_artifact_id,
                 calling_turn_id=calling_turn_id,
+                keep_session_warm=keep_session_warm,
             )
             return SessionStartResult(
                 session_id=session_id,
