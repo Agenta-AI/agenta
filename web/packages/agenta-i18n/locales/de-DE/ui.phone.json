@@ -2,5 +2,6 @@
     "back": "Zurück",
     "backTo": "Zurück zu {{title}}",
     "cancel": "Abbrechen",
-    "closeSidebar": "Seitenleiste schließen"
+    "closeSidebar": "Seitenleiste schließen",
+    "openSidebar": "Seitenleiste öffnen"
 }
