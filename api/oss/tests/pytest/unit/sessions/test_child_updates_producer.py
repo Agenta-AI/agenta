@@ -302,7 +302,7 @@ class _Files:
 
 
 class _Harness:
-    def __init__(self, *, file_fails=False, starts_raises=None):
+    def __init__(self, *, file_fails=False, starts_raises=None, cancel_cause=None):
         self.inputs = _Inputs()
         self.streams = _Streams()
         self.executions = _Executions()
@@ -331,6 +331,7 @@ class _Harness:
             result_files=self.files,
             agent_lookup=agent,
             delete_still_running_schedule=delete,
+            cancel_cause=AsyncMock(return_value=cancel_cause),
             sleep=AsyncMock(),
         )
 
@@ -545,6 +546,33 @@ async def test_a_killed_child_whose_runner_is_gone_reports_cancelled_by_a_person
     assert len(harness.updates()) == 1
     assert harness.part(0)["status"] == "cancelled"
     assert "cancelled_by: person" in harness.text(0)
+
+
+@pytest.mark.asyncio
+async def test_a_watchdog_ending_of_a_cancel_session_names_the_calling_session():
+    """The sweep's `done` has no `cancelledBy`; the cancel command still names it."""
+    harness = _Harness(cancel_cause="calling_session")
+    harness.inputs.add_child_input()
+    harness.executions.add(CHILD_EXECUTION, outcome="stopped")
+    harness.records.add(
+        CHILD_EXECUTION, "done", {"stopReason": "cancelled", "settled_by": "watchdog"}
+    )
+
+    await harness.ended()
+
+    assert "cancelled_by: calling_session" in harness.text()
+
+
+@pytest.mark.asyncio
+async def test_a_paused_turn_stopped_before_its_signal_reports_cancelled():
+    harness = _Harness()
+    harness.inputs.add_child_input()
+    harness.records.add(CHILD_EXECUTION, "done", {"stopReason": "paused"})
+    harness.executions.add(CHILD_EXECUTION, outcome="stopped")
+
+    await harness.ended()
+
+    assert harness.part()["status"] == "cancelled"
 
 
 # --- a pause and an approval continuation -------------------------------------------
@@ -1026,6 +1054,27 @@ async def test_an_unproven_dispatch_is_retried_but_dropped_past_the_budget():
 @pytest.mark.asyncio
 async def test_an_outage_is_never_dropped_past_the_budget():
     harness = _Harness(starts_raises=OperationalError("enqueue", {}, Exception()))
+    harness.inputs.add_child_input()
+    _completed(harness)
+    worker = ChildUpdatesWorker(
+        service=harness.service, redis_client=AsyncMock(), stream_name="test"
+    )
+
+    _, acked = await worker.process_batch([_entry()])
+
+    assert acked == []
+    assert not worker.is_permanent_failure(b"1-0", {})
+
+
+@pytest.mark.asyncio
+async def test_a_lock_redis_outage_inside_an_unproven_dispatch_is_never_dropped():
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    from oss.src.core.sessions.starts.types import SessionStartNotDurable
+
+    error = SessionStartNotDurable()
+    error.__cause__ = RedisConnectionError()
+    harness = _Harness(starts_raises=error)
     harness.inputs.add_child_input()
     _completed(harness)
     worker = ChildUpdatesWorker(

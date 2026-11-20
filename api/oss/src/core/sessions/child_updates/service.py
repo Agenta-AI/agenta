@@ -113,6 +113,9 @@ class _ResultFileWriter(Protocol):
 
 
 AgentLookup = Callable[[UUID, UUID], Awaitable[Optional[ChildTurnAgent]]]
+# `SessionCommandsService.cancel_cause`: who cancelled an execution, from its cancel
+# command.
+CancelCause = Callable[..., Awaitable[Optional[str]]]
 ScheduleDelete = Callable[[UUID, UUID], Awaitable[bool]]
 
 
@@ -129,6 +132,7 @@ class SessionChildUpdatesService:
         result_files: Optional[_ResultFileWriter] = None,
         agent_lookup: Optional[AgentLookup] = None,
         delete_still_running_schedule: Optional[ScheduleDelete] = None,
+        cancel_cause: Optional[CancelCause] = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._streams = streams_dao
@@ -140,6 +144,7 @@ class SessionChildUpdatesService:
         self._result_files = result_files
         self._agent_lookup = agent_lookup
         self._delete_still_running_schedule = delete_still_running_schedule
+        self._cancel_cause = cancel_cause
         self._sleep = sleep
 
     async def handle_turn_ended(
@@ -465,7 +470,14 @@ class SessionChildUpdatesService:
             last_message=text or None,
             is_truncated=is_truncated,
             cancelled_by=(
-                cancelled_by(records) if status == ChildTurnStatus.cancelled else None
+                await self._cancelled_by(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution=execution,
+                    records=records,
+                )
+                if status == ChildTurnStatus.cancelled
+                else None
             ),
             error=(
                 run_error(records)
@@ -478,6 +490,31 @@ class SessionChildUpdatesService:
                 else None
             ),
         )
+
+    async def _cancelled_by(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution: Optional[SessionExecutionSettlement],
+        records: List[SessionRecord],
+    ) -> ChildCancelledBy:
+        """From the `done` record, and else from the cancel command: the watchdog's
+        `done` for a stopped turn carries no `cancelledBy`."""
+        cause = cancelled_by(records)
+        if (
+            cause == "person"
+            and execution is not None
+            and self._cancel_cause is not None
+            and await self._cancel_cause(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution.execution_id,
+            )
+            == "calling_session"
+        ):
+            return "calling_session"
+        return cause
 
     async def _write_result_file(
         self,
@@ -556,11 +593,15 @@ def ending_status(
     outcome = execution.terminal_outcome if execution is not None else None
     if outcome == "lost":
         return ChildTurnStatus.lost
+    # A paused execution has no outcome; a settled `stopped` one was stopped after its
+    # pause (a Stop or a kill), so the paused `done` no longer says what happened.
+    if outcome == "stopped":
+        return ChildTurnStatus.cancelled
     done = _last(records, TERMINAL_RECORD_TYPE)
     stop_reason = (done.attributes or {}).get("stopReason") if done else None
     if stop_reason == "paused":
         return ChildTurnStatus.paused
-    if outcome == "stopped" or stop_reason == "cancelled":
+    if stop_reason == "cancelled":
         return ChildTurnStatus.cancelled
     if outcome == "failed" or stop_reason == "error":
         return ChildTurnStatus.failed

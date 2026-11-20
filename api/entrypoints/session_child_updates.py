@@ -231,4 +231,5 @@ def build_session_child_updates_service() -> SessionChildUpdatesService:
         # service of the session-target schedules (`purge_session_schedule`, PR 8499).
         # Until the start and send handlers create such schedules, none exists.
         delete_still_running_schedule=None,
+        cancel_cause=commands_service.cancel_cause,
     )

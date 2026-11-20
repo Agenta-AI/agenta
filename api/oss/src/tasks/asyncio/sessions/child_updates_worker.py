@@ -138,7 +138,11 @@ class ChildUpdatesWorker(StreamConsumer):
                 processed_ids.append(msg_id)
                 self._not_durable.discard(msg_id)
             except Exception as error:
-                if isinstance(error, SessionStartNotDurable):
+                if isinstance(error, SessionStartNotDurable) and not isinstance(
+                    error.__cause__, _SHORT_FAILURES
+                ):
+                    # A lock Redis that is down also raises it (from the outage):
+                    # that one is an outage, retried until it ends.
                     self._not_durable.add(msg_id)
                 else:
                     self._not_durable.discard(msg_id)
