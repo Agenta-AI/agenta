@@ -102,6 +102,7 @@ export function InputAffix({
                 onChange={handleChange}
                 className={cn(
                     "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-base text-foreground outline-none placeholder:text-muted-foreground md:text-sm",
+                    size.startsWith("compact") && "md:text-[13px]",
                 )}
                 {...rest}
             />
