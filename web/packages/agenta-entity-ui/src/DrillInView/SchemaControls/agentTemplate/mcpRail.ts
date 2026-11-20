@@ -10,6 +10,7 @@ import {
     toolPrefixFromName,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
+import type {ConfigItemRef} from "@agenta/ui/view-stack"
 
 /**
  * Whether a saved MCP item has to open its form rather than its permissions.
@@ -83,3 +84,35 @@ export const withMcpAccountSource = (
     if (user && rest.namespace !== "custom") return item
     return {...item, connection: user ? {...rest, account_source: USER_ACCOUNT_SOURCE} : rest}
 }
+
+/**
+ * The address of an MCP server in the agent's `mcps`: the key the change-set engine gives an
+ * `mcps` entry, its `name` (the tool prefix frozen when the server was added), so a view and a
+ * builder operation name the same server. Null for an entry with no name.
+ */
+export const mcpItemRef = (item: unknown): ConfigItemRef | null => {
+    const name = (item as Record<string, unknown> | null)?.name
+    return typeof name === "string" && name ? {list: "mcps", key: name} : null
+}
+
+/** The index of the server `ref` names in the list as it is now, or -1. */
+export const findMcpIndex = (mcps: unknown[], ref: ConfigItemRef): number =>
+    ref.list === "mcps" ? mcps.findIndex((item) => mcpItemRef(item)?.key === ref.key) : -1
+
+/** The list with the server `ref` names replaced by `next(item)`; unchanged when it is gone. */
+export const updateMcpByRef = (
+    mcps: unknown[],
+    ref: ConfigItemRef,
+    next: (item: Record<string, unknown>) => Record<string, unknown> | null,
+): unknown[] => {
+    const index = findMcpIndex(mcps, ref)
+    if (index < 0) return mcps
+    const replaced = next(mcps[index] as Record<string, unknown>)
+    return replaced
+        ? mcps.map((item, i) => (i === index ? replaced : item))
+        : mcps.filter((_, i) => i !== index)
+}
+
+/** The list without the server `ref` names. The project's connection stays. */
+export const removeMcpByRef = (mcps: unknown[], ref: ConfigItemRef): unknown[] =>
+    updateMcpByRef(mcps, ref, () => null)

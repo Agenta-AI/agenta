@@ -1,7 +1,7 @@
 /**
- * What the Add MCP server drawer puts on screen, per state.
+ * What the Add MCP server list puts on screen, per state.
  *
- * The cases that matter are the ones where a drawer that reads as correct would not be: a
+ * The cases that matter are the ones where a list that reads as correct would not be: a
  * server already on the agent still offering to be added, a search that hides everything
  * looking like an empty project, and an empty project keeping a header action that would
  * duplicate the one call to action it has.
@@ -11,12 +11,9 @@ import {act, createElement} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight, touchTargetHitArea} from "@agenta/ui/ui"
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 
-import {
-    McpAddServerDrawer,
-    type McpConnectionOption,
-} from "../../src/mcpEndpoint/McpAddServerDrawer"
+import {McpAddServerList, type McpConnectionOption} from "../../src/mcpEndpoint/McpAddServerList"
 
 const OPTIONS: McpConnectionOption[] = [
     {slug: "linear", name: "Linear", host: "mcp.linear.app", status: "connected", added: true},
@@ -27,15 +24,13 @@ const OPTIONS: McpConnectionOption[] = [
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 
-const render = async (props: Partial<Parameters<typeof McpAddServerDrawer>[0]> = {}) => {
+const render = async (props: Partial<Parameters<typeof McpAddServerList>[0]> = {}) => {
     const onAdd = vi.fn()
     const onReconnect = vi.fn()
     const onConnectServer = vi.fn()
     await act(async () => {
         root.render(
-            createElement(McpAddServerDrawer, {
-                open: true,
-                onClose: vi.fn(),
+            createElement(McpAddServerList, {
                 options: OPTIONS,
                 onAdd,
                 onReconnect,
@@ -47,7 +42,7 @@ const render = async (props: Partial<Parameters<typeof McpAddServerDrawer>[0]> =
     return {onAdd, onReconnect, onConnectServer}
 }
 
-/** The drawer is portalled, so every query is against the document, not the host node. */
+/** Every query is against the document, as the view that mounts the list may portal it. */
 const text = () => document.body.textContent ?? ""
 
 const buttons = () => [...document.querySelectorAll("button")]
@@ -92,13 +87,12 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-describe("McpAddServerDrawer, a project with servers", () => {
-    it("names the drawer and the one connect action", async () => {
+describe("McpAddServerList, a project with servers", () => {
+    it("offers the one connect action beside the search", async () => {
         await render()
 
-        expect(text()).toContain("Add MCP server")
         expect(buttonReading("Connect server")).toBeDefined()
-        expect(text()).toContain("Pick a connected server, or connect a new one.")
+        expect(document.querySelector('input[aria-label="Search servers"]')).not.toBeNull()
     })
 
     it("draws the three row states, and only those", async () => {
@@ -176,7 +170,7 @@ describe("McpAddServerDrawer, a project with servers", () => {
     })
 })
 
-describe("McpAddServerDrawer search", () => {
+describe("McpAddServerList search", () => {
     it("filters by name", async () => {
         await render()
         await type("axi")
@@ -206,7 +200,7 @@ describe("McpAddServerDrawer search", () => {
     })
 })
 
-describe("McpAddServerDrawer, a project with no servers", () => {
+describe("McpAddServerList, a project with no servers", () => {
     it("carries one call to action and drops the header one", async () => {
         const {onConnectServer} = await render({options: []})
 
@@ -226,7 +220,7 @@ describe("McpAddServerDrawer, a project with no servers", () => {
     })
 })
 
-describe("McpAddServerDrawer while the registry is in flight", () => {
+describe("McpAddServerList while the registry is in flight", () => {
     it("draws three skeleton rows rather than an empty project", async () => {
         await render({options: [], loading: true})
 
@@ -292,31 +286,5 @@ describe("the connection row's actions on a phone", () => {
         expect(measured.size, "not the 28px control this case is about").toBe(28)
         expect(measured.border, "not the bordered Button this case is about").toBe(1)
         expect(measured.reach).toBe(44)
-    })
-
-    it("gives the drawer's own Close a 44px hit area on both axes", async () => {
-        // The way out of the drawer, and a 28px square rather than a labelled button, so the
-        // minimum failed it on both axes. Pinned here as well as in the kit because this is the
-        // drawer the redesign added and the one a phone reader meets first.
-        await render()
-
-        const close = buttonNamed("Close")
-        expect(close, "no close button").toBeDefined()
-        expect(close!.className).toContain("size-control-sm")
-        expect(touchTargetHitArea(close!.className)).toEqual({
-            width: TOUCH_TARGET_MINIMUM_PX,
-            height: TOUCH_TARGET_MINIMUM_PX,
-        })
-    })
-})
-
-describe("McpAddServerDrawer on a phone", () => {
-    it("opens from the right edge on every screen, as every playground drawer does", async () => {
-        await render()
-
-        const panel = document.querySelector('[role="dialog"]')
-        expect(panel, "no drawer panel").not.toBeNull()
-        expect(panel!.className).toContain("right-2")
-        expect(panel!.className).not.toContain("bottom-0")
     })
 })

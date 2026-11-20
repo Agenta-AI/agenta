@@ -51,7 +51,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
+import {useViewOpener, type ConfigItemRef, type ViewTarget} from "@agenta/ui/view-stack"
 import {UploadSimple} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
@@ -59,7 +59,7 @@ import {useAtom, useAtomValue, useStore} from "jotai"
 import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
+import {mergeAgentConfigDraft} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {
     AgentTemplateSectionList,
@@ -76,6 +76,7 @@ import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {integrationItemRef, removeIntegrationByRef} from "./agentTemplate/itemKinds/tool"
 import type {ItemRowStatus} from "./agentTemplate/ItemRow"
 import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
+import {removeMcpByRef} from "./agentTemplate/mcpRail"
 import {modelNeedsSetupMessage, needsSetupLabel} from "./agentTemplate/needsSetupText"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -105,6 +106,8 @@ import {useModelHarness} from "./agentTemplate/useModelHarness"
 import {instructionsView} from "./agentTemplate/views/instructionsView"
 import {integrationAddView} from "./agentTemplate/views/integrationAddView"
 import {integrationView} from "./agentTemplate/views/integrationView"
+import {mcpAddView} from "./agentTemplate/views/mcpAddView"
+import {mcpServerView} from "./agentTemplate/views/mcpServerView"
 import {modelView} from "./agentTemplate/views/modelView"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {modelIdFromConfig} from "./connectionUtils"
@@ -202,13 +205,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }, [openView, viewTarget, disabled])
     // The integration whose remove dialog is open (F06 f2).
     const [removingIntegration, setRemovingIntegration] = useState<IntegrationRow | null>(null)
-    // The MCP endpoint being authorized. Held here, not on the row: `extra` renders inside the
-    // row's own click target, and React events propagate through the React tree, so a dialog
-    // mounted there reopens the edit drawer on every click inside it — including the one that
-    // opens the consent popup, which then surfaces behind it.
-    // The Add MCP server drawer, B1 and B2. Only the open flag lives here, because the
-    // section header's add button renders outside the section body that owns the drawer.
-    const [addMcpOpen, setAddMcpOpen] = useState(false)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     // Nothing is registered at save any more. An MCP item names a connection that already
     // exists, created by the connect journey, so committing one writes the reference and
@@ -516,9 +512,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [migrateIntegrationEntries, openView, viewTarget, disabled],
     )
 
-    // The agent-wide `runner.permissions.default`, for the MCP servers' permission note.
-    const agentPermissionPolicy = readRunnerPermission(config)
-
     // The subagents, each keeping its index in `tools`: edit and remove address it by index.
     const subagentTools = useMemo(
         () => selectSubagentTools(tools, integrationRows),
@@ -541,11 +534,27 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
     )
-    // The plus opens the registry drawer, not a blank form. Creating a server here used to
-    // mean filling in a form whose first field was a select over connections the author
-    // could not see until they opened it. The registry itself is read by the section body,
-    // so a host with no MCP section fetches nothing.
-    const handleAddMcpServer = useCallback(() => setAddMcpOpen(true), [])
+    // "+" and a server row open views, as Integrations does.
+    const openAddMcp = viewTarget ? () => void openView(mcpAddView, {}, viewTarget) : undefined
+    const openMcpServer = useCallback(
+        (item: ConfigItemRef) => {
+            if (viewTarget) void openView(mcpServerView, {item}, viewTarget)
+        },
+        [openView, viewTarget],
+    )
+    const removeMcpServer = useCallback(
+        (item: ConfigItemRef) => {
+            const latest = configRef.current
+            onChange({
+                ...latest,
+                mcps: removeMcpByRef(
+                    Array.isArray(latest.mcps) ? (latest.mcps as unknown[]) : [],
+                    item,
+                ),
+            })
+        },
+        [onChange],
+    )
 
     // Skills: a flat array of inline SKILL.md packages or `@ag.embed` references the backend inlines.
     const skills = useMemo(
@@ -1091,15 +1100,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             sectionIndicator,
             disabled,
             mcpServers,
-            handleAddMcpServer,
-            agentPermissionPolicy,
-            setAgentField,
-            openEdit,
-            removeItem,
-            closeEditor,
+            openAddMcp,
+            openMcpServer,
+            removeMcpServer,
+            openForm: (index: number, item: unknown) => openEdit("mcp", index, item),
             mcpStatusFor,
-            addMcpOpen,
-            setAddMcpOpen,
         }),
         skillsSection({
             t,

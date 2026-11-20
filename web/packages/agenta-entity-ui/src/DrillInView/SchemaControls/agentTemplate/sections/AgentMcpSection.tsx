@@ -13,15 +13,12 @@ export interface AgentMcpSectionParams {
     sectionIndicator: SectionIndicatorFor
     disabled?: boolean
     mcpServers: unknown[]
-    handleAddMcpServer: () => void
-    agentPermissionPolicy: McpServersSectionBodyProps["agentPolicy"]
-    setAgentField: (key: string, fieldValue: unknown) => void
-    openEdit: (kind: "mcp", index: number, item: unknown) => void
-    removeItem: (kind: "mcp", index: number) => void
-    closeEditor: () => void
+    /** Opens "Add MCP server". Undefined when the host has no view target. */
+    openAddMcp: (() => void) | undefined
+    openMcpServer: McpServersSectionBodyProps["openServer"]
+    removeMcpServer: McpServersSectionBodyProps["removeServer"]
+    openForm: McpServersSectionBodyProps["openForm"]
     mcpStatusFor: McpServersSectionBodyProps["statusFor"]
-    addMcpOpen: boolean
-    setAddMcpOpen: (open: boolean) => void
 }
 
 /** The agent's MCP servers (`mcps`). Named apart from the Settings `McpServersSection`. */
@@ -32,15 +29,11 @@ export const agentMcpSection = ({
     sectionIndicator,
     disabled,
     mcpServers,
-    handleAddMcpServer,
-    agentPermissionPolicy,
-    setAgentField,
-    openEdit,
-    removeItem,
-    closeEditor,
+    openAddMcp,
+    openMcpServer,
+    removeMcpServer,
+    openForm,
     mcpStatusFor,
-    addMcpOpen,
-    setAddMcpOpen,
 }: AgentMcpSectionParams): SectionResult =>
     hasMcp && {
         key: "mcp",
@@ -48,26 +41,22 @@ export const agentMcpSection = ({
         title: fieldTitle("mcps", t("entityUi.agentTemplate.mcpServers")),
         summary: countSummary(mcpServers.length, "server"),
         indicator: sectionIndicator("mcp"),
-        extra: !disabled ? (
-            <SectionAddButton
-                label={t("entityUi.agentTemplate.addMcpServer")}
-                onClick={handleAddMcpServer}
-            />
-        ) : undefined,
+        extra:
+            !disabled && openAddMcp ? (
+                <SectionAddButton
+                    label={t("entityUi.agentTemplate.addMcpServer")}
+                    onClick={openAddMcp}
+                />
+            ) : undefined,
         defaultOpen: mcpServers.length > 0,
         content: (
             <McpServersSectionBody
                 items={mcpServers}
                 disabled={disabled}
-                agentPolicy={agentPermissionPolicy}
-                onChangeItems={(next: unknown[]) => setAgentField("mcps", next)}
-                openForm={(index: number, item: unknown) => openEdit("mcp", index, item)}
-                removeItem={(index: number) => removeItem("mcp", index)}
-                closeEditor={closeEditor}
+                openForm={openForm}
+                openServer={openMcpServer}
+                removeServer={removeMcpServer}
                 statusFor={mcpStatusFor}
-                addOpen={addMcpOpen}
-                onAddClose={() => setAddMcpOpen(false)}
-                onAddOpen={() => setAddMcpOpen(true)}
             />
         ),
     }
