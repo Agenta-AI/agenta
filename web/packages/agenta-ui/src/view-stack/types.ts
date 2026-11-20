@@ -26,6 +26,11 @@ export interface ViewDef<P> {
     apply: ViewApply
     /** The panel chrome offers "Widen the panel" for this view. Other containers ignore it. */
     wide?: boolean
+    /**
+     * A phone container shows this view to read only: it passes `readOnly`, and the chrome shows
+     * no Cancel, Save or Done. For views whose editing needs a desktop (long text, technical forms).
+     */
+    readOnlyOnPhone?: boolean
     /** The body. Use a `next/dynamic` component so the code loads on first open. */
     Component: ComponentType<ViewProps<P>>
 }
@@ -39,6 +44,12 @@ export interface ViewProps<P> {
     params: P
     target: ViewTarget
     nav: ViewNav
+    /**
+     * The container shows this view to read only (a phone container, for a view with
+     * `readOnlyOnPhone`). The view shows its content with no edit control and no sentence about
+     * editing elsewhere. Absent means editable.
+     */
+    readOnly?: boolean
 }
 
 /** What a view can ask of its stack. */
@@ -118,6 +129,8 @@ export interface ViewChromeProps {
     crumbs: {title: string; onSelect?: () => void}[]
     apply: ViewApply
     wide: boolean
+    /** The top view is shown to read only: the chrome draws no action row. */
+    readOnly: boolean
     form: ViewChromeForm | null
     /** Guarded back one level. */
     onBack: () => void

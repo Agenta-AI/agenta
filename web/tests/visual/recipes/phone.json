@@ -1,0 +1,63 @@
+[
+    {
+        "id": "phone-view-editable-light",
+        "story": "builderlayout-phone-phone-kit--view-editable",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=AGENTS.md"
+    },
+    {
+        "id": "phone-view-editable-dark",
+        "story": "builderlayout-phone-phone-kit--view-editable-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=AGENTS.md"
+    },
+    {
+        "id": "phone-view-read-only-light",
+        "story": "builderlayout-phone-phone-kit--view-read-only",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=AGENTS.md"
+    },
+    {
+        "id": "phone-primary-action-light",
+        "story": "builderlayout-phone-phone-kit--primary-action",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Add integration"
+    },
+    {
+        "id": "phone-primary-action-dark",
+        "story": "builderlayout-phone-phone-kit--primary-action-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Add integration"
+    },
+    {
+        "id": "phone-sheet-menu-light",
+        "story": "builderlayout-phone-phone-kit--sheet-menu-open",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "ready": "text=Create with AI"
+    },
+    {
+        "id": "phone-sidebar-sheet-light",
+        "story": "builderlayout-phone-phone-kit--sidebar-sheet-open",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "ready": "text=Channels"
+    }
+]

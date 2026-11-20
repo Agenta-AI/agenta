@@ -21,7 +21,7 @@ export const PANEL_WIDE = 760
 /** Below this window width the panel lies over the conversation instead of pushing it. */
 export const OVERLAY_BELOW = 1100
 /** Below this window width a panel content opens full screen (the phone path). */
-export const PHONE_BELOW = 768
+export {PHONE_BELOW} from "@agenta/ui/phone"
 
 export const DEFAULT_PANEL_STATE: AgentPanelState = {
     content: null,
