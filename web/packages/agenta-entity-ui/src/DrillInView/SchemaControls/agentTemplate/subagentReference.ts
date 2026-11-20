@@ -34,16 +34,34 @@ export function subagentItemKey(tool: unknown): string | undefined {
     return typeof entry.slug === "string" && entry.slug ? entry.slug : undefined
 }
 
-/** The address of a subagent in the agent's `tools`, or null for an entry with no key. */
-export function subagentItemRef(tool: unknown): ConfigItemRef | null {
+const sharesKey = (tools: unknown[], key: string) =>
+    tools.filter((tool) => subagentItemKey(tool) === key).length > 1
+
+/**
+ * The address of a subagent in the agent's `tools`, or null for an entry with no key. It is the
+ * engine's key, except when two legacy entries share a copied `name`: the engine refuses such a
+ * list (duplicate item key), and the view then addresses the entry by its `slug`, so opening or
+ * removing the second one never touches the first.
+ */
+export function subagentItemRef(tool: unknown, tools: unknown[]): ConfigItemRef | null {
     const key = subagentItemKey(tool)
-    return key ? {list: "tools", key} : null
+    if (!key) return null
+    const slug = toolReferenceSlug(tool)
+    return sharesKey(tools, key) && slug ? {list: "tools", key: slug} : {list: "tools", key}
 }
 
-/** The index of the subagent `ref` names in the tools as they are now, or -1. */
+/**
+ * The index of the subagent `ref` names in the tools as they are now, or -1: the one entry with
+ * that engine key, else the one entry with that slug (see {@link subagentItemRef}).
+ */
 export function findSubagentIndex(tools: unknown[], ref: ConfigItemRef): number {
     if (ref.list !== "tools") return -1
-    return tools.findIndex((tool) => subagentItemKey(tool) === ref.key)
+    const byKey = tools.flatMap((tool, index) => (subagentItemKey(tool) === ref.key ? [index] : []))
+    if (byKey.length === 1) return byKey[0]
+    const bySlug = tools.flatMap((tool, index) =>
+        toolReferenceSlug(tool) === ref.key ? [index] : [],
+    )
+    return bySlug.length === 1 ? bySlug[0] : -1
 }
 
 /** The tools without the subagent `ref` names; unchanged when it is gone already. */

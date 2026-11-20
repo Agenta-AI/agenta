@@ -102,18 +102,19 @@ const SubagentSectionBody = ({
         slug: string
         name: string
     } | null>(null)
+    const subagentItems = entries.map(({item}) => item)
     const listProps: SubagentListProps = {
         entries,
         disabled,
         statusFor,
         closeEditor: noop,
         openEdit: (_kind, _index, tool) => {
-            const item = subagentItemRef(tool)
+            const item = subagentItemRef(tool, subagentItems)
             if (item) openSubagent(item)
         },
         removeItem: (_kind, index) => {
             const tool = entries.find((entry) => entry.index === index)?.item
-            const item = subagentItemRef(tool)
+            const item = subagentItemRef(tool, subagentItems)
             if (item)
                 setRemoving({
                     item,
@@ -140,7 +141,7 @@ const SubagentSectionBody = ({
                     <SubagentCurrentName
                         bridge={workflowReference}
                         slug={removing.slug}
-                        savedSlugs={savedSubagentSlugs(entries.map(({item}) => item))}
+                        savedSlugs={savedSubagentSlugs(subagentItems)}
                         fallback={removing.name}
                     >
                         {(name) => (
