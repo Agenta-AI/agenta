@@ -25,6 +25,12 @@ export interface SidebarSheetProps {
     title: string
     /** Controls at the left of the top row, before "Close the sidebar" (for example "Back"). */
     leading?: ReactNode
+    /**
+     * Draws the top row with "Close the sidebar". Off for a sidebar that brings its own top row
+     * with Back and Close (the app sidebar, through its dismiss handler); the sheet then has no
+     * padding and the sidebar fills it.
+     */
+    header?: boolean
     children: ReactNode
     className?: string
 }
@@ -39,6 +45,7 @@ export const SidebarSheet = ({
     onOpenChange,
     title,
     leading,
+    header = true,
     children,
     className,
 }: SidebarSheetProps) => {
@@ -49,21 +56,23 @@ export const SidebarSheet = ({
                 side="left"
                 data-testid="sidebar-sheet"
                 aria-describedby={undefined}
-                className={cn("gap-0 overflow-hidden px-2 pb-2", className)}
+                className={cn("gap-0 overflow-hidden", header && "px-2 pb-2", className)}
                 style={{width: SIDEBAR_SHEET_WIDTH, maxWidth: "calc(100vw - 16px)"}}
             >
                 <SheetTitle className="sr-only">{title}</SheetTitle>
-                <div className="-mx-2 flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-1.5 pr-1">
-                    <div className="flex min-w-0 flex-1 items-center">{leading}</div>
-                    <Button
-                        variant="ghost"
-                        aria-label={t("ui.phone.closeSidebar")}
-                        className="size-11 shrink-0 rounded-lg p-0 text-colorTextSecondary [&_svg]:size-5"
-                        onClick={() => onOpenChange(false)}
-                    >
-                        <X />
-                    </Button>
-                </div>
+                {header ? (
+                    <div className="-mx-2 flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-1.5 pr-1">
+                        <div className="flex min-w-0 flex-1 items-center">{leading}</div>
+                        <Button
+                            variant="ghost"
+                            aria-label={t("ui.phone.closeSidebar")}
+                            className="size-11 shrink-0 rounded-lg p-0 text-colorTextSecondary [&_svg]:size-5"
+                            onClick={() => onOpenChange(false)}
+                        >
+                            <X />
+                        </Button>
+                    </div>
+                ) : null}
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
             </SheetContent>
         </Sheet>

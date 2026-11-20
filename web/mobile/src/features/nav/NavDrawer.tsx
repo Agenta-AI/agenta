@@ -2,9 +2,11 @@ import {useEffect, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
-import {SidebarShell} from "@agenta/navigation-ui"
+import {SidebarDensityContext, SidebarShell} from "@agenta/navigation-ui"
+import {SidebarSheet, useIsPhone} from "@agenta/ui/phone"
 import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
 import {ListIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
@@ -37,7 +39,10 @@ export const NavDrawer = ({
     scope?: SidebarScope
 }) => {
     const t = useT(navigationCatalog)
+    const tPhone = useT(phoneCatalog)
     const [open, setOpen] = useState(false)
+    // A phone gets the 300 px sidebar sheet with 44 px rows; wider windows keep the rail's sheet.
+    const phone = useIsPhone()
     // The search palette is a dialog of its own, mounted outside this sheet: opening it from the
     // rail inside the sheet closes the sheet, or the pick would land under it.
     const paletteOpen = useAtomValue(sidebarSessionSearchOpenAtom)
@@ -55,6 +60,49 @@ export const NavDrawer = ({
     useEffect(() => {
         setOpen(false)
     }, [router.asPath])
+
+    const shell = (
+        <SidebarShell
+            key={scope.id}
+            collapsedAtom={drawerExpandedAtom}
+            currentPath={router.asPath}
+            openGroupsAtomFamily={sidebarOpenGroupsAtomFamily}
+            scope={scope}
+            onNavigate={() => setOpen(false)}
+            onDismiss={() => setOpen(false)}
+        />
+    )
+
+    if (phone) {
+        return (
+            <>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={tPhone("ui.phone.openSidebar")}
+                    aria-haspopup="dialog"
+                    aria-expanded={open}
+                    className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-5"
+                    onClick={() => setOpen(true)}
+                >
+                    <ListIcon />
+                </Button>
+                {/* The sidebar brings its own Back and Close row (onDismiss), so the sheet draws
+                    none. */}
+                <SidebarSheet
+                    open={open}
+                    onOpenChange={setOpen}
+                    title={t("navigation.chrome.navigationTitle")}
+                    header={false}
+                >
+                    <SidebarDensityContext.Provider value="touch">
+                        {shell}
+                    </SidebarDensityContext.Provider>
+                </SidebarSheet>
+            </>
+        )
+    }
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
@@ -81,15 +129,7 @@ export const NavDrawer = ({
                 <SheetHeader className="sr-only" showCloseButton={false}>
                     <SheetTitle>{t("navigation.chrome.navigationTitle")}</SheetTitle>
                 </SheetHeader>
-                <SidebarShell
-                    key={scope.id}
-                    collapsedAtom={drawerExpandedAtom}
-                    currentPath={router.asPath}
-                    openGroupsAtomFamily={sidebarOpenGroupsAtomFamily}
-                    scope={scope}
-                    onNavigate={() => setOpen(false)}
-                    onDismiss={() => setOpen(false)}
-                />
+                {shell}
             </SheetContent>
         </Sheet>
     )

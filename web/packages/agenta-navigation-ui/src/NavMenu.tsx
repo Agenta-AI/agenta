@@ -1,4 +1,12 @@
-import {Fragment, memo, useRef, type KeyboardEvent, type MouseEvent, type ReactNode} from "react"
+import {
+    Fragment,
+    memo,
+    useContext,
+    useRef,
+    type KeyboardEvent,
+    type MouseEvent,
+    type ReactNode,
+} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
@@ -25,6 +33,7 @@ import Link from "next/link"
 import {FadeScrollBox} from "./FadeScrollBox"
 import {HoverFlyout} from "./HoverFlyout"
 import {SidebarReorderLayer} from "./reorder"
+import {SidebarDensityContext, TOUCH_ROW_CLASS} from "./sidebarDensity"
 
 /**
  * The antd-free nav renderer: one `@agenta/navigation` model, any shell. Inline mode expands
@@ -348,6 +357,7 @@ const LeafRow = memo(function LeafRow({
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) {
+    const touch = useContext(SidebarDensityContext) === "touch"
     if (item.isPlaceholder) return <PlaceholderRow item={item} />
     const onClick = rowClickHandler(item, onItemSelect)
     // A controlled scope (Settings) gives its items `onItemSelect` and no `link`, so the row
@@ -362,6 +372,7 @@ const LeafRow = memo(function LeafRow({
             // decides the winner rather than this list does.
             className={cn(
                 ROW_BASE,
+                touch && TOUCH_ROW_CLASS,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
                 item.rowAction && "group/row pr-0",
@@ -543,6 +554,7 @@ const NavMenuImpl = ({
     className,
 }: NavMenuProps) => {
     const t = useT(navigationCatalog)
+    const touch = useContext(SidebarDensityContext) === "touch"
     const inline = mode === "inline" && !collapsed
     const navRef = useRef<HTMLElement>(null)
 
@@ -605,7 +617,7 @@ const NavMenuImpl = ({
                                 selected && ROW_SELECTED,
                                 collapsed
                                     ? "size-7 justify-center"
-                                    : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
+                                    : `${touch ? TOUCH_ROW_CLASS : ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
                             )}
                         >
                             {item.icon}
@@ -654,6 +666,7 @@ const NavMenuImpl = ({
                         // own class like any other row.
                         className={cn(
                             ROW_BASE,
+                            touch && TOUCH_ROW_CLASS,
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                             "pr-0",
