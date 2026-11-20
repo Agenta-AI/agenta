@@ -24,6 +24,7 @@ import {PhonePrimaryAction} from "@agenta/ui/phone"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
+import {useSectionListLayout} from "./sectionListLayout"
 
 /** One config section, fully resolved by the container. */
 export interface AgentTemplateSectionDescriptor {
@@ -48,6 +49,12 @@ export interface AgentTemplateSectionDescriptor {
      * a size container (`[container-type:size]`), or the screen is a full viewport tall.
      */
     phoneAction?: {label: string; icon?: ReactNode; onClick: () => void}
+    /**
+     * On the Configuration page (layout "page"), the action at the right of the section title:
+     * "Change", "Edit" or "Add" (canvas A04). Use {@link SectionPageAction}. "Add" opens the
+     * section's own add flow: the page draws a text button, not the panel's "+" menu.
+     */
+    pageAction?: ReactNode
     /** On a phone the section screen shows no `extra` (its add control): the add view is read only there. */
     hideExtraOnPhone?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
@@ -85,6 +92,7 @@ export const AgentTemplateSectionList = ({
 }: AgentTemplateSectionListProps) => {
     const t = useT(configItemsCatalog)
     const phoneSections = usePhoneSections()
+    const layout = useSectionListLayout()
     if (sections.length === 0) {
         // antd `Typography.Text type="secondary"` = colorTextDescription + `word-break: break-word`.
         // Its line-height token does NOT apply here: the call site already carried `text-xs`, and
@@ -97,6 +105,7 @@ export const AgentTemplateSectionList = ({
     }
 
     if (phoneSections) return <PhoneSectionList sections={sections} phoneSections={phoneSections} />
+    if (layout === "page") return <PageSectionList sections={sections} />
 
     return (
         <>
@@ -142,10 +151,20 @@ export const AgentTemplateSectionList = ({
     )
 }
 
-/** A section's title as text, for its header on a phone; the key when the title is not text. */
 /** The phone row's summary line. */
 const summaryOf = (s: AgentTemplateSectionDescriptor) => s.phoneSummary ?? s.summary
 
+/** The section's change or validation dot, after its title on a phone and on the page. */
+const IndicatorDot = ({indicator}: {indicator: AgentTemplateSectionDescriptor["indicator"]}) =>
+    indicator ? (
+        <span
+            aria-hidden
+            className="size-1.5 shrink-0 rounded-full"
+            style={{background: sectionIndicatorColor(indicator.tone)}}
+        />
+    ) : null
+
+/** A section's title as text, for its header on a phone and on the page; the key otherwise. */
 const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
     typeof s.title === "string" ? s.title : s.key
 
@@ -209,13 +228,7 @@ const PhoneSectionList = ({
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span className="flex min-w-0 items-center gap-1.5">
                             <span className="truncate text-[15px] text-colorText">{s.title}</span>
-                            {s.indicator ? (
-                                <span
-                                    aria-hidden
-                                    className="size-1.5 shrink-0 rounded-full"
-                                    style={{background: sectionIndicatorColor(s.indicator.tone)}}
-                                />
-                            ) : null}
+                            <IndicatorDot indicator={s.indicator} />
                             {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
                         </span>
                         {summaryOf(s) ? (
@@ -230,3 +243,63 @@ const PhoneSectionList = ({
         </div>
     )
 }
+
+/**
+ * The sections on the Configuration page (canvas A04): per section a title row with its action,
+ * then one white card that holds the section's content, always open. A section that opens a view
+ * (Model, Advanced) is one row in its card.
+ */
+const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]}) => (
+    <div className="flex flex-col gap-7">
+        {sections.map((s) => (
+            <section
+                key={s.key}
+                data-config-section={s.key}
+                data-config-section-title={sectionTitle(s)}
+                className="flex flex-col gap-2"
+            >
+                <div className="flex min-h-7 items-center justify-between gap-2">
+                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-colorText">
+                        <span className="truncate">{s.title}</span>
+                        <IndicatorDot indicator={s.indicator} />
+                        {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
+                    </h3>
+                    {s.pageAction ? <span className="shrink-0">{s.pageAction}</span> : null}
+                </div>
+                <div className="overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer">
+                    {s.onOpen ? (
+                        <button
+                            type="button"
+                            className="flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 py-3 text-left font-[inherit] hover:bg-colorFillQuaternary"
+                            onClick={s.onOpen}
+                        >
+                            {s.icon ? (
+                                <span
+                                    aria-hidden
+                                    className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillTertiary text-colorTextSecondary"
+                                >
+                                    {s.icon}
+                                </span>
+                            ) : null}
+                            <span className="flex min-w-0 flex-1 flex-col">
+                                <span className="truncate text-sm text-colorText">{s.title}</span>
+                                {s.summary ? (
+                                    <span className="truncate text-xs text-colorTextSecondary">
+                                        {s.summary}
+                                    </span>
+                                ) : null}
+                            </span>
+                            <CaretRight
+                                size={14}
+                                aria-hidden
+                                className="shrink-0 text-colorTextTertiary"
+                            />
+                        </button>
+                    ) : (
+                        <div className="flex flex-col gap-2 p-3">{s.content}</div>
+                    )}
+                </div>
+            </section>
+        ))}
+    </div>
+)
