@@ -81,7 +81,10 @@ export const AgentPanelFrame = ({
         requestAnimationFrame(() => {
             const frame = frameRef.current
             const room = mode === "push" && frame ? Math.round(frame.offsetWidth) : value
-            resize.onCommit(clamp(Math.min(value, room)))
+            const stored = clamp(Math.min(value, room))
+            // The live width too: when the stored one does not change, nothing else resets it.
+            resize.onLive(stored)
+            resize.onCommit(stored)
         })
     }
     const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
