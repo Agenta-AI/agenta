@@ -23,6 +23,8 @@ export const PhoneViewHeader = ({crumbs, onBack}: Pick<ViewChromeProps, "crumbs"
  * The phone chrome of a view stack: the view covers the screen, with `PhoneViewHeader` at the
  * top, the view edge to edge, and the action row at the bottom with 44 px buttons. A view shown
  * to read only gets no action row. No widen button and no Close: the back arrow is the way out.
+ * A container that also has a desktop layout keeps one tree for both and builds its phone branch
+ * from `PhoneViewHeader` and `ViewFormActions phone`, so a resize does not remount the view.
  */
 export const PhoneViewChrome = ({
     crumbs,

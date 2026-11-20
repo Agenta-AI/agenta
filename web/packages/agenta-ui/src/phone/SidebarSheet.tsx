@@ -11,9 +11,6 @@ import {cn} from "../utils/styles"
 /** The width of the sidebar sheet on a phone, in px. */
 export const SIDEBAR_SHEET_WIDTH = 300
 
-/** The height of a row in the sidebar sheet, in px: the touch minimum. */
-export const SIDEBAR_SHEET_ROW_HEIGHT = 44
-
 /**
  * Classes for a row of the sidebar sheet: 44 px high, the icon and the label on one line, the
  * label cut with an ellipsis. A sidebar puts them on its rows when it renders in the sheet.

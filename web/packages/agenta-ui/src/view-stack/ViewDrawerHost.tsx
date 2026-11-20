@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState, type MutableRefObject} from "react"
 
 import {EnhancedDrawer} from "../drawer/EnhancedDrawer"
-import {useIsPhone} from "../phone/usePhone"
+import {useIsPhone} from "../phone/useIsPhone"
 
 import {useViewStack} from "./context"
 import {DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"

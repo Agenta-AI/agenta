@@ -46,24 +46,17 @@ const OpenOnMount = ({def}: {def: ViewDef<object>}) => {
 
 const tree = (phone: boolean) => (
     <AgentPanelContext.Provider value={panel(phone)}>
-        <ViewStackHost chrome={PanelViewChrome} rootTitle="Agent" phone={phone}>
+        <ViewStackHost
+            chrome={PanelViewChrome}
+            rootTitle={phone ? "Configuration" : "Agent"}
+            phone={phone}
+        >
             <OpenOnMount def={view} />
         </ViewStackHost>
     </AgentPanelContext.Provider>
 )
 
-const renderChrome = (phone: boolean) =>
-    render(
-        <AgentPanelContext.Provider value={panel(phone)}>
-            <ViewStackHost
-                chrome={PanelViewChrome}
-                rootTitle={phone ? "Configuration" : "Agent"}
-                phone={phone}
-            >
-                <OpenOnMount def={view} />
-            </ViewStackHost>
-        </AgentPanelContext.Provider>,
-    )
+const renderChrome = (phone: boolean) => render(tree(phone))
 
 describe("PanelViewChrome", () => {
     it("on a phone draws the phone chrome: back arrow to Configuration, no widen and no Close", async () => {

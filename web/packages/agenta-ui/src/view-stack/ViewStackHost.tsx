@@ -68,7 +68,10 @@ export const ViewStackHost = ({
     rootTitle?: string
     /** Escape with an empty stack: the panel closes itself; a page passes nothing. */
     onEscapeAtRoot?: () => void
-    /** A phone container: views with `readOnlyOnPhone` get `readOnly`. */
+    /**
+     * The container is a phone screen. Today it only applies `readOnlyOnPhone` (the view gets
+     * `readOnly`); the container still picks its chrome.
+     */
     phone?: boolean
     children: ReactNode
 }) => {

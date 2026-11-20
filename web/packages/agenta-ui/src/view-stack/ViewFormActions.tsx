@@ -8,23 +8,20 @@ import type {ViewChromeProps} from "./types"
 
 /**
  * The action row a chrome puts under the top view: Cancel and Save for an "on_save" view, Done
- * for an "immediate" one, nothing for a view shown to read only. Chromes place it; the stack owns
- * what each button does. `phone` makes the buttons 44 px high and as wide as the row.
+ * for an "immediate" one. Chromes place it (and leave it out for a view shown to read only); the
+ * stack owns what each button does. `phone` makes the buttons 44 px high and as wide as the row.
  */
 export const ViewFormActions = ({
     apply,
-    readOnly,
     form,
     onBack,
     onCancel,
     onSave,
     phone = false,
 }: Pick<ViewChromeProps, "apply" | "form" | "onBack" | "onCancel" | "onSave"> & {
-    readOnly?: boolean
     phone?: boolean
 }) => {
     const t = useT(viewStackCatalog)
-    if (readOnly) return null
     const button = phone ? "h-11 flex-1 rounded-[10px] text-[15px]" : undefined
     if (apply === "immediate") {
         return (
