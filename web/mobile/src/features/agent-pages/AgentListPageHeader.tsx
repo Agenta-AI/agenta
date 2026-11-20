@@ -34,9 +34,10 @@ export const AgentListPageHeader = ({
     return (
         // The phone page header: 52 px with a line under it (M13).
         <div
-            className={`box-border flex h-[52px] shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-4 ${SESSIONS_PAGE_FRAME}`}
+            className={`box-border flex h-[52px] shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-1 ${SESSIONS_PAGE_FRAME}`}
         >
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+            {/* The 44 px menu button at x 4, the title 4 px after it (M13). */}
+            <div className="flex min-w-0 flex-1 items-center gap-1">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-5 text-foreground">
                     {title}
