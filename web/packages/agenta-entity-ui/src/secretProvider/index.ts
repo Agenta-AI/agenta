@@ -72,6 +72,15 @@ export {
 } from "./ConfigureProviderDrawer"
 export {useLLMProviderConfig, type LLMProviderConfig} from "./useLLMProviderConfig"
 
+/** The automatic key check of the key forms: one probe at a time, with Stop. */
+export {
+    keyCheckSignature,
+    useKeyCheck,
+    type KeyCheck,
+    type KeyCheckRequest,
+    type KeyCheckState,
+} from "./useKeyCheck"
+
 /** Saving one API key without the drawer, for inline add-key forms. */
 export {
     KEY_PROVIDERS,

@@ -1,17 +1,9 @@
 /**
- * One provider connection as a form view. The form itself is the production connection card;
- * the provider keys milestone redraws it. Save writes the project's connection, then the stack
- * goes back to the list.
+ * One provider connection as a form view. The form is the connection card: it reports whether it
+ * has edits (`dirty`) and saves through `submit`, which resolves when the connection is stored.
+ * Save writes the project's connection, then the stack goes back to the list.
  */
-import {
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type SyntheticEvent,
-} from "react"
+import {useCallback, useContext, useMemo, useState} from "react"
 
 import {
     isOrganizationConnection,
@@ -30,9 +22,6 @@ import {providerDisplayTitle} from "../providerFieldText"
 import {ProviderOwnerChoiceContext} from "./providerOwnerChoice"
 import type {ProviderConnectionParams} from "./providerViews"
 
-/** Controls whose click changes the form without an input event. */
-const TOGGLE_SELECTOR = '[role="checkbox"],[role="switch"],[role="radio"],[role="option"]'
-
 const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionParams>) => {
     const t = useT(providerListCatalog)
     const connections = useAtomValue(providerConnectionsAtom)
@@ -49,44 +38,19 @@ const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionParams
     )
 
     const [card, setCard] = useState<ProviderCardSaveState | null>(null)
-    // The card does not report edits, so the view counts any input or toggle inside it.
-    const [touched, setTouched] = useState(false)
-    const touch = useCallback(() => setTouched(true), [])
-    const touchToggle = useCallback((event: SyntheticEvent) => {
-        if ((event.target as HTMLElement | null)?.closest?.(TOGGLE_SELECTOR)) setTouched(true)
-    }, [])
-
-    // The card's submit does not return its result: it calls `onSaved` on success and reports
-    // an error otherwise. The view turns that into the promise the stack waits on.
-    const pending = useRef<((ok: boolean) => void) | null>(null)
-    const settle = useCallback((ok: boolean) => {
-        pending.current?.(ok)
-        pending.current = null
-    }, [])
-    useEffect(() => {
-        if (card && !card.saving && card.error) settle(false)
-    }, [card, settle])
+    // A new key can fix an agent that needs setup, without a new version.
+    const onSaved = useCallback(() => void invalidateAgentRequirements(), [])
 
     useViewForm({
-        dirty: touched,
+        dirty: card?.dirty ?? false,
         valid: card?.canSave ?? false,
         leaveDescription: t("entityUi.providerList.formLeaveDescription"),
         saveLabel: t("entityUi.providerList.saveConnection"),
-        save: () =>
-            new Promise<boolean>((resolve) => {
-                if (!card) return resolve(false)
-                pending.current = resolve
-                card.submit()
-            }),
+        save: () => (card ? card.submit() : Promise.resolve(false)),
     })
 
     return (
-        <div
-            className="flex min-h-0 flex-1 flex-col px-4 py-3"
-            onInputCapture={touch}
-            onChangeCapture={touch}
-            onClickCapture={touchToggle}
-        >
+        <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
             <ProviderConnectionCard
                 key={connection?.id ?? params.kind}
                 kind={params.kind}
@@ -94,11 +58,7 @@ const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionParams
                 connections={own}
                 ownerChoice={connection ? undefined : (ownerChoiceFor?.(params.kind) ?? undefined)}
                 onSaveStateChange={setCard}
-                onSaved={() => {
-                    // A new key can fix an agent that needs setup, without a new version.
-                    void invalidateAgentRequirements()
-                    settle(true)
-                }}
+                onSaved={onSaved}
             />
         </div>
     )

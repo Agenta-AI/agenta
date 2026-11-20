@@ -82,9 +82,11 @@ vi.mock("../../src/secretProvider/ProviderConnectionCard", () => ({
                 canSave: true,
                 saving: false,
                 error: null,
-                submit: () => {
+                dirty: true,
+                submit: async () => {
                     fixture.saved.push(kind)
                     onSaved("new-id")
+                    return true
                 },
             })
         }, [kind, onSaveStateChange, onSaved])

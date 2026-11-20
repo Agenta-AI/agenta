@@ -1,8 +1,13 @@
-import {providerConnectionsAtom, useVaultSecret} from "@agenta/entities/secret"
-import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
+import {isOrganizationConnection, providerConnectionsAtom} from "@agenta/entities/secret"
+import {providerConnectionView, providerListView} from "@agenta/entity-ui/secretProvider"
+import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
-/** The providers drawer over the chat, on the failed provider's own card when the project has one. */
+/**
+ * The provider form in a drawer over the chat: the failed provider's own connection when the
+ * project has one, else a new connection of that provider, else the provider list. The form
+ * checks the key by itself, and Save stores the connection in the project.
+ */
 export const RunErrorProviderDrawer = ({
     open,
     onClose,
@@ -13,19 +18,27 @@ export const RunErrorProviderDrawer = ({
     providerKind?: string
 }) => {
     const connections = useAtomValue(providerConnectionsAtom)
-    const {mutate} = useVaultSecret()
-    const connection = providerKind
-        ? (connections.find((item) => item.kind === providerKind) ?? null)
-        : null
+    if (!open) return null
+    // The drawer opens its view once; a closed drawer leaves, and the next open mounts a new one.
+    if (!providerKind) {
+        return (
+            <ViewDrawerHost
+                request={{view: providerListView, params: {}, target: {kind: "project"}}}
+                onClosed={onClose}
+            />
+        )
+    }
+    const connectionId = connections.find(
+        (item) => item.kind === providerKind && !isOrganizationConnection(item),
+    )?.id
     return (
-        <ProviderDrawer
-            open={open}
-            onClose={onClose}
-            context="playground"
-            connections={connections}
-            connection={connection}
-            kind={connection ? null : (providerKind ?? null)}
-            onSaved={mutate}
+        <ViewDrawerHost
+            request={{
+                view: providerConnectionView,
+                params: {kind: providerKind, ...(connectionId ? {connectionId} : {})},
+                target: {kind: "project"},
+            }}
+            onClosed={onClose}
         />
     )
 }
