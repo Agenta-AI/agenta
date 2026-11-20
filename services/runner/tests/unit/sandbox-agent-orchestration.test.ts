@@ -1150,6 +1150,32 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(skill, { recursive: true, force: true });
   });
 
+  it("starts a Claude session in the default permission mode, and leaves Pi alone", async () => {
+    // claude-agent-acp starts a session in `auto` unless told otherwise; `auto` lets Claude Code
+    // approve tool calls without asking the runner's permission plan.
+    const claude = fakeHarness();
+    const claudeResult = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      claude.deps,
+    );
+    assert.equal(claudeResult.ok, true);
+    assert.deepEqual(claude.calls.createSessionOptions.sessionInit.configOptions, [
+      { configId: "mode", value: "default" },
+    ]);
+
+    const pi = fakeHarness();
+    const piResult = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      pi.deps,
+    );
+    assert.equal(piResult.ok, true);
+    assert.equal(pi.calls.createSessionOptions.sessionInit.configOptions, undefined);
+  });
+
   it("advertises durable agent storage only after a confirmed local mount", async () => {
     const cwd = join(
       tmpdir(),
