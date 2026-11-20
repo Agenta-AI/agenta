@@ -3,7 +3,7 @@
  * view replaces itself with the picked provider's form (Save goes back to the list), and the
  * built-in card lists the built-in models with no switches.
  */
-import {act, createElement, useEffect} from "react"
+import {act, createElement, useEffect, useRef} from "react"
 
 import {
     ViewFormActions,
@@ -12,10 +12,11 @@ import {
     type ViewChromeProps,
 } from "@agenta/ui/view-stack"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {createStore, Provider} from "jotai"
+import {createStore, Provider, useSetAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {providerSaveFollowUpAtom} from "../../src/secretProvider/views/providerSaveFollowUp"
 import {providerListView} from "../../src/secretProvider/views/providerViews"
 
 import {byText, change, click, findByText, waitFor} from "./domHelpers"
@@ -23,6 +24,9 @@ import {byText, change, click, findByText, waitFor} from "./domHelpers"
 const fixture = vi.hoisted(() => ({
     connections: [] as Record<string, unknown>[],
     saved: [] as string[],
+    failSave: false,
+    refreshed: 0,
+    afterSave: (() => undefined) as (id?: string) => void,
 }))
 
 vi.mock("@agenta/entities/secret", async (importOriginal) => {
@@ -30,6 +34,9 @@ vi.mock("@agenta/entities/secret", async (importOriginal) => {
     return {
         ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
         providerConnectionsAtom: atom(() => fixture.connections),
+        refreshVaultSecretsAtom: atom(null, async () => {
+            fixture.refreshed += 1
+        }),
         vaultSecretsQueryAtom: atom(() => ({
             isPending: false,
             isError: false,
@@ -77,19 +84,28 @@ vi.mock("../../src/secretProvider/ProviderConnectionCard", () => ({
         onSaveStateChange: (state: unknown) => void
         onSaved: (id?: string) => void
     }) => {
+        // The submit reads the latest callbacks, so the state is published once, not per render.
+        const latest = useRef({onSaved, onSaveStateChange})
+        latest.current = {onSaved, onSaveStateChange}
         useEffect(() => {
-            onSaveStateChange({
-                canSave: true,
-                saving: false,
-                error: null,
-                dirty: true,
-                submit: async () => {
-                    fixture.saved.push(kind)
-                    onSaved("new-id")
-                    return true
-                },
-            })
-        }, [kind, onSaveStateChange, onSaved])
+            const publish = (error: string | null) =>
+                latest.current.onSaveStateChange({
+                    canSave: true,
+                    saving: false,
+                    error,
+                    dirty: true,
+                    submit: async () => {
+                        if (fixture.failSave) {
+                            publish("Agenta could not save this.")
+                            return false
+                        }
+                        fixture.saved.push(kind)
+                        latest.current.onSaved("new-id")
+                        return true
+                    },
+                })
+            publish(null)
+        }, [kind])
         return createElement("input", {"aria-label": `key ${kind}`})
     },
 }))
@@ -117,10 +133,15 @@ const Chrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
 
 const Opener = () => {
     const stack = useViewStack()
+    const setFollowUp = useSetAtom(providerSaveFollowUpAtom)
     return (
-        <button onClick={() => void stack.open(providerListView, {}, {kind: "project"})}>
-            open
-        </button>
+        <>
+            <button onClick={() => void stack.open(providerListView, {}, {kind: "project"})}>
+                open
+            </button>
+            {/* What a model picker does before it opens Model providers. */}
+            <button onClick={() => setFollowUp({run: fixture.afterSave})}>arm</button>
+        </>
     )
 }
 
@@ -168,6 +189,8 @@ beforeEach(() => {
     document.body.append(host)
     root = createRoot(host)
     fixture.saved = []
+    fixture.failSave = false
+    fixture.refreshed = 0
     fixture.connections = [
         connection("ChatGPT", {
             kind: "chatgpt",
@@ -223,6 +246,37 @@ describe("Model providers list", {timeout: 30_000}, () => {
         await click(byText("Save connection"))
         await findByText("here:Model providers")
         expect(fixture.saved).toEqual(["openai"])
+        // The list and the picker read the vault, so the save refreshes it.
+        expect(fixture.refreshed).toBe(1)
+    })
+
+    it("a save runs the model picker's follow-up once, with the new id", async () => {
+        const afterSave = vi.fn()
+        fixture.afterSave = afterSave
+        await openList()
+        await click(byText("arm"))
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await findByText("here:OpenAI")
+        await click(byText("Save connection"))
+        await findByText("here:Model providers")
+
+        expect(afterSave).toHaveBeenCalledTimes(1)
+        expect(afterSave).toHaveBeenCalledWith("new-id")
+    })
+
+    it("a failed save keeps the form open", async () => {
+        fixture.failSave = true
+        await openList()
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await change(await findByText("", 'input[aria-label="key openai"]'), "sk-test")
+        await click(byText("Save connection"))
+        await waitFor(() => expect(byText("here:OpenAI")).toBeTruthy())
+        expect(byText("here:Model providers")).toBeUndefined()
+        expect(fixture.saved).toEqual([])
     })
 
     it("search with no match shows the production text", async () => {

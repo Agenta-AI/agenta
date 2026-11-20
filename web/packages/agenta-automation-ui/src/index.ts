@@ -21,7 +21,7 @@ export * from "./runListView"
 // Data: the entity hooks, already scoped to a project by the host's binding.
 export {useAutomation} from "./useAutomation"
 export {useAutomations} from "./useAutomations"
-export {useAutomationRuns} from "./useAutomationRuns"
+export {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
 export {useAutomationDraft} from "./useAutomationDraft"
 
 // One drawer for both kinds — what the playground mounts in place of its two forms.

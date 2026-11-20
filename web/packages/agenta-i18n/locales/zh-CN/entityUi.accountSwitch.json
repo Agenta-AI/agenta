@@ -1,0 +1,19 @@
+{
+    "chooseWhose": "选择 Agent 使用谁的 {{name}} 账号",
+    "eachPersonsOwn": "每个人自己的账号",
+    "eachPersonsOwnNote": "每个人都使用自己的 {{name}} 账号。",
+    "oneShared": "一个共享账号",
+    "oneSharedNote": "所有人都使用你选择的账号。",
+    "yourAccount": "你的账号",
+    "yourAccountNote": "你自己的运行所使用的 {{name}} 账号",
+    "sharedAccount": "共享账号",
+    "sharedAccountNote": "无论谁发起，每次运行都使用此账号",
+    "useMyDefault": "使用我的默认账号",
+    "connectAnotherShared": "连接另一个共享账号",
+    "noAccountYet": "还没有账号",
+    "connectApp": "连接 {{name}}",
+    "noSharedAccountYet": "还没有共享账号",
+    "noPersonWarning": "来自渠道或来自使用 API 密钥创建的自动化的运行没有对应的人。它们无法使用每个人自己的账号，因此这些运行无法使用此集成。",
+    "onlyMeShort": "只有你自己的运行会使用它。",
+    "everyoneShort": "此项目中的 Agent 可以使用它。"
+}

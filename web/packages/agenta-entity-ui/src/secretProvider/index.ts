@@ -93,10 +93,10 @@ export {
     providerAddView,
     providerConnectionView,
     providerListView,
-    type BuiltinModelsParams,
-    type ProviderAddParams,
-    type ProviderConnectionParams,
-    type ProviderListParams,
+    type BuiltinModelsViewParams,
+    type ProviderAddViewParams,
+    type ProviderConnectionViewParams,
+    type ProviderListViewParams,
 } from "./views/providerViews"
 export {ProviderListBody, type ProviderListBodyProps} from "./views/ProviderListBody"
 export {ProviderOwnerChoiceContext} from "./views/providerOwnerChoice"

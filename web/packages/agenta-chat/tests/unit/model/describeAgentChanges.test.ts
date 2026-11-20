@@ -5,13 +5,13 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {describeApproval} from "../../../src/model/approvalPreview"
 import {
     describeCreateAgent,
     describeEditAgentConfig,
     summarizeAgentCall,
 } from "../../../src/model/approvalDescribers/describeAgentChanges"
 import {describeCommitRevision} from "../../../src/model/approvalDescribers/describeCommitRevision"
+import {describeApproval} from "../../../src/model/approvalPreview"
 import {resolveActivityIcon, resolveToolDisplay} from "../../../src/skin/registry"
 
 const operations = [
@@ -88,7 +88,7 @@ describe("the transcript row", () => {
             base_revision_id: "r5",
         })
         expect(summarizeAgentCall({agent: "x", operations}, output)).toBe(
-            "Invoice helper: Edited instructions; New skill · pdf-tools",
+            "Saved as v5 · Invoice helper: Edited instructions; New skill · pdf-tools",
         )
         expect(summarizeAgentCall({name: "Invoice helper"}, undefined)).toBe("Invoice helper")
     })

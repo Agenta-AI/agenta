@@ -21,7 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -43,16 +43,7 @@ import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {
-    Button,
-    Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
 import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
-import {UploadSimple} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -106,6 +97,7 @@ import {instructionsView} from "./agentTemplate/views/instructionsView"
 import {integrationAddView} from "./agentTemplate/views/integrationAddView"
 import {integrationView} from "./agentTemplate/views/integrationView"
 import {modelView} from "./agentTemplate/views/modelView"
+import {skillItemRef, skillView} from "./agentTemplate/views/skillView"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {modelIdFromConfig} from "./connectionUtils"
 import {SkillFormSkeleton} from "./DrawerSkeletons"
@@ -184,9 +176,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Rows and "+" open views: in the container's stack, or, in a host with none, in a drawer.
     const views = useViewOpener()
     const openView = views.open
+    // The host's editor says whether the agent answers in a channel; a view in this drawer reads
+    // it the same way as a view in the host's own stack.
+    const hasChannel = useContext(AgentEditorContext)?.hasChannel
     const editor = useMemo<AgentEditor | null>(
-        () => (revisionId ? {revisionId, readOnly: Boolean(disabled)} : null),
-        [revisionId, disabled],
+        () => (revisionId ? {revisionId, readOnly: Boolean(disabled), hasChannel} : null),
+        [revisionId, disabled, hasChannel],
     )
     const viewTarget = useMemo<ViewTarget | null>(
         () => (revisionId ? {kind: "agent_draft", revisionId} : null),
@@ -555,21 +550,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Registry-backed picker via the drill-in bridge (artboard 4b); the inline-skill
     // editor stays the fallback on hosts that never wired the bridge.
     const [skillPickerOpen, setSkillPickerOpen] = useState(false)
-    // Row click on a project-owned embed ref opens the registry DETAIL drawer; static
-    // embeds and shapes the bridge can't resolve keep the JSON round-trip editor.
-    const [skillDetailSlug, setSkillDetailSlug] = useState<string | null>(null)
+    // A skill row opens the skill view: an agent-only skill by its name, a registry skill by its
+    // embed slug. A host with no registry body keeps the JSON round-trip for an embed.
     const openSkillItem = useCallback(
         (kind: ItemKind, index: number, item: unknown) => {
-            if (skillsBridge?.DetailHost && isEmbedRefSkill(item) && !isStaticSkill(item)) {
-                const slug = staticEmbedSlug(item as Record<string, unknown>)
-                if (slug) {
-                    setSkillDetailSlug(slug)
-                    return
-                }
+            const ref = skillItemRef(item)
+            if (ref && viewTarget && (!isEmbedRefSkill(item) || skillsBridge?.RegistrySkillBody)) {
+                void openView(skillView, {item: ref}, viewTarget)
+                return
             }
             openEdit(kind, index, item)
         },
-        [openEdit, skillsBridge],
+        [openEdit, openView, skillsBridge, viewTarget],
     )
     const handleAddSkill = useCallback(() => {
         if (skillsBridge?.enabled) setSkillPickerOpen(true)
@@ -880,46 +872,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
     const skillHeadVersions = useHeadVersions()
-    // Publish-to-registry for INLINE packages: the migration path off pre-registry
-    // configs. The bridge creates the registry skill and answers with the embed entry
-    // that replaces the inline one at the same index; auto-commit persists the swap.
-    const [publishingSkillIndex, setPublishingSkillIndex] = useState<number | null>(null)
-    const [publishSkillError, setPublishSkillError] = useState<string | null>(null)
-    const publishInlineSkill = useCallback(
-        // `item` is the row's identity in the config; `content` is what goes to the registry —
-        // the drawer's draft, so an edit made before publishing is what gets published.
-        async (item: unknown, index: number, content: unknown = item) => {
-            const publish = skillsBridge?.publishInlineSkill
-            if (!publish || publishingSkillIndex !== null) return
-            setPublishingSkillIndex(index)
-            setPublishSkillError(null)
-            try {
-                const outcome = await publish(content as Record<string, unknown>)
-                if ("error" in outcome) {
-                    setPublishSkillError(outcome.error)
-                    return
-                }
-                const current = Array.isArray(configRef.current?.skills)
-                    ? (configRef.current.skills as unknown[])
-                    : skills
-                // The list may have shifted during the await — swap by IDENTITY of the
-                // published item, never by its captured index.
-                const liveIndex = current.indexOf(item)
-                if (liveIndex === -1) {
-                    setPublishSkillError(tNow("entityUi.agentTemplate.publishedRowChanged"))
-                    return
-                }
-                onChange({
-                    ...(configRef.current ?? config),
-                    skills: current.map((entry, i) => (i === liveIndex ? outcome.entry : entry)),
-                })
-                closeEditor()
-            } finally {
-                setPublishingSkillIndex(null)
-            }
-        },
-        [closeEditor, config, configRef, onChange, publishingSkillIndex, skills, skillsBridge],
-    )
     const skillStatusFor = useMemo(() => {
         const base = statusForKind("skill")
         return (item: unknown, index: number) => {
@@ -1008,16 +960,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIndicator = (key: string) =>
         withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
 
-    // A tagged integration opens the drawer that picks or connects its account.
-    const openIntegrationRow = useCallback(
-        (row: IntegrationRow) => {
-            if (integrationRowIndices(row).some((i) => isNeedsSetupStatus(toolResolutionStatus(i))))
-                openAddIntegration()
-            else openIntegrationPermissions(row)
-        },
-        [openAddIntegration, openIntegrationPermissions, toolResolutionStatus],
-    )
-
     // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
     const openSubagentSelector = workflowReference?.enabled
         ? () => {
@@ -1067,7 +1009,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             integrationRows,
             toolStatusFor,
             gatewayToolsEnabled: Boolean(gatewayTools?.enabled),
-            openIntegrationRow,
+            openIntegrationRow: openIntegrationPermissions,
             askRemoveIntegration: setRemovingIntegration,
         }),
         subagentsSection({
@@ -1109,7 +1051,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             disabled,
             skills,
             handleAddSkill,
-            publishSkillError,
+            publishSkillError: null,
             openSkillItem,
             removeItem,
             closeEditor,
@@ -1164,54 +1106,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const bareChrome =
                           shownEditing.kind === "skill" || shownEditing.kind === "mcp"
                       const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
-                      // An inline skill's way into the registry, from the drawer's footer: the
-                      // draft is what gets published, and the row it came from is what gets
-                      // swapped for the reference.
-                      const inlineSkillItem =
-                          shownEditing.kind === "skill" && shownEditing.mode === "edit"
-                              ? skills[shownEditing.index]
-                              : undefined
-                      const canPublish =
-                          inlineSkillItem !== undefined &&
-                          Boolean(skillsBridge?.publishInlineSkill) &&
-                          !isEmbedRefSkill(inlineSkillItem) &&
-                          !readOnly &&
-                          !draftInvalid
-                      const publishing = publishingSkillIndex !== null
-                      // The publish sends the draft as it was pressed; an edit made meanwhile
-                      // would be thrown away when the row is swapped for the reference.
-                      const editorDisabled = readOnly || publishing
-                      const publishAction = canPublish ? (
-                          <TooltipProvider>
-                              <Tooltip>
-                                  <TooltipTrigger asChild>
-                                      <Button
-                                          variant="outline"
-                                          disabled={publishing}
-                                          onClick={() =>
-                                              void publishInlineSkill(
-                                                  inlineSkillItem,
-                                                  shownEditing.index,
-                                                  draft,
-                                              )
-                                          }
-                                      >
-                                          {publishing ? (
-                                              <Spinner size="small" />
-                                          ) : (
-                                              <UploadSimple size={14} />
-                                          )}
-                                          {publishing
-                                              ? t("entityUi.agentTemplate.publishing")
-                                              : t("entityUi.agentTemplate.publishToRegistry")}
-                                      </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top">
-                                      {t("entityUi.agentTemplate.publishToRegistryHint")}
-                                  </TooltipContent>
-                              </Tooltip>
-                          </TooltipProvider>
-                      ) : undefined
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
@@ -1239,14 +1133,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                         ? t("entityUi.agentTemplate.subagent")
                                         : desc.subtitle
                               }
-                              // A skill's footer-left is its Publish action; the MCP drawer has
-                              // no note; every other kind keeps it.
+                              // Skill and MCP drawers have no note; every other kind keeps it.
                               footerNote={
-                                  shownEditing.kind === "skill"
-                                      ? publishAction
-                                      : shownEditing.kind === "mcp"
-                                        ? undefined
-                                        : t("entityUi.agentTemplate.changesApply")
+                                  shownEditing.kind === "skill" || shownEditing.kind === "mcp"
+                                      ? undefined
+                                      : t("entityUi.agentTemplate.changesApply")
                               }
                               error={commitError}
                               saving={committing}
@@ -1264,13 +1155,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               jsonOnly={def.jsonOnly(draft)}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
-                              disabled={editorDisabled}
+                              disabled={readOnly}
                               form={
                                   <Form
                                       key={`form-${itemKey}`}
                                       value={draft}
                                       onChange={(v) => setDraft(v)}
-                                      disabled={editorDisabled}
+                                      disabled={readOnly}
                                       // Save is inert while the draft is invalid, so there is
                                       // no press to wait for: an edited draft that is missing
                                       // a required field says so in the fields.
@@ -1283,7 +1174,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       value={draft}
                                       onChange={(v) => setDraft(v as Record<string, unknown>)}
                                       onValidityChange={(valid) => setJsonInvalid(!valid)}
-                                      disabled={editorDisabled}
+                                      disabled={readOnly}
                                   />
                               }
                           />
@@ -1325,13 +1216,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     added={addedSkillRefs}
                     onAdd={handleAddSkillEmbeds}
                     onRemove={handleRemoveSkillEmbeds}
-                />
-            ) : null}
-            {skillsBridge?.DetailHost ? (
-                <skillsBridge.DetailHost
-                    open={skillDetailSlug !== null}
-                    onClose={() => setSkillDetailSlug(null)}
-                    slug={skillDetailSlug}
                 />
             ) : null}
 

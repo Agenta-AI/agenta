@@ -16,5 +16,68 @@
         "theme": "dark",
         "selector": "[data-testid=\"account-switch\"]",
         "ready": "text=One shared account"
+    },
+    {
+        "id": "integrations-account-each-persons-own-light",
+        "story": "builderlayout-integrations-integration-account--each-persons-own",
+        "width": 520,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Use my default"
+    },
+    {
+        "id": "integrations-account-no-account-yet-light",
+        "story": "builderlayout-integrations-integration-account--no-account-yet",
+        "width": 520,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=No account yet"
+    },
+    {
+        "id": "integrations-account-one-shared-account-light",
+        "story": "builderlayout-integrations-integration-account--one-shared-account",
+        "width": 520,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Shared account"
+    },
+    {
+        "id": "integrations-account-runs-without-person-channel-light",
+        "story": "builderlayout-integrations-integration-account--runs-without-person-channel",
+        "width": 520,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=have no person"
+    },
+    {
+        "id": "integrations-account-runs-without-person-api-key-dark",
+        "story": "builderlayout-integrations-integration-account--runs-without-person-api-key",
+        "width": 520,
+        "height": 820,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=have no person"
+    },
+    {
+        "id": "integrations-account-personal-accounts-off-light",
+        "story": "builderlayout-integrations-integration-account--personal-accounts-off",
+        "width": 520,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Shared account"
+    },
+    {
+        "id": "integrations-catalog-no-agent-light",
+        "story": "builderlayout-integrations-catalog-with-no-agent--default",
+        "width": 520,
+        "height": 640,
+        "theme": "light",
+        "selector": "[data-testid=\"catalog-no-agent\"]",
+        "ready": "text=All apps"
     }
 ]

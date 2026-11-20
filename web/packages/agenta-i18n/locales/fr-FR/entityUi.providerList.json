@@ -4,7 +4,7 @@
     "agenta": "Agenta",
     "apiKeys": "Clés API",
     "builtIn": "Intégré",
-    "formLeaveDescription": "Enregistrer vos modifications pour stocker cette connexion dans le projet, ou les abandonner ?",
+    "formLeaveDescription": "Enregistrer vos modifications de cette connexion, ou les abandonner ?",
     "loadFailed": "Agenta n’a pas pu charger les fournisseurs de modèles.",
     "providedByAgenta": "Fournie par Agenta",
     "saveConnection": "Enregistrer la connexion",

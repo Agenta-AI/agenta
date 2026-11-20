@@ -14,6 +14,8 @@
 import {strFromU8, unzipSync} from "fflate"
 import {load as loadYaml} from "js-yaml"
 
+import {skillFilesOf} from "./skillFiles"
+
 export interface SkillFileEntry {
     path: string
     content: string
@@ -226,12 +228,12 @@ const looksBinary = (bytes: Uint8Array): boolean => {
     return false
 }
 
-/**
- * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
- * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
- * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
- */
-export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
+/** The files of an upload, split into the text files and the files skipped with a reason. */
+function splitTextFiles(raw: RawFile[]): {
+    files: RawFile[]
+    usable: RawFile[]
+    skipped: {path: string; reason: string}[]
+} {
     const files = raw.filter((f) => f.bytes && !f.path.endsWith("/") && !IGNORED.test(f.path))
     const skipped: {path: string; reason: string}[] = []
     const usable: RawFile[] = []
@@ -241,6 +243,16 @@ export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
             skipped.push({path: f.path, reason: "too large"})
         else usable.push(f)
     }
+    return {files, usable, skipped}
+}
+
+/**
+ * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
+ * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
+ * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
+ */
+export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
+    const {files, usable, skipped} = splitTextFiles(raw)
 
     const skillFiles = usable.filter((f) => SKILL_MD.test(f.path))
     // Nested-skill boundaries come from EVERY SKILL.md, including skipped ones — a
@@ -273,4 +285,78 @@ export async function scanSkillFromFileList(list: FileList | File[]): Promise<Sk
 /** Top-level: a drop's DataTransfer → the multi-candidate scan. */
 export async function scanSkillFromDataTransfer(dt: DataTransfer): Promise<SkillUploadScan> {
     return scanSkillFiles(expandArchives(await readDataTransfer(dt)))
+}
+
+// ---------------------------------------------------------------------------
+// Upload into an open skill: "Add to this skill" or "Replace the whole skill"
+// ---------------------------------------------------------------------------
+
+/** An upload read for the skill view: the text files as a skill, and the files left out. */
+export interface SkillUpload {
+    /** The upload held a SKILL.md (as text). */
+    hasSkillMd: boolean
+    skill: ParsedSkill
+    /** Files that are not text, or too large, with the reason. */
+    skipped: {path: string; reason: string}[]
+}
+
+/** Split an upload into its text files and the files that are skipped. */
+export function readSkillUpload(raw: RawFile[]): SkillUpload {
+    const {usable, skipped} = splitTextFiles(raw)
+    return {
+        hasSkillMd: usable.some((f) => SKILL_MD.test(f.path)),
+        skill: buildSkillFromFiles(usable),
+        skipped,
+    }
+}
+
+/** Top-level: a selected FileList → an upload for the skill view. */
+export async function readSkillUploadFromFileList(list: FileList | File[]): Promise<SkillUpload> {
+    return readSkillUpload(expandArchives(await filesToRaw(list)))
+}
+
+/** Top-level: a drop's DataTransfer → an upload for the skill view. */
+export async function readSkillUploadFromDataTransfer(dt: DataTransfer): Promise<SkillUpload> {
+    return readSkillUpload(expandArchives(await readDataTransfer(dt)))
+}
+
+export type SkillUploadMode = "add" | "replace"
+
+/**
+ * Apply an upload to the skill being edited.
+ * - "add": each uploaded file is added; a file with the same path is replaced; the other files
+ *   stay. SKILL.md, the name, the description and the switches never change.
+ * - "replace": every file, the name, the description and SKILL.md come from the upload, as an
+ *   upload did before. It needs a SKILL.md.
+ * Nothing is saved: the result is the next draft.
+ */
+export function applySkillUpload(
+    skill: Record<string, unknown>,
+    upload: SkillUpload,
+    mode: SkillUploadMode,
+): {skill: Record<string, unknown>} | {error: "noSkillMd"} {
+    const parsed = upload.skill
+    if (mode === "add") {
+        const files = [...skillFilesOf(skill)]
+        for (const file of parsed.files) {
+            const at = files.findIndex((entry) => entry.path === file.path)
+            if (at === -1) files.push(file)
+            // The uploaded text replaces the file; its executable mark stays.
+            else files[at] = {...files[at], content: file.content}
+        }
+        const next = {...skill}
+        if (files.length) next.files = files
+        else delete next.files
+        return {skill: next}
+    }
+    if (!upload.hasSkillMd) return {error: "noSkillMd"}
+    const next: Record<string, unknown> = {...skill, body: parsed.body}
+    // As production: a SKILL.md with no name or description keeps the ones the skill has.
+    if (parsed.name) next.name = parsed.name
+    if (parsed.description) next.description = parsed.description
+    if (parsed.files.length) next.files = parsed.files
+    else delete next.files
+    if (parsed.disable_model_invocation) next.disable_model_invocation = true
+    else delete next.disable_model_invocation
+    return {skill: next}
 }

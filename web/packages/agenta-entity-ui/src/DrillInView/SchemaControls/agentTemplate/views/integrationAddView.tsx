@@ -6,11 +6,7 @@ import {lazyView} from "./lazyView"
 
 export type IntegrationAddViewParams = Record<string, never>
 
-/**
- * "Add integration" (F02 f4): a picker. A click on a connected app adds it to the agent at once;
- * "Connect" opens the connect view at depth 2 with the target project, and the new connection is
- * added here when it shows up. Done goes back.
- */
+/** "Add integration" (F02 f4); with the target project it only browses and connects (chat, playground). */
 export const integrationAddView = defineView<IntegrationAddViewParams>({
     id: "agent.integration.add",
     apply: "immediate",

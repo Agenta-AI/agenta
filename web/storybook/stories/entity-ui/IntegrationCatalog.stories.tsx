@@ -58,9 +58,11 @@ function DrawerHost({tools = [] as unknown[]}) {
     return (
         <div className="flex h-[560px] w-[440px] flex-col">
             <IntegrationCatalog
-                integrationRows={buildIntegrationRows(tools)}
-                onAddIntegration={noop}
-                onAddPersonalIntegration={noop}
+                adding={{
+                    integrationRows: buildIntegrationRows(tools),
+                    onAddIntegration: noop,
+                    onAddPersonalIntegration: noop,
+                }}
                 onConnect={noop}
             />
         </div>

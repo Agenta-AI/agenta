@@ -4,7 +4,7 @@
     "agenta": "Agenta",
     "apiKeys": "API keys",
     "builtIn": "Built-in",
-    "formLeaveDescription": "Save your changes to store this connection in the project, or discard them?",
+    "formLeaveDescription": "Save your changes to this connection, or discard them?",
     "loadFailed": "Agenta could not load the model providers.",
     "providedByAgenta": "Provided by Agenta",
     "saveConnection": "Save connection",

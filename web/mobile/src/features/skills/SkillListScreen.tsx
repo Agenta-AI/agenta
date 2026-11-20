@@ -24,6 +24,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -138,6 +139,24 @@ export const SkillListScreen = ({
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
+    // `?skill=<workflow slug>` opens that skill: the "skill registry" link of an agent's skill view.
+    const router = useRouter()
+    const linkedSkill = typeof router.query.skill === "string" ? router.query.skill : ""
+    const [openedLink, setOpenedLink] = useState("")
+    useEffect(() => {
+        if (!linkedSkill || linkedSkill === openedLink) return
+        setOpenedLink(linkedSkill)
+        // The drawer resolves the skill by its workflow slug, archived skills included, so a
+        // skill this list leaves out (archived, or not on this page) still opens.
+        setDetailSkill({
+            id: linkedSkill,
+            slug: linkedSkill,
+            workflowSlug: linkedSkill,
+            name: linkedSkill,
+            origin: "project",
+        })
+        setDetailOpen(true)
+    }, [linkedSkill, openedLink])
     // The drawer's Used-by names lead to the agent.
     const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
     const [importOpen, setImportOpen] = useState(false)

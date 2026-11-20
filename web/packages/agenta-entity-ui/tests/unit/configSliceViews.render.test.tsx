@@ -17,7 +17,7 @@ import {
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {atom, createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {
     integrationItemRef,
@@ -171,6 +171,12 @@ const github = {
     connection: {provider: "composio", integration: "github", slug: "gh"},
     permissions: {default: "allow"},
 }
+
+// The lazy view bodies load once up front, so a slow first import does not eat a test's timeout.
+beforeAll(async () => {
+    await import("../../src/DrillInView/SchemaControls/agentTemplate/views/IntegrationViewBody")
+    await import("../../src/DrillInView/SchemaControls/agentTemplate/views/IntegrationConnectViewBody")
+}, 60_000)
 
 beforeEach(() => {
     Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})

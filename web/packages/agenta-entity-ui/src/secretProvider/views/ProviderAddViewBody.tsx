@@ -9,6 +9,7 @@ import {
     PROVIDER_CATALOG,
     providerConnectionsAtom,
     subscriptionConnectionFor,
+    subscriptionProviderFamily,
     subscriptionProviderName,
 } from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
@@ -22,12 +23,9 @@ import {useAtomValue} from "jotai"
 import SubscriptionSignInDialog from "../SubscriptionSignInDialog"
 
 import {ProviderTile} from "./ProviderListBody"
-import {providerConnectionView, type ProviderAddParams} from "./providerViews"
+import {providerConnectionView, type ProviderAddViewParams} from "./providerViews"
 
-const SUBSCRIPTIONS = [
-    {provider: "chatgpt", logo: "openai"},
-    {provider: "claude", logo: "anthropic"},
-] as const
+const SUBSCRIPTIONS = ["chatgpt", "claude"]
 
 const PickRow = ({
     kind,
@@ -57,7 +55,7 @@ const PickRow = ({
     </li>
 )
 
-const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddParams>) => {
+const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) => {
     const t = useT(providerListCatalog, providerDrawerCatalog, settingsProvidersCatalog)
     useViewTitle(t("entityUi.providerList.add"))
     const connections = useAtomValue(providerConnectionsAtom)
@@ -65,7 +63,7 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddParams>) => {
     // The sign-in steps stay a dialog here; the subscriptions milestone makes them a view.
     const [signIn, setSignIn] = useState<{provider: string; open: boolean} | null>(null)
 
-    const catalog = useMemo(() => {
+    const matches = useMemo(() => {
         const term = search.trim().toLowerCase()
         return PROVIDER_CATALOG.map((entry) => ({
             kind: entry.kind,
@@ -85,10 +83,10 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddParams>) => {
                 {t("entityUi.providerList.useSubscription")}
             </div>
             <ul className="m-0 list-none p-0">
-                {SUBSCRIPTIONS.map(({provider, logo}) => (
+                {SUBSCRIPTIONS.map((provider) => (
                     <PickRow
                         key={provider}
-                        kind={logo}
+                        kind={subscriptionProviderFamily(provider)}
                         name={subscriptionProviderName(provider)}
                         onPick={() => setSignIn({provider, open: true})}
                     />
@@ -105,9 +103,9 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddParams>) => {
                     onValueChange={setSearch}
                 />
             </div>
-            {catalog.length ? (
+            {matches.length ? (
                 <ul className="m-0 list-none p-0">
-                    {catalog.map((entry) => (
+                    {matches.map((entry) => (
                         <PickRow
                             key={entry.kind}
                             kind={entry.kind}
@@ -131,11 +129,7 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddParams>) => {
                     onClose={() => setSignIn({...signIn, open: false})}
                     provider={signIn.provider}
                     connection={subscriptionConnectionFor(connections, signIn.provider)}
-                    logo={
-                        <ProviderTile
-                            kind={signIn.provider === "chatgpt" ? "openai" : "anthropic"}
-                        />
-                    }
+                    logo={<ProviderTile kind={subscriptionProviderFamily(signIn.provider)} />}
                 />
             ) : null}
         </div>

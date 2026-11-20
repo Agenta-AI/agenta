@@ -29,6 +29,8 @@ const agentOf = (parameters: unknown): Config => {
 export interface AgentEditor {
     revisionId: string
     readOnly: boolean
+    /** The agent answers in a channel (a run without a person); absent when unknown. */
+    hasChannel?: boolean
 }
 
 /**

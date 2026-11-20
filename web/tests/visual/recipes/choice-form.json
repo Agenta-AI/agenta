@@ -1,0 +1,20 @@
+[
+    {
+        "id": "choice-form-first-choice-light",
+        "story": "builderlayout-choice-form-choice-form--first-choice",
+        "width": 520,
+        "height": 400,
+        "theme": "light",
+        "selector": "[data-testid=\"choice-form\"]",
+        "ready": "text=When should the agent run?"
+    },
+    {
+        "id": "choice-form-first-choice-dark",
+        "story": "builderlayout-choice-form-choice-form--first-choice",
+        "width": 520,
+        "height": 400,
+        "theme": "dark",
+        "selector": "[data-testid=\"choice-form\"]",
+        "ready": "text=When should the agent run?"
+    }
+]

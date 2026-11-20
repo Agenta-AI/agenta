@@ -12,6 +12,7 @@ import {createElement, useMemo, useState, type ReactNode} from "react"
 import {
     buildModelProviderList,
     providerConnectionsAtom,
+    subscriptionProviderFamily,
     vaultSecretsQueryAtom,
     type ProviderConnection,
 } from "@agenta/entities/secret"
@@ -35,8 +36,6 @@ export interface ProviderListBodyProps {
     onOpenBuiltin: () => void
     /** Extra actions of a row (Settings puts Delete here). */
     rowMenu?: (connection: ProviderConnection) => ReactNode
-    /** Under the project's groups, above the add button (Settings: the organization's group). */
-    footer?: ReactNode
 }
 
 /** A provider's logo in the 28 px tile the rows use. */
@@ -81,7 +80,8 @@ const Row = ({
 
 interface SignInTarget {
     provider: string
-    connection: ProviderConnection
+    /** Read from the current list on each render, so a finished sign-in shows at once. */
+    connectionId: string
 }
 
 export const ProviderListBody = ({
@@ -89,7 +89,6 @@ export const ProviderListBody = ({
     onOpenConnection,
     onOpenBuiltin,
     rowMenu,
-    footer,
 }: ProviderListBodyProps) => {
     const t = useT(providerListCatalog, settingsProvidersCatalog, commonCatalog)
     const connections = useAtomValue(providerConnectionsAtom)
@@ -154,7 +153,7 @@ export const ProviderListBody = ({
                                                     onClick: () =>
                                                         setSignIn({
                                                             provider,
-                                                            connection,
+                                                            connectionId: connection.id,
                                                             open: true,
                                                         }),
                                                 }}
@@ -186,7 +185,6 @@ export const ProviderListBody = ({
                         ) : null}
                     </>
                 )}
-                {footer}
             </div>
             <div className="shrink-0 px-4 py-3">
                 <Button className="w-full" onClick={onAdd}>
@@ -196,12 +194,15 @@ export const ProviderListBody = ({
             </div>
             {signIn ? (
                 <SubscriptionSignInDialog
-                    key={signIn.connection.id}
+                    key={signIn.connectionId}
                     open={signIn.open}
                     onClose={() => setSignIn({...signIn, open: false})}
                     provider={signIn.provider}
-                    connection={signIn.connection}
-                    logo={<ProviderTile kind={signIn.connection.kind} />}
+                    connection={
+                        connections.find((connection) => connection.id === signIn.connectionId) ??
+                        null
+                    }
+                    logo={<ProviderTile kind={subscriptionProviderFamily(signIn.provider)} />}
                 />
             ) : null}
         </div>

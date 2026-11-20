@@ -547,6 +547,10 @@
         "failureStopped": "840abf73f310",
         "failureWithDetail": "e6ce80637395"
     },
+    "automations.runHistory": {
+        "openInNewTab": "2afea81ea379",
+        "openRunInNewTab": "a57d4f0a2c21"
+    },
     "automations.screens": {
         "pageTitle": "ad1fb9ec0cb3",
         "newAutomation": "db87a63d537e",
@@ -764,6 +768,10 @@
     },
     "billing.useBillingPortal": {
         "openFailed": "619868b8cfe7"
+    },
+    "builder.panel": {
+        "newChat": "db18382a249e",
+        "close": "fa9f6a2f9336"
     },
     "channels.actions": {
         "addSpaceFailed": "42aeaad2e436",
@@ -1215,6 +1223,11 @@
         "play": "b253092c0adf",
         "view": "32434a2c2b53",
         "viewMore_other": "e14e337fa311"
+    },
+    "chat.changeCard": {
+        "cannotApply": "14cc625575f7",
+        "proposedValues": "755530ab7e31",
+        "savedAs": "98950ea2b030"
     },
     "chat.chatComposer": {
         "attachComingSoon": "10da6cd6c1b1",
@@ -1892,6 +1905,25 @@
         "readChangelog": "c97da0c481bd",
         "play": "436e61016e26",
         "playFeature": "bc2e9f2d0190"
+    },
+    "entityUi.accountSwitch": {
+        "chooseWhose": "c88b63844b25",
+        "eachPersonsOwn": "b598db335859",
+        "eachPersonsOwnNote": "bc80f09bb07c",
+        "oneShared": "20dee4420874",
+        "oneSharedNote": "b38261e2f5cd",
+        "yourAccount": "dbb5f6371b6a",
+        "yourAccountNote": "a11c150818cf",
+        "sharedAccount": "8d29b60d1e2c",
+        "sharedAccountNote": "7fe52ada2820",
+        "useMyDefault": "429bc23a30df",
+        "connectAnotherShared": "55dc40aad696",
+        "noAccountYet": "ac706ae7d7a8",
+        "connectApp": "224b947e9fc5",
+        "noSharedAccountYet": "ded4b88e52f7",
+        "noPersonWarning": "743fb9ac94a4",
+        "onlyMeShort": "20a86f59c132",
+        "everyoneShort": "eab6cee5c03c"
     },
     "entityUi.accounts": {
         "label": "7e1b0d5641f2",
@@ -3968,6 +4000,42 @@
         "couldNotRead": "387c2a23dc8f",
         "dragHint": "dc411b44de17",
         "browseFiles": "c8bb105f0101"
+    },
+    "entityUi.skillView": {
+        "registryStatus": "51345f42c79d",
+        "agentOnlyStatus": "55d9178658a5",
+        "publishToRegistry": "8d62668a94e3",
+        "files_other": "95964e2dcccd",
+        "edited": "1d8695e27f11",
+        "findFile": "4230011827fe",
+        "noFileMatches": "320f542eb726",
+        "searchCount": "9a2098370d42",
+        "uploadFolderOrZip": "e038a7b4f2a4",
+        "filePath": "2fb6d38632ea",
+        "pathHint": "07bd258f8f58",
+        "newPathHint": "ebb323f5ad8c",
+        "markExecutableHint": "2f5b365f99df",
+        "pathRequired": "13dcc0e02273",
+        "pathDuplicate": "687f14041573",
+        "pathSkillMd": "3e868911970b",
+        "pathInvalid": "0feb9d1d8b51",
+        "rename": "3064d79a295c",
+        "delete": "e2d0a54968ea",
+        "deleteFile": "8314cd6e5b4d",
+        "deleteTitle": "69be14a40a60",
+        "cancel": "19766ed6ccb2",
+        "addToSkill": "cf78b8ab3d95",
+        "addToSkillHint": "8fb0eab8d67c",
+        "replaceSkill": "f2439f2413dc",
+        "replaceSkillHint_other": "4ecfb2f13caf",
+        "textOnly": "1b1764e917ae",
+        "upload": "865e89de78d9",
+        "or": "7175517a370b",
+        "expandEditor": "6738d73751ec",
+        "shrinkEditor": "af358d71c673",
+        "removedState": "bd6d2c53098c",
+        "registryLeaveDescription": "7931b95fe4c2",
+        "back": "76900f1bfd16"
     },
     "entityUi.subscriptionSignIn": {
         "copySignInCode": "85bf8daf271e",
