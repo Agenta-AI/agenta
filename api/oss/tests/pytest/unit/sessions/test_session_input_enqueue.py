@@ -1201,6 +1201,22 @@ def _with_ui_part(part):
         _with_ui_part(
             {"type": "dynamic-tool", "toolCallId": "call-1", "state": "output-denied"}
         ),
+        _with_ui_part(
+            {
+                "type": "tool-send_email",
+                "toolCallId": "call-1",
+                "state": "output-available",
+                "output": {"approved": True},
+            }
+        ),
+        _with_ui_part(
+            {
+                "type": "tool-send_email",
+                "toolCallId": "call-1",
+                "state": "output-error",
+                "output": {"approved": True},
+            }
+        ),
     ],
 )
 @pytest.mark.asyncio
@@ -1225,6 +1241,20 @@ async def test_ordinary_tool_results_and_text_about_approvals_are_not_refused():
             {"type": "tool_result", "toolCallId": "c", "output": {"rows": 3}},
             {"type": "tool_result", "toolCallId": "d", "output": "approved"},
         ]
+    )
+    content["data"]["inputs"]["messages"].append(
+        {
+            "id": "m-3",
+            "role": "assistant",
+            "parts": [
+                {
+                    "type": "tool-search",
+                    "toolCallId": "e",
+                    "state": "output-available",
+                    "output": {"rows": 3},
+                }
+            ],
+        }
     )
 
     result = await harness.enqueue(content=content)

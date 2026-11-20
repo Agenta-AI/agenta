@@ -67,17 +67,22 @@ class SessionInputKeyReserved(SessionInputError):
 _ANSWERED_TOOL_PART_STATES = frozenset({"approval-responded", "output-denied"})
 
 
+def _has_approved_flag(value: Any) -> bool:
+    return isinstance(value, dict) and isinstance(value.get("approved"), bool)
+
+
 def _is_approval_answer(block: Dict[str, Any]) -> bool:
     kind = block.get("type")
     if kind == "tool_result":
-        output = block.get("output")
-        return isinstance(output, dict) and isinstance(output.get("approved"), bool)
+        return _has_approved_flag(block.get("output"))
     if kind == "tool-approval-response":
         return True
     if isinstance(kind, str) and (kind.startswith("tool-") or kind == "dynamic-tool"):
-        approval = block.get("approval")
-        return block.get("state") in _ANSWERED_TOOL_PART_STATES or (
-            isinstance(approval, dict) and isinstance(approval.get("approved"), bool)
+        # The SDK turns a tool part's `output` into a `tool_result` in every state.
+        return (
+            block.get("state") in _ANSWERED_TOOL_PART_STATES
+            or _has_approved_flag(block.get("approval"))
+            or _has_approved_flag(block.get("output"))
         )
     return False
 
@@ -86,7 +91,8 @@ def carries_approval_answer(content: Any) -> bool:
     """True when `content` holds a block that the runner reads as an approval answer
     anywhere inside it: a `tool_result` whose `output` has a boolean `approved`, a
     `tool-approval-response` part, or a tool part answered inline
-    (`approval-responded`, `output-denied`, or `approval.approved`). Approval answers
+    (`approval-responded`, `output-denied`, `approval.approved`) or whose `output` has
+    a boolean `approved`. Approval answers
     come only from a person through the approval routes, never from server code."""
     if isinstance(content, dict):
         return _is_approval_answer(content) or any(
