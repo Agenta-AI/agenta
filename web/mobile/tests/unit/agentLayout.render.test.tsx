@@ -8,6 +8,7 @@ import {act} from "react"
 import {configPaneRevealRequestAtom} from "@agenta/chat/state"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
+import {screen} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -251,9 +252,9 @@ describe("the session screen on the agent layout", () => {
         media.width = 390
         await render(createStore())
         expect(q("files")[0]?.getAttribute("data-read-only")).toBe("true")
-        const back = host.querySelector('button[aria-label="Back to Session"]') as HTMLButtonElement
+        const back = screen.getByRole("button", {name: "Back to Session"})
         expect(back.textContent).toBe("Session")
-        expect(host.querySelector("h1")?.textContent).toBe("Files")
+        expect(screen.getByRole("heading", {name: "Files"})).toBeTruthy()
         await act(async () => back.click())
         expect(files.close).toHaveBeenCalledTimes(1)
         files.open = false

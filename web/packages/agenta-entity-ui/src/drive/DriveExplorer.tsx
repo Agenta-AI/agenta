@@ -387,6 +387,8 @@ export function DriveExplorer({
         /** A folder created a moment ago and still empty: renamed by create + delete. */
         fresh?: boolean
     } | null>(null)
+    // An open name editor closes when the explorer turns read only (the window became a phone).
+    if (readOnly && nameEdit) setNameEdit(null)
     // New folder / New file: created at once under an untitled name, then named in place.
     const startNew = useCallback(
         async (kind: "folder" | "file", folder: string) => {
@@ -458,7 +460,7 @@ export function DriveExplorer({
     // On the open file a rename flushes the draft first; a delete forgets it.
     const commitName = useCallback(
         async (name: string): Promise<boolean> => {
-            if (!nameEdit) return false
+            if (!nameEdit || readOnly) return false
             const {path, fresh} = nameEdit
             if (editing && path === selectedPath) await saveDraft()
             const ok = await (fresh
@@ -469,7 +471,7 @@ export function DriveExplorer({
             setNameEdit(null)
             return true
         },
-        [nameEdit, writes, editing, selectedPath, saveDraft, replaceSelection],
+        [nameEdit, readOnly, writes, editing, selectedPath, saveDraft, replaceSelection],
     )
     const startRename = useCallback(
         (path: string) => {
