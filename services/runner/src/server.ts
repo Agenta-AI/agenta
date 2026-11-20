@@ -26,7 +26,10 @@ import {
   signRunDrive,
 } from "./engines/sandbox_agent/run-drives.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
-import { loadDurableDecisions } from "./sessions/interactions.ts";
+import {
+  loadTurnApprovalRows,
+  TurnApprovalRows,
+} from "./sessions/interactions.ts";
 import type { PlatformCredentialSource } from "./sessions/auth.ts";
 import { withDaytonaActivityHeartbeat } from "./engines/sandbox_agent/daytona-heartbeat.ts";
 import {
@@ -284,6 +287,8 @@ export interface RunAgentOptions {
   clientGone?: () => boolean;
   /** The alive watchdog's credential lease; it refreshes the value during long turns. */
   credentialLease?: PlatformCredentialSource;
+  /** The session's answered approval rows, read once at turn start (see `TurnApprovalRows`). */
+  approvalRows?: TurnApprovalRows;
 }
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
@@ -363,11 +368,14 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
         // rows the spread would then discard — a claimed row is spent even if it is thrown away.
         seededDecisions:
           opts?.seededDecisions ??
-          (await loadDurableDecisions(
-            env.sessionId,
-            runCredential(request),
-            env.logger,
-          )),
+          (await (
+            opts?.approvalRows ??
+            (await loadTurnApprovalRows(
+              env.sessionId,
+              platformCredentialForRequest(request),
+              env.logger,
+            ))
+          ).claimAll()),
       }),
     ),
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
@@ -416,6 +424,7 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     presignedMount,
     clientGone,
     credentialLease,
+    approvalRows,
   ) => {
     const acquired = await acquireEnvironment(
       request,
@@ -432,11 +441,14 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
           loaded: acquired.env.loadedFromContinuity,
           nativeHistoryVerified: acquired.env.nativeHistoryVerified,
           ...(credentialLease ? { credentialLease } : {}),
-          seededDecisions: await loadDurableDecisions(
-            acquired.env.sessionId,
-            runCredential(request),
-            acquired.env.logger,
-          ),
+          seededDecisions: await (
+            approvalRows ??
+            (await loadTurnApprovalRows(
+              acquired.env.sessionId,
+              platformCredentialForRequest(request),
+              acquired.env.logger,
+            ))
+          ).claimAll(),
         }),
       );
       return result;
@@ -524,6 +536,15 @@ function logSandboxRouting(message: string): void {
 }
 
 const dispatchRun: RunAgent = async (request, emit, signal, options) => {
+  // Read once per turn, before the warm or cold choice, and shared by every attempt: a stall
+  // retry or a warm-to-cold fallback keeps the answers this turn already claimed.
+  const approvalRows =
+    options?.approvalRows ??
+    (await loadTurnApprovalRows(
+      request.sessionId?.trim(),
+      platformCredentialForRequest(request),
+      klog,
+    ));
   const attempt = async (
     emit: EmitEvent | undefined,
   ): Promise<AgentRunResult> => {
@@ -537,6 +558,7 @@ const dispatchRun: RunAgent = async (request, emit, signal, options) => {
         inProcess ? await inProcessDeps() : {},
         {
           ...(options?.credentialLease ? { credentialLease: options.credentialLease } : {}),
+          approvalRows,
         },
       );
     }
@@ -547,6 +569,7 @@ const dispatchRun: RunAgent = async (request, emit, signal, options) => {
       config,
       clientGone: options?.clientGone,
       credentialLease: options?.credentialLease,
+      approvalRows,
       // The coordinator is the first place that knows this run's project, because the scope can
       // come from the signed mount rather than the request. A control command needs it to tell
       // one tenant's session from another's.
@@ -575,14 +598,15 @@ const dispatchRun: RunAgent = async (request, emit, signal, options) => {
 /**
  * The stale-cancel exemptions for a parked approval set. A partial live resume owns both the
  * answered and carried gates, so any answer spares every parked token; zero answers spare none.
+ * Only an answer the session's rows back counts, the same check the warm resume makes.
  */
 export function staleInteractionExemptTokens(
   request: AgentRunRequest,
   parked: ReadonlyMap<string, ParkedApproval>,
+  rows: TurnApprovalRows,
 ): string[] | undefined {
   const hasAnswer = [...parked.values()].some(
-    (gate) =>
-      approvalDecisionForToolCall(request, gate.toolCallId) !== undefined,
+    (gate) => approvalDecisionForToolCall(request, gate, rows) !== undefined,
   );
   return hasAnswer
     ? [...parked.values()].map((gate) => gate.interactionToken)
@@ -594,7 +618,10 @@ export function staleInteractionExemptTokens(
  * next pause. Once any parked gate is answered, the stale sweep must spare every parked token; a
  * zero-answer request owns none and receives no exemptions.
  */
-function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
+function inBandAnswerTokens(
+  request: AgentRunRequest,
+  rows: TurnApprovalRows,
+): string[] | undefined {
   const sessionId = request.sessionId?.trim();
   if (!sessionId) return undefined;
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
@@ -603,7 +630,7 @@ function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
     keepalivePools[provider].awaitingApproval(sessionId)?.environment
       .parkedApprovals;
   if (!parked || parked.size === 0) return undefined;
-  return staleInteractionExemptTokens(request, parked);
+  return staleInteractionExemptTokens(request, parked, rows);
 }
 
 /**
@@ -973,6 +1000,7 @@ async function runAndStreamWithApiBaseResolved(
     emitFn(event);
   };
   let flushPersist: (() => Promise<void>) | undefined;
+  let approvalRows: TurnApprovalRows | undefined;
   let persistError:
     | ((message: string, code?: RunErrorCode) => void)
     | undefined;
@@ -1100,10 +1128,18 @@ async function runAndStreamWithApiBaseResolved(
       emitSessionAccepted();
       liveEmit({ type: "turn", turnId });
 
+      // The session's answered approval rows, read once for the whole turn, before the
+      // coordinator picks the warm or the cold path. They are the only source of an approval
+      // decision this turn takes.
+      approvalRows = await loadTurnApprovalRows(
+        sessionId,
+        platformCredentialForRequest(request),
+        klog,
+      );
       // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
-      // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
-      // the resume resolves that one). Best-effort, never blocks the turn.
-      const answeredTokens = inBandAnswerTokens(request);
+      // interactions (sparing this turn's own, plus the parked set a verified answer resumes
+      // live, whose unanswered gates stay parked). Best-effort, never blocks the turn.
+      const answeredTokens = inBandAnswerTokens(request, approvalRows);
       void cancelStaleInteractions(
         sessionId,
         turnId,
@@ -1194,6 +1230,7 @@ async function runAndStreamWithApiBaseResolved(
       run: run(request, gatedEmit, controller.signal, {
         clientGone: () => clientDisconnected,
         credentialLease: aliveWatchdog?.credentialLease,
+        ...(approvalRows ? { approvalRows } : {}),
       }),
       abort: () => controller.abort(),
       interrupted: activeTurn

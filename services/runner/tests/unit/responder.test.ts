@@ -21,10 +21,10 @@ import {
   ConversationDecisions,
   approvedCallKey,
   decisionToReply,
-  extractApprovalDecisions,
   extractClientToolOutputs,
   type PermissionDecision,
 } from "../../src/responder.ts";
+import { answeredDecisions } from "../utils/answered-decisions.ts";
 
 function plan(defaultMode: PermissionPlan["default"]): PermissionPlan {
   return { default: defaultMode, rules: [] };
@@ -481,7 +481,7 @@ describe("extractApprovalDecisions", () => {
       ],
     };
 
-    const decisions = extractApprovalDecisions(request);
+    const decisions = answeredDecisions(request);
     assert.deepEqual(
       decisions.get(approvedCallKey("edit", { path: "a.txt" })!),
       [{ decision: "allow" }],
@@ -532,7 +532,7 @@ describe("extractApprovalDecisions", () => {
       ],
     };
     const key = approvedCallKey("edit", { path: "a.txt" })!;
-    const decisions = extractApprovalDecisions(request);
+    const decisions = answeredDecisions(request);
 
     assert.deepEqual(decisions.get(key), [
       { decision: "allow" },
@@ -574,7 +574,7 @@ describe("extractApprovalDecisions", () => {
         },
       ],
     };
-    const stored = new ConversationDecisions(extractApprovalDecisions(request));
+    const stored = new ConversationDecisions(answeredDecisions(request));
 
     assert.deepEqual(
       stored.take({
@@ -617,7 +617,7 @@ describe("extractApprovalDecisions", () => {
       integration: "slack",
     })!;
     // A raw browser output is NOT an approval decision; it lives only in the client store.
-    assert.equal(extractApprovalDecisions(request).has(key), false);
+    assert.equal(answeredDecisions(request).has(key), false);
     assert.deepEqual(extractClientToolOutputs(request).get(key), [
       { connected: true },
     ]);
@@ -641,14 +641,14 @@ describe("extractApprovalDecisions", () => {
       ],
     };
 
-    assert.equal(extractApprovalDecisions(request).size, 0);
+    assert.equal(answeredDecisions(request).size, 0);
   });
 
   it("returns an empty lookup when there are no structured messages", () => {
     const request: AgentRunRequest = {
       messages: [{ role: "user", content: "just a single turn" }],
     };
-    assert.equal(extractApprovalDecisions(request).size, 0);
+    assert.equal(answeredDecisions(request).size, 0);
   });
 });
 
@@ -706,7 +706,7 @@ describe("client-tool output store (separate from approvals)", () => {
     // The approval-envelope result is absent from the client-output store...
     assert.equal(outputs.has(approvedCallKey("edit", { path: "a" })!), false);
     // ...and lives only in the approval store.
-    const decisions = extractApprovalDecisions(request);
+    const decisions = answeredDecisions(request);
     assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), [
       { decision: "allow" },
     ]);
@@ -772,7 +772,7 @@ describe("client-tool output store (separate from approvals)", () => {
     // So the model retry of slack re-parks (a fresh widget) instead of resolving as fulfilled.
     const responder = new ApprovalResponder(
       plan("ask"),
-      new ConversationDecisions(extractApprovalDecisions(request), outputs),
+      new ConversationDecisions(answeredDecisions(request), outputs),
     );
     assert.deepEqual(
       await responder.onClientTool(
@@ -811,7 +811,7 @@ describe("client-tool output store (separate from approvals)", () => {
     const responder = new ApprovalResponder(
       plan("ask"),
       new ConversationDecisions(
-        extractApprovalDecisions(request),
+        answeredDecisions(request),
         extractClientToolOutputs(request),
       ),
     );
@@ -878,7 +878,7 @@ describe("client-tool output store (separate from approvals)", () => {
     const responder = new ApprovalResponder(
       plan("ask"),
       new ConversationDecisions(
-        extractApprovalDecisions(request),
+        answeredDecisions(request),
         extractClientToolOutputs(request),
       ),
     );
@@ -927,7 +927,7 @@ describe("client-tool output store (separate from approvals)", () => {
     const responder = new ApprovalResponder(
       plan("ask"),
       new ConversationDecisions(
-        extractApprovalDecisions(request),
+        answeredDecisions(request),
         extractClientToolOutputs(request),
       ),
     );
@@ -964,7 +964,7 @@ describe("client-tool output store (separate from approvals)", () => {
     const responder = new ApprovalResponder(
       plan("ask"),
       new ConversationDecisions(
-        extractApprovalDecisions(request),
+        answeredDecisions(request),
         extractClientToolOutputs(request),
       ),
     );

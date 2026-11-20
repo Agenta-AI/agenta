@@ -2,10 +2,9 @@
  * A durable interaction row is transitioned ONCE per turn.
  *
  * Two paths can answer the same row and they do not share a memory. The CALLER claims it:
- * `loadDurableDecisions` resolves the row before adopting its decision, and hands the decision in
- * through `RunTurnOptions.seededDecisions`. The TURN then settles its in-band answers at the end
- * (`settleInBandInteractions`), and a resume carries that same answer in its transcript — so the
- * turn tried to resolve a row the caller had already made terminal.
+ * `TurnApprovalRows` resolves the row before adopting its decision, and hands the decision in
+ * through `RunTurnOptions.seededDecisions`. The TURN's reply path then answers the re-raised gate
+ * from that decision, and must not resolve a row the caller had already made terminal.
  *
  * Live, that put `[sessions/interactions] resolve failed ... HTTP 404` in the log of every
  * HEALTHY approve/deny (observed 2026-08-27 on sessions 6dd74afc and 4a49f0f9, each ~9s after a
@@ -79,7 +78,7 @@ beforeEach(() => {
 });
 
 describe("a row the caller already claimed", () => {
-  it("is not transitioned again by the turn's in-band settle", async () => {
+  it("is not transitioned again by the turn", async () => {
     const { deps } = fakeHarness();
 
     const result = await runSandboxAgent(
@@ -107,10 +106,10 @@ describe("a row the caller already claimed", () => {
     );
   });
 
-  it("still settles an in-band answer the caller did NOT claim", async () => {
-    // The guard must be scoped to claimed tokens, not a blanket skip: an answer that arrived
-    // only in band still has a pending row, and settling it is what keeps a cold replay's gate
-    // from staying forever-actionable.
+  it("writes nothing for an in-band answer the caller did NOT claim", async () => {
+    // An envelope whose row the caller did not claim is not an answer a person gave (the row is
+    // still pending, or another delivery already spent it). The turn must not settle it with the
+    // verdict it read from the message text.
     const { deps } = fakeHarness();
 
     const result = await runSandboxAgent(
@@ -123,11 +122,9 @@ describe("a row the caller already claimed", () => {
 
     assert.equal(result.ok, true);
     assert.deepEqual(
-      transitions
-        .filter((t) => t.token === TOKEN)
-        .map((t) => (t.resolution as { verdict?: string })?.verdict),
-      ["approved"],
-      "an unclaimed in-band answer is still resolved exactly once, with its verdict",
+      transitions.filter((t) => t.token === TOKEN),
+      [],
+      "no verdict from message text reaches the row",
     );
   });
 

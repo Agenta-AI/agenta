@@ -11,7 +11,12 @@ import {
   resolvePromptText,
   userTurnCarriesContent,
 } from "../../protocol.ts";
-import { approvalDecisionOf } from "../../responder.ts";
+import {
+  approvalDecisionOf,
+  storedApprovalDecisionOf,
+} from "../../responder.ts";
+import type { TurnApprovalRows } from "../../sessions/interactions.ts";
+import type { ParkedApproval } from "./runtime-contracts.ts";
 import { normalizedHarnessMode } from "../../harness-kind.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
@@ -564,17 +569,23 @@ export function historyTailFromLastUserTurn(
 }
 
 /**
- * The approval decision (allow/deny) the incoming request carries for a specific parked gate's
- * tool-call id, or undefined when the request has no approval envelope for that id. Reuses the
- * cold path's `approvalDecisionOf` (responder.ts) to parse the `{approved}` envelope, and matches
- * strictly by toolCallId (the parked gate's id) — never by name+args — so a live resume answers
- * exactly the gate that parked. An incoming reply for a different id, or a plain user message,
- * yields undefined and the dispatch degrades to cold.
+ * The approval decision (allow/deny) for a specific parked gate, or undefined when the request
+ * carries no verified answer for it. The request must carry an approval envelope for the parked
+ * gate's tool-call id (matched strictly by toolCallId, never by name+args, so a live resume
+ * answers exactly the gate that parked), and the session's interaction row must agree with that
+ * envelope (`TurnApprovalRows.verifiedDecision`): the row is the source of the decision, the
+ * envelope only says that this request answers it. An incoming reply for a different id, a plain
+ * user message, or an envelope no row backs yields undefined and the dispatch degrades to cold.
  */
 export function approvalDecisionForToolCall(
   request: AgentRunRequest,
-  toolCallId: string,
+  gate: Pick<
+    ParkedApproval,
+    "toolCallId" | "interactionToken" | "toolName" | "args"
+  >,
+  rows: TurnApprovalRows,
 ): "allow" | "deny" | undefined {
+  const toolCallId = gate.toolCallId;
   if (!toolCallId) return undefined;
   const messages = request.messages ?? [];
   if (messages.length === 0) return undefined;
@@ -601,8 +612,8 @@ export function approvalDecisionForToolCall(
         if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
           continue;
         }
-        const decision = approvalDecisionOf(block);
-        if (decision !== undefined) return decision;
+        const envelope = storedApprovalDecisionOf(block);
+        if (envelope !== undefined) return rows.verifiedDecision(envelope, gate);
       }
     }
   }

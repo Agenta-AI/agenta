@@ -1,6 +1,9 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
 import type { PlatformCredentialSource } from "../../sessions/auth.ts";
-import type { SeededDecision } from "../../sessions/interactions.ts";
+import type {
+  SeededDecision,
+  TurnApprovalRows,
+} from "../../sessions/interactions.ts";
 import type { AgentToolsSetupExec, AgentToolsSetupResult } from "./agent-tools-setup.ts";
 
 import {
@@ -254,10 +257,15 @@ export interface RunTurnOptions {
   credentialLease?: PlatformCredentialSource;
   /**
    * Durable approval decisions this session already holds, read and CLAIMED by the caller via
-   * `loadDurableDecisions`. Passed in rather than read here because that read is I/O and
+   * `TurnApprovalRows.claimAll`. Passed in rather than read here because that read is I/O and
    * `runTurn` must not suspend before its permission responder is attached.
    */
   seededDecisions?: readonly SeededDecision[];
+  /**
+   * The session's answered approval rows, read once for this turn before the warm or cold choice.
+   * The engine wrapper claims them into `seededDecisions`; absent, the wrapper reads them itself.
+   */
+  approvalRows?: TurnApprovalRows;
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**

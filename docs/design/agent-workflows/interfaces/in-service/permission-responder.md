@@ -45,15 +45,24 @@ store (approvals and denials recovered from the replayed message history).
 the same way but default to `allow` when unset, since their whole purpose is to reach the
 browser. A stored output already fulfills the call without asking again.
 
-**Resume matching.** `extractApprovalDecisions` scans the incoming message history for
-`tool_result` blocks carrying an `{approved: boolean}` envelope, and keys each one by
-`approvedCallKey(name, args)`: a stable tool name plus canonicalized arguments, never a
-display title. The name anchor differs by executor: the spec's own name for relay/client
-tools (it cannot drift), and the recorded `tool_call` name for harness gates (Claude Code
-today). A stored decision matches only the same call; different arguments are a different
-call and pause for a fresh approval, visibly. A stored decision is consumed on first match,
-so one approval authorizes one execution, and a config changed to `deny` always beats it
-because the effective permission is resolved before the stored decision is consulted.
+**Resume matching.** The runner takes an approval decision only from the session's stored
+interaction rows. Once per turn, before it picks the warm or the cold path, it reads the rows
+(`TurnApprovalRows`, `services/runner/src/sessions/interactions.ts`). A `user_approval` row in
+`responded` carries the person's verdict and the call it answers. The runner claims a row
+(`responded` to `resolved`) before it uses it, and drops a row whose claim fails. The cold gate
+gets the claimed rows as a decision map keyed by `approvedCallKey(name, args)`: a stable tool
+name plus canonicalized arguments, never a display title. The name anchor differs by executor:
+the spec's own name for relay/client tools (it cannot drift), and the recorded `tool_call` name
+for harness gates (Claude Code today). A stored decision matches only the same call; different
+arguments are a different call and pause for a fresh approval, visibly. A stored decision is
+consumed on first match, so one approval authorizes one execution, and a config changed to
+`deny` always beats it because the effective permission is resolved before the stored decision
+is consulted.
+
+An approval envelope (`{approved, interactionToken}` as a `tool_result`) in the request messages
+is not a decision. The warm resume uses it only to know which parked gate the request answers,
+and only when the envelope names that gate's `responded` row with the same verdict and the same
+call. The runner never writes a verdict that it read from message text onto a row.
 
 ## How it fits with the relay
 
@@ -81,7 +90,9 @@ in [runner-to-mcp-server](../cross-service/runner-to-mcp-server.md).
   (parses the wire `permissions` block, applies the `SANDBOX_AGENT_DENY_PERMISSIONS`
   kill-switch).
 - `services/runner/src/responder.ts`: `ApprovalResponder`, `ConversationDecisions`,
-  `extractApprovalDecisions`, `approvedCallKey`.
+  `approvedCallKey`.
+- `services/runner/src/sessions/interactions.ts`: `TurnApprovalRows` (the session's answered
+  rows for one turn, and their claims).
 - `services/runner/src/engines/sandbox_agent.ts` and
   `services/runner/src/engines/sandbox_agent/acp-interactions.ts`: how the responder wires
   into the ACP run (`attachPermissionResponder`), and the pause/teardown when a verdict is
