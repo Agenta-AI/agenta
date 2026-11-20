@@ -60,7 +60,6 @@ export type SlashPickerOrigin = "command" | "direct"
  * a hint the agent usually follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
 const tNow = createT(chatSlashCommandsCatalog)
-const tProviders = createT(providerListCatalog)
 
 export function useChatSlashCommands({
     entityId,
@@ -80,6 +79,10 @@ export function useChatSlashCommands({
     onNewSession?: () => void
 }) {
     const t = useT(chatSlashCommandsCatalog)
+    const tProviders = useT(providerListCatalog)
+    // Strings, not `t`: a language change makes new ones, and the groups follow.
+    const builtinLabel = tProviders("entityUi.providerList.agenta")
+    const builtinTag = tProviders("entityUi.providerList.builtIn")
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -162,10 +165,7 @@ export function useChatSlashCommands({
             harness: currentHarness,
         })
         // The same grouped list as the Model view: built-in models first, named "Agenta".
-        const modelGroups = listPickerGroups(rows, {
-            label: tProviders("entityUi.providerList.agenta"),
-            tag: tProviders("entityUi.providerList.builtIn"),
-        })
+        const modelGroups = listPickerGroups(rows, {label: builtinLabel, tag: builtinTag})
         return {modelGroups, currentModelKey}
     }, [
         candidateState,
@@ -175,6 +175,8 @@ export function useChatSlashCommands({
         currentConnectionSlug,
         currentConnectionNamespace,
         currentConnectionMode,
+        builtinLabel,
+        builtinTag,
     ])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.

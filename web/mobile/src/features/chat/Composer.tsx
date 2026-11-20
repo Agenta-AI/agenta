@@ -151,21 +151,21 @@ export const Composer = ({
     const slash = useChatSlashCommands({
         entityId,
         onNewSession,
-        // The picker autofocuses itself; a still-focused Lexical editor takes focus back on the
-        // next reconcile, which Radix reads as an outside interaction and dismisses on.
+        // The list's search takes the caret; a still-focused Lexical editor would take it back on
+        // its next reconcile.
         onPickerOpen: useCallback(() => {
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
     const openModelPicker = slash.openModelPicker
     useEffect(() => {
-        // No palette, no picker: "Switch model" elsewhere does nothing here either.
-        if (!modelPickerRef || hideSlashCommands) return
+        // "Switch model" opens the same list as the model button, and only where the button is.
+        if (!modelPickerRef || modelButtonHidden) return
         modelPickerRef.current = openModelPicker
         return () => {
             modelPickerRef.current = null
         }
-    }, [modelPickerRef, openModelPicker, hideSlashCommands])
+    }, [modelPickerRef, openModelPicker, modelButtonHidden])
     // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
     // the still-focused panel leaves the DOM.
     const hadPickerRef = useRef(slash.picker)

@@ -69,6 +69,9 @@ describe("ComposerModelPanel", () => {
         expect(current.querySelector("svg")).not.toBeNull()
         const other = screen.getByRole("button", {name: /Gemini 3.8 Flash/})
         expect(other.getAttribute("aria-pressed")).toBe("false")
+        // The current model is brought into view when the list opens.
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({block: "nearest"})
+        expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts[0]).toBe(current)
         // The search field has its icon and names the command.
         expect(screen.getByText("/model")).toBeTruthy()
         expect(document.activeElement).toBe(screen.getByPlaceholderText("Search models"))
@@ -108,8 +111,17 @@ describe("ComposerModelPanel", () => {
         expect(handlers.onDismiss).not.toHaveBeenCalled()
         fireEvent.pointerDown(document.body)
         expect(handlers.onDismiss).toHaveBeenCalledWith("outside")
-        fireEvent.keyDown(document, {key: "Escape"})
+        // The list takes its Escape, so the chat's Escape (Stop) does not run as well.
+        const escape = new KeyboardEvent("keydown", {
+            key: "Escape",
+            bubbles: true,
+            cancelable: true,
+        })
+        document.dispatchEvent(escape)
         expect(handlers.onDismiss).toHaveBeenCalledWith("escape")
+        expect(escape.defaultPrevented).toBe(true)
+        // And it reads as an open layer to the chat's other shortcuts.
+        expect(document.querySelector('[role="dialog"][data-state="open"]')).not.toBeNull()
     })
 
     it("leaves the caret alone on a touch screen", () => {

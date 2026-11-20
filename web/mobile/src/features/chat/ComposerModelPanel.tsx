@@ -56,7 +56,10 @@ export const ComposerModelPanel = ({
             onDismiss("outside")
         }
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") onDismiss("escape")
+            if (event.key !== "Escape") return
+            // This Escape is the list's: the chat's own Escape (Stop) must not see it too.
+            event.preventDefault()
+            onDismiss("escape")
         }
         // Capture, so a handler that stops propagation cannot keep the list open.
         document.addEventListener("pointerdown", onPointerDown, true)
@@ -111,6 +114,8 @@ export const ComposerModelPanel = ({
             ref={rootRef}
             onKeyDown={onKeyDown}
             role="dialog"
+            // An open layer for the chat's shortcuts (`isOverlayOpen`), as a Radix popover is.
+            data-state="open"
             aria-label={t("chat.mobileComposer.searchModels")}
             className="bg-popover text-popover-foreground shadow-overlay flex max-h-[min(540px,60dvh)] flex-col rounded-xl p-1.5"
         >

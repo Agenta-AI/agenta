@@ -1,7 +1,7 @@
 /**
- * ModelPickerList: the model picker as one inline list grouped by connection (F01 f2), for a
- * container with room for it (the Model view). It takes the same groups as
- * `SelectLLMProviderBase`; the popover stays for the composer "/model" and the inline controls.
+ * ModelPickerList: the model picker as one inline list grouped by connection (F01 f2), for the
+ * Model view and the chat composer's model list. It takes the same groups as
+ * `SelectLLMProviderBase`, whose popover stays for the inline controls.
  *
  * Each group shows its logo, name and tag, then its models under their harness line
  * ("via Claude Code"). A row shows the readable name with the raw id under it. A disabled group
