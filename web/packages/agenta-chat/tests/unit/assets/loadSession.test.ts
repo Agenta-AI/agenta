@@ -10,10 +10,13 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 // which only cover the records half; transcriptToMessages.test.ts covers the join itself.
 let fetchResult: {records: SessionRecord[] | null; refreshed?: Promise<SessionRecord[] | null>}
 let interactionRowStates = new Map<string, SessionInteractionRowState>()
+const revalidateCalls: unknown[][] = []
 vi.mock("@agenta/entities/session", () => ({
     fetchSessionRecordsAtom: atom(null, async () => fetchResult),
     fetchSessionInteractionStatesAtom: atom(null, async () => interactionRowStates),
-    revalidateSessionInteractionsAtom: atom(null, async () => undefined),
+    revalidateSessionInteractionsAtom: atom(null, async (_get, _set, ...args: unknown[]) => {
+        revalidateCalls.push(args)
+    }),
     revalidateSessionRecordsAtom: atom(null, () => undefined),
     revalidateSessionTurnsAtom: atom(null, () => undefined),
 }))
@@ -61,6 +64,23 @@ describe("loadSessionMessages", () => {
     beforeEach(() => {
         fetchResult = {records: null}
         interactionRowStates = new Map()
+        revalidateCalls.length = 0
+    })
+
+    it("re-reads interaction rows only when the last read is older than the join window", async () => {
+        let refresh!: (records: SessionRecord[]) => void
+        fetchResult = {
+            records: [record("r1", {type: "message", text: "hi"})],
+            refreshed: new Promise((resolve) => (refresh = resolve)),
+        }
+        const delivered = new Promise((resolve) => loadSessionMessages("session-1", resolve))
+        refresh([record("r1", {type: "message", text: "hi"}), record("r2", {type: "done"})])
+        await delivered
+        // The open and its background refresh both ask with the window, never unconditionally.
+        expect(revalidateCalls).toEqual([
+            ["session-1", {olderThanMs: 2_000}],
+            ["session-1", {olderThanMs: 2_000}],
+        ])
     })
 
     it("returns null when there are no records", async () => {

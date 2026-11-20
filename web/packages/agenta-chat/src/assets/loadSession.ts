@@ -75,6 +75,13 @@ const sequenceCursorForRecords = (records: {sequence?: number | null}[]): number
 }
 
 /**
+ * Interaction rows read this recently are joined as they are. One session open reads the log up to
+ * three times (the open, its background refresh, the watch stream's first `ready`); without this
+ * each of them re-read the rows too.
+ */
+const INTERACTION_ROWS_FRESH_MS = 2_000
+
+/**
  * One read of the record log: the transcript the cache answers with, plus the revalidation
  * flight when that answer was stale (disk-restored or past its window).
  */
@@ -87,9 +94,11 @@ const readSessionTranscript = async (
     failed?: boolean
 }> => {
     const store = getDefaultStore()
-    await Promise.resolve(store.set(revalidateSessionInteractionsAtom, sessionId)).catch(
-        () => undefined,
-    )
+    await Promise.resolve(
+        store.set(revalidateSessionInteractionsAtom, sessionId, {
+            olderThanMs: INTERACTION_ROWS_FRESH_MS,
+        }),
+    ).catch(() => undefined)
     // The best-effort lifecycle join must never gate transcript loading.
     const [{records, refreshed, failed}, interactionRowStates] = await Promise.all([
         store.set(fetchSessionRecordsAtom, sessionId),
@@ -117,7 +126,9 @@ const readSessionTranscript = async (
             ? refreshed.then(async (fresh) => {
                   if (!fresh || fresh.length === 0) return null
                   await Promise.resolve(
-                      store.set(revalidateSessionInteractionsAtom, sessionId),
+                      store.set(revalidateSessionInteractionsAtom, sessionId, {
+                          olderThanMs: INTERACTION_ROWS_FRESH_MS,
+                      }),
                   ).catch(() => undefined)
                   const freshRowStates = await store.set(
                       fetchSessionInteractionStatesAtom,

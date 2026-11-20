@@ -97,9 +97,18 @@ export const fetchSessionInteractionStatesAtom = atom(
 
 export const revalidateSessionInteractionsAtom = atom(
     null,
-    async (get, _set, sessionId: string) => {
+    async (get, _set, sessionId: string, options?: {olderThanMs?: number}) => {
         const projectId = get(projectIdAtom) ?? ""
         if (!projectId || !sessionId) return
+        // A read this recent already holds the rows a replay needs: re-reading them again is the
+        // second request of one session open.
+        if (options?.olderThanMs) {
+            const state = get(queryClientAtom).getQueryState(
+                sessionInteractionRowsQueryKey(projectId, sessionId),
+            )
+            if (state?.dataUpdatedAt && Date.now() - state.dataUpdatedAt < options.olderThanMs)
+                return
+        }
         // Keep an initial rows fetch in flight while marking its cache entry stale.
         await get(queryClientAtom).invalidateQueries(
             {queryKey: sessionInteractionRowsQueryKey(projectId, sessionId)},
