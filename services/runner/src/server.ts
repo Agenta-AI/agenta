@@ -366,16 +366,10 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
         ...opts,
         // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
         // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+        // The coordinator always passes the turn's rows; absent means none, as in the coordinator.
         seededDecisions:
           opts?.seededDecisions ??
-          (await (
-            opts?.approvalRows ??
-            (await loadTurnApprovalRows(
-              env.sessionId,
-              platformCredentialForRequest(request),
-              env.logger,
-            ))
-          ).claimAll()),
+          (await (opts?.approvalRows ?? TurnApprovalRows.empty()).claimAll()),
       }),
     ),
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
@@ -442,12 +436,7 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
           nativeHistoryVerified: acquired.env.nativeHistoryVerified,
           ...(credentialLease ? { credentialLease } : {}),
           seededDecisions: await (
-            approvalRows ??
-            (await loadTurnApprovalRows(
-              acquired.env.sessionId,
-              platformCredentialForRequest(request),
-              acquired.env.logger,
-            ))
+            approvalRows ?? TurnApprovalRows.empty()
           ).claimAll(),
         }),
       );
@@ -618,7 +607,7 @@ export function staleInteractionExemptTokens(
  * next pause. Once any parked gate is answered, the stale sweep must spare every parked token; a
  * zero-answer request owns none and receives no exemptions.
  */
-function inBandAnswerTokens(
+function liveResumeExemptTokens(
   request: AgentRunRequest,
   rows: TurnApprovalRows,
 ): string[] | undefined {
@@ -1139,11 +1128,11 @@ async function runAndStreamWithApiBaseResolved(
       // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
       // interactions (sparing this turn's own, plus the parked set a verified answer resumes
       // live, whose unanswered gates stay parked). Best-effort, never blocks the turn.
-      const answeredTokens = inBandAnswerTokens(request, approvalRows);
+      const exemptTokens = liveResumeExemptTokens(request, approvalRows);
       void cancelStaleInteractions(
         sessionId,
         turnId,
-        answeredTokens,
+        exemptTokens,
         watchdog.credential,
       );
       // Deny-set from THIS run's typed credential material (model connection credentials +

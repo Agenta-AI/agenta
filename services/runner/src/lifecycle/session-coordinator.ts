@@ -1508,6 +1508,10 @@ export async function runWithKeepalive(
                   resume: { decisions: resumeDecisions, carriedForward },
                 }),
             ...turnCredential,
+            // The answers this resume uses are the claimed rows in `resumeDecisions`. Seed no
+            // other row: a carried gate's answer belongs to its own resume, and a row used here
+            // must not also allow a later call with the same tool and arguments.
+            seededDecisions: [],
           },
         );
       } catch (err) {

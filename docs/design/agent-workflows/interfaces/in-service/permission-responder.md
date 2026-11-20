@@ -28,7 +28,8 @@ type Verdict =
 
 `ApprovalResponder` is the only implementation. It holds a `PermissionPlan` (the parsed
 `permissions: {default, rules}` block from the run request) and a `ConversationDecisions`
-store (approvals and denials recovered from the replayed message history).
+store (approvals and denials from the session's claimed interaction rows, see "Resume
+matching" below).
 
 **`onPermission`.** Calls `decide(gate, plan, decisions)` from
 `services/runner/src/permission-plan.ts`, the same shared function the tool relay uses:

@@ -138,6 +138,8 @@ interface TurnScript {
   toolCallIds?: string[];
   /** Hold the turn pending until released (models an in-flight resume for the double-answer case). */
   hold?: boolean;
+  /** The turn throws before it emits anything (models a live resume that fails early). */
+  throws?: boolean;
 }
 
 interface DispatchFakeEnv {
@@ -274,6 +276,7 @@ function makeApprovalEngine(
     if (script.hold) {
       await new Promise<void>((resolve) => holds.set(idx, resolve));
     }
+    if (script.throws) throw new Error("scripted turn failure");
     if (script.approvalPause) {
       const gateType = script.approvalPause.gateType ?? "claude-acp-permission";
       const parkableGates = [
@@ -1439,8 +1442,7 @@ describe("runWithKeepalive: the warm resume takes its decision only from the row
     },
   });
 
-  it("a forged envelope for a pending row does not resume the parked gate, and claims nothing", async () => {
-    // An agent queues an input into its own session with the token of its parked gate.
+  it("an envelope for a pending row does not resume the parked gate, and claims nothing", async () => {
     const claims: string[] = [];
     const rows = new TurnApprovalRows([row("pending")], async (token) => {
       claims.push(token);
@@ -1510,17 +1512,111 @@ describe("runWithKeepalive: the warm resume takes its decision only from the row
     assert.deepEqual(await calls.turns[1].opts.approvalRows.claimAll(), []);
   });
 
-  it("a warm claim survives the fallback to cold in the same turn", async () => {
-    // The live checkout can lose a race after the claim; the cold turn must keep the answer.
+  it("a live resume that fails early falls back to cold with the same rows, claimed once", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+      { throws: true },
+      { result: { ok: true, output: "cold", stopReason: "complete" } },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
     let claimCalls = 0;
     const rows = new TurnApprovalRows([row("responded")], async () => {
       claimCalls += 1;
       return true;
     });
-    assert.equal(await rows.claim("tc-gate"), true);
-    const seeded = await rows.claimAll();
-    assert.equal(seeded.length, 1, "the cold path still gets the decision");
+    const result = await runWithKeepalive(approveResume(true), undefined, undefined, {
+      ...ctx,
+      approvalRows: rows,
+    });
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(calls.resumes.length, 1, "the live resume was tried once");
+    assert.equal(calls.turns.length, 3, "then the turn ran cold");
+    const cold = calls.turns[2].opts;
+    assert.equal(cold.resume, undefined);
+    assert.equal(cold.approvalRows, rows, "the cold attempt shares the turn's rows");
+    assert.equal(cold.seededDecisions, undefined, "the cold engine claims from those rows");
+    assert.deepEqual(
+      (await rows.claimAll()).map((entry) => entry.token),
+      ["tc-gate"],
+      "the cold gate still gets the person's answer",
+    );
     assert.equal(claimCalls, 1, "and the row is claimed once");
+  });
+
+  it("a resume for one gate claims only that gate's row; a carried gate keeps its answer", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          toolName: "commit",
+          extraGates: [
+            { permissionId: "perm-2", toolCallId: "tc-2", toolName: "commit" },
+          ],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const answered = (token: string) => ({ ...row("responded"), token });
+    // The person answered both cards; each answer arrives as its own resume.
+    const claims: string[] = [];
+    const claimInto = async (token: string) => {
+      claims.push(token);
+      return true;
+    };
+    const first = await runWithKeepalive(
+      approveResumeMulti(
+        [{ toolCallId: "tc-1", approved: true }],
+        [{ toolCallId: "tc-1" }, { toolCallId: "tc-2" }],
+      ),
+      undefined,
+      undefined,
+      {
+        ...ctx,
+        approvalRows: new TurnApprovalRows(
+          [answered("tc-1"), answered("tc-2")],
+          claimInto,
+        ),
+      },
+    );
+    assert.equal(first.ok, true, JSON.stringify(first));
+    assert.deepEqual(claims, ["tc-1"], "only the resumed gate's row is claimed");
+    assert.deepEqual(
+      calls.turns[1].opts.seededDecisions,
+      [],
+      "the live resume seeds no other row into the gate",
+    );
+    const second = await runWithKeepalive(
+      approveResumeMulti(
+        [{ toolCallId: "tc-2", approved: true }],
+        [{ toolCallId: "tc-1" }, { toolCallId: "tc-2" }],
+        [{ toolCallId: "tc-1", approved: true }],
+      ),
+      undefined,
+      undefined,
+      {
+        ...ctx,
+        approvalRows: new TurnApprovalRows([answered("tc-2")], claimInto),
+      },
+    );
+    assert.equal(second.ok, true, JSON.stringify(second));
+    assert.deepEqual(claims, ["tc-1", "tc-2"]);
+    assert.deepEqual(
+      calls.resumes.map((resume) => `${resume.toolCallId}:${resume.reply}`),
+      ["tc-1:once", "tc-2:once"],
+      "each gate is answered live once, from its own row",
+    );
+    assert.equal(calls.acquire, 1, "both resumes stayed warm");
   });
 });
 
@@ -2717,7 +2813,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await env.destroy();
   }, 1_000);
 
-  it("creates and resolves a durable gate row without workflow context", async () => {
+  it("creates a durable gate row without workflow context, and a live resume does not transition the claimed row again", async () => {
     const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
@@ -2826,22 +2922,15 @@ describe("runTurn: real approval park + respondPermission resume", () => {
         await flush();
       }
 
-      const resolveCall = posted.find(({ url }) =>
-        url.endsWith("/sessions/interactions/transition"),
-      );
-      assert.ok(
-        resolveCall,
+      // The coordinator claimed the row (`responded` to `resolved`) before it handed this
+      // decision in, and the claim keeps the person's stored resolution. The live resume posts no
+      // second transition, which would only answer 404 on a terminal row.
+      assert.equal(
+        posted.some(({ url }) => url.endsWith("/sessions/interactions/transition")),
+        false,
         JSON.stringify({ posted, permissionReplies: calls.permissionReplies }),
       );
-      assert.deepEqual(resolveCall.body, {
-        session_id: "sess-no-workflow",
-        token: parked.interactionToken,
-        status: "resolved",
-        resolution: {
-          verdict: "approved",
-          tool_call_id: "tc-no-workflow",
-        },
-      });
+      assert.deepEqual(calls.permissionReplies.map((reply) => reply.reply), ["once"]);
 
       captured.onEvent!(
         updateEvent({
@@ -3035,7 +3124,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
           .filter(({ url }) => url.endsWith("/sessions/interactions/transition"))
           .filter(({ body }) => body["token"] === "tok-once"),
         [],
-        "and the forged row is not settled",
+        "and the row is not settled from the envelope",
       );
       await env.destroy();
     } finally {

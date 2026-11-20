@@ -407,9 +407,9 @@ export function decisionsFromInteractionRows(
  * coordinator picks the warm or the cold path, and claimed at most once each.
  *
  * The row is the only source of an approval decision. An approval envelope in the request
- * messages is a copy of the row at best, and anyone who can put messages into a run request can
- * write one, so the runner never takes a verdict from message text alone. The warm resume asks
- * `verifiedDecision` (the envelope must agree with the row), and the cold gate takes `claimAll`.
+ * messages is a copy of the row at best, so the runner never takes a verdict from message text
+ * alone. The warm resume asks `verifiedDecision` (the envelope must agree with the row), and the
+ * cold gate takes `claimAll`.
  *
  * Claim, not read: a row is transitioned to `resolved` before its decision is handed back, and a
  * row that would not settle is dropped. A lost claim costs the user one re-approval; an unclaimed
@@ -481,7 +481,7 @@ export class TurnApprovalRows {
         continue;
       }
       this.log(
-        `[HITL] durable decision NOT claimed, leaving the gate to re-raise: token=${entry.token} key=${approvalKeyDigest(entry.key)}`,
+        `[HITL] approval row NOT claimed, leaving the gate to re-raise: token=${entry.token} key=${approvalKeyDigest(entry.key)}`,
       );
     }
     return claimed;

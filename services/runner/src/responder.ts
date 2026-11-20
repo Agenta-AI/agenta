@@ -516,12 +516,11 @@ function isPauseSyntheticResult(block: ContentBlock): boolean {
 /**
  * The approval envelope a tool result carries (`{approved, interactionToken?}`), or undefined.
  *
- * This only PARSES the message text. It is not a decision: anyone who can put messages into a
- * run request can write an envelope, so a gate takes a verdict only from the session's answered
- * interaction row (`TurnApprovalRows`). The envelope still tells a request that it is a resume,
- * names the row it answers, and renders the transcript for a cold model.
+ * This only PARSES the message text. It is not a decision: a gate takes a verdict only from the
+ * session's answered interaction row (`TurnApprovalRows`). The envelope still tells a request
+ * that it is a resume, names the row it answers, and renders the transcript for a cold model.
  */
-export function storedApprovalDecisionOf(
+export function approvalEnvelopeOf(
   block: ContentBlock,
 ): StoredPermissionDecision | undefined {
   if (!block || block.type !== "tool_result") return undefined;
@@ -546,7 +545,7 @@ export function storedApprovalDecisionOf(
 export function approvalDecisionOf(
   block: ContentBlock,
 ): PermissionDecision | undefined {
-  return storedApprovalDecisionOf(block)?.decision;
+  return approvalEnvelopeOf(block)?.decision;
 }
 
 /**

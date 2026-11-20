@@ -263,7 +263,8 @@ export interface RunTurnOptions {
   seededDecisions?: readonly SeededDecision[];
   /**
    * The session's answered approval rows, read once for this turn before the warm or cold choice.
-   * The engine wrapper claims them into `seededDecisions`; absent, the wrapper reads them itself.
+   * The engine wrapper claims them into `seededDecisions`. Absent, `runSandboxAgent` (a direct
+   * caller such as the CLI) reads them itself, and the keepalive wrappers take none.
    */
   approvalRows?: TurnApprovalRows;
   /** A live continuation: send only the new user text instead of the full cold transcript. */

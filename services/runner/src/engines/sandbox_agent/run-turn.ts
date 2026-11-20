@@ -1121,15 +1121,12 @@ export async function runTurn(
       onPermissionRequest: undefined,
     };
     const permissionPlan = permissionsFromRequest(request);
-    // The session's answered interaction rows are the ONLY source of an approval decision. An
-    // approval envelope in the request messages is never read as one: anyone who can put messages
-    // into a run request can write it. The caller reads and claims those rows
-    // (`TurnApprovalRows.claimAll`) and hands them in, so this build is SYNCHRONOUS — see the
-    // invariant at the top of this function.
-    const seeded = opts.seededDecisions ?? [];
-    const storedDecisionMap = decisionMapOf(seeded);
-    // Unconditional: an EMPTY decision map on a turn the transcript called a resume is the
-    // interesting case.
+    // The session's answered interaction rows are the ONLY source of an approval decision; an
+    // approval envelope in the request messages is not one. The caller reads and claims those
+    // rows (`TurnApprovalRows.claimAll`) and hands them in, so this build is SYNCHRONOUS — see
+    // the invariant at the top of this function.
+    const storedDecisionMap = decisionMapOf(opts.seededDecisions ?? []);
+    // Logged even when empty: an empty map on a resume is the case worth seeing.
     logger(
       `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
     );
@@ -1188,14 +1185,19 @@ export async function runTurn(
     // which answers the parked gate directly. The turn-start `cancelStaleInteractions` sweep
     // (server.ts) cancels only PENDING gates of OTHER turns, and an answered gate is never
     // pending: the person's answer moved it to responded, and the caller's claim to resolved.
-    // Seeded with the tokens the CALLER already claimed. `TurnApprovalRows` resolves a row
-    // before adopting its decision, so those rows are terminal before this turn starts, and any
-    // further transition on them is a guaranteed 404. Without this seed a healthy run logged
-    // `resolve failed ... HTTP 404` every time — an error line for work that had already
-    // succeeded, which is worse than noise: it trains the reader to ignore a real failure.
-    const resolvedInteractionTokens = new Set<string>(
-      (opts.seededDecisions ?? []).map((entry) => entry.token),
-    );
+    // Seeded with the tokens the CALLER already claimed: the cold seed, and the warm resume's
+    // answers (the coordinator claims each row before it hands the decision in).
+    // `TurnApprovalRows` resolves a row before adopting its decision, so those rows are terminal
+    // before this turn starts, and any further transition on them is a guaranteed 404. Without
+    // this seed a healthy run logged `resolve failed ... HTTP 404` every time — an error line for
+    // work that had already succeeded, which is worse than noise: it trains the reader to ignore
+    // a real failure.
+    const resolvedInteractionTokens = new Set<string>([
+      ...(opts.seededDecisions ?? []).map((entry) => entry.token),
+      ...(
+        (opts.resume ?? opts.settleApprovalsThenPrompt)?.decisions ?? []
+      ).map((decision) => decision.interactionToken),
+    ]);
     const resolveInteractionToken = (
       token: string,
       verdict?: { approved: boolean; toolCallId: string },

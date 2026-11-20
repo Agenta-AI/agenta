@@ -25,6 +25,10 @@ import {
   type PermissionDecision,
 } from "../../src/responder.ts";
 import { answeredDecisions } from "../utils/answered-decisions.ts";
+import {
+  decisionMapOf,
+  type SeededDecision,
+} from "../../src/sessions/interactions.ts";
 
 function plan(defaultMode: PermissionPlan["default"]): PermissionPlan {
   return { default: defaultMode, rules: [] };
@@ -443,150 +447,53 @@ describe("ApprovalResponder", () => {
   });
 });
 
-describe("extractApprovalDecisions", () => {
-  it("builds the lookup from approval tool_result blocks by name+args", () => {
-    const request: AgentRunRequest = {
-      sessionId: "s-1",
-      messages: [
-        { role: "user", content: "do the thing" },
-        {
-          role: "assistant",
-          content: [
-            {
-              type: "tool_call",
-              toolCallId: "tc-1",
-              toolName: "edit",
-              input: { path: "a.txt" },
-            },
-          ],
-        },
-        {
-          role: "tool",
-          content: [
-            {
-              type: "tool_result",
-              toolCallId: "tc-1",
-              toolName: "edit",
-              output: { approved: true },
-            },
-            {
-              type: "tool_result",
-              toolCallId: "tc-2",
-              toolName: "bash",
-              input: { cmd: "ls" },
-              output: { approved: false },
-            },
-          ],
-        },
-      ],
-    };
-
-    const decisions = answeredDecisions(request);
-    assert.deepEqual(
-      decisions.get(approvedCallKey("edit", { path: "a.txt" })!),
-      [{ decision: "allow" }],
-    );
-    assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), [
-      { decision: "deny" },
-    ]);
-    assert.equal(decisions.has("edit"), false);
-    assert.equal(decisions.has("tc-1"), false);
+describe("ConversationDecisions with the session's claimed approval rows", () => {
+  const seeded = (key: string, token: string): SeededDecision => ({
+    key,
+    decision: { decision: "allow", interactionToken: token },
+    token,
   });
 
-  it("keeps duplicate identical approval decisions in FIFO order", () => {
-    const request: AgentRunRequest = {
-      sessionId: "s-duplicates",
-      messages: [
-        {
-          role: "assistant",
-          content: [
-            {
-              type: "tool_call",
-              toolCallId: "tc-1",
-              toolName: "edit",
-              input: { path: "a.txt" },
-            },
-            {
-              type: "tool_call",
-              toolCallId: "tc-2",
-              toolName: "edit",
-              input: { path: "a.txt" },
-            },
-          ],
-        },
-        {
-          role: "tool",
-          content: [
-            {
-              type: "tool_result",
-              toolCallId: "tc-1",
-              output: { approved: true },
-            },
-            {
-              type: "tool_result",
-              toolCallId: "tc-2",
-              output: { approved: true },
-            },
-          ],
-        },
-      ],
-    };
+  it("keeps two answers for identical calls in FIFO order, each used once", () => {
     const key = approvedCallKey("edit", { path: "a.txt" })!;
-    const decisions = answeredDecisions(request);
-
-    assert.deepEqual(decisions.get(key), [
-      { decision: "allow" },
-      { decision: "allow" },
-    ]);
-
-    const stored = new ConversationDecisions(decisions);
+    const stored = new ConversationDecisions(
+      decisionMapOf([seeded(key, "tok-1"), seeded(key, "tok-2")]),
+    );
     const duplicateGate = gate({ toolName: "edit", args: { path: "a.txt" } });
-    assert.deepEqual(stored.take(duplicateGate), { decision: "allow" });
-    assert.deepEqual(stored.take(duplicateGate), { decision: "allow" });
+    assert.deepEqual(stored.take(duplicateGate), {
+      decision: "allow",
+      interactionToken: "tok-1",
+    });
+    assert.deepEqual(stored.take(duplicateGate), {
+      decision: "allow",
+      interactionToken: "tok-2",
+    });
     assert.equal(stored.take(duplicateGate), undefined);
   });
 
   it("consumes an approval when the live gate re-issues an object arg as a JSON string", () => {
     const workflowRevision = { delta: { a: 1 } };
-    const request: AgentRunRequest = {
-      sessionId: "s-jsonish",
-      messages: [
-        {
-          role: "assistant",
-          content: [
-            {
-              type: "tool_call",
-              toolCallId: "tc-jsonish",
-              toolName: "mcp__agenta-tools__commit_revision",
-              input: { workflow_revision: workflowRevision },
-            },
-          ],
-        },
-        {
-          role: "tool",
-          content: [
-            {
-              type: "tool_result",
-              toolCallId: "tc-jsonish",
-              output: { approved: true },
-            },
-          ],
-        },
-      ],
-    };
-    const stored = new ConversationDecisions(answeredDecisions(request));
+    const tool = "mcp__agenta-tools__commit_revision";
+    const stored = new ConversationDecisions(
+      decisionMapOf([
+        seeded(
+          approvedCallKey(tool, { workflow_revision: workflowRevision })!,
+          "tok-1",
+        ),
+      ]),
+    );
 
     assert.deepEqual(
       stored.take({
         executor: "harness",
-        toolName: "mcp__agenta-tools__commit_revision",
+        toolName: tool,
         args: { workflow_revision: JSON.stringify(workflowRevision) },
       }),
-      { decision: "allow" },
+      { decision: "allow", interactionToken: "tok-1" },
     );
   });
 
-  it("routes a correlated client-tool output to the CLIENT store, not the approval store", () => {
+  it("puts a correlated client-tool output in the CLIENT store only", () => {
     const request: AgentRunRequest = {
       messages: [
         {
@@ -616,39 +523,9 @@ describe("extractApprovalDecisions", () => {
     const key = approvedCallKey("request_connection", {
       integration: "slack",
     })!;
-    // A raw browser output is NOT an approval decision; it lives only in the client store.
-    assert.equal(answeredDecisions(request).has(key), false);
     assert.deepEqual(extractClientToolOutputs(request).get(key), [
       { connected: true },
     ]);
-  });
-
-  it("ignores ordinary tool results that cannot be bound to a call shape", () => {
-    const request: AgentRunRequest = {
-      messages: [
-        {
-          role: "tool",
-          content: [
-            {
-              type: "tool_result",
-              toolCallId: "tc-9",
-              output: "the weather is 24C",
-            },
-            { type: "tool_result", toolCallId: "tc-10", output: { temp: 24 } },
-            { type: "text", text: "hello" },
-          ],
-        },
-      ],
-    };
-
-    assert.equal(answeredDecisions(request).size, 0);
-  });
-
-  it("returns an empty lookup when there are no structured messages", () => {
-    const request: AgentRunRequest = {
-      messages: [{ role: "user", content: "just a single turn" }],
-    };
-    assert.equal(answeredDecisions(request).size, 0);
   });
 });
 

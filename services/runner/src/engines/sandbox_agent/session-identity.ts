@@ -13,7 +13,7 @@ import {
 } from "../../protocol.ts";
 import {
   approvalDecisionOf,
-  storedApprovalDecisionOf,
+  approvalEnvelopeOf,
 } from "../../responder.ts";
 import type { TurnApprovalRows } from "../../sessions/interactions.ts";
 import type { ParkedApproval } from "./runtime-contracts.ts";
@@ -612,7 +612,7 @@ export function approvalDecisionForToolCall(
         if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
           continue;
         }
-        const envelope = storedApprovalDecisionOf(block);
+        const envelope = approvalEnvelopeOf(block);
         if (envelope !== undefined) return rows.verifiedDecision(envelope, gate);
       }
     }

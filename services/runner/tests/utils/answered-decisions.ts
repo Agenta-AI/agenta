@@ -10,7 +10,7 @@ import type { AgentRunRequest, ContentBlock } from "../../src/protocol.ts";
 import {
   buildCallShapeIndex,
   coldReplayKey,
-  storedApprovalDecisionOf,
+  approvalEnvelopeOf,
 } from "../../src/responder.ts";
 import {
   TurnApprovalRows,
@@ -26,7 +26,7 @@ export function answeredDecisions(
     if (!Array.isArray(message?.content)) continue;
     for (const block of message.content as ContentBlock[]) {
       if (block?.type !== "tool_result") continue;
-      const decision = storedApprovalDecisionOf(block);
+      const decision = approvalEnvelopeOf(block);
       if (decision === undefined) continue;
       const key = coldReplayKey(block, callShapeById);
       if (!key) continue;
@@ -52,7 +52,7 @@ export function personAnsweredRows(
     if (!Array.isArray(message?.content)) continue;
     for (const block of message.content as ContentBlock[]) {
       if (block?.type !== "tool_result") continue;
-      const envelope = storedApprovalDecisionOf(block);
+      const envelope = approvalEnvelopeOf(block);
       if (!envelope?.interactionToken) continue;
       const shape = block.toolCallId
         ? callShapeById.get(block.toolCallId)
