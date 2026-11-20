@@ -16,13 +16,15 @@ import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {SearchInput} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {CaretRight} from "@phosphor-icons/react"
 
-import {ProviderTile} from "./ProviderListBody"
+import {ProviderLogo} from "./ProviderListBody"
 import {providerConnectionView, type ProviderAddViewParams} from "./providerViews"
 import {subscriptionViewFor} from "./subscriptionViews"
 
 const SUBSCRIPTIONS = ["chatgpt", "claude"]
 
+/** A 31 px row with a divider and a chevron (F09 f1b); 44 px tall on a phone. */
 const PickRow = ({
     kind,
     name,
@@ -34,21 +36,31 @@ const PickRow = ({
     hint?: string
     onPick: () => void
 }) => (
-    <li>
+    <li className="border-0 border-b border-solid border-colorSplit">
         <button
             type="button"
             onClick={onPick}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 py-2 text-left hover:bg-colorFillTertiary"
+            className="flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 py-[5px] text-left font-[inherit] hover:bg-colorFillTertiary max-md:min-h-11"
         >
-            <ProviderTile kind={kind} />
-            <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm text-colorText">{name}</span>
+            <ProviderLogo kind={kind} />
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[13px] leading-5 text-colorText">{name}</span>
                 {hint ? (
-                    <span className="truncate text-xs text-colorTextTertiary">{hint}</span>
+                    <span className="truncate text-[11px] leading-4 text-colorTextTertiary">
+                        {hint}
+                    </span>
                 ) : null}
             </span>
+            <CaretRight size={14} aria-hidden className="shrink-0 text-colorTextTertiary" />
         </button>
     </li>
+)
+
+/** A group heading, as the list view draws it. */
+const GroupLabel = ({children}: {children: string}) => (
+    <div className="px-4 pb-1 pt-3.5 text-[12px] font-medium leading-5 text-colorTextTertiary">
+        {children}
+    </div>
 )
 
 const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) => {
@@ -72,9 +84,7 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) =>
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
-            <div className="px-4 pb-1 pt-4 text-xs font-medium text-colorTextSecondary">
-                {t("entityUi.providerList.useSubscription")}
-            </div>
+            <GroupLabel>{t("entityUi.providerList.useSubscription")}</GroupLabel>
             <ul className="m-0 list-none p-0">
                 {SUBSCRIPTIONS.map((provider) => (
                     <PickRow
@@ -87,10 +97,8 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) =>
                     />
                 ))}
             </ul>
-            <div className="px-4 pb-1 pt-4 text-xs font-medium text-colorTextSecondary">
-                {t("entityUi.providerList.useApiKey")}
-            </div>
-            <div className="px-4 pb-2">
+            <GroupLabel>{t("entityUi.providerList.useApiKey")}</GroupLabel>
+            <div className="px-4 pb-2 pt-1">
                 <SearchInput
                     placeholder={t("entityUi.providerDrawer.searchProviders")}
                     value={search}

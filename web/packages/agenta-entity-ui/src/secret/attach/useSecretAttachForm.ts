@@ -232,8 +232,12 @@ export const useSecretAttachForm = ({
         setSelected(value)
         setError(null)
         const next = readSecretChoice(value)
-        if (keepEnv || next.kind !== "shared") return
-        const secret = allProjectSecrets.find((candidate) => candidate.slug === next.slug)
+        if (keepEnv || (next.kind !== "shared" && next.kind !== "user")) return
+        // The variable follows the picked secret, a shared one or the person's own.
+        const secret =
+            next.kind === "shared"
+                ? allProjectSecrets.find((candidate) => candidate.slug === next.slug)
+                : ownSecrets.find((candidate) => candidate.id === next.secretId)
         setEnvVarState(
             preserveAgentSecretEnvOverride({
                 current: envVar,

@@ -36,12 +36,12 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
             )}
             className={ROW}
         >
-            <SkillMark size={32} />
+            <SkillMark size={28} />
             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="truncate text-sm font-medium leading-[1.45] text-foreground">
+                <span className="truncate text-[13px] font-medium leading-5 text-colorText">
                     {title}
                 </span>
-                <span className="truncate text-xs leading-[1.45] text-muted-foreground">
+                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
                     {option.source ? `${description} · ${option.source.label}` : description}
                 </span>
             </span>
@@ -82,18 +82,22 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
 
     const options = useMemo<SkillListItem[]>(() => {
         const added = new Map(addedSlugs.map((slug) => [slug, {}]))
-        return registry
-            .filter((item) => !item.archived)
-            .map((item) => {
-                const mapped = toPickerItem(
-                    item,
-                    item.origin && !item.origin.detached ? "imported" : "project",
-                    added,
-                )
-                if (!mapped) return null
-                return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
-            })
-            .filter((item): item is SkillListItem => item !== null)
+        return (
+            registry
+                .filter((item) => !item.archived)
+                .map((item) => {
+                    const mapped = toPickerItem(
+                        item,
+                        item.origin && !item.origin.detached ? "imported" : "project",
+                        added,
+                    )
+                    if (!mapped) return null
+                    return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
+                })
+                .filter((item): item is SkillListItem => item !== null)
+                // The agent's skills first (F04 f2); the sort keeps the registry order within each part.
+                .sort((a, b) => Number(Boolean(b.added)) - Number(Boolean(a.added)))
+        )
     }, [addedSlugs, registry])
     const visible = useMemo(() => filterSkillOptions(options, search), [options, search])
     const searching = Boolean(search.trim())

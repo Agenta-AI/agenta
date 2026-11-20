@@ -6,15 +6,15 @@
  * host offers it, Active models, Harnesses. The host draws Cancel and Save: the form publishes
  * its save state through `onSaveStateChange`.
  *
- * The key check runs by itself (there is no "Test" button): on a paste, on a blur after an edit,
- * when a saved connection opens (with the stored key, which the browser never sends), and on
+ * The key check runs by itself (there is no "Test" button): on a paste, a moment after the last
+ * keystroke, on a blur after an edit, when a saved connection opens (with the stored key, which the browser never sends), and on
  * "Check again" or "Update". "Stop" or a new edit drops the running check. A standard provider
  * shows its models and harnesses only after the check passes; a provider with several
  * credential fields keeps the dashed "Active models" box until then.
  *
  * Spec: openspec model-providers ("Automatic key check" and the per-provider forms).
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {organizationLabel} from "@agenta/entities/organization"
 import {
@@ -57,6 +57,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {useIsPhone} from "@agenta/ui/phone"
+import {cn} from "@agenta/ui/styles"
 import {Button, InputAffix, PasswordInput, Segmented, Spinner, Textarea} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -95,7 +96,7 @@ const HARNESS_DOMAINS: Record<string, string> = {pi_core: "pi.dev"}
  */
 const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
 
-/** How long a multi-field form waits after the last keystroke before it checks by itself. */
+/** How long the form waits after the last keystroke before it checks by itself. */
 const SETTLE_MS = 800
 
 /**
@@ -377,6 +378,16 @@ const ProviderConnectionCard = ({
         runCheck(chosen, pasted)
     }
 
+    // The refresh belongs to this mounted card. An unmount (React's StrictMode replay, a view that
+    // hides and shows again) aborts the running check, so the next mount must start it again;
+    // otherwise "Updating the list…" waits on an answer that is ignored.
+    useEffect(
+        () => () => {
+            refreshedFor.current = null
+        },
+        [],
+    )
+
     // A saved connection fetches its list again when it opens, with the stored key.
     useEffect(() => {
         if (!connection || !keyCheck.ready || refreshedFor.current === connection.id) return
@@ -520,8 +531,8 @@ const ProviderConnectionCard = ({
             checkedCount > 0 ||
             (!!connection && checkedModels === (connection.models ?? null)))
 
-    // A form with several credential fields checks by itself a moment after the last required
-    // field is filled, even when the focus stays in it.
+    // The form checks by itself a moment after the last keystroke, even when the focus stays in
+    // the field.
     const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     useEffect(() => () => clearTimeout(settleTimer.current ?? undefined), [])
 
@@ -533,7 +544,7 @@ const ProviderConnectionCard = ({
         keyCheck.drop()
         clearTimeout(settleTimer.current ?? undefined)
         if (pasted) autoCheck(next, true)
-        else if (!isStandard) settleTimer.current = setTimeout(() => autoCheck(next), SETTLE_MS)
+        else settleTimer.current = setTimeout(() => autoCheck(next), SETTLE_MS)
     }
 
     const changeBedrockWay = (next: BedrockWay) => {
@@ -636,6 +647,8 @@ const ProviderConnectionCard = ({
     const checkAgain = () => runCheck(chosenCredential, true)
 
     // The line under the credential fields: the check that runs, or what it answered.
+    // The status line explains a rejected key; the rejected fields point to it.
+    const statusId = useId()
     const statusLine = ((): StatusLine | null => {
         if (checkState.phase === "idle") return null
         // Stopped: nothing to report, and "Check again" starts it again.
@@ -705,6 +718,7 @@ const ProviderConnectionCard = ({
             ? t("entityUi.providerKeyForm.unreachable", {provider: displayTitle})
             : null
 
+    const keyRejected = statusLine?.tone === "error" && credentialStatus === "invalid"
     const protocolText = protocolField ? translateProtocolField(protocolField) : null
     const shownFields = fields.filter((field) => !otherWayFields.includes(field.key))
     const firstSecretField = shownFields.find(isSecretField)?.key
@@ -720,6 +734,8 @@ const ProviderConnectionCard = ({
         // Stored but unreadable: the field is a replace box, never a prefilled value.
         const replaceOnly = storedFields.includes(field.key)
         const isKey = field.key === "apiKey"
+        // A rejected key marks the secret fields it came from.
+        const rejected = keyRejected && isSecretField(field)
         const label = replaceOnly
             ? isKey
                 ? t("entityUi.providerConnection.replaceKey")
@@ -749,11 +765,16 @@ const ProviderConnectionCard = ({
         const common = {
             disabled: readOnly,
             placeholder,
+            "aria-invalid": rejected || undefined,
+            "aria-describedby": rejected ? statusId : undefined,
             ...PASSWORD_MANAGER_OPT_OUT,
             onPaste: () => {
                 pastedInto.current = field.key
             },
-            onBlur: () => autoCheck(credential),
+            onBlur: () => {
+                clearTimeout(settleTimer.current ?? undefined)
+                autoCheck(credential)
+            },
         }
         const change = (next: string) => {
             const pasted = pastedInto.current === field.key
@@ -785,7 +806,7 @@ const ProviderConnectionCard = ({
                     <PasswordInput
                         {...common}
                         autoFocus={!connection && field.key === firstSecretField}
-                        className={FIELD_TYPE_SCALE}
+                        className={cn(FIELD_TYPE_SCALE, rejected && "border-colorErrorBorder")}
                         autoComplete="new-password"
                         value={value}
                         onValueChange={change}
@@ -808,13 +829,15 @@ const ProviderConnectionCard = ({
 
     const statusNode = statusLine ? (
         statusLine.tone === "progress" ? (
-            <span className="flex items-center gap-2 text-colorTextSecondary" role="status">
+            <span className="flex items-center gap-1.5 text-colorTextSecondary" role="status">
                 <Spinner size="small" />
-                <span>{t("entityUi.providerKeyForm.checking", {provider: displayTitle})}</span>
+                <span className="min-w-0 flex-1">
+                    {t("entityUi.providerKeyForm.checking", {provider: displayTitle})}
+                </span>
                 <Button
                     variant="link"
                     size="sm"
-                    className="h-auto px-0"
+                    className="h-auto shrink-0 px-0 font-medium text-colorText no-underline"
                     onClick={() => keyCheck.stop()}
                 >
                     {t("entityUi.providerKeyForm.stop")}
@@ -824,10 +847,10 @@ const ProviderConnectionCard = ({
             <span
                 className={
                     statusLine.tone === "error"
-                        ? "flex min-w-0 items-start gap-1 text-colorError"
+                        ? "flex min-w-0 items-start gap-1.5 text-colorError"
                         : statusLine.tone === "success"
                           ? "flex min-w-0 items-start gap-1.5 text-colorSuccess"
-                          : "flex min-w-0 items-start gap-1 text-colorTextSecondary"
+                          : "flex min-w-0 items-start gap-1.5 text-colorTextSecondary"
                 }
                 role={statusLine.tone === "error" ? "alert" : "status"}
             >
@@ -836,29 +859,24 @@ const ProviderConnectionCard = ({
                 ) : statusLine.tone === "success" ? (
                     <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
                 ) : null}
-                <span>
+                <span id={statusId} className="min-w-0 flex-1">
                     {statusLine.text}
-                    {statusLine.checkAgain ? (
-                        <>
-                            {statusLine.text ? " " : null}
-                            <Button
-                                variant="link"
-                                size="sm"
-                                className="h-auto px-0 align-baseline"
-                                onClick={checkAgain}
-                            >
-                                {t("entityUi.providerKeyForm.checkAgain")}
-                            </Button>
-                        </>
-                    ) : null}
                 </span>
+                {statusLine.checkAgain ? (
+                    <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto shrink-0 px-0 font-medium text-colorText no-underline"
+                        onClick={checkAgain}
+                    >
+                        {t("entityUi.providerKeyForm.checkAgain")}
+                    </Button>
+                ) : null}
             </span>
         )
     ) : // Before any check, a new standard key says what will happen.
     isStandard && !connection && !readOnly ? (
-        <span className="text-[11px] text-colorTextTertiary">
-            {t("entityUi.providerKeyForm.keyCheckHint")}
-        </span>
+        <span className="text-colorTextTertiary">{t("entityUi.providerKeyForm.keyCheckHint")}</span>
     ) : null
 
     return (
@@ -916,6 +934,7 @@ const ProviderConnectionCard = ({
                         <span className="font-medium text-colorText">{protocolText.label}</span>
                         <Segmented
                             size="sm"
+                            className="self-start"
                             disabled={readOnly}
                             options={protocolText.options}
                             // An undeclared record shows the default without having declared it;
@@ -978,7 +997,7 @@ const ProviderConnectionCard = ({
                 />
             ) : isStandard ? (
                 // The models come after the key works; one line says so.
-                <p className="m-0 text-colorTextTertiary">
+                <p className="m-0 border-0 border-t border-solid border-colorSplit pt-3 text-[12px] text-colorTextTertiary">
                     {t("entityUi.providerKeyForm.nextModels")}
                 </p>
             ) : (
@@ -997,7 +1016,12 @@ const ProviderConnectionCard = ({
                 <HarnessesSection
                     choices={harnessChoices}
                     selected={effectiveHarnesses}
-                    unrestricted={!harnesses && !defaultHarness}
+                    // "Any harness" only when one can reach this provider at all.
+                    unrestricted={
+                        !harnesses &&
+                        !defaultHarness &&
+                        harnessChoices.some((choice) => choice.supported)
+                    }
                     onToggle={(id, checked) =>
                         setHarnesses(
                             checked

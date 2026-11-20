@@ -24,7 +24,7 @@
     "fileContent": "文件内容",
     "advanced": "高级",
     "hideFromPrompt": "从提示词中隐藏",
-    "hideFromPromptHint": "Agent 不会自行选用此技能，你需要用 /skill:name 手动运行。",
+    "hideFromPromptHint": "Agent 不会自行选用此技能，你需要用 /skill:{{name}} 手动运行。",
     "allowExecutable": "允许可执行文件",
     "allowExecutableHint": "允许此技能中的文件作为程序运行。你的沙箱设置也必须允许这一点。"
 }

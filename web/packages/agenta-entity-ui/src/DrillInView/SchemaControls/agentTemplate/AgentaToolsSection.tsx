@@ -139,12 +139,10 @@ export function AgentaToolsSection({
     const preset = agentaToolsPreset(tools, access)
     return (
         <div className="flex min-h-0 flex-col">
-            <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">{t("entityUi.buildKit.agentaTools")}</span>
-                <span className="text-xs text-colorTextDescription">
-                    {t("entityUi.buildKit.agentaToolsHint")}
-                </span>
-            </div>
+            {/* The view's breadcrumb names the part, so the body starts at its description (F04 f10). */}
+            <span className="text-[13px] leading-5 text-colorTextSecondary">
+                {t("entityUi.buildKit.agentaToolsHint")}
+            </span>
             <PermissionDrawerBody
                 flush
                 catalogKey="agenta-tools"

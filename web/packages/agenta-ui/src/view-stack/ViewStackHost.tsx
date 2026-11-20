@@ -379,14 +379,15 @@ export const ViewStackHost = ({
                         apply={top.view.apply}
                         readOnly={
                             (phone && Boolean(top.view.readOnlyOnPhone)) ||
-                            top.view.actionRow === false
+                            top.view.actionRow === false ||
+                            topForm?.actionRow === false
                         }
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
                         footerStartRef={setFooterStart}
                         onBack={() => void back()}
-                        onCancel={cancel}
+                        onCancel={topForm?.cancel ?? cancel}
                         onSave={() => void save()}
                     >
                         {entries.map((entry, index) => (
@@ -404,6 +405,7 @@ export const ViewStackHost = ({
                                 replace={replace}
                                 back={back}
                                 cancel={cancel}
+                                save={save}
                             />
                         ))}
                     </Chrome>
@@ -433,6 +435,7 @@ const MountedView = ({
     replace,
     back,
     cancel,
+    save,
 }: {
     entry: Entry
     isTop: boolean
@@ -456,6 +459,7 @@ const MountedView = ({
     ) => Promise<boolean>
     back: () => Promise<boolean>
     cancel: () => void
+    save: () => Promise<void>
 }) => {
     const {key} = entry
     const api = useMemo<ViewEntryApi>(
@@ -482,8 +486,9 @@ const MountedView = ({
             replace: (view, params, target) => replace(key, view, params, target),
             back,
             cancel,
+            save,
         }),
-        [depth, key, push, replace, back, cancel],
+        [depth, key, push, replace, back, cancel, save],
     )
     const Component = entry.view.Component
     return (

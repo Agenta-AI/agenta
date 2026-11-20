@@ -31,8 +31,8 @@ describe("pickerEmbedEntry", () => {
 describe("filterSkillOptions", () => {
     const options = [toPickerItem(SUFFIXED, "project", new Map())!]
 
-    it("matches the displayed title", () => {
-        expect(filterSkillOptions(options, "Replacement Policy")).toHaveLength(1)
+    it("matches the displayed name", () => {
+        expect(filterSkillOptions(options, "replacement-policy")).toHaveLength(1)
     })
 
     it("keeps every row for an empty search and drops a row that matches nothing", () => {

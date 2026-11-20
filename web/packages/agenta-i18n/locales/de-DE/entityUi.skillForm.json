@@ -24,7 +24,7 @@
     "fileContent": "Dateiinhalt",
     "advanced": "Erweitert",
     "hideFromPrompt": "Aus dem Prompt ausblenden",
-    "hideFromPromptHint": "Der Agent wählt diesen Skill nicht von sich aus. Sie führen ihn selbst mit /skill:name aus.",
+    "hideFromPromptHint": "Der Agent wählt diesen Skill nicht von sich aus. Sie führen ihn selbst mit /skill:{{name}} aus.",
     "allowExecutable": "Ausführbare Dateien zulassen",
     "allowExecutableHint": "Erlaubt, die Dateien dieses Skills als Programme auszuführen. Ihre Sandbox-Einstellungen müssen dies ebenfalls zulassen."
 }

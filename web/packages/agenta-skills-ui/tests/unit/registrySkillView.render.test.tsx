@@ -7,8 +7,10 @@ import {act, createElement} from "react"
 import {
     ViewFormActions,
     ViewStackHost,
+    useViewForm,
     useViewStack,
     type ViewChromeProps,
+    type ViewForm,
 } from "@agenta/ui/view-stack"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {atom} from "jotai"
@@ -53,6 +55,11 @@ vi.mock("@agenta/entity-ui/drill-in", () => ({
     firstBadFile: () => undefined,
     skillFilesOf: () => [],
     useSkillDownloadAction: () => [],
+    // The form with no upload step open is the view's own form.
+    useSkillViewForm: (form: ViewForm) => {
+        useViewForm(form)
+        return {onUploadControl: () => undefined}
+    },
     SkillViewHeader: ({name}: {name: string}) => createElement("h2", null, name),
     SkillFormView: ({
         value,

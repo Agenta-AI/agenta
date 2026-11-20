@@ -16,6 +16,7 @@ import {
     SkillFormSkeleton,
     SkillFormView,
     SkillViewHeader,
+    useSkillViewForm,
     skillFilesOf,
     useSkillDownloadAction,
     type SkillAction,
@@ -46,6 +47,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
+    PHONE_TOUCH_TARGET_CLASS,
     Popover,
     PopoverAnchor,
     PopoverContent,
@@ -55,7 +57,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {Archive, ArrowUUpLeft, Info, Lightning, Plus, WarningCircle} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -233,38 +235,41 @@ const RegistrySkillEditor = ({
         firstBadFile(skillFilesOf(value)) === undefined
     const [error, setError] = useState<string | null>(null)
 
-    useViewForm({
-        dirty,
-        valid,
-        leaveDescription: t("entityUi.skillView.registryLeaveDescription"),
-        save: async () => {
-            const parsed = skillContentSchema.safeParse(value)
-            if (!parsed.success || !editBaseId) return false
-            setError(null)
-            try {
-                await commitSkillRevision({
-                    projectId,
-                    workflowId,
-                    skill: parsed.data,
-                    // A commit landed meanwhile conflicts instead of silently overwriting it.
-                    baseRevisionId: editBaseId,
+    const {onUploadControl} = useSkillViewForm(
+        {
+            dirty,
+            valid,
+            leaveDescription: t("entityUi.skillView.registryLeaveDescription"),
+            save: async () => {
+                const parsed = skillContentSchema.safeParse(value)
+                if (!parsed.success || !editBaseId) return false
+                setError(null)
+                try {
+                    await commitSkillRevision({
+                        projectId,
+                        workflowId,
+                        skill: parsed.data,
+                        // A commit landed meanwhile conflicts instead of silently overwriting it.
+                        baseRevisionId: editBaseId,
+                    })
+                } catch (err) {
+                    setError(
+                        err instanceof Error && err.message
+                            ? t("skills.gallery.saveFailedDetail", {error: err.message})
+                            : t("skills.gallery.saveFailed"),
+                    )
+                    return false
+                }
+                invalidateSkillsListCache()
+                // The next open loads the new head.
+                void getHostQueryClient().invalidateQueries({
+                    queryKey: skillRevisionsQueryKey(projectId, workflowId),
                 })
-            } catch (err) {
-                setError(
-                    err instanceof Error && err.message
-                        ? t("skills.gallery.saveFailedDetail", {error: err.message})
-                        : t("skills.gallery.saveFailed"),
-                )
-                return false
-            }
-            invalidateSkillsListCache()
-            // The next open loads the new head.
-            void getHostQueryClient().invalidateQueries({
-                queryKey: skillRevisionsQueryKey(projectId, workflowId),
-            })
-            return true
+                return true
+            },
         },
-    })
+        t("entityUi.skillView.upload"),
+    )
 
     // Archive keeps the slug reserved; the registry hides the skill until it is restored.
     const [archiveOpen, setArchiveOpen] = useState(false)
@@ -375,7 +380,10 @@ const RegistrySkillEditor = ({
                         href={registryLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-inherit underline underline-offset-2"
+                        className={cn(
+                            "text-inherit underline underline-offset-2",
+                            PHONE_TOUCH_TARGET_CLASS,
+                        )}
                     >
                         {text}
                     </a>
@@ -493,6 +501,7 @@ const RegistrySkillEditor = ({
                         downloadable
                         disabled={readOnly}
                         valuesAsText={viewReadOnly}
+                        onUploadControl={onUploadControl}
                         showMissing={dirty && !valid}
                     />
                 )}

@@ -9,7 +9,7 @@
  * "skill-template"`): a kebab `name`, a `description`, the `body` (SKILL.md Markdown), the bundled
  * `files[]`, and two switches. Controlled: the host owns the value and saves it.
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useId, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -31,17 +31,19 @@ import {
     AlertDialogTitle,
     AutosizeTextarea,
     Button,
+    CollapseCaret,
     Field,
     Input,
     Popover,
     PopoverContent,
+    PHONE_TOUCH_TARGET_CLASS,
     PopoverTrigger,
     Switch,
 } from "@agenta/ui/ui"
 import {
     ArrowsInSimple,
     ArrowsOutSimple,
-    CaretDown,
+    CaretUpDown,
     File as FileIcon,
     SlidersHorizontal,
     Trash,
@@ -66,11 +68,12 @@ import {
     SKILL_BODY_MAX,
     SKILL_DESCRIPTION_MAX,
     SKILL_NAME_MAX,
+    SKILL_NAME_PATTERN,
     skillNameError,
     slugifySkillName,
 } from "./skillName"
 import {applySkillUpload, mergePastedSkill, type SkillFileEntry} from "./skillUpload"
-import {SkillUploadStep} from "./SkillUploadStep"
+import {SkillUploadStep, type SkillUploadControl} from "./SkillUploadStep"
 
 export interface SkillFormViewProps {
     value: Record<string, unknown>
@@ -98,6 +101,11 @@ export interface SkillFormViewProps {
      * rows, and the editors show their text without a toolbar. Pass `disabled` with it.
      */
     valuesAsText?: boolean
+    /**
+     * The upload step reports here and leaves Cancel and Upload to the view's action row. Pass
+     * `onUploadControl` from `useSkillViewForm`. Left out, the step draws its own two buttons.
+     */
+    onUploadControl?: (control: SkillUploadControl | null) => void
 }
 
 const tNow = createT(skillCatalog)
@@ -141,8 +149,8 @@ function SwitchRow({
     return (
         <div className="flex items-start justify-between gap-3">
             <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-xs font-medium">{label}</span>
-                <span className="text-xs text-muted-foreground">{hint}</span>
+                <span className="text-[13px] leading-5 text-colorText">{label}</span>
+                <span className="text-[12px] leading-4 text-colorTextTertiary">{hint}</span>
             </span>
             {valuesAsText ? (
                 <span className="shrink-0 text-sm text-colorText">
@@ -177,6 +185,33 @@ function ReadOnlyText({text, mono = false}: {text: string; mono?: boolean}) {
     )
 }
 
+/** A field label at the panel scale (F07): 12/16, medium, secondary. */
+const fieldLabel = (text: string) => (
+    <span className="text-[12px] leading-4 text-colorTextSecondary">{text}</span>
+)
+
+/** A field whose help line sits under the control (F07), not between the label and the control. */
+function FieldWithHelp({
+    help,
+    children,
+}: {
+    /** Left out for a read-only value: there is no control to explain. */
+    help?: string
+    children: (helpId: string | undefined) => ReactNode
+}) {
+    const helpId = useId()
+    return (
+        <div className="flex shrink-0 flex-col gap-1">
+            {children(help ? helpId : undefined)}
+            {help ? (
+                <span id={helpId} className="text-[12px] leading-4 text-colorTextTertiary">
+                    {help}
+                </span>
+            ) : null}
+        </div>
+    )
+}
+
 export function SkillFormView({
     value,
     onChange,
@@ -186,6 +221,7 @@ export function SkillFormView({
     autoFocusName = false,
     showMissing = false,
     downloadable = false,
+    onUploadControl,
 }: SkillFormViewProps) {
     const t = useT(skillCatalog, skillViewCatalog, skillsGalleryCatalog, schemaControlsCatalog)
     const skill = (value ?? {}) as Record<string, unknown>
@@ -212,6 +248,8 @@ export function SkillFormView({
     // A new or renamed file takes the caret in its path field.
     const pathInput = useRef<HTMLInputElement>(null)
     const [focusPath, setFocusPath] = useState(0)
+    // The file "Add a file" just made: its empty path is the starting point, not a mistake (F07 f6).
+    const [freshFile, setFreshFile] = useState<number | null>(null)
     useEffect(() => {
         if (!focusPath) return
         const frame = requestAnimationFrame(() => pathInput.current?.focus())
@@ -278,6 +316,7 @@ export function SkillFormView({
     }
     const addFile = () => {
         setFiles([...files, {path: "", content: ""}])
+        setFreshFile(files.length)
         open(files.length)
         setFocusPath((n) => n + 1)
     }
@@ -286,6 +325,7 @@ export function SkillFormView({
         setFocusPath((n) => n + 1)
     }
     const removeFile = (index: number) => {
+        setFreshFile(null)
         setFiles(files.filter((_, i) => i !== index))
         setSelected((current) => {
             if (current === "skill" || current === index) return "skill"
@@ -327,7 +367,10 @@ export function SkillFormView({
     const activeIndex = showSkill ? null : (selected as number)
     const pathProblem = activeIndex === null ? undefined : filePathProblem(files, activeIndex)
     // An empty path waits for a submit before it says so, like an empty name.
-    const shownPathProblem = pathProblem === "empty" && !showMissing ? undefined : pathProblem
+    const shownPathProblem =
+        pathProblem === "empty" && (!showMissing || activeIndex === freshFile)
+            ? undefined
+            : pathProblem
     const activePath = pathOf(activeFile)
     const newFile = activeIndex !== null && !baselineFiles.some((f) => pathOf(f) === activePath)
 
@@ -355,7 +398,10 @@ export function SkillFormView({
                     : t("entityUi.skillView.expandEditor")
             }
             onClick={() => setExpanded((prev) => !prev)}
-            className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className={cn(
+                "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
+                PHONE_TOUCH_TARGET_CLASS,
+            )}
         >
             {expanded ? <ArrowsInSimple size={14} /> : <ArrowsOutSimple size={14} />}
         </button>
@@ -369,31 +415,32 @@ export function SkillFormView({
 
     return (
         <div ref={setFormRoot} className="flex h-full min-h-0 flex-col">
-            <div className="flex shrink-0 items-center gap-2 px-4 pb-2">
+            {/* The file bar: a full-width band under the header (F07 f1). */}
+            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-y border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] px-4 max-md:h-14">
                 <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                     <PopoverTrigger asChild>
                         <button
                             type="button"
                             title={activeFile ? activePath : "SKILL.md"}
                             aria-haspopup="dialog"
-                            className="box-border flex h-8 min-w-0 max-w-[70%] cursor-pointer items-center gap-1.5 rounded-control-sm border border-solid border-border bg-background px-2 font-[inherit] text-foreground hover:bg-accent"
+                            className="box-border flex h-7 min-w-0 max-w-[70%] cursor-pointer items-center gap-2 rounded-[6px] border border-solid border-border bg-colorBgContainer px-2.5 font-[inherit] text-colorText hover:bg-colorFillTertiary max-md:h-11 max-md:rounded-lg"
                         >
-                            <FileIcon size={13} className="shrink-0 text-muted-foreground" />
-                            <span className="min-w-0 truncate font-mono text-xs">
+                            <FileIcon size={14} className="shrink-0 text-colorTextSecondary" />
+                            <span className="min-w-0 truncate font-mono text-[12px] leading-5">
                                 {uploading
                                     ? "SKILL.md"
                                     : activeFile
                                       ? middleCut(activePath || t("entityUi.skillForm.untitled"))
                                       : "SKILL.md"}
                             </span>
-                            <CaretDown size={12} className="shrink-0 text-muted-foreground" />
+                            <CaretUpDown size={14} className="shrink-0 text-colorTextTertiary" />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent
                         align="start"
                         sideOffset={4}
                         container={formRoot}
-                        className="w-[320px] p-0"
+                        className="w-[332px] p-0"
                     >
                         <SkillFileMenu
                             files={files}
@@ -433,7 +480,6 @@ export function SkillFormView({
                                       }
                                     : undefined
                             }
-                            countLine={countLine}
                             disabled={disabled}
                         />
                     </PopoverContent>
@@ -444,17 +490,19 @@ export function SkillFormView({
                         aria-label={t("entityUi.skillView.deleteFile")}
                         title={t("entityUi.skillView.deleteFile")}
                         onClick={() => setDeleting(activeIndex)}
-                        className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-control-sm border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-[var(--ag-colorError)]"
+                        className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-[var(--ag-colorError)] max-md:size-11"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                <span className="ml-auto shrink-0 text-xs text-muted-foreground">{countLine}</span>
+                <span className="ml-auto shrink-0 text-[12px] leading-4 text-colorTextTertiary">
+                    {countLine}
+                </span>
             </div>
 
             <div
                 className={cn(
-                    "flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4",
+                    "flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4 pt-3",
                     expanded ? "overflow-hidden" : "overflow-y-auto",
                 )}
             >
@@ -474,6 +522,7 @@ export function SkillFormView({
                 {uploading ? (
                     <SkillUploadStep
                         fileCount={fileCount}
+                        onControl={onUploadControl}
                         onCancel={() => setUploading(false)}
                         onUpload={(upload, mode) => {
                             const result = applySkillUpload(skill, upload, mode)
@@ -493,85 +542,109 @@ export function SkillFormView({
                     <>
                         {!expanded ? (
                             <>
-                                <Field
-                                    className="shrink-0"
-                                    invalid={nameMissing}
-                                    label={t("entityUi.skillForm.name")}
-                                    description={t("entityUi.skillForm.nameTooltip")}
-                                    error={
-                                        nameError ? (
-                                            <span>
-                                                {nameError}
-                                                {showNameSuggestion ? (
-                                                    <>
-                                                        {" "}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setNameTouched(true)
-                                                                set("name", nameSuggestion)
-                                                            }}
-                                                            disabled={disabled}
-                                                            className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-[inherit] text-xs text-error underline underline-offset-2 hover:no-underline disabled:cursor-not-allowed"
-                                                        >
-                                                            {t("entityUi.skillForm.useSuggestion", {
-                                                                name: nameSuggestion,
-                                                            })}
-                                                        </button>
-                                                    </>
-                                                ) : null}
-                                            </span>
-                                        ) : undefined
+                                <FieldWithHelp
+                                    help={
+                                        valuesAsText
+                                            ? undefined
+                                            : t("entityUi.skillForm.nameTooltip")
                                     }
                                 >
-                                    {valuesAsText ? (
-                                        <ReadOnlyText text={name} mono />
-                                    ) : (
-                                        <Input
-                                            ref={nameInput}
-                                            value={name}
-                                            onChange={(event) => {
-                                                setNameTouched(true)
-                                                set("name", event.target.value)
-                                            }}
-                                            maxLength={SKILL_NAME_MAX}
-                                            aria-invalid={
-                                                nameMissing || nameError ? true : undefined
+                                    {(helpId) => (
+                                        <Field
+                                            className="shrink-0"
+                                            invalid={nameMissing}
+                                            label={fieldLabel(t("entityUi.skillForm.name"))}
+                                            error={
+                                                nameError ? (
+                                                    <span>
+                                                        {nameError}
+                                                        {showNameSuggestion ? (
+                                                            <>
+                                                                {" "}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setNameTouched(true)
+                                                                        set("name", nameSuggestion)
+                                                                    }}
+                                                                    disabled={disabled}
+                                                                    className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-[inherit] text-xs text-error underline underline-offset-2 hover:no-underline disabled:cursor-not-allowed"
+                                                                >
+                                                                    {t(
+                                                                        "entityUi.skillForm.useSuggestion",
+                                                                        {
+                                                                            name: nameSuggestion,
+                                                                        },
+                                                                    )}
+                                                                </button>
+                                                            </>
+                                                        ) : null}
+                                                    </span>
+                                                ) : undefined
                                             }
-                                            placeholder="my-skill"
-                                            disabled={disabled}
-                                        />
-                                    )}
-                                </Field>
-                                <Field
-                                    className="shrink-0"
-                                    invalid={descriptionMissing}
-                                    label={t("entityUi.skillForm.description")}
-                                    description={t("entityUi.skillForm.descriptionTooltip")}
-                                    error={descriptionError}
-                                >
-                                    {valuesAsText ? (
-                                        <ReadOnlyText text={description} />
-                                    ) : (
-                                        <AutosizeTextarea
-                                            value={description}
-                                            onChange={(event) =>
-                                                set("description", event.target.value)
-                                            }
-                                            autoSize={{minRows: 4}}
-                                            className="resize-y"
-                                            aria-invalid={
-                                                descriptionMissing || descriptionError
-                                                    ? true
-                                                    : undefined
-                                            }
-                                            placeholder={t(
-                                                "entityUi.skillForm.descriptionPlaceholder",
+                                        >
+                                            {valuesAsText ? (
+                                                <ReadOnlyText text={name} mono />
+                                            ) : (
+                                                <Input
+                                                    ref={nameInput}
+                                                    value={name}
+                                                    onChange={(event) => {
+                                                        setNameTouched(true)
+                                                        set("name", event.target.value)
+                                                    }}
+                                                    maxLength={SKILL_NAME_MAX}
+                                                    aria-invalid={
+                                                        nameMissing || nameError ? true : undefined
+                                                    }
+                                                    placeholder="my-skill"
+                                                    disabled={disabled}
+                                                    aria-describedby={helpId}
+                                                    className="h-[34px] rounded-[6px] font-mono text-[13px]"
+                                                />
                                             )}
-                                            disabled={disabled}
-                                        />
+                                        </Field>
                                     )}
-                                </Field>
+                                </FieldWithHelp>
+                                <FieldWithHelp
+                                    help={
+                                        valuesAsText
+                                            ? undefined
+                                            : t("entityUi.skillForm.descriptionTooltip")
+                                    }
+                                >
+                                    {(helpId) => (
+                                        <Field
+                                            className="shrink-0"
+                                            invalid={descriptionMissing}
+                                            label={fieldLabel(t("entityUi.skillForm.description"))}
+                                            error={descriptionError}
+                                        >
+                                            {valuesAsText ? (
+                                                <ReadOnlyText text={description} />
+                                            ) : (
+                                                <AutosizeTextarea
+                                                    value={description}
+                                                    onChange={(event) =>
+                                                        set("description", event.target.value)
+                                                    }
+                                                    autoSize={{minRows: 4}}
+                                                    className="resize-y rounded-[6px] text-[13px]"
+                                                    aria-describedby={helpId}
+                                                    aria-invalid={
+                                                        descriptionMissing || descriptionError
+                                                            ? true
+                                                            : undefined
+                                                    }
+                                                    placeholder={t(
+                                                        "entityUi.skillForm.descriptionPlaceholder",
+                                                    )}
+                                                    disabled={disabled}
+                                                />
+                                            )}
+                                        </Field>
+                                    )}
+                                </FieldWithHelp>
                             </>
                         ) : null}
                         <Field
@@ -588,7 +661,7 @@ export function SkillFormView({
                                     expanded ? "min-h-0 flex-1" : `${EDITOR_MIN} flex-1`,
                                 )}
                             >
-                                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-border py-1 pl-3 pr-1">
+                                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] py-1 pl-1.5 pr-1">
                                     <div ref={setToolbarHost} className="min-w-0 flex-1" />
                                     <button
                                         type="button"
@@ -597,7 +670,10 @@ export function SkillFormView({
                                                 v === "source" ? "rendered" : "source",
                                             )
                                         }
-                                        className="shrink-0 cursor-pointer border-0 bg-transparent px-1 font-[inherit] text-xs text-muted-foreground hover:text-foreground"
+                                        className={cn(
+                                            "shrink-0 cursor-pointer rounded-[6px] border-0 bg-transparent px-1.5 py-0.5 font-[inherit] text-[12px] font-medium text-colorText underline underline-offset-2 hover:bg-colorFillTertiary",
+                                            PHONE_TOUCH_TARGET_CLASS,
+                                        )}
                                     >
                                         {bodyView === "source"
                                             ? t("entityUi.schemaControls.richText")
@@ -605,7 +681,7 @@ export function SkillFormView({
                                     </button>
                                     {expandButton}
                                 </div>
-                                <div className="flex min-h-0 flex-1 flex-col">
+                                <div className="md-prose-panel flex min-h-0 flex-1 flex-col">
                                     <MarkdownEditor
                                         value={body}
                                         onChange={(next) => set("body", next)}
@@ -629,30 +705,31 @@ export function SkillFormView({
                                     onClick={() => setAdvancedOpen((prev) => !prev)}
                                     // Not disabled when read only: the switches stay readable.
                                     aria-expanded={advancedOpen}
-                                    className="flex cursor-pointer items-center justify-between border-0 bg-transparent px-0 py-1.5 font-[inherit]"
+                                    className="flex cursor-pointer items-center justify-between border-0 bg-transparent px-0 py-1.5 font-[inherit] max-md:min-h-11"
                                 >
                                     <span className="flex items-center gap-2">
                                         <SlidersHorizontal
-                                            size={15}
-                                            className="text-[var(--ag-colorTextSecondary)]"
+                                            size={14}
+                                            className="text-colorTextSecondary"
                                         />
-                                        <span className="text-xs font-medium text-[var(--ag-colorText)]">
+                                        <span className="text-[12px] font-medium leading-4 text-colorText">
                                             {t("entityUi.skillForm.advanced")}
                                         </span>
                                     </span>
-                                    <CaretDown
-                                        size={14}
-                                        className={cn(
-                                            "text-[var(--ag-colorIcon)] transition-transform",
-                                            !advancedOpen && "-rotate-90",
-                                        )}
+                                    <CollapseCaret
+                                        open={advancedOpen}
+                                        size={10}
+                                        className="text-colorTextSecondary"
                                     />
                                 </button>
                                 <HeightCollapse open={advancedOpen}>
                                     <div className="flex flex-col gap-3 pb-2 pt-1">
                                         <SwitchRow
                                             label={t("entityUi.skillForm.hideFromPrompt")}
-                                            hint={t("entityUi.skillForm.hideFromPromptHint")}
+                                            hint={t("entityUi.skillForm.hideFromPromptHint", {
+                                                // The command a person types (F07 f8): the skill's own name.
+                                                name: SKILL_NAME_PATTERN.test(name) ? name : "name",
+                                            })}
                                             checked={Boolean(skill.disable_model_invocation)}
                                             onChange={(on) => set("disable_model_invocation", on)}
                                             disabled={disabled}
@@ -675,38 +752,49 @@ export function SkillFormView({
                     <>
                         {!expanded ? (
                             <>
-                                <Field
-                                    className="shrink-0"
-                                    label={t("entityUi.skillView.filePath")}
-                                    description={
-                                        newFile
-                                            ? t("entityUi.skillView.newPathHint")
-                                            : t("entityUi.skillView.pathHint")
-                                    }
-                                    error={
-                                        shownPathProblem
-                                            ? t(PATH_PROBLEM_KEY[shownPathProblem])
-                                            : undefined
+                                <FieldWithHelp
+                                    help={
+                                        valuesAsText
+                                            ? undefined
+                                            : newFile
+                                              ? t("entityUi.skillView.newPathHint")
+                                              : t("entityUi.skillView.pathHint")
                                     }
                                 >
-                                    {valuesAsText ? (
-                                        <ReadOnlyText text={activePath} mono />
-                                    ) : (
-                                        <Input
-                                            ref={pathInput}
-                                            value={activePath}
-                                            onChange={(event) =>
-                                                updateFile(activeIndex as number, {
-                                                    path: event.target.value,
-                                                })
+                                    {(helpId) => (
+                                        <Field
+                                            className="shrink-0"
+                                            label={fieldLabel(t("entityUi.skillView.filePath"))}
+                                            error={
+                                                shownPathProblem
+                                                    ? t(PATH_PROBLEM_KEY[shownPathProblem])
+                                                    : undefined
                                             }
-                                            placeholder="scripts/foo.py"
-                                            aria-invalid={shownPathProblem ? true : undefined}
-                                            disabled={disabled}
-                                            className="font-mono"
-                                        />
+                                        >
+                                            {valuesAsText ? (
+                                                <ReadOnlyText text={activePath} mono />
+                                            ) : (
+                                                <Input
+                                                    ref={pathInput}
+                                                    value={activePath}
+                                                    onChange={(event) => {
+                                                        setFreshFile(null)
+                                                        updateFile(activeIndex as number, {
+                                                            path: event.target.value,
+                                                        })
+                                                    }}
+                                                    placeholder="scripts/foo.py"
+                                                    aria-invalid={
+                                                        shownPathProblem ? true : undefined
+                                                    }
+                                                    aria-describedby={helpId}
+                                                    disabled={disabled}
+                                                    className="h-[34px] rounded-[6px] font-mono text-[13px]"
+                                                />
+                                            )}
+                                        </Field>
                                     )}
-                                </Field>
+                                </FieldWithHelp>
                                 <SwitchRow
                                     label={t("entityUi.skillForm.markExecutable")}
                                     hint={t("entityUi.skillView.markExecutableHint")}
@@ -722,15 +810,14 @@ export function SkillFormView({
                                 />
                             </>
                         ) : null}
+                        {/* Plain text with no toolbar row (F07 f4); the expand button floats in the corner. */}
                         <div
                             className={cn(
-                                "flex flex-col overflow-hidden rounded-md border border-solid border-border",
+                                "relative flex flex-col overflow-hidden rounded-[6px] border border-solid border-border",
                                 expanded ? "min-h-0 flex-1" : `${EDITOR_MIN} flex-1`,
                             )}
                         >
-                            <div className="flex shrink-0 items-center justify-end border-0 border-b border-solid border-border pr-1">
-                                {expandButton}
-                            </div>
+                            <div className="absolute right-1 top-1 z-10">{expandButton}</div>
                             <div className="flex min-h-0 flex-1 flex-col">
                                 {/* Keyed by index (paths are editable) for a fresh editor per file;
                                     no debounce, so a file switch cannot drop a pending edit. */}
@@ -745,6 +832,7 @@ export function SkillFormView({
                                     disabled={disabled}
                                     disableDebounce
                                     grow
+                                    plain
                                 />
                             </div>
                         </div>

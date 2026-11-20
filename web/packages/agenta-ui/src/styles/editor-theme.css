@@ -916,3 +916,61 @@ pre::-webkit-scrollbar-thumb {
     color: var(--ant-color-primary);
     text-decoration: underline;
 }
+
+/* ------------------------------------------------------------------------- *
+ * Panel scale (canvas F01 f3, F07): 13/20 body text, 15/700 headings, 16 px
+ * padding. Opt in with a `md-prose-panel` ancestor, so other Markdown
+ * editors (the Drive file view) keep the comfortable prose above.
+ *
+ * The import keeps a blank source line as an empty paragraph. So blocks get
+ * no margins here: that empty 20 px line is the only gap, as in the canvas.
+ * With margins it doubled the gap.
+ * ------------------------------------------------------------------------- */
+.md-prose-panel .md-prose .agenta-shared-editor {
+    padding: 15px;
+}
+.md-prose-panel .md-prose .editor-container {
+    color: var(--ag-colorText);
+    font-size: 13px;
+    line-height: 20px;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-paragraph {
+    margin: 0;
+    line-height: 20px;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h1,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h2,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h3 {
+    color: var(--ag-colorText);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    margin: 0;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h4,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h5,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h6 {
+    color: var(--ag-colorText);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 20px;
+    margin: 0;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-list-ol,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-list-ul {
+    margin: 0;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-list-item {
+    margin: 0;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-quote {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+/* The placeholder keeps its line breaks ("# My skill", a blank line, then the steps; F07 f13). */
+.md-prose-panel .md-prose .editor-placeholder {
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--ag-colorTextTertiary);
+}

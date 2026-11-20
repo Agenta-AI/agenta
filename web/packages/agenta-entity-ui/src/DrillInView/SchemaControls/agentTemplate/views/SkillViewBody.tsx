@@ -6,12 +6,13 @@ import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
-import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {UploadSimple} from "@phosphor-icons/react"
 
 import {firstBadFile, skillFilesOf} from "../../skillFiles"
 import {SkillFormView} from "../../SkillFormView"
 import {skillDraftError} from "../../skillName"
+import {useSkillViewForm} from "../../SkillUploadStep"
 import {SkillViewHeader, useSkillDownloadAction, type SkillAction} from "../../SkillViewHeader"
 import {isEmbedRefSkill, isStaticSkill, staticEmbedSlug} from "../itemDescriptors"
 import {useAgentConfigWriter, type AgentConfigWriter} from "../useAgentConfigWriter"
@@ -63,12 +64,15 @@ const AgentOnlySkillBody = ({
         skillDraftError(draft) !== undefined || firstBadFile(skillFilesOf(draft)) !== undefined
 
     useViewTitle(skillKey)
-    useViewForm({
-        dirty,
-        valid: !readOnly && !invalid && !publishing,
-        leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
-        save: async () => replaceAgentOnlySkill(writer, skillKey, draft),
-    })
+    const {onUploadControl} = useSkillViewForm(
+        {
+            dirty,
+            valid: !readOnly && !invalid && !publishing,
+            leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
+            save: async () => replaceAgentOnlySkill(writer, skillKey, draft),
+        },
+        t("entityUi.skillView.upload"),
+    )
 
     const publish = async () => {
         const publishInline = bridge?.publishInlineSkill
@@ -125,6 +129,7 @@ const AgentOnlySkillBody = ({
                     downloadable
                     disabled={readOnly || publishing}
                     valuesAsText={writer.readOnly}
+                    onUploadControl={onUploadControl}
                     // Save is off while the draft is invalid, so there is no press to wait for: an
                     // edited draft that misses a required field says so in the fields.
                     showMissing={dirty && invalid}
