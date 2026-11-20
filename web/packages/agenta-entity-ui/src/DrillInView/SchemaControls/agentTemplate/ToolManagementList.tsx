@@ -2,6 +2,7 @@
  *  tool definitions and provider built-ins are deliberately not rendered: they still run. */
 import {type CSSProperties, type ReactNode, useMemo} from "react"
 
+import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
@@ -89,7 +90,7 @@ function PhoneIntegrationRow({
     const t = useT(integrationsPhoneCatalog, accountSwitchCatalog)
     const line =
         status?.reason ??
-        (row.entry?.accountSource === "user"
+        (row.entry?.accountSource === USER_ACCOUNT_SOURCE
             ? t("entityUi.integrationsPhone.eachPersonsOwnAccount")
             : t("entityUi.accountSwitch.oneShared"))
     return (
@@ -214,6 +215,7 @@ export function ToolManagementList({
 }: ToolManagementListProps) {
     const t = useT(configItemsCatalog, itemDescriptorsCatalog)
     // On a phone the section is its own screen: rows edge to edge, "Add integration" at the bottom.
+    // The phone section context, not the viewport: -mx-4 -mt-3 undo the px-4 and pt-3 of that screen.
     const phone = usePhoneSections() !== null
     if (integrationRows.length === 0) {
         if (disabled) return null
