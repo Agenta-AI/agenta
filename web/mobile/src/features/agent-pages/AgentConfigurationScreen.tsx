@@ -76,10 +76,7 @@ export const AgentConfigurationScreen = ({
     const phone = useIsPhone()
     const sectionScreen = usePhoneSectionScreen(phone)
     // A section's screen is a level of the browser back, as its back arrow.
-    useSystemBack(sectionScreen.shown ? 1 : 0, "section", () => {
-        sectionScreen.close()
-        return true
-    })
+    useSystemBack(sectionScreen.shown ? 1 : 0, "section", sectionScreen.close)
     const shownSection = sectionScreen.shown
     const openTab = async (next: ConfigurationTab) => {
         const guard = automationsGuard.current

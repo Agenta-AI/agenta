@@ -199,6 +199,24 @@ describe("useSystemBack", () => {
         window.removeEventListener("popstate", router)
     })
 
+    it("steps over the entry of a level that closed earlier", async () => {
+        const back = vi.spyOn(window.history, "back").mockImplementation(() => undefined)
+        const router = vi.fn()
+        window.addEventListener("popstate", router)
+        const {unmount} = render(<Level />)
+        const earlier = push.mock.calls[0][0]
+        unmount()
+        await settle()
+        // The pop of that history.go (mocked here).
+        move(0)
+        // Later the person comes back onto that entry through the history.
+        act(() => window.dispatchEvent(new PopStateEvent("popstate", {state: earlier})))
+        expect(back).toHaveBeenCalledTimes(1)
+        // The router handles only where that back lands, not the closed entry.
+        expect(router).not.toHaveBeenCalled()
+        window.removeEventListener("popstate", router)
+    })
+
     it("does not go back over a page the person navigated away from", async () => {
         const {unmount} = render(<Level />)
         // A navigation pushes the new page with a new router key.

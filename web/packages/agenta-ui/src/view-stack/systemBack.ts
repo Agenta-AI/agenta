@@ -22,8 +22,8 @@ export type SystemBackRank = "panel" | "section" | "view"
 
 interface Level {
     rank: SystemBackRank
-    /** Resolves false when the person stays (kept editing, a save failed). */
-    onBack: () => Promise<boolean> | boolean
+    /** Closes the level as its back arrow does; it may ask first. Waited for, result unused. */
+    onBack: () => unknown
     levels: () => number
 }
 
@@ -120,7 +120,16 @@ const onPopState = (event: PopStateEvent) => {
         event.stopImmediatePropagation()
         return
     }
-    if (entries.length === 0) return
+    if (entries.length === 0) {
+        // An entry of levels that closed (an old page, a closed panel) shows nothing of its own.
+        // Step over it: a back reaches the page under it in one press, and a forward returns to
+        // where it came from, as a forward onto a closed level does.
+        if ((event.state as Stamp | null)?.agSystemBackRun) {
+            event.stopImmediatePropagation()
+            window.history.back()
+        }
+        return
+    }
     // This move is a level's: the router must not treat it as a route change.
     event.stopImmediatePropagation()
     const position = positionOf(event.state)
@@ -168,13 +177,10 @@ export const restartSystemBack = () => {
 
 /**
  * Give `levels` open levels to the browser back. Pass 0 on a desktop. `onBack` closes the top
- * level the way its back arrow does and resolves false when the person stays.
+ * level the way its back arrow does; when it asks and the person stays, `levels` does not drop
+ * and the level keeps its entry.
  */
-export const useSystemBack = (
-    levels: number,
-    rank: SystemBackRank,
-    onBack: () => Promise<boolean> | boolean,
-) => {
+export const useSystemBack = (levels: number, rank: SystemBackRank, onBack: () => unknown) => {
     const id = useId()
     const onBackRef = useRef(onBack)
     onBackRef.current = onBack
