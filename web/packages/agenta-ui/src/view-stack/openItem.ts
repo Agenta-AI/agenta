@@ -10,19 +10,18 @@ export interface OpenViewItem extends ConfigItemRef {
 /**
  * Lets a page learn which configuration item an open view shows, wherever the view opens (a
  * container's stack or a drawer of its own). A stack host under this context reports its deepest
- * open view whose params carry an `item` address, and null when none does or when it closes.
+ * open view whose params carry an `item` address, once that view has reported its title, and
+ * null when no open view shows an item or when the host leaves.
  */
-export const OpenViewItemContext = createContext<((item: OpenViewItem | null) => void) | null>(null)
+export const ReportOpenViewItemContext = createContext<
+    ((item: OpenViewItem | null) => void) | null
+>(null)
 
-const isItemRef = (value: unknown): value is ConfigItemRef =>
-    Boolean(value) &&
-    typeof (value as ConfigItemRef).list === "string" &&
-    typeof (value as ConfigItemRef).key === "string"
-
-/** The item address in a view's params (`params.item`), if any. */
-export const itemOfParams = (params: unknown): ConfigItemRef | null => {
-    const item = (params as {item?: unknown} | null)?.item
-    return isItemRef(item) ? item : null
+const itemOfParams = (params: unknown): ConfigItemRef | null => {
+    const item = (params as {item?: Partial<ConfigItemRef>} | null)?.item
+    return item && typeof item.list === "string" && typeof item.key === "string"
+        ? (item as ConfigItemRef)
+        : null
 }
 
 /** Internal: a stack host reports the item of its open views to the nearest page. */
@@ -30,16 +29,21 @@ export const useReportOpenViewItem = (
     entries: readonly {key: number; params: unknown}[],
     titles: Record<number, string>,
 ) => {
-    const report = useContext(OpenViewItemContext)
-    // The deepest open view that shows an item names it.
-    const open = [...entries].reverse().find((entry) => itemOfParams(entry.params))
-    const item = open ? itemOfParams(open.params) : null
-    const name = open ? (titles[open.key] ?? "") : ""
-    const list = item?.list
-    const key = item?.key
+    const report = useContext(ReportOpenViewItemContext)
+    // The deepest open view that shows an item names it (a picker over it does not).
+    let open: {key: number; item: ConfigItemRef} | null = null
+    for (const entry of entries) {
+        const item = itemOfParams(entry.params)
+        if (item) open = {key: entry.key, item}
+    }
+    const list = open?.item.list
+    const key = open?.item.key
+    const name = open ? titles[open.key] : undefined
     useEffect(() => {
         if (!report) return
-        report(list && key ? {list, key, name: name || key} : null)
+        // Wait for the view's title, so the name is never the bare key.
+        if (list && key && !name) return
+        report(list && key && name ? {list, key, name} : null)
     }, [report, list, key, name])
     // Nothing is open once the host leaves.
     useEffect(() => (report ? () => report(null) : undefined), [report])

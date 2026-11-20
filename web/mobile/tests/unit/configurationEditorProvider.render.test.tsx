@@ -6,7 +6,7 @@
 import {act, useContext} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
-import {OpenViewItemContext, type OpenViewItem} from "@agenta/ui/view-stack"
+import {ReportOpenViewItemContext, type OpenViewItem} from "@agenta/ui/view-stack"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -37,7 +37,7 @@ let seen: AgentEditor | null = null
 let reportItem: ((item: OpenViewItem | null) => void) | null = null
 const Probe = () => {
     seen = useContext(AgentEditorContext)
-    reportItem = useContext(OpenViewItemContext)
+    reportItem = useContext(ReportOpenViewItemContext)
     return null
 }
 

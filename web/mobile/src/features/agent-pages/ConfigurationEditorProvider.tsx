@@ -1,7 +1,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
-import {OpenViewItemContext, type OpenViewItem} from "@agenta/ui/view-stack"
+import {ReportOpenViewItemContext, type OpenViewItem} from "@agenta/ui/view-stack"
 import dynamic from "next/dynamic"
 
 import {usePublishPageContext} from "../builder/pageContext"
@@ -41,11 +41,11 @@ export const ConfigurationEditorProvider = ({
         [hasChannel, readOnly, revisionId],
     )
     return (
-        <OpenViewItemContext.Provider value={setItem}>
+        <ReportOpenViewItemContext.Provider value={setItem}>
             <AgentEditorContext.Provider value={editor}>
                 <AgentChannelPresence agentId={agentId} onChange={setHasChannel} />
                 {children}
             </AgentEditorContext.Provider>
-        </OpenViewItemContext.Provider>
+        </ReportOpenViewItemContext.Provider>
     )
 }

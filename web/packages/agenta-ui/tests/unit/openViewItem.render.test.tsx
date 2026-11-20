@@ -8,7 +8,7 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
     defineView,
-    OpenViewItemContext,
+    ReportOpenViewItemContext,
     useViewStack,
     useViewTitle,
     ViewStackHost,
@@ -24,9 +24,11 @@ afterEach(cleanup)
 const AGENT: ViewTarget = {kind: "agent_draft", revisionId: "rev-1"}
 const Chrome = ({children}: ViewChromeProps) => <div>{children}</div>
 
-const ItemBody = ({params}: ViewProps<{item: ConfigItemRef; title: string}>) => {
+let pushPicker: (() => Promise<boolean>) | null = null
+const ItemBody = ({params, target, nav}: ViewProps<{item: ConfigItemRef; title: string}>) => {
     useViewTitle(params.title)
-    return null
+    pushPicker = nav.push ? () => nav.push!(pickerView, {}, target) : null
+    return <span>{`view:${params.title}`}</span>
 }
 const itemView = defineView<{item: ConfigItemRef; title: string}>({
     id: "test.item",
@@ -51,16 +53,16 @@ const Root = () => {
 
 const mount = (report: (item: unknown) => void) =>
     render(
-        <OpenViewItemContext.Provider value={report}>
+        <ReportOpenViewItemContext.Provider value={report}>
             <ViewStackHost chrome={Chrome}>
                 <Root />
             </ViewStackHost>
-        </OpenViewItemContext.Provider>,
+        </ReportOpenViewItemContext.Provider>,
     )
 
 const zendesk: ConfigItemRef = {list: "tools", key: "composio:zendesk"}
 
-describe("OpenViewItemContext", () => {
+describe("ReportOpenViewItemContext", () => {
     it("reports the item of the open view with its title, and null when it closes", async () => {
         const report = vi.fn()
         mount(report)
@@ -78,6 +80,14 @@ describe("OpenViewItemContext", () => {
         expect(report).toHaveBeenLastCalledWith(null)
     })
 
+    it("keeps naming the item view while a picker covers it", async () => {
+        const report = vi.fn()
+        mount(report)
+        await act(async () => void stack.open(itemView, {item: zendesk, title: "Zendesk"}, AGENT))
+        await act(async () => void pushPicker?.())
+        expect(report).toHaveBeenLastCalledWith({...zendesk, name: "Zendesk"})
+    })
+
     it("reports null when the host leaves", async () => {
         const report = vi.fn()
         const {unmount} = mount(report)
@@ -87,11 +97,12 @@ describe("OpenViewItemContext", () => {
     })
 
     it("needs no provider", async () => {
-        render(
+        const {getByText} = render(
             <ViewStackHost chrome={Chrome}>
                 <Root />
             </ViewStackHost>,
         )
         await act(async () => void stack.open(itemView, {item: zendesk, title: "Zendesk"}, AGENT))
+        expect(getByText("view:Zendesk")).toBeTruthy()
     })
 })
