@@ -210,7 +210,8 @@ export const SessionListTable = ({
                         aria-label={t("sessions.mobileList.newSessionWith", {
                             agent: run.label ?? "",
                         })}
-                        className="size-6 text-muted-foreground hover:text-foreground"
+                        // On a phone the 24 px button keeps its size and gets a 44 px hit area.
+                        className="size-6 text-muted-foreground hover:text-foreground max-md:relative max-md:after:absolute max-md:after:-inset-[10px] max-md:after:content-['']"
                         onClick={() => onNewSession(agentId)}
                     >
                         <Plus className="size-3.5" />
@@ -258,6 +259,8 @@ export const SessionListTable = ({
                     onOpenRow={verbs.open}
                     collapsedKeys={collapsed}
                     onToggleGroup={toggleGroup}
+                    // The group heading ("Today") is 44 px high on a phone, the touch size.
+                    className="max-md:[&_button[aria-expanded]]:min-h-11"
                     groupActions={groupActions}
                     empty={
                         // Nothing while unsettled. An empty project gets the onboarding from the

@@ -265,6 +265,8 @@ const SessionListBody = ({
                                     status, agent and grouping are rows inside it, so the bar stays
                                     a search bar. */}
                                 <ListTableToolbar
+                                    // The search field is 44 px high on a phone, the touch size.
+                                    className="max-md:[&_[data-slot=input-group]]:h-11"
                                     search={search.value}
                                     onSearchChange={search.onChange}
                                     searchPlaceholder={t("sessions.mobileList.searchSessions")}

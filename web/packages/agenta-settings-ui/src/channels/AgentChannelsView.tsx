@@ -4,6 +4,7 @@ import {useT} from "@agenta/i18n"
 import agentChannelsCatalog from "@agenta/i18n/catalogs/agentPages.channels"
 import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight} from "@phosphor-icons/react"
 
@@ -225,7 +226,8 @@ const ChannelRow = ({
             </span>
             <span className={`truncate text-[12.5px] ${subClass}`}>{sub}</span>
         </span>
-        <Button variant="outline" size="sm" onClick={onClick}>
+        {/* 44 px high on a phone, the touch size. */}
+        <Button variant="outline" size="sm" className="max-md:h-11" onClick={onClick}>
             {action}
         </Button>
     </div>
@@ -251,6 +253,24 @@ const ChannelRowsSkeleton = () => (
 /** A manage view or connect steps, in place of the list, under "Channels › {title}". */
 const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPanelRenderProps) => {
     const t = useT(channelsPageCatalog, commonCatalog)
+    // On a phone the manage view and the connect steps cover the screen, with a back arrow to the
+    // step before or to Channels (M13).
+    const phone = useIsPhone()
+    if (phone) {
+        return (
+            <div
+                className="fixed inset-0 z-50 flex flex-col bg-colorBgContainer"
+                data-testid="agent-channels-open-view"
+            >
+                <PhoneScreenHeader
+                    title={title}
+                    backTitle={onBack ? undefined : t("channels.page.title")}
+                    onBack={onBack ?? onClose}
+                />
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+            </div>
+        )
+    }
     return (
         <div className="flex flex-col gap-4" data-testid="agent-channels-open-view">
             <nav className="flex min-w-0 items-center gap-1.5 text-sm">

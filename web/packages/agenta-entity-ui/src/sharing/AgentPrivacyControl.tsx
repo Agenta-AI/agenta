@@ -142,7 +142,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         <>
                             <LoadingButton
                                 size="sm"
-                                className="self-start"
+                                className="self-start max-md:h-11"
                                 loading={writes.saving === "take"}
                                 onClick={() => {
                                     void writes.takeOwnership().then((ok) => {

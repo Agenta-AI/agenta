@@ -54,7 +54,8 @@ export const AnalyticsCard = ({
                     <Button
                         variant="ghost"
                         size="xs"
-                        className="-mr-2 text-muted-foreground"
+                        // On a phone the button keeps its size and gets a 44 px hit area.
+                        className="-mr-2 text-muted-foreground max-md:relative max-md:after:absolute max-md:after:-inset-y-[10px] max-md:after:inset-x-0 max-md:after:content-['']"
                         onClick={onExplore}
                     >
                         {t("observabilityUi.analytics.explore")}
@@ -147,7 +148,8 @@ export const ChartLegendRow = ({
                 disabled={!onToggle}
                 onClick={() => onToggle?.(item.key)}
                 className={cn(
-                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-muted-foreground",
+                    // 44 px high on a phone, the touch size.
+                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-muted-foreground max-md:min-h-11",
                     onToggle && "cursor-pointer hover:text-foreground",
                     item.hidden && "line-through opacity-40",
                 )}

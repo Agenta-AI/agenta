@@ -147,7 +147,8 @@ export const AnalyticsToolbar = ({
     const openingCustom = useRef(false)
 
     return (
-        <div className="flex flex-wrap items-center gap-2">
+        // The toolbar buttons (range, Filter, Group) are 44 px high on a phone, the touch size.
+        <div className="flex flex-wrap items-center gap-2 max-md:[&>button]:h-11">
             <Popover open={customOpen} onOpenChange={setCustomOpen}>
                 <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>
                     <PopoverAnchor asChild>
