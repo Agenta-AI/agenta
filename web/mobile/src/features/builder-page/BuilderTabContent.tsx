@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, type MutableRefObject} from "react"
 
 import {useAutomationEditor} from "@agenta/automation-ui"
 import {agentSharingQueryAtomFamily} from "@agenta/entities/sharing"
@@ -9,6 +9,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 import {DrawerViewChrome, useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
+import {PageViewStackGuard, type PageViewStackGuardApi} from "../agent-pages/PageViewStackGuard"
 import {automationView} from "../automations/automationView"
 
 import {AgentPane} from "./AgentPane"
@@ -21,11 +22,13 @@ const Notice = ({children}: {children: string}) => (
 /** An agent tab: its pane tabs, or the no-access line when it was deleted or hidden. */
 const AgentTab = ({
     agentId,
+    guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     agentId: string
+    guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
     projectId: string
@@ -40,6 +43,7 @@ const AgentTab = ({
     return (
         <AgentPane
             agentId={agentId}
+            guardRef={guardRef}
             builderSessionId={builderSessionId}
             workspaceId={workspaceId}
             projectId={projectId}
@@ -85,15 +89,18 @@ const AutomationTabRoot = ({
 /**
  * The view of the active builder tab. An agent tab shows the agent's pane tabs, an automation tab
  * the automation view. A tool tab and an app tab show a line until their views exist
- * (OPEN-QUESTIONS 3.24).
+ * (OPEN-QUESTIONS 3.24). `guardRef` holds the open views of the tab, so the page can ask before
+ * it changes the tab.
  */
 export const BuilderTabContent = ({
     tab,
+    guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     tab: BuilderTab
+    guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
     projectId: string
@@ -103,6 +110,7 @@ export const BuilderTabContent = ({
         return (
             <AgentTab
                 agentId={tab.id}
+                guardRef={guardRef}
                 builderSessionId={builderSessionId}
                 workspaceId={workspaceId}
                 projectId={projectId}
@@ -114,6 +122,7 @@ export const BuilderTabContent = ({
                 chrome={DrawerViewChrome}
                 rootTitle={tab.name || t("builder.page.kindAutomation")}
             >
+                <PageViewStackGuard guardRef={guardRef} />
                 <AutomationTabRoot
                     automationId={tab.id}
                     workspaceId={workspaceId}

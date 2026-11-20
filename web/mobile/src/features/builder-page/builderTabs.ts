@@ -1,4 +1,23 @@
-import type {BuilderTabKind, BuilderTabRef} from "./paneAgent"
+import type {AgentRef, AgentResult} from "./paneAgent"
+
+/** A builder tab key in the address: `?tab=<kind>:<id>`. */
+export type BuilderTabKind = "agent" | "automation" | "tool" | "app"
+export interface BuilderTabRef {
+    kind: BuilderTabKind
+    id: string
+}
+
+const TAB_KINDS: readonly BuilderTabKind[] = ["agent", "automation", "tool", "app"]
+
+/** `agent:<id>` and the other kinds, or null for anything else. */
+export const parseTabParam = (value: unknown): BuilderTabRef | null => {
+    if (typeof value !== "string") return null
+    const at = value.indexOf(":")
+    if (at <= 0) return null
+    const kind = value.slice(0, at) as BuilderTabKind
+    const id = value.slice(at + 1)
+    return TAB_KINDS.includes(kind) && id ? {kind, id} : null
+}
 
 /**
  * The builder tabs of one chat (design D15, D16): the open tabs in the order they opened, the
@@ -17,30 +36,40 @@ export interface BuilderTabsState {
     tabs: BuilderTab[]
     active: string | null
     closed: string[]
-    /** The builder tool calls this chat's tabs already followed, so a reload follows none again. */
-    followed: string[]
+    /**
+     * The builder tool calls this chat's tabs already followed, so a reload follows none again.
+     * Not capped: a forgotten id would be followed again.
+     */
+    followedToolCallIds: string[]
 }
 
 /** At most this many tabs per chat; the closed-tab memory has the same cap. */
 export const MAX_BUILDER_TABS = 50
 
-/** How many followed tool call ids a chat keeps. */
-const MAX_FOLLOWED = 200
-
 export const EMPTY_BUILDER_TABS: BuilderTabsState = {
     tabs: [],
     active: null,
     closed: [],
-    followed: [],
+    followedToolCallIds: [],
 }
 
 /** Records tool calls as followed. */
-export const markFollowed = (state: BuilderTabsState, ids: string[]): BuilderTabsState => {
-    const fresh = ids.filter((id) => !state.followed.includes(id))
+const markFollowed = (state: BuilderTabsState, ids: string[]): BuilderTabsState => {
+    const fresh = ids.filter((id) => !state.followedToolCallIds.includes(id))
     return fresh.length
-        ? {...state, followed: [...state.followed, ...fresh].slice(-MAX_FOLLOWED)}
+        ? {...state, followedToolCallIds: [...state.followedToolCallIds, ...fresh]}
         : state
 }
+
+/** True for a chat that has never had a tab and followed nothing. */
+export const isUntouched = (state: BuilderTabsState) =>
+    !state.tabs.length && !state.closed.length && !state.followedToolCallIds.length
+
+export const agentTab = (agent: AgentRef): BuilderTab => ({
+    kind: "agent",
+    id: agent.id,
+    name: agent.name,
+})
 
 export const builderTabKey = (ref: BuilderTabRef) => `${ref.kind}:${ref.id}`
 
@@ -142,9 +171,40 @@ export const applyAddressTab = (
     return openBuilderTab(state, {...ref, name: ""})
 }
 
-export const builderTabsKey = (sessionId: string) => `agenta:builder:tabs:${sessionId}`
+/**
+ * The chat's builder results as they stand (on load and after each change). A chat with no tab
+ * yet opens one for the agent of its latest result, else of its page context, and counts every
+ * result so far as followed. After that, each result not yet followed is recorded, and a saved
+ * one opens its agent's tab with a dot (`followBuilderResult`); a result with no change, a
+ * refusal or a denied call changes no tab.
+ */
+export const followBuilderResults = (
+    state: BuilderTabsState,
+    results: readonly AgentResult[],
+    contextAgent: AgentRef | null,
+): BuilderTabsState => {
+    if (isUntouched(state)) {
+        const latest = results.at(-1)?.agent ?? contextAgent
+        const fresh = latest ? followBuilderResult(state, agentTab(latest)) : state
+        return markFollowed(
+            fresh,
+            results.map((result) => result.toolCallId),
+        )
+    }
+    let next = state
+    for (const result of results) {
+        if (next.followedToolCallIds.includes(result.toolCallId)) continue
+        next = markFollowed(next, [result.toolCallId])
+        if (result.saved) next = followBuilderResult(next, agentTab(result.agent))
+    }
+    return next
+}
 
-const TAB_KINDS: readonly BuilderTabKind[] = ["agent", "automation", "tool", "app"]
+/** The address value of a tab: `?tab=<kind>:<id>`, or none. */
+export const builderTabHref = (path: string, key: string | null) =>
+    key ? `${path}?tab=${encodeURIComponent(key)}` : path
+
+export const builderTabsStorageKey = (sessionId: string) => `agenta:builder:tabs:${sessionId}`
 
 const parseTab = (value: unknown): BuilderTab | null => {
     if (!value || typeof value !== "object") return null
@@ -163,7 +223,7 @@ const parseTab = (value: unknown): BuilderTab | null => {
 export const readBuilderTabs = (sessionId: string): BuilderTabsState => {
     try {
         const raw: unknown = JSON.parse(
-            window.localStorage.getItem(builderTabsKey(sessionId)) ?? "null",
+            window.localStorage.getItem(builderTabsStorageKey(sessionId)) ?? "null",
         )
         if (!raw || typeof raw !== "object") return EMPTY_BUILDER_TABS
         const value = raw as Record<string, unknown>
@@ -176,15 +236,15 @@ export const readBuilderTabs = (sessionId: string): BuilderTabsState => {
             typeof value.active === "string" && keys.includes(value.active)
                 ? value.active
                 : (keys[0] ?? null)
-        const strings = (list: unknown, cap: number) =>
-            (Array.isArray(list) ? list : [])
-                .filter((key): key is string => typeof key === "string")
-                .slice(-cap)
+        const strings = (list: unknown) =>
+            (Array.isArray(list) ? list : []).filter(
+                (key): key is string => typeof key === "string",
+            )
         return {
             tabs,
             active,
-            closed: strings(value.closed, MAX_BUILDER_TABS),
-            followed: strings(value.followed, MAX_FOLLOWED),
+            closed: strings(value.closed).slice(-MAX_BUILDER_TABS),
+            followedToolCallIds: strings(value.followedToolCallIds),
         }
     } catch {
         return EMPTY_BUILDER_TABS
@@ -193,7 +253,7 @@ export const readBuilderTabs = (sessionId: string): BuilderTabsState => {
 
 export const writeBuilderTabs = (sessionId: string, state: BuilderTabsState) => {
     try {
-        window.localStorage.setItem(builderTabsKey(sessionId), JSON.stringify(state))
+        window.localStorage.setItem(builderTabsStorageKey(sessionId), JSON.stringify(state))
     } catch {
         // Storage refused: the tabs last for this visit.
     }

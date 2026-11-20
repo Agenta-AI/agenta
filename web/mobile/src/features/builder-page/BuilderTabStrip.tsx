@@ -17,9 +17,9 @@ import {
 import {cn} from "@/lib/utils"
 
 import {AgentPicker} from "./AgentPicker"
-import {builderTabKey, type BuilderTab} from "./builderTabs"
+import {builderTabKey, type BuilderTab, type BuilderTabKind} from "./builderTabs"
 import {fitTabs} from "./fitTabs"
-import type {AgentRef, BuilderTabKind} from "./paneAgent"
+import type {AgentRef} from "./paneAgent"
 import {PrivateMark} from "./PrivateMark"
 
 const KIND_ICONS: Record<BuilderTabKind, Icon> = {
@@ -41,15 +41,12 @@ const TabButton = ({
     tab,
     label,
     active,
-    interactive,
     onActivate,
     onClose,
 }: {
     tab: BuilderTab
     label: string
     active: boolean
-    /** False in the hidden copy that measures widths. */
-    interactive: boolean
     onActivate?: () => void
     onClose?: () => void
 }) => {
@@ -78,7 +75,7 @@ const TabButton = ({
         >
             <KindIcon aria-hidden size={14} className="shrink-0" />
             <span className="min-w-0 flex-1 truncate">{label}</span>
-            {interactive && tab.kind === "agent" ? <PrivateMark agentId={tab.id} /> : null}
+            {tab.kind === "agent" ? <PrivateMark agentId={tab.id} /> : null}
             {tab.dot ? (
                 <span
                     data-testid="builder-tab-dot"
@@ -103,9 +100,9 @@ const TabButton = ({
 }
 
 /**
- * The strip of builder tabs at the top of the pane (B03): one tab per agent, automation, tool or
- * app the chat touched, "N more" for the tabs that do not fit (the active tab always shows), and
- * "+" ("Open an item").
+ * The strip of builder tabs at the top of the pane (B03): one tab per item open in this chat
+ * (agent, automation, tool or app), "N more" for the tabs that do not fit (the active tab always
+ * shows), and "+" ("Open an item").
  */
 export const BuilderTabStrip = ({
     tabs,
@@ -180,7 +177,6 @@ export const BuilderTabStrip = ({
                         tab={tab}
                         label={label(tab)}
                         active={false}
-                        interactive={false}
                     />
                 ))}
             </div>
@@ -188,6 +184,20 @@ export const BuilderTabStrip = ({
                 role="tablist"
                 aria-label={t("builder.page.openItems")}
                 className="flex min-w-0 items-center gap-1"
+                onKeyDown={(event) => {
+                    // Arrow keys move the focus between the shown tabs; Enter or Space opens one.
+                    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
+                    if (!step) return
+                    event.preventDefault()
+                    const focused = (event.target as HTMLElement).closest<HTMLElement>(
+                        "[data-tab-key]",
+                    )?.dataset.tabKey
+                    const index = Math.max(0, visible.indexOf(focused ?? ""))
+                    const next = visible[(index + step + visible.length) % visible.length]
+                    event.currentTarget
+                        .querySelector<HTMLElement>(`[data-tab-key="${CSS.escape(next)}"]`)
+                        ?.focus()
+                }}
             >
                 {visible.map((key) => {
                     const tab = byKey.get(key)
@@ -198,7 +208,6 @@ export const BuilderTabStrip = ({
                             tab={tab}
                             label={label(tab)}
                             active={key === active}
-                            interactive
                             onActivate={() => onActivate(key)}
                             onClose={() => onClose(key)}
                         />

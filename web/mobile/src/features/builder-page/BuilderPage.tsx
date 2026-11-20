@@ -15,6 +15,7 @@ import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 
+import type {PageViewStackGuardApi} from "../agent-pages/PageViewStackGuard"
 import {openMainSidebar} from "../agent-sidebar/selectedSidebar"
 import {linkedAgentIdOf} from "../builder/builderChatLink"
 import {newBuilderSessionId} from "../builder/newBuilderSession"
@@ -46,8 +47,9 @@ const CHAT_MIN_WIDTH = 320
 
 /**
  * The builder page: the builder sidebar, the chat, and the pane with the builder tabs of the
- * chat (one per agent, automation, tool or app it touched). `/builder` is a new chat; its first message moves the address to
- * `/builder/{chatId}` with a replace, on the same page file, so nothing remounts.
+ * chat (the agents its builder results saved, the items the person opened, the tab a link
+ * names). `/builder` is a new chat; its first message moves the address to `/builder/{chatId}`
+ * with a replace, on the same page file, so nothing remounts.
  */
 export const BuilderPage = ({
     workspaceId,
@@ -97,6 +99,16 @@ export const BuilderPage = ({
     })
     const activeTab =
         tabs.state.tabs.find((held) => builderTabKey(held) === tabs.state.active) ?? null
+    // The active tab's open views: a form with edits asks before the tab changes or closes.
+    const paneGuard = useRef<PageViewStackGuardApi | null>(null)
+    const leaveActiveTab = async () => {
+        const guard = paneGuard.current
+        if (!guard) return true
+        if (!(await guard.stack.closeAll())) return false
+        // The address change of the tab switch goes through: the person already answered.
+        guard.allowNext()
+        return true
+    }
     const onFirstSend = useCallback(
         (agent: AgentRef | null) => {
             if (routeChatId === sessionId) return
@@ -222,11 +234,18 @@ export const BuilderPage = ({
                     tabs={tabs.state.tabs}
                     active={tabs.state.active}
                     label={label}
-                    onActivate={tabs.activate}
-                    onClose={tabs.close}
-                    onOpenAgent={(agent) =>
+                    onActivate={async (key) => {
+                        if (key === tabs.state.active || !(await leaveActiveTab())) return
+                        tabs.activate(key)
+                    }}
+                    onClose={async (key) => {
+                        if (key === tabs.state.active && !(await leaveActiveTab())) return
+                        tabs.close(key)
+                    }}
+                    onOpenAgent={async (agent) => {
+                        if (!(await leaveActiveTab())) return
                         tabs.open({kind: "agent", id: agent.id, name: agent.name})
-                    }
+                    }}
                 />
                 {phone ? null : (
                     <SimpleTooltip title={t("builder.page.fullScreen")}>
@@ -265,6 +284,7 @@ export const BuilderPage = ({
                 <BuilderTabContent
                     key={builderTabKey(activeTab)}
                     tab={activeTab}
+                    guardRef={paneGuard}
                     builderSessionId={sessionId}
                     workspaceId={workspaceId}
                     projectId={projectId}

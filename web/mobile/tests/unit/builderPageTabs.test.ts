@@ -1,19 +1,22 @@
 // @vitest-environment jsdom
 /**
- * The builder tabs of the builder page (tasks 40.1 to 40.3): opening, the dot of a builder
- * result, the closed-tab memory, the cap of 50, closing the active tab, the address, storage per
- * chat, and the row fit with "N more".
+ * The builder tabs of the builder page (tasks 27.2, 40.1 to 40.3): the first tab from a builder
+ * result, the page context or the browser link; the dot of a later result; the closed-tab
+ * memory; the cap of 50; closing the active tab; the address; storage per chat; and the row fit
+ * with "N more".
  */
-import {afterEach, describe, expect, it} from "vitest"
+import {act, renderHook} from "@testing-library/react"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
     applyAddressTab,
     activateBuilderTab,
     builderTabKey,
-    builderTabsKey,
+    builderTabsStorageKey,
     closeBuilderTab,
     EMPTY_BUILDER_TABS,
     followBuilderResult,
+    followBuilderResults,
     MAX_BUILDER_TABS,
     openBuilderTab,
     readBuilderTabs,
@@ -21,10 +24,24 @@ import {
     type BuilderTab,
 } from "@/features/builder-page/builderTabs"
 import {fitTabs} from "@/features/builder-page/fitTabs"
+import type {AgentResult} from "@/features/builder-page/paneAgent"
+import {useBuilderTabs} from "@/features/builder-page/useBuilderTabs"
+
+const router = vi.hoisted(() => ({replace: vi.fn(() => Promise.resolve(true))}))
+vi.mock("next/router", () => ({useRouter: () => router}))
 
 const agent = (id: string, name = id): BuilderTab => ({kind: "agent", id, name})
 
-afterEach(() => window.localStorage.clear())
+const result = (toolCallId: string, id: string, saved = true): AgentResult => ({
+    toolCallId,
+    agent: {id, name: id},
+    saved,
+})
+
+afterEach(() => {
+    window.localStorage.clear()
+    router.replace.mockClear()
+})
 
 describe("builder tabs", () => {
     it("opens the first builder result active with no dot, later ones with a dot", () => {
@@ -91,6 +108,82 @@ describe("builder tabs", () => {
     })
 })
 
+describe("builder results", () => {
+    it("opens the first tab for the latest result, else the page context, and follows nothing old", () => {
+        const fromResult = followBuilderResults(
+            EMPTY_BUILDER_TABS,
+            [result("c1", "a"), result("c2", "b")],
+            {id: "ctx", name: "ctx"},
+        )
+        expect(fromResult.active).toBe("agent:b")
+        expect(fromResult.tabs.map(builderTabKey)).toEqual(["agent:b"])
+        expect(fromResult.followedToolCallIds).toEqual(["c1", "c2"])
+        const fromContext = followBuilderResults(EMPTY_BUILDER_TABS, [], {id: "ctx", name: "ctx"})
+        expect(fromContext.active).toBe("agent:ctx")
+    })
+
+    it("opens a new saved result with a dot, once, and skips unsaved results", () => {
+        let state = followBuilderResults(EMPTY_BUILDER_TABS, [result("c1", "a")], null)
+        const results = [result("c1", "a"), result("c2", "b", false), result("c3", "c")]
+        state = followBuilderResults(state, results, null)
+        expect(state.tabs.map(builderTabKey)).toEqual(["agent:a", "agent:c"])
+        expect(state.tabs[1].dot).toBe(true)
+        state = activateBuilderTab(state, "agent:c")
+        state = activateBuilderTab(state, "agent:a")
+        // The same messages again (a reload): no dot comes back.
+        expect(followBuilderResults(state, results, null)).toBe(state)
+    })
+
+    it("follows each result once in a long chat", () => {
+        const many = Array.from({length: 250}, (_, at) => result(`c${at}`, `a${at % 3}`))
+        let state = followBuilderResults(EMPTY_BUILDER_TABS, many, null)
+        state = activateBuilderTab(state, "agent:a0")
+        expect(followBuilderResults(state, many, null)).toBe(state)
+    })
+})
+
+describe("useBuilderTabs and the address", () => {
+    const base = {
+        sessionId: "chat-1",
+        routeChatId: "chat-1",
+        linkedAgentId: null,
+        workspaceId: "w",
+        projectId: "p",
+    }
+    const stored = () => {
+        let state = openBuilderTab(EMPTY_BUILDER_TABS, agent("a"))
+        state = openBuilderTab(state, agent("b"))
+        writeBuilderTabs("chat-1", activateBuilderTab(state, "agent:a"))
+    }
+
+    it("a link with a tab wins over the stored active tab", () => {
+        stored()
+        const hook = renderHook(() => useBuilderTabs({...base, tab: "agent:b"}))
+        expect(hook.result.current.state.active).toBe("agent:b")
+        expect(router.replace).not.toHaveBeenCalled()
+    })
+
+    it("an address with no tab shows the stored active tab", () => {
+        stored()
+        renderHook(() => useBuilderTabs({...base, tab: undefined}))
+        expect(router.replace).toHaveBeenCalledWith(
+            "/w/w/p/p/builder/chat-1?tab=agent%3Aa",
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("closing the last tab clears the tab from the address, so a reload does not reopen it", () => {
+        writeBuilderTabs("chat-1", openBuilderTab(EMPTY_BUILDER_TABS, agent("a")))
+        const hook = renderHook(() => useBuilderTabs({...base, tab: "agent:a"}))
+        act(() => hook.result.current.close("agent:a"))
+        expect(router.replace).toHaveBeenLastCalledWith("/w/w/p/p/builder/chat-1", undefined, {
+            shallow: true,
+        })
+        expect(readBuilderTabs("chat-1").closed).toEqual(["agent:a"])
+    })
+})
+
 describe("builder tab storage", () => {
     it("keeps tabs per chat, survives a reload, and reads nothing for another chat", () => {
         let state = followBuilderResult(EMPTY_BUILDER_TABS, agent("a", "Lead finder"))
@@ -102,10 +195,10 @@ describe("builder tab storage", () => {
     })
 
     it("reads a broken value as no tabs", () => {
-        window.localStorage.setItem(builderTabsKey("chat-1"), "{not json")
+        window.localStorage.setItem(builderTabsStorageKey("chat-1"), "{not json")
         expect(readBuilderTabs("chat-1")).toEqual(EMPTY_BUILDER_TABS)
         window.localStorage.setItem(
-            builderTabsKey("chat-1"),
+            builderTabsStorageKey("chat-1"),
             JSON.stringify({
                 tabs: [
                     {kind: "thing", id: "x"},
