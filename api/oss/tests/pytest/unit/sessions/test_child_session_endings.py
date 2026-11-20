@@ -190,19 +190,16 @@ class _StreamsService:
         return True
 
 
-async def _kill_route(*, running: bool, records=None):
+async def _kill_route(*, running: bool):
     from oss.src.apis.fastapi.sessions import router as router_module
 
     commands = AsyncMock()
     streams = _StreamsService(running=running)
     interactions = AsyncMock()
-    records_service = AsyncMock()
-    records_service.get_execution_records.return_value = records or []
     route = router_module.SessionStreamsRouter(
         service=streams,
         interactions_service=interactions,
         run_admission=AsyncMock(),
-        records_service=records_service,
         commands_service=commands,
     )
     request = SimpleNamespace(
@@ -243,23 +240,8 @@ async def test_a_failed_settle_leaves_the_session_for_a_retry_of_the_kill(monkey
 
 
 @pytest.mark.asyncio
-async def test_a_kill_settles_a_turn_with_no_done_when_redis_lost_the_flag(monkeypatch):
+async def test_the_kill_of_an_idle_session_settles_nothing(monkeypatch):
     route, request, commands, streams, module = await _kill_route(running=False)
-    monkeypatch.setattr(module, "check_action_access", AsyncMock(return_value=True))
-    monkeypatch.setattr(module, "allow_resource", AsyncMock(return_value=True))
-    monkeypatch.setattr(module, "prefetch_session", lambda *a, **k: None)
-
-    await route.delete_session_stream(request, session_id=SESSION_ID)
-
-    commands.settle_execution_killed.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_the_kill_of_an_idle_or_paused_session_settles_nothing(monkeypatch):
-    done = SimpleNamespace(record_type="done")
-    route, request, commands, streams, module = await _kill_route(
-        running=False, records=[done]
-    )
     monkeypatch.setattr(module, "check_action_access", AsyncMock(return_value=True))
     monkeypatch.setattr(module, "allow_resource", AsyncMock(return_value=True))
     monkeypatch.setattr(module, "prefetch_session", lambda *a, **k: None)
