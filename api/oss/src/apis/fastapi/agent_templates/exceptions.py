@@ -14,7 +14,10 @@ from oss.src.core.agent_templates.exceptions import (
     TemplateWorkflowCreationFailed,
 )
 from oss.src.core.mounts.types import MountPathInvalid, MountStorageUnavailable
-from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
+from oss.src.core.sessions.inputs.types import (
+    SessionInputIdempotencyConflict,
+    SessionInputKeyReserved,
+)
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
 
 
@@ -99,6 +102,14 @@ def template_load_error_response(
                 "This Idempotency-Key was already used for a different first message. "
                 "Resend the original request body, or start over with a new key."
             ),
+        )
+    if isinstance(exc, SessionInputKeyReserved):
+        return _response(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            code="idempotency_key_reserved",
+            message=str(exc),
+            details={"field": "Idempotency-Key"},
+            next_step="Send a key that does not start with 'ag:'.",
         )
     if isinstance(exc, SessionStartNotDurable):
         return _response(

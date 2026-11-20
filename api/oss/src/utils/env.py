@@ -821,6 +821,12 @@ class SessionsConfig(BaseModel):
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
     watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
+    # Turns in a row in one session that no person sent. At this count a server input
+    # waits in the queue until a person sends a message.
+    turns_without_person_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT")
+        or 20
+    )
 
     model_config = ConfigDict(extra="ignore")
 

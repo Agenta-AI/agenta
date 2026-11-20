@@ -10,12 +10,14 @@ from oss.src.core.sessions.inputs.dtos import (
     PendingInput,
     PendingInputAdmission,
     PendingInputCreate,
+    PendingInputKind,
     PendingInputState,
     PendingInputUpdate,
 )
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.inputs.types import (
     SessionInputBusy,
+    SessionInputEditRefused,
     SessionInputIdempotencyConflict,
     SessionInputNotFound,
     SessionInputNotRemovable,
@@ -29,9 +31,19 @@ from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInte
 from oss.src.core.sessions.streams.service import SessionStreamsService
 
 
-def input_fingerprint(*, content: Dict[str, Any], policy: str) -> str:
+def input_fingerprint(
+    *,
+    content: Dict[str, Any],
+    policy: str,
+    kind: PendingInputKind = PendingInputKind.message,
+) -> str:
+    # A `message` keeps the fingerprint it had before `kind` existed, so a retry that
+    # spans the deploy still matches its row.
+    material: Dict[str, Any] = {"content": content, "on_busy": policy}
+    if kind != PendingInputKind.message:
+        material["kind"] = kind.value
     canonical = json.dumps(
-        {"content": content, "on_busy": policy},
+        material,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -153,6 +165,24 @@ def edit_pending_input_content(
     return edited
 
 
+def edit_refusal(
+    item: PendingInput, *, editor_user_id: Optional[UUID]
+) -> Optional[str]:
+    """Why `editor_user_id` may not edit `item`, or None when the edit is allowed.
+
+    A server input is never edited. A `message` runs with its stored envelope, so only
+    the sender in that envelope may change its text: another member who edits it would
+    put words in the sender's name. A row with no sending person (an API key, or a row
+    stored before the envelope column) can only be removed."""
+    if item.kind != PendingInputKind.message:
+        return "server_input"
+    sender = item.run_envelope.sender if item.run_envelope is not None else None
+    sender_user_id = sender.user_id if sender is not None else None
+    if editor_user_id is None or sender_user_id != editor_user_id:
+        return "not_sender"
+    return None
+
+
 class SessionInputsService:
     def __init__(
         self,
@@ -179,8 +209,9 @@ class SessionInputsService:
         policy: str,
         idempotency_key: Optional[str],
         envelope: RunEnvelope,
+        kind: PendingInputKind = PendingInputKind.message,
     ) -> PendingInputAdmission:
-        fingerprint = input_fingerprint(content=content, policy=policy)
+        fingerprint = input_fingerprint(content=content, policy=policy, kind=kind)
         if idempotency_key:
             existing = await self._dao.fetch_by_idempotency_key(
                 project_id=project_id,
@@ -307,6 +338,7 @@ class SessionInputsService:
                         session_id=session_id,
                         content=content,
                         policy=policy,
+                        kind=kind,
                         idempotency_key=idempotency_key,
                         request_fingerprint=fingerprint,
                         run_envelope=envelope,
@@ -327,6 +359,7 @@ class SessionInputsService:
                 policy=policy,
                 idempotency_key=idempotency_key,
                 envelope=envelope,
+                kind=kind,
             )
         return PendingInputAdmission(
             action="pending",
@@ -367,6 +400,38 @@ class SessionInputsService:
             idempotency_key=idempotency_key,
         )
 
+    async def queue_input(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        content: Dict[str, Any],
+        idempotency_key: str,
+        envelope: RunEnvelope,
+        kind: PendingInputKind,
+    ) -> PendingInput:
+        """Write one input as `pending` with the policy `queue`, whatever the session
+        is doing. A settle promotes it after a later turn. A repeat of the key answers
+        the first row."""
+        fingerprint = input_fingerprint(content=content, policy="queue", kind=kind)
+        item = await self._dao.create_input(
+            user_id=user_id,
+            pending_input=PendingInputCreate(
+                project_id=project_id,
+                session_id=session_id,
+                content=content,
+                policy="queue",
+                kind=kind,
+                idempotency_key=idempotency_key,
+                request_fingerprint=fingerprint,
+                run_envelope=envelope,
+            ),
+        )
+        if item.request_fingerprint != fingerprint:
+            raise SessionInputIdempotencyConflict()
+        return item
+
     async def claim_for_execution(
         self,
         *,
@@ -377,9 +442,10 @@ class SessionInputsService:
         content: Dict[str, Any],
         idempotency_key: str,
         envelope: RunEnvelope,
+        kind: PendingInputKind = PendingInputKind.message,
     ) -> PendingInput:
         """Create and promote one exact input without exposing it to the queue."""
-        fingerprint = input_fingerprint(content=content, policy="queue")
+        fingerprint = input_fingerprint(content=content, policy="queue", kind=kind)
         async with self._dao.transaction() as transaction:
             item = await self._dao.create_input(
                 user_id=user_id,
@@ -388,6 +454,7 @@ class SessionInputsService:
                     session_id=session_id,
                     content=content,
                     policy="queue",
+                    kind=kind,
                     idempotency_key=idempotency_key,
                     request_fingerprint=fingerprint,
                     run_envelope=envelope,
@@ -484,6 +551,9 @@ class SessionInputsService:
             )
             if item is None:
                 raise SessionInputNotFound(str(input_id))
+            refusal = edit_refusal(item, editor_user_id=user_id)
+            if refusal is not None:
+                raise SessionInputEditRefused(str(input_id), reason=refusal)
             content = edit_pending_input_content(item.content, update)
             return await self._dao.update_content(
                 project_id=project_id,
