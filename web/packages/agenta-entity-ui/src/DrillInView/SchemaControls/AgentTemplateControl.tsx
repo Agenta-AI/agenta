@@ -362,7 +362,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const {tools, integrationRows, migrateIntegrationEntries} = useAgentTools({
         config,
         onChange,
-        configRef,
         openCreate,
     })
 

@@ -21,9 +21,6 @@ export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
         () => ({
             run: t("settings.integrations.run"),
             searchPlaceholder: t("settings.integrations.searchPlaceholder"),
-            emptyTitle: t("settings.integrations.emptyTitle"),
-            emptyBody: t("settings.integrations.emptyBody"),
-            noMatch: (term: string) => t("settings.integrations.noMatch", {term}),
         }),
         [t],
     )
