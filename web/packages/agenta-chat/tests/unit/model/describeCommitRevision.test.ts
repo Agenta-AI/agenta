@@ -229,4 +229,3 @@ describe("the agent's own change card (task 26.3)", () => {
         expect(preview?.changes).toBeUndefined()
     })
 })
-

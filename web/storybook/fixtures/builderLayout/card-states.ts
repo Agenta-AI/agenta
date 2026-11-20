@@ -84,7 +84,9 @@ const toolPart = (
 /** One message per result row of canvas C01. */
 export const RESULT_PARTS = {
     waiting: [toolPart("c-wait", CHANGE_MODEL, {state: "approval-responded"})],
-    saved: [toolPart("c-saved", SEVERAL_CHANGES, {state: "output-available", output: committed("5")})],
+    saved: [
+        toolPart("c-saved", SEVERAL_CHANGES, {state: "output-available", output: committed("5")}),
+    ],
     denied: [
         toolPart("c-denied", CHANGE_MODEL, {
             state: "output-denied",
@@ -103,7 +105,10 @@ export const RESULT_PARTS = {
     accessDenied: [
         toolPart("c-access", CHANGE_MODEL, {
             state: "output-error",
-            errorText: refusal("access_denied", "You may not change 'Support triage'. Nothing was saved."),
+            errorText: refusal(
+                "access_denied",
+                "You may not change 'Support triage'. Nothing was saved.",
+            ),
         }),
     ],
 }
@@ -113,6 +118,9 @@ export const TWO_CALLS_ONE_BASE = [
     toolPart("c-first", EDIT_INSTRUCTIONS, {state: "output-available", output: committed("5")}),
     toolPart("c-second", CHANGE_MODEL, {
         state: "output-error",
-        errorText: refusal("revision_conflict", "The workflow head changed. No revision was committed."),
+        errorText: refusal(
+            "revision_conflict",
+            "The workflow head changed. No revision was committed.",
+        ),
     }),
 ]

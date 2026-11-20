@@ -78,9 +78,9 @@ describe("changeCallState", () => {
     })
 
     it("says nothing was saved when the agent already had the values", () => {
-        expect(changeCallState({partState: "output-available", output: {status: "no_change"}})).toEqual(
-            {kind: "not_saved", reason: "no_change"},
-        )
+        expect(
+            changeCallState({partState: "output-available", output: {status: "no_change"}}),
+        ).toEqual({kind: "not_saved", reason: "no_change"})
     })
 
     it("names the reason of a refusal from its code", () => {
@@ -101,10 +101,12 @@ describe("changeCallState", () => {
 })
 
 describe("the refusal code in the error text", () => {
-    const reason = (errorText: string) =>
-        changeCallState({partState: "output-error", errorText})
+    const reason = (errorText: string) => changeCallState({partState: "output-error", errorText})
     it("reads the envelope after the reason line, also inside a harness wrapper", () => {
-        expect(reason(refused("revision_conflict"))).toEqual({kind: "not_saved", reason: "conflict"})
+        expect(reason(refused("revision_conflict"))).toEqual({
+            kind: "not_saved",
+            reason: "conflict",
+        })
         expect(reason(`<tool_use_error>${refused("access_denied")}</tool_use_error>`)).toEqual({
             kind: "not_saved",
             reason: "access_denied",
@@ -150,7 +152,10 @@ describe("answeredChangeCalls", () => {
     it("leaves out calls that wait, calls that never asked, and other tools", () => {
         const calls = answeredChangeCalls([
             part("c1", {state: "approval-requested", approval: {id: "perm-c1"}}),
-            {...part("c2", {state: "output-available", output: committed("5")}), approval: undefined},
+            {
+                ...part("c2", {state: "output-available", output: committed("5")}),
+                approval: undefined,
+            },
             {type: "tool-bash", toolCallId: "c3", state: "output-denied", input: {}},
             {type: "text", text: "Done."},
         ])
