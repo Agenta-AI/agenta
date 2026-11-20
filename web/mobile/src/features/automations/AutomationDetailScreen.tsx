@@ -149,11 +149,13 @@ export const AutomationDetailScreen = ({
                                         automation?.name ||
                                         t("automations.screens.detailFallbackTitle")
                                     }
-                                    onBack={closeRuns}
-                                    backLabel={
-                                        automation?.name ||
-                                        t("automations.screens.detailFallbackTitle")
-                                    }
+                                    runHistory={{
+                                        listHref: `${base}/automations`,
+                                        name:
+                                            automation?.name ||
+                                            t("automations.screens.detailFallbackTitle"),
+                                        onAutomation: closeRuns,
+                                    }}
                                     // The view's own 30px grid, so the arrow lines up with
                                     // "Run history" below it.
                                     className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-3 lg:pt-5"
