@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
-    buildPickerGroupsWithSections,
+    listPickerGroups,
     pickerSelectionFrom,
     selectedModelRowKey,
     describeMcp,
@@ -35,6 +35,7 @@ import {
 import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
 import {createT, useT} from "@agenta/i18n"
 import chatSlashCommandsCatalog from "@agenta/i18n/catalogs/chat.slashCommands"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {skillDisplayName} from "@agenta/shared/utils"
@@ -78,6 +79,10 @@ export function useChatSlashCommands({
     onNewSession?: () => void
 }) {
     const t = useT(chatSlashCommandsCatalog)
+    const tProviders = useT(providerListCatalog)
+    // Strings, not `t`: a language change makes new ones, and the groups follow.
+    const builtinLabel = tProviders("entityUi.providerList.agenta")
+    const builtinTag = tProviders("entityUi.providerList.builtIn")
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -159,7 +164,9 @@ export function useChatSlashCommands({
             mode: currentConnectionMode,
             harness: currentHarness,
         })
-        return {modelGroups: buildPickerGroupsWithSections(rows), currentModelKey}
+        // The same grouped list as the Model view: built-in models first, named "Agenta".
+        const modelGroups = listPickerGroups(rows, {label: builtinLabel, tag: builtinTag})
+        return {modelGroups, currentModelKey}
     }, [
         candidateState,
         capabilities,
@@ -168,6 +175,8 @@ export function useChatSlashCommands({
         currentConnectionSlug,
         currentConnectionNamespace,
         currentConnectionMode,
+        builtinLabel,
+        builtinTag,
     ])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.
