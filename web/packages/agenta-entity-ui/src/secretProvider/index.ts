@@ -79,3 +79,21 @@ export {
     newProviderKeyDraft,
     useSaveProviderKey,
 } from "./useSaveProviderKey"
+
+/**
+ * The model providers views (target `project`): the list, "Add a provider or subscription", one
+ * connection's form and the built-in models card. `ProviderListBody` is the list for a host that
+ * shows it as its root (Settings › AI providers).
+ */
+export {
+    builtinModelsView,
+    providerAddView,
+    providerConnectionView,
+    providerListView,
+    type BuiltinModelsViewParams,
+    type ProviderAddViewParams,
+    type ProviderConnectionViewParams,
+    type ProviderListViewParams,
+} from "./views/providerViews"
+export {ProviderListBody, type ProviderListBodyProps} from "./views/ProviderListBody"
+export {ProviderOwnerChoiceContext} from "./views/providerOwnerChoice"

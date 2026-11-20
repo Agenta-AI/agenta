@@ -4,7 +4,7 @@ import {buildAutomationEdit} from "./automationEdit"
 import {agentBindingLookup, agentLabel, useAutomationText} from "./automationModel"
 import {useAutomation} from "./useAutomation"
 import {useAutomationDraft} from "./useAutomationDraft"
-import {useAutomationRuns} from "./useAutomationRuns"
+import {useRecentAutomationRuns} from "./useAutomationRuns"
 import {useAutomations} from "./useAutomations"
 
 /**
@@ -51,9 +51,8 @@ export const useAutomationEditor = (automationId: string | undefined) => {
 
     const draft = useAutomationDraft(automation, edit)
 
-    // The runs answer two questions a host asks: how many there have been, and whether the last
-    // one failed. Same hook and same cache the run history reads.
-    const {caption: runHistoryCaption, failureReason} = useAutomationRuns(automation)
+    // Whether the last run failed, for the drawer's banner. Same cached read as the run count.
+    const {failureReason} = useRecentAutomationRuns(automation)
 
     // The label is text, so it is built again when the language changes.
     const text = useAutomationText()
@@ -88,7 +87,6 @@ export const useAutomationEditor = (automationId: string | undefined) => {
     return {
         automation,
         agentName,
-        runHistoryCaption,
         failureReason,
         /** Neither the list nor the entity has it — the id is stale. */
         // A row that exists but whose binding has not settled is loading, not missing.

@@ -31,7 +31,7 @@ import {useAtomValue} from "jotai"
 
 import {AutomationField} from "./AutomationField"
 import type {Automation, AutomationKind} from "./automationModel"
-import {useAutomationRuns} from "./useAutomationRuns"
+import {useRecentAutomationRuns} from "./useAutomationRuns"
 
 /**
  * What the agent is told on every run — the shared `MessageComposer`, over `data.inputs_fields`.
@@ -220,7 +220,7 @@ function EventInstruction({
         [catalogEvent?.payload],
     )
 
-    const {runs} = useAutomationRuns(automation)
+    const {runs} = useRecentAutomationRuns(automation)
     const lastEvent = useMemo(() => latestDeliveryEvent(runs), [runs])
 
     const template = parseMessageTemplate(inputsText, isChat, primaryKey)
