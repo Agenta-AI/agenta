@@ -1,6 +1,6 @@
-import {useEffect, useState, type RefObject} from "react"
+import {useEffect, useRef, useState, type RefObject} from "react"
 
-import {cn} from "@agenta/ui/styles"
+import {cn} from "@/lib/utils"
 
 interface SectionAnchor {
     key: string
@@ -28,6 +28,9 @@ export const ConfigurationSectionNav = ({
 }) => {
     const [sections, setSections] = useState<SectionAnchor[]>([])
     const [current, setCurrent] = useState<string | null>(null)
+    // A clicked section stays marked through its own scroll, which may stop short of it (the
+    // last sections cannot reach the top); the reader's own scroll clears it.
+    const clicked = useRef<string | null>(null)
 
     // The sections arrive with the configuration and can change with it.
     useEffect(() => {
@@ -56,6 +59,15 @@ export const ConfigurationSectionNav = ({
         const root = contentRef.current
         if (!root || sections.length === 0) return
         const mark = () => {
+            if (clicked.current) {
+                setCurrent(clicked.current)
+                return
+            }
+            // At the bottom the last section is the one in view, though its top never reaches.
+            if (root.scrollTop + root.clientHeight >= root.scrollHeight - 1) {
+                setCurrent(sections[sections.length - 1].key)
+                return
+            }
             const top = root.getBoundingClientRect().top + 8
             let inView = sections[0].key
             for (const {key, el} of readAnchors(root)) {
@@ -63,9 +75,20 @@ export const ConfigurationSectionNav = ({
             }
             setCurrent(inView)
         }
+        const release = () => {
+            clicked.current = null
+        }
         mark()
         root.addEventListener("scroll", mark, {passive: true})
-        return () => root.removeEventListener("scroll", mark)
+        root.addEventListener("wheel", release, {passive: true})
+        root.addEventListener("touchmove", release, {passive: true})
+        root.addEventListener("keydown", release)
+        return () => {
+            root.removeEventListener("scroll", mark)
+            root.removeEventListener("wheel", release)
+            root.removeEventListener("touchmove", release)
+            root.removeEventListener("keydown", release)
+        }
     }, [contentRef, sections])
 
     if (sections.length === 0) return null
@@ -79,8 +102,8 @@ export const ConfigurationSectionNav = ({
                     className={cn(
                         "h-8 truncate rounded-md border-0 bg-transparent px-2.5 text-left text-sm [font-family:inherit]",
                         current === section.key
-                            ? "bg-colorFillSecondary font-medium text-colorText"
-                            : "cursor-pointer text-colorTextSecondary hover:text-colorText",
+                            ? "bg-muted font-medium text-foreground"
+                            : "cursor-pointer text-muted-foreground hover:text-foreground",
                     )}
                     onClick={() => {
                         const root = contentRef.current
@@ -93,6 +116,7 @@ export const ConfigurationSectionNav = ({
                                 root.scrollTop,
                             behavior: "smooth",
                         })
+                        clicked.current = section.key
                         setCurrent(section.key)
                     }}
                 >

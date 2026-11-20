@@ -29,7 +29,7 @@ export const ConfigurationAgentTab = ({
             <div
                 ref={contentRef}
                 data-testid="configuration-agent-tab"
-                className="ag-scroll-no-bar min-h-0 min-w-0 flex-1 overflow-y-auto rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer"
+                className="ag-scroll-no-bar min-h-0 min-w-0 flex-1 overflow-y-auto rounded-xl border border-solid border-border bg-background"
             >
                 <AgentBuildPanel
                     revisionId={revisionId}

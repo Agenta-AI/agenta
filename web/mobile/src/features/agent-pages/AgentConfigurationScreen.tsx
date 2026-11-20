@@ -8,13 +8,13 @@ import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {cn} from "@agenta/ui/styles"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {cn} from "@/lib/utils"
 
 import {AccessTab} from "../agent-layout/AccessTab"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
@@ -125,19 +125,41 @@ export const AgentConfigurationScreen = ({
                             </div>
                             <div
                                 role="tablist"
-                                className="mt-3 flex items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary"
+                                onKeyDown={(event) => {
+                                    // Arrow keys move between the tabs (one Tab stop for the row).
+                                    const step =
+                                        event.key === "ArrowRight"
+                                            ? 1
+                                            : event.key === "ArrowLeft"
+                                              ? -1
+                                              : 0
+                                    if (!step) return
+                                    event.preventDefault()
+                                    const index = CONFIGURATION_TABS.indexOf(tab)
+                                    const next =
+                                        CONFIGURATION_TABS[
+                                            (index + step + CONFIGURATION_TABS.length) %
+                                                CONFIGURATION_TABS.length
+                                        ]
+                                    openTab(next)
+                                    document.getElementById(`configuration-tab-${next}`)?.focus()
+                                }}
+                                className="mt-3 flex items-center gap-1 border-0 border-b border-solid border-border"
                             >
                                 {CONFIGURATION_TABS.map((key) => (
                                     <button
                                         key={key}
+                                        id={`configuration-tab-${key}`}
                                         type="button"
                                         role="tab"
                                         aria-selected={tab === key}
+                                        aria-controls="configuration-tabpanel"
+                                        tabIndex={tab === key ? 0 : -1}
                                         className={cn(
                                             "-mb-px h-9 cursor-pointer border-0 border-b-2 border-solid bg-transparent px-3 text-sm [font-family:inherit]",
                                             tab === key
-                                                ? "border-colorText font-medium text-colorText"
-                                                : "border-transparent text-colorTextSecondary hover:text-colorText",
+                                                ? "border-foreground font-medium text-foreground"
+                                                : "border-transparent text-muted-foreground hover:text-foreground",
                                         )}
                                         onClick={() => openTab(key)}
                                     >
@@ -149,7 +171,9 @@ export const AgentConfigurationScreen = ({
                     }
                 >
                     <div
+                        id="configuration-tabpanel"
                         role="tabpanel"
+                        aria-labelledby={`configuration-tab-${tab}`}
                         className={`flex h-full min-h-0 min-w-0 flex-col px-4 pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`}
                     >
                         {/* The same host parts (model providers, skills, subagents) and edit

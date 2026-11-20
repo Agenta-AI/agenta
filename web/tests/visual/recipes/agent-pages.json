@@ -7,7 +7,7 @@
         "theme": "light",
         "steps": [
             {
-                "wait": "Search sessions"
+                "wait": "textbox:Search sessions"
             }
         ]
     },
@@ -19,7 +19,7 @@
         "theme": "light",
         "steps": [
             {
-                "wait": "Search sessions"
+                "wait": "textbox:Search sessions"
             },
             {
                 "click": "button:Filter and group sessions"

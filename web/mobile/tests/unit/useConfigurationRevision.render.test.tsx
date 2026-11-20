@@ -24,6 +24,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     latest.atom = value
     const query = atom({isPending: false, isFetching: false, refetch: async () => undefined})
     return {
+        revalidateAgentRevisionReads: () => undefined,
         workflowLatestRevisionIdAtomFamily: () => value,
         workflowLatestRevisionQueryAtomFamily: () => query,
     }

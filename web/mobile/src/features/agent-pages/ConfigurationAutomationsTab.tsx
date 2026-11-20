@@ -22,7 +22,7 @@ export const ConfigurationAutomationsTab = ({
         [openDrawer],
     )
     return (
-        <div className="ag-scroll-no-bar min-h-0 flex-1 overflow-y-auto rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer">
+        <div className="ag-scroll-no-bar min-h-0 flex-1 overflow-y-auto rounded-xl border border-solid border-border bg-background">
             <AgentOperationsSections
                 revisionId={revisionId}
                 disabled={readOnly}
