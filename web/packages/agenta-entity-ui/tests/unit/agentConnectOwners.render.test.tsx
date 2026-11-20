@@ -87,9 +87,7 @@ const render = async (element: ReturnType<typeof createElement>, store = createS
 
 const catalogElement = () =>
     createElement(IntegrationCatalog, {
-        integrationRows: [],
-        onAddIntegration,
-        onAddPersonalIntegration,
+        adding: {integrationRows: [], onAddIntegration, onAddPersonalIntegration},
         onConnect,
     })
 
@@ -221,5 +219,72 @@ describe("Add integration: Connect, then attach", () => {
             integration: "gmail",
         })
         expect(onAddIntegration).not.toHaveBeenCalled()
+    })
+})
+
+describe("the catalog with no agent (chat, playground, prompts)", () => {
+    it("connects a project connection, without asking, even with personal accounts on", async () => {
+        const push = vi.fn(async () => true)
+        const store = createStore()
+        store.set(accessAtom.current, "on")
+        await render(
+            createElement(IntegrationAddViewBody, {
+                params: {},
+                target: {kind: "project"},
+                nav: {
+                    depth: 1,
+                    push,
+                    replace: async () => true,
+                    back: async () => true,
+                    cancel: () => undefined,
+                },
+            }),
+            store,
+        )
+        await clickConnect()
+        expect(push).toHaveBeenCalledWith(
+            integrationConnectView,
+            expect.objectContaining({integrationKey: "gmail", owners: undefined}),
+            {kind: "project"},
+        )
+    })
+
+    it("a connected app is listed with no Add", async () => {
+        catalog.connections = [
+            {slug: "gmail-main", integration_key: "gmail", provider_key: "composio", flags: valid},
+        ]
+        await render(createElement(IntegrationCatalog, {onConnect}))
+        // The row is there; only its Add is not.
+        expect(document.body.textContent).toContain("Connected")
+        expect(document.querySelector('[aria-label="Add Gmail"]')).toBeNull()
+        expect(document.body.textContent).not.toContain("Added")
+    })
+})
+
+describe("an app with several connections and no agent", () => {
+    it("opens to manage each connection, with no way to add", async () => {
+        catalog.connections = [
+            {
+                slug: "gmail-work",
+                name: "Work",
+                integration_key: "gmail",
+                provider_key: "composio",
+                flags: valid,
+            },
+            {
+                slug: "gmail-backup",
+                name: "Backup",
+                integration_key: "gmail",
+                provider_key: "composio",
+                flags: valid,
+            },
+        ]
+        await render(createElement(IntegrationCatalog, {onConnect}))
+        const row = document.querySelector<HTMLElement>('[role="button"][aria-label="Gmail"]')
+        expect(row).not.toBeNull()
+        await act(async () => row!.click())
+        expect(document.body.textContent).toContain("Work")
+        expect(document.body.textContent).toContain("Backup")
+        expect(document.body.textContent).not.toContain("Add Work")
     })
 })

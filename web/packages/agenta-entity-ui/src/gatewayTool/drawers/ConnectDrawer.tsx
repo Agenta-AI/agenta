@@ -1,96 +1,61 @@
-import {useCallback} from "react"
+import {useRef} from "react"
 
-import {useT} from "@agenta/i18n"
-import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
-import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
+import {ViewDrawerHost, type ViewRequest} from "@agenta/ui/view-stack"
 
 import {
-    ConnectAppMark,
-    ConnectFormFields,
-    useConnectForm,
-    type ConnectionOwner,
-} from "../components/ConnectForm"
+    integrationConnectView,
+    type IntegrationConnectViewParams,
+} from "../../DrillInView/SchemaControls/agentTemplate/views/integrationConnectView"
+import type {ConnectionOwner} from "../components/ConnectForm"
 
 interface Props {
     open: boolean
     integrationKey: string
-    integrationName: string
-    integrationLogo?: string
-    integrationDescription?: string
-    authSchemes: string[]
     onClose: () => void
     /** The connection is made; `owner` is who it belongs to. */
     onSuccess?: (owner: ConnectionOwner) => void
-    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
-    container?: HTMLElement | null
     /**
      * Who may own the new connection; the first is the default. Two ask "Who can use it", one
      * is used without asking. Absent, the connection is the project's.
      */
     owners?: ConnectionOwner[]
-    /** The current project's name, for "Everyone in {project}". */
-    projectName?: string
+    /** Why this place asks for the app; absent, the app's own description. */
+    description?: string
 }
 
-/** The connect form in a dialog, for the hosts that keep a dialog. */
+/** The connect view in a drawer, for the hosts that keep one (the onboarding accounts card). */
 export default function ConnectDrawer({
     open,
-    integrationName,
-    integrationLogo,
-    onClose,
-    container = null,
-    ...body
-}: Props) {
-    return (
-        <EnhancedModal
-            open={open}
-            onCancel={onClose}
-            // The integration's mark heads the dialog, beside the close button.
-            title={<ConnectAppMark name={integrationName} logo={integrationLogo} />}
-            footer={null}
-            width={480}
-            // The form mounts per open, so a reopened dialog starts from its defaults.
-            destroyOnClose
-            getContainer={container ?? false}
-            contained={!!container}
-        >
-            <ConnectDialogBody integrationName={integrationName} onClose={onClose} {...body} />
-        </EnhancedModal>
-    )
-}
-
-function ConnectDialogBody({
     integrationKey,
-    integrationName,
-    integrationDescription,
-    authSchemes,
     owners,
-    projectName,
+    description,
     onClose,
     onSuccess,
-}: Omit<Props, "open" | "integrationLogo" | "container">) {
-    const t = useT(connectFormCatalog)
-    const form = useConnectForm({integrationKey, integrationName, authSchemes, owners})
-    const {submit, owner} = form
-    const handleSubmit = useCallback(async () => {
-        if (!(await submit())) return
-        onClose()
-        onSuccess?.(owner)
-    }, [submit, owner, onClose, onSuccess])
+}: Props) {
+    // The owner of the connection the form made; the drawer reports it once it closes.
+    const created = useRef<ConnectionOwner | null>(null)
+    if (!open) return null
+    const request: ViewRequest<IntegrationConnectViewParams> = {
+        view: integrationConnectView,
+        params: {
+            integrationKey,
+            owners,
+            description,
+            onCreated: (connection) => {
+                created.current = connection.owner
+            },
+        },
+        target: {kind: "project"},
+    }
     return (
-        <ModalContent>
-            <ConnectFormFields
-                form={form}
-                integrationName={integrationName}
-                integrationDescription={integrationDescription}
-                projectName={projectName}
-            />
-            <ModalFooter
-                onCancel={onClose}
-                onConfirm={handleSubmit}
-                confirmLabel={t("entityUi.connectForm.connect")}
-                isLoading={form.loading}
-            />
-        </ModalContent>
+        <ViewDrawerHost
+            request={request}
+            onClosed={() => {
+                const owner = created.current
+                created.current = null
+                if (owner) onSuccess?.(owner)
+                onClose()
+            }}
+        />
     )
 }

@@ -76,13 +76,19 @@ const connectedCollapsedAtom = atomWithStorage(
     false,
 )
 
-export interface IntegrationCatalogProps {
+/** What the catalog needs to add apps to an agent. Absent, it only browses and connects. */
+export interface IntegrationCatalogAdding {
     /** The integrations the agent already holds — the added state and the current connection. */
     integrationRows: IntegrationRow[]
     /** Add an integration, or point a configured one at another connection. One write, one entry. */
     onAddIntegration: (target: GatewayConnectionTarget, connectionSlug: string) => void
     /** Add an integration that uses each person's own account. */
     onAddPersonalIntegration: (target: GatewayConnectionTarget) => void
+}
+
+export interface IntegrationCatalogProps {
+    /** Adds apps to an agent; absent in a place with no agent (chat, playground, prompts). */
+    adding?: IntegrationCatalogAdding
     /**
      * Open the connect form of an app. The form calls `onCreated` with the connection it made,
      * and the catalog adds that one once it is valid. A cancelled form calls nothing.
@@ -168,7 +174,8 @@ function ConnectedRow({
     group: ConnectedGroup
     /** The agent's row for this integration, in EITHER format, or undefined when it holds none. */
     row: IntegrationRow | undefined
-    onAdd: (slug: string) => void
+    /** Absent where nothing is added to an agent: the row only lists the connection. */
+    onAdd?: (slug: string) => void
     handlers: ConnectionRowHandlers
 }) {
     const t = useT(integrationDrawerCatalog)
@@ -196,19 +203,22 @@ function ConnectedRow({
     const attention = multiple ? null : attentionOf(single)
     const title = multiple ? name : connectionLabel(single, integration?.name)
 
-    const subtitle = choosing
-        ? t("entityUi.integrationDrawer.chooseConnection")
-        : added && !swappable
-          ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
-          : multiple
-            ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
-            : // What the app does says more than repeating its name; the old line is the fallback.
-              integration?.description?.trim() ||
-              [name, authLabel(single)].filter(Boolean).join(" · ")
+    const subtitle =
+        choosing && onAdd
+            ? t("entityUi.integrationDrawer.chooseConnection")
+            : added && !swappable
+              ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
+              : multiple
+                ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
+                : // What the app does says more than repeating its name; the old line is the fallback.
+                  integration?.description?.trim() ||
+                  [name, authLabel(single)].filter(Boolean).join(" · ")
 
     // An added integration offers Change only when it has an entry to edit; adding a second
     // surface to one still on the legacy format is never the intent.
-    const chooserButton = multiple && (!added || swappable)
+    const chooserButton = Boolean(onAdd) && multiple && (!added || swappable)
+    // With no agent, an app with several connections opens to manage each one.
+    const browseList = !onAdd && multiple
 
     // Adding is the row's own click; only switching connections needs a visible button.
     const rowAction =
@@ -222,17 +232,17 @@ function ConnectedRow({
 
     return (
         <CatalogListRow
-            highlighted={choosing}
-            actionLabel={t("entityUi.integrationDrawer.addName", {name})}
+            highlighted={choosing && (Boolean(onAdd) || browseList)}
+            actionLabel={onAdd ? t("entityUi.integrationDrawer.addName", {name}) : name}
             onClick={
-                choosing
+                choosing && onAdd
                     ? undefined
                     : // As in Settings: a sign-in that never finished opens to finishing it.
                       attention === "pending"
                       ? () => handlers.onFinish(single, name, logo)
-                      : chooserButton
-                        ? () => setChoosing(true)
-                        : !added && single.slug
+                      : chooserButton || browseList
+                        ? () => setChoosing((value) => !value)
+                        : onAdd && !added && single.slug
                           ? () => onAdd(single.slug ?? "")
                           : undefined
             }
@@ -268,7 +278,46 @@ function ConnectedRow({
                 </span>
             }
             expansion={
-                choosing ? (
+                choosing && browseList ? (
+                    <div className="ml-[42px] mt-2 flex flex-col gap-1">
+                        {group.connections.map((connection) => {
+                            const label = connectionLabel(connection, integration?.name)
+                            const pending = attentionOf(connection) === "pending"
+                            return (
+                                <div
+                                    key={connection.slug}
+                                    className="flex items-center gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-2.5 py-1 text-xs"
+                                >
+                                    <span className="flex-1 truncate">{label}</span>
+                                    {pending ? (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                                handlers.onFinish(connection, name, logo)
+                                            }
+                                        >
+                                            {t("entityUi.integrationDrawer.pending")}
+                                        </Button>
+                                    ) : isConnectionValid(connection) ? null : (
+                                        <span className="shrink-0 text-[var(--ag-colorWarningText)]">
+                                            {t("entityUi.integrationDrawer.needsReconnect")}
+                                        </span>
+                                    )}
+                                    <ConnectionRowMenu
+                                        onRefresh={() => handlers.onRefresh(connection)}
+                                        onRevoke={() =>
+                                            handlers.onConfirm("revoke", connection, label)
+                                        }
+                                        onDelete={() =>
+                                            handlers.onConfirm("delete", connection, label)
+                                        }
+                                    />
+                                </div>
+                            )
+                        })}
+                    </div>
+                ) : choosing && onAdd ? (
                     <div className="ml-[42px] mt-2 flex flex-col gap-1">
                         <RadioGroup value={selected} onValueChange={setSelected}>
                             {group.connections.map((connection) => (
@@ -298,7 +347,7 @@ function ConnectedRow({
                                 size="sm"
                                 disabled={!selected || selected === currentSlug}
                                 onClick={() => {
-                                    onAdd(selected)
+                                    onAdd?.(selected)
                                     setChoosing(false)
                                 }}
                             >
@@ -363,12 +412,7 @@ function CatalogRow({
 }
 
 /** The catalog: the project's connected apps, then all apps. Mounted only while it shows. */
-export function IntegrationCatalog({
-    integrationRows,
-    onAddIntegration,
-    onAddPersonalIntegration,
-    onConnect,
-}: IntegrationCatalogProps) {
+export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps) {
     const t = useT(integrationDrawerCatalog)
     // The catalog's own box: its dialogs and the category list open inside it, so they stay in
     // a drawer host and scroll under the drawer's lock.
@@ -484,16 +528,14 @@ export function IntegrationCatalog({
         ],
     )
     const rowsByIntegration = useMemo(
-        () => new Map(integrationRows.map((row) => [groupKey(row.provider, row.integration), row])),
-        [integrationRows],
-    )
-
-    const addIntegration = useCallback(
-        (group: ConnectedGroup, slug: string) => {
-            if (!slug) return
-            onAddIntegration({provider: group.provider, integration: group.integrationKey}, slug)
-        },
-        [onAddIntegration],
+        () =>
+            new Map(
+                (adding?.integrationRows ?? []).map((row) => [
+                    groupKey(row.provider, row.integration),
+                    row,
+                ]),
+            ),
+        [adding?.integrationRows],
     )
 
     // The connect form stores the connection in the project (or the person's own) and names it.
@@ -501,32 +543,29 @@ export function IntegrationCatalog({
     // sign-in, so the add waits until the connection is valid; the row keeps its reconnect hint
     // until then.
     useEffect(() => {
-        if (!pendingConnect) return
+        if (!pendingConnect || !adding) return
         const {integrationKey, slug, owner} = pendingConnect
         const list = owner === "user" ? (personalConnections ?? []) : connections
         const made = list.find((connection) => connection.slug === slug)
         if (!made || !isConnectionValid(made)) return
         if (owner === "user") {
-            onAddPersonalIntegration({provider: "composio", integration: integrationKey})
+            adding.onAddPersonalIntegration({provider: "composio", integration: integrationKey})
         } else {
-            onAddIntegration(
+            adding.onAddIntegration(
                 {provider: made.provider_key ?? "composio", integration: integrationKey},
                 slug,
             )
         }
         setPendingConnect(null)
-    }, [
-        pendingConnect,
-        connections,
-        personalConnections,
-        onAddIntegration,
-        onAddPersonalIntegration,
-    ])
+    }, [pendingConnect, connections, personalConnections, adding])
 
     const startConnect = useCallback(
         (integrationKey: string) =>
-            onConnect(integrationKey, (created) => setPendingConnect({integrationKey, ...created})),
-        [onConnect],
+            onConnect(integrationKey, (created) => {
+                // Only a catalog that adds to an agent waits for the new connection.
+                if (adding) setPendingConnect({integrationKey, ...created})
+            }),
+        [onConnect, adding],
     )
 
     const catalogLoading = isLoading && integrations.length === 0
@@ -587,7 +626,19 @@ export function IntegrationCatalog({
                                         row={rowsByIntegration.get(
                                             groupKey(group.provider, group.integrationKey),
                                         )}
-                                        onAdd={(slug) => addIntegration(group, slug)}
+                                        onAdd={
+                                            adding
+                                                ? (slug) =>
+                                                      slug &&
+                                                      adding.onAddIntegration(
+                                                          {
+                                                              provider: group.provider,
+                                                              integration: group.integrationKey,
+                                                          },
+                                                          slug,
+                                                      )
+                                                : undefined
+                                        }
                                         handlers={rowHandlers}
                                     />
                                 ))}

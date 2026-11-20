@@ -70,5 +70,14 @@
         "theme": "light",
         "selector": "[data-testid=\"agent-panel\"]",
         "ready": "text=Shared account"
+    },
+    {
+        "id": "integrations-catalog-no-agent-light",
+        "story": "builderlayout-integrations-catalog-with-no-agent--default",
+        "width": 520,
+        "height": 640,
+        "theme": "light",
+        "selector": "[data-testid=\"catalog-no-agent\"]",
+        "ready": "text=All apps"
     }
 ]
