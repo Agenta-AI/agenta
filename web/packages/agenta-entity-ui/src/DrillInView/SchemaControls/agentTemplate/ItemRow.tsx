@@ -213,8 +213,9 @@ export function ItemRow({
                     <div
                         className={cn(
                             "truncate font-normal leading-5",
-                            // Canvas A04: a page row's name is 14 px; a panel card's is 13 px (F01).
-                            page ? "text-sm" : "text-[13px]",
+                            // Canvas A04: a page row's name is 14 px, a mono name 13 px; a panel
+                            // card's is 13 px (F01).
+                            page && descriptor.monoName === false ? "text-sm" : "text-[13px]",
                             descriptor.monoName !== false && "font-mono",
                         )}
                     >

@@ -44,7 +44,8 @@ const historyChipsAtomFamily = atomFamily((_workflowId: string) => atom<string[]
 const savedWhen = (iso: string | null | undefined, now: Date = new Date()): string | null => {
     const at = iso ? new Date(iso) : null
     if (!at || Number.isNaN(at.getTime())) return null
-    const time = formatDate(at, {hour: "2-digit", minute: "2-digit"})
+    // A 24-hour clock, as the canvas writes it ("09:12").
+    const time = formatDate(at, {hour: "2-digit", minute: "2-digit", hourCycle: "h23"})
     const startOf = (date: Date) =>
         new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
     const days = Math.round((startOf(now) - startOf(at)) / 86_400_000)
