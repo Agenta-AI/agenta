@@ -63,7 +63,7 @@ export interface ChangeResultRowProps {
     readOnlyNote?: string | null
     /** Opens the version history on the saved version. */
     onView?: () => void
-    /** Opens the revert of the saved version. */
+    /** Opens the revert to the version the call changed. */
     onRevert?: () => void
     /** Asks the builder to read the agent again (a conflict). */
     onTryAgain?: () => void
@@ -230,7 +230,8 @@ const CallRow = ({
     const {onView, onRevert, onTryAgain} = actions ?? {}
     const saved = call.state.kind === "saved" ? call.state : null
     const workflowId = saved?.workflowId
-    const viewed = workflowId && saved.revisionId ? {workflowId, revisionId: saved.revisionId} : null
+    const viewed =
+        workflowId && saved.revisionId ? {workflowId, revisionId: saved.revisionId} : null
     const base =
         workflowId && call.baseRevisionId ? {workflowId, revisionId: call.baseRevisionId} : null
     return (
@@ -265,6 +266,7 @@ export const ChangeResultRows = ({
     className?: string
 }) => {
     const calls = useMemo(() => answeredChangeCalls(parts ?? [], {finished}), [parts, finished])
+    const retryIndex = calls.length - 1
     if (!calls.length) return null
     return (
         <div
@@ -275,7 +277,11 @@ export const ChangeResultRows = ({
                 <CallRow
                     key={call.toolCallId || index}
                     call={call}
-                    actions={actions}
+                    actions={
+                        // "Try again" only where the builder did not recover: a later call of the
+                        // turn that saved has already made the change on the new version.
+                        index === retryIndex ? actions : {...actions, onTryAgain: undefined}
+                    }
                     touch={touch}
                 />
             ))}

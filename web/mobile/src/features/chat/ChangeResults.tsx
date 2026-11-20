@@ -1,4 +1,4 @@
-import {useContext, useMemo} from "react"
+import {useContext, useMemo, useState} from "react"
 
 import {
     ChangeResultRows,
@@ -34,6 +34,8 @@ export const ChangeResults = ({
 }) => {
     const t = useT(chatChangeCardStatesCatalog)
     const {readOnly, send} = useContext(ChangeResultHostContext)
+    // One message per click: the row stops offering it once sent.
+    const [retried, setRetried] = useState(false)
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     const selectVersion = useSetAtom(selectAgentVersionAtom)
     const actions = useMemo<ChangeResultActions>(() => {
@@ -44,12 +46,16 @@ export const ChangeResults = ({
         return {
             onView: showVersion,
             onRevert: readOnly ? undefined : showVersion,
+            // Only once the last turn is over: while it runs, the builder may still recover.
             onTryAgain:
-                latest && send
-                    ? // The person's own message, in the language they read the chat in.
-                      () => send(t("chat.changeCardStates.tryAgainMessage"))
+                latest && finished && send && !retried
+                    ? () => {
+                          setRetried(true)
+                          // The person's own message, in the language they read the chat in.
+                          send(t("chat.changeCardStates.tryAgainMessage"))
+                      }
                     : undefined,
         }
-    }, [readOnly, send, latest, openHistory, selectVersion, t])
+    }, [readOnly, send, latest, finished, retried, openHistory, selectVersion, t])
     return <ChangeResultRows parts={parts} actions={actions} finished={finished} touch />
 }

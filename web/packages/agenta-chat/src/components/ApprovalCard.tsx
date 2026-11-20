@@ -33,7 +33,7 @@ import {describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
 import {changeCallState} from "../model/changeCallState"
 
-import {ChangeCallGroups} from "./ChangeGroups"
+import {ChangeCallGroups} from "./ChangeCallGroups"
 import {ChangeResultRow} from "./ChangeResultRow"
 import {ChangeSections, removesOnly, RiskLine} from "./ChangeSections"
 

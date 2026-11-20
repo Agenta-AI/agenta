@@ -90,4 +90,18 @@ describe("the result rows (task 26.1)", () => {
         )
         expect(html).toBe("")
     })
+
+    it("offers no Try again on a conflict that a later saved call of the turn recovered", () => {
+        const html = renderToStaticMarkup(
+            <ChangeResultRows
+                parts={[
+                    edit("c1", "gpt-6", {state: "output-error", errorText: conflict}),
+                    edit("c2", "gpt-6", {state: "output-available", output: saved}),
+                ]}
+                actions={{onTryAgain: () => undefined}}
+            />,
+        )
+        expect(html).toContain('data-testid="change-result-conflict"')
+        expect(html).not.toContain("Try again")
+    })
 })

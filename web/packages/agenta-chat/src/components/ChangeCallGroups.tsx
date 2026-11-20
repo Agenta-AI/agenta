@@ -145,7 +145,7 @@ const CallGroup = ({preview}: {preview: ApprovalPreview}) => {
         baseVersion !== undefined && latestVersion !== undefined && latestVersion > baseVersion
     const blocks = groupChanges(preview.changes ?? [])
     return (
-        <div className="flex min-w-0 flex-col gap-1" data-testid="change-group">
+        <div className="flex min-w-0 flex-col gap-1" data-testid="change-call-group">
             {baseVersion !== undefined ? (
                 <span className="text-xs font-medium text-colorTextSecondary">
                     {t("chat.changeCardStates.savedTogether", {version: baseVersion + 1})}
@@ -194,7 +194,7 @@ export const ChangeCallGroups = ({previews}: {previews: ApprovalPreview[]}) => {
         ? tChange("chat.changeCard.changesTo", {count, agent})
         : t("chat.changeCardStates.changesCount", {count})
     return (
-        <div className="flex min-w-0 flex-col gap-3" data-testid="change-groups">
+        <div className="flex min-w-0 flex-col gap-3" data-testid="change-call-groups">
             <div className="flex min-w-0 items-center gap-2.5">
                 <span
                     aria-hidden

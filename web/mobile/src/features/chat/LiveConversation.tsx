@@ -70,6 +70,9 @@ import {useQueryClient} from "@tanstack/react-query"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {ContentRail} from "@/components/ContentRail"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
 import {useBuilderCommitChecks} from "../builder/useBuilderCommitChecks"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {
@@ -112,9 +115,6 @@ import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
-
-import {ContentRail} from "@/components/ContentRail"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 const tNow = createT(chatMobileLiveCatalog)
 
@@ -506,9 +506,9 @@ export const LiveConversation = ({
     const changeResultHost = useMemo(
         () => ({
             readOnly: locked,
-            // The composer's own gates: no send while the history loads or setup blocks it.
+            // The composer's own gates: the row sends only when the composer could.
             send:
-                locked || isHydrating || modelBlocked || setupBlocked
+                disabled || setupBlocked
                     ? undefined
                     : (text: string) => {
                           if (lockedRef.current) return
@@ -517,7 +517,7 @@ export const LiveConversation = ({
                           )
                       },
         }),
-        [locked, isHydrating, modelBlocked, setupBlocked, send, beforeSend],
+        [locked, disabled, setupBlocked, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)

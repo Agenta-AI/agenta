@@ -6,19 +6,19 @@
 import {act} from "react"
 
 import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
-import type {UIMessage} from "ai"
 import {
     versionHistoryOpenAtomFamily,
     versionHistorySelectedAtomFamily,
 } from "@agenta/playground-ui/agent-version-history/store"
+import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {WithQueryClient} from "../support/queryClient"
-
 import {ChangeResultHostContext} from "@/features/chat/changeResultHost"
 import {TurnRow} from "@/features/chat/TurnRow"
+
+import {WithQueryClient} from "../support/queryClient"
 
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
@@ -111,6 +111,8 @@ describe("mobile TurnRow: change results", () => {
         expect(sent).toEqual([
             "Read the agent again and propose the same change on its latest version.",
         ])
+        // One message per click: the row stops offering it.
+        expect(element.textContent).not.toContain("Try again")
     })
 
     it("offers no Try again to a reader who cannot send", () => {

@@ -4,7 +4,9 @@
  * and the result rows read it; there is no second state enum.
  *
  * A change call is a tool that saves a version of an agent: `edit_agent_config` and
- * `create_agent` in the builder chat, `commit_revision` in an agent's own chat.
+ * `create_agent` in the builder chat, `commit_revision` in an agent's own chat. The approval card
+ * reads the same function for every gate it shows: before a result, any gate waits, is answered
+ * or is read only in the same way.
  */
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import {asRecord, tryParseAsObject} from "@agenta/shared/utils"
@@ -112,25 +114,25 @@ const savedOf = (result: Record<string, unknown>): Extract<ChangeCallState, {kin
     }
 }
 
-export const changeCallState = (status: ChangeCallInput): ChangeCallState => {
-    const {partState: state, approved} = status
-    if (state === "output-denied" || approved === false) return {kind: "denied"}
-    if (state === "output-error") {
+export const changeCallState = (input: ChangeCallInput): ChangeCallState => {
+    const {partState, approved} = input
+    if (partState === "output-denied" || approved === false) return {kind: "denied"}
+    if (partState === "output-error") {
         // A call the runner runs later is not a result yet.
-        if (isNonFinalRunnerError(status.errorText)) return {kind: "waiting"}
-        return {kind: "not_saved", reason: reasonOf(toolRefusalCode(status.errorText))}
+        if (isNonFinalRunnerError(input.errorText)) return {kind: "waiting"}
+        return {kind: "not_saved", reason: reasonOf(toolRefusalCode(input.errorText))}
     }
-    if (state === "output-available") {
-        const result = toolOutputRecord(status.output)
+    if (partState === "output-available") {
+        const result = toolOutputRecord(input.output)
         const outcome = result?.status
         if (outcome === "committed" || outcome === "created") return savedOf(result!)
         if (outcome === "no_change") return {kind: "not_saved", reason: "no_change"}
         return {kind: "not_saved", reason: "failed"}
     }
-    if (status.answered || state === "approval-responded" || approved === true) {
+    if (input.answered || partState === "approval-responded" || approved === true) {
         return {kind: "waiting"}
     }
-    return status.readOnly ? {kind: "read_only"} : {kind: "pending"}
+    return input.readOnly ? {kind: "read_only"} : {kind: "pending"}
 }
 
 /** One change call of a message, with what its result row needs. */

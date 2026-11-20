@@ -25,8 +25,6 @@ const stringField = (value: unknown, field: string): string | undefined => {
 
 const changes = (count: number) => formatCount(count, "change")
 
-export {toolOutputRecord}
-
 /**
  * The agent a call is about: the name the result reports, else the name `create_agent` was given,
  * else the slug or id the model sent.
@@ -92,8 +90,8 @@ export const describeCreateAgent = (
 }
 
 /**
- * The version a committed result saved, from `revision: {id, version}`; null for any other
- * result (denied, refused, a conflict).
+ * The version a saved result names (`committed`, or `created` for a new agent), from
+ * `revision: {id, version}`; null for any other result (denied, refused, a conflict).
  */
 export const savedVersion = (output: unknown): string | null => {
     const state = changeCallState({partState: "output-available", output})
