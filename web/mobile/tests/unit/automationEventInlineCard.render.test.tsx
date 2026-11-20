@@ -88,17 +88,19 @@ describe("EventInlineCard", () => {
         })
     })
 
-    it("passes an event with no required filter to the draft", () => {
+    it("passes an event with no required filter to the draft", async () => {
         catalog.event = {trigger_config: {properties: {repo: {type: "string"}}}}
         const onSelectEvent = vi.fn()
-        act(() =>
+        // The filters are read through a promise, as the form validates them.
+        await act(async () => {
             root.render(
                 createElement(EventInlineCard, {
                     automation: automation("GITHUB_STAR_ADDED_EVENT"),
                     onSelectEvent,
                 }),
-            ),
-        )
+            )
+            await Promise.resolve()
+        })
         expect(onSelectEvent).toHaveBeenLastCalledWith(
             expect.objectContaining({connectionId: "conn-1", eventKey: "GITHUB_STAR_ADDED_EVENT"}),
         )
