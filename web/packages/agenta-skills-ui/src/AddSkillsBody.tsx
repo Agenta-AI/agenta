@@ -4,7 +4,7 @@ import {useMemo, useState} from "react"
 import {useT} from "@agenta/i18n"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
-import {skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
+import {skillsResolveDataAtom, skillsResolveQueryAtom} from "@agenta/skills/state"
 import {SkillMark} from "@agenta/ui/agent-icon"
 import type {AddSkillsBodyProps} from "@agenta/ui/drill-in"
 import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
@@ -75,13 +75,15 @@ function RowsSkeleton() {
 
 export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkillsBodyProps) {
     const t = useT(skillsGalleryCatalog)
-    const query = useAtomValue(skillsListQueryAtom)
-    const projectSkills = useAtomValue(skillsListDataAtom)
+    // The unfiltered registry: the Skills page search must not narrow this list.
+    const query = useAtomValue(skillsResolveQueryAtom)
+    const registry = useAtomValue(skillsResolveDataAtom)
     const [search, setSearch] = useState("")
 
     const options = useMemo<SkillListItem[]>(() => {
         const added = new Map(addedSlugs.map((slug) => [slug, {}]))
-        return projectSkills
+        return registry
+            .filter((item) => !item.archived)
             .map((item) => {
                 const mapped = toPickerItem(
                     item,
@@ -92,7 +94,7 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
                 return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
             })
             .filter((item): item is SkillListItem => item !== null)
-    }, [addedSlugs, projectSkills])
+    }, [addedSlugs, registry])
     const visible = useMemo(() => filterSkillOptions(options, search), [options, search])
     const searching = Boolean(search.trim())
 

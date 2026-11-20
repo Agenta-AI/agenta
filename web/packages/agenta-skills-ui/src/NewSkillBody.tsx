@@ -110,6 +110,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
     // Import
     const [repoUrl, setRepoUrl] = useState("")
     const [scanning, setScanning] = useState(false)
+    const [importing, setImporting] = useState(false)
     const [found, setFound] = useState<RepoCandidate[] | null>(null)
     const [selected, setSelected] = useState<Set<string>>(new Set())
 
@@ -131,14 +132,18 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         setStep("write")
     }, [])
 
+    // Only the latest upload fills the form; an older, slower one is dropped.
+    const scanId = useRef(0)
     const takeScan = useCallback(
         async (scan: Promise<SkillUploadScan>) => {
+            const id = ++scanId.current
+            const current = () => live.current && id === scanId.current
             setReading(true)
             setError(null)
             setPicks(null)
             try {
                 const result = await scan
-                if (!live.current) return
+                if (!current()) return
                 const [first] = result.candidates
                 if (!first) setError(tNow("skills.gallery.noSkillMdFound"))
                 else if (result.candidates.length === 1)
@@ -149,9 +154,9 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                         selected: new Set(result.candidates.map((c) => c.dir)),
                     })
             } catch {
-                if (live.current) setError(tNow("skills.gallery.readUploadFailed"))
+                if (current()) setError(tNow("skills.gallery.readUploadFailed"))
             } finally {
-                if (live.current) setReading(false)
+                if (current()) setReading(false)
             }
         },
         [openWrite],
@@ -209,12 +214,15 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         try {
             for (const candidate of chosenPicks) {
                 entries.push(await createOne(toFormValue(candidate)))
-                // Off the list once it is in, so a retry skips it.
+                // Off the list once it is in, so a retry cannot create it again.
                 setPicks((current) => {
                     if (!current) return current
                     const next = new Set(current.selected)
                     next.delete(candidate.dir)
-                    return {...current, selected: next}
+                    const candidates = current.scan.candidates.filter(
+                        (c) => c.dir !== candidate.dir,
+                    )
+                    return {scan: {...current.scan, candidates}, selected: next}
                 })
             }
             return true
@@ -236,7 +244,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
 
     const scanRepo = useCallback(async () => {
         const url = repoUrl.trim()
-        if (!url || scanning) return
+        if (!url || scanning || importing) return
         setScanning(true)
         setError(null)
         setFound(null)
@@ -275,7 +283,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         } finally {
             if (live.current) setScanning(false)
         }
-    }, [projectId, repoUrl, scanning])
+    }, [importing, projectId, repoUrl, scanning])
 
     /** The embed entry of each imported skill; the import answer has no slug, the registry has. */
     const entriesOfImported = useCallback(
@@ -318,7 +326,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         [projectId],
     )
 
-    const importRepo = useCallback(async () => {
+    const runImport = useCallback(async () => {
         setError(null)
         let response
         try {
@@ -364,6 +372,14 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         setError(notes.join(" "))
         return "stay" as const
     }, [entriesOfImported, onCreated, projectId, repoUrl, selected])
+    const importRepo = useCallback(async () => {
+        setImporting(true)
+        try {
+            return await runImport()
+        } finally {
+            setImporting(false)
+        }
+    }, [runImport])
 
     const writeDirty = JSON.stringify(value) !== JSON.stringify(EMPTY_SKILL)
     const writeValid =
@@ -549,13 +565,13 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                         onKeyDown={(e) => {
                             if (e.key === "Enter") void scanRepo()
                         }}
-                        disabled={scanning}
+                        disabled={scanning || importing}
                     />
                     <Button
                         variant="outline"
                         className="shrink-0"
                         onClick={() => void scanRepo()}
-                        disabled={scanning || !repoUrl.trim()}
+                        disabled={scanning || importing || !repoUrl.trim()}
                     >
                         {scanning ? <Spinner size="small" /> : null}
                         {t("entityUi.skillNew.scan")}

@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, type ReactNode} from "react"
 
 import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
 import {ConfigurationRoot} from "@/features/agent-layout/ConfigurationRoot"
@@ -170,6 +170,12 @@ export const ImportFromRepo: Story = {
     },
 }
 
+/** The skills bridge, as the app's drill-in provider wires it. */
+const SkillsBridgeProvider = ({children}: {children: ReactNode}) => {
+    const skills = useSkillsBridge()
+    return <DrillInUIProvider components={{skills}}>{children}</DrillInUIProvider>
+}
+
 /** F04 f1 and F06 f2: the Agent tab, the Skills "+" menu, and the remove dialog of a skill. */
 const AgentTabPanel = ({
     projectId,
@@ -180,22 +186,24 @@ const AgentTabPanel = ({
     workflowId: string
     revisionId: string
 }) => (
-    <AgentPanelContext.Provider value={panel}>
-        <AgentEditorContext.Provider value={{revisionId, readOnly: false}}>
-            <div data-testid="agent-panel" className={PANEL}>
-                <ViewStackHost chrome={PanelViewChrome} rootTitle="Agent">
-                    <ConfigurationRoot
-                        agentId={workflowId}
-                        revisionId={revisionId}
-                        sessionId="session"
-                        filesScope="session"
-                        workspaceId="workspace"
-                        projectId={projectId}
-                    />
-                </ViewStackHost>
-            </div>
-        </AgentEditorContext.Provider>
-    </AgentPanelContext.Provider>
+    <SkillsBridgeProvider>
+        <AgentPanelContext.Provider value={panel}>
+            <AgentEditorContext.Provider value={{revisionId, readOnly: false}}>
+                <div data-testid="agent-panel" className={PANEL}>
+                    <ViewStackHost chrome={PanelViewChrome} rootTitle="Agent">
+                        <ConfigurationRoot
+                            agentId={workflowId}
+                            revisionId={revisionId}
+                            sessionId="session"
+                            filesScope="session"
+                            workspaceId="workspace"
+                            projectId={projectId}
+                        />
+                    </ViewStackHost>
+                </div>
+            </AgentEditorContext.Provider>
+        </AgentPanelContext.Provider>
+    </SkillsBridgeProvider>
 )
 
 const agentTab = {
@@ -216,6 +224,12 @@ export const PlusMenu: StoryObj<typeof AgentTabPanel> = {
     args: {projectId: "", workflowId: "", revisionId: ""},
     play: async ({canvasElement}) => {
         const canvas = within(canvasElement)
+        await userEvent.click(await canvas.findByRole("button", {name: "Add skill"}))
+        await within(document.body).findByText("From your registry, or write one")
+        await userEvent.click(within(document.body).getByText("Add manually"))
+        await canvas.findByText("refund-check")
+        // Back to the menu for the capture.
+        await userEvent.click(canvas.getByRole("button", {name: "Agent"}))
         await userEvent.click(await canvas.findByRole("button", {name: "Add skill"}))
         await within(document.body).findByText("From your registry, or write one")
     },
