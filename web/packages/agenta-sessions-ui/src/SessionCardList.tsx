@@ -187,10 +187,11 @@ const Row = ({
         </div>
     ) : (
         // A plain container, not a button: descendants of a button role are presentational, and
-        // the pin nested inside one was keyboard-unreachable. The TITLE button is the open action.
+        // the pin nested inside one was keyboard-unreachable. The TITLE button is the open action;
+        // on a phone its touch area is the whole row, so the target is the row's height.
         <div
             onClick={() => onOpenRow(vm)}
-            className="group box-border flex w-full cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
+            className="group box-border flex w-full max-md:relative cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
         >
             {/* A glyph for the KIND of row, with the status as a dot on its shoulder — the clock
                 and the chat bubble separate automation runs from conversations without a heading. */}
@@ -224,7 +225,7 @@ const Row = ({
                         event.stopPropagation()
                         onOpenRow(vm)
                     }}
-                    className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left"
+                    className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left max-md:after:absolute max-md:after:inset-0 max-md:after:content-['']"
                 >
                     <span className="flex w-full min-w-0 items-center gap-2">
                         <span className="min-w-0 flex-1 truncate text-sm text-colorText">
@@ -246,7 +247,8 @@ const Row = ({
 
             {/* h-5 = the title's line box, so the trailing controls centre on the TITLE rather
                 than on a row whose height the subtitle decides. */}
-            <div className="flex h-5 shrink-0 items-center gap-1 sm:gap-2">
+            {/* Positioned on a phone, so the title's row-wide area stays under these controls. */}
+            <div className="flex h-5 shrink-0 items-center gap-1 max-md:relative sm:gap-2">
                 {/* Quiet chip: the amber urgency lives on the dot; this states WHAT is asked. */}
                 {vm.status.chipLabel ? (
                     <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
@@ -428,7 +430,7 @@ export const SessionCardList = ({
                     <button
                         type="button"
                         onClick={list.showMore}
-                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
+                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary max-md:min-h-11"
                     >
                         {t("sessions.rows.showMore")}
                         <ArrowRightIcon size={12} />

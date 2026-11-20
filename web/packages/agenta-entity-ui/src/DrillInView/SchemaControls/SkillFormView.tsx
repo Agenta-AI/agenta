@@ -12,6 +12,8 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import commitDiffCatalog from "@agenta/i18n/catalogs/entityUi.commitDiff"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import skillCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
@@ -91,6 +93,11 @@ export interface SkillFormViewProps {
     showMissing?: boolean
     /** Offer a download of the skill as SKILL.md or a .zip. Off for a draft not yet created. */
     downloadable?: boolean
+    /**
+     * A read-only view (a phone): Name, Description, a file's path and the switches show as text
+     * rows, and the editors show their text without a toolbar. Pass `disabled` with it.
+     */
+    valuesAsText?: boolean
 }
 
 const tNow = createT(skillCatalog)
@@ -120,27 +127,53 @@ function SwitchRow({
     checked,
     onChange,
     disabled,
+    valuesAsText,
 }: {
     label: string
     hint: string
     checked: boolean
     onChange: (value: boolean) => void
     disabled?: boolean
+    /** The value as text ("On" or "Off"), with no switch. */
+    valuesAsText?: boolean
 }) {
+    const t = useT(commitDiffCatalog)
     return (
         <div className="flex items-start justify-between gap-3">
             <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-xs font-medium">{label}</span>
                 <span className="text-xs text-muted-foreground">{hint}</span>
             </span>
-            <Switch
-                checked={checked}
-                onCheckedChange={onChange}
-                disabled={disabled}
-                aria-label={label}
-                className="shrink-0"
-            />
+            {valuesAsText ? (
+                <span className="shrink-0 text-sm text-colorText">
+                    {checked ? t("entityUi.commitDiff.on") : t("entityUi.commitDiff.off")}
+                </span>
+            ) : (
+                <Switch
+                    checked={checked}
+                    onCheckedChange={onChange}
+                    disabled={disabled}
+                    aria-label={label}
+                    className="shrink-0"
+                />
+            )}
         </div>
+    )
+}
+
+/** A field's value as a text row, for a read-only view; "None" when it is empty. */
+function ReadOnlyText({text, mono = false}: {text: string; mono?: boolean}) {
+    const t = useT(commonCatalog)
+    return (
+        <span
+            className={cn(
+                "whitespace-pre-line break-words text-sm",
+                text.trim() ? "text-colorText" : "text-colorTextTertiary",
+                mono && "font-mono",
+            )}
+        >
+            {text.trim() ? text : t("common.none")}
+        </span>
     )
 }
 
@@ -148,6 +181,7 @@ export function SkillFormView({
     value,
     onChange,
     disabled,
+    valuesAsText = false,
     baseline: baselineProp,
     autoFocusName = false,
     showMissing = false,
@@ -490,18 +524,24 @@ export function SkillFormView({
                                         ) : undefined
                                     }
                                 >
-                                    <Input
-                                        ref={nameInput}
-                                        value={name}
-                                        onChange={(event) => {
-                                            setNameTouched(true)
-                                            set("name", event.target.value)
-                                        }}
-                                        maxLength={SKILL_NAME_MAX}
-                                        aria-invalid={nameMissing || nameError ? true : undefined}
-                                        placeholder="my-skill"
-                                        disabled={disabled}
-                                    />
+                                    {valuesAsText ? (
+                                        <ReadOnlyText text={name} mono />
+                                    ) : (
+                                        <Input
+                                            ref={nameInput}
+                                            value={name}
+                                            onChange={(event) => {
+                                                setNameTouched(true)
+                                                set("name", event.target.value)
+                                            }}
+                                            maxLength={SKILL_NAME_MAX}
+                                            aria-invalid={
+                                                nameMissing || nameError ? true : undefined
+                                            }
+                                            placeholder="my-skill"
+                                            disabled={disabled}
+                                        />
+                                    )}
                                 </Field>
                                 <Field
                                     className="shrink-0"
@@ -510,19 +550,27 @@ export function SkillFormView({
                                     description={t("entityUi.skillForm.descriptionTooltip")}
                                     error={descriptionError}
                                 >
-                                    <AutosizeTextarea
-                                        value={description}
-                                        onChange={(event) => set("description", event.target.value)}
-                                        autoSize={{minRows: 4}}
-                                        className="resize-y"
-                                        aria-invalid={
-                                            descriptionMissing || descriptionError
-                                                ? true
-                                                : undefined
-                                        }
-                                        placeholder={t("entityUi.skillForm.descriptionPlaceholder")}
-                                        disabled={disabled}
-                                    />
+                                    {valuesAsText ? (
+                                        <ReadOnlyText text={description} />
+                                    ) : (
+                                        <AutosizeTextarea
+                                            value={description}
+                                            onChange={(event) =>
+                                                set("description", event.target.value)
+                                            }
+                                            autoSize={{minRows: 4}}
+                                            className="resize-y"
+                                            aria-invalid={
+                                                descriptionMissing || descriptionError
+                                                    ? true
+                                                    : undefined
+                                            }
+                                            placeholder={t(
+                                                "entityUi.skillForm.descriptionPlaceholder",
+                                            )}
+                                            disabled={disabled}
+                                        />
+                                    )}
                                 </Field>
                             </>
                         ) : null}
@@ -563,7 +611,7 @@ export function SkillFormView({
                                         onChange={(next) => set("body", next)}
                                         placeholder={t("entityUi.skillForm.bodyPlaceholder")}
                                         disabled={disabled}
-                                        showToolbar
+                                        showToolbar={!valuesAsText}
                                         toolbarContainer={toolbarHost}
                                         view={bodyView}
                                         onViewChange={setBodyView}
@@ -608,6 +656,7 @@ export function SkillFormView({
                                             checked={Boolean(skill.disable_model_invocation)}
                                             onChange={(on) => set("disable_model_invocation", on)}
                                             disabled={disabled}
+                                            valuesAsText={valuesAsText}
                                         />
                                         <SwitchRow
                                             label={t("entityUi.skillForm.allowExecutable")}
@@ -615,6 +664,7 @@ export function SkillFormView({
                                             checked={Boolean(skill.allow_executable_files)}
                                             onChange={(on) => set("allow_executable_files", on)}
                                             disabled={disabled}
+                                            valuesAsText={valuesAsText}
                                         />
                                     </div>
                                 </HeightCollapse>
@@ -639,19 +689,23 @@ export function SkillFormView({
                                             : undefined
                                     }
                                 >
-                                    <Input
-                                        ref={pathInput}
-                                        value={activePath}
-                                        onChange={(event) =>
-                                            updateFile(activeIndex as number, {
-                                                path: event.target.value,
-                                            })
-                                        }
-                                        placeholder="scripts/foo.py"
-                                        aria-invalid={shownPathProblem ? true : undefined}
-                                        disabled={disabled}
-                                        className="font-mono"
-                                    />
+                                    {valuesAsText ? (
+                                        <ReadOnlyText text={activePath} mono />
+                                    ) : (
+                                        <Input
+                                            ref={pathInput}
+                                            value={activePath}
+                                            onChange={(event) =>
+                                                updateFile(activeIndex as number, {
+                                                    path: event.target.value,
+                                                })
+                                            }
+                                            placeholder="scripts/foo.py"
+                                            aria-invalid={shownPathProblem ? true : undefined}
+                                            disabled={disabled}
+                                            className="font-mono"
+                                        />
+                                    )}
                                 </Field>
                                 <SwitchRow
                                     label={t("entityUi.skillForm.markExecutable")}
@@ -664,6 +718,7 @@ export function SkillFormView({
                                     }
                                     // A file runs only when the skill allows executable files.
                                     disabled={disabled || !skill.allow_executable_files}
+                                    valuesAsText={valuesAsText}
                                 />
                             </>
                         ) : null}

@@ -149,6 +149,8 @@ type DriveToolbarProps =
           onCopyLink?: () => void
           onDownloadAll?: () => void
           downloadingAll?: boolean
+          /** Read only (a phone): no write entries in the ⋯ menu. */
+          readOnly?: boolean
       }
     | {
           variant: "markdown"
@@ -181,6 +183,8 @@ type DriveToolbarProps =
           onCopyPath?: () => void
           onCopyLink?: () => void
           onDownload?: () => void
+          /** Read only (a phone): no Rename or Delete in the ⋯ menu. */
+          readOnly?: boolean
       }
 
 /** Saving… / Saved as it happens; a failed write offers Retry; pending edits say nothing. */
@@ -215,9 +219,12 @@ const FileActionsMenu = ({
     onCopyPath,
     onCopyLink,
     onDownload,
+    readOnly,
 }: {
     actions?: DriveFileActions
     appView?: DriveAppView
+    /** Leaves Rename and Delete out rather than disabled. */
+    readOnly?: boolean
     /** Read-side actions, offered on a read-only mount too. */
     onCopyPath?: () => void
     onCopyLink?: () => void
@@ -275,20 +282,24 @@ const FileActionsMenu = ({
                         {t("entityUi.driveExplorer.copyLink")}
                     </DropdownMenuItem>
                 ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
-                    <PencilSimple />
-                    {t("entityUi.driveExplorer.rename")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    disabled={!actions}
-                    onSelect={actions?.onDelete}
-                    className="text-colorError focus:text-colorError"
-                >
-                    <Trash />
-                    {t("entityUi.driveExplorer.delete")}
-                </DropdownMenuItem>
+                {readOnly ? null : (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
+                            <PencilSimple />
+                            {t("entityUi.driveExplorer.rename")}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            disabled={!actions}
+                            onSelect={actions?.onDelete}
+                            className="text-colorError focus:text-colorError"
+                        >
+                            <Trash />
+                            {t("entityUi.driveExplorer.delete")}
+                        </DropdownMenuItem>
+                    </>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     )
@@ -366,6 +377,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             onCopyLink,
             onDownloadAll,
             downloadingAll,
+            readOnly,
         } = props
         return (
             <Row>
@@ -434,6 +446,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             onCopyLink,
                             onDownloadAll,
                             downloadingAll,
+                            readOnly,
                         }).map((entry, i) =>
                             entry === "separator" ? (
                                 <DropdownMenuSeparator key={`sep-${i}`} />
@@ -526,6 +539,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         onCopyPath,
         onCopyLink,
         onDownload,
+        readOnly,
     } = props
     return (
         <Row>
@@ -547,6 +561,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 onCopyPath={onCopyPath}
                 onCopyLink={onCopyLink}
                 onDownload={onDownload}
+                readOnly={readOnly}
             />
         </Row>
     )

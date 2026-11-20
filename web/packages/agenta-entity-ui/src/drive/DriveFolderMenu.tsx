@@ -37,6 +37,8 @@ export interface DriveFolderMenuProps {
     onCopyLink?: () => void
     onDownloadAll?: () => void
     downloadingAll?: boolean
+    /** The explorer is read only (a phone): the write entries are left out, not disabled. */
+    readOnly?: boolean
 }
 
 export type DriveFolderMenuEntry =
@@ -51,14 +53,8 @@ export type DriveFolderMenuEntry =
           shortcut?: string
       }
 
-/** The folder's menu, in order, with separators — the single source both menus render from. */
-export const driveFolderMenuEntries = ({
-    actions,
-    onCopyPath,
-    onCopyLink,
-    onDownloadAll,
-    downloadingAll,
-}: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
+/** New folder, New file and Upload, then a separator; disabled on a read-only mount. */
+const driveFolderWriteEntries = (actions?: DriveFolderActions): DriveFolderMenuEntry[] => [
     {
         key: "new-folder",
         icon: <FolderPlus />,
@@ -83,6 +79,18 @@ export const driveFolderMenuEntries = ({
         onSelect: actions?.onUpload,
     },
     "separator",
+]
+
+/** The folder's menu, in order, with separators — the single source both menus render from. */
+export const driveFolderMenuEntries = ({
+    actions,
+    onCopyPath,
+    onCopyLink,
+    onDownloadAll,
+    downloadingAll,
+    readOnly,
+}: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
+    ...(readOnly ? [] : driveFolderWriteEntries(actions)),
     {
         key: "copy-path",
         icon: <LinkSimple />,

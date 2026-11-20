@@ -200,7 +200,8 @@ export const ApprovalCard = ({
     )
 
     // "Saves as v{base + 1}", and the conflict state when a newer version landed after the base.
-    const {baseVersion, latestVersion} = useChangeVersions(changes ? preview?.base : undefined)
+    const versions = useChangeVersions(changes ? preview?.base : undefined)
+    const {baseVersion, latestVersion} = versions
     const conflict =
         baseVersion !== undefined && latestVersion !== undefined && latestVersion > baseVersion
 
@@ -347,7 +348,7 @@ export const ApprovalCard = ({
                     changes={changes}
                     proposedValues={preview.proposedValues}
                     cannotApply={preview.cannotApply}
-                    agentName={preview.agentName}
+                    agentName={versions.agentName ?? preview.agentName}
                     header={preview.header}
                     sentence={preview.sentence}
                 />

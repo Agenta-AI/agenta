@@ -32,7 +32,11 @@ import {byText, click, findByText} from "./domHelpers"
 
 const {writer, listeners, endpoints, access, toolReads} = vi.hoisted(() => ({
     access: {value: "on"},
-    toolReads: {count: 0},
+    toolReads: {
+        count: 0,
+        accountSources: [] as (string | undefined)[],
+        failWith: null as string | null,
+    },
     listeners: new Set<() => void>(),
     endpoints: {rows: [] as unknown[]},
     writer: {
@@ -73,8 +77,17 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
         ...original,
         mcpEndpointsQueryAtom: query,
         refreshMcpEndpointsAtom: jotaiAtom(null, () => undefined),
-        listMcpTools: async () => {
+        listMcpTools: async (
+            _slug: string,
+            _projectId?: string,
+            options?: {accountSource?: string},
+        ) => {
             toolReads.count += 1
+            toolReads.accountSources.push(options?.accountSource)
+            if (toolReads.failWith) {
+                const {McpProtocolError} = await import("@agenta/entities/mcpEndpoint")
+                throw new McpProtocolError("Sign in again.", toolReads.failWith)
+            }
             return [
                 {name: "list_issues", title: "List issues", annotations: {readOnlyHint: true}},
                 {name: "create_issue", title: "Create issue", annotations: {readOnlyHint: false}},
@@ -299,7 +312,7 @@ describe("MCP server view", () => {
     })
 
     it("says nothing about the project's sign-in on each person's own entry", async () => {
-        // "Only me": the person signed in, the project never did.
+        // "Only me": the project never signed in, and the viewer has not signed in yet.
         endpoints.rows = [
             {
                 ...endpoint("linear", "healthy"),
@@ -321,13 +334,55 @@ describe("MCP server view", () => {
         expect(document.body.textContent).not.toContain("Couldn't read this server's tools")
     })
 
-    it("lists the tools of each person's own entry while the project is signed in", async () => {
+    it("lists the tools of each person's own entry with the viewer's own sign-in", async () => {
+        // "Only me": the project never signed in, the viewer did.
+        endpoints.rows = [
+            {
+                ...endpoint("linear", "healthy"),
+                auth_mode: "oauth",
+                secret_id: null,
+                user_sign_in: {is_ready: true},
+            },
+        ]
+        const own = withMcpAccountSource(linear, "user")
+        writer.agent = {mcps: [own]}
+        toolReads.count = 0
+        toolReads.accountSources = []
+        await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
+        await findByText("List issues")
+        expect(toolReads.count).toBe(1)
+        expect(toolReads.accountSources).toEqual(["user"])
+        expect(byText("Reconnect")).toBeUndefined()
+    })
+
+    it("offers no project consent when the viewer's own sign-in is refused", async () => {
+        endpoints.rows = [
+            {
+                ...endpoint("linear", "healthy"),
+                auth_mode: "oauth",
+                secret_id: null,
+                user_sign_in: {is_ready: true},
+            },
+        ]
+        toolReads.failWith = "auth_required"
         const own = withMcpAccountSource(linear, "user")
         writer.agent = {mcps: [own]}
         toolReads.count = 0
         await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
+        await findByText("Couldn't read this server's tools")
+        expect(byText("Connect")).toBeUndefined()
+        toolReads.failWith = null
+    })
+
+    it("lists the tools of each person's own entry while the project is signed in", async () => {
+        const own = withMcpAccountSource(linear, "user")
+        writer.agent = {mcps: [own]}
+        toolReads.count = 0
+        toolReads.accountSources = []
+        await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
         await findByText("List issues")
         expect(toolReads.count).toBe(1)
+        expect(toolReads.accountSources).toEqual(["agent"])
         expect(byText("Reconnect")).toBeUndefined()
     })
 
