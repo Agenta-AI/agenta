@@ -9,30 +9,29 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {Spinner} from "@agenta/ui/ui"
 import {ArrowClockwiseIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
+import {AgentSidebarHeader} from "../agent-sidebar/AgentSidebarHeader"
 import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
+import {ConnectedAgentSwitcher} from "../agent-sidebar/ConnectedAgentSwitcher"
 import {SidebarNewButton} from "../agent-sidebar/SidebarNewButton"
-import {SidebarTopRow} from "../agent-sidebar/SidebarTopRow"
 import {builderChatHref} from "../builder/builderChatHref"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 
+import {BuilderChatSearch} from "./BuilderChatSearch"
 import {chatDayLabel} from "./chatDayLabel"
 import {useBuilderChats} from "./useBuilderChats"
-
-const ROW =
-    "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
 
 export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionId}`
 
 /**
- * The builder sidebar (B01): Back, "Builder", "New chat" and "Chats", the person's builder chats
- * newest first with the day of their last message. "Back" shows the main sidebar and leaves the
- * page as it is.
+ * The builder sidebar (B01): Back, the switcher on "Builder", "New chat" and "Chats", the
+ * person's builder chats newest first with the day of their last message. "Back" shows the main
+ * sidebar and leaves the page as it is. The search button next to "Chats" opens the search
+ * window over the builder chats.
  */
 export const createBuilderSidebarScope = (
     workspaceId: string,
@@ -116,6 +115,11 @@ export const createBuilderSidebarScope = (
                             scrollChildren: true,
                             hideChildrenWhenCollapsed: true,
                             onReachEnd: chats.loadMore,
+                            // The search window over every builder chat (B06). No filter.
+                            groupAction: createElement(BuilderChatSearch, {
+                                workspaceId,
+                                projectId,
+                            }),
                             submenu: [...rows, ...states],
                         },
                     ],
@@ -127,31 +131,27 @@ export const createBuilderSidebarScope = (
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
         const t = useT(builderPageCatalog)
-        const back = <SidebarBackButton collapsed={collapsed} onBack={onBack} />
-        const toggle = <SidebarToggleButton onDismiss={onDismiss} />
         return (
-            <>
-                <SidebarTopRow collapsed={collapsed} back={back} toggle={toggle} />
-                <div className={`${ROW} h-12 ${collapsed ? "justify-center" : "px-3"}`}>
-                    <span
-                        className={`flex min-w-0 items-center gap-2 ${collapsed ? "" : "h-[38px] flex-1"}`}
-                    >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorSplit text-colorText">
-                            <BuilderIcon size={18} />
-                        </span>
-                        {collapsed ? null : (
-                            <span className="truncate text-sm font-medium text-colorText">
-                                {t("builder.page.builder")}
-                            </span>
-                        )}
-                    </span>
-                </div>
-                <SidebarNewButton
-                    label={t("builder.page.newChat")}
-                    href={`${projectURL}/builder`}
-                    collapsed={collapsed}
-                />
-            </>
+            <AgentSidebarHeader
+                collapsed={collapsed}
+                back={<SidebarBackButton collapsed={collapsed} onBack={onBack} />}
+                toggle={<SidebarToggleButton onDismiss={onDismiss} />}
+                switcher={
+                    <ConnectedAgentSwitcher
+                        projectURL={projectURL}
+                        projectId={projectId}
+                        current={{kind: "builder"}}
+                        collapsed={collapsed}
+                    />
+                }
+                newSession={
+                    <SidebarNewButton
+                        label={t("builder.page.newChat")}
+                        href={`${projectURL}/builder`}
+                        collapsed={collapsed}
+                    />
+                }
+            />
         )
     }
 

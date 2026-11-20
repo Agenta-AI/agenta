@@ -70,8 +70,22 @@ export const selectedSidebarAtom = atomWithStorage<SelectedSidebar>(
     tabStorage,
 )
 
-export const setSelectedSidebar = (sidebar: SelectedSidebar) =>
+/** A sidebar change made in this tab (a pick, Fold, Back, an open button), not one restored from
+ * storage on load. The rail slides only for these, and clears the flag when it shows the change. */
+let sidebarChangeToShow = false
+
+export const setSelectedSidebar = (sidebar: SelectedSidebar) => {
+    sidebarChangeToShow = true
     getDefaultStore().set(selectedSidebarAtom, sidebar)
+}
+
+/** Whether the next sidebar the rail shows comes from `setSelectedSidebar`. */
+export const sidebarChangePending = (): boolean => sidebarChangeToShow
+
+/** The rail showed the change. */
+export const clearSidebarChange = () => {
+    sidebarChangeToShow = false
+}
 
 /** The choice now, outside React: a pending action checks it is still the one it made. */
 export const currentSidebar = (): SelectedSidebar => getDefaultStore().get(selectedSidebarAtom)

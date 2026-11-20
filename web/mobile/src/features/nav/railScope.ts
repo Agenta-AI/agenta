@@ -1,11 +1,15 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {useSelectedSidebar} from "../agent-sidebar/selectedSidebar"
+import {
+    clearSidebarChange,
+    sidebarChangePending,
+    useSelectedSidebar,
+} from "../agent-sidebar/selectedSidebar"
 
 import {appScopeAppId, lastMainRailPathAtom} from "./appRoute"
 import {useMobileNavScope} from "./mobileNavScope"
@@ -86,4 +90,42 @@ export const useTrackLastMainRailPath = () => {
         const settings = router.asPath.split("?")[0].endsWith("/settings")
         if (!inAppMenu && !settings) setLastPath(router.asPath)
     }, [inAppMenu, router.asPath, setLastPath])
+}
+
+const isAgentSidebar = (scopeId: string) => scopeId.startsWith("agent-sidebar:")
+
+/**
+ * The side a new rail slides in from (A11, A12): focusing on one agent slides the agent sidebar
+ * in from the end, and leaving it slides the other sidebar in from the start. A first mount and
+ * a move from one agent's sidebar to another's do not slide.
+ */
+export const sidebarEnterFrom = (
+    previousScopeId: string | null,
+    scopeId: string,
+): "start" | "end" | undefined => {
+    if (previousScopeId === null || previousScopeId === scopeId) return undefined
+    const from = isAgentSidebar(previousScopeId)
+    const to = isAgentSidebar(scopeId)
+    if (to && !from) return "end"
+    if (from && !to) return "start"
+    return undefined
+}
+
+/**
+ * `sidebarEnterFrom` for the scope on screen, against the one shown before it. Only for a change
+ * the person made in this tab: the agent sidebar restored on load does not slide in.
+ */
+export const useSidebarEnterFrom = (scopeId: string) => {
+    const previous = useRef<string | null>(null)
+    const enterFrom = useMemo(
+        () => (sidebarChangePending() ? sidebarEnterFrom(previous.current, scopeId) : undefined),
+        // Read once per scope change; the ref and the flag move in the effect below.
+
+        [scopeId],
+    )
+    useEffect(() => {
+        previous.current = scopeId
+        clearSidebarChange()
+    }, [scopeId])
+    return enterFrom
 }

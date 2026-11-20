@@ -56,8 +56,6 @@ export const SessionFilterMenu = ({
     onReset,
     lockedAgent,
     defaultView = DEFAULT_SESSION_LIST_VIEW,
-    open,
-    onOpenChange,
 }: {
     view: SessionListView
     onChange: (view: SessionListView) => void
@@ -78,9 +76,6 @@ export const SessionFilterMenu = ({
     lockedAgent?: {id: string; name: string}
     /** What Reset returns to and what counts as untouched. */
     defaultView?: SessionListView
-    /** Controlled open state (the agent sidebar's Filter link opens the menu on arrival). */
-    open?: boolean
-    onOpenChange?: (open: boolean) => void
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
@@ -285,8 +280,6 @@ export const SessionFilterMenu = ({
 
     return (
         <FilterMenu
-            open={open}
-            onOpenChange={onOpenChange}
             sections={sections}
             align="start"
             // Icon alone: the table beside it is already the subject, and the word "Filter" added
