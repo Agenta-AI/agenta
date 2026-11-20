@@ -186,14 +186,13 @@ export const ChangeResultRow = ({
 const useChangeCallSummary = (call: Pick<ChangeCall, "toolName" | "input">) => {
     const tChange = useT(chatChangeCardCatalog)
     const tStates = useT(chatChangeCardStatesCatalog)
-    const {preview, blocks} = useMemo(() => {
-        const preview = describeApproval({
-            approvalId: "",
-            toolName: call.toolName,
-            input: call.input,
-        })
-        return {preview, blocks: groupChanges(preview.changes ?? [])}
-    }, [call.toolName, call.input])
+    // Not memoized: the describers translate with the active language, which can change.
+    const preview = describeApproval({
+        approvalId: "",
+        toolName: call.toolName,
+        input: call.input,
+    })
+    const blocks = groupChanges(preview.changes ?? [])
     if (preview.header) return preview.header.title
     if (blocks.length === 1) return blocks[0].title
     if (!blocks.length) return undefined
