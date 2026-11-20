@@ -138,9 +138,9 @@ export function AgentOperationsSections({
         references: Record<string, {id?: string; slug?: string}>,
     ) => void
     /**
-     * The phone shape (M10): no Automations header bar (the tab already names the list), phone
-     * rows, and "Add automation" as the full-width button at the bottom, which opens a bottom
-     * sheet (M11). The host decides it (`useIsPhone`) and makes its scrolling column a flex
+     * The phone shape (M10): no Automations header bar (the tab already names the list), no Files
+     * region, phone rows, and "Add automation" as the full-width button at the bottom, which opens
+     * a bottom sheet (M11). The host decides it (`useIsPhone`) and makes its scrolling column a flex
      * column, so the button sits at the bottom of the screen.
      */
     phone?: boolean
@@ -184,7 +184,8 @@ export function AgentOperationsSections({
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            {showFiles ? (
+            {/* A phone shows the automation list alone (M10). */}
+            {showFiles && !phone ? (
                 <section className="flex grow flex-col">
                     <AgentRegionHeaderBar
                         title={t("entityUi.agentOperations.recentFiles")}

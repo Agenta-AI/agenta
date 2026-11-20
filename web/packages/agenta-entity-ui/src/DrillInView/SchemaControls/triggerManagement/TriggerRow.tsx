@@ -108,7 +108,7 @@ export function TriggerRow({
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1" role="presentation">
-                    {phone && onToggle ? (
+                    {onToggle ? (
                         <PhoneRowSwitch name={name} active={active} onToggle={onToggle} />
                     ) : null}
                     <TriggerActionsMenu

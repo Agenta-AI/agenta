@@ -94,7 +94,7 @@ export const AutomationRunList = ({
             {isLoading ? (
                 <AutomationRunListSkeleton />
             ) : error && !groups.length ? (
-                <AutomationRunHistoryError onRetry={onRetry} />
+                <AutomationRunHistoryError onRetry={onRetry} phone={phone} />
             ) : groups.length ? (
                 groups.map((group) => (
                     <section key={group.key} className="mb-1 last:mb-0">

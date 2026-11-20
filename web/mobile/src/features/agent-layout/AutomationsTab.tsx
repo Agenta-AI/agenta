@@ -81,9 +81,7 @@ export const AutomationsTab = ({
                     revisionId={revisionId}
                     disabled={!editAccess.pending && !editAccess.allowed}
                     sticky={false}
-                    // On a phone the tab is the automation list alone (M10); the session's files
-                    // are one tap away in the session header.
-                    showFiles={!phone && Boolean(sessionId && filesScope)}
+                    showFiles={Boolean(sessionId && filesScope)}
                     storage={
                         sessionId && filesScope ? (
                             <StorageSection

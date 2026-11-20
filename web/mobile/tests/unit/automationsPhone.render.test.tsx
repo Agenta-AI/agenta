@@ -130,6 +130,8 @@ describe("Automations tab on a phone", () => {
         renderTab({phone: false})
         expect(container.querySelector("[role=switch]")).toBe(null)
         expect(addButton()).toBe(null)
+        expect(container.textContent).toContain("Automations")
+        expect(container.querySelector("[aria-label='Add automation']")).not.toBe(null)
     })
 })
 

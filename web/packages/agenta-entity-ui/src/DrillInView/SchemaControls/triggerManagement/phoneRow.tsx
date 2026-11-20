@@ -6,7 +6,7 @@ import {Switch} from "@agenta/ui/ui"
 
 /** The row frame on a phone: no card, a divider under it, at least 56 px high. */
 export const PHONE_ROW_CLASS =
-    "group flex min-h-14 items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] py-2.5"
+    "flex min-h-14 items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] py-2.5"
 
 /** The name on a phone: 15 px, wraps instead of being cut. */
 export const PHONE_NAME_CLASS = "break-words text-[15px] leading-5"

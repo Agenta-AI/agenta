@@ -43,7 +43,8 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
     )
 
     // The automation did not load: say so and offer a retry, rather than an empty history.
-    if (error && !automation) return <AutomationRunHistoryError onRetry={() => void refetch()} />
+    if (error && !automation)
+        return <AutomationRunHistoryError onRetry={() => void refetch()} phone={phone} />
 
     return (
         <div className="flex h-full min-h-0 flex-col">

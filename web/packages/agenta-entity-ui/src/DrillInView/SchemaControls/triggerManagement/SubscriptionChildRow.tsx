@@ -190,7 +190,7 @@ export function SubscriptionChildRow({
                             waitHint={t("entityUi.triggers.triggerFromApp")}
                         />
                     ) : null}
-                    {phone && onToggle ? (
+                    {onToggle ? (
                         <PhoneRowSwitch name={primary} active={active} onToggle={onToggle} />
                     ) : null}
                     <TriggerActionsMenu
