@@ -2,24 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Sequence
+
+from ..config_errors import ConfigEntryError
 
 
 class MCPError(RuntimeError):
     """Base error for the agent MCP subsystem."""
 
 
-class MCPConfigurationError(MCPError):
-    def __init__(
-        self,
-        message: str,
-        *,
-        index: Optional[int] = None,
-        value: Any = None,
-    ) -> None:
-        super().__init__(message)
-        self.index = index
-        self.value = value
+class MCPConfigurationError(MCPError, ConfigEntryError):
+    """An ``mcps`` entry the runtime cannot parse."""
 
 
 class MissingMCPSecretError(MCPError):

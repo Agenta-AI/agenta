@@ -4,9 +4,10 @@ Implements ``docs/design/agent-config-editing/contracts/change-set.md`` (slice S
 contract is authoritative; this module is its executable half.
 
 The engine is dependency-free: plain dicts in, a plain result out, no pydantic, no I/O, no
-database. Two wrappers call it. The commit wrapper checks ``base_revision_id`` against the
-head and persists; the invoke-override wrapper resolves an immutable revision, applies with
-the ``parameters``-only scope policy, and persists nothing.
+database. Its one import from the SDK is a constant: the tool types the runtime allows once
+per list, which the engine keys by type. Two wrappers call it. The commit wrapper checks
+``base_revision_id`` against the head and persists; the invoke-override wrapper resolves an
+immutable revision, applies with the ``parameters``-only scope policy, and persists nothing.
 
 Three things belong to the wrapper, not here, and the contract says so: the selector
 normalization (contract 4.3), the platform-tool rejection (11), the derived commit message
@@ -19,6 +20,8 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+
+from agenta.sdk.agents.tools import SINGLE_ENTRY_TOOL_TYPES
 
 __all__ = [
     "ChangeSetError",
@@ -129,7 +132,8 @@ NEXT_STEPS: Dict[str, str] = {
     Reason.ITEM_NOT_FOUND: (
         "Call read_config with a {list, key} selector for that list: its refusal lists "
         "every key the list actually holds. A gateway_connection entry's key is "
-        "gateway_connection:<connection.provider>:<connection.integration>."
+        "gateway_connection:<connection.provider>:<connection.integration>; an "
+        "agenta_tools entry's key is agenta_tools."
     ),
     Reason.ITEM_RENAME_NOT_ALLOWED: (
         "Send remove_item for the old key, then add_item with the new value."
@@ -143,7 +147,7 @@ NEXT_STEPS: Dict[str, str] = {
         "file. For a tool the key depends on its type: gateway_connection needs "
         "connection.provider and connection.integration (together they are its key); "
         "gateway needs an explicit name; reference needs name or slug; platform is keyed "
-        "by op; everything else needs name."
+        "by op; agenta_tools is keyed agenta_tools; everything else needs name."
     ),
     Reason.UNKEYED_COLLECTION: (
         "That list is not addressed by name. Use set to replace the whole list."
@@ -471,6 +475,11 @@ def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optiona
         return entry.get("name") or entry.get("slug")
     if kind == "platform":
         return entry.get("op")
+    if isinstance(kind, str) and kind in SINGLE_ENTRY_TOOL_TYPES:
+        # A type the runtime allows once per list has no name, so its type is its key, and
+        # an operation can reach inside the entry instead of replacing the whole list around
+        # it. A legacy list holding two is a duplicate key, which the engine already reports.
+        return kind
     return entry.get("name")
 
 

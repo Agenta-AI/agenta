@@ -132,6 +132,27 @@ def test_from_params_plain_string_model_leaves_model_ref_none():
     assert config.model_ref is None
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [{"llm_config": "gpt-5.5"}, {"llm_config": ["gpt-5.5"]}, {"messages": 3}],
+)
+def test_from_params_refuses_a_field_of_the_wrong_type(prompt):
+    # A wrong type is the caller's configuration, so it answers like the other shape
+    # errors instead of leaking an AttributeError or a TypeError.
+    with pytest.raises(AgentTemplateShapeError, match="wrong type"):
+        AgentTemplate.from_params({"prompt": prompt})
+
+
+def test_a_refused_sandbox_credential_does_not_echo_its_value():
+    # The refusal reaches the API log and the 422 body; an inline value must not.
+    with pytest.raises(AgentTemplateShapeError) as caught:
+        AgentTemplate.from_params(
+            {"agent": {"sandbox": {"credentials": [{"value": "TEST_INLINE_SECRET"}]}}}
+        )
+
+    assert "TEST_INLINE_SECRET" not in str(caught.value)
+
+
 def test_from_params_falls_back_to_defaults():
     config = AgentTemplate.from_params({}, defaults=_DEFAULTS)
     assert config.instructions == "default-md"
