@@ -1,0 +1,15 @@
+{
+    "add": "Add",
+    "addProviderOrSubscription": "Add a provider or subscription",
+    "agenta": "Agenta",
+    "apiKeys": "API keys",
+    "builtIn": "Built-in",
+    "formLeaveDescription": "Save your changes to this connection, or discard them?",
+    "loadFailed": "Agenta could not load the model providers.",
+    "providedByAgenta": "Provided by Agenta",
+    "saveConnection": "Save connection",
+    "signInNeeded": "Sign in needed",
+    "subscriptions": "Subscriptions",
+    "useApiKey": "Use an API key",
+    "useSubscription": "Use a subscription"
+}

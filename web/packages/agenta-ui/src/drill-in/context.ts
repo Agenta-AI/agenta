@@ -218,6 +218,7 @@ export {
     useDrillInUI,
     type DrillInUIComponents,
     type GatewayToolsBridge,
+    type RegistrySkillParams,
     type SkillsBridge,
     type SkillsPickerHostProps,
     type WorkflowReferenceBridge,

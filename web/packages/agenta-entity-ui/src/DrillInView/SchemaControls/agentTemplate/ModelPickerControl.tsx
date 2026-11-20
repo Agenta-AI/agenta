@@ -29,10 +29,12 @@ import {
     ManageProvidersRow,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
+import {useOptionalViewStack} from "@agenta/ui/view-stack"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
+import {providerListView} from "../../../secretProvider/views/providerViews"
 import {
     buildConnectionPickerRows,
     displayedModelRow,
@@ -141,10 +143,17 @@ const ModelPickerControl = ({
         () => (modelId && harness ? {modelId, provider, mode, slug, namespace, harness} : null),
         [modelId, provider, mode, slug, namespace, harness],
     )
-    const openProviderDrawer = useCallback(() => {
+    // In a container with a view stack (the panel, a view drawer), Model providers takes the
+    // Model view's place; elsewhere the provider drawer opens.
+    const stack = useOptionalViewStack()
+    const openModelProviders = useCallback(() => {
+        if (stack) {
+            void stack.open(providerListView, {}, {kind: "project"})
+            return
+        }
         drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
         setDrawerOpen(true)
-    }, [connections])
+    }, [connections, stack])
     const providerSaved = useCallback(
         async (savedConnectionId?: string) => {
             const previousConnectionKeys = drawerConnectionKeysRef.current
@@ -219,7 +228,7 @@ const ModelPickerControl = ({
                 <button
                     type="button"
                     disabled={disabled}
-                    onClick={openProviderDrawer}
+                    onClick={openModelProviders}
                     className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <Plus size={14} className="shrink-0" />
@@ -255,7 +264,7 @@ const ModelPickerControl = ({
                 disabled={disabled}
                 placeholder={t("entityUi.configItems.selectModel")}
                 className="w-full"
-                footerContent={<ManageProvidersRow onClick={openProviderDrawer} />}
+                footerContent={<ManageProvidersRow onClick={openModelProviders} />}
             />
             {drawer}
         </>

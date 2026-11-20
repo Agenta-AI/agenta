@@ -105,6 +105,7 @@ export const ConfigurationRoot = ({
                 ) : panel.configTab === "automations" ? (
                     <AutomationsTab
                         revisionId={revisionId}
+                        workspaceId={workspaceId}
                         sessionId={sessionId}
                         filesScope={filesScope}
                         projectId={projectId}

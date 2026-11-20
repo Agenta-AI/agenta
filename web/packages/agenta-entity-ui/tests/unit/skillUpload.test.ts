@@ -1,9 +1,11 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    applySkillUpload,
     buildSkillFromFiles,
     mergePastedSkill,
     parseSkillMarkdown,
+    readSkillUpload,
     scanSkillFiles,
 } from "../../src/DrillInView/SchemaControls/skillUpload"
 
@@ -179,5 +181,62 @@ describe("scanSkillFiles", () => {
         const scan = scanSkillFiles([{path: "notes.md", bytes: bytes("just notes")}])
         expect(scan.candidates).toEqual([])
         expect(scan.fileCount).toBe(1)
+    })
+})
+
+const raw = (path: string, text: string) => ({path, bytes: bytes(text)})
+const file = (path: string, content = "") => ({path, content})
+
+describe("applySkillUpload", () => {
+    const skill = {
+        name: "ticket-triage",
+        description: "Triage",
+        body: "Old body",
+        files: [
+            {...file("references/categories.md", "old"), executable: true},
+            file("keep.md", "k"),
+        ],
+    }
+    const upload = readSkillUpload([
+        raw("pkg/SKILL.md", "---\nname: other\ndescription: New\n---\nNew body"),
+        raw("pkg/templates/reply-refund.md", "new file"),
+        raw("pkg/references/categories.md", "replaced"),
+        {path: "pkg/logo.png", bytes: new Uint8Array([137, 80, 0, 1])},
+    ])
+
+    it("skips files that are not text and lists them", () => {
+        expect(upload.skipped).toEqual([{path: "pkg/logo.png", reason: "binary"}])
+        expect(upload.hasSkillMd).toBe(true)
+    })
+
+    it("Add: adds new files, replaces same paths, keeps the rest and never touches SKILL.md", () => {
+        const result = applySkillUpload(skill, upload, "add")
+        if ("error" in result) throw new Error("unexpected error")
+        expect(result.skill.name).toBe("ticket-triage")
+        expect(result.skill.description).toBe("Triage")
+        expect(result.skill.body).toBe("Old body")
+        expect(result.skill.files).toEqual([
+            {path: "references/categories.md", content: "replaced", executable: true},
+            {path: "keep.md", content: "k"},
+            {path: "templates/reply-refund.md", content: "new file"},
+        ])
+    })
+
+    it("Replace: every file, the name, the description and SKILL.md come from the upload", () => {
+        const result = applySkillUpload(skill, upload, "replace")
+        if ("error" in result) throw new Error("unexpected error")
+        expect(result.skill).toMatchObject({name: "other", description: "New", body: "New body"})
+        expect(result.skill.files).toEqual([
+            {path: "templates/reply-refund.md", content: "new file"},
+            {path: "references/categories.md", content: "replaced"},
+        ])
+    })
+
+    it("Replace with no SKILL.md changes nothing and says so", () => {
+        const noSkillMd = readSkillUpload([raw("notes.md", "n")])
+        expect(applySkillUpload(skill, noSkillMd, "replace")).toEqual({error: "noSkillMd"})
+        const added = applySkillUpload(skill, noSkillMd, "add")
+        if ("error" in added) throw new Error("unexpected error")
+        expect((added.skill.files as unknown[]).length).toBe(3)
     })
 })

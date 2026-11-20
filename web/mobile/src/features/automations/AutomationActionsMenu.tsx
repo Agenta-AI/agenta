@@ -1,7 +1,6 @@
 import {useCallback} from "react"
 
 import {type Automation, useAutomation} from "@agenta/automation-ui"
-import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
@@ -16,11 +15,9 @@ import {
 import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {useStartTaskSession} from "../chat/useStartTaskSession"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
-import {TEST_RUN_BLOCKED_TEXT, testRunBlockedReason} from "./AutomationTestRunButton"
-import {runNowText} from "./runNowText"
+import {useAutomationRunNow} from "./useAutomationRunNow"
 
 const tNow = createT(automationsScreensCatalog)
 
@@ -59,7 +56,8 @@ export const AutomationActionsMenu = ({
     const t = useT(automationsScreensCatalog)
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
-    const startTask = useStartTaskSession(base)
+    // The list row's Run now ignores unsaved edits: the row has none.
+    const {run: onRunNow} = useAutomationRunNow(automation, base)
     const {confirm, modal} = useConfirmModal()
 
     const onToggle = useCallback(async () => {
@@ -75,23 +73,6 @@ export const AutomationActionsMenu = ({
             message.error(tNow("automations.screens.changeFailed"))
         }
     }, [automation.id, automation.isActive, setActive])
-
-    const onTestRun = useCallback(async () => {
-        const instruction = getScheduleMessagePreview(automation.raw.data?.inputs_fields).trim()
-        // A menu item has no disabled-with-tooltip state, so the detail button's reasons surface
-        // as a toast instead.
-        const blocked = testRunBlockedReason({agentId: automation.agentId, instruction})
-        if (blocked !== null || !automation.agentId) {
-            if (blocked !== null) message.error(tNow(TEST_RUN_BLOCKED_TEXT[blocked]))
-            return
-        }
-        const text = await runNowText(automation)
-        // Null: the deliveries call failed. Empty: the pills resolved to nothing. Either way
-        // there is no message, so no session opens.
-        if (!text) return
-        // Sent on landing, like the detail screen's Run now.
-        void startTask(automation.agentId, text)
-    }, [automation, startTask])
 
     const onDelete = useCallback(() => {
         confirm({
@@ -136,7 +117,7 @@ export const AutomationActionsMenu = ({
                 <DropdownMenuContent align="end" className="w-[220px]">
                     {surface === "list" ? (
                         <>
-                            <DropdownMenuItem onSelect={() => void onTestRun()}>
+                            <DropdownMenuItem onSelect={() => void onRunNow()}>
                                 <Play aria-hidden size={14} />
                                 {t("automations.screens.runNow")}
                             </DropdownMenuItem>
