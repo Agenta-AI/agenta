@@ -4,7 +4,7 @@
     "agenta": "Agenta",
     "apiKeys": "API キー",
     "builtIn": "組み込み",
-    "formLeaveDescription": "変更を保存してこの接続をプロジェクトに保存しますか？それとも破棄しますか？",
+    "formLeaveDescription": "この接続への変更を保存しますか？それとも破棄しますか？",
     "loadFailed": "Agenta はモデルプロバイダーを読み込めませんでした。",
     "providedByAgenta": "Agenta が提供",
     "saveConnection": "接続を保存",

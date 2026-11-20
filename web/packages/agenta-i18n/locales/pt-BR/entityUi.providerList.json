@@ -4,7 +4,7 @@
     "agenta": "Agenta",
     "apiKeys": "Chaves de API",
     "builtIn": "Integrado",
-    "formLeaveDescription": "Salvar suas alterações para guardar esta conexão no projeto ou descartá-las?",
+    "formLeaveDescription": "Salvar suas alterações nesta conexão ou descartá-las?",
     "loadFailed": "O Agenta não conseguiu carregar os provedores de modelos.",
     "providedByAgenta": "Fornecida pelo Agenta",
     "saveConnection": "Salvar conexão",

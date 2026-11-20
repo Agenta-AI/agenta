@@ -1,16 +1,6 @@
 import {type ReactNode, useCallback, useMemo, useState} from "react"
 
-import {
-    activeModelsSummary,
-    credentialSummary,
-    deleteSecretAtom,
-    isSubscriptionConnection,
-    SecretManagementPolicy,
-    providerConnectionsAtom,
-    useVaultSecret,
-    type ProviderConnection,
-} from "@agenta/entities/secret"
-import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {deleteSecretAtom, useVaultSecret, type ProviderConnection} from "@agenta/entities/secret"
 import {
     builtinModelsView,
     providerAddView,
@@ -25,24 +15,16 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
 import {Trash} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
-import {
-    ProvidersPanel,
-    type ProviderRemovalState,
-    type ProvidersSource,
-    providerTitle,
-} from "./ProvidersPanel"
+import {ProvidersPanel, type ProviderRemovalState} from "./ProvidersPanel"
 import {useOrganizationProvidersGroup} from "./useOrganizationProvidersGroup"
 
 export type {ProviderRemovalState}
 
 const PROJECT: ViewTarget = {kind: "project"}
-
-/** The capability map is global; the key only records which surface asked for it. */
-const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
 
 export const SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
@@ -68,54 +50,19 @@ export interface AIProvidersPageProps {
     subscriptionDocsUrl?: string
     /** Adds the organization's group. Absent keeps the project's connections alone. */
     organization?: AIProvidersOrganization
-    /** The project group's heading: the project switch. Absent, it reads "Connected". */
+    /** Above the project's list: the project switch. Absent, the list has no heading. */
     projectSwitch?: ReactNode
 }
 
-/** The project's own connections: one row per connection, every provider stays connectable. */
-const useProjectProvidersSource = (): ProvidersSource => {
-    const t = useT(settingsProvidersCatalog, commonCatalog)
-    const {loading, mutate} = useVaultSecret()
-    const connections = useAtomValue(providerConnectionsAtom)
-    const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
+/**
+ * Delete of one of the project's connections, with the host's confirm surface. The dialog stays
+ * open with the reason when the delete fails.
+ */
+const useProjectRemoval = () => {
+    const t = useT(settingsProvidersCatalog)
+    // Also runs the one-time key migration of the vault, as the page always did.
+    const {mutate} = useVaultSecret()
     const deleteSecret = useSetAtom(deleteSecretAtom)
-
-    return useMemo(() => {
-        // Manager-only rows 409 on edit; the drawer still gets every connection so none look
-        // keyless.
-        const rows = connections.filter(
-            (connection) =>
-                connection.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
-                !isSubscriptionConnection(connection),
-        )
-        return {
-            connections,
-            rows,
-            loading: loading && rows.length === 0,
-            describe: (connection: ProviderConnection) =>
-                [
-                    connection.title !== connection.name
-                        ? providerTitle(connection.kind, connection.title, t)
-                        : null,
-                    credentialSummary(connection),
-                    activeModelsSummary(connection, capabilities),
-                ]
-                    .filter(Boolean)
-                    .join(" · "),
-            manage: true,
-            remove: async (connection: ProviderConnection) => {
-                await deleteSecret(connection.source)
-                mutate()
-            },
-            removeFailed: (_failure: unknown, connection: ProviderConnection) =>
-                t("settings.providers.removeFailed", {name: connection.name}),
-            onSaved: mutate,
-        }
-    }, [connections, loading, capabilities, deleteSecret, mutate, t])
-}
-
-/** Delete of one of the project's connections, with the host's confirm surface. */
-const useProjectRemoval = (source: ProvidersSource) => {
     const [connection, setConnection] = useState<ProviderConnection | null>(null)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -128,13 +75,15 @@ const useProjectRemoval = (source: ProvidersSource) => {
             if (!connection) return
             setPending(true)
             setError(null)
-            source
-                .remove(connection)
-                .catch((failure: unknown) => setError(source.removeFailed(failure, connection)))
-                .finally(() => {
+            deleteSecret(connection.source)
+                .then(() => {
+                    mutate()
                     setConnection(null)
-                    setPending(false)
                 })
+                .catch(() =>
+                    setError(t("settings.providers.removeFailed", {name: connection.name})),
+                )
+                .finally(() => setPending(false))
         },
         onClose: () => setConnection(null),
     }
@@ -160,7 +109,6 @@ export const AIProvidersPage = ({
     projectSwitch,
 }: AIProvidersPageProps) => {
     const t = useT(settingsProvidersCatalog, commonCatalog)
-    const project = useProjectProvidersSource()
     const scope = useMemo(
         () =>
             organization
@@ -174,7 +122,7 @@ export const AIProvidersPage = ({
     )
     const {group: organizationGroup, manageScope} = useOrganizationProvidersGroup(scope)
     const views = useViewOpener()
-    const removal = useProjectRemoval(project)
+    const removal = useProjectRemoval()
 
     const ownerChoiceFor = useCallback(
         (kind: string): ProviderOwnerChoice | undefined =>
@@ -226,7 +174,6 @@ export const AIProvidersPage = ({
                         organizationGroup ? (
                             <ProvidersPanel
                                 groups={[organizationGroup]}
-                                catalog={false}
                                 renderRemoveDialog={renderRemoveDialog}
                                 subscriptionDocsUrl={subscriptionDocsUrl}
                             />

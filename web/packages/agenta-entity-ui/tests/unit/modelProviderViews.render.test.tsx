@@ -3,7 +3,7 @@
  * view replaces itself with the picked provider's form (Save goes back to the list), and the
  * built-in card lists the built-in models with no switches.
  */
-import {act, createElement, useEffect} from "react"
+import {act, createElement, useEffect, useRef} from "react"
 
 import {
     ViewFormActions,
@@ -77,6 +77,9 @@ vi.mock("../../src/secretProvider/ProviderConnectionCard", () => ({
         onSaveStateChange: (state: unknown) => void
         onSaved: (id?: string) => void
     }) => {
+        // Published once, as the card does: its submit reads the latest callback.
+        const saved = useRef(onSaved)
+        saved.current = onSaved
         useEffect(() => {
             onSaveStateChange({
                 canSave: true,
@@ -84,10 +87,10 @@ vi.mock("../../src/secretProvider/ProviderConnectionCard", () => ({
                 error: null,
                 submit: () => {
                     fixture.saved.push(kind)
-                    onSaved("new-id")
+                    saved.current("new-id")
                 },
             })
-        }, [kind, onSaveStateChange, onSaved])
+        }, [kind, onSaveStateChange])
         return createElement("input", {"aria-label": `key ${kind}`})
     },
 }))

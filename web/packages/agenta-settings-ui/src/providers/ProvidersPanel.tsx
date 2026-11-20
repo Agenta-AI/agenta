@@ -1,13 +1,9 @@
 import {createElement, type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
-    PROVIDER_CATALOG,
-    SecretKind,
     subscriptionConnectionFor,
-    subscriptionIsReady,
+    subscriptionProviderFamily,
     subscriptionProviderName,
-    subscriptionStatusLine,
-    type ProviderCatalogEntry,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {
@@ -15,7 +11,6 @@ import {
     providerIconFor,
     SubscriptionSignInDialog,
     type OrganizationConnectionScope,
-    type ProviderOwnerChoice,
 } from "@agenta/entity-ui/secretProvider"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -28,8 +23,6 @@ import {
     type SettingsCatalogItem,
 } from "../shared/SettingsCatalog"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-
-import {type SubscriptionPlan, SubscriptionsBanner} from "./SubscriptionsBanner"
 
 /** What the host needs to render its own confirm chrome; the page owns the removal itself. */
 export interface ProviderRemovalState {
@@ -78,7 +71,10 @@ export interface ProvidersGroup {
  * What the drawer is open on. A saved connection is held by id and read from the current list,
  * so a save that lands in part (the projects but not the key) shows the drawer what is stored.
  */
-type DrawerTarget = {groupKey: string; connectionId: string} | {kind: string}
+interface DrawerTarget {
+    groupKey: string
+    connectionId: string
+}
 
 type SubscriptionProvider = "chatgpt" | "claude"
 
@@ -97,47 +93,15 @@ const subscriptionProviderOf = (connection: ProviderConnection): SubscriptionPro
     return provider === "chatgpt" || provider === "claude" ? provider : null
 }
 
-/** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
-const FORM_FIELDS_BY_KIND: Record<
-    string,
-    CatalogKey<typeof commonCatalog | typeof settingsProvidersCatalog>
-> = {
-    bedrock: "settings.providers.bedrockFields",
-    azure: "settings.providers.azureFields",
-    vertex_ai: "settings.providers.vertexFields",
-}
-
-const MODEL_PROVIDERS = PROVIDER_CATALOG.filter(
-    (entry) => entry.secretKind === SecretKind.ProviderKey,
-)
-const CLOUD_PLATFORMS = PROVIDER_CATALOG.filter(
-    (entry) => entry.secretKind === SecretKind.CustomProvider,
-)
-
 /** A provider's title as shown; the OpenAI-compatible kind's name is translated. */
 export const providerTitle = (kind: string, title: string, t: ReturnType<typeof useT>): string =>
     kind === "custom" ? t("settings.providers.customEndpoint") : title
-
-const catalogDescription = (
-    entry: ProviderCatalogEntry,
-    t: ReturnType<typeof useT>,
-): string | undefined => {
-    if (entry.kind === "custom") return t("settings.providers.customEndpointHint")
-    if (entry.subtitle) return entry.subtitle
-    if (entry.secretKind === SecretKind.ProviderKey) return t("settings.providers.apiKey")
-    const fields = FORM_FIELDS_BY_KIND[entry.kind]
-    return fields ? t(fields) : undefined
-}
 
 export const ProviderLogo = ({kind}: {kind: string}) =>
     createElement(providerIconFor(kind), {className: "size-[18px]"})
 
 const SUBSCRIPTION_PROVIDERS: SubscriptionProvider[] = ["chatgpt", "claude"]
-const SUBSCRIPTION_LOGO_KIND: Record<SubscriptionProvider, string> = {
-    chatgpt: "openai",
-    claude: "anthropic",
-}
-/** The cards' line for a sign-in not made yet. */
+/** The line of a sign-in not made yet. */
 const SUBSCRIPTION_HINT: Record<
     SubscriptionProvider,
     CatalogKey<typeof commonCatalog | typeof settingsProvidersCatalog>
@@ -146,90 +110,31 @@ const SUBSCRIPTION_HINT: Record<
     claude: "settings.providers.claudeHint",
 }
 
-const CHATGPT_NAME = subscriptionProviderName("chatgpt")
-const CLAUDE_NAME = subscriptionProviderName("claude")
-
-/** The ChatGPT and Claude cards above the list, from the connections that hold them. */
-const subscriptionPlans = (
-    chatgpt: ProviderConnection | null | undefined,
-    claude: ProviderConnection | null | undefined,
-    open: (provider: SubscriptionProvider) => void,
-    t: ReturnType<typeof useT>,
-): SubscriptionPlan[] => {
-    const chatgptConnected = subscriptionIsReady(chatgpt?.subscription)
-    const loginState = chatgpt?.subscription?.loginState
-    // A sign-in that once worked and now does not needs attention, not a fresh connect.
-    const broken = !chatgptConnected && !!loginState && loginState !== "pending_login"
-    // A token is either stored or not: a refused run does not mark the row.
-    const claudeConnected = subscriptionIsReady(claude?.subscription)
-    return [
-        {
-            key: "chatgpt",
-            logo: <ProviderLogo kind="openai" />,
-            name: CHATGPT_NAME,
-            detail: subscriptionStatusLine(chatgpt?.subscription) || t(SUBSCRIPTION_HINT.chatgpt),
-            state: chatgptConnected ? "connected" : broken ? "attention" : "available",
-            brand: "neutral",
-            action: {
-                label: chatgptConnected
-                    ? t("common.manage")
-                    : broken
-                      ? t("settings.providers.signInAgain")
-                      : t("common.connect"),
-                onClick: () => open("chatgpt"),
-            },
-        },
-        {
-            key: "claude",
-            logo: <ProviderLogo kind="anthropic" />,
-            name: CLAUDE_NAME,
-            detail: claudeConnected ? t("common.connected") : t(SUBSCRIPTION_HINT.claude),
-            state: claudeConnected ? "connected" : "available",
-            brand: "clay",
-            action: {
-                label: claudeConnected ? t("common.manage") : t("common.connect"),
-                onClick: () => open("claude"),
-            },
-        },
-    ]
-}
-
 /**
- * The AI providers list: one group per owner, then the catalog, with the project's subscription
- * cards on top and the drawer. The first group is the project's: a new connection starts there.
+ * A list of providers held by other owners than the project (the organization's group in
+ * Settings › AI providers): one group per owner, with Edit and Delete in each row's menu, and the
+ * ChatGPT and Claude sign-ins the owner does not hold yet. The project's own connections are the
+ * Model providers list, which opens the shared views.
  */
 export const ProvidersPanel = ({
     groups: ownerGroups,
-    subscriptions,
-    ownerChoiceFor,
-    loading = false,
     renderRemoveDialog,
     subscriptionDocsUrl,
-    catalog = true,
 }: {
     groups: ProvidersGroup[]
-    /** Lists the provider catalog under the groups. Off where an add view offers it instead. */
-    catalog?: boolean
-    /** The project's ChatGPT and Claude cards. Absent hides them. */
-    subscriptions?: ProviderConnection[]
-    /** The drawer's "Who can use it" for a new connection of this kind; absent, it is the project's. */
-    ownerChoiceFor?: (kind: string) => ProviderOwnerChoice | undefined
-    loading?: boolean
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
     const t = useT(commonCatalog, settingsProvidersCatalog)
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
-    const drawerGroup =
-        (drawerTarget && "groupKey" in drawerTarget
-            ? ownerGroups.find((group) => group.key === drawerTarget.groupKey)
-            : ownerGroups[0]) ?? null
-    const drawerConnection =
-        drawerTarget && "connectionId" in drawerTarget
-            ? (drawerGroup?.source.connections.find(
-                  (candidate) => candidate.id === drawerTarget.connectionId,
-              ) ?? null)
-            : null
+    const drawerGroup = drawerTarget
+        ? (ownerGroups.find((group) => group.key === drawerTarget.groupKey) ?? null)
+        : null
+    const drawerConnection = drawerTarget
+        ? (drawerGroup?.source.connections.find(
+              (candidate) => candidate.id === drawerTarget.connectionId,
+          ) ?? null)
+        : null
     const [signInTarget, setSignInTarget] = useState<SignInTarget | null>(null)
     const [pendingRemoval, setPendingRemoval] = useState<{
         groupKey: string
@@ -243,14 +148,6 @@ export const ProvidersPanel = ({
         [renderRemoveDialog],
     )
 
-    const chatgpt = useMemo(
-        () => subscriptionConnectionFor(subscriptions ?? [], "chatgpt"),
-        [subscriptions],
-    )
-    const claude = useMemo(
-        () => subscriptionConnectionFor(subscriptions ?? [], "claude"),
-        [subscriptions],
-    )
     const signInGroup = signInTarget
         ? (ownerGroups.find((group) => group.key === signInTarget.groupKey) ?? null)
         : null
@@ -258,11 +155,6 @@ export const ProvidersPanel = ({
         signInTarget && signInGroup
             ? subscriptionConnectionFor(signInGroup.source.connections, signInTarget.provider)
             : null
-    const openProjectSignIn = useCallback(
-        (provider: SubscriptionProvider) =>
-            ownerGroups[0] && setSignInTarget({groupKey: ownerGroups[0].key, provider, open: true}),
-        [ownerGroups],
-    )
 
     const requestRemoval = useCallback((groupKey: string, connection: ProviderConnection) => {
         setRemoveError(null)
@@ -290,7 +182,7 @@ export const ProvidersPanel = ({
     }, [ownerGroups])
 
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
-        const owned = ownerGroups.map<SettingsCatalogGroup>(({key: groupKey, label, source}) => {
+        return ownerGroups.map<SettingsCatalogGroup>(({key: groupKey, label, source}) => {
             const canRemove = canRemoveIn(source)
             const open = (connection: ProviderConnection) => {
                 const provider = subscriptionProviderOf(connection)
@@ -336,7 +228,7 @@ export const ProvidersPanel = ({
                           (provider) => !subscriptionConnectionFor(source.connections, provider),
                       ).map<SettingsCatalogItem>((provider) => ({
                           key: `subscription:${provider}`,
-                          logo: <ProviderLogo kind={SUBSCRIPTION_LOGO_KIND[provider]} />,
+                          logo: <ProviderLogo kind={subscriptionProviderFamily(provider)} />,
                           name: subscriptionProviderName(provider),
                           description: t(SUBSCRIPTION_HINT[provider]),
                           status: "available",
@@ -361,38 +253,8 @@ export const ProvidersPanel = ({
                       : {}),
             }
         })
-        const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({
-            key: entry.kind,
-            logo: <ProviderLogo kind={entry.kind} />,
-            name: providerTitle(entry.kind, entry.title, t),
-            description: catalogDescription(entry, t),
-            status: "available",
-            statusLabel: t("settings.providers.connectName", {
-                name: providerTitle(entry.kind, entry.title, t),
-            }),
-            onOpen: () => setDrawerTarget({kind: entry.kind}),
-        })
+    }, [ownerGroups, canRemoveIn, requestRemoval, t])
 
-        if (!catalog) return owned
-        return [
-            ...owned,
-            {
-                key: "model-providers",
-                label: t("settings.providers.modelProviders"),
-                items: MODEL_PROVIDERS.map(catalogRow),
-            },
-            {
-                key: "cloud-platforms",
-                label: t("settings.providers.cloudPlatforms"),
-                items: CLOUD_PLATFORMS.map(catalogRow),
-            },
-        ]
-    }, [ownerGroups, canRemoveIn, requestRemoval, t, catalog])
-
-    const plans = useMemo(
-        () => subscriptionPlans(chatgpt, claude, openProjectSignIn, t),
-        [chatgpt, claude, openProjectSignIn, t],
-    )
     const removeSubscription = useCallback(
         (connection: ProviderConnection) =>
             signInGroup && requestRemoval(signInGroup.key, connection),
@@ -403,7 +265,6 @@ export const ProvidersPanel = ({
         <div className="ph-no-capture">
             <SettingsCatalog
                 groups={groups}
-                loading={loading}
                 notice={
                     <>
                         {removeError ? (
@@ -412,7 +273,6 @@ export const ProvidersPanel = ({
                                 {removeError}
                             </span>
                         ) : null}
-                        {subscriptions ? <SubscriptionsBanner plans={plans} /> : null}
                     </>
                 }
             />
@@ -433,7 +293,7 @@ export const ProvidersPanel = ({
                     onClose={() => setSignInTarget({...signInTarget, open: false})}
                     provider={signInTarget.provider}
                     connection={signInConnection}
-                    logo={<ProviderLogo kind={SUBSCRIPTION_LOGO_KIND[signInTarget.provider]} />}
+                    logo={<ProviderLogo kind={subscriptionProviderFamily(signInTarget.provider)} />}
                     onRemove={canRemoveIn(signInGroup.source) ? removeSubscription : undefined}
                     organization={signInGroup.source.organization}
                 />
@@ -445,15 +305,9 @@ export const ProvidersPanel = ({
                 context="settings"
                 connections={drawerGroup?.source.connections ?? []}
                 connection={drawerConnection}
-                kind={drawerTarget && "kind" in drawerTarget ? drawerTarget.kind : null}
                 onSaved={onSaved}
                 subscriptionDocsUrl={subscriptionDocsUrl}
                 organization={drawerGroup?.source.organization}
-                ownerChoice={
-                    drawerTarget && "kind" in drawerTarget
-                        ? ownerChoiceFor?.(drawerTarget.kind)
-                        : undefined
-                }
             />
         </div>
     )

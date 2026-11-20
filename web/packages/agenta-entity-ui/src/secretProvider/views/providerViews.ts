@@ -7,40 +7,43 @@
  *   with its form, at the same depth (`nav.replace`), so Save goes back to the list.
  * - `providerConnectionView`: one connection's form. Save writes the project's connection.
  * - `builtinModelsView`: the "Agenta" card. Read only, with Done.
+ *
+ * Names: the screen is "Model providers" (view ids `project.modelProviders.*`); the code calls
+ * its parts `provider*`, and their text lives in the `entityUi.providerList` namespace.
  */
 import {defineView} from "@agenta/ui/view-stack"
 
 import {lazyView} from "../../DrillInView/SchemaControls/agentTemplate/views/lazyView"
 
-export type ProviderListParams = Record<string, never>
-export type ProviderAddParams = Record<string, never>
-export interface ProviderConnectionParams {
+export type ProviderListViewParams = Record<string, never>
+export type ProviderAddViewParams = Record<string, never>
+export interface ProviderConnectionViewParams {
     /** The provider kind of the form (`openai`, `azure`, …). */
     kind: string
     /** The saved connection to edit. Absent for a new connection. */
     connectionId?: string
 }
-export type BuiltinModelsParams = Record<string, never>
+export type BuiltinModelsViewParams = Record<string, never>
 
-export const providerListView = defineView<ProviderListParams>({
+export const providerListView = defineView<ProviderListViewParams>({
     id: "project.modelProviders",
     apply: "immediate",
     Component: lazyView(() => import("./ProviderListViewBody")),
 })
 
-export const providerAddView = defineView<ProviderAddParams>({
+export const providerAddView = defineView<ProviderAddViewParams>({
     id: "project.modelProviders.add",
     apply: "immediate",
     Component: lazyView(() => import("./ProviderAddViewBody")),
 })
 
-export const providerConnectionView = defineView<ProviderConnectionParams>({
+export const providerConnectionView = defineView<ProviderConnectionViewParams>({
     id: "project.modelProviders.connection",
     apply: "on_save",
     Component: lazyView(() => import("./ProviderConnectionViewBody")),
 })
 
-export const builtinModelsView = defineView<BuiltinModelsParams>({
+export const builtinModelsView = defineView<BuiltinModelsViewParams>({
     id: "project.modelProviders.builtin",
     apply: "immediate",
     Component: lazyView(() => import("./BuiltinModelsViewBody")),

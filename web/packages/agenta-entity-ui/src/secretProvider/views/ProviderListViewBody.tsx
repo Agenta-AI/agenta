@@ -7,11 +7,11 @@ import {
     builtinModelsView,
     providerAddView,
     providerConnectionView,
-    type ProviderListParams,
+    type ProviderListViewParams,
 } from "./providerViews"
 
 /** The list as a view: its rows open their views one level down. */
-const ProviderListViewBody = ({target, nav}: ViewProps<ProviderListParams>) => {
+const ProviderListViewBody = ({target, nav}: ViewProps<ProviderListViewParams>) => {
     const t = useT(providerDrawerCatalog)
     useViewTitle(t("entityUi.providerDrawer.modelProviders"))
     // At depth 2 there is no level left, so a row's view takes the list's place.

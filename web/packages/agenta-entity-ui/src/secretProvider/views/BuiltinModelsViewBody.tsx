@@ -21,9 +21,9 @@ import {modelDisplayName} from "../../DrillInView/SchemaControls/connectionUtils
 import {harnessMetaFor} from "../../DrillInView/SchemaControls/harnessMeta"
 import {harnessMarkNode} from "../harnessMark"
 
-import type {BuiltinModelsParams} from "./providerViews"
+import type {BuiltinModelsViewParams} from "./providerViews"
 
-const BuiltinModelsViewBody = (_props: ViewProps<BuiltinModelsParams>) => {
+const BuiltinModelsViewBody = (_props: ViewProps<BuiltinModelsViewParams>) => {
     const t = useT(providerListCatalog, providerConnectionCatalog, settingsProvidersCatalog)
     useViewTitle(t("entityUi.providerList.agenta"))
     const models = builtinModelsOf(useAtomValue(builtinModelEndpointsQueryAtom).data)

@@ -28,12 +28,12 @@ import ProviderConnectionCard, {type ProviderCardSaveState} from "../ProviderCon
 import {providerDisplayTitle} from "../providerFieldText"
 
 import {ProviderOwnerChoiceContext} from "./providerOwnerChoice"
-import type {ProviderConnectionParams} from "./providerViews"
+import type {ProviderConnectionViewParams} from "./providerViews"
 
 /** Controls whose click changes the form without an input event. */
 const TOGGLE_SELECTOR = '[role="checkbox"],[role="switch"],[role="radio"],[role="option"]'
 
-const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionParams>) => {
+const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionViewParams>) => {
     const t = useT(providerListCatalog)
     const connections = useAtomValue(providerConnectionsAtom)
     const own = useMemo(

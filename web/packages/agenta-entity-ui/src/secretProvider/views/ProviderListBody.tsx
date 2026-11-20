@@ -12,6 +12,7 @@ import {createElement, useMemo, useState, type ReactNode} from "react"
 import {
     buildModelProviderList,
     providerConnectionsAtom,
+    subscriptionProviderFamily,
     vaultSecretsQueryAtom,
     type ProviderConnection,
 } from "@agenta/entities/secret"
@@ -81,7 +82,8 @@ const Row = ({
 
 interface SignInTarget {
     provider: string
-    connection: ProviderConnection
+    /** Read from the current list on each render, so a finished sign-in shows at once. */
+    connectionId: string
 }
 
 export const ProviderListBody = ({
@@ -154,7 +156,7 @@ export const ProviderListBody = ({
                                                     onClick: () =>
                                                         setSignIn({
                                                             provider,
-                                                            connection,
+                                                            connectionId: connection.id,
                                                             open: true,
                                                         }),
                                                 }}
@@ -196,12 +198,15 @@ export const ProviderListBody = ({
             </div>
             {signIn ? (
                 <SubscriptionSignInDialog
-                    key={signIn.connection.id}
+                    key={signIn.connectionId}
                     open={signIn.open}
                     onClose={() => setSignIn({...signIn, open: false})}
                     provider={signIn.provider}
-                    connection={signIn.connection}
-                    logo={<ProviderTile kind={signIn.connection.kind} />}
+                    connection={
+                        connections.find((connection) => connection.id === signIn.connectionId) ??
+                        null
+                    }
+                    logo={<ProviderTile kind={subscriptionProviderFamily(signIn.provider)} />}
                 />
             ) : null}
         </div>
