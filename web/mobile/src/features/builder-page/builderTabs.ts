@@ -1,3 +1,5 @@
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
+
 import type {AgentRef, AgentResult} from "./paneAgent"
 
 /** A builder tab key in the address: `?tab=<kind>:<id>`. */
@@ -31,7 +33,7 @@ export interface BuilderTab extends BuilderTabRef {
     /** The builder changed it while it was not the active tab. */
     dot?: boolean
     /** Agent panel sections the builder changed, marked until the person opens them (41.2). */
-    changed?: string[]
+    changedSections?: MarkableSectionKey[]
 }
 
 export interface BuilderTabsState {
@@ -67,17 +69,19 @@ const markFollowed = (state: BuilderTabsState, ids: string[]): BuilderTabsState 
 export const isUntouched = (state: BuilderTabsState) =>
     !state.tabs.length && !state.closed.length && !state.followedToolCallIds.length
 
-export const agentTab = (agent: AgentRef, changed: string[] = []): BuilderTab => ({
+export const agentTab = (
+    agent: AgentRef,
+    changedSections: MarkableSectionKey[] = [],
+): BuilderTab => ({
     kind: "agent",
     id: agent.id,
     name: agent.name,
-    ...(changed.length ? {changed} : {}),
+    ...withChangedSections(changedSections),
 })
 
-const mergeChanged = (held: string[] | undefined, more: string[] | undefined) => {
-    const all = [...new Set([...(held ?? []), ...(more ?? [])])]
-    return all.length ? {changed: all} : {}
-}
+/** The `changedSections` field of a tab: left out when the list is empty. */
+const withChangedSections = (sections: readonly MarkableSectionKey[]) =>
+    sections.length ? {changedSections: [...new Set(sections)]} : {}
 
 export const builderTabKey = (ref: BuilderTabRef) => `${ref.kind}:${ref.id}`
 
@@ -132,7 +136,10 @@ export const followBuilderResult = (state: BuilderTabsState, tab: BuilderTab): B
                   ? {
                         ...withName(held, tab.name),
                         dot: held.dot || dot,
-                        ...mergeChanged(held.changed, tab.changed),
+                        ...withChangedSections([
+                            ...(held.changedSections ?? []),
+                            ...(tab.changedSections ?? []),
+                        ]),
                     }
                   : held,
           )
@@ -175,17 +182,21 @@ export const closeBuilderTab = (state: BuilderTabsState, key: string): BuilderTa
 export const clearChangedSection = (
     state: BuilderTabsState,
     key: string,
-    section: string,
+    section: MarkableSectionKey,
 ): BuilderTabsState => {
     const tab = state.tabs.find((held) => builderTabKey(held) === key)
-    if (!tab?.changed?.includes(section)) return state
+    if (!tab?.changedSections?.includes(section)) return state
     return {
         ...state,
         tabs: state.tabs.map((held) => {
             if (held !== tab) return held
-            const {changed, ...rest} = held
-            const left = (changed ?? []).filter((name) => name !== section)
-            return left.length ? {...rest, changed: left} : rest
+            const {changedSections, ...rest} = held
+            return {
+                ...rest,
+                ...withChangedSections(
+                    (changedSections ?? []).filter((name) => name !== section),
+                ),
+            }
         }),
     }
 }
@@ -226,7 +237,7 @@ export const followBuilderResults = (
     for (const result of results) {
         if (next.followedToolCallIds.includes(result.toolCallId)) continue
         next = markFollowed(next, [result.toolCallId])
-        if (result.saved) next = followBuilderResult(next, agentTab(result.agent, result.sections))
+        if (result.saved) next = followBuilderResult(next, agentTab(result.agent, result.changedSections))
     }
     return next
 }
@@ -247,9 +258,11 @@ const parseTab = (value: unknown): BuilderTab | null => {
         id: tab.id,
         name: typeof tab.name === "string" ? tab.name : "",
         dot: tab.dot === true,
-        ...(Array.isArray(tab.changed) && tab.changed.length
-            ? {changed: tab.changed.filter((name): name is string => typeof name === "string")}
-            : {}),
+        ...withChangedSections(
+            (Array.isArray(tab.changedSections) ? tab.changedSections : []).filter(
+                (name): name is MarkableSectionKey => typeof name === "string",
+            ),
+        ),
     }
 }
 

@@ -25,7 +25,7 @@ import {
     writeBuilderTabs,
     type BuilderTab,
 } from "@/features/builder-page/builderTabs"
-import {changedSections} from "@/features/builder-page/changedSections"
+import {sectionsOfOperations} from "@/features/builder-page/changedSections"
 import {fitTabs} from "@/features/builder-page/fitTabs"
 import {followAction} from "@/features/builder-page/followBuilder"
 import type {AgentResult} from "@/features/builder-page/paneAgent"
@@ -40,7 +40,7 @@ const result = (toolCallId: string, id: string, saved = true): AgentResult => ({
     toolCallId,
     agent: {id, name: id},
     saved,
-    sections: [],
+    changedSections: [],
 })
 
 afterEach(() => {
@@ -312,9 +312,9 @@ describe("useBuilderTabs follows a new save of the active agent", () => {
         )
         act(() => hook.result.current.onMessagesChanged([saveOf("a", "c1")]))
         expect(hook.result.current.state.active).toBe("agent:a")
-        expect(hook.result.current.activeChangeId).toBeNull()
+        expect(hook.result.current.activeSaveToolCallId).toBeNull()
         act(() => hook.result.current.onMessagesChanged([saveOf("a", "c1"), saveOf("b", "c2")]))
-        expect(hook.result.current.activeChangeId).toBeNull()
+        expect(hook.result.current.activeSaveToolCallId).toBeNull()
         act(() =>
             hook.result.current.onMessagesChanged([
                 saveOf("a", "c1"),
@@ -322,7 +322,7 @@ describe("useBuilderTabs follows a new save of the active agent", () => {
                 saveOf("a", "c3"),
             ]),
         )
-        expect(hook.result.current.activeChangeId).toBe("c3")
+        expect(hook.result.current.activeSaveToolCallId).toBe("c3")
     })
 })
 
@@ -330,7 +330,7 @@ describe("Changed by the builder (task 41.2)", () => {
     const T = ["parameters", "agent"]
     it("names the panel section of the first segment of each operation target", () => {
         expect(
-            changedSections([
+            sectionsOfOperations([
                 {operation: "set", target: [...T, "instructions", "agents_md"], value: "x"},
                 {operation: "set", target: [...T, "llm"], value: {}},
                 {operation: "add_item", target: [...T, "skills"], value: {}},
@@ -340,29 +340,39 @@ describe("Changed by the builder (task 41.2)", () => {
                 {operation: "set", target: [...T, "sandbox", "kind"], value: "local"},
             ]),
         ).toEqual(["instructions", "model-harness", "skills", "tools", "mcp", "advanced"])
-        expect(changedSections(undefined)).toEqual([])
+        expect(
+            sectionsOfOperations([
+                {operation: "set", target: [...T, "runner", "permissions", "default"]},
+                {operation: "set", target: [...T, "sandbox", "credentials"]},
+                {operation: "set", target: [...T, "harness", "kind"]},
+            ]),
+        ).toEqual(["permissions", "secrets", "model-harness"])
+        expect(sectionsOfOperations([{target: [...T, "harness", "permissions"]}])).toEqual([
+            "advanced",
+        ])
+        expect(sectionsOfOperations(undefined)).toEqual([])
     })
 
     it("marks the changed sections of a saved edit on its tab, until each is opened", () => {
         let state = followBuilderResults(EMPTY_BUILDER_TABS, [result("c1", "a")], null)
         state = followBuilderResults(
             state,
-            [result("c1", "a"), {...result("c2", "a"), sections: ["instructions"]}],
+            [result("c1", "a"), {...result("c2", "a"), changedSections: ["instructions"]}],
             null,
         )
         state = followBuilderResults(
             state,
             [
                 result("c1", "a"),
-                {...result("c2", "a"), sections: ["instructions"]},
-                {...result("c3", "a"), sections: ["skills", "instructions"]},
+                {...result("c2", "a"), changedSections: ["instructions"]},
+                {...result("c3", "a"), changedSections: ["skills", "instructions"]},
             ],
             null,
         )
-        expect(state.tabs[0].changed).toEqual(["instructions", "skills"])
+        expect(state.tabs[0].changedSections).toEqual(["instructions", "skills"])
         state = clearChangedSection(state, "agent:a", "instructions")
-        expect(state.tabs[0].changed).toEqual(["skills"])
+        expect(state.tabs[0].changedSections).toEqual(["skills"])
         state = clearChangedSection(state, "agent:a", "skills")
-        expect(state.tabs[0].changed).toBeUndefined()
+        expect(state.tabs[0].changedSections).toBeUndefined()
     })
 })

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import type {UIMessage} from "ai"
 import {useRouter} from "next/router"
 
@@ -105,7 +106,7 @@ export const useBuilderTabs = ({
 
     // The latest builder save of the active tab's agent in this visit (task 41.1): the pane
     // follows it. Saves already in the chat when it loads are history, not followed.
-    const [activeChange, setActiveChange] = useState<{key: string; toolCallId: string} | null>(null)
+    const [activeSaveToolCallId, setActiveSaveToolCallId] = useState<string | null>(null)
 
     const onMessagesChanged = useCallback(
         (messages: UIMessage[]) => {
@@ -129,7 +130,7 @@ export const useBuilderTabs = ({
                     builderTabKey(agentTab(result.agent)) === next.active,
             )
             const last = saved.at(-1)
-            if (last) setActiveChange({key: next.active, toolCallId: last.toolCallId})
+            if (last) setActiveSaveToolCallId(last.toolCallId)
         },
         [commit, linkedAgentId],
     )
@@ -148,7 +149,7 @@ export const useBuilderTabs = ({
     return {
         state,
         /** The tool call of the builder's latest save of the active tab's agent, in this visit. */
-        activeChangeId: activeChange?.key === state.active ? activeChange.toolCallId : null,
+        activeSaveToolCallId,
         open: useCallback(
             (next: BuilderTab) => commit((current) => openBuilderTab(current, next)),
             [commit],
@@ -157,8 +158,8 @@ export const useBuilderTabs = ({
             (key: string) => commit((current) => activateBuilderTab(current, key)),
             [commit],
         ),
-        clearChanged: useCallback(
-            (key: string, section: string) =>
+        clearChangedSection: useCallback(
+            (key: string, section: MarkableSectionKey) =>
                 commit((current) => clearChangedSection(current, key, section)),
             [commit],
         ),

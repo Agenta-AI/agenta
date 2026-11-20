@@ -1,6 +1,7 @@
 import {useEffect, type MutableRefObject} from "react"
 
 import {useAutomationEditor} from "@agenta/automation-ui"
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {agentSharingQueryAtomFamily} from "@agenta/entities/sharing"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
@@ -22,7 +23,7 @@ const Notice = ({children}: {children: string}) => (
 /** An agent tab: its pane tabs, or the no-access line when it was deleted or hidden. */
 const AgentTab = ({
     agentId,
-    builderChangeId,
+    builderSaveToolCallId,
     changedSections,
     onSectionOpened,
     guardRef,
@@ -31,9 +32,9 @@ const AgentTab = ({
     projectId,
 }: {
     agentId: string
-    builderChangeId: string | null
-    changedSections?: string[]
-    onSectionOpened: (section: string) => void
+    builderSaveToolCallId: string | null
+    changedSections?: MarkableSectionKey[]
+    onSectionOpened: (section: MarkableSectionKey) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -49,7 +50,7 @@ const AgentTab = ({
     return (
         <AgentPane
             agentId={agentId}
-            builderChangeId={builderChangeId}
+            builderSaveToolCallId={builderSaveToolCallId}
             changedSections={changedSections}
             onSectionOpened={onSectionOpened}
             guardRef={guardRef}
@@ -106,7 +107,7 @@ const AutomationTabRoot = ({
  */
 export const BuilderTabContent = ({
     tab,
-    builderChangeId,
+    builderSaveToolCallId,
     onSectionOpened,
     guardRef,
     builderSessionId,
@@ -115,9 +116,9 @@ export const BuilderTabContent = ({
 }: {
     tab: BuilderTab
     /** The builder's latest save of this tab's agent in this visit (the pane follows it). */
-    builderChangeId: string | null
+    builderSaveToolCallId: string | null
     /** The person opened a section of this agent tab marked "Changed by the builder". */
-    onSectionOpened: (section: string) => void
+    onSectionOpened: (section: MarkableSectionKey) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -128,8 +129,8 @@ export const BuilderTabContent = ({
         return (
             <AgentTab
                 agentId={tab.id}
-                builderChangeId={builderChangeId}
-                changedSections={tab.changed}
+                builderSaveToolCallId={builderSaveToolCallId}
+                changedSections={tab.changedSections}
                 onSectionOpened={onSectionOpened}
                 guardRef={guardRef}
                 builderSessionId={builderSessionId}

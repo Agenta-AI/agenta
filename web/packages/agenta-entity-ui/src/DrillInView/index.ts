@@ -470,7 +470,11 @@ export type {SkillDownload} from "./SchemaControls/skillDownload"
 
 // The agent a container shows now (revision, edit right); its open agent views follow it.
 export {AgentEditorContext} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
-export {SectionMarksContext, type SectionMarks} from "./SchemaControls/sectionMarks"
+export {
+    SectionMarksContext,
+    type MarkableSectionKey,
+    type SectionMarks,
+} from "./SchemaControls/sectionMarks"
 export type {AgentEditor} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
 
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the

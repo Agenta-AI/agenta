@@ -1,7 +1,11 @@
 import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
 import {ConfigurationRoot} from "@/features/agent-layout/ConfigurationRoot"
 import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
-import {AgentEditorContext, SectionMarksContext} from "@agenta/entity-ui/drill-in"
+import {
+    AgentEditorContext,
+    SectionMarksContext,
+    type SectionMarks,
+} from "@agenta/entity-ui/drill-in"
 import {ViewStackHost} from "@agenta/ui/view-stack"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
@@ -21,7 +25,7 @@ const panel: AgentPanelApi = {
     available: {files: true, configuration: true, builder: false},
 }
 
-const marks = {
+const marks: SectionMarks = {
     keys: new Set(["instructions"]),
     label: "Changed by the builder",
     onOpened: () => undefined,

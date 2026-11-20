@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {
     agentWorkflowsListQueryStateAtom,
     builderAgentRevisionIdQueryAtom,
@@ -100,13 +101,13 @@ export const BuilderPage = ({
     })
     const activeTab =
         tabs.state.tabs.find((held) => builderTabKey(held) === tabs.state.active) ?? null
-    const {clearChanged} = tabs
+    const {clearChangedSection} = tabs
     const activeKey = tabs.state.active
     const onSectionOpened = useCallback(
-        (section: string) => {
-            if (activeKey) clearChanged(activeKey, section)
+        (section: MarkableSectionKey) => {
+            if (activeKey) clearChangedSection(activeKey, section)
         },
-        [activeKey, clearChanged],
+        [activeKey, clearChangedSection],
     )
     // The active tab's open views: a form with edits asks before the tab changes or closes.
     const paneGuard = useRef<PageViewStackGuardApi | null>(null)
@@ -314,7 +315,7 @@ export const BuilderPage = ({
                 <BuilderTabContent
                     key={builderTabKey(activeTab)}
                     tab={activeTab}
-                    builderChangeId={tabs.activeChangeId}
+                    builderSaveToolCallId={tabs.activeSaveToolCallId}
                     onSectionOpened={onSectionOpened}
                     guardRef={paneGuard}
                     builderSessionId={sessionId}

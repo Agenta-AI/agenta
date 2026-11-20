@@ -4,6 +4,7 @@ import {
     AgentEditorContext,
     SectionMarksContext,
     type AgentEditor,
+    type MarkableSectionKey,
     type SectionMarks,
 } from "@agenta/entity-ui/drill-in"
 import {
@@ -54,7 +55,7 @@ export type PaneTab = (typeof PANE_TABS)[number]
  */
 export const AgentPane = ({
     agentId,
-    builderChangeId = null,
+    builderSaveToolCallId = null,
     changedSections,
     onSectionOpened,
     guardRef,
@@ -64,11 +65,11 @@ export const AgentPane = ({
 }: {
     agentId: string
     /** The tool call of the builder's latest save of this agent in this visit; the pane follows it. */
-    builderChangeId?: string | null
+    builderSaveToolCallId?: string | null
     /** Agent panel sections the builder changed ("Changed by the builder"). */
-    changedSections?: string[]
+    changedSections?: MarkableSectionKey[]
     /** The person opened a section marked as changed. */
-    onSectionOpened?: (section: string) => void
+    onSectionOpened?: (section: MarkableSectionKey) => void
     /** The open pane tab's views, shared with the page so it can ask before a builder tab change. */
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     /** The builder chat: the session the Drives pane reads its session files from. */
@@ -104,10 +105,10 @@ export const AgentPane = ({
     // unless the person clicked in the pane in the last 10 seconds or a form has edits; then the
     // Agent pane tab gets a dot.
     const lastPointerDown = useRef<number | null>(null)
-    const followed = useRef(builderChangeId)
+    const followed = useRef(builderSaveToolCallId)
     useEffect(() => {
-        if (!builderChangeId || builderChangeId === followed.current) return
-        followed.current = builderChangeId
+        if (!builderSaveToolCallId || builderSaveToolCallId === followed.current) return
+        followed.current = builderSaveToolCallId
         const action = followAction<PaneTab>({
             paneTab: tab,
             target: "agent",
@@ -115,23 +116,25 @@ export const AgentPane = ({
             lastPointerDown: lastPointerDown.current,
             dirty: guardRef.current?.stack.dirty ?? false,
         })
-        if (action === "show") setTab("agent")
+        if (action === "show") {
+            setTab("agent")
+            setAgentDot(false)
+        }
         else if (action === "dot") setAgentDot(true)
         // Only a new save is followed; the pane tab on screen is read at that moment.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [builderChangeId])
+    }, [builderSaveToolCallId])
 
-    const changedKey = (changedSections ?? []).join(",")
     const sectionMarks = useMemo<SectionMarks | null>(
         () =>
-            changedKey && onSectionOpened
+            changedSections?.length && onSectionOpened
                 ? {
-                      keys: new Set(changedKey.split(",")),
+                      keys: new Set(changedSections),
                       label: t("builder.page.changedByBuilder"),
                       onOpened: onSectionOpened,
                   }
                 : null,
-        [changedKey, onSectionOpened, t],
+        [changedSections, onSectionOpened, t],
     )
 
     const needsRevision = tab === "agent" || tab === "automations"
@@ -218,6 +221,7 @@ export const AgentPane = ({
                         {key === "agent" && agentDot ? (
                             <span
                                 data-testid="pane-tab-dot"
+                                role="img"
                                 aria-label={t("builder.page.changedByBuilder")}
                                 className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
                             />

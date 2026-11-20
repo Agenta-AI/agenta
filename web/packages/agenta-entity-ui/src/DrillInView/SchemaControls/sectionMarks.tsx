@@ -1,21 +1,25 @@
 /**
  * Section marks: a container can mark config sections of the agent panel, for example the
- * builder page's "Changed by the builder" (task 41.2). The container provides the marked section
- * keys, the mark's text and a callback for when the person opens a marked section; the panel
- * draws the mark after the section title. Without a provider nothing is marked.
+ * builder page's "Changed by the builder" (task 41.2). "Mark" here is a container's note after a
+ * section title; the panel's own section indicators (draft and agent changes) are separate. The
+ * container provides the marked section keys, the mark's text and a callback for when the person
+ * opens or uses a marked section (a click or Enter in it); the panel draws the mark after the
+ * section title. A section that opens by itself (the first reveal, a list that fills) does not
+ * count. Without a provider nothing is marked.
  */
-import {createContext, useContext, useEffect, useRef} from "react"
-
-import {useAccordionSectionOpen} from "@agenta/ui/components/presentational"
+import {createContext, useCallback, useContext, useRef} from "react"
 
 import type {AgentTemplateSectionDescriptor} from "./agentTemplate/AgentTemplateSectionList"
+import type {PanelSectionKey} from "./agentTemplate/sectionChanges"
+
+/** The panel's section keys: its accordion keys and Secrets. */
+export type MarkableSectionKey = PanelSectionKey | "secrets"
 
 export interface SectionMarks {
-    /** Section keys as the panel names them (`instructions`, `model-harness`, `tools`, ...). */
-    keys: ReadonlySet<string>
+    keys: ReadonlySet<MarkableSectionKey>
     label: string
-    /** The person opened a marked section. */
-    onOpened: (key: string) => void
+    /** The person opened or used a marked section. */
+    onOpened: (key: MarkableSectionKey) => void
 }
 
 export const SectionMarksContext = createContext<SectionMarks | null>(null)
@@ -27,46 +31,43 @@ const Mark = ({label}: {label: string}) => (
     </span>
 )
 
-/** Reports a section that goes from closed to open; a section open from the start does not count. */
-const OpenWatch = ({onOpened}: {onOpened: () => void}) => {
-    const open = useAccordionSectionOpen()
-    const before = useRef(open)
-    useEffect(() => {
-        if (open && !before.current) onOpened()
-        before.current = open
-    }, [open, onOpened])
-    return null
-}
-
-/** The sections with the container's marks applied. */
-export const useMarkedSections = (
-    sections: AgentTemplateSectionDescriptor[],
-): AgentTemplateSectionDescriptor[] => {
+/**
+ * The sections with the container's marks applied, and the handlers for the panel's root: a
+ * pointer down or Enter / Space inside a marked section reports it (each section carries its
+ * key in `data-config-section`).
+ */
+export const useSectionMarks = (sections: AgentTemplateSectionDescriptor[]) => {
     const marks = useContext(SectionMarksContext)
-    if (!marks?.keys.size) return sections
-    return sections.map((section) => {
-        if (!marks.keys.has(section.key)) return section
-        const opened = () => marks.onOpened(section.key)
-        return {
-            ...section,
-            titleBadge: (
-                <span className="flex items-center gap-2">
-                    {section.titleBadge}
-                    <Mark label={marks.label} />
-                </span>
-            ),
-            onOpen: section.onOpen
-                ? () => {
-                      opened()
-                      section.onOpen?.()
+    const latest = useRef(marks)
+    latest.current = marks
+    const report = useCallback((target: EventTarget | null) => {
+        const current = latest.current
+        if (!current || !(target instanceof Element)) return
+        const key = target.closest<HTMLElement>("[data-config-section]")?.dataset.configSection
+        if (key && current.keys.has(key as MarkableSectionKey))
+            current.onOpened(key as MarkableSectionKey)
+    }, [])
+    const handlers = {
+        onPointerDownCapture: (event: {target: EventTarget | null}) => report(event.target),
+        onKeyDownCapture: (event: {key: string; target: EventTarget | null}) => {
+            if (event.key === "Enter" || event.key === " ") report(event.target)
+        },
+    }
+    if (!marks?.keys.size) return {sections, handlers}
+    return {
+        handlers,
+        sections: sections.map((section) =>
+            marks.keys.has(section.key as MarkableSectionKey)
+                ? {
+                      ...section,
+                      titleBadge: (
+                          <span className="flex items-center gap-2">
+                              {section.titleBadge}
+                              <Mark label={marks.label} />
+                          </span>
+                      ),
                   }
-                : undefined,
-            content: (
-                <>
-                    <OpenWatch onOpened={opened} />
-                    {section.content}
-                </>
-            ),
-        }
-    })
+                : section,
+        ),
+    }
 }

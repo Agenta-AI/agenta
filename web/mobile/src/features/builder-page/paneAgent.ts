@@ -2,9 +2,11 @@ import {isToolPart, partToolName} from "@agenta/chat/model"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import type {ToolUIPart, UIMessage} from "ai"
 
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
+
 import {sentContextOf} from "../builder/pageContext"
 
-import {changedSections} from "./changedSections"
+import {sectionsOfOperations} from "./changedSections"
 
 /** An agent as the builder page names it. The name is empty when the source gives none. */
 export interface AgentRef {
@@ -54,7 +56,7 @@ export interface AgentResult {
     /** True when the call saved a new version or created the agent ("committed", "created"). */
     saved: boolean
     /** The panel sections a saved edit changed; none for a new agent or an unsaved call. */
-    sections: string[]
+    changedSections: MarkableSectionKey[]
 }
 
 /** Every settled `create_agent` and `edit_agent_config` call that names an agent, in order. */
@@ -72,7 +74,8 @@ export const agentResults = (messages: readonly UIMessage[]): AgentResult[] => {
                 toolCallId: tool.toolCallId,
                 agent,
                 saved: status === "committed" || status === "created",
-                sections: status === "committed" ? changedSections(input?.operations) : [],
+                changedSections:
+                    status === "committed" ? sectionsOfOperations(input?.operations) : [],
             })
         }
     }
