@@ -13,8 +13,8 @@ import {
 import {ArrowLeft, ArrowsOut, CaretDown, Hammer, Plus, X} from "@phosphor-icons/react"
 import Link from "next/link"
 
-import {useChatAgeLabel} from "./ChatRows"
 import type {BuilderChatRow} from "./useBuilderChatList"
+import {useChatAgeLabel} from "./useChatAgeLabel"
 
 /** Chats in the title menu. */
 export const TITLE_MENU_CHATS = 5

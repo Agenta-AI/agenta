@@ -5,8 +5,7 @@ import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {BuilderHeader} from "../../../../mobile/src/features/builder/BuilderHeader"
-import {ChatHistoryList} from "../../../../mobile/src/features/builder/ChatHistory"
-import {RecentChats} from "../../../../mobile/src/features/builder/ChatRows"
+import {ChatHistoryList} from "../../../../mobile/src/features/builder/ChatHistoryList"
 import {ContextChip} from "../../../../mobile/src/features/builder/ContextChip"
 import {NewChatIntro} from "../../../../mobile/src/features/builder/NewChatIntro"
 import {QuickActions} from "../../../../mobile/src/features/builder/QuickActions"
@@ -14,6 +13,7 @@ import {
     writeOpenQuickAction,
     type QuickAction,
 } from "../../../../mobile/src/features/builder/quickActions"
+import {RecentChats} from "../../../../mobile/src/features/builder/RecentChats"
 import {pageSessionIdAtom} from "../../../../mobile/src/features/chat/pageSessionId"
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {

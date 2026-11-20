@@ -4,25 +4,8 @@ import {Plus, Robot, X} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
-import type {PageContext, PagePart} from "./pageContext"
+import {chipClass, chipText, usePageLabel} from "./chipText"
 import {usePagePart} from "./pagePart"
-
-const chipClass =
-    "inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 rounded-md bg-colorFillTertiary px-2 text-xs text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary"
-
-/** What follows the agent name on the chip, or null when the page part names nothing more. */
-const usePageLabel = () => {
-    const t = useT(builderContextCatalog)
-    return (page: PagePart | undefined | null): string | null => {
-        if (!page) return null
-        if (page.kind === "session") return page.session.name ?? null
-        return page.item?.name ?? t("builder.context.configuration")
-    }
-}
-
-/** The chip text: "Support triage · Charged twice for March", or the agent name alone. */
-const chipText = (agentName: string, detail: string | null) =>
-    detail ? `${agentName} · ${detail}` : agentName
 
 /**
  * The context chip of the builder composer: what the next message carries. It reads the page
@@ -65,27 +48,6 @@ export const ContextChip = ({projectId, agentName}: {projectId: string; agentNam
                     <X aria-hidden size={12} />
                 </button>
             ) : null}
-        </span>
-    )
-}
-
-/**
- * The chip of a sent message: the page part it was sent with. A message sent with the chip
- * removed carries the agent only and shows none.
- */
-export const SentContextChip = ({context}: {context: PageContext}) => {
-    const t = useT(builderContextCatalog)
-    const label = usePageLabel()
-    if (!context.page) return null
-    const text = chipText(context.agent.name, label(context.page))
-    return (
-        <span
-            data-testid="builder-sent-context"
-            className={cn(chipClass, "mb-1 self-end")}
-            title={`${t("builder.context.title")}: ${text}`}
-        >
-            <Robot aria-hidden size={12} className="shrink-0" />
-            <span className="truncate">{text}</span>
         </span>
     )
 }
