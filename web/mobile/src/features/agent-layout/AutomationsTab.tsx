@@ -11,7 +11,6 @@ import {useIsPhone} from "@agenta/ui/phone"
 import {useViewStack} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
-import {automationRunHistoryView} from "../automations/automationRunHistoryView"
 import {automationNewView, automationView} from "../automations/automationView"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -44,12 +43,12 @@ export const AutomationsTab = ({
     const scheduleDrawer = useAtomValue(triggerScheduleDrawerAtom)
     const subscriptionDrawer = useAtomValue(triggerSubscriptionDrawerAtom)
     const drawerOpen = Boolean(scheduleDrawer ?? subscriptionDrawer)
-    // The run history, the automation and the new forms open in the panel as views.
+    // Run history opens the automation with its history on top (`openRuns`).
     const openRunHistory = useCallback(
         ({id, kind}: TriggerOwnerRef) =>
             void stack.open(
-                automationRunHistoryView,
-                {automationId: id, kind: kindOf(kind), workspaceId, projectId},
+                automationView,
+                {automationId: id, kind: kindOf(kind), workspaceId, projectId, openRuns: true},
                 {kind: "project"},
             ),
         [projectId, stack, workspaceId],
