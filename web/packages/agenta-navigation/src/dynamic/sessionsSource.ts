@@ -662,6 +662,11 @@ const agentNameFor = (get: Getter, agentId: string): string | null => {
     return listed?.name || null
 }
 
+/** `agentNameFor` for one agent, for surfaces outside the rail such as the session header. */
+export const agentDisplayNameAtomFamily = atomFamily((agentId: string) =>
+    atom((get) => (agentId ? agentNameFor(get, agentId) : null)),
+)
+
 /**
  * Drop sessions whose agent is no longer listed (#5944, #6457). A PIN is exempt, the same exemption
  * it gets from every other list rule.
