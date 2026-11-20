@@ -3,4 +3,5 @@
 export interface SecretValueStatus {
     configured: boolean;
     preview?: (string | null) | undefined;
+    configured_keys?: (string[] | null) | undefined;
 }

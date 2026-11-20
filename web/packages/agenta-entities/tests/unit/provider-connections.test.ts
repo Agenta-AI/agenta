@@ -19,6 +19,7 @@ import {
     probeRequestFor,
     providerModelCatalog,
     storedCredentialFields,
+    storesAwsAccessKeys,
     toProviderConnections,
     type HarnessCapabilityMap,
     type ProviderConnection,
@@ -1306,5 +1307,68 @@ describe("Test on a write-only connection: the enable rule and the request shape
                 secret_id: "sec-1",
             })
         })
+    })
+})
+
+describe("storesAwsAccessKeys", () => {
+    const bedrock = (source: ProviderConnection["source"]) =>
+        connection({kind: "bedrock", secretKind: SecretKind.CustomProvider, source})
+
+    it("reads the key names a write-only row reports", () => {
+        expect(
+            storesAwsAccessKeys(
+                bedrock({storedCredentialKeys: ["aws_access_key_id", "aws_secret_access_key"]}),
+            ),
+        ).toBe(true)
+        expect(storesAwsAccessKeys(bedrock({storedCredentialKeys: ["AWS_ACCESS_KEY_ID"]}))).toBe(
+            true,
+        )
+    })
+
+    it("reads the value of a readable row", () => {
+        expect(storesAwsAccessKeys(bedrock({accessKeyId: "AKIA123"}))).toBe(true)
+    })
+
+    it("opens a row that holds both ways on the API key, which the gateway uses", () => {
+        expect(
+            storesAwsAccessKeys(
+                bedrock({
+                    storedCredentialKeys: [
+                        "aws_access_key_id",
+                        "aws_bearer_token_bedrock",
+                        "aws_secret_access_key",
+                    ],
+                }),
+            ),
+        ).toBe(false)
+    })
+
+    it("is false for an API key row and for a new connection", () => {
+        expect(
+            storesAwsAccessKeys(bedrock({storedCredentialKeys: ["aws_bearer_token_bedrock"]})),
+        ).toBe(false)
+        expect(storesAwsAccessKeys(null)).toBe(false)
+    })
+})
+
+describe("transformSecret configured keys", () => {
+    it("carries the credential key names from value_status", () => {
+        const [row] = transformSecret([
+            {
+                id: "id-b",
+                slug: "bedrock-abc",
+                kind: SecretKind.CustomProvider,
+                header: {name: "Bedrock"},
+                data: {
+                    kind: "bedrock",
+                    provider: {extras: {aws_region_name: "eu-west-1"}},
+                    models: [],
+                },
+                value_status: {configured: true, configured_keys: ["aws_access_key_id"]},
+                write_only: true,
+            } as never,
+        ])
+
+        expect(row.storedCredentialKeys).toEqual(["aws_access_key_id"])
     })
 })

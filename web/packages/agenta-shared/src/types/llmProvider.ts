@@ -72,6 +72,8 @@ export interface LlmProvider {
     hasKey?: boolean
     /** Masked credential (`sk-****9Qa`) a write-only row carries in place of its value. */
     keyPreview?: string
+    /** The names (never the values) of the credential keys the vault holds for this row. */
+    storedCredentialKeys?: string[]
     /** Public management policy for the row; internal manager identity is never exposed. */
     managementPolicy?: string
     /** Present only on a `subscription_provider` row: how usable its stored sign-in is. */
