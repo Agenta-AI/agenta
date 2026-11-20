@@ -41,6 +41,12 @@ describe("revalidateSessionInteractionsAtom with olderThanMs", () => {
         expect(client.getQueryState(key)?.isInvalidated).toBe(true)
     })
 
+    it("keeps rows marked stale by another caller stale inside the window", async () => {
+        await client.invalidateQueries({queryKey: key, refetchType: "none"})
+        await store.set(revalidateSessionInteractionsAtom, "session-id", {olderThanMs: 2_000})
+        expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+    })
+
     it("always marks the rows stale without the option", async () => {
         await store.set(revalidateSessionInteractionsAtom, "session-id")
         expect(client.getQueryState(key)?.isInvalidated).toBe(true)

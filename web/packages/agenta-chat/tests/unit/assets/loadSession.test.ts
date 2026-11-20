@@ -67,7 +67,7 @@ describe("loadSessionMessages", () => {
         revalidateCalls.length = 0
     })
 
-    it("re-reads interaction rows only when the last read is older than the join window", async () => {
+    it("lets recent interaction rows stand on an open and its background refresh", async () => {
         let refresh!: (records: SessionRecord[]) => void
         fetchResult = {
             records: [record("r1", {type: "message", text: "hi"})],
@@ -274,5 +274,14 @@ describe("reloadSessionMessages", () => {
         expect(await reloadSessionMessages("session-1", vi.fn())).toBe(true)
         fetchResult = {records: null}
         expect(await reloadSessionMessages("session-1", vi.fn())).toBe(false)
+    })
+})
+
+describe("reloadSessionMessages and interaction rows", () => {
+    it("always re-reads the interaction rows, since a turn just ended", async () => {
+        revalidateCalls.length = 0
+        fetchResult = {records: [record("r1", {type: "message", text: "hi"})]}
+        await reloadSessionMessages("session-1", () => undefined)
+        expect(revalidateCalls).toEqual([["session-1", {olderThanMs: undefined}]])
     })
 })
