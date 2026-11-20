@@ -1,6 +1,10 @@
 import {useCallback} from "react"
 
-import {AutomationRunHistoryView, useAutomation} from "@agenta/automation-ui"
+import {
+    AutomationRunHistoryError,
+    AutomationRunHistoryView,
+    useAutomation,
+} from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {sessionRoutePath} from "@agenta/sessions/link"
@@ -16,7 +20,7 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
     const t = useT(automationsEditorCatalog)
     useViewTitle(t("automations.editor.runHistory"))
     const router = useRouter()
-    const {automation} = useAutomation(params.automationId, params.kind)
+    const {automation, error, refetch} = useAutomation(params.automationId, params.kind)
     const base = `/w/${params.workspaceId}/p/${params.projectId}`
 
     const renderConversation = useCallback(
@@ -35,6 +39,9 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
         (sessionId: string) => `${router.basePath}${sessionRoutePath(base, sessionId)}`,
         [base, router.basePath],
     )
+
+    // The automation did not load: say so and offer a retry, rather than an empty history.
+    if (error && !automation) return <AutomationRunHistoryError onRetry={() => void refetch()} />
 
     return (
         <div className="flex h-full min-h-0 flex-col">

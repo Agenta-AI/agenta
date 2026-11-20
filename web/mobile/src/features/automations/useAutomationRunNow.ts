@@ -80,7 +80,8 @@ export const useAutomationRunNow = (
             const text = await runNowText(automation)
             // Null: the deliveries call failed. Empty: the pills resolved to nothing. Either way
             // there is no message, so no session opens.
-            if (text) void startTask(automation.agentId, text)
+            // Awaited, so a second press waits until the screen has moved to the new session.
+            if (text) await startTask(automation.agentId, text)
         } finally {
             inFlight.current = false
             setStarting(false)

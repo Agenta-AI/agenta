@@ -2,7 +2,9 @@ import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
+import {Button} from "@agenta/ui/ui"
 
 import {AutomationRunRow} from "./AutomationRunRow"
 import {runGroups, type RunGrouping} from "./runListView"
@@ -53,7 +55,7 @@ export const AutomationRunList = ({
     /** The action under "No runs yet" (the host's "Run now"). Not shown for a filtered list. */
     emptyAction?: ReactNode
 }) => {
-    const t = useT(automationsModelCatalog)
+    const t = useT(automationsModelCatalog, automationsEditorCatalog)
     // The group labels are text, so the groups are cut again when the language changes.
     const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs, t])
     const scrollerRef = useRef<HTMLDivElement>(null)
@@ -87,7 +89,7 @@ export const AutomationRunList = ({
         >
             {isLoading ? (
                 <AutomationRunListSkeleton />
-            ) : error ? (
+            ) : error && !groups.length ? (
                 <AutomationRunHistoryError onRetry={onRetry} />
             ) : groups.length ? (
                 groups.map((group) => (
@@ -115,6 +117,20 @@ export const AutomationRunList = ({
                     action={filtered ? undefined : emptyAction}
                 />
             )}
+            {/* A next page failed: the loaded runs stay, and the retry asks for that page again. */}
+            {error && groups.length ? (
+                <div className="flex items-center gap-2 px-2.5 py-3 text-[13px] text-muted-foreground">
+                    <span className="min-w-0 flex-1">{t("automations.editor.loadRunsFailed")}</span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs font-normal"
+                        onClick={() => onEndReached?.()}
+                    >
+                        {t("automations.editor.tryAgain")}
+                    </Button>
+                </div>
+            ) : null}
             {/* Outside the rows: a filter that hides every loaded run still reads on. */}
             {hasMore && !isLoading && !error ? (
                 <div ref={setEnd} data-testid="run-list-end">

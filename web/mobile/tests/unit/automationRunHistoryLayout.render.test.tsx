@@ -11,6 +11,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const pages = vi.hoisted(() => ({
+    error: null as unknown,
     deliveries: [] as unknown[],
     hasMore: false,
     loadingMore: false,
@@ -29,7 +30,7 @@ vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
     useTriggerDeliveryPages: () => ({
         deliveries: pages.deliveries,
         isLoading: false,
-        error: null,
+        error: pages.error,
         refetch: vi.fn(),
         hasMore: pages.hasMore,
         loadingMore: pages.loadingMore,
@@ -68,6 +69,7 @@ beforeEach(() => {
     pages.deliveries = []
     pages.hasMore = false
     pages.loadingMore = false
+    pages.error = null
     pages.loadMore.mockReset()
     observers.length = 0
     intersect = null
@@ -207,6 +209,21 @@ describe("AutomationRunHistoryView layout", () => {
                 {} as IntersectionObserver,
             )
         })
+        expect(pages.loadMore).toHaveBeenCalledTimes(1)
+    })
+
+    it("keeps the loaded runs when a next page fails, and retries that page", () => {
+        pages.deliveries = [run(1), run(2)]
+        pages.hasMore = true
+        pages.error = new Error("page 2")
+        render(440)
+        // The two run rows stay.
+        expect(container.querySelectorAll("button[aria-label]").length).toBe(2)
+        expect(container.textContent).toContain("Could not load this automation's runs.")
+        const retry = [...container.querySelectorAll("button")].find(
+            (button) => button.textContent === "Try again",
+        ) as HTMLButtonElement
+        act(() => retry.click())
         expect(pages.loadMore).toHaveBeenCalledTimes(1)
     })
 
