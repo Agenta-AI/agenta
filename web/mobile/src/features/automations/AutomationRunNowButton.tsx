@@ -24,12 +24,15 @@ export const AutomationRunNowButton = ({
     automation,
     base,
     dirty,
+    phone = false,
 }: {
     automation: Automation
     /** `/w/:workspace/p/:project` */
     base: string
     /** Unsaved config edits — a test run would exercise a version that does not exist yet. */
     dirty: boolean
+    /** Phone: the button is 44 px high. */
+    phone?: boolean
 }) => {
     const t = useT(automationsScreensCatalog)
     const {blocked, blockedText, starting, run} = useAutomationRunNow(automation, base, {dirty})
@@ -42,7 +45,7 @@ export const AutomationRunNowButton = ({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="text-xs font-normal"
+                className={phone ? "h-11 text-sm font-normal" : "text-xs font-normal"}
                 disabled={blocked !== null || starting}
                 title={blockedText ?? t("automations.screens.runNowTitle")}
                 onClick={() => void run()}
