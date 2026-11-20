@@ -1783,8 +1783,7 @@ class TriggersService:
         run_at = data.run_at
         if run_at.tzinfo is None:
             run_at = run_at.replace(tzinfo=timezone.utc)
-        run_at = run_at.astimezone(timezone.utc)
-        floored = run_at.replace(second=0, microsecond=0)
+        floored = cls._align_to_minute_utc(run_at)
         data.run_at = floored if floored == run_at else floored + timedelta(minutes=1)
 
     async def create_schedule(

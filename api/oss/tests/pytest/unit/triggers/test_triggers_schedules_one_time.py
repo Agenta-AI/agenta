@@ -131,6 +131,20 @@ class TestNormalizeRunAt:
         assert plus_two.run_at == _RUN_AT
         assert plus_two.run_at.isoformat() == "2026-06-22T10:30:00+00:00"
 
+    def test_an_offset_with_seconds_rounds_in_utc(self):
+        thirty = timezone(timedelta(seconds=30))
+        early = TriggerScheduleData(
+            event_key="timer.fire", run_at=datetime(2026, 6, 22, 10, 30, tzinfo=thirty)
+        )
+        exact = TriggerScheduleData(
+            event_key="timer.fire",
+            run_at=datetime(2026, 6, 22, 10, 30, 30, tzinfo=thirty),
+        )
+        TriggersService._normalize_timing(early)
+        TriggersService._normalize_timing(exact)
+        assert early.run_at == _RUN_AT
+        assert exact.run_at == _RUN_AT
+
     def test_the_event_id_time_is_iso_utc_to_the_second(self):
         # The due query renders run_at in SQL as YYYY-MM-DD"T"HH24:MI:SS"+00:00";
         # this pins the Python side of the same text.
@@ -189,12 +203,12 @@ class TestOneTimePass:
         assert before <= due_by <= after
 
     async def test_the_limit_per_tick_comes_from_env(self, monkeypatch):
-        monkeypatch.setattr(env.triggers, "one_time_schedules_max_per_tick", 2000)
+        monkeypatch.setattr(env.triggers, "one_time_schedules_max_per_tick", 7)
         service, dao = _service()
 
         await service.refresh_schedules(timestamp=_RUN_AT, interval=1)
 
-        assert dao.fetch_due_one_time_schedules.await_args.kwargs["limit"] == 2000
+        assert dao.fetch_due_one_time_schedules.await_args.kwargs["limit"] == 7
 
     async def test_two_refresh_calls_queue_the_same_event_id(self):
         # The dispatcher's delivery claim on (project, schedule, event id) lets one
