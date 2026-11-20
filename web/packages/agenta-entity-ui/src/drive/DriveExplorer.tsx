@@ -104,16 +104,19 @@ const noop = () => undefined
 const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
 
 /**
+ * On a touch screen every header button is at least 44 x 44 px (the 48 px header row holds
+ * them), so no hit area overlaps its neighbour; the icons keep their size.
+ */
+const TOUCH_HEADER = "contents [&_button]:min-h-11 [&_button]:min-w-11"
+/** The same for the 36 px toolbar row: the row and the view switch grow to hold 44 px buttons. */
+const TOUCH_TOOLBAR =
+    "contents [&>div]:h-auto [&>div]:min-h-12 [&_[role=tablist]]:h-auto [&_button]:min-h-11 [&_button]:min-w-11"
+
+/**
  * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
  * selection state; initialize with `initialPath` (callers remount per open, so mount-time init
  * is the reset).
  */
-/**
- * On a touch screen the header and toolbar buttons are at least 44 x 44 px, so no hit area
- * overlaps its neighbour; the icons keep their size.
- */
-const TOUCH_SIZES = "contents [&_button]:min-h-11 [&_button]:min-w-11"
-
 export function DriveExplorer({
     drive,
     explicitFiles,
@@ -697,7 +700,7 @@ export function DriveExplorer({
 
         const shownContentHeader =
             touch && contentHeader ? (
-                <div className={TOUCH_SIZES}>{contentHeader}</div>
+                <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
             ) : (
                 contentHeader
             )
@@ -886,7 +889,7 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    <div className={touch ? TOUCH_SIZES : "contents"}>
+                    <div className={touch ? TOUCH_HEADER : "contents"}>
                         <DriveHeader
                             selectedPath={selectedPath}
                             isFolder={selectedIsFolder}
