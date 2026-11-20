@@ -213,12 +213,18 @@ async def delete_hidden_schedule(
     )
     if removed is None:
         return False
+    log_hidden_schedule_deleted(project_id=project_id, schedule=removed)
+    return True
+
+
+def log_hidden_schedule_deleted(*, project_id: UUID, schedule: Any) -> None:
+    """The log line of every delete of a hidden schedule: the schedule id, the target
+    session and the principal."""
     log.info(
         "[SCHEDULE] Deleted hidden schedule",
-        schedule_id=str(removed.id),
+        schedule_id=str(schedule.id),
         project_id=str(project_id),
-        session_id=removed.data.session_id,
-        principal_kind=removed.principal.kind.value if removed.principal else None,
-        principal_id=str(removed.principal.id) if removed.principal else None,
+        session_id=schedule.data.session_id,
+        principal_kind=schedule.principal.kind.value if schedule.principal else None,
+        principal_id=str(schedule.principal.id) if schedule.principal else None,
     )
-    return True

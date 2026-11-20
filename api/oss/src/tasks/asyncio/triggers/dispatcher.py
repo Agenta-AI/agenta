@@ -424,11 +424,15 @@ class TriggersDispatcher:
             status=status,
             data=delivery_data.model_copy(update=update),
         )
+        # A hidden schedule's delivery goes with the schedule, so this line is the
+        # only lasting record of the outcome.
         log.info(
-            "[TRIGGERS DISPATCHER] fire into session schedule=%s event=%s status=%s",
+            "[TRIGGERS DISPATCHER] fire into session schedule=%s event=%s status=%s "
+            "error=%s",
             schedule.id,
             event_id,
             status.code,
+            update.get("error"),
         )
         if schedule.flags.is_hidden:
             await delete_hidden_schedule(

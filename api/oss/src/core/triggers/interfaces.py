@@ -494,6 +494,14 @@ class TriggersDAOInterface(ABC):
     ) -> Optional[TriggerSchedule]: ...
 
     @abstractmethod
+    async def purge_stale_hidden_schedules(
+        self,
+        *,
+        first_fired_before: datetime,
+        limit: int,
+    ) -> List[Tuple[UUID, TriggerSchedule]]: ...
+
+    @abstractmethod
     async def claim_schedule_delivery(
         self,
         *,

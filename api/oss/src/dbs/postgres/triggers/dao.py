@@ -1360,6 +1360,46 @@ class TriggersDAO(TriggersDAOInterface):
             await session.commit()
             return schedule
 
+    async def purge_stale_hidden_schedules(
+        self,
+        *,
+        first_fired_before: datetime,
+        limit: int,
+    ) -> List[Tuple[UUID, TriggerSchedule]]:
+        """Remove, in every project, the hidden schedules whose first fire attempt
+        (the delivery's `created_at`) is older than `first_fired_before`, with their
+        deliveries, at most `limit`. A schedule that never fired has no delivery and
+        stays, so a late tick still fires it. Returns each removed schedule with its
+        project id."""
+        stale = (
+            select(TriggerScheduleDBE.project_id, TriggerScheduleDBE.id)
+            .where(
+                TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+                select(TriggerDeliveryDBE.id)
+                .where(
+                    TriggerDeliveryDBE.project_id == TriggerScheduleDBE.project_id,
+                    TriggerDeliveryDBE.schedule_id == TriggerScheduleDBE.id,
+                    TriggerDeliveryDBE.created_at < first_fired_before,
+                )
+                .exists(),
+            )
+            .limit(limit)
+            .subquery()
+        )
+        async with self.engine.session() as session:
+            stmt = (
+                delete(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.project_id == stale.c.project_id,
+                    TriggerScheduleDBE.id == stale.c.id,
+                )
+                .returning(TriggerScheduleDBE)
+            )
+            removed = (await session.execute(stmt)).scalars().all()
+            schedules = _map_schedule_rows(removed)
+            await session.commit()
+            return schedules
+
     async def claim_schedule_delivery(
         self,
         *,

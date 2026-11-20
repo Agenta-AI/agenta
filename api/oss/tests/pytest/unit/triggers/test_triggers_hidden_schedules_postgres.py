@@ -6,7 +6,7 @@ writes nothing, and that the hard delete removes the schedule with its deliverie
 does nothing the second time.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -154,6 +154,96 @@ async def test_the_hard_delete_never_removes_a_visible_schedule(trigger_scope):
         await dao.purge_hidden_schedule(project_id=project_id, schedule_id=visible.id)
         is None
     )
+    assert (
+        await dao.fetch_schedule(project_id=project_id, schedule_id=visible.id)
+    ).id == visible.id
+
+
+async def _hidden(dao, *, project_id, user_id):
+    schedule_id = uuid4()
+    principal = any_principal()
+    return await dao.create_hidden_schedule(
+        project_id=project_id,
+        user_id=user_id,
+        schedule_id=schedule_id,
+        schedule=TriggerScheduleCreate(
+            data=TriggerScheduleData(
+                event_key="still_running",
+                run_at=_RUN_AT,
+                session_id="target-session",
+                session_input=TriggerScheduleSessionInput(
+                    kind=PendingInputKind.child_update,
+                    content={"session_id": "target-session"},
+                ),
+            ),
+            flags=TriggerScheduleFlags(is_active=True, is_hidden=True),
+        ),
+        principal=principal,
+        run_envelope=RunEnvelope(
+            authority=RunAuthority(
+                principal=principal, organization_id=uuid4(), project_id=project_id
+            ),
+            context=RunContext(origin=RunOrigin.SCHEDULE, origin_id=str(schedule_id)),
+        ),
+    )
+
+
+async def _claim(dao, *, project_id, user_id, schedule_id):
+    assert await dao.claim_schedule_delivery(
+        project_id=project_id,
+        user_id=user_id,
+        delivery_id=uuid4(),
+        schedule_id=schedule_id,
+        event_id=f"{schedule_id}:2001-01-01T10:30:00+00:00",
+        data=TriggerDeliveryData(session_id="target-session"),
+    )
+
+
+async def test_the_stale_purge_removes_only_hidden_schedules_that_fired(
+    trigger_scope,
+):
+    dao = TriggersDAO(engine=get_transactions_engine())
+    project_id = trigger_scope["project_id"]
+    user_id = trigger_scope["user_id"]
+    fired = await _hidden(dao, project_id=project_id, user_id=user_id)
+    await _claim(dao, project_id=project_id, user_id=user_id, schedule_id=fired.id)
+    never_fired = await _hidden(dao, project_id=project_id, user_id=user_id)
+    visible = await dao.create_schedule(
+        project_id=project_id,
+        user_id=user_id,
+        principal=any_principal(),
+        artifact_id=None,
+        schedule=TriggerScheduleCreate(
+            data=TriggerScheduleData(event_key="timer.fire", run_at=_RUN_AT)
+        ),
+    )
+    await _claim(dao, project_id=project_id, user_id=user_id, schedule_id=visible.id)
+
+    # The first attempt is newer than the cutoff: nothing goes.
+    assert (
+        await dao.purge_stale_hidden_schedules(
+            first_fired_before=datetime(2001, 1, 1, tzinfo=timezone.utc), limit=100
+        )
+        == []
+    )
+
+    removed = await dao.purge_stale_hidden_schedules(
+        first_fired_before=datetime.now(timezone.utc) + timedelta(minutes=1),
+        limit=100000,
+    )
+    removed_ids = {schedule.id for _, schedule in removed}
+    assert fired.id in removed_ids
+    assert never_fired.id not in removed_ids
+    assert visible.id not in removed_ids
+    assert (
+        await dao.fetch_schedule_to_fire(project_id=project_id, schedule_id=fired.id)
+        is None
+    )
+    assert (
+        await dao.fetch_schedule_to_fire(
+            project_id=project_id, schedule_id=never_fired.id
+        )
+    ).id == never_fired.id
     assert (
         await dao.fetch_schedule(project_id=project_id, schedule_id=visible.id)
     ).id == visible.id

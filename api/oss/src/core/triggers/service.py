@@ -70,7 +70,11 @@ from oss.src.core.triggers.exceptions import (
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
-from oss.src.core.triggers.utils import WebhookSecretResolver, delete_hidden_schedule
+from oss.src.core.triggers.utils import (
+    WebhookSecretResolver,
+    delete_hidden_schedule,
+    log_hidden_schedule_deleted,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
@@ -85,6 +89,12 @@ _ENQUEUE_TIMEOUT_SECONDS = 5.0
 # to the second. `TriggersDAO.fetch_due_one_time_schedules` renders the same text in
 # SQL to find fired schedules, so the two formats must stay equal.
 _ONE_TIME_RUN_AT_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
+
+
+# A hidden schedule whose first fire attempt is older than this is removed with its
+# deliveries. It caps the retries of a fire that keeps failing with a retryable error,
+# and removes a schedule whose fire enqueued its input but stopped before the delete.
+_HIDDEN_SCHEDULE_FIRE_WINDOW = timedelta(hours=1)
 
 
 def _one_time_run_at_text(run_at: datetime) -> str:
@@ -2165,16 +2175,38 @@ class TriggersService:
         schedule still waiting in the task queue has no delivery yet, so a later tick
         queues it again; if two tasks carry the same event id, the dispatcher's
         delivery claim lets one fire.
+
+        First it removes the hidden schedules whose first fire attempt is older than
+        `_HIDDEN_SCHEDULE_FIRE_WINDOW`: a fire that keeps failing with a retryable
+        error stops, and a fire that stopped after its enqueue and before its delete
+        leaves no row behind. A hidden schedule that never fired stays.
         """
         due_by = min(
             self._align_to_minute_utc(timestamp),
             self._align_to_minute_utc(datetime.now(timezone.utc)),
         )
 
+        limit = env.triggers.one_time_schedules_max_per_tick
+        failures = 0
+        try:
+            stale = await self.dao.purge_stale_hidden_schedules(
+                first_fired_before=datetime.now(timezone.utc)
+                - _HIDDEN_SCHEDULE_FIRE_WINDOW,
+                limit=limit,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            failures += 1
+            stale = []
+            log.error(
+                f"[SCHEDULE] Error removing stale hidden schedules: {e}", exc_info=True
+            )
+        for project_id, schedule in stale:
+            log_hidden_schedule_deleted(project_id=project_id, schedule=schedule)
+
         try:
             schedules = await self.dao.fetch_due_one_time_schedules(
                 due_by=due_by,
-                limit=env.triggers.one_time_schedules_max_per_tick,
+                limit=limit,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(
@@ -2182,7 +2214,6 @@ class TriggersService:
             )
             return False
 
-        failures = 0
         for project_id, schedule in schedules:
             try:
                 run_at = _one_time_run_at_text(schedule.data.run_at)
