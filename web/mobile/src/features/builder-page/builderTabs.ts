@@ -62,7 +62,7 @@ const markFollowed = (state: BuilderTabsState, ids: string[]): BuilderTabsState 
 }
 
 /** True for a chat that has never had a tab and followed nothing. */
-const isUntouched = (state: BuilderTabsState) =>
+export const isUntouched = (state: BuilderTabsState) =>
     !state.tabs.length && !state.closed.length && !state.followedToolCallIds.length
 
 export const agentTab = (agent: AgentRef): BuilderTab => ({

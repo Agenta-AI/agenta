@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState, type MutableRefObject} from "react"
+import {useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {
@@ -28,6 +28,7 @@ import {useTriggerTestRun} from "../chat/useTriggerTestRun"
 import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
+import {followAction} from "./followBuilder"
 import {PaneSessions, usePaneSessions} from "./PaneSessions"
 
 /** The pane tabs of an agent tab (B03): the Configuration tabs, then Drives and Sessions. */
@@ -48,12 +49,15 @@ export type PaneTab = (typeof PANE_TABS)[number]
  */
 export const AgentPane = ({
     agentId,
+    builderChangeId = null,
     guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     agentId: string
+    /** The tool call of the builder's latest save of this agent in this visit; the pane follows it. */
+    builderChangeId?: string | null
     /** The open pane tab's views, shared with the page so it can ask before a builder tab change. */
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     /** The builder chat: the session the Drives pane reads its session files from. */
@@ -75,12 +79,36 @@ export const AgentPane = ({
     const sessionCount = sessions.data?.total ?? sessions.data?.sessions?.length ?? 0
     // An automation's "Run now" starts a new session of this agent, as from the panel.
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
+    // The Agent pane tab's dot: the builder saved a change the pane did not move to show.
+    const [agentDot, setAgentDot] = useState(false)
     // The open pane tab's views: an open form with edits asks before a switch.
     const openTab = async (next: PaneTab) => {
         if (next === tab) return
         if (guardRef.current && !(await guardRef.current.stack.closeAll())) return
         setTab(next)
+        if (next === "agent") setAgentDot(false)
     }
+
+    // Follow the builder (the 10 second rule): a save of this agent shows the Agent pane tab,
+    // unless the person clicked in the pane in the last 10 seconds or a form has edits; then the
+    // Agent pane tab gets a dot.
+    const lastPointerDown = useRef<number | null>(null)
+    const followed = useRef(builderChangeId)
+    useEffect(() => {
+        if (!builderChangeId || builderChangeId === followed.current) return
+        followed.current = builderChangeId
+        const action = followAction<PaneTab>({
+            paneTab: tab,
+            target: "agent",
+            now: Date.now(),
+            lastPointerDown: lastPointerDown.current,
+            dirty: guardRef.current?.stack.dirty ?? false,
+        })
+        if (action === "show") setTab("agent")
+        else if (action === "dot") setAgentDot(true)
+        // Only a new save is followed; the pane tab on screen is read at that moment.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [builderChangeId])
 
     const needsRevision = tab === "agent" || tab === "automations"
     let body
@@ -132,7 +160,13 @@ export const AgentPane = ({
               : t(`agentLayout.panel.${key}`)
 
     return (
-        <div className="flex h-full min-h-0 flex-col" data-testid="builder-agent-pane">
+        <div
+            className="flex h-full min-h-0 flex-col"
+            data-testid="builder-agent-pane"
+            onPointerDownCapture={() => {
+                lastPointerDown.current = Date.now()
+            }}
+        >
             <div
                 role="tablist"
                 className="flex h-12 shrink-0 items-center gap-4 border-0 border-b border-solid border-colorBorderSecondary px-4"
@@ -152,6 +186,13 @@ export const AgentPane = ({
                         )}
                     >
                         {label(key)}
+                        {key === "agent" && agentDot ? (
+                            <span
+                                data-testid="pane-tab-dot"
+                                aria-label={t("builder.page.changedByBuilder")}
+                                className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
+                            />
+                        ) : null}
                         {key === "sessions" && sessionCount > 0 ? (
                             <span className="text-xs text-colorTextTertiary">
                                 {formatNumber(sessionCount)}

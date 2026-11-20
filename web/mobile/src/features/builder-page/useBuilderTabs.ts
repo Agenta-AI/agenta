@@ -14,6 +14,7 @@ import {
     closeBuilderTab,
     followBuilderResult,
     followBuilderResults,
+    isUntouched,
     openBuilderTab,
     parseTabParam,
     readBuilderTabs,
@@ -101,18 +102,33 @@ export const useBuilderTabs = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addressKey, onThisChat, sessionId])
 
+    // The latest builder save of the active tab's agent in this visit (task 41.1): the pane
+    // follows it. Saves already in the chat when it loads are history, not followed.
+    const [activeChange, setActiveChange] = useState<{key: string; toolCallId: string} | null>(null)
+
     const onMessagesChanged = useCallback(
         (messages: UIMessage[]) => {
             // No message yet (a new chat, or history still loading): nothing names an agent.
             if (!messages.length) return
-            commit((current) =>
+            const before = latest.current
+            const results = agentResults(messages)
+            const next = commit((current) =>
                 followBuilderResults(
                     current,
-                    agentResults(messages),
+                    results,
                     latestContextAgent(messages) ??
                         (linkedAgentId ? {id: linkedAgentId, name: ""} : null),
                 ),
             )
+            if (isUntouched(before) || !next.active) return
+            const saved = results.filter(
+                (result) =>
+                    result.saved &&
+                    !before.followedToolCallIds.includes(result.toolCallId) &&
+                    builderTabKey(agentTab(result.agent)) === next.active,
+            )
+            const last = saved.at(-1)
+            if (last) setActiveChange({key: next.active, toolCallId: last.toolCallId})
         },
         [commit, linkedAgentId],
     )
@@ -130,6 +146,8 @@ export const useBuilderTabs = ({
 
     return {
         state,
+        /** The tool call of the builder's latest save of the active tab's agent, in this visit. */
+        activeChangeId: activeChange?.key === state.active ? activeChange.toolCallId : null,
         open: useCallback(
             (next: BuilderTab) => commit((current) => openBuilderTab(current, next)),
             [commit],

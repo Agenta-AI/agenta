@@ -27,6 +27,7 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {AgentPicker} from "./AgentPicker"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
@@ -34,7 +35,6 @@ import {
     writeBuilderPaneLayout,
     type BuilderPaneLayout,
 } from "./builderLayout"
-import {AgentPicker} from "./AgentPicker"
 import {BuilderPageChat} from "./BuilderPageChat"
 import {createBuilderSidebarScope} from "./builderSidebarScope"
 import {BuilderTabContent} from "./BuilderTabContent"
@@ -306,6 +306,7 @@ export const BuilderPage = ({
                 <BuilderTabContent
                     key={builderTabKey(activeTab)}
                     tab={activeTab}
+                    builderChangeId={tabs.activeChangeId}
                     guardRef={paneGuard}
                     builderSessionId={sessionId}
                     workspaceId={workspaceId}

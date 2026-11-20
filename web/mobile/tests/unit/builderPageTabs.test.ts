@@ -2,8 +2,8 @@
 /**
  * The builder tabs of the builder page (tasks 27.2, 40.1 to 40.3): the first tab from a builder
  * result, the page context or the browser link; the dot of a later result; the closed-tab
- * memory; the cap of 50; closing the active tab; the address; storage per chat; and the row fit
- * with "N more".
+ * memory; the cap of 50; closing the active tab; the address; storage per chat; the row fit
+ * with "N more"; and the 10 second rule (task 41.1).
  */
 import {act, renderHook} from "@testing-library/react"
 import type {UIMessage} from "ai"
@@ -25,6 +25,7 @@ import {
     type BuilderTab,
 } from "@/features/builder-page/builderTabs"
 import {fitTabs} from "@/features/builder-page/fitTabs"
+import {followAction} from "@/features/builder-page/followBuilder"
 import type {AgentResult} from "@/features/builder-page/paneAgent"
 import {useBuilderTabs} from "@/features/builder-page/useBuilderTabs"
 
@@ -253,5 +254,71 @@ describe("fitTabs", () => {
         const picked = fitTabs({keys, active: "enrich", widths, room: 520, moreWidth: 90, gap: 4})
         expect(picked.visible).toContain("enrich")
         expect(picked.hidden).toHaveLength(2)
+    })
+})
+
+describe("follow the builder: the 10 second rule", () => {
+    const at = (seconds: number) => ({
+        paneTab: "sessions" as const,
+        target: "agent" as const,
+        now: 100_000 + seconds * 1000,
+        lastPointerDown: 100_000,
+        dirty: false,
+    })
+    it("keeps the view and marks the Agent pane tab after a click 9 seconds ago", () => {
+        expect(followAction<"agent" | "sessions">(at(9))).toBe("dot")
+    })
+
+    it("shows the Agent pane tab when the last click was 11 seconds ago, or never", () => {
+        expect(followAction<"agent" | "sessions">(at(11))).toBe("show")
+        expect(followAction<"agent" | "sessions">({...at(0), lastPointerDown: null})).toBe("show")
+    })
+
+    it("keeps an open form with edits, and does nothing when the Agent pane tab shows", () => {
+        expect(followAction<"agent" | "sessions">({...at(60), dirty: true})).toBe("dot")
+        expect(followAction<"agent" | "sessions">({...at(60), paneTab: "agent"})).toBe("none")
+    })
+})
+
+describe("useBuilderTabs follows a new save of the active agent", () => {
+    const saveOf = (id: string, toolCallId: string) =>
+        ({
+            id: `m-${toolCallId}`,
+            role: "assistant",
+            parts: [
+                {
+                    type: "tool-edit_agent_config",
+                    toolCallId,
+                    state: "output-available",
+                    input: {},
+                    output: {status: "committed", agent: {id, name: id}},
+                },
+            ],
+        }) as unknown as UIMessage
+
+    it("reports a save made in this visit, not the saves the chat loaded with", () => {
+        const hook = renderHook(() =>
+            useBuilderTabs({
+                sessionId: "chat-f",
+                routeChatId: "chat-f",
+                tab: undefined,
+                linkedAgentId: null,
+                workspaceId: "w",
+                projectId: "p",
+            }),
+        )
+        act(() => hook.result.current.onMessagesChanged([saveOf("a", "c1")]))
+        expect(hook.result.current.state.active).toBe("agent:a")
+        expect(hook.result.current.activeChangeId).toBeNull()
+        act(() => hook.result.current.onMessagesChanged([saveOf("a", "c1"), saveOf("b", "c2")]))
+        expect(hook.result.current.activeChangeId).toBeNull()
+        act(() =>
+            hook.result.current.onMessagesChanged([
+                saveOf("a", "c1"),
+                saveOf("b", "c2"),
+                saveOf("a", "c3"),
+            ]),
+        )
+        expect(hook.result.current.activeChangeId).toBe("c3")
     })
 })

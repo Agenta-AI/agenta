@@ -22,12 +22,14 @@ const Notice = ({children}: {children: string}) => (
 /** An agent tab: its pane tabs, or the no-access line when it was deleted or hidden. */
 const AgentTab = ({
     agentId,
+    builderChangeId,
     guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     agentId: string
+    builderChangeId: string | null
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -43,6 +45,7 @@ const AgentTab = ({
     return (
         <AgentPane
             agentId={agentId}
+            builderChangeId={builderChangeId}
             guardRef={guardRef}
             builderSessionId={builderSessionId}
             workspaceId={workspaceId}
@@ -97,12 +100,15 @@ const AutomationTabRoot = ({
  */
 export const BuilderTabContent = ({
     tab,
+    builderChangeId,
     guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     tab: BuilderTab
+    /** The builder's latest save of this tab's agent in this visit (the pane follows it). */
+    builderChangeId: string | null
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -113,6 +119,7 @@ export const BuilderTabContent = ({
         return (
             <AgentTab
                 agentId={tab.id}
+                builderChangeId={builderChangeId}
                 guardRef={guardRef}
                 builderSessionId={builderSessionId}
                 workspaceId={workspaceId}
