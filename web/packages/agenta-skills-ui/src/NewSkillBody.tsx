@@ -11,7 +11,7 @@ import {
     type SkillScanCandidate,
     type SkillUploadScan,
 } from "@agenta/entity-ui/drill-in"
-import {richText, useT} from "@agenta/i18n"
+import {createT, richText, useT} from "@agenta/i18n"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
 import skillTemplateCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
@@ -36,6 +36,8 @@ import {GithubLogo, PencilSimple, UploadSimple, WarningCircle} from "@phosphor-i
 import {useAtomValue} from "jotai"
 
 type Skill = Record<string, unknown>
+
+const tNow = createT(skillNewCatalog, skillsGalleryCatalog, repoImportCatalog)
 
 /** Where the view opens: the choice, or straight on one way (the Skills page menu). */
 export type NewSkillStart =
@@ -138,7 +140,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                 const result = await scan
                 if (!live.current) return
                 const [first] = result.candidates
-                if (!first) setError(t("skills.gallery.noSkillMdFound"))
+                if (!first) setError(tNow("skills.gallery.noSkillMdFound"))
                 else if (result.candidates.length === 1)
                     openWrite(toFormValue(first), result.fileCount)
                 else
@@ -147,12 +149,12 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                         selected: new Set(result.candidates.map((c) => c.dir)),
                     })
             } catch {
-                if (live.current) setError(t("skills.gallery.readUploadFailed"))
+                if (live.current) setError(tNow("skills.gallery.readUploadFailed"))
             } finally {
                 if (live.current) setReading(false)
             }
         },
-        [openWrite, t],
+        [openWrite],
     )
 
     const startScan = start.step === "upload" ? start.scan : undefined
@@ -189,12 +191,12 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
             const detail = errorText(err)
             setError(
                 detail
-                    ? t("skills.gallery.createFailedDetail", {error: detail})
-                    : t("skills.gallery.createFailed"),
+                    ? tNow("skills.gallery.createFailedDetail", {error: detail})
+                    : tNow("skills.gallery.createFailed"),
             )
             return false
         }
-    }, [createOne, onCreated, t, value])
+    }, [createOne, onCreated, value])
 
     const chosenPicks = useMemo(
         () => (picks ? picks.scan.candidates.filter((c) => picks.selected.has(c.dir)) : []),
@@ -220,8 +222,8 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
             const detail = errorText(err)
             setError(
                 detail
-                    ? t("skills.gallery.importFailedDetail", {error: detail})
-                    : t("skills.gallery.importFailed"),
+                    ? tNow("skills.gallery.importFailedDetail", {error: detail})
+                    : tNow("skills.gallery.importFailed"),
             )
             return false
         } finally {
@@ -230,7 +232,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                 onCreated?.(entries)
             }
         }
-    }, [chosenPicks, createOne, onCreated, t])
+    }, [chosenPicks, createOne, onCreated])
 
     const scanRepo = useCallback(async () => {
         const url = repoUrl.trim()
@@ -257,11 +259,11 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                           : c.issues
                                 ?.map((i) => i.message)
                                 .filter(Boolean)
-                                .join(" ") || t("skills.gallery.invalidSkill"),
+                                .join(" ") || tNow("skills.gallery.invalidSkill"),
                 }
             })
             if (rows.length === 0) {
-                setError(t("skills.gallery.importNoneFound"))
+                setError(tNow("skills.gallery.importNoneFound"))
                 return
             }
             setFound(rows)
@@ -269,11 +271,11 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                 new Set(rows.filter((r) => !r.imported && !r.unavailable).map((r) => r.path)),
             )
         } catch (err) {
-            if (live.current) setError(errorText(err) ?? t("ui.repoImport.scanFailed"))
+            if (live.current) setError(errorText(err) ?? tNow("ui.repoImport.scanFailed"))
         } finally {
             if (live.current) setScanning(false)
         }
-    }, [projectId, repoUrl, scanning, t])
+    }, [projectId, repoUrl, scanning])
 
     /** The embed entry of each imported skill; the import answer has no slug, the registry has. */
     const entriesOfImported = useCallback(
@@ -330,8 +332,8 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
             const detail = errorText(err)
             setError(
                 detail
-                    ? t("skills.gallery.importFailedDetail", {error: detail})
-                    : t("skills.gallery.importFailed"),
+                    ? tNow("skills.gallery.importFailedDetail", {error: detail})
+                    : tNow("skills.gallery.importFailed"),
             )
             return false
         }
@@ -342,13 +344,13 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
             const {entries, missed} = await entriesOfImported(imported)
             if (entries.length) onCreated(entries)
             if (missed.length)
-                notes.push(t("entityUi.skillNew.notAddedToAgent", {names: missed.join(", ")}))
+                notes.push(tNow("entityUi.skillNew.notAddedToAgent", {names: missed.join(", ")}))
         }
         const skipped = response.skipped ?? []
         if (skipped.length)
             notes.push(
                 [
-                    t("skills.gallery.skippedCount", {count: skipped.length}),
+                    tNow("skills.gallery.skippedCount", {count: skipped.length}),
                     ...skipped.map((s) => s.path_in_repo),
                 ].join(" "),
             )
@@ -361,7 +363,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         setSelected(new Set())
         setError(notes.join(" "))
         return "stay" as const
-    }, [entriesOfImported, onCreated, projectId, repoUrl, selected, t])
+    }, [entriesOfImported, onCreated, projectId, repoUrl, selected])
 
     const writeDirty = JSON.stringify(value) !== JSON.stringify(EMPTY_SKILL)
     const writeValid =
