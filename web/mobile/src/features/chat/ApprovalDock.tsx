@@ -3,6 +3,7 @@ import type {PendingApproval} from "@agenta/chat/model"
 
 import {ContentRail} from "@/components/ContentRail"
 
+import {useIsBuilderChat} from "./builderChat"
 import {ownsShortcutAt} from "./conversationFocus"
 import {isSteerEnabled} from "./steer"
 import type {ApprovalActions} from "./useApprovalActions"
@@ -23,7 +24,6 @@ export const ApprovalDock = ({
     bottomMost = true,
     readOnly = false,
     readOnlyNote,
-    alwaysAllowOffered = true,
 }: {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
@@ -37,10 +37,9 @@ export const ApprovalDock = ({
     readOnly?: boolean
     /** Shown in place of the actions while read-only (it names who can answer). */
     readOnlyNote?: string | null
-    /** Offer "Always auto-approve" (off in a builder chat). */
-    alwaysAllowOffered?: boolean
 }) => {
     const locked = readOnly || Boolean(readOnlyNote)
+    const builderChat = useIsBuilderChat()
     const busy = actions.phase === "resuming"
     const answered = actions.phase === "answered" || actions.phase === "recoverable"
 
@@ -64,7 +63,7 @@ export const ApprovalDock = ({
                     touch
                     readOnly={locked}
                     readOnlyNote={readOnlyNote}
-                    alwaysAllowOffered={alwaysAllowOffered}
+                    alwaysAllowOffered={!builderChat}
                     // Two conversations can each show a card: a key answers the focused one only.
                     ownsShortcut={ownsShortcutAt}
                     errorText={actions.phase === "error" ? actions.errorText : null}

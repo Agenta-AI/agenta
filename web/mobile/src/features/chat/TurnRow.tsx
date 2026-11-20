@@ -23,11 +23,13 @@ import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
+import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {
     ChatBubble,
     turnToolbarClass,
@@ -41,6 +43,7 @@ import {cn} from "@/lib/utils"
 
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
+import {useIsBuilderChat} from "./builderChat"
 import {ChangeResults} from "./ChangeResults"
 import {isLiveTextItem} from "./markdownStream"
 import {quotedMessageParts} from "./quotedMessageParts"
@@ -98,7 +101,8 @@ const TurnRowInner = ({
     /** When the server saved the user message that started this run: the clock counts from it. */
     runStartedAt?: number
 }) => {
-    const t = useT(chatMobileTurnCatalog)
+    const t = useT(chatMobileTurnCatalog, builderPageCatalog)
+    const builderChat = useIsBuilderChat()
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     // A reader whose role has no trace access gets no trace action and no trace read.
     const canViewSpans = useAtomValue(canViewSpansAtom)
@@ -314,6 +318,13 @@ const TurnRowInner = ({
             <ChangeResults parts={turn.message.parts} finished={!runOpen} latest={turn.isLast} />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
+                    {/* The builder signs its answers (S03, M05): 12 px, secondary, above the text. */}
+                    {builderChat ? (
+                        <div className="-mb-2 flex items-center gap-1.5 text-xs leading-4 text-colorTextSecondary">
+                            <BuilderIcon size={12} aria-hidden />
+                            {t("builder.page.builder")}
+                        </div>
+                    ) : null}
                     {activity.messages.map((message, at) => (
                         <AnswerReveal
                             key={message.index}

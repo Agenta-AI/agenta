@@ -313,7 +313,7 @@ export const ApprovalCard = ({
         return (
             <div
                 ref={rootRef}
-                className="flex flex-col gap-1 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer py-1"
+                className="flex flex-col gap-1 rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer py-1 shadow-[var(--ag-surface-card-shadow)]"
             >
                 <ChangeResultRow state={cardState} />
                 {errorText ? (

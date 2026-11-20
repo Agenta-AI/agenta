@@ -452,6 +452,8 @@ export function SectionCard({
 
 /** A run of changed text longer than this loses its shared start to "…" in a summary box. */
 const SHARED_START_MIN = 24
+/** Words kept before the change when the shared start goes. */
+const CONTEXT_WORDS = 4
 
 /**
  * The changed lines of a text diff, without context: a removed line followed by one added line
@@ -461,33 +463,39 @@ const SHARED_START_MIN = 24
 export const summaryLines = (
     hunks: ExtendedDiffLine[],
 ): {type: "added" | "removed"; content: string}[] => {
-    const lines = hunks.filter(
-        (line): line is ExtendedDiffLine & {type: "added" | "removed"} =>
-            line.type === "added" || line.type === "removed",
-    )
-    return lines.map((line, index) => {
-        const pair =
-            line.type === "removed"
-                ? lines[index + 1]?.type === "added" && lines[index + 2]?.type !== "added"
-                    ? lines[index + 1]
-                    : undefined
-                : lines[index - 1]?.type === "removed" && lines[index - 2]?.type !== "removed"
-                  ? lines[index - 1]
-                  : undefined
-        if (!pair) return {type: line.type, content: line.content}
-        let shared = 0
-        while (
-            shared < line.content.length &&
-            shared < pair.content.length &&
-            line.content[shared] === pair.content[shared]
-        )
-            shared++
-        // Cut at a word start, so the box never shows half a word.
-        const cut = line.content.lastIndexOf(" ", shared - 1) + 1
-        return cut >= SHARED_START_MIN
-            ? {type: line.type, content: `…${line.content.slice(cut)}`}
-            : {type: line.type, content: line.content}
-    })
+    const out: {type: "added" | "removed"; content: string}[] = []
+    // Runs of changed lines, cut at each context line: one removed then one added line is a pair.
+    let run: {type: "added" | "removed"; content: string}[] = []
+    const flush = () => {
+        const [first, second] = run
+        if (run.length === 2 && first.type === "removed" && second.type === "added") {
+            let shared = 0
+            while (
+                shared < first.content.length &&
+                shared < second.content.length &&
+                first.content[shared] === second.content[shared]
+            )
+                shared++
+            // Cut at a word start, so the box never shows half a word, and keep a few words
+            // before the change to read it by.
+            let cut = first.content.lastIndexOf(" ", shared - 1) + 1
+            for (let word = 0; word < CONTEXT_WORDS && cut > 0; word++) {
+                cut = first.content.lastIndexOf(" ", cut - 2) + 1
+            }
+            if (cut >= SHARED_START_MIN) {
+                run = run.map((line) => ({...line, content: `…${line.content.slice(cut)}`}))
+            }
+        }
+        out.push(...run)
+        run = []
+    }
+    for (const line of hunks) {
+        if (line.type === "added" || line.type === "removed") {
+            run.push({type: line.type, content: line.content})
+        } else flush()
+    }
+    flush()
+    return out
 }
 
 /** The summary box of a text diff: the changed lines in one bordered box, in the body font. */

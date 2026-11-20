@@ -45,11 +45,12 @@ beforeEach(() => {
     granted.calls = []
 })
 
-const render = () =>
+const render = ({alwaysAllowOffered}: {alwaysAllowOffered?: boolean} = {}) =>
     renderToStaticMarkup(
         <ApprovalCard
             approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
             entityId="rev-1"
+            alwaysAllowOffered={alwaysAllowOffered}
             onRespond={() => undefined}
             onApproveAll={() => undefined}
         />,
@@ -63,6 +64,12 @@ describe("the auto-approve row", () => {
 
     it("stays hidden for an ineligible gate (platform ops like commit_revision)", () => {
         expect(render()).not.toContain("Always auto-approve")
+    })
+
+    // A builder chat: the grant would go to the builder itself, not to the agent it edits.
+    it("stays hidden when the host does not offer it", () => {
+        grantState.eligible = true
+        expect(render({alwaysAllowOffered: false})).not.toContain("Always auto-approve")
     })
 
     it("stays hidden once the tool is already allowed — the row would be a no-op", () => {
