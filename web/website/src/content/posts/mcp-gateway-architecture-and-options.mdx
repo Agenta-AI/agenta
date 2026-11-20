@@ -1,0 +1,272 @@
+---
+slug: mcp-gateway-architecture-and-options
+title: "Enterprise MCP Gateway Architecture & Options: Auth, Permissions, and Tool Governance"
+description: "A CTO and platform engineering guide to enterprise MCP gateway architecture, OAuth 2.1 token flows, sandbox secret isolation, per-tool permissions, and top gateway options."
+category: Engineering
+date: 2026-11-02
+author: mahmoud-mabrouk
+heroImage: /blog/mcp-gateway-architecture-and-options/hero.webp
+ogImage: /blog/mcp-gateway-architecture-and-options/hero.webp
+readingTime: 15 min read
+tags:
+  - AI Coworker
+  - Company Brain
+  - Open Source
+  - AI Engineering
+  - Enterprise AI
+faq:
+  - question: "What is an enterprise MCP gateway and why do engineering teams need one?"
+    answer: "An enterprise Model Context Protocol (MCP) gateway is a centralized control plane that sits between AI agents or coding clients and upstream MCP servers. Without a gateway, developers paste long-lived personal access tokens into local configuration files on their laptops, leaving security teams with no visibility into which agents can reach internal databases or SaaS tools and no way to revoke access when someone changes roles. An MCP gateway centralizes authentication, enforces per-tool allow/ask/deny policies, curates exposed tool schemas so context windows stay lean, and records an audit log of every tool call."
+  - question: "How does OAuth 2.1 authorization work in the Model Context Protocol specification?"
+    answer: "For remote servers using Streamable HTTP transport, the MCP specification defines an OAuth 2.1 authorization flow built on four standards: OAuth 2.0 Protected Resource Metadata (RFC 9728), Authorization Server Metadata (RFC 8414), Dynamic Client Registration (RFC 7591), and Resource Indicators (RFC 8707). When an MCP client connects without a token, the server responds with HTTP 401 Unauthorized and a WWW-Authenticate header pointing to its metadata URL. The client discovers the authorization server, runs an OAuth 2.1 authorization code flow with PKCE and a resource parameter bound to the server's canonical URI, and sends the resulting short-lived Bearer token on subsequent requests. The specification explicitly forbids passing a downstream client token directly through to upstream APIs without audience validation or token exchange."
+  - question: "Why is a network MCP proxy alone not enough when AI agents run inside cloud sandboxes?"
+    answer: "Most standalone MCP gateways assume the client is a developer IDE on a laptop. When an organization runs autonomous AI coworkers inside cloud sandboxes that have bash, Python, and outbound network access, placing a raw MCP gateway bearer token inside the sandbox environment creates a credential exfiltration risk: a prompt injection can read process.env or call the upstream MCP endpoint directly to bypass client-side deny rules. In an open-source AI coworker platform like Agenta, tool credentials stay in the platform service outside the sandbox. Gateway integrations execute via server-side callbacks using opaque tool slugs, and HTTP headers use host-scoped secret substitution so raw tokens never enter the sandbox."
+  - question: "How should teams configure read vs. write tool permissions for interactive chats versus unattended automations?"
+    answer: "Interactive chats and scheduled background runs have different approval economics. In a live chat across web, Slack, or Telegram, pausing an agent before a write action costs a human reviewer about one second via an interactive approval card. Therefore, setting read-only tools to Allow and write or delete tools to Ask (Agenta's Allow reads / Ask for write and delete policy) is the safest default. In an unattended 6:00 AM cron schedule or webhook automation, nobody is in the chat to click Approve, so an Ask policy stalls the run. Unattended agents should pair narrow, pre-approved write tools with least-privilege service accounts and strict tool filters."
+  - question: "Should we adopt a standalone MCP gateway proxy or an open-source AI coworker platform?"
+    answer: "If your only goal is routing local developer IDE traffic (Cursor, VS Code, Claude Desktop) through your corporate identity provider, a standalone gateway such as Cloudflare MCP Server Portals, Portkey, LiteLLM, or Zuplo is a clean fit. If you are building an internal AI platform or company AI brain where every department runs shared AI coworkers, a standalone proxy leaves you to build sandboxes, agent harnesses, persistent shared files, and Slack or web UIs yourself. Adopting an open-source AI coworker platform like Agenta (MIT license) gives you governed HTTP MCP servers, 150+ built-in OAuth integrations, isolated Daytona sandboxes, coding-grade harnesses (Claude Code, Codex, and Pi), and plain-language permission controls in one stack."
+---
+
+Every engineering organization adopting the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) goes through the same two-stage lifecycle.
+
+In stage one, three engineers connect local MCP servers to their desktop coding tools by pasting personal GitHub, Linear, Postgres, and Slack tokens into local JSON files on their laptops. Within a week, they are shipping faster, and every other team wants the same capabilities inside your [company AI brain](/blog/how-to-build-a-company-ai-brain).
+
+In stage two, your security and platform engineering leads look at what actually got deployed and freeze the rollout:
+
+- **Plaintext credential sprawl:** Long-lived API keys and OAuth tokens sit unencrypted inside developer laptop dotfiles and container environment variables.
+- **All-or-nothing tool exposure:** Connecting a single upstream MCP server hands the model 35 tools at once, mixing harmless read queries (`list_issues`, `get_customer`) with destructive mutations (`delete_repository`, `refund_invoice`, `drop_table`).
+- **Zero identity attribution or offboarding:** When ten agents share one static service token, your audit logs cannot distinguish which user or workflow triggered a write action, and revoking access when an employee changes teams requires rotating credentials across every agent.
+- **Context window exhaustion:** Attaching six MCP servers dumps hundreds of JSON schema definitions into every prompt, degrading tool selection accuracy and inflating token costs before the agent takes its first step.
+
+Solving these four problems is the job of an **enterprise MCP gateway architecture**. This guide breaks down how MCP transports, OAuth 2.1 token flows, sandbox secret isolation, and three-way tool permissions work under the hood, then compares six leading MCP gateway and AI coworker platform options for CTOs and platform teams.
+
+## TL;DR: Enterprise MCP gateway and tool governance options compared
+
+| Option                                                                                                              | Architectural Role                                | Auth & Secret Boundary                                                                      | Tool Governance & Best Fit                                                                                                     |
+| :------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------ | :------------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------- |
+| **[Agenta](https://agenta.ai)**                                                                                     | Open-source AI coworker platform + MCP governance | OAuth, API key (`{secret}` URL/header/query), server-side callbacks & Daytona secret hiding | 3-way policy (`allow`, `ask`, `deny`), `Ask for write and delete`, tool allowlists; best for full company AI brain (MIT/Cloud) |
+| **[Cloudflare Portals](https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/mcp-portals/)** | Zero Trust network portal for remote MCP servers  | Cloudflare Access OAuth 2.0, SAML/OIDC claims, Dynamic Client Registration, service tokens  | Per-portal tool curation, tool/prompt aliasing, Code Mode, DLP logging; best for Cloudflare One organizations                  |
+| **[Portkey](https://portkey.ai/docs/product/mcp-gateway)**                                                          | Managed AI gateway and centralized MCP proxy      | Scoped Portkey API keys or Okta/Auth0 IdP tokens; gateway injects upstream OAuth or headers | Per-workspace/user tool provisioning, rate limits, guardrails; best for teams routing LLM traffic via Portkey                  |
+| **[LiteLLM](https://docs.litellm.ai/docs/mcp)**                                                                     | Self-hosted OpenAI-compatible proxy with MCP      | Virtual Keys, SCIM teams, OAuth 2.0 PKCE, RFC 8693 On-Behalf-Of exchange, AWS SigV4         | Intersected Key/Team/Org permissions and SEP-986 prefixes; best for self-hosted Kubernetes/VPC LLM proxies                     |
+| **[Zuplo](https://zuplo.com/blog/mcp-gateway-comparison)**                                                          | Programmable edge API gateway with virtual MCPs   | Bundled OAuth 2.1 server (Okta, Entra, Auth0) + vaulted per-user or shared OAuth brokering  | Curated "virtual MCP servers" (one token-scoped endpoint per tool subset); best for OpenAPI-to-MCP teams                       |
+| **[Docker MCP](https://github.com/docker/mcp-gateway/)**                                                            | Containerized local and OCI profile MCP gateway   | Docker secret store, built-in OAuth flows, and OCI-distributed server catalogs/profiles     | Profile-level tool allowlists (`<server>.<tool>`) and container isolation; best for local `npx`/`uvx` `stdio` servers          |
+
+## The 4 architectural pillars of an enterprise MCP gateway
+
+Before comparing vendors, you need a clear mental model of what happens between an AI agent choosing a tool and an upstream system executing that request. A production MCP gateway architecture rests on four pillars.
+
+![Enterprise MCP gateway architecture showing two-leg OAuth 2.1 authentication, three-way tool permission gates, and sandbox credential isolation](/blog/mcp-gateway-architecture-and-options/mcp-gateway-architecture-and-credential-boundary.webp)
+
+### 1. Transport standardization: Moving from local `stdio` to remote `Streamable HTTP`
+
+The official [MCP Transports specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports) defines two standard ways for an MCP client and an MCP server to exchange UTF-8 JSON-RPC 2.0 messages:
+
+1. **Standard Input/Output (`stdio`):** The client spawns the MCP server as a local child process (commonly via `npx` or `uvx`), writing JSON-RPC requests to `stdin` and reading responses from `stdout`. Credentials are pulled straight from the local machine's environment variables.
+2. **Streamable HTTP:** Introduced to replace the legacy `2024-11-05` HTTP+SSE transport, Streamable HTTP runs the MCP server as an independent remote service exposing a single HTTP endpoint (such as `https://mcp.example.com/mcp`) that handles both HTTP `POST` and `GET` requests, with optional Server-Sent Events (SSE) streams and resumable cursors (`Last-Event-ID`).
+
+For a single developer experimenting on a laptop, `stdio` is convenient. For an enterprise platform, `stdio` is an operational dead end: you cannot put a centralized identity provider, an audit log, or a revocation switch in front of a subprocess running on someone's MacBook unless you wrap it in a container gateway (like Docker MCP Gateway) or migrate to **Streamable HTTP**.
+
+When running Streamable HTTP in production, the specification highlights three transport rules every gateway and server must enforce:
+
+- **Stateful session tracking via `Mcp-Session-Id`:** During the `InitializeResult` handshake, a server may issue a cryptographically secure `Mcp-Session-Id` header. The client must attach that header on every subsequent request and send an HTTP `DELETE` when terminating the session.
+- **Protocol version negotiation:** Clients send the `MCP-Protocol-Version` header (for example, `2025-06-18`) on every HTTP request so the gateway and upstream server agree on framing and capabilities.
+- **DNS rebinding protection:** Servers must validate the `Origin` header on incoming HTTP connections and never bind unauthenticated local servers to `0.0.0.0`.
+
+### 2. Two-leg OAuth 2.1 authentication and why token passthrough is forbidden
+
+In a naive proxy setup, a client sends its own bearer token to the gateway, and the gateway blindly forwards that exact same token header to the upstream API.
+
+The [MCP Authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) explicitly forbids this pattern. Instead, enterprise MCP gateways implement **two-leg authentication** built on OAuth 2.1 and four IETF standards:
+
+- **OAuth 2.0 Protected Resource Metadata ([RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)):** When an unauthenticated MCP client connects, the server returns `HTTP 401 Unauthorized` with a `WWW-Authenticate` header pointing to its resource metadata document, which lists its trusted `authorization_servers`.
+- **OAuth 2.0 Authorization Server Metadata ([RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414)) and Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)):** The client fetches the authorization server's endpoints and either registers dynamically or uses a pre-registered enterprise OAuth client ID and secret.
+- **PKCE and Resource Indicators ([RFC 8707](https://datatracker.ietf.org/doc/html/rfc8707)):** Every authorization and token request must use Proof Key for Code Exchange (PKCE) and include the `resource` parameter set to the canonical URI of the target MCP server (for example, `&resource=https%3A%2F%2Fmcp.example.com`).
+
+Why does RFC 8707 audience binding matter so much? Because if an MCP server accepted a broad token originally issued for another internal service, a compromised or rogue MCP server could replay that token against your production databases or cloud control plane.
+
+In a properly architected MCP gateway:
+
+1. **Leg 1 (Client to Gateway):** The caller authenticates to the gateway using their corporate identity (Okta, Microsoft Entra ID, Google Workspace) or a scoped run token bound strictly to the gateway's audience.
+2. **Leg 2 (Gateway to Upstream MCP Server or SaaS API):** After verifying policy, the gateway exchanges or resolves the upstream credential from an encrypted vault, injecting the target server's OAuth token, API key header, query parameter, or URL-path secret on the outbound leg.
+
+### 3. The sandbox credential trap: Why `deny` in a config file is not a security boundary
+
+Here is the architectural blind spot that almost every MCP gateway roundup misses.
+
+Most articles assume the MCP client is a locked-down chat window where the model can only emit JSON tool calls. In reality, modern AI coworkers run inside [isolated cloud sandboxes](/blog/ai-agent-sandboxes-compared) powered by coding-grade harnesses like [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models). Inside that sandbox, the agent has a real Linux shell, `curl`, Python, and Node.
+
+Think about what happens if you hand that sandbox a direct MCP connection whose bearer token sits in the sandbox environment, and then configure `permission: "deny"` on the `delete_customer` tool in the agent's configuration:
+
+1. The `deny` rule tells the agent harness not to call `delete_customer` (or hides the tool from the model's prompt).
+2. However, if a prompt injection inside an untrusted email or issue body instructs the agent to run a bash command inside its sandbox, the process inside the sandbox can read the connection credentials and send a raw HTTP `POST` straight to the upstream MCP server to invoke `delete_customer` anyway.
+
+As [Agenta's MCP server reference documentation](https://agenta.ai/docs/reference/agents/mcp-servers) states plainly: **agent tool permissions control the agent's behavior, not the underlying credential's reach.** To build a real security boundary for sandboxed agents, you must combine three defenses:
+
+- **Service-side tool resolution and callbacks:** In [Agenta](https://agenta.ai), built-in gateway integrations are resolved on the backend (`POST /tools/resolve`) before the run starts. The agent inside the sandbox never receives an OAuth token or provider API key; it receives only the public tool name, input schema, and an opaque `call_ref` slug. When the model invokes the tool, the runner callbacks to the platform service (`POST /tools/call`), which verifies the policy and executes the call outside the sandbox.
+- **Secret references (`header_secret_refs`) and Daytona host-scoped secret substitution:** Agent templates never store plaintext keys; they store project secret slugs (`header_secret_refs` or `{secret}` URL placeholders). When an agent runs inside a Daytona cloud sandbox, Agenta [hides API keys from the agent sandbox](https://agenta.ai/docs/changelog/api-keys-hidden-from-agent-sandboxes) by passing only an opaque placeholder into the sandbox environment and substituting the real secret at the network boundary only on outbound HTTPS requests to that single authorized hostname.
+- **Least-privilege upstream accounts and tool filters:** Never connect an MCP server with a super-admin token and rely on `deny` rules to protect sensitive data. Connect a service account whose upstream permissions match the agent's job, and apply a server-level tool filter (`policy.tools.mode: "include"`) so excluded tools are never advertised to the harness in the first place.
+
+### 4. Three-way tool governance (`Allow`, `Ask`, `Deny`) and context window discipline
+
+Enterprise access control is not binary. If your gateway only supports `Allow` and `Deny`, you face an impossible choice on every write tool: allow the agent to post to customer Slack channels and create Jira tickets unreviewed, or deny those tools and force humans to do all the copy-pasting themselves.
+
+Production agent governance requires a **three-way decision** on every tool call, combined with smart defaults for read versus write operations:
+
+- **`Allow` (Run automatically):** Safe, idempotent read operations (`search_docs`, `get_ticket`, `list_campaigns`) execute immediately without interrupting the workflow.
+- **`Ask` (Pause for human approval):** External sends, record updates, and state changes (`send_channel_message`, `update_crm_stage`, `create_issue`) pause the run mid-turn and render an interactive approval card showing the exact tool name and arguments. When a human clicks **Approve**, the run resumes from where it paused.
+- **`Deny` (Never run):** Prohibited actions are stripped from the model's tool list (on harnesses like Pi and Claude Code) and blocked at the platform gate across every harness.
+
+#### How interactive chats differ from 6:00 AM unattended automations
+
+As [Agenta's permissions architecture](https://agenta.ai/docs/concepts/permissions) highlights, **the cost of an approval depends on whether a human is there.**
+
+In an interactive session in web chat, Slack, or Telegram, an `Ask` policy costs a human reviewer one second. In an unattended [scheduled automation](https://agenta.ai/docs/concepts/automations) that fires at 6:00 AM UTC, nobody is watching the chat window, so an `Ask` prompt stalls the run indefinitely.
+
+For unattended runs, platform and domain owners should use the **`Ask for write and delete`** preset during interactive testing, and then explicitly grant **`Allow`** only to the specific write tools the automation requires (such as posting a daily digest to a single designated internal channel) while keeping destructive tools on **`Deny`** or excluded via the tool filter. Furthermore, setting `new_tool_permission: "ask"` ensures that if an upstream MCP server adds a brand-new tool tomorrow, your agents will not execute it automatically without review.
+
+---
+
+## 6 enterprise MCP gateway and tool governance options compared
+
+The options below fall into two distinct groups: **complete AI coworker platforms** with built-in MCP and tool governance ([Agenta](https://agenta.ai)), and **standalone MCP gateways** focused on network Zero Trust, LLM proxying, API management, or local container isolation (Cloudflare, Portkey, LiteLLM, Zuplo, and Docker).
+
+## 1. Agenta: Best open-source AI coworker platform with built-in MCP and tool governance
+
+![Agenta open-source AI coworker platform workspace](/blog/mcp-gateway-architecture-and-options/agenta.webp)
+
+If you are a CTO building an [internal AI agent platform](/blog/internal-ai-agent-platform-build-vs-buy) or a [company AI brain](/blog/how-to-build-a-company-ai-brain), a standalone MCP proxy only solves one piece of the puzzle. It routes tool requests, but you still have to build and maintain isolated compute sandboxes, multi-harness execution loops, persistent company memory, approval UIs, and Slack or Telegram bots.
+
+[Agenta](https://agenta.ai) is an [open-source AI coworker platform](https://github.com/Agenta-AI/agenta) (MIT license) that integrates HTTP MCP server management, 150+ built-in OAuth integrations, and fine-grained tool governance directly into a multi-user coworker runtime.
+
+### How Agenta governs MCP servers, integrations, and credentials
+
+- **Zero-friction HTTP MCP connection flow (`Settings > MCPs`):** When you enter a remote MCP server URL (see [Add an MCP server](https://agenta.ai/docs/guides/add-an-mcp-server)), Agenta probes the endpoint immediately to verify reachability and auto-detects whether the server expects **`OAuth`**, **`API key`**, or **`None`**:
+  - **OAuth 2.1 with automatic or custom client credentials:** Agenta supports automatic registration as well as custom OAuth Client ID and Client Secret configurations (with configurable client authentication in the body or Basic header) and granular scope selection. If an OAuth grant ever expires, the status reads `Login expired` and offers a one-click `Reconnect` right inside the conversation or settings table without breaking existing agent references.
+  - **API key in Header, Query parameter, or `{secret}` URL path:** You can bind a project secret to `Authorization: Bearer`, `x-api-key`, Basic auth (`username:password` encoded once in the browser), a query parameter (automatically stripped from saved URLs), or an inline `{secret}` URL path token (such as `https://mcp.firecrawl.dev/{secret}/v2/mcp`). Agenta tests the credential on setup so bad keys fail immediately rather than mid-run.
+- **Stable tool prefixes and decoupled configuration:** Each connected MCP server is referenced in `parameters.agent.mcps` by a gateway connection slug, keeping URLs and secrets out of agent templates (see [MCP servers reference](https://agenta.ai/docs/reference/agents/mcp-servers) and [Credentials and secrets](https://agenta.ai/docs/reference/agents/credentials-and-secrets)). Tools are exposed to the harness as `mcp__<prefix>__<tool>`, and the prefix is frozen when attached so renaming a connection in settings never breaks saved agents.
+- **Three-way permission presets and per-tool overrides:** Permissions belong to each agent, not to the shared connection, so two agents can share one MCP server with completely different boundaries. In the permission drawer, any technical or non-technical builder can pick:
+  - **`Ask for write and delete`:** Automatically sets `allow` on every tool the MCP server marks read-only, sets `ask` on write tools, and sets `new_tool_permission: "ask"` so any tool added by the upstream server later waits for human approval.
+  - **`Always ask`**, **`Allow all`**, **`Deny all`**, or **`Follow agent policy`**, plus per-tool overrides (`Allow`, `Always ask`, `Deny`).
+- **Consistent enforcement across `Claude Code`, `Codex`, and `Pi`:** Agenta's platform gate is the authority across all three supported coding-grade harnesses ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)). Under the hood, Agenta also translates permission rules natively for Claude Code, prevents Pi from registering denied tools at all, and enforces the central gate for Codex.
+- **Progressive discovery across 150+ built-in OAuth integrations:** Alongside custom MCP servers, Agenta ships with 150+ managed integrations (Slack, GitHub, Linear, Notion, Gmail, HubSpot, Google Search Console, and more). Instead of stuffing hundreds of integration schemas into the prompt, agents use progressive discovery (`search_tools` and `run_tool`) while the platform executes callbacks server-side (`POST /tools/call`) so OAuth tokens never enter the [Daytona](https://www.daytona.io/) sandbox.
+- **Built for every department across every surface:** Non-technical and semi-technical leads in product, support, marketing, sales, finance, and operations can configure coworkers in plain language via chat, backed by persistent shared agent files and temporary session files, and publish them to [Slack](https://agenta.ai/docs/guides/connect-slack), Telegram, or an [embeddable web chat widget](https://agenta.ai/docs/guides/embed-an-agent).
+
+---
+
+## 2. Cloudflare MCP Server Portals: Best Zero Trust network portal for Cloudflare One teams
+
+![Cloudflare One MCP server portals documentation and architecture](/blog/mcp-gateway-architecture-and-options/cloudflare-mcp-portals.webp)
+
+For enterprises that already enforce corporate network and application security through **Cloudflare One (Zero Trust)**, [Cloudflare MCP Server Portals](https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/mcp-portals/) provide a direct way to place multiple remote MCP servers behind a single identity-aware HTTP endpoint (`/mcp`).
+
+### Architecture and strengths
+
+- **Unified Zero Trust portal endpoint:** Administrators register individual upstream Streamable HTTP or SSE MCP servers in `Zero Trust > Access controls > MCP Portals` and group them into a portal. When an MCP client connects to the portal URL, Cloudflare Access returns an HTTP `401` with OAuth discovery metadata (or validates service token headers for machine-to-machine callers) and authenticates the user against their corporate identity provider (Okta, Microsoft Entra ID, Google Workspace, SAML/OIDC).
+- **Automatic protocol negotiation and DCR sync:** Portals accept both stateless MCP (`2026-07-28`) and 2025 Streamable HTTP clients and independently negotiate Streamable HTTP or legacy SSE with each upstream server. For upstream servers that use Dynamic Client Registration (DCR), Cloudflare runs background synchronization of tools and prompts roughly every two hours.
+- **Tool curation, aliasing, and Code Mode:** Admins can select which tools and prompt templates a portal exposes, rename tools or rewrite descriptions via aliases without touching upstream code, and enable context optimization (`minimize_tools` or `search_and_execute`). Cloudflare also offers **Code Mode**, which collapses all upstream tools into two tools (search and TypeScript/JavaScript execution inside an isolated Dynamic Worker).
+- **Gateway DLP and HTTP inspection:** Portal traffic can route through Cloudflare Gateway for full HTTP request logging and Data Loss Prevention (DLP) scanning, and SCIM deprovisioning can immediately revoke active Access sessions.
+
+### Tradeoffs to keep in mind
+
+- **Portal-level curation rather than per-action interactive approval cards:** Cloudflare curates tools per portal and gates servers with Access policies, but it is a network proxy rather than an agent runtime: it does not render mid-turn interactive human approval cards (`Ask for write and delete`) inside a Slack or web coworker session.
+- **Direct server URLs must still be locked down:** As Cloudflare's documentation notes, blocking a user in a portal does not stop them from calling a public MCP server's direct URL unless you also configure Cloudflare Access as that upstream server's OAuth provider or restrict its network ingress.
+
+---
+
+## 3. Portkey MCP Gateway: Best managed AI gateway for unified LLM and MCP observability
+
+![Portkey MCP Gateway control plane and architecture](/blog/mcp-gateway-architecture-and-options/portkey-mcp-gateway.webp)
+
+[Portkey](https://portkey.ai/docs/product/mcp-gateway) is widely used as an enterprise LLM gateway for model routing, fallbacks, and spend tracking, and its **MCP Gateway** extends that same control plane to MCP server authentication and tool provisioning.
+
+### Architecture and strengths
+
+- **Single proxy endpoint per server slug (`https://mcp.portkey.ai/{server-slug}/mcp`):** Instead of distributing upstream credentials to every developer laptop or agent config, MCP clients (Claude Desktop, Cursor, VS Code, or custom agents) authenticate once to Portkey using a scoped Portkey API key or an external IdP token from Okta or Auth0.
+- **Centralized credential injection:** When a tool call arrives, Portkey verifies workspace and user permissions and injects the upstream server's required credential on the outbound request: OAuth tokens for SaaS tools like GitHub and Slack, API keys for commercial MCP servers, or custom identity headers for internal microservices.
+- **Per-user tool provisioning and guardrails:** Platform administrators use Portkey's **MCP Registry** to assign servers to specific workspaces, enable or disable individual tools per user, enforce rate limits, and attach content filter guardrails.
+- **Unified LLM + MCP trace logs:** Every MCP tool invocation is logged with the caller identity, tool parameters, response payload, and latency inside the same observability dashboard that tracks LLM token spend.
+
+### Tradeoffs to keep in mind
+
+- **Proxy layer only (no agent sandbox or coworker runtime):** Portkey governs the wire between an existing MCP client and an MCP server. You still need to bring your own agent harness, isolated execution sandbox, persistent file workspace, and end-user chat interfaces.
+- **Static API keys in client configs require host-level protection:** When connecting clients via `Authorization: Bearer YOUR_API_KEY` in JSON config files, teams running cloud sandboxes must still ensure that the Portkey API key itself is not exposed to untrusted shell commands inside the sandbox.
+
+---
+
+## 4. LiteLLM MCP Gateway: Best self-hosted OpenAI-compatible proxy with Virtual Key and Team permissions
+
+![LiteLLM open-source AI and MCP gateway](/blog/mcp-gateway-architecture-and-options/litellm-mcp-gateway.webp)
+
+For engineering teams that already run the open-source [LiteLLM Proxy](https://docs.litellm.ai/docs/mcp) inside their own VPC to standardize model calls across OpenAI, Anthropic, Bedrock, and Vertex AI, LiteLLM includes a built-in **MCP Gateway** that scopes MCP servers using the exact same Virtual Keys, Teams, and Organizations used for model budgets.
+
+### Architecture and strengths
+
+- **Unified `/mcp` and REST endpoints (`/mcp-rest/tools/list`, `/mcp-rest/tools/call`):** LiteLLM exposes registered MCP servers over Streamable HTTP, SSE, or direct REST endpoints, automatically namespacing tools with the server prefix in compliance with SEP-986 so tool names never collide across servers.
+- **Rich upstream authentication modes, including RFC 8693 and AWS SigV4:** Beyond standard API keys, Bearer tokens, and OAuth 2.0 PKCE discovery, LiteLLM supports **RFC 8693 OAuth 2.0 Token Exchange (On-Behalf-Of)** (`oauth2_token_exchange`), two-leg Identity Assertion Authorization Grants (`oauth2_id_jag`), and per-request **AWS SigV4 signing** (`aws_sigv4`) for MCP servers hosted on AWS Bedrock AgentCore.
+- **Intersected permissions across Key, Team, and Organization:** Administrators can define MCP server and tool allowlists in `config.yaml` or the Postgres-backed LiteLLM UI (`store_model_in_db: true`), intersecting permissions across the caller's Virtual Key, SCIM-synced Team, and Organization.
+- **Safe `stdio` default (`LITELLM_ENABLE_MCP_STDIO`):** Because spawning local `stdio` subprocesses inside a shared proxy container carries security risk, LiteLLM disables `stdio` MCP servers by default (`403` on calls and excluded from listings) unless the operator explicitly starts the proxy process with `LITELLM_ENABLE_MCP_STDIO=true`.
+
+### Tradeoffs to keep in mind
+
+- **Built for developer and API proxy workflows:** LiteLLM is an infrastructure proxy configured via YAML, REST APIs, and admin tables. It is not a workspace where non-technical teams in marketing, support, or operations can build coworkers, manage shared knowledge files, or review interactive approval cards in Slack.
+- **Enterprise features gated behind commercial licensing:** Advanced SSO/SCIM group synchronization and signed admin audit logs require LiteLLM's Enterprise tier.
+
+---
+
+## 5. Zuplo MCP Gateway: Best programmable API gateway for virtual MCP servers and OpenAPI routes
+
+![Zuplo programmable API and MCP gateway](/blog/mcp-gateway-architecture-and-options/zuplo-mcp-gateway.webp)
+
+[Zuplo](https://zuplo.com/blog/mcp-gateway-comparison) approaches MCP governance from the programmable API gateway layer, introducing the **virtual MCP server** as its core security primitive.
+
+### Architecture and strengths
+
+- **Token-scoped Virtual MCP Servers:** Instead of merging ten upstream MCP servers into one giant endpoint, Zuplo lets platform teams create curated virtual MCP servers, where each virtual server fronts an upstream Streamable HTTP server and exposes only the specific tools, prompts, and resources chosen for a role or workflow. Because access tokens are scoped to a single virtual server URL, a token issued for a read-only analytics virtual server cannot be replayed against a write-enabled billing server.
+- **Bundled OAuth 2.1 authorization server + upstream credential brokering:** Zuplo places virtual MCP servers behind a built-in OAuth 2.1 server federated with Okta, Microsoft Entra, or Auth0, while brokering upstream authentication via per-user OAuth, a shared OAuth grant, or vaulted API keys.
+- **OpenAPI-to-MCP server generation:** Using Zuplo's MCP server handler, API teams can turn existing internal OpenAPI routes directly into spec-compliant Streamable HTTP MCP tools governed by the same gateway policies and structured audit logs.
+
+### Tradeoffs to keep in mind
+
+- **Best suited for HTTP API platform teams:** Zuplo excels when your primary goal is publishing and governing HTTP APIs as curated virtual MCP endpoints, rather than orchestrating sandboxed multi-harness AI coworkers or managing human-in-the-loop chat approvals.
+
+---
+
+## 6. Docker MCP Gateway: Best containerized gateway for isolating local `stdio` MCP servers
+
+![Docker MCP Gateway open-source CLI and container toolkit](/blog/mcp-gateway-architecture-and-options/docker-mcp-gateway.webp)
+
+One of the hardest practical headaches for platform teams is governing the hundreds of community MCP servers distributed as `npx` (Node.js) or `uvx` (Python) `stdio` packages. Running those packages directly on a host machine gives them full access to the user's filesystem and local environment variables.
+
+The open-source [Docker MCP Gateway](https://github.com/docker/mcp-gateway/) (`docker/mcp-gateway`, MIT license) solves this by running each local MCP server inside an isolated Docker container with minimal host privileges and exposing a single unified gateway endpoint.
+
+### Architecture and strengths
+
+- **Container isolation for `npx` and `uvx` servers:** Instead of letting an MCP client spawn unisolated local scripts, `docker mcp gateway run` launches each server from the Docker MCP Catalog (or a custom OCI image) inside its own container boundary and bridges traffic over `stdio`, `sse`, or `streaming` HTTP transports.
+- **Shareable OCI Profiles and Catalogs:** Engineers organize approved MCP servers into **profiles** (`docker mcp profile create`) and enable or disable individual tools using dot notation (`<server>.<tool>`, such as enabling `github.create_issue` while disabling `github.search_code`). Profiles and custom server catalogs can be pushed and pulled via standard OCI container registries (`docker mcp catalog push`).
+- **Secrets kept out of plaintext config files:** Docker MCP Gateway integrates with Docker Desktop's secret store and built-in OAuth flows so API keys do not sit in plaintext inside client configuration files across Cursor, VS Code, or Claude Desktop.
+
+### Tradeoffs to keep in mind
+
+- **Developer workstation and container runtime focus:** Docker MCP Gateway is designed primarily as a CLI plugin (`docker-mcp`) and container runtime for developers and container hosts, though Docker also offers an enterprise management layer. It does not provide multi-department coworker chat surfaces, persistent shared company knowledge files, or interactive business-user approval workflows.
+
+---
+
+## Decision framework: Which MCP gateway architecture fits your stack?
+
+![Decision matrix for choosing an enterprise MCP gateway or AI coworker platform](/blog/mcp-gateway-architecture-and-options/mcp-gateway-decision-matrix.webp)
+
+Use these five architectural rules to pick the right pattern for your organization:
+
+1. **You are building a company-wide AI coworker platform or company AI brain:** Choose **[Agenta](https://agenta.ai)** (MIT open-source or Agenta Cloud). Instead of stitching together a standalone MCP proxy, a sandbox cloud, an OAuth vault, and custom Slack bots, you get governed HTTP MCP connections, 150+ built-in OAuth integrations, service-side callback execution, Daytona host-scoped secret hiding, and three-way permissions (`Allow reads` / `Ask for write and delete`) across [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models). Meanwhile, domain teams across product, support, marketing, sales, finance, and operations can configure coworkers and review approval cards in plain language across web chat, [Slack](https://agenta.ai/docs/guides/connect-slack), Telegram, and [embeddable web chat widgets](https://agenta.ai/docs/guides/embed-an-agent).
+2. **You want to place remote internal MCP servers behind your existing Zero Trust network perimeter for developer IDEs:** Choose **Cloudflare MCP Server Portals**. If your company already enforces Okta or Entra ID rules through Cloudflare Access and Cloudflare Gateway DLP, MCP Portals add zero new infrastructure vendors.
+3. **You already route all developer LLM API calls through a centralized AI proxy:** Choose **Portkey MCP Gateway** (for managed SaaS observability and credential injection) or **LiteLLM MCP Gateway** (for self-hosted Kubernetes/VPC deployments that need Virtual Key, SCIM Team, RFC 8693 On-Behalf-Of, or AWS SigV4 authentication).
+4. **You want to expose existing internal OpenAPI services as curated, token-scoped read-only or role-specific MCP endpoints:** Choose **Zuplo MCP Gateway** and use Virtual MCP Servers to isolate tokens per tool subset.
+5. **Your developers need to run community `npx` and `uvx` `stdio` MCP servers without exposing their host filesystem or plaintext dotfiles:** Use **Docker MCP Gateway** (`docker/mcp-gateway`) to containerize each server and distribute approved tool allowlists as OCI profiles.
+
+Note that these layers compose cleanly: many enterprise teams use Cloudflare Access or Zuplo to front internal microservice MCP endpoints at the network edge, while running **[Agenta](https://agenta.ai)** as the company-wide AI coworker platform that connects to those HTTP MCP endpoints, isolates agent compute in Daytona sandboxes, and enforces per-agent human approval gates.
+
+## Next steps: Govern MCP tools and AI coworkers without building plumbing from scratch
+
+An MCP gateway is only as safe as the runtime that calls it. If your agents execute inside unisolated containers, hold raw bearer tokens in their shell environment, or lack an interactive `Ask for write and delete` gate before mutating production records, a network proxy alone will not prevent costly incidents.
+
+With [Agenta](https://agenta.ai), you can connect remote HTTP MCP servers (with automatic OAuth 2.1 or project-secret API key validation) alongside 150+ built-in OAuth integrations, keep credentials outside the agent sandbox, and set granular per-tool permissions in minutes. Start on Agenta Cloud or self-host the MIT-licensed platform via [Docker Compose](https://docs.docker.com/compose/) or [Kubernetes Helm](https://helm.sh/).
