@@ -13,7 +13,7 @@
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
-import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useContext, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {subscriptionPairModelsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
 import {
@@ -22,13 +22,18 @@ import {
     loadAgentModelCandidates,
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
+import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
     ManageProvidersRow,
+    ModelPickerList,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
+import {Button} from "@agenta/ui/ui"
 import {useOptionalViewStack} from "@agenta/ui/view-stack"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -46,6 +51,7 @@ import {
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
 import {buildPickerGroupsWithSections} from "../pickerSections"
 
+import {groupsForList, ModelPickerLayoutContext} from "./modelPickerLayout"
 import {rowsOfConnection} from "./rowsOfConnection"
 
 export interface ModelPickerControlProps {
@@ -94,7 +100,8 @@ const ModelPickerControl = ({
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
-    const t = useT(configItemsCatalog)
+    const t = useT(configItemsCatalog, providerListCatalog, uiLlmProviderCatalog, commonCatalog)
+    const layout = useContext(ModelPickerLayoutContext)
     const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
     const candidateState = useAtomValue(candidateAtom)
     const connections = candidateState.connections
@@ -136,7 +143,14 @@ const ModelPickerControl = ({
         () => (onlyCurrentConnection ? rowsOfConnection(rows, {mode, slug, namespace}) : rows),
         [onlyCurrentConnection, rows, mode, slug, namespace],
     )
-    const groups = useMemo(() => buildPickerGroupsWithSections(shownRows), [shownRows])
+    const groups = useMemo(
+        () =>
+            groupsForList(buildPickerGroupsWithSections(shownRows), {
+                label: t("entityUi.providerList.agenta"),
+                tag: t("entityUi.providerList.builtIn"),
+            }),
+        [shownRows, t],
+    )
     const allSourcesResolved = candidateState.status === "ready"
 
     const currentSelection = useMemo<PickerSelection | null>(
@@ -241,6 +255,34 @@ const ModelPickerControl = ({
 
     if (!groups.length) return <>{fallback}</>
 
+    const onPick = (value: string, metadata: Record<string, unknown> | undefined) =>
+        onSelect(pickerSelectionFrom(value, metadata))
+
+    if (layout === "list") {
+        return (
+            <>
+                <ModelPickerList
+                    options={groups}
+                    value={displayed.modelId ?? undefined}
+                    selectedKey={displayed.key}
+                    onChange={(value, option) => onPick(value, option.metadata)}
+                    searchPlaceholder={t("entityUi.configItems.searchModels")}
+                    disabled={disabled}
+                    disabledGroupAction={{
+                        label: t("common.signIn"),
+                        onClick: openModelProviders,
+                    }}
+                    footer={
+                        <Button variant="outline" className="w-full" onClick={openModelProviders}>
+                            {t("ui.llmProvider.manageProviders")}
+                        </Button>
+                    }
+                />
+                {drawer}
+            </>
+        )
+    }
+
     return (
         <>
             <SelectLLMProviderBase
@@ -257,9 +299,10 @@ const ModelPickerControl = ({
                 selectedKey={displayed.key}
                 onChange={(value, option) => {
                     const picked = Array.isArray(option) ? option[0] : option
-                    const metadata = (picked as {metadata?: Record<string, unknown>} | undefined)
-                        ?.metadata
-                    onSelect(pickerSelectionFrom(value as string, metadata))
+                    onPick(
+                        value as string,
+                        (picked as {metadata?: Record<string, unknown>} | undefined)?.metadata,
+                    )
                 }}
                 disabled={disabled}
                 placeholder={t("entityUi.configItems.selectModel")}

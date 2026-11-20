@@ -1,5 +1,23 @@
 [
     {
+        "id": "model-picker-grouped-light",
+        "story": "builderlayout-model-picker-model-picker--grouped",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Manage model providers"
+    },
+    {
+        "id": "model-picker-grouped-dark",
+        "story": "builderlayout-model-picker-model-picker--grouped",
+        "width": 600,
+        "height": 800,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Manage model providers"
+    },
+    {
         "id": "model-picker-providers-light",
         "story": "builderlayout-model-picker-model-providers--list",
         "width": 600,

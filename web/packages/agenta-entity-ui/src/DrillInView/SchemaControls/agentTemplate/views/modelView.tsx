@@ -9,6 +9,7 @@ import {defineView, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue, useStore} from "jotai"
 
+import {ModelPickerLayoutContext} from "../modelPickerLayout"
 import {NeedsSetupTag} from "../NeedsSetupTag"
 import {needsSetupReasonText} from "../needsSetupText"
 import {rememberModelPick} from "../rememberModelPick"
@@ -18,8 +19,8 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 export type ModelViewParams = Record<string, never>
 
 /**
- * Today's model list. A pick changes the agent configuration at once; auto-save then saves the
- * version, so the view has Done and no form.
+ * The model list grouped by connection (F01 f2). A pick changes the agent configuration at once;
+ * auto-save then saves the version, so the view has Done and no form.
  */
 const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
     const t = useT(agentTemplateCatalog)
@@ -30,26 +31,28 @@ const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
     const modelReq = modelRequirement(requirements?.filter((r) => !isPersonalRequirement(r)) ?? [])
     useViewTitle(t("entityUi.agentTemplate.model"))
     return (
-        <div className="flex flex-col gap-2 px-4 py-3">
-            <ModelHarnessSectionBody
-                section="model-harness"
-                schema={writer.schema}
-                config={writer.agent}
-                onChange={(next) => {
-                    writer.update(() => next)
-                    // A model or harness pick is remembered for the next agent, as the old
-                    // Model drawer's Save did.
-                    if (
-                        !deepEqual(next.llm, writer.agent.llm) ||
-                        !deepEqual(next.harness, writer.agent.harness)
-                    )
-                        rememberModelPick(store, next)
-                }}
-                disabled={writer.readOnly}
-                revisionId={writer.revisionId}
-                // A model the chosen key no longer offers: list only that key's models.
-                onlyCurrentConnection={modelReq?.kind === "model"}
-            />
+        <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 py-3">
+            <ModelPickerLayoutContext.Provider value="list">
+                <ModelHarnessSectionBody
+                    section="model-harness"
+                    schema={writer.schema}
+                    config={writer.agent}
+                    onChange={(next) => {
+                        writer.update(() => next)
+                        // A model or harness pick is remembered for the next agent, as the old
+                        // Model drawer's Save did.
+                        if (
+                            !deepEqual(next.llm, writer.agent.llm) ||
+                            !deepEqual(next.harness, writer.agent.harness)
+                        )
+                            rememberModelPick(store, next)
+                    }}
+                    disabled={writer.readOnly}
+                    revisionId={writer.revisionId}
+                    // A model the chosen key no longer offers: list only that key's models.
+                    onlyCurrentConnection={modelReq?.kind === "model"}
+                />
+            </ModelPickerLayoutContext.Provider>
             {modelReq ? (
                 <NeedsSetupTag tag={false} reason={needsSetupReasonText(modelReq.reason)} />
             ) : null}
@@ -57,7 +60,7 @@ const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
     )
 }
 
-/** The Model pick (F01 f2). The model providers milestones redraw the list. */
+/** The Model pick (F01 f2). */
 export const modelView = defineView<ModelViewParams>({
     id: "agent.model",
     apply: "immediate",
