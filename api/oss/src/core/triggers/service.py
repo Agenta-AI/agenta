@@ -21,6 +21,7 @@ from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.git.types import RetrieveRefsInconsistent, RetrieveRefsInsufficient
 from oss.src.core.triggers.dtos import (
@@ -350,6 +351,30 @@ _RUN_OUTCOME_STATUS: Dict[str, str] = {
     "stopped": "failed",
     "lost": "failed",
 }
+
+# Outcomes after which a child execution may carry the run on.
+_HANDED_ON = ("continued", "lost")
+
+
+def _successor(
+    candidates: List[SessionExecutionSettlement],
+    seen: Set[str],
+) -> Optional[SessionExecutionSettlement]:
+    """The child that carries the run on: one still going, else one that ended the run (the
+    last settled), else the last one handed on."""
+    candidates = [c for c in candidates if c.execution_id not in seen]
+    if not candidates:
+        return None
+    going = [c for c in candidates if c.terminal_outcome is None]
+    if going:
+        return going[0]
+    return max(
+        candidates,
+        key=lambda c: (
+            c.terminal_outcome not in _HANDED_ON,
+            c.settled_at or datetime.min.replace(tzinfo=timezone.utc),
+        ),
+    )
 
 
 class TriggersService:
@@ -2115,25 +2140,32 @@ class TriggersService:
             session_ids=[session_id for session_id, _ in runs.values()],
         )
         by_id = {(e.session_id, e.execution_id): e for e in executions}
-        child_of = {
-            (e.session_id, e.parent_execution_id): e
-            for e in executions
-            if e.parent_execution_id
-        }
+        children: Dict[Tuple[str, str], List[SessionExecutionSettlement]] = {}
+        for e in executions:
+            if e.parent_execution_id:
+                children.setdefault((e.session_id, e.parent_execution_id), []).append(e)
 
         resolved: List[TriggerDelivery] = []
         for delivery in deliveries:
             run = runs.get(delivery.id) if delivery.id else None
             execution = by_id.get(run) if run else None
-            # Follow the run into its continuations; `seen` stops a malformed cycle.
+            # Follow the run into the execution that carries it on: the continuation after a
+            # person answered ("continued"), or the replacement of a lost attempt ("lost").
+            # `seen` stops a malformed cycle.
             seen = set()
             while (
                 execution is not None
-                and execution.terminal_outcome == "continued"
+                and execution.terminal_outcome in _HANDED_ON
                 and execution.execution_id not in seen
             ):
                 seen.add(execution.execution_id)
-                execution = child_of.get((execution.session_id, execution.execution_id))
+                successor = _successor(
+                    children.get((execution.session_id, execution.execution_id), []),
+                    seen,
+                )
+                if successor is None:
+                    break
+                execution = successor
             message = (
                 _RUN_OUTCOME_STATUS.get(execution.terminal_outcome or "")
                 if execution

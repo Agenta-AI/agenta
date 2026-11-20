@@ -692,9 +692,11 @@ export function DriveExplorer({
                   }
                 : undefined
 
-        // A host whose close lives in row 1 keeps row 1: the one row has no close. An editable
-        // markdown file keeps its two rows: its formatting bar needs the whole of row 2.
-        headerInToolbar = Boolean(touch && chrome && !onClose && !editableMarkdown)
+        // A host whose close lives in row 1 keeps row 1: the one row has no close. A file open
+        // in an editor keeps its two rows: row 2 carries its formatting bar, save status and Retry.
+        headerInToolbar = Boolean(
+            touch && chrome && !onClose && !editableMarkdown && !editableCode && !tooLargeToEdit,
+        )
         const phoneRowParts = headerInToolbar
             ? {
                   crumb: (

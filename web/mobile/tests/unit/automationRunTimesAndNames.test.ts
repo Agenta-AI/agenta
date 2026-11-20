@@ -1,10 +1,17 @@
 import {defaultAutomationName, runDuration, runTimeOfDay, runWhenLabel} from "@agenta/automation-ui"
 import type {Automation} from "@agenta/automation-ui"
 import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
-import {describe, expect, it} from "vitest"
+import {afterAll, beforeAll, describe, expect, it} from "vitest"
 
 // A zone away from UTC, so a local-time reading of the run would show another hour and day.
-process.env.TZ = "America/New_York"
+const originalTz = process.env.TZ
+beforeAll(() => {
+    process.env.TZ = "America/New_York"
+})
+afterAll(() => {
+    if (originalTz === undefined) delete process.env.TZ
+    else process.env.TZ = originalTz
+})
 
 const delivery = (fields: Partial<TriggerDelivery>): TriggerDelivery =>
     ({id: "d1", event_id: "e1", ...fields}) as unknown as TriggerDelivery
