@@ -539,9 +539,10 @@ export const LiveConversation = ({
     const changeResultHost = useMemo(
         () => ({
             readOnly: locked,
-            // The composer's own gates: the row sends only when the composer could.
+            // The composer's own gates: the row sends only when the composer could (and a run
+            // read with no composer sends nothing).
             send:
-                disabled || setupBlocked
+                disabled || setupBlocked || hideComposer
                     ? undefined
                     : (text: string) => {
                           if (lockedRef.current) return
@@ -550,7 +551,7 @@ export const LiveConversation = ({
                           )
                       },
         }),
-        [locked, disabled, setupBlocked, send, beforeSend],
+        [locked, disabled, setupBlocked, hideComposer, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
