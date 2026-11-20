@@ -9,11 +9,11 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {AgentTemplateSectionList} from "../../src/DrillInView/SchemaControls/agentTemplate/AgentTemplateSectionList"
-import {SectionPageAction} from "../../src/DrillInView/SchemaControls/agentTemplate/SectionPageAction"
 import {
     SectionListLayoutContext,
     type SectionListLayout,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/sectionListLayout"
+import {SectionPageAction} from "../../src/DrillInView/SchemaControls/agentTemplate/SectionPageAction"
 
 beforeAll(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -90,9 +90,9 @@ describe("AgentTemplateSectionList on the Configuration page", () => {
     it("keeps the section's change dot after its title", () => {
         renderList("page")
         const title = container.querySelector("[data-config-section=skills] h3")!
-        expect(title.querySelector("span[aria-hidden]")).not.toBeNull()
+        expect(title.querySelector("[data-section-indicator=draft]")).not.toBeNull()
         const model = container.querySelector("[data-config-section=model-harness] h3")!
-        expect(model.querySelector("span[aria-hidden]")).toBeNull()
+        expect(model.querySelector("[data-section-indicator]")).toBeNull()
     })
 
     it("draws a section that opens a view as one row that opens it", () => {

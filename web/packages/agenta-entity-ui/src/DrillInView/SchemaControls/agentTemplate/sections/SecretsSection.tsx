@@ -19,12 +19,13 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
 import {Spinner} from "@agenta/ui/ui"
-import {Key, Vault} from "@phosphor-icons/react"
+import {LockSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../../../../accounts/copy"
@@ -36,7 +37,12 @@ import {SectionPageAction} from "../SectionPageAction"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
 
-const tNow = createT(secretViewsCatalog, modelHarnessCatalog, secretAttachmentCatalog)
+const tNow = createT(
+    commonCatalog,
+    secretViewsCatalog,
+    modelHarnessCatalog,
+    secretAttachmentCatalog,
+)
 
 export interface SecretsSectionParams {
     sectionIndicator: SectionIndicatorFor
@@ -60,11 +66,14 @@ export const secretsSection = ({
 }: SecretsSectionParams): SectionResult =>
     Boolean(revisionId) && {
         key: "secrets",
-        icon: <Vault size={16} />,
+        icon: <LockSimple size={14} />,
         title: tNow("entityUi.secretViews.secrets"),
         summary: bindings.length
             ? tNow("entityUi.modelHarness.attachedCount", {count: bindings.length})
-            : tNow("entityUi.modelHarness.noneAttached"),
+            : tNow("common.none"),
+        // The phone row lists the variables (M07: "BILLING_API_KEY, GITHUB_TOKEN").
+        phoneSummary:
+            bindings.map((binding) => binding.binding.name).join(", ") || tNow("common.none"),
         indicator: sectionIndicator("secrets"),
         extra: !disabled ? (
             <SecretsAddButton
@@ -80,7 +89,8 @@ export const secretsSection = ({
                 onAdd={() => openAttach()}
             />
         ) : undefined,
-        defaultOpen: bindings.length > 0,
+        // Closed by default (canvas S02 opens Instructions and Integrations only).
+        defaultOpen: false,
         content: (
             <SecretsSectionBody
                 revisionId={revisionId ?? ""}
@@ -244,7 +254,7 @@ export const SecretsSectionBody = ({
                                     description: secretName,
                                     mono: "",
                                     color: "",
-                                    icon: <Key size={14} />,
+                                    icon: <LockSimple size={14} />,
                                     avatarClassName:
                                         "bg-colorFillSecondary text-colorTextSecondary",
                                     tags: [],

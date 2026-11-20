@@ -1,3 +1,5 @@
+import {Fragment} from "react"
+
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -50,10 +52,16 @@ export const integrationsSection = ({
     hasTools &&
     (Boolean(openAddIntegration) || integrationCount > 0) && {
         key: "tools",
-        icon: <Wrench size={16} />,
+        icon: <Wrench size={14} />,
         title: t("entityUi.agentTemplate.integrations"),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(integrationCount, "integration") || tNow("common.none"),
+        // The phone row names the integrations (M07: "Zendesk").
+        phoneSummary: integrationRows.length ? (
+            <IntegrationNames rows={integrationRows} />
+        ) : (
+            tNow("common.none")
+        ),
         indicator: sectionIndicator("tools"),
         // "Create with AI" beside the view that adds one by hand.
         extra:
@@ -92,6 +100,23 @@ export const integrationsSection = ({
             />
         ),
     }
+
+/** The integrations' names, comma separated. */
+const IntegrationNames = ({rows}: {rows: IntegrationRow[]}) => (
+    <>
+        {rows.map((row, index) => (
+            <Fragment key={row.integration}>
+                {index > 0 ? ", " : null}
+                <IntegrationName slug={row.integration} />
+            </Fragment>
+        ))}
+    </>
+)
+
+const IntegrationName = ({slug}: {slug: string}) => {
+    const {integration} = useToolIntegrationDetail(slug)
+    return <>{integration?.name || slug}</>
+}
 
 /** The row bin's question (F06 f2): removing from the agent keeps the project connection. */
 export const IntegrationRemoveDialog = ({

@@ -177,6 +177,11 @@ export interface ConfigAccordionSectionProps {
      * transition.
      */
     bodyClassName?: string
+    /**
+     * Draw the row at the canvas scale of the agent Configuration panel (canvas S02): a 40 px row,
+     * 13 px title, 12 px secondary summary and a light divider. Off keeps today's rows.
+     */
+    canvas?: boolean
     /** Section body. */
     children?: ReactNode
 }
@@ -209,8 +214,11 @@ export function ConfigAccordionSection({
     revealDelayMs = 0,
     animateInitialOpen = false,
     bodyClassName = "flex flex-col gap-3 pb-4 pt-3",
+    canvas = false,
     children,
 }: ConfigAccordionSectionProps) {
+    const divider = canvas ? "border-[var(--ag-colorSplit)]" : "border-[var(--ag-c-EAEFF5)]"
+    const titleSize = size === "compact" ? "text-xs" : canvas ? "text-[13px]" : "text-sm"
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
     // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
     // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.
@@ -335,14 +343,9 @@ export function ConfigAccordionSection({
                           "border-0 border-b border-solid transition-colors duration-300 ease-out",
                           banded
                               ? "border-transparent bg-[var(--ag-colorFillQuaternary)]"
-                              : cn(
-                                    "bg-transparent",
-                                    noDivider
-                                        ? "border-transparent"
-                                        : "border-[var(--ag-c-EAEFF5)]",
-                                ),
+                              : cn("bg-transparent", noDivider ? "border-transparent" : divider),
                       )
-                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
+                    : !noDivider && cn("border-0 border-b border-solid", divider),
                 className,
             )}
         >
@@ -351,7 +354,8 @@ export function ConfigAccordionSection({
             <div
                 onClick={headerActs ? activate : undefined}
                 className={cn(
-                    "flex items-center justify-between gap-2 py-3 select-none",
+                    "flex items-center justify-between gap-2 select-none",
+                    canvas ? "py-[11px]" : "py-3",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
@@ -386,12 +390,7 @@ export function ConfigAccordionSection({
                         on top is revealed through a moving mask (config-shimmer keyframe), so a
                         glint sweeps the letters without fading the real text. */}
                     <span className="relative flex min-w-0">
-                        <span
-                            className={cn(
-                                "min-w-0 truncate font-medium",
-                                size === "compact" ? "text-xs" : "text-sm",
-                            )}
-                        >
+                        <span className={cn("min-w-0 truncate font-medium", titleSize)}>
                             {title}
                         </span>
                         {indicator?.pulse ? (
@@ -399,7 +398,7 @@ export function ConfigAccordionSection({
                                 aria-hidden
                                 className={cn(
                                     "animate-config-shimmer pointer-events-none absolute inset-0 truncate font-medium",
-                                    size === "compact" ? "text-xs" : "text-sm",
+                                    titleSize,
                                 )}
                                 style={{
                                     color: dotColor ?? undefined,
@@ -452,7 +451,10 @@ export function ConfigAccordionSection({
                         // clipped even "1 file" to "1 f…". `preserveTitle` swaps which half yields.
                         <span
                             className={cn(
-                                "text-right text-xs text-colorTextDescription",
+                                "text-right",
+                                canvas
+                                    ? "text-[12px] leading-4 text-colorTextSecondary"
+                                    : "text-xs text-colorTextDescription",
                                 preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
                             )}
                         >

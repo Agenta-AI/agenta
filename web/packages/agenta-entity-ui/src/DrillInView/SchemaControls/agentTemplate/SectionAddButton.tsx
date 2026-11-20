@@ -37,13 +37,14 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 aria-label={label}
                 disabled={disabled}
                 // Quieter than the row title at rest; full strength on hover or while open.
+                // A bare 14 px plus in a 24 px box (canvas S02).
                 className={cn(
-                    "!text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
+                    "size-6 rounded-md !text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
                     className,
                 )}
                 {...rest}
             >
-                <Plus size={16} />
+                <Plus size={14} />
             </Button>
         )
         return (

@@ -126,16 +126,17 @@ vi.mock("@agenta/ui/drill-in", async (original) => ({
     useDrillInUI: () => ({permissions: {canEditSecrets: true}}),
 }))
 
+import {advancedSection} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/AdvancedSection"
+import {SecretsSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SecretsSection"
 import {
     agentaToolsView,
     advancedView,
     executionView,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/views/advancedViews"
-import {SecretsSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SecretsSection"
 import {SecretRemoveDialog} from "../../src/secret/SecretRemoveDialog"
-import {secretFormDirty} from "../../src/secret/views/SecretFormViewBody"
 import {secretAttachView} from "../../src/secret/views/secretAttachView"
 import {secretFormView} from "../../src/secret/views/secretFormView"
+import {secretFormDirty} from "../../src/secret/views/SecretFormViewBody"
 
 import {byText, change, click, findByText, keyDown, waitFor} from "./domHelpers"
 
@@ -559,6 +560,35 @@ describe("Advanced", () => {
         expect(tools.textContent).toContain("Agenta tools")
         expect(tools.textContent).toContain("· 2 tools")
         expect(document.querySelector('[data-testid="advanced-part-build-kit"]')).toBeNull()
+    })
+
+    it("the Configuration page's Advanced card shows the same rows as the view", async () => {
+        writer.schema = sandboxSchema(["local", "daytona"])
+        await openIn(advancedView, {}, AGENT)
+        await findByText("", '[data-testid="advanced-part-execution"]')
+        const viewRows = [...document.querySelectorAll('[data-testid^="advanced-part-"]')].map(
+            (row) => row.textContent,
+        )
+        const opened: unknown[] = []
+        const section = advancedSection({
+            t: ((key: string) => key) as never,
+            mh: {hasAdvanced: true} as never,
+            sectionIndicator: () => undefined,
+            advancedChangeBody: null,
+            openAdvanced: () => undefined,
+            openAdvancedPart: (view) => opened.push(view),
+            schema: writer.schema as never,
+            config: writer.agent,
+            revisionId: "rev-1",
+        })
+        if (!section) throw new Error("no Advanced section")
+        await mount(<div data-testid="page-card">{section.pageContent}</div>)
+        const pageRows = [...document.querySelectorAll('[data-testid="page-card"] button')].map(
+            (row) => row.textContent,
+        )
+        expect(pageRows).toEqual(viewRows)
+        await click(document.querySelector('[data-testid="page-card"] button'))
+        expect(opened).toEqual([executionView])
     })
 
     it("hides Execution with one sandbox", async () => {

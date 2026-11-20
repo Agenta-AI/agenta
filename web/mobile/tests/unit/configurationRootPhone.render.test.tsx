@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The panel's Configuration on a phone (M07): three tabs (no Channels), the version status at the
- * end of the tab row pinned to the session, and a tab switch that goes back to the rows.
+ * end of the tab row pinned to the session on the Agent tab only, and a tab switch that goes back
+ * to the rows. On a wide window the status is in the Agent tab's footer (S02).
  */
 import {act} from "react"
 
@@ -112,9 +113,28 @@ describe("panel Configuration on a phone", () => {
         expect(api.setConfigTab).toHaveBeenCalledWith("access")
     })
 
-    it("keeps the four desktop tabs and no status in the row on a wide window", async () => {
+    it("shows no version status on the Automations tab (M10)", async () => {
+        await mount(panel({configTab: "automations"}))
+        expect(host.querySelector('[data-testid="automations-tab"]')).not.toBeNull()
+        expect(host.querySelector('[data-testid="revision-status"]')).toBeNull()
+    })
+
+    it("on a wide window keeps four tabs and puts History and the status in the Agent tab footer", async () => {
         await mount(panel({phone: false}))
         expect(tabs()).toEqual(["Agent", "Automations", "Channels", "Access"])
+        const status = host.querySelector('[data-testid="revision-status"]')!
+        // Not in the tab row: in the footer under the Agent tab's content (S02).
+        expect(host.querySelector('[role="tablist"]')!.parentElement!.contains(status)).toBe(false)
+        expect(host.querySelector('[role="tabpanel"]')!.contains(status)).toBe(true)
+        expect(state.statusProps.at(-1)).toMatchObject({
+            revisionId: "rev-4",
+            historyWorkflowId: "support",
+            footer: true,
+        })
+    })
+
+    it("on a wide window shows no footer on the Automations tab", async () => {
+        await mount(panel({phone: false, configTab: "automations"}))
         expect(host.querySelector('[data-testid="revision-status"]')).toBeNull()
     })
 })

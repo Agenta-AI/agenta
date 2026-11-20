@@ -48,7 +48,7 @@ export const skillsSection = ({
 }: SkillsSectionParams): SectionResult =>
     hasSkills && {
         key: "skills",
-        icon: <Compass size={16} />,
+        icon: <Compass size={14} />,
         title: fieldTitle("skills", t("entityUi.agentTemplate.skills")),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(skills.length, "skill") || tNow("common.none"),
@@ -61,7 +61,8 @@ export const skillsSection = ({
         pageAction: !disabled ? (
             <SectionPageAction action="add" onClick={handleAddSkill} />
         ) : undefined,
-        defaultOpen: skills.length > 0,
+        // Closed by default (canvas S02 opens Instructions and Integrations only).
+        defaultOpen: false,
         content: (
             <SkillsList
                 skills={skills}

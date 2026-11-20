@@ -6,6 +6,8 @@ import type {ViewForm, ViewStack} from "./types"
 export interface ViewEntryApi {
     setForm: (form: ViewForm | null) => void
     setTitle: (title: string) => void
+    /** Where {@link ViewFooterStart} renders: the chrome's slot, for the top view only. */
+    footerStart: HTMLElement | null
 }
 
 export const ViewStackContext = createContext<ViewStack | null>(null)

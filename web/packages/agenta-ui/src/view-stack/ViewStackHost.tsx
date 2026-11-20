@@ -80,6 +80,8 @@ export const ViewStackHost = ({
     const [entries, setEntries] = useState<Entry[]>([])
     const [forms, setForms] = useState<Record<number, ViewForm>>({})
     const [titles, setTitles] = useState<Record<number, string>>({})
+    // The chrome's action row slot for the top view's `ViewFooterStart`.
+    const [footerStart, setFooterStart] = useState<HTMLElement | null>(null)
     const [saving, setSaving] = useState(false)
     const [failedKey, setFailedKey] = useState<number | null>(null)
     const [question, setQuestion] = useState<PendingQuestion | null>(null)
@@ -370,7 +372,6 @@ export const ViewStackHost = ({
                     <Chrome
                         crumbs={crumbs}
                         apply={top.view.apply}
-                        wide={Boolean(top.view.wide)}
                         readOnly={
                             (phone && Boolean(top.view.readOnlyOnPhone)) ||
                             top.view.actionRow === false
@@ -378,6 +379,7 @@ export const ViewStackHost = ({
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
+                        footerStartRef={setFooterStart}
                         onBack={() => void back()}
                         onCancel={cancel}
                         onSave={() => void save()}
@@ -390,6 +392,7 @@ export const ViewStackHost = ({
                                 saving={saving}
                                 depth={(index + 1) as 1 | 2}
                                 readOnly={phone && Boolean(entry.view.readOnlyOnPhone)}
+                                footerStart={entry === top ? footerStart : null}
                                 setForms={setForms}
                                 setTitles={setTitles}
                                 push={push}
@@ -418,6 +421,7 @@ const MountedView = ({
     saving,
     depth,
     readOnly,
+    footerStart,
     setForms,
     setTitles,
     push,
@@ -430,6 +434,7 @@ const MountedView = ({
     saving: boolean
     depth: 1 | 2
     readOnly: boolean
+    footerStart: HTMLElement | null
     setForms: (update: (prev: Record<number, ViewForm>) => Record<number, ViewForm>) => void
     setTitles: (update: (prev: Record<number, string>) => Record<number, string>) => void
     push: <C>(
@@ -462,8 +467,9 @@ const MountedView = ({
                 }),
             setTitle: (title) =>
                 setTitles((prev) => (prev[key] === title ? prev : {...prev, [key]: title})),
+            footerStart,
         }),
-        [key, setForms, setTitles],
+        [key, setForms, setTitles, footerStart],
     )
     const nav = useMemo<ViewNav>(
         () => ({

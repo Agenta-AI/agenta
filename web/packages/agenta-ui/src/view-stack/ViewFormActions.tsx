@@ -9,7 +9,9 @@ import type {ViewChromeProps} from "./types"
 /**
  * The action row a chrome puts under the top view: Cancel and Save for an "on_save" view, Done
  * for an "immediate" one. Chromes place it (and leave it out for a view shown to read only); the
- * stack owns what each button does. `phone` makes the buttons 44 px high and as wide as the row.
+ * stack owns what each button does. `startRef` is the slot at the left of the same row, where the
+ * view's `ViewFooterStart` renders ("Remove from agent", canvas F02). `phone` makes the buttons 44 px high; Cancel and Save share the row,
+ * Done keeps its width at the right (M09).
  */
 export const ViewFormActions = ({
     apply,
@@ -17,16 +19,23 @@ export const ViewFormActions = ({
     onBack,
     onCancel,
     onSave,
+    startRef,
     phone = false,
 }: Pick<ViewChromeProps, "apply" | "form" | "onBack" | "onCancel" | "onSave"> & {
+    startRef?: ViewChromeProps["footerStartRef"]
     phone?: boolean
 }) => {
     const t = useT(viewStackCatalog)
+    const start = <span ref={startRef} className="mr-auto flex empty:hidden" />
     const button = phone ? "h-11 flex-1 rounded-[10px] text-[15px]" : undefined
     if (apply === "immediate") {
         return (
             <div className="flex items-center justify-end gap-2">
-                <Button className={button} onClick={onBack}>
+                {start}
+                <Button
+                    className={phone ? "h-11 w-24 rounded-[10px] text-[15px]" : undefined}
+                    onClick={onBack}
+                >
                     {t("ui.viewStack.done")}
                 </Button>
             </div>
@@ -40,6 +49,7 @@ export const ViewFormActions = ({
                 </span>
             ) : null}
             <div className="flex items-center justify-end gap-2">
+                {start}
                 <Button
                     variant="outline"
                     className={button}

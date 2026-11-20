@@ -335,8 +335,10 @@ export function useModelHarness({
     )
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
     // "Policy · Allow all" — the label lives here, so the body's select can run full width.
+    const runnerPermissionLabel =
+        permissionPolicyLabel(currentRunnerPermission) ?? currentRunnerPermission
     const runnerPermissionSummary = t("entityUi.modelHarness.policySummary", {
-        policy: permissionPolicyLabel(currentRunnerPermission) ?? currentRunnerPermission,
+        policy: runnerPermissionLabel,
     })
 
     // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
@@ -400,7 +402,7 @@ export function useModelHarness({
         disabled,
     })
 
-    const {advancedSummary, advancedChangeBody} = useAdvancedSectionBody({
+    const {advancedChangeBody} = useAdvancedSectionBody({
         t,
         disabled,
         withTooltip,
@@ -422,7 +424,7 @@ export function useModelHarness({
         hasPermissions: Boolean(runnerPermissionSchema),
         permissionsBody,
         runnerPermissionSummary,
-        advancedSummary,
+        runnerPermissionLabel,
         advancedChangeBody,
     }
 }
