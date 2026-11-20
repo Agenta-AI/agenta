@@ -244,6 +244,11 @@ export const AgentVersionHistoryDrawer = ({
             panelRef={setPanel}
             // px-3 so the buttons' outer edge lands on the same line as the section bands.
             classNames={{
+                // Title and Close 1 px higher, Close radius 6 (canvas S06); the header keeps its
+                // height, so the body does not move.
+                header: phone
+                    ? undefined
+                    : "pt-[15px] pb-[17px] [&_[data-slot=sheet-close]]:rounded-[6px]",
                 body: phone ? "!p-0 flex flex-col" : "!p-0",
                 footer: phone ? "px-3 [&_button]:min-h-11" : "px-3",
             }}

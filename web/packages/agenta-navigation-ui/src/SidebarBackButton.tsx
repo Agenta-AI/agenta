@@ -34,7 +34,7 @@ export const SidebarBackButton = ({collapsed, onBack, className}: SidebarBackBut
                     : "gap-1.5 hover:bg-colorSplit",
                 !collapsed &&
                     (phone
-                        ? "h-11 bg-transparent pl-1.5 pr-2.5 text-[15px] leading-5 text-colorTextSecondary"
+                        ? "h-11 bg-transparent px-[9px] text-[15px] leading-5 text-colorTextSecondary"
                         : "h-7 bg-colorBgContainer pl-1 pr-2 text-[13px] text-colorText"),
                 className,
             )}

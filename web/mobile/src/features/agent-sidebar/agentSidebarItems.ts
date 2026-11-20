@@ -205,7 +205,8 @@ export const agentSidebarItems = ({
             link: sessionsHref,
             matchLinks: [],
             prefetch: false,
-            rowClassName: `text-[13px] ${phone ? "text-colorTextTertiary" : "text-colorTextSecondary"}`,
+            // The phone row keeps its 44 px line box, so the text sits in the middle (M02).
+            rowClassName: `text-[13px] ${phone ? "leading-[44px] text-colorTextTertiary" : "text-colorTextSecondary"}`,
         })
 
     return [

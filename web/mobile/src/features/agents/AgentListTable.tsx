@@ -109,6 +109,8 @@ export const AgentListTable = ({
             // Affordable for the same reason: the minima fit every width this page is read at,
             // so the frame's own horizontal scroller was never doing anything.
             stickyHeader
+            // The first rows sit right under the header line, as drawn (A02, A03).
+            flushFirstRows
             // As drawn (A03): quiet 12 px column names between two lines, 56 px rows with a light
             // line under each that stays inside the table, and the cells 8 px in from its edge.
             headerClassName="border-t border-colorBorderSecondary px-2 text-[12px] font-normal text-colorTextTertiary"

@@ -68,9 +68,9 @@ export const ChatHistoryList = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="builder-chat-history">
-            {/* A label, so a tap 2 px above or below the 40 px phone field still focuses it: the
-                hit area is 44 px (tap rule), the field is drawn at the design's 40 px (M06). */}
-            <label className={cn("block shrink-0", phone ? "px-4 pt-3 pb-0.5" : "px-4 pt-3 pb-2")}>
+            {/* A label, so a tap in the padding around the 40 px phone field still focuses it: the
+                hit area is 44 px or more (tap rule), the field is drawn at the design's 40 px (M06). */}
+            <label className={cn("block shrink-0", phone ? "px-4 pt-3 pb-1" : "px-4 pt-3 pb-2")}>
                 <SearchInput
                     value={search}
                     onChange={(event) => onSearch(event.target.value)}
@@ -79,7 +79,7 @@ export const ChatHistoryList = ({
                     // Phone: no clear button (M06). The search glyph is tertiary (S09, M06).
                     allowClear={!phone}
                     className={cn(
-                        "border-colorBorderSecondary px-2 [&>span:first-child]:text-colorTextTertiary",
+                        "gap-2 border-colorBorderSecondary px-2 [&>span:first-child]:text-colorTextTertiary",
                         phone
                             ? "h-10 items-stretch rounded-[8px] py-0 [&_input]:text-[15px]"
                             : "h-[30px] rounded-[6px] [&_input]:text-[13px] md:[&_input]:text-[13px]",

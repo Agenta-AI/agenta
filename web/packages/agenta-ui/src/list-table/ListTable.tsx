@@ -91,6 +91,7 @@ export const ListTable = <Row,>({
     onToggleGroup,
     empty,
     stickyHeader = false,
+    flushFirstRows = false,
     hideHeader: hideHeaderProp = false,
     density = "default",
     groupCaret = "fill",
@@ -326,9 +327,13 @@ export const ListTable = <Row,>({
                                 // would let rows show through as they pass under), so the first
                                 // run pays it back as padding instead — without it the first
                                 // row's hover fill sits flush on the header's rule. A grid has no
-                                // header to pay back.
+                                // header to pay back. `flushFirstRows` opts out.
                                 className={cn(
-                                    stickyHeader && !isGrid && groupIndex === 0 && "pt-1",
+                                    stickyHeader &&
+                                        !flushFirstRows &&
+                                        !isGrid &&
+                                        groupIndex === 0 &&
+                                        "pt-1",
                                 )}
                             >
                                 {group.label === null && !actions ? null : (

@@ -38,7 +38,7 @@ const ICON = 14
 const FilterGlyph = () => (
     <svg
         aria-hidden
-        className="size-3.5"
+        className="size-3.5 max-md:size-[18px]"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"

@@ -250,6 +250,8 @@ export const SessionListTable = ({
                     // the minima fit every width this page is read at, so the frame's own
                     // horizontal scroller was never doing anything.
                     stickyHeader
+                    // The first rows sit right under the header line, as drawn (A02, A03).
+                    flushFirstRows
                     // Compact for the same reason it is sticky: this is the long list.
                     density="compact"
                     // The page of one agent draws the light chevron on its headings (A02).

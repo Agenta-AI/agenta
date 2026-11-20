@@ -12,8 +12,8 @@ import {useSetAtom} from "jotai"
  *
  * It sits beside the filter menu because the two answer the same question at different scales:
  * the filter narrows what the rail lists, this reaches past it. Same control as the filter's
- * trigger (a 24 px ghost square, radius 6, 14 px glyph in the secondary ink), 4 px apart, so the
- * pair reads as one set of buttons.
+ * trigger (a 24 px ghost square, radius 6, 14 px glyph in the secondary ink; 18 px on a phone),
+ * 4 px apart, so the pair reads as one set of buttons.
  */
 const SessionSearchButton = ({
     label,
@@ -45,7 +45,7 @@ const SessionSearchButton = ({
                     setOpen(true)
                 }}
             >
-                <MagnifyingGlass className="size-3.5" />
+                <MagnifyingGlass className="size-3.5 max-md:size-[18px]" />
             </Button>
         </SimpleTooltip>
     )
