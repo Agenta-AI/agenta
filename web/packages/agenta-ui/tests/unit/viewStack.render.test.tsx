@@ -181,6 +181,28 @@ describe("ViewStackHost", () => {
         expect(stackRef?.depth).toBe(1)
     })
 
+    it("a form chosen in a picker over a dirty parent asks about the parent first", async () => {
+        saveImpl = async () => true
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("open picker"))
+        await screen.findByText("picker at depth 2")
+        fireEvent.click(screen.getByText("choose"))
+        await waitFor(() => expect(dialog()).toBeTruthy())
+        expect(screen.getByText("leave skill")).toBeTruthy()
+        answer("Keep editing")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByText("picker at depth 2")).toBeTruthy()
+        fireEvent.click(screen.getByText("choose"))
+        await waitFor(() => expect(dialog()).toBeTruthy())
+        answer("Discard")
+        await screen.findByLabelText("field chosen")
+        // The parent mounted again from saved data, so only the new form can be dirty.
+        expect(stackRef?.dirty).toBe(false)
+    })
+
     it("takes the breadcrumb title from useViewTitle", async () => {
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
