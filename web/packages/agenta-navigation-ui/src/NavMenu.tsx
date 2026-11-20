@@ -33,7 +33,7 @@ import Link from "next/link"
 import {FadeScrollBox} from "./FadeScrollBox"
 import {HoverFlyout} from "./HoverFlyout"
 import {SidebarReorderLayer} from "./reorder"
-import {SidebarDensityContext, TOUCH_ROW_CLASS} from "./sidebarDensity"
+import {SidebarLayoutContext, PHONE_ROW_CLASS} from "./sidebarLayout"
 
 /**
  * The antd-free nav renderer: one `@agenta/navigation` model, any shell. Inline mode expands
@@ -233,6 +233,8 @@ const HEADING_HOVER_ACTION =
 
 const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const t = useT(navigationCatalog)
+    // In the phone sheet the heading is a 44 px target too.
+    const phone = useContext(SidebarLayoutContext) === "phone"
     const toggle = item.onClick
     if (!toggle)
         return (
@@ -258,6 +260,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             data-sticky-heading="true"
             className={clsx(
                 "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
+                phone && "min-h-11",
                 STICKY_HEADING,
             )}
             onClick={(event) => {
@@ -357,7 +360,7 @@ const LeafRow = memo(function LeafRow({
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) {
-    const touch = useContext(SidebarDensityContext) === "touch"
+    const phone = useContext(SidebarLayoutContext) === "phone"
     if (item.isPlaceholder) return <PlaceholderRow item={item} />
     const onClick = rowClickHandler(item, onItemSelect)
     // A controlled scope (Settings) gives its items `onItemSelect` and no `link`, so the row
@@ -372,7 +375,7 @@ const LeafRow = memo(function LeafRow({
             // decides the winner rather than this list does.
             className={cn(
                 ROW_BASE,
-                touch && TOUCH_ROW_CLASS,
+                phone && PHONE_ROW_CLASS,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
                 item.rowAction && "group/row pr-0",
@@ -554,7 +557,7 @@ const NavMenuImpl = ({
     className,
 }: NavMenuProps) => {
     const t = useT(navigationCatalog)
-    const touch = useContext(SidebarDensityContext) === "touch"
+    const phone = useContext(SidebarLayoutContext) === "phone"
     const inline = mode === "inline" && !collapsed
     const navRef = useRef<HTMLElement>(null)
 
@@ -617,7 +620,7 @@ const NavMenuImpl = ({
                                 selected && ROW_SELECTED,
                                 collapsed
                                     ? "size-7 justify-center"
-                                    : `${touch ? TOUCH_ROW_CLASS : ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
+                                    : `${phone ? PHONE_ROW_CLASS : ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
                             )}
                         >
                             {item.icon}
@@ -666,7 +669,7 @@ const NavMenuImpl = ({
                         // own class like any other row.
                         className={cn(
                             ROW_BASE,
-                            touch && TOUCH_ROW_CLASS,
+                            phone && PHONE_ROW_CLASS,
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                             "pr-0",

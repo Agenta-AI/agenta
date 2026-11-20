@@ -5,18 +5,11 @@ import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import {X} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
-import {Sheet, SheetContent, SheetTitle} from "../components/ui/sheet"
+import {Sheet, SheetContent, SheetTitle, SheetTrigger} from "../components/ui/sheet"
 import {cn} from "../utils/styles"
 
 /** The width of the sidebar sheet on a phone, in px. */
 export const SIDEBAR_SHEET_WIDTH = 300
-
-/**
- * Classes for a row of the sidebar sheet: 44 px high, the icon and the label on one line, the
- * label cut with an ellipsis. A sidebar puts them on its rows when it renders in the sheet.
- */
-export const SIDEBAR_SHEET_ROW_CLASS =
-    "box-border flex h-11 min-w-0 items-center gap-2.5 rounded-lg px-3 text-[15px] [&>span]:truncate"
 
 export interface SidebarSheetProps {
     open: boolean
@@ -30,7 +23,12 @@ export interface SidebarSheetProps {
      * with Back and Close (the app sidebar, through its dismiss handler); the sheet then has no
      * padding and the sidebar fills it.
      */
-    header?: boolean
+    showHeader?: boolean
+    /**
+     * The control that opens the sheet (the menu button). Given here, it opens the sheet and gets
+     * the focus back when the sheet closes.
+     */
+    trigger?: ReactNode
     children: ReactNode
     className?: string
 }
@@ -38,29 +36,31 @@ export interface SidebarSheetProps {
 /**
  * The sidebar of a phone in a sheet from the left: 300 px wide, inset 8 px, a dimmed page behind
  * it. The top row holds `leading` and "Close the sidebar"; a tap on the dimmed page also closes
- * it. The sidebar inside sets its rows with `SIDEBAR_SHEET_ROW_CLASS`.
+ * it. The sidebar inside draws 44 px rows.
  */
 export const SidebarSheet = ({
     open,
     onOpenChange,
     title,
     leading,
-    header = true,
+    showHeader = true,
+    trigger,
     children,
     className,
 }: SidebarSheetProps) => {
     const t = useT(phoneCatalog)
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
+            {trigger ? <SheetTrigger asChild>{trigger}</SheetTrigger> : null}
             <SheetContent
                 side="left"
                 data-testid="sidebar-sheet"
                 aria-describedby={undefined}
-                className={cn("gap-0 overflow-hidden", header && "px-2 pb-2", className)}
+                className={cn("gap-0 overflow-hidden", showHeader && "px-2 pb-2", className)}
                 style={{width: SIDEBAR_SHEET_WIDTH, maxWidth: "calc(100vw - 16px)"}}
             >
                 <SheetTitle className="sr-only">{title}</SheetTitle>
-                {header ? (
+                {showHeader ? (
                     <div className="-mx-2 flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-1.5 pr-1">
                         <div className="flex min-w-0 flex-1 items-center">{leading}</div>
                         <Button

@@ -5,7 +5,7 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
-import {SidebarDensityContext, SidebarShell} from "@agenta/navigation-ui"
+import {SidebarLayoutContext, SidebarShell} from "@agenta/navigation-ui"
 import {SidebarSheet, useIsPhone} from "@agenta/ui/phone"
 import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
 import {ListIcon} from "@phosphor-icons/react"
@@ -76,32 +76,31 @@ export const NavDrawer = ({
     if (phone) {
         return (
             <>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={tPhone("ui.phone.openSidebar")}
-                    aria-haspopup="dialog"
-                    aria-expanded={open}
-                    className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-5"
-                    onClick={() => setOpen(true)}
-                >
-                    <ListIcon />
-                </Button>
                 {/* The sidebar brings its own Back and Close row (onDismiss), so the sheet draws
                     none. */}
                 <SidebarSheet
                     open={open}
                     onOpenChange={setOpen}
                     title={t("navigation.chrome.navigationTitle")}
-                    header={false}
+                    showHeader={false}
+                    trigger={
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={tPhone("ui.phone.openSidebar")}
+                            className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-5"
+                        >
+                            <ListIcon />
+                        </Button>
+                    }
                     // Every small button and link of the sidebar (group +, row ⋯, search, help) is 44 x 44 px
                     // here, so a finger reaches it; the icons keep their size.
                     className="[&_a]:min-h-11 [&_a]:min-w-11 [&_button]:min-h-11 [&_button]:min-w-11"
                 >
-                    <SidebarDensityContext.Provider value="touch">
+                    <SidebarLayoutContext.Provider value="phone">
                         {shell}
-                    </SidebarDensityContext.Provider>
+                    </SidebarLayoutContext.Provider>
                 </SidebarSheet>
             </>
         )

@@ -5,7 +5,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ArrowLeft} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import {SidebarDensityContext} from "./sidebarDensity"
+import {PHONE_ROW_CLASS, SidebarLayoutContext} from "./sidebarLayout"
 
 export interface SidebarBackButtonProps {
     collapsed: boolean
@@ -17,7 +17,7 @@ export interface SidebarBackButtonProps {
 /** The scope header's way out (settings, workflow scopes). */
 export const SidebarBackButton = ({collapsed, onBack, className}: SidebarBackButtonProps) => {
     const t = useT(commonCatalog)
-    const touch = useContext(SidebarDensityContext) === "touch"
+    const phone = useContext(SidebarLayoutContext) === "phone"
     return (
         <button
             type="button"
@@ -30,7 +30,7 @@ export const SidebarBackButton = ({collapsed, onBack, className}: SidebarBackBut
                 // falls back to Arial while every <div> row beside it renders Inter.
                 "flex cursor-pointer items-center justify-center gap-2 rounded-md border-0 bg-transparent [font-family:inherit] text-colorText",
                 "hover:bg-colorFillTertiary",
-                collapsed ? "size-8" : touch ? "h-11 px-2 text-[15px]" : "ml-2 h-7 px-2 text-sm",
+                collapsed ? "size-8" : phone ? `${PHONE_ROW_CLASS} px-2` : "ml-2 h-7 px-2 text-sm",
                 className,
             )}
         >
