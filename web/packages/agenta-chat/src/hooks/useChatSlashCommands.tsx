@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
-    buildPickerGroupsWithSections,
+    listPickerGroups,
     pickerSelectionFrom,
     selectedModelRowKey,
     describeMcp,
@@ -35,6 +35,7 @@ import {
 import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
 import {createT, useT} from "@agenta/i18n"
 import chatSlashCommandsCatalog from "@agenta/i18n/catalogs/chat.slashCommands"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {skillDisplayName} from "@agenta/shared/utils"
@@ -59,6 +60,7 @@ export type SlashPickerOrigin = "command" | "direct"
  * a hint the agent usually follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
 const tNow = createT(chatSlashCommandsCatalog)
+const tProviders = createT(providerListCatalog)
 
 export function useChatSlashCommands({
     entityId,
@@ -159,7 +161,12 @@ export function useChatSlashCommands({
             mode: currentConnectionMode,
             harness: currentHarness,
         })
-        return {modelGroups: buildPickerGroupsWithSections(rows), currentModelKey}
+        // The same grouped list as the Model view: built-in models first, named "Agenta".
+        const modelGroups = listPickerGroups(rows, {
+            label: tProviders("entityUi.providerList.agenta"),
+            tag: tProviders("entityUi.providerList.builtIn"),
+        })
+        return {modelGroups, currentModelKey}
     }, [
         candidateState,
         capabilities,

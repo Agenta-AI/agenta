@@ -192,6 +192,7 @@ export const BuilderChat = ({
                 beforeSend={beforeSend}
                 inputRef={inputRef}
                 hideSlashCommands
+                modelButton
                 composerPlaceholder={t("builder.panel.placeholder")}
                 composerHeaderExtra={
                     <ContextChip projectId={projectId} agentName={agentName} phone={phone} />

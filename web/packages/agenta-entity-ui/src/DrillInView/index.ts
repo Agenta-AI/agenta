@@ -329,6 +329,8 @@ export {
     harnessSections,
     SUBSCRIPTION_TAG,
 } from "./SchemaControls/pickerSections"
+// The grouped list order of the Model view, which the composer's model list uses too.
+export {listPickerGroups} from "./SchemaControls/agentTemplate/modelPickerLayout"
 
 export type {
     NumberSliderControlProps,

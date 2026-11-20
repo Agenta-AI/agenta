@@ -157,6 +157,7 @@ export const LiveConversation = ({
     composerPlaceholder,
     inputRef,
     hideSlashCommands = false,
+    modelButton,
     userMessageAccessory,
     onMessagesChanged,
 }: {
@@ -207,6 +208,8 @@ export const LiveConversation = ({
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** The `/` palette would change the agent's own configuration: offer none (the builder). */
     hideSlashCommands?: boolean
+    /** Show the composer's model button with no palette (the builder chats). */
+    modelButton?: boolean
     /** Shown with each sent user message, from the message as stored (with its full text). */
     userMessageAccessory?: (message: UIMessage) => ReactNode
     /** Called after the messages change (the builder page reads its tool results). */
@@ -1290,6 +1293,7 @@ export const LiveConversation = ({
                                 headerExtra={composerHeaderExtra}
                                 hideSlashCommands={hideSlashCommands}
                                 modelButtonHidden={modelBlocked || setupBlocked}
+                                modelButton={modelButton}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={
                                     agentId ? () => startBlankSession(agentId) : undefined

@@ -276,11 +276,15 @@ vi.mock("@/features/chat/Composer", () => ({
         headerExtra,
         hideSlashCommands,
         inputRef,
+        modelButton,
+        modelButtonHidden,
     }: {
         placeholder?: string
         headerExtra?: ReactNode
         hideSlashCommands?: boolean
         inputRef?: {current: unknown}
+        modelButton?: boolean
+        modelButtonHidden?: boolean
     }) => {
         composerSeen.inputRef = inputRef
         return (
@@ -288,6 +292,8 @@ vi.mock("@/features/chat/Composer", () => ({
                 data-testid="composer"
                 data-placeholder={placeholder ?? ""}
                 data-hide-slash-commands={hideSlashCommands ? "true" : "false"}
+                data-model-button={String(modelButton)}
+                data-model-button-hidden={String(modelButtonHidden)}
             >
                 {headerExtra}
             </div>
@@ -367,6 +373,9 @@ describe("LiveConversation slots", () => {
         const composer = byId("composer")!
         expect(composer.getAttribute("data-placeholder")).toBe("")
         expect(composer.getAttribute("data-hide-slash-commands")).toBe("false")
+        // The composer decides from the palette: a session shows its model button.
+        expect(composer.getAttribute("data-model-button")).toBe("undefined")
+        expect(composer.getAttribute("data-model-button-hidden")).toBe("false")
         expect(composer.textContent).toBe("")
         expect(byId("accessory")!.textContent).toBe("none")
         expect(byId("below")).toBeNull()
@@ -381,6 +390,7 @@ describe("LiveConversation slots", () => {
             composerPlaceholder: "Ask the builder about this agent",
             inputRef,
             hideSlashCommands: true,
+            modelButton: true,
             userMessageAccessory: (message) => (
                 <span data-testid="sent-chip">{String(message.metadata && "seen")}</span>
             ),
@@ -391,9 +401,21 @@ describe("LiveConversation slots", () => {
         expect(composer.querySelector('[data-testid="chip"]')).not.toBeNull()
         expect(composer.getAttribute("data-placeholder")).toBe("Ask the builder about this agent")
         expect(composer.getAttribute("data-hide-slash-commands")).toBe("true")
+        // The builder chats keep the model button with no palette.
+        expect(composer.getAttribute("data-model-button")).toBe("true")
         expect(composerSeen.inputRef).toBe(inputRef)
         expect(byId("below")).not.toBeNull()
         // The accessory gets the stored message, full text and metadata included.
         expect(byId("sent-chip")?.textContent).toBe("seen")
+    })
+
+    it("hides the model button while the model needs setup", async () => {
+        modelSetup.blocked = true
+        try {
+            await render({hideSlashCommands: true, modelButton: true})
+            expect(byId("composer")!.getAttribute("data-model-button-hidden")).toBe("true")
+        } finally {
+            modelSetup.blocked = false
+        }
     })
 })
