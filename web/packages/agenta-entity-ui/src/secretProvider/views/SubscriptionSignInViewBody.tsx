@@ -46,10 +46,13 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
         enabled: editProjects,
         organizationName: organization?.name,
     })
+    // Each choice is saved once; one made while a save ran is saved when that save ends.
+    const savedChoice = useRef(draft.projects)
     useEffect(() => {
-        if (draft.changed && !draft.saving) void draft.apply(() => undefined)
-        // Saved on each change of the choice, not on each render of the draft.
-    }, [draft.projects])
+        if (!draft.changed || draft.saving || savedChoice.current === draft.projects) return
+        savedChoice.current = draft.projects
+        void draft.apply()
+    }, [draft.projects, draft.saving])
 
     // Opening is the Connect click; a ready connection opens to its status instead. Once per
     // mount. The timer keeps a mount that React runs twice in development from starting two
@@ -64,13 +67,14 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
     // Leaving the view ends a sign-in that is still running, so its poll stops with it.
     const cancelRef = useRef(signIn.cancel)
     cancelRef.current = signIn.cancel
-    useEffect(
-        () => () => {
+    useEffect(() => {
+        // Reset on mount: React runs a development mount twice and keeps refs.
+        leftRef.current = false
+        return () => {
             leftRef.current = true
             cancelRef.current()
-        },
-        [],
-    )
+        }
+    }, [])
 
     return (
         <SubscriptionSignInCard

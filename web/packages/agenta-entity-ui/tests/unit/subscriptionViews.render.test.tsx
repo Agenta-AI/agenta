@@ -19,7 +19,7 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest
 import {setupTokenOf} from "../../src/secretProvider/useSubscriptionToken"
 import {providerListView} from "../../src/secretProvider/views/providerViews"
 
-import {byText, change, click, findByText, waitFor} from "./domHelpers"
+import {byText, change, click, findByText, keyDown, waitFor} from "./domHelpers"
 
 const fx = vi.hoisted(() => ({
     atoms: {} as {
@@ -353,6 +353,9 @@ describe("Claude token view", {timeout: 30_000}, () => {
         expect(button("Connect")?.disabled).toBe(true)
         await change(field, "sk-ant-oat01-abc")
         await waitFor(() => expect(button("Connect")?.disabled).toBe(false))
+        // Enter stores nothing: Save of the stack is the one save path.
+        await keyDown(field, "Enter")
+        expect(fx.tokens).toEqual([])
         await click(button("Connect"))
         await findByText("here:Model providers")
         expect(fx.tokens).toEqual(["sk-ant-oat01-abc"])

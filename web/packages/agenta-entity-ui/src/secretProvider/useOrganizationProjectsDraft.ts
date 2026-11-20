@@ -65,8 +65,8 @@ export const sameProjects = (
             a.projectIds.every((id) => b.projectIds.includes(id))))
 
 /**
- * The "Projects that can use it" choice of a subscription dialog: a draft seeded from the saved
- * connection each time the dialog opens, written on Done only when it changed.
+ * The "Projects that can use it" choice of a subscription view: a draft seeded from the saved
+ * connection when the view opens, written by  only when it changed.
  */
 export const useOrganizationProjectsDraft = ({
     open,
@@ -107,32 +107,27 @@ export const useOrganizationProjectsDraft = ({
         setError(null)
     }, [open, connection?.id, saved])
 
-    /** Write the draft if it changed, then close. A failure keeps the dialog open on its line. */
-    const apply = useCallback(
-        async (close: () => void) => {
-            if (!enabled || !connection || sameProjects(saved, projects)) {
-                close()
-                return
-            }
-            setSaving(true)
-            setError(null)
-            try {
-                await setProjects({connectionId: connection.id, projects})
-                message.success(organizationSavedToast(connection.name, projects))
-                close()
-            } catch (failure) {
-                setError(
-                    organizationRefusal(failure, organizationName) ||
-                        t("entityUi.organizationProjects.couldNotSave", {name: connection.name}),
-                )
-            } finally {
-                setSaving(false)
-            }
-        },
-        [connection, enabled, organizationName, projects, saved, setProjects],
-    )
+    /** Write the draft if it changed. Resolves false on a failure, which shows on its line. */
+    const apply = useCallback(async (): Promise<boolean> => {
+        if (!enabled || !connection || sameProjects(saved, projects)) return true
+        setSaving(true)
+        setError(null)
+        try {
+            await setProjects({connectionId: connection.id, projects})
+            message.success(organizationSavedToast(connection.name, projects))
+            return true
+        } catch (failure) {
+            setError(
+                organizationRefusal(failure, organizationName) ||
+                    t("entityUi.organizationProjects.couldNotSave", {name: connection.name}),
+            )
+            return false
+        } finally {
+            setSaving(false)
+        }
+    }, [connection, enabled, organizationName, projects, saved, setProjects])
 
-    /** An existing connection whose projects the admin changed: Done can save them alone. */
+    /** An existing connection whose projects the admin changed: Save can write them alone. */
     const changed = enabled && !!connection && !sameProjects(saved, projects)
 
     return {projects, setProjects: setDraft, saved, saving, error, changed, apply}

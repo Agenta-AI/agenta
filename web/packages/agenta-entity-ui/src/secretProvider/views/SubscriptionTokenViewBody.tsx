@@ -44,11 +44,6 @@ const SubscriptionTokenViewBody = ({params}: ViewProps<SubscriptionViewParams>) 
     useViewTitle(name)
 
     const typed = token.value.trim() !== ""
-    const applyProjects = () =>
-        new Promise<boolean>((resolve) => {
-            // `apply` calls back on success and returns either way.
-            void draft.apply(() => resolve(true)).then(() => resolve(false))
-        })
 
     useViewForm({
         dirty: typed || draft.changed,
@@ -61,7 +56,7 @@ const SubscriptionTokenViewBody = ({params}: ViewProps<SubscriptionViewParams>) 
         savingLabel: typed ? t("entityUi.subscriptionSignIn.checking") : undefined,
         save: async () => {
             if (typed && !(await token.submit())) return false
-            return draft.changed ? applyProjects() : true
+            return draft.apply()
         },
     })
 
