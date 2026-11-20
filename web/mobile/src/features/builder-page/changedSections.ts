@@ -1,15 +1,9 @@
 import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 
-/**
- * The agent panel sections an `edit_agent_config` call changed (task 41.2), from the first
- * segment of each operation target after `parameters` and `agent`. A list selector
- * (`{list, key}`) names its list. Nested fields follow the panel's own grouping
- * (`sectionChanges.ts`): `harness.kind` is in Model, `runner.permissions` in Permissions,
- * `sandbox.credentials` in Secrets, the other runner, sandbox and harness fields in Advanced.
- */
 const SCAFFOLDING = new Set(["parameters", "agent"])
 
-const LIST_SECTION: Record<string, MarkableSectionKey> = {
+/** The section of a first segment that is a section of its own. */
+const SECTION_OF_HEAD: Record<string, MarkableSectionKey> = {
     instructions: "instructions",
     llm: "model-harness",
     tools: "tools",
@@ -17,15 +11,11 @@ const LIST_SECTION: Record<string, MarkableSectionKey> = {
     skills: "skills",
 }
 
+/** A segment's name: the string, or the list of a `{list, key}` selector. */
 const segmentName = (segment: unknown): string | null => {
     if (typeof segment === "string") return segment
-    if (segment && typeof segment === "object") {
-        const list = (segment as {list?: unknown; field?: unknown}).list
-        const field = (segment as {field?: unknown}).field
-        if (typeof list === "string") return list
-        if (typeof field === "string") return field
-    }
-    return null
+    const list = (segment as {list?: unknown} | null)?.list
+    return typeof list === "string" ? list : null
 }
 
 const sectionOfTarget = (target: unknown[]): MarkableSectionKey | null => {
@@ -37,10 +27,17 @@ const sectionOfTarget = (target: unknown[]): MarkableSectionKey | null => {
     if (head === "harness") return next === "kind" || next === null ? "model-harness" : "advanced"
     if (head === "runner") return next === "permissions" ? "permissions" : "advanced"
     if (head === "sandbox") return next === "credentials" ? "secrets" : "advanced"
-    return LIST_SECTION[head] ?? "advanced"
+    return SECTION_OF_HEAD[head] ?? "advanced"
 }
 
-/** The section keys the operations of one call change, without repeats. */
+/**
+ * The agent panel sections an `edit_agent_config` call changed (task 41.2), from the first
+ * segment of each operation target after `parameters` and `agent`. Nested fields follow the
+ * panel's grouping (`commitDiff/classify.ts`, mapped in `sectionChanges.ts`): `harness.kind` is in
+ * Model, `runner.permissions` in Permissions, `sandbox.credentials` in Secrets, the other runner,
+ * sandbox and harness fields in Advanced. A target with no segment after the scaffolding (the
+ * whole agent) marks nothing: there is no one row to point at.
+ */
 export const sectionsOfOperations = (operations: unknown): MarkableSectionKey[] => {
     if (!Array.isArray(operations)) return []
     const keys = new Set<MarkableSectionKey>()

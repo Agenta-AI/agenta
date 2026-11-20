@@ -87,6 +87,16 @@ describe("section marks", () => {
         expect(onOpened).toHaveBeenCalledTimes(1)
     })
 
+    it("reports Enter in a marked section", () => {
+        const onOpened = vi.fn()
+        render(["skills"], onOpened)
+        const header = section("skills")?.querySelector<HTMLElement>("[role=button]")
+        act(() => {
+            header?.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+        })
+        expect(onOpened).toHaveBeenCalledWith("skills")
+    })
+
     it("marks nothing without a provider", () => {
         act(() => root.render(createElement(Marked)))
         expect(container.textContent).not.toContain("Changed by the builder")

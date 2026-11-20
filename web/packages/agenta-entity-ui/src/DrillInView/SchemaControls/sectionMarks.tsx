@@ -7,7 +7,7 @@
  * section title. A section that opens by itself (the first reveal, a list that fills) does not
  * count. Without a provider nothing is marked.
  */
-import {createContext, useCallback, useContext, useRef} from "react"
+import {createContext, useContext} from "react"
 
 import type {AgentTemplateSectionDescriptor} from "./agentTemplate/AgentTemplateSectionList"
 import type {PanelSectionKey} from "./agentTemplate/sectionChanges"
@@ -38,15 +38,12 @@ const Mark = ({label}: {label: string}) => (
  */
 export const useSectionMarks = (sections: AgentTemplateSectionDescriptor[]) => {
     const marks = useContext(SectionMarksContext)
-    const latest = useRef(marks)
-    latest.current = marks
-    const report = useCallback((target: EventTarget | null) => {
-        const current = latest.current
-        if (!current || !(target instanceof Element)) return
+    const report = (target: EventTarget | null) => {
+        if (!marks || !(target instanceof Element)) return
         const key = target.closest<HTMLElement>("[data-config-section]")?.dataset.configSection
-        if (key && current.keys.has(key as MarkableSectionKey))
-            current.onOpened(key as MarkableSectionKey)
-    }, [])
+        if (key && marks.keys.has(key as MarkableSectionKey))
+            marks.onOpened(key as MarkableSectionKey)
+    }
     const handlers = {
         onPointerDownCapture: (event: {target: EventTarget | null}) => report(event.target),
         onKeyDownCapture: (event: {key: string; target: EventTarget | null}) => {
