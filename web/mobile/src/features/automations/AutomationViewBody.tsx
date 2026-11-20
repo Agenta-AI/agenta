@@ -126,7 +126,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                 <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="compact"
                     className={`font-normal text-destructive hover:text-destructive ${footerButton}`}
                     onClick={() => setConfirmDelete(true)}
                 >
@@ -137,7 +137,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        size="compact"
                         className={`font-normal ${footerButton}`}
                         disabled={editor.saving || !editor.dirty}
                         onClick={editor.discard}
@@ -146,7 +146,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     </Button>
                     <Button
                         type="button"
-                        size="sm"
+                        size="compact"
                         className={`font-normal ${footerButton}`}
                         disabled={editor.saving || !editor.dirty}
                         onClick={() => void editor.save()}

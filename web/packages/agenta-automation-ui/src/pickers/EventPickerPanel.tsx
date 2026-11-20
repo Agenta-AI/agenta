@@ -485,7 +485,7 @@ export const EventInlineCard = ({
     if (!connectionsLoading && apps.length === 0)
         return <EventPickerNoApps onConnect={() => openCatalogDrawer(true)} />
 
-    const label = "text-xs font-medium text-muted-foreground"
+    const label = "text-[12px] font-medium text-muted-foreground"
     return (
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">

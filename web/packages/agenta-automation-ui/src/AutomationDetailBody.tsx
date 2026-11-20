@@ -146,7 +146,7 @@ export const AutomationDetailBody = ({
                     />
                 </div>
                 {actions}
-                <span aria-hidden className="text-xs text-muted-foreground">
+                <span aria-hidden className="text-[12px] text-muted-foreground">
                     {automation.isActive
                         ? tEditor("automations.editor.on")
                         : tEditor("automations.editor.off")}

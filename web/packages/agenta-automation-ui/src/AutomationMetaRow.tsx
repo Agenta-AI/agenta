@@ -42,7 +42,11 @@ export const AutomationMetaRow = ({
         .join(" · ")
 
     if (factsOnly)
-        return <span className="min-w-0 truncate text-xs text-muted-foreground">{facts}</span>
+        return (
+            <span className="min-w-0 truncate text-[12px] leading-4 text-muted-foreground">
+                {facts}
+            </span>
+        )
 
     return (
         <div className="mb-1 mt-4 flex min-w-0 flex-wrap items-center gap-3.5">

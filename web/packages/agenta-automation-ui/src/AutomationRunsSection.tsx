@@ -34,7 +34,7 @@ const RunsRow = ({
 }) => {
     const body = (
         <>
-            <span className="w-[72px] shrink-0 text-xs text-muted-foreground">{label}</span>
+            <span className="w-[72px] shrink-0 text-[12px] text-muted-foreground">{label}</span>
             <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-foreground">
                 {children}
             </span>

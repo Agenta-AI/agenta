@@ -16,7 +16,7 @@ export const ROW_CLASS =
 export const NAME_CLASS = "truncate text-sm leading-5"
 
 /** The line under the name on a desktop. */
-export const LINE_CLASS = "truncate text-xs leading-4 text-[var(--ag-colorTextSecondary)]"
+export const LINE_CLASS = "truncate text-[12px] leading-4 text-[var(--ag-colorTextSecondary)]"
 
 /**
  * The 28 px tile before the name. A schedule is a colored tile with a white glyph; an app trigger

@@ -10,6 +10,7 @@ import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperatio
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {BottomSheetMenu, PhonePrimaryAction} from "@agenta/ui/phone"
 import {
     Button,
@@ -18,7 +19,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {Clock, Lightning, Plus, Sparkle} from "@phosphor-icons/react"
+import {Clock, Lightning, Plus} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {useAgentTriggers} from "./useAgentTriggers"
@@ -102,7 +103,7 @@ export function AddTriggerDropdown({
         ...manualItems,
         {
             key: "ai",
-            icon: <Sparkle size={14} />,
+            icon: <BuilderIcon size={14} />,
             title: t("entityUi.configItems.createWithAi"),
             hint: t("entityUi.triggers.createWithAiSubtitle"),
             onSelect: () => {
@@ -115,7 +116,7 @@ export function AddTriggerDropdown({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="font-normal">
+                <Button type="button" variant="outline" size="compact" className="font-normal">
                     <Plus size={14} />
                     {t("entityUi.agentOperations.addAutomation")}
                 </Button>
@@ -144,7 +145,9 @@ export function AddTriggerDropdown({
                         </span>
                         <span className="flex min-w-0 flex-col">
                             <span className="text-[13px] text-colorText">{item.title}</span>
-                            <span className="text-xs text-colorTextTertiary">{item.hint}</span>
+                            <span className="text-[12px] leading-4 text-colorTextTertiary">
+                                {item.hint}
+                            </span>
                         </span>
                     </DropdownMenuItem>
                 ))}
@@ -195,7 +198,7 @@ export function AddAutomationPhoneAction({
                     })),
                     {
                         key: "ai",
-                        icon: <Sparkle size={16} />,
+                        icon: <BuilderIcon size={18} />,
                         label: t("entityUi.configItems.createWithAi"),
                         description: t("entityUi.triggers.createWithAiSubtitle"),
                         onSelect: createWithAI,
