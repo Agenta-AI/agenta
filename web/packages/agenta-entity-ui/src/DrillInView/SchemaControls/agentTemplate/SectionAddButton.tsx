@@ -43,9 +43,8 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 size="icon"
                 aria-label={label}
                 disabled={disabled}
-                // A bare 14 px plus in the secondary text color (canvas F01): the 24 px hover box
-                // overhangs it by 5 px on each side, so the row lays out the glyph alone. Full
-                // strength on hover or while open; a 44 px tap area on a phone.
+                // Canvas F01: a bare plus. The hover box overhangs it, so the row lays out the
+                // glyph alone.
                 className={cn(
                     PHONE_TOUCH_TARGET_CLASS,
                     "-mx-[5px] size-6 rounded-[6px] !text-colorTextSecondary hover:!text-colorText aria-expanded:!text-colorText",

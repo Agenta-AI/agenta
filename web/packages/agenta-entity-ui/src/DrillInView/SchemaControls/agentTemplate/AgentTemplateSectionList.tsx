@@ -123,8 +123,8 @@ export const AgentTemplateSectionList = ({
 
     const pane = layout === "pane"
     return (
-        // Canvas F01: 6 px between rows, 14 px above the first. Canvas B03 (the builder page
-        // pane): full-width rows with no gap; `-mx-4` undoes the host's inset, the rows carry it.
+        // Canvas F01 for the panel, B03 for the pane: there the rows run full width, so `-mx-4`
+        // undoes the host's inset and the rows carry it.
         <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col gap-1.5 pt-3.5"}>
             {sections.map((s, index) => {
                 const controlled = Boolean(controlledKeys?.has(s.key))
@@ -175,10 +175,7 @@ export const AgentTemplateSectionList = ({
     )
 }
 
-/**
- * The body of an open panel section (canvas F01): 12 px above its cards, 8 px between them and
- * 10 px below, so with the list's 6 px gap the next row sits 16 px under the last card.
- */
+/** The body of an open panel section (canvas F01, with the list's gap). */
 const PANEL_BODY = "flex flex-col gap-2 pb-2.5 pt-3"
 /** A body that is one card under the title (see `insetBody`). */
 const PANEL_INSET_BODY = "flex flex-col pl-[22px] pt-1.5"

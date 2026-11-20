@@ -105,7 +105,7 @@ describe("AgentTemplateSectionList layouts", () => {
         expect(headerRow("subagents").className).not.toContain("bg-[var(--ag-colorInfoBg)]")
     })
 
-    it("page: one card per section, unchanged by the pane layout", () => {
+    it("page: one titled card per section, with its content always open", () => {
         renderList("page")
         const titles = [...container.querySelectorAll("section h3")].map((h) => h.textContent)
         expect(titles).toEqual(["Subagents", "Skills", "Advanced"])

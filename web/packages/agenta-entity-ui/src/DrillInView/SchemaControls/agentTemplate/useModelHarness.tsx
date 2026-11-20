@@ -43,7 +43,7 @@ import {
 
 import {useAdvancedParts} from "./advancedParts"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
-import {sandboxKindLabel} from "./sections/AdvancedPartRows"
+import {sandboxSummary} from "./sections/AdvancedPartRows"
 import {useAdvancedSectionBody} from "./sections/AdvancedSectionBody"
 import {modelSectionBody} from "./sections/ModelSectionBody"
 import {permissionsSectionBody} from "./sections/PermissionsSectionBody"
@@ -99,7 +99,6 @@ export function useModelHarness({
         sandboxOptions,
         hasExecutionGroup,
     } = advancedParts.sandbox
-    const sandboxLabel = sandboxKindLabel(advancedParts.sandbox)
 
     const runnerPermissions =
         runner.permissions && typeof runner.permissions === "object"
@@ -429,8 +428,6 @@ export function useModelHarness({
         runnerPermissionLabel,
         advancedChangeBody,
         // The Advanced row's summary (canvas F01, M07: "Sandbox: Daytona").
-        sandboxSummary: sandboxLabel
-            ? t("entityUi.modelHarness.sandboxSummary", {kind: sandboxLabel})
-            : undefined,
+        sandboxSummary: sandboxSummary(advancedParts.sandbox),
     }
 }

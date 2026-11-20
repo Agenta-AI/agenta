@@ -6,7 +6,7 @@
 import type {ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
 import advancedViewCatalog from "@agenta/i18n/catalogs/entityUi.advancedView"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import type {ViewDef} from "@agenta/ui/view-stack"
@@ -23,6 +23,8 @@ import {
     type AdvancedViewParams,
 } from "../views/advancedViews"
 
+const tModelHarness = createT(modelHarnessCatalog)
+
 export interface AdvancedPartRow {
     key: string
     icon: ReactNode
@@ -32,21 +34,21 @@ export interface AdvancedPartRow {
 }
 
 /**
- * The agent's sandbox in words, for the Execution row and the Advanced row ("Daytona", canvas F01
- * and A04): the schema's label of the kind the picker shows, else the kind itself. Undefined when
- * the agent names no sandbox.
+ * The agent's sandbox as the Execution row and the Advanced row say it ("Sandbox: Daytona",
+ * canvas F01 and A04): the schema's label of the kind the picker shows, else the kind itself.
+ * Undefined when the agent names no sandbox.
  */
-export const sandboxKindLabel = ({
+export const sandboxSummary = ({
     sandboxProps,
     shownSandboxKind,
 }: Pick<ReturnType<typeof useSandboxChoice>, "sandboxProps" | "shownSandboxKind">):
     | string
     | undefined => {
     if (!shownSandboxKind) return undefined
-    return (
+    const kind =
         getEnumOptions(sandboxProps.kind).find((option) => option.value === shownSandboxKind)
             ?.label ?? shownSandboxKind
-    )
+    return tModelHarness("entityUi.modelHarness.sandboxSummary", {kind})
 }
 
 /** The rows of the parts that apply to this agent, in the canvas order. */
@@ -57,7 +59,6 @@ export const useAdvancedPartRows = (
 ): AdvancedPartRow[] => {
     const t = useT(modelHarnessCatalog, advancedViewCatalog)
     const parts = useAdvancedParts(schema, config, revisionId)
-    const sandboxLabel = sandboxKindLabel(parts.sandbox)
     const {agentaTools} = parts
     const toolCount = Object.keys(agentaTools.access).length
     return (
@@ -66,9 +67,7 @@ export const useAdvancedPartRows = (
                 key: "execution",
                 icon: <Cube size={16} />,
                 title: t("entityUi.modelHarness.execution"),
-                summary: sandboxLabel
-                    ? t("entityUi.modelHarness.sandboxSummary", {kind: sandboxLabel})
-                    : undefined,
+                summary: sandboxSummary(parts.sandbox),
                 view: executionView,
             },
             parts.tools && {

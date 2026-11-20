@@ -264,6 +264,23 @@ export const AgentRevisionStatus = ({
             />
         ) : null
 
+    // "Update to vN": a newer version saved elsewhere. On a phone the pill keeps its size and gets
+    // a 44 px high hit area.
+    const updatePill =
+        newer && !autoUpdateId ? (
+            <button
+                type="button"
+                onClick={() => onUpdate?.(newer.id)}
+                className={cn(
+                    "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
+                    phone &&
+                        "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
+                )}
+            >
+                {t("playground.agentHeader.updateAvailable", {version: newer.version})}
+            </button>
+        ) : null
+
     // The bordered "Saved as vN" of the footer and the page header. A status, not an action:
     // enabled only as the retry of a failed save.
     const savedAsButton =
@@ -322,15 +339,7 @@ export const AgentRevisionStatus = ({
                         </Button>
                     </SimpleTooltip>
                 ) : null}
-                {newer && !autoUpdateId ? (
-                    <button
-                        type="button"
-                        onClick={() => onUpdate?.(newer.id)}
-                        className="shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
-                    >
-                        {t("playground.agentHeader.updateAvailable", {version: newer.version})}
-                    </button>
-                ) : null}
+                {updatePill}
                 {savedAsButton}
                 {historyDrawer}
             </div>
@@ -426,20 +435,7 @@ export const AgentRevisionStatus = ({
                 )
             ) : null}
 
-            {newer && !autoUpdateId ? (
-                <button
-                    type="button"
-                    onClick={() => onUpdate?.(newer.id)}
-                    // On a phone the pill keeps its size and gets a 44 px high hit area.
-                    className={cn(
-                        "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
-                        phone &&
-                            "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
-                    )}
-                >
-                    {t("playground.agentHeader.updateAvailable", {version: newer.version})}
-                </button>
-            ) : null}
+            {updatePill}
 
             {historyDrawer}
 

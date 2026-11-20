@@ -59,7 +59,13 @@ export const modelSection = ({
                 <SectionPageRow
                     icon={<Cpu size={14} />}
                     title={mh.modelCard.name ?? mh.modelCard.id ?? mh.modelSummary}
-                    summary={<ModelCardLine {...mh.modelCard} />}
+                    // With no readable name the id is the title, so the line does not repeat it.
+                    summary={
+                        <ModelCardLine
+                            id={mh.modelCard.name ? mh.modelCard.id : null}
+                            harness={mh.modelCard.harness}
+                        />
+                    }
                 />
             ),
             content: null,
@@ -68,7 +74,7 @@ export const modelSection = ({
 }
 
 /** The Model card's second line: the raw id in mono, then "via <harness>". */
-const ModelCardLine = ({id, harness}: ModelHarness["modelCard"]) => {
+const ModelCardLine = ({id, harness}: Pick<ModelHarness["modelCard"], "id" | "harness">) => {
     if (!id && !harness) return null
     return (
         <>
