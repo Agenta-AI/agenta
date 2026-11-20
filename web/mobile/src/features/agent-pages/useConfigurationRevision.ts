@@ -1,42 +1,58 @@
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
-import {
-    revalidateAgentRevisionReads,
-    workflowLatestRevisionIdAtomFamily,
-    workflowLatestRevisionQueryAtomFamily,
-} from "@agenta/entities/workflow"
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {useAtomValue} from "jotai"
 
 /**
- * The revision the page edits: the agent's latest when the page opens, then held. It moves only
- * to the revision its own auto-save makes (the latest-revision query is stale for a beat after a
- * commit) or when the status's "Update to vN" asks (`pin`). A version saved elsewhere never
- * replaces it on its own, since an open drawer form may still edit the held one.
+ * The revision the page edits: the agent's latest, asked from the server when the page opens
+ * (a cached answer can be a superseded revision), then held. It moves only to the revision its
+ * own auto-save makes (the latest-revision query is stale for a beat after a commit) or when the
+ * status's "Update to vN" asks (`pin`). A version saved elsewhere never replaces it on its own,
+ * since an open drawer form may still edit the held one.
  */
 export const useConfigurationRevision = (agentId: string) => {
-    const latest = useAtomValue(workflowLatestRevisionIdAtomFamily(agentId))
     const query = useAtomValue(workflowLatestRevisionQueryAtomFamily(agentId))
     const [pinned, setPinned] = useState<string | null>(null)
-    // Ask again on open: a save made while the page was closed invalidates the query without a
-    // refetch, so its cached answer can be a superseded revision.
+    const [failed, setFailed] = useState(false)
+    const refetch = useRef(query.refetch)
     useEffect(() => {
-        revalidateAgentRevisionReads(agentId)
-    }, [agentId])
-    // Hold the first latest revision the query answers with once it has settled.
-    useEffect(() => {
-        if (pinned === null && latest && !query.isFetching) setPinned(latest)
-    }, [latest, pinned, query.isFetching])
-    // Nothing until held: a cached answer still being checked is not shown.
-    const revisionId = pinned
+        refetch.current = query.refetch
+    }, [query.refetch])
+
+    /** Asks for the latest revision and holds it, unless one is held already. */
+    const open = useCallback(() => {
+        let alive = true
+        setFailed(false)
+        refetch.current().then(
+            (result) => {
+                if (!alive) return
+                const id = result.data?.id ?? null
+                if (id) setPinned((held) => held ?? id)
+                else setFailed(true)
+            },
+            () => {
+                if (alive) setFailed(true)
+            },
+        )
+        return () => {
+            alive = false
+        }
+    }, [])
+    useEffect(() => open(), [agentId, open])
+
     useEffect(
         () =>
             registerAgentAutoCommitHandler(`configuration-page:${agentId}`, (from, to) => {
-                if (from === revisionId) setPinned(to)
+                if (from === pinned) setPinned(to)
             }),
-        [agentId, revisionId],
+        [agentId, pinned],
     )
-    // No revision once the lookup has settled: it failed, or found none.
-    const failed = !revisionId && !latest && !query.isPending && !query.isFetching
-    return {revisionId, pin: setPinned, failed, retry: () => void query.refetch()}
+    return {
+        revisionId: pinned,
+        pin: setPinned,
+        // The lookup settled with no revision: it failed, or found none.
+        failed: !pinned && failed,
+        retry: () => void open(),
+    }
 }
