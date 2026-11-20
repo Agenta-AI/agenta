@@ -1,4 +1,11 @@
-import {useCallback, useEffect, useRef, type MutableRefObject, type ReactNode} from "react"
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type MutableRefObject,
+    type ReactNode,
+} from "react"
 
 import {canRestoreRefusedSend, describeAccepted, isComposerRunStoppable} from "@agenta/chat/assets"
 import {
@@ -19,17 +26,28 @@ import {
 } from "@agenta/chat/hooks"
 import {useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
+import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
+import {Button} from "@agenta/ui/ui"
+import {Faders} from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
 import {AnimatePresence, motion} from "motion/react"
+import dynamic from "next/dynamic"
 
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
+import {ComposerModelButton} from "./ComposerModelButton"
 import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
+
+// Only once "Manage model providers" is used: the provider list is not part of the chat's load.
+const ProvidersDrawer = dynamic(
+    () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
+    {ssr: false},
+)
 
 /**
  * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
@@ -63,6 +81,7 @@ export const Composer = ({
     onNewSession,
     headerExtra,
     hideSlashCommands = false,
+    modelButtonHidden = false,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
     entityId: string
@@ -111,8 +130,10 @@ export const Composer = ({
      * agent is the platform's builder, whose model and permissions are not the person's to change.
      */
     hideSlashCommands?: boolean
+    /** The model needs setup (the "Connect a model" strip shows): no model button. */
+    modelButtonHidden?: boolean
 }) => {
-    const t = useT(chatMobileComposerCatalog)
+    const t = useT(chatMobileComposerCatalog, uiLlmProviderCatalog)
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const richInputRef = inputRef ?? ownInputRef
     // A tab switch is a route change here, so the whole composer unmounts — the per-session
@@ -172,6 +193,25 @@ export const Composer = ({
         closePicker()
         richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
+    // "Manage model providers" under the model list. Mounted from the first use on.
+    const [providersOpen, setProvidersOpen] = useState(false)
+    const [providersUsed, setProvidersUsed] = useState(false)
+    const openProviders = useCallback(() => {
+        closePicker()
+        setProvidersUsed(true)
+        setProvidersOpen(true)
+    }, [closePicker])
+    // A press on the button while the list is open has already closed it (the list closes on a
+    // pointer-down outside), so the click that follows must not open it again.
+    const modelOpenAtPressRef = useRef(false)
+    const toggleModelList = useCallback(() => {
+        const wasOpen = modelOpenAtPressRef.current
+        modelOpenAtPressRef.current = false
+        if (wasOpen) closePicker()
+        else openModelPicker()
+    }, [closePicker, openModelPicker])
+    // The same gate as the palette: the builder chat's model is not the person's to change here.
+    const showModelButton = !hideSlashCommands && !modelButtonHidden && slash.modelGroups.length > 0
     // Held until the draft and tray leave the composer, not for the whole send.
     const sending = useRef(false)
     const presets = useMotionPresets()
@@ -365,7 +405,9 @@ export const Composer = ({
                             onDismissOutside={() => {
                                 skipFocusRestoreRef.current = true
                             }}
-                            onStepBack={backToCommands}
+                            onStepBack={
+                                slash.pickerOrigin === "command" ? backToCommands : undefined
+                            }
                             anchorRef={composerBoxRef}
                             hideTrigger
                             showGroup
@@ -374,19 +416,35 @@ export const Composer = ({
                             sectionTooltip={<HarnessTooltip />}
                             options={slash.modelGroups}
                             value={slash.currentModel}
+                            selectedKey={slash.currentModelKey}
+                            // A pick writes the agent config; auto-save commits it as a new version.
                             onChange={(next, option) => slash.applyModel(next, option)}
                             searchSuffix="/model"
-                            panelFooter={
-                                <div className="text-muted-foreground flex items-center gap-1.5 text-[10.5px]">
-                                    <span>{t("chat.mobileComposer.changesDraft")}</span>
-                                    <button
-                                        type="button"
-                                        onClick={backToCommands}
-                                        className="text-muted-foreground ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px]"
+                            footerContent={
+                                <div className="border-border mt-1.5 border-0 border-t border-solid px-0.5 pt-2 pb-0.5">
+                                    <Button
+                                        variant="outline"
+                                        className="w-full"
+                                        onClick={openProviders}
                                     >
-                                        {t("chat.mobileComposer.backToCommands")}
-                                    </button>
+                                        <Faders size={14} />
+                                        {t("ui.llmProvider.manageProviders")}
+                                    </Button>
                                 </div>
+                            }
+                            // The way back exists only when the `/` palette opened the list.
+                            panelFooter={
+                                slash.pickerOrigin === "command" ? (
+                                    <div className="flex justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={backToCommands}
+                                            className="text-muted-foreground cursor-pointer border-none bg-transparent p-0 text-[10.5px]"
+                                        >
+                                            {t("chat.mobileComposer.backToCommands")}
+                                        </button>
+                                    </div>
+                                ) : null
                             }
                         />
                         <ChatComposer
@@ -399,6 +457,21 @@ export const Composer = ({
                             onChange={draft.handleComposerChange}
                             slashCommands={hideSlashCommands ? undefined : slash.sections}
                             headerExtra={headerExtra}
+                            beforeSend={
+                                showModelButton ? (
+                                    <ComposerModelButton
+                                        groups={slash.modelGroups}
+                                        selectedKey={slash.currentModelKey}
+                                        modelId={slash.currentModel}
+                                        open={slash.picker === "model"}
+                                        disabled={disabled}
+                                        onPressStart={() => {
+                                            modelOpenAtPressRef.current = slash.picker === "model"
+                                        }}
+                                        onOpen={toggleModelList}
+                                    />
+                                ) : null
+                            }
                             disabled={disabled}
                             sendDisabled={sendDisabled}
                             composerDisabled={disabled}
@@ -448,6 +521,9 @@ export const Composer = ({
                     </AnimatePresence>
                 </div>
             </ContentRail>
+            {providersUsed ? (
+                <ProvidersDrawer open={providersOpen} onClose={() => setProvidersOpen(false)} />
+            ) : null}
         </div>
     )
 }

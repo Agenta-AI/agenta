@@ -1289,6 +1289,7 @@ export const LiveConversation = ({
                                 modelPickerRef={modelPickerRef}
                                 headerExtra={composerHeaderExtra}
                                 hideSlashCommands={hideSlashCommands}
+                                modelButtonHidden={modelBlocked || setupBlocked}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={
                                     agentId ? () => startBlankSession(agentId) : undefined

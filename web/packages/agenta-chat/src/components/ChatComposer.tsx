@@ -94,6 +94,8 @@ export interface ChatComposerProps {
     extraPrefix?: ReactNode
     /** The input's trailing slot (onboarding actions). */
     trailing?: ReactNode
+    /** Just before Send (the model button). */
+    beforeSend?: ReactNode
     /**
      * Docked INSIDE the input frame, above the editor and the attachments tray — for host
      * content that belongs to the message being composed (the create surface's connect step).
@@ -139,6 +141,7 @@ export const ChatComposer = ({
     onViewAttachment,
     extraPrefix,
     trailing,
+    beforeSend,
     headerExtra,
     slashCommands,
     fileMentions,
@@ -354,6 +357,7 @@ export const ChatComposer = ({
                     </>
                 }
                 trailing={trailing}
+                beforeSend={beforeSend}
             />
         </Suspense>
     )
