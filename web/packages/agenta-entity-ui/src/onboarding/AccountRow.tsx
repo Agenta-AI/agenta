@@ -103,7 +103,6 @@ const AccountRow = ({
      * no "will use, connect next" limbo, and no revert bookkeeping.
      */
     const [drawerSlug, setDrawerSlug] = useState<string | null>(null)
-    const {integration: drawerDetail} = useToolIntegrationDetail(drawerSlug ?? active)
 
     useEffect(() => {
         // Report the provider the row is acting as, so gating counts the actual choice — and
@@ -128,10 +127,7 @@ const AccountRow = ({
         <ConnectDrawer
             open={connectOpen}
             integrationKey={drawerFor}
-            integrationName={drawerDetail?.name ?? providerLabel(drawerFor)}
-            integrationLogo={drawerDetail?.logo ?? PROVIDERS[drawerFor]?.logo ?? undefined}
-            integrationDescription={account.why}
-            authSchemes={drawerDetail?.auth_schemes ?? ["oauth"]}
+            description={account.why}
             onClose={() => {
                 setConnectOpen(false)
                 setDrawerSlug(null)

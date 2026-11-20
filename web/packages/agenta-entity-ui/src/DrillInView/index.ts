@@ -380,6 +380,7 @@ export {
 export {
     TriggerManagementSection,
     AddTriggerDropdown,
+    AutomationDeleteDialog,
 } from "./SchemaControls/TriggerManagementSection"
 export type {
     TriggerManagementSectionProps,
@@ -439,11 +440,11 @@ export {
 } from "./SchemaControls/agentTemplate/ToolManagementList"
 export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
 export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
-export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export {AddSubagentList} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {
     SubagentOption,
     SubagentIntegration,
-} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
 export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
@@ -483,7 +484,10 @@ export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
 // Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.
 export {CreateWithAIAddMenu} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
-export type {CreateWithAIAddMenuProps} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
+export type {
+    CreateWithAIAddMenuProps,
+    CreateWithAIMenuItem,
+} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
 export type {
     SectionTitleBadgeProps,

@@ -46,10 +46,10 @@ export const UnsavedChangesDialog = ({
                     ) : null}
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <Button variant="outline" onClick={() => onAnswer("keep")}>
+                    <Button variant="ghost" onClick={() => onAnswer("keep")}>
                         {t("ui.viewStack.keepEditing")}
                     </Button>
-                    <Button variant="destructive-outline" onClick={() => onAnswer("discard")}>
+                    <Button variant="outline" onClick={() => onAnswer("discard")}>
                         {t("ui.viewStack.discard")}
                     </Button>
                     <Button disabled={!canSave} onClick={() => onAnswer("save")}>

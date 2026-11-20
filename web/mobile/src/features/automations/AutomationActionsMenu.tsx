@@ -1,6 +1,7 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {type Automation, useAutomation} from "@agenta/automation-ui"
+import {AutomationDeleteDialog} from "@agenta/entity-ui/drill-in"
 import {createT, useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
@@ -15,8 +16,6 @@ import {
 import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {useConfirmModal} from "../settings/useConfirmModal"
-
 import {useAutomationRunNow} from "./useAutomationRunNow"
 
 const tNow = createT(automationsScreensCatalog)
@@ -25,11 +24,11 @@ const tNow = createT(automationsScreensCatalog)
  * The automation's own actions — everything that acts on the row rather than on a field.
  *
  * A kebab, because none of these is a thing to do often and one of them is one keystroke from
- * being irreversible. Delete goes through the same confirm modal every destructive action on
- * this surface uses, and names the automation, so it is never a generic "are you sure".
+ * being irreversible. Delete asks first with the "Delete this automation?" dialog (F06 f4), which
+ * names the automation, so it is never a generic "are you sure".
  *
  * On a list row the kebab is the row's only control, so it also carries the three things the
- * detail screen exposes as its own controls — test run, run history, and the on/off switch.
+ * detail screen exposes as its own controls — Run now, run history, and the on/off switch.
  * `surface` decides which set applies, so the detail screen never offers a second copy of a
  * control already sitting beside it.
  */
@@ -58,7 +57,7 @@ export const AutomationActionsMenu = ({
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
     // The list row's Run now ignores unsaved edits: the row has none.
     const {run: onRunNow} = useAutomationRunNow(automation, base)
-    const {confirm, modal} = useConfirmModal()
+    const [confirmDelete, setConfirmDelete] = useState(false)
 
     const onToggle = useCallback(async () => {
         const next = !automation.isActive
@@ -74,19 +73,14 @@ export const AutomationActionsMenu = ({
         }
     }, [automation.id, automation.isActive, setActive])
 
-    const onDelete = useCallback(() => {
-        confirm({
-            title: tNow("automations.screens.deleteTitle"),
-            message: tNow("automations.screens.deleteMessage", {name: automation.name}),
-            onOk: async () => {
-                await remove(automation.id)
-                message.success(tNow("automations.screens.deleted"))
-                const list = `${base}/automations`
-                if (onLeave) onLeave(list)
-                else void router.push(list).catch(() => undefined)
-            },
-        })
-    }, [automation.id, automation.name, base, confirm, onLeave, remove, router])
+    // F06 f4: the dialog runs the delete, and keeps the automation when it fails.
+    const onDelete = useCallback(async () => {
+        await remove(automation.id)
+        message.success(tNow("automations.screens.deleted"))
+        const list = `${base}/automations`
+        if (onLeave) onLeave(list)
+        else void router.push(list).catch(() => undefined)
+    }, [automation.id, base, onLeave, remove, router])
 
     return (
         <>
@@ -147,13 +141,18 @@ export const AutomationActionsMenu = ({
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
-                    <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                    <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
                         <Trash aria-hidden size={14} />
                         {t("automations.screens.delete")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            {modal}
+            <AutomationDeleteDialog
+                open={confirmDelete}
+                name={automation.name}
+                onDelete={onDelete}
+                onClose={() => setConfirmDelete(false)}
+            />
         </>
     )
 }

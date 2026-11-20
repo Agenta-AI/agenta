@@ -29,6 +29,9 @@ export const triggerSelectedCatalogEventAtom = atom<string | null>(null)
 export interface SubscriptionDrawerState {
     // Edit mode when set; create mode otherwise.
     subscriptionId?: string
+    // Create mode: the kind was chosen in the "Add automation" menu, so the form offers no
+    // switch to the other kind.
+    fixedKind?: boolean
     // Optional create-mode prefill from a chosen connection.
     connectionId?: string
     integrationKey?: string
@@ -58,6 +61,8 @@ export const triggerSubscriptionDrawerAtom = atom<SubscriptionDrawerState | null
 export interface ScheduleDrawerState {
     // Edit mode when set; create mode otherwise.
     scheduleId?: string
+    // Create mode: the kind was chosen in the "Add automation" menu (see SubscriptionDrawerState).
+    fixedKind?: boolean
     // Optional create-mode prefill that pre-binds the new schedule to a workflow
     // (e.g. opened from an agent's config panel). Keyed like `data.references`
     // (`application`/`application_variant`); each value is a `{id}` reference.

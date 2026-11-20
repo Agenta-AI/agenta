@@ -1,0 +1,38 @@
+[
+    {
+        "id": "mcp-subagents-add-light",
+        "story": "builderlayout-mcp-subagents-subagents--add-subagents",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Lead finder"
+    },
+    {
+        "id": "mcp-subagents-subagent-light",
+        "story": "builderlayout-mcp-subagents-subagents--subagent",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Show full instructions"
+    },
+    {
+        "id": "mcp-subagents-subagent-full-instructions-light",
+        "story": "builderlayout-mcp-subagents-subagents--subagent-full-instructions",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Hide instructions"
+    },
+    {
+        "id": "mcp-subagents-subagent-load-error-light",
+        "story": "builderlayout-mcp-subagents-subagents--subagent-config-load-error",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Try again"
+    }
+]
