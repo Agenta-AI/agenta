@@ -1294,34 +1294,70 @@ export async function uploadSkillsToSandbox(
   }
 }
 
-/** Recursively upload a host directory tree into a sandbox path via the FS API. */
+/** Requests in flight at once when uploading a tree (each one is a daemon round trip). */
+const UPLOAD_CONCURRENCY = 8;
+
+/**
+ * Upload a host directory tree into a sandbox path via the FS API: the deepest folders first (the
+ * daemon's mkdir makes the parents), then the files, `UPLOAD_CONCURRENCY` requests at a time.
+ */
 export async function uploadDirToSandbox(
   sandbox: any,
   srcDir: string,
   destDir: string,
 ): Promise<void> {
-  await sandbox.mkdirFs({ path: destDir });
-  for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
-    const srcPath = join(srcDir, entry.name);
-    const destPath = `${destDir}/${entry.name}`;
-    let isDir = entry.isDirectory();
-    let isFile = entry.isFile();
-    if (entry.isSymbolicLink()) {
+  const dirs: string[] = [];
+  const files: Array<{ src: string; dest: string }> = [];
+  const walk = (src: string, dest: string): void => {
+    dirs.push(dest);
+    for (const entry of readdirSync(src, { withFileTypes: true })) {
+      const srcPath = join(src, entry.name);
+      const destPath = `${dest}/${entry.name}`;
+      let isDir = entry.isDirectory();
+      let isFile = entry.isFile();
+      if (entry.isSymbolicLink()) {
+        try {
+          const st = statSync(srcPath);
+          isDir = st.isDirectory();
+          isFile = st.isFile();
+        } catch {
+          continue;
+        }
+      }
+      if (isDir) walk(srcPath, destPath);
+      else if (isFile) files.push({ src: srcPath, dest: destPath });
+    }
+  };
+  walk(srcDir, destDir);
+  const leaves = dirs.filter((dir) => !dirs.some((other) => other.startsWith(`${dir}/`)));
+  await inBatches(leaves, (path) => sandbox.mkdirFs({ path }));
+  await inBatches(files, ({ src, dest }) =>
+    sandbox.writeFsFile({ path: dest }, readFileSync(src, "utf-8")),
+  );
+}
+
+/**
+ * Run `work` over `items`, at most `UPLOAD_CONCURRENCY` at a time. After the first failure no new
+ * item starts; the call waits for the ones in flight and then rejects with that failure.
+ */
+async function inBatches<T>(
+  items: T[],
+  work: (item: T) => Promise<unknown>,
+): Promise<void> {
+  let next = 0;
+  let failure: { error: unknown } | undefined;
+  const worker = async (): Promise<void> => {
+    while (!failure && next < items.length) {
+      const item = items[next++]!;
       try {
-        const st = statSync(srcPath);
-        isDir = st.isDirectory();
-        isFile = st.isFile();
-      } catch {
-        continue;
+        await work(item);
+      } catch (error) {
+        failure ??= { error };
       }
     }
-    if (isDir) {
-      await uploadDirToSandbox(sandbox, srcPath, destPath);
-    } else if (isFile) {
-      await sandbox.writeFsFile(
-        { path: destPath },
-        readFileSync(srcPath, "utf-8"),
-      );
-    }
-  }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(UPLOAD_CONCURRENCY, items.length) }, worker),
+  );
+  if (failure) throw failure.error;
 }
