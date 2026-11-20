@@ -43,7 +43,7 @@ from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_RESERVED_TAG_KEYS,
     decode_session_attribution,
-    trigger_attribution_tags,
+    session_origin_tags,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
@@ -720,14 +720,15 @@ def test_reserved_attribution_tag_sanitizer_strips_the_whole_ag_namespace():
 
     # P1-7: the reserved-key list had already drifted across three hand-copied
     # spots. Pin the writer's output as a subset of the single exported set, so a
-    # future fifth attribution key added to `trigger_attribution_tags` fails here
+    # future fifth attribution key added to `session_origin_tags` fails here
     # instead of silently leaking on every read path.
-    written = trigger_attribution_tags(
+    written = session_origin_tags(
+        None,
         SessionTriggerAttribution(
             configuration_id=uuid4(),
             kind=SessionTriggerKind.schedule,
             delivery_id=uuid4(),
-        )
+        ),
     )
     assert set(written) <= SESSION_RESERVED_TAG_KEYS
 

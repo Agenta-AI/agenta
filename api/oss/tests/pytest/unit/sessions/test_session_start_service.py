@@ -985,3 +985,31 @@ async def test_a_retry_into_a_session_the_caller_cannot_send_to_claims_nothing()
         await service.start_once(**_args())
     inputs.claim_for_execution.assert_not_awaited()
     workflows.invoke_workflow_detached.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_start_records_the_run_origin_and_the_calling_session_on_the_row():
+    """The row the start creates carries the start's envelope and the calling session
+    record, so the mapper writes the session origin in the same insert."""
+    from oss.src.core.sessions.types import SessionCallingSession
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    streams = AsyncMock()
+    envelope = make_envelope(origin="calling_session", origin_id="calling-session")
+    calling_session = SessionCallingSession(
+        id="calling-session",
+        turn_id="calling-turn",
+        agent_id=uuid4(),
+        revision_id=uuid4(),
+    )
+    policy = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    await _start_with_streams(streams, []).start_once(
+        **{**_args(), "envelope": envelope},
+        access=policy,
+        calling_session=calling_session,
+    )
+
+    stream = streams.create.await_args.kwargs["stream"]
+    assert stream.run_envelope == envelope
+    assert stream.calling_session == calling_session

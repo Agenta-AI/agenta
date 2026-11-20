@@ -1083,6 +1083,7 @@ class SessionStreamsService:
                         references=request.references or None,
                         access=access,
                         channel_binding_id=channel_binding_id,
+                        run_envelope=envelope,
                     ),
                 )
             except SessionStreamAlreadyExists:

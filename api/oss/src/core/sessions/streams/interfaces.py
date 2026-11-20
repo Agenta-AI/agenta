@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.streams.dtos import (
     SessionNameSource,
     SessionStream,
@@ -194,10 +195,13 @@ class TriggerSessionClaimsDAOInterface(ABC):
         session_id: str,
         attribution: SessionTriggerAttribution,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope] = None,
     ) -> bool:
         """Atomically claim one trigger delivery and attribute its session.
 
-        A new session row carries `access`; an existing row keeps its policy (the
+        The session origin comes from `session_origin_tags(envelope, attribution)`;
+        `envelope` is the fire's run, None for a fire refused before it was built. A
+        new session row carries `access`; an existing row keeps its policy (the
         conflict arm merges only the attribution tags)."""
         ...
 

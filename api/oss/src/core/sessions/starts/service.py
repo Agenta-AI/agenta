@@ -22,6 +22,7 @@ from oss.src.core.sharing.service import (
     created_session_access,
 )
 from oss.src.core.sessions.streams.dtos import SessionStreamCreate
+from oss.src.core.sessions.types import SessionCallingSession
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.core.access.prefetch import request_memo_scope
@@ -193,7 +194,9 @@ class SessionStartsService:
         user_id: UUID,
         session_id: str,
         access: AccessPolicy,
+        envelope: RunEnvelope,
         channel_binding_id: Optional[UUID] = None,
+        calling_session: Optional[SessionCallingSession] = None,
     ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
         heartbeat, a rename, another start with the same key) already created it: that
@@ -208,6 +211,8 @@ class SessionStartsService:
                     session_id=session_id,
                     access=access,
                     channel_binding_id=channel_binding_id,
+                    run_envelope=envelope,
+                    calling_session=calling_session,
                 ),
             )
         except SessionStreamAlreadyExists:
@@ -322,11 +327,16 @@ class SessionStartsService:
         request_key: str,
         envelope: RunEnvelope,
         access: AccessPolicy | None = None,
+        calling_session: SessionCallingSession | None = None,
     ) -> SessionStartResult:
         """`access` is the first session's initial policy (the caller's requested
         visibility, through `initial_policy`). When given, the session row is created
         with it before the invoke, so the first heartbeat finds the row and never
-        writes its own default. A row that already exists keeps its policy."""
+        writes its own default. A row that already exists keeps its policy.
+
+        The row's origin comes from `envelope`'s run origin. `calling_session` is the
+        record of the session whose agent starts this one; it needs an envelope with
+        the run origin `calling_session`."""
         # The start runs as the request's principal; recheck before anything is
         # claimed (AccessDenied -> 403 at the route).
         await get_access_service().require(
@@ -383,7 +393,9 @@ class SessionStartsService:
                     user_id=user_id,
                     session_id=session_id,
                     access=access,
+                    envelope=envelope,
                     channel_binding_id=channel_binding_id,
+                    calling_session=calling_session,
                 )
                 if not created:
                     await self._run_admission.admit(

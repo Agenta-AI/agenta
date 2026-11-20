@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from uuid import UUID
 
 from pydantic import ValidationError
 
+from oss.src.core.access.dtos import RunEnvelope, RunOrigin
 from oss.src.core.sharing.dtos import Visibility
 from oss.src.core.sessions.types import (
+    SessionCallingSession,
     SessionDelivery,
     SessionOrigin,
     SessionTrigger,
@@ -33,6 +35,11 @@ SESSION_TRIGGER_KIND_TAG_KEY = "ag.trigger.kind"
 SESSION_TRIGGER_DELIVERY_ID_TAG_KEY = "ag.trigger.delivery_id"
 # Legacy: no current writer, but rows stamped before this diff may still carry it.
 SESSION_TRIGGER_NAME_TAG_KEY = "ag.trigger.name"
+# The calling session record of a session that an agent in another session created.
+SESSION_CALLING_SESSION_ID_TAG_KEY = "ag.calling_session.id"
+SESSION_CALLING_SESSION_TURN_ID_TAG_KEY = "ag.calling_session.turn_id"
+SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY = "ag.calling_session.agent_id"
+SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY = "ag.calling_session.revision_id"
 
 # Where the session's CURRENT name came from. Stamped "manual" by a header edit a person
 # authored, and left alone by an automatic one, so the row always answers "does a person
@@ -55,6 +62,10 @@ SESSION_RESERVED_TAG_KEYS = frozenset(
         SESSION_TRIGGER_KIND_TAG_KEY,
         SESSION_TRIGGER_DELIVERY_ID_TAG_KEY,
         SESSION_TRIGGER_NAME_TAG_KEY,
+        SESSION_CALLING_SESSION_ID_TAG_KEY,
+        SESSION_CALLING_SESSION_TURN_ID_TAG_KEY,
+        SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY,
+        SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY,
         SESSION_NAME_SOURCE_TAG_KEY,
         SESSION_NAME_REVISION_TAG_KEY,
     }
@@ -69,14 +80,73 @@ SESSION_RESERVED_TAG_KEYS = frozenset(
 SESSION_RESERVED_TAG_NAMESPACE = "ag."
 
 
-def trigger_attribution_tags(
+# The session origin of a row, by the run origin of the run that creates it. Every
+# `RunOrigin` has a row. None writes no `ag.origin` tag, so the row reads `manual`:
+# `web` is a person; `evaluation` gets no value of its own until an evaluation is seen
+# to create session rows; `child` (a blocking workflow call) has no session.
+_SESSION_ORIGIN_BY_RUN_ORIGIN: Dict[RunOrigin, Optional[SessionOrigin]] = {
+    RunOrigin.WEB: None,
+    RunOrigin.EVALUATION: None,
+    RunOrigin.CHILD: None,
+    RunOrigin.API: SessionOrigin.api,
+    RunOrigin.INSTALLATION: SessionOrigin.channel,
+    RunOrigin.SCHEDULE: SessionOrigin.trigger,
+    RunOrigin.SUBSCRIPTION: SessionOrigin.trigger,
+    RunOrigin.CALLING_SESSION: SessionOrigin.calling_session,
+}
+
+
+def session_origin_tags(
+    envelope: Optional[RunEnvelope],
+    attribution: Union[SessionTriggerAttribution, SessionCallingSession, None] = None,
+) -> Dict[str, str]:
+    """The creation record of a new session row, as reserved tags. The only writer of
+    `ag.origin`.
+
+    `envelope` is the run that creates the row. `attribution` is the identity of the
+    creator, when it has one: the `SessionTriggerAttribution` of a fire, or the
+    `SessionCallingSession` of a start from another session. A fire's attribution is
+    enough on its own (a refused fire claims its session before any envelope exists);
+    any other attribution must match the envelope's run origin."""
+    run_origin = envelope.context.origin if envelope is not None else None
+    if isinstance(attribution, SessionTriggerAttribution):
+        if run_origin not in (None, RunOrigin.SCHEDULE, RunOrigin.SUBSCRIPTION):
+            raise ValueError(f"a trigger attribution with run origin {run_origin}")
+        return {
+            SESSION_ORIGIN_TAG_KEY: SessionOrigin.trigger.value,
+            **_trigger_attribution_tags(attribution),
+        }
+    if isinstance(attribution, SessionCallingSession):
+        if run_origin != RunOrigin.CALLING_SESSION:
+            raise ValueError(f"a calling session record with run origin {run_origin}")
+        return {
+            SESSION_ORIGIN_TAG_KEY: SessionOrigin.calling_session.value,
+            **_calling_session_tags(attribution),
+        }
+    origin = (
+        _SESSION_ORIGIN_BY_RUN_ORIGIN[run_origin] if run_origin is not None else None
+    )
+    return {SESSION_ORIGIN_TAG_KEY: origin.value} if origin is not None else {}
+
+
+def _trigger_attribution_tags(
     attribution: SessionTriggerAttribution,
 ) -> Dict[str, str]:
     return {
-        SESSION_ORIGIN_TAG_KEY: SessionOrigin.trigger.value,
         SESSION_TRIGGER_ID_TAG_KEY: str(attribution.configuration_id),
         SESSION_TRIGGER_KIND_TAG_KEY: attribution.kind.value,
         SESSION_TRIGGER_DELIVERY_ID_TAG_KEY: str(attribution.delivery_id),
+    }
+
+
+def _calling_session_tags(
+    calling_session: SessionCallingSession,
+) -> Dict[str, str]:
+    return {
+        SESSION_CALLING_SESSION_ID_TAG_KEY: calling_session.id,
+        SESSION_CALLING_SESSION_TURN_ID_TAG_KEY: calling_session.turn_id,
+        SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY: str(calling_session.agent_id),
+        SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY: str(calling_session.revision_id),
     }
 
 
@@ -109,9 +179,8 @@ def decode_session_attribution(
 
     origin_value = tags.get(SESSION_ORIGIN_TAG_KEY)
     if origin_value is None:
-        # No stamp at all means a human session — every writer of `ag.origin` sets
-        # "trigger"; nothing ever stamped "manual" (P1-1). Default it here so a
-        # human session reports an origin instead of null.
+        # No stamp at all reads as `manual`: a person's session, or one created before
+        # its origin was recorded. Nothing ever stamps "manual" (P1-1).
         origin = SessionOrigin.manual
     else:
         try:
@@ -133,6 +202,24 @@ def decode_session_attribution(
         delivery = None
 
     return origin, trigger, delivery
+
+
+def decode_calling_session(
+    tags: Optional[Dict[str, Any]],
+) -> Optional[SessionCallingSession]:
+    """The calling session record, or None when the row has none or a broken one."""
+    tags = tags if isinstance(tags, dict) else {}
+    if SESSION_CALLING_SESSION_ID_TAG_KEY not in tags:
+        return None
+    try:
+        return SessionCallingSession(
+            id=tags.get(SESSION_CALLING_SESSION_ID_TAG_KEY),
+            turn_id=tags.get(SESSION_CALLING_SESSION_TURN_ID_TAG_KEY),
+            agent_id=tags.get(SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY),
+            revision_id=tags.get(SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY),
+        )
+    except ValidationError:
+        return None
 
 
 def encode_name_state(
@@ -212,7 +299,11 @@ def map_stream_dto_to_dbe_create(
         description=stream.description,
         flags=stream.flags.model_dump(mode="json") if stream.flags else None,
         tags=encode_name_state(
-            tags=stream.tags,
+            tags={
+                **(stream.tags or {}),
+                **session_origin_tags(stream.run_envelope, stream.calling_session),
+            }
+            or None,
             name_source=stream.name_source,
             name=stream.name,
         ),
@@ -258,6 +349,7 @@ def map_stream_dbe_to_dto(
         origin=origin,
         trigger=trigger,
         delivery=delivery,
+        calling_session=decode_calling_session(stream_dbe.tags),
         # NULL is a row written by pre-sharing code: project-visible until assigned.
         visibility=Visibility(stream_dbe.visibility)
         if stream_dbe.visibility
