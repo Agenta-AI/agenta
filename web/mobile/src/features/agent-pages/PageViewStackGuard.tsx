@@ -18,6 +18,19 @@ export const PageViewStackGuard = ({stackRef}: {stackRef: MutableRefObject<ViewS
             if (stackRef.current === stack) stackRef.current = null
         }
     }, [stack, stackRef])
+    // The bypass is for one navigation: the end of every route change clears it, also when the
+    // form was left clean and no listener consumed it.
+    useEffect(() => {
+        const clear = () => {
+            bypass.current = false
+        }
+        router.events.on("routeChangeComplete", clear)
+        router.events.on("routeChangeError", clear)
+        return () => {
+            router.events.off("routeChangeComplete", clear)
+            router.events.off("routeChangeError", clear)
+        }
+    }, [router])
     useEffect(() => {
         if (!stack.dirty) return
         const onRouteChangeStart = (url: string, {shallow}: {shallow: boolean}) => {

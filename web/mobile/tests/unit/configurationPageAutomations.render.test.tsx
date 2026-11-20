@@ -141,6 +141,21 @@ describe("Configuration page, Automations tab", () => {
         expect(button("Save")).toBeUndefined()
     })
 
+    it("stays on the tab when the person keeps editing", async () => {
+        automations.openDirty = true
+        await mount()
+        const agentTab = [...document.querySelectorAll('[role="tab"]')].find(
+            (node) => node.textContent === "Agent",
+        ) as HTMLElement
+        await act(async () => {
+            agentTab.dispatchEvent(new MouseEvent("mousedown", {bubbles: true, button: 0}))
+        })
+        await act(async () => button("Keep editing")!.click())
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+        expect(router.replace).not.toHaveBeenCalled()
+        expect(button("Save")).toBeTruthy()
+    })
+
     it("mounts the panel's AutomationsTab in a view stack, with no Files part", async () => {
         await act(async () =>
             root.render(
