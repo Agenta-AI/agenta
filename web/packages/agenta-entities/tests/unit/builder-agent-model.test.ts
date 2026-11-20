@@ -47,7 +47,9 @@ const builder = (agent: Record<string, unknown>): Workflow =>
         workflow_variant_id: "builder-variant",
         data: {
             uri: "agenta:builtin:agent:v0",
-            parameters: {agent: {instructions: {agents_md: "x"}, harness: {kind: "claude"}, ...agent}},
+            parameters: {
+                agent: {instructions: {agents_md: "x"}, harness: {kind: "claude"}, ...agent},
+            },
         },
     }) as unknown as Workflow
 
@@ -123,9 +125,7 @@ describe("ensureBuilderAgentModel", () => {
 
     it("reads the current revision and does not retry when the commit loses", async () => {
         loadCandidates.mockResolvedValue(ready([CANDIDATE]))
-        commitApi.mockRejectedValue(
-            Object.assign(new Error("conflict"), {response: {status: 409}}),
-        )
+        commitApi.mockRejectedValue(Object.assign(new Error("conflict"), {response: {status: 409}}))
         const current = {id: "someone-elses-revision"} as Workflow
         retrieveApi.mockResolvedValue(current)
 
