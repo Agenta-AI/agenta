@@ -50,7 +50,7 @@ export const instructionsSection = ({
     return (
         hasInstructions && {
             key: "instructions",
-            icon: <FileText size={16} />,
+            icon: <FileText size={14} />,
             title: fieldTitle("instructions", t("entityUi.agentTemplate.instructions")),
             phoneSummary,
             indicator: sectionIndicator("instructions"),

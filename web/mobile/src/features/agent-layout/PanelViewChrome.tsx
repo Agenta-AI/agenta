@@ -5,22 +5,23 @@ import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import {cn} from "@agenta/ui/styles"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PhoneViewHeader, ViewFormActions, type ViewChromeProps} from "@agenta/ui/view-stack"
-import {ArrowsOutLineHorizontal, CaretRight, X} from "@phosphor-icons/react"
+import {ArrowsOutSimple} from "@phosphor-icons/react"
 
 import {useAgentPanel} from "./agentPanelContext"
+import {PanelCloseButton} from "./PanelCloseButton"
 
 /**
  * The right panel's chrome around an open view: the breadcrumb in place of the tabs, "Widen the
- * panel" for a wide view, Close, and the view's action row at the bottom. On a phone the view
+ * panel", Close (canvas F01: every view header has both), and the view's action row at the bottom. On a phone the view
  * covers the screen with the phone header (back arrow and title) and 44 px buttons. The view
  * keeps its place in the tree in both, so a resize across the phone width keeps its edits.
  */
 export const PanelViewChrome = ({
     crumbs,
     apply,
-    wide,
     readOnly,
     form,
+    footerStartRef,
     onBack,
     onCancel,
     onSave,
@@ -37,21 +38,21 @@ export const PanelViewChrome = ({
             {phone ? (
                 <PhoneViewHeader crumbs={crumbs} onBack={onBack} />
             ) : (
-                <div className="flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-3">
-                    <nav className="flex min-w-0 flex-1 items-center gap-1 text-sm">
+                <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pl-2 pr-1.5">
+                    {/* Parent crumbs 13 px fg2, "›" between, the open view 13 px / 600. */}
+                    <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">
                         {crumbs.map((crumb, index) => (
-                            <span key={index} className="flex min-w-0 items-center gap-1">
+                            <span key={index} className="flex min-w-0 items-center gap-1.5">
                                 {index > 0 ? (
-                                    <CaretRight
-                                        size={12}
-                                        className="shrink-0 text-colorTextTertiary"
-                                    />
+                                    <span aria-hidden className="text-sm text-colorTextTertiary">
+                                        ›
+                                    </span>
                                 ) : null}
                                 {crumb.onSelect ? (
                                     <button
                                         type="button"
                                         title={crumb.title}
-                                        className="truncate text-colorTextSecondary hover:text-colorText"
+                                        className="h-7 truncate rounded-md px-1.5 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
                                         onClick={crumb.onSelect}
                                     >
                                         {crumb.title}
@@ -61,8 +62,9 @@ export const PanelViewChrome = ({
                                         title={crumb.title}
                                         className={cn(
                                             "truncate",
-                                            index === crumbs.length - 1 &&
-                                                "font-medium text-colorText",
+                                            index === crumbs.length - 1
+                                                ? "font-semibold text-colorText"
+                                                : "px-1.5 text-colorTextSecondary",
                                         )}
                                     >
                                         {crumb.title}
@@ -71,29 +73,18 @@ export const PanelViewChrome = ({
                             </span>
                         ))}
                     </nav>
-                    {wide ? (
-                        <SimpleTooltip title={t("agentLayout.panel.widen")}>
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={t("agentLayout.panel.widen")}
-                                aria-pressed={panel.wide}
-                                onClick={() => setWide(!panel.wide)}
-                            >
-                                <ArrowsOutLineHorizontal size={16} />
-                            </Button>
-                        </SimpleTooltip>
-                    ) : null}
-                    <SimpleTooltip title={t("agentLayout.panel.close")}>
+                    <SimpleTooltip title={t("agentLayout.panel.widen")}>
                         <Button
                             variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("agentLayout.panel.close")}
-                            onClick={() => void panel.close()}
+                            size="icon-compact"
+                            aria-label={t("agentLayout.panel.widen")}
+                            aria-pressed={panel.wide}
+                            onClick={() => setWide(!panel.wide)}
                         >
-                            <X size={16} />
+                            <ArrowsOutSimple size={16} />
                         </Button>
                     </SimpleTooltip>
+                    <PanelCloseButton />
                 </div>
             )}
             {/* Edge to edge: each view pads itself. */}
@@ -112,6 +103,7 @@ export const PanelViewChrome = ({
                         onBack={onBack}
                         onCancel={onCancel}
                         onSave={onSave}
+                        startRef={footerStartRef}
                     />
                 </div>
             )}

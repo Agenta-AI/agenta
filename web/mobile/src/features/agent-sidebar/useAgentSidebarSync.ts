@@ -16,6 +16,19 @@ import {
     type SelectedSidebar,
 } from "./selectedSidebar"
 
+/**
+ * The agent the page on screen belongs to: the agent of an agent page, or the agent of the open
+ * session (from the session's row, the query the chat screen reads). Null on other pages and
+ * until a session's row loads.
+ */
+export const usePageAgentId = (projectId: string): string | null => {
+    const router = useRouter()
+    const fromRoute = routeAgentId(router.pathname, router.query)
+    const sessionId = fromRoute ? null : routeSessionId(router.pathname, router.query)
+    const header = useSessionHeader(projectId, sessionId ?? "")
+    return fromRoute ?? (sessionId && header.data ? sessionAgentId(header.data) : null)
+}
+
 /** The last path the sync saw in this tab; null until the first page (a load or a reload). */
 let lastSeenPath: string | null = null
 
@@ -41,10 +54,7 @@ export const useAgentSidebarSync = (projectId: string) => {
     const selectedRef = useRef(selected)
     selectedRef.current = selected
 
-    const fromRoute = routeAgentId(router.pathname, router.query)
-    const sessionId = fromRoute ? null : routeSessionId(router.pathname, router.query)
-    const header = useSessionHeader(projectId, sessionId ?? "")
-    const pageAgentId = fromRoute ?? (sessionId && header.data ? sessionAgentId(header.data) : null)
+    const pageAgentId = usePageAgentId(projectId)
     const pageAgentRef = useRef(pageAgentId)
     pageAgentRef.current = pageAgentId
 

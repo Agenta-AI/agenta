@@ -157,8 +157,6 @@ const agentScope = {
                         sessions: SUPPORT_TRIAGE_SESSIONS,
                         total: SUPPORT_TRIAGE_TOTAL,
                         t,
-                        newSessionHref: `${P}/agents/${SUPPORT_TRIAGE.id}`,
-                        onNewSession: (event) => event.preventDefault(),
                     }),
                 },
             ],

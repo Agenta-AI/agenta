@@ -130,8 +130,11 @@ describe("Automations tab on a phone", () => {
         renderTab({phone: false})
         expect(container.querySelector("[role=switch]")).toBe(null)
         expect(addButton()).toBe(null)
-        expect(container.textContent).toContain("Automations")
-        expect(container.querySelector("[aria-label='Add automation']")).not.toBe(null)
+        // No header bar: the bordered "Add automation" button sits at the top right (F05 f1).
+        const add = [...container.querySelectorAll("button")].find(
+            (button) => button.textContent === "Add automation",
+        )
+        expect(add?.getAttribute("aria-haspopup")).toBe("menu")
     })
 })
 

@@ -257,8 +257,7 @@ const SessionRowActions = ({
                     contextMenuPressRef.current = false
                 }}
             >
-                {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}
-                <span className="min-w-0 flex-1 truncate font-normal">{link}</span>
+                <span className="min-w-0 flex-1 truncate">{link}</span>
                 <span
                     // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
                     // right edge. Only session rows are wrapped, so no other nav row shifts.

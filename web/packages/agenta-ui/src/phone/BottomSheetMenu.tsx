@@ -32,7 +32,7 @@ export interface BottomSheetMenuProps {
 
 /**
  * A menu of two to five entries that start something, as a bottom sheet on a phone: a grab bar,
- * the heading, one row of at least 56 px per entry, and "Cancel". A tap on "Cancel" or on the
+ * the heading, one row of at least 60 px per entry, and "Cancel". A tap on "Cancel" or on the
  * dimmed page closes it and changes nothing. A select stays a menu under its field; this is for
  * menus that start a form or an action.
  */
@@ -61,7 +61,7 @@ export const BottomSheetMenu = ({
                         role="menuitem"
                         disabled={item.disabled}
                         className={cn(
-                            "box-border flex min-h-14 w-full cursor-pointer items-center gap-3.5 border-0 border-t border-solid border-colorBorderSecondary bg-transparent px-4 py-2 text-left font-[inherit]",
+                            "box-border flex min-h-[60px] w-full cursor-pointer items-center gap-3.5 border-0 border-t border-solid border-colorSplit bg-transparent px-4 py-2 text-left font-[inherit]",
                             "outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-not-allowed disabled:opacity-50",
                         )}
                         onClick={() => {
@@ -92,7 +92,7 @@ export const BottomSheetMenu = ({
                                 {item.label}
                             </span>
                             {item.description ? (
-                                <span className="text-xs text-colorTextTertiary">
+                                <span className="text-[12px] leading-4 text-colorTextTertiary">
                                     {item.description}
                                 </span>
                             ) : null}

@@ -2,7 +2,7 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
-    describeCron,
+    describeSchedule,
     isEntityActive,
     nextCronRuns,
     type TriggerSchedule,
@@ -13,6 +13,7 @@ import {Clock} from "@phosphor-icons/react"
 
 import {scheduleTextNow} from "../../../gatewayTrigger/scheduleText"
 
+import {RowTile} from "./rowParts"
 import {TriggerRow} from "./TriggerRow"
 
 const tNow = createT(triggersCatalog)
@@ -55,7 +56,9 @@ export function ScheduleTriggerRow({
     // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
     const cadence = useMemo(
         () =>
-            cron ? describeCron(cron, scheduleTextNow()) : tNow("entityUi.triggers.noScheduleSet"),
+            cron
+                ? describeSchedule(cron, scheduleTextNow())
+                : tNow("entityUi.triggers.noScheduleSet"),
         // `t` re-words the cadence when the language changes.
         [cron, t],
     )
@@ -71,7 +74,12 @@ export function ScheduleTriggerRow({
 
     return (
         <TriggerRow
-            icon={<Clock size={15} />}
+            // The canvas violet has no token yet; the info ink is the nearest one.
+            tile={
+                <RowTile className="bg-[var(--ag-colorInfo)]">
+                    <Clock />
+                </RowTile>
+            }
             name={named ? (record.name as string) : t("entityUi.triggers.untitledSchedule")}
             nameMuted={!named}
             subtitle={next ? `${cadence} · ${next}` : cadence}

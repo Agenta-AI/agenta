@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useContext, useMemo} from "react"
 
 import {sessionListQueryOptions} from "@agenta/entities/session"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
@@ -11,7 +11,7 @@ import type {
     SidebarSelection,
     SidebarSlotContext,
 } from "@agenta/navigation"
-import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
+import {SidebarBackButton, SidebarLayoutContext, SidebarToggleButton} from "@agenta/navigation-ui"
 import {sessionRowVm} from "@agenta/sessions/row"
 import {pendingBySessionId, useActionableInteractions} from "@agenta/sessions/state"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
@@ -37,6 +37,7 @@ import {
     openMainSidebar,
     useSelectedSidebar,
 } from "./selectedSidebar"
+import {SidebarNewButton} from "./SidebarNewButton"
 import {switchTarget} from "./switchAgent"
 
 /** How many latest sessions the agent sidebar lists; "Show N older sessions" opens the rest. */
@@ -178,48 +179,41 @@ export const createAgentSidebarScope = (
         )
     }
 
+    // The phone sheet ends after the session list: no Templates, Settings, workspace switcher,
+    // credits or row menus there (M02).
     const useSections = (): SidebarSection[] => {
         const t = useT(agentSidebarCatalog)
+        const phone = useContext(SidebarLayoutContext) === "phone"
         const bottomItems = useMobileBottomNavItems(projectURL)
         const wrapSessionRow = useRailSessionRowWrapper(projectURL)
         const {sessions, total, status, retry} = useAgentSessions(projectId, agentId)
 
-        return useMemo(
-            () => [
-                {
-                    key: "agent",
-                    items: agentSidebarItems({
-                        projectURL,
-                        agentId,
-                        sessions,
-                        total,
-                        status,
-                        onRetry: retry,
-                        t,
-                        newSessionHref: agentEntryHref(projectURL, agentId),
-                        onNewSession: (event) => {
-                            // A modified or middle click opens the link in a new tab instead.
-                            if (
-                                event.button !== 0 ||
-                                event.metaKey ||
-                                event.ctrlKey ||
-                                event.shiftKey ||
-                                event.altKey
-                            )
-                                return
-                            event.preventDefault()
-                            startBlankSession(projectURL, agentId)
-                        },
-                        wrapSessionRow,
-                    }),
-                },
-                {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
-            ],
-            [bottomItems, retry, sessions, status, t, total, wrapSessionRow],
-        )
+        return useMemo(() => {
+            const agent: SidebarSection = {
+                key: "agent",
+                items: agentSidebarItems({
+                    projectURL,
+                    agentId,
+                    sessions,
+                    total,
+                    status,
+                    onRetry: retry,
+                    t,
+                    phone,
+                    wrapSessionRow: phone ? undefined : wrapSessionRow,
+                }),
+            }
+            return phone
+                ? [agent]
+                : [
+                      agent,
+                      {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
+                  ]
+        }, [bottomItems, phone, retry, sessions, status, t, total, wrapSessionRow])
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
+        const t = useT(agentSidebarCatalog)
         const router = useRouter()
         const selected = useSelectedSidebar()
         return (
@@ -245,27 +239,37 @@ export const createAgentSidebarScope = (
                         collapsed={collapsed}
                     />
                 }
+                newSession={
+                    <SidebarNewButton
+                        label={t("agentSidebar.newSession")}
+                        href={agentEntryHref(projectURL, agentId)}
+                        collapsed={collapsed}
+                        onPlainClick={() => startBlankSession(projectURL, agentId)}
+                    />
+                }
                 onFold={openMainSidebar}
             />
         )
     }
 
     // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
-    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
-        <DrawerProjectSwitcher
-            workspaceId={workspaceId}
-            projectId={projectId}
-            collapsed={collapsed}
-        />
-    )
+    const AfterBottom = ({collapsed}: {collapsed: boolean}) =>
+        useContext(SidebarLayoutContext) === "phone" ? null : (
+            <DrawerProjectSwitcher
+                workspaceId={workspaceId}
+                projectId={projectId}
+                collapsed={collapsed}
+            />
+        )
 
-    const Footer = ({collapsed}: SidebarSlotContext) => (
-        <CreditsRemainingWidget
-            projectId={projectId}
-            settingsURL={`${projectURL}/settings`}
-            collapsed={collapsed}
-        />
-    )
+    const Footer = ({collapsed}: SidebarSlotContext) =>
+        useContext(SidebarLayoutContext) === "phone" ? null : (
+            <CreditsRemainingWidget
+                projectId={projectId}
+                settingsURL={`${projectURL}/settings`}
+                collapsed={collapsed}
+            />
+        )
 
     return {
         id: `agent-sidebar:${agentId}`,

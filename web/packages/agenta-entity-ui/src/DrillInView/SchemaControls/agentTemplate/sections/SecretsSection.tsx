@@ -19,12 +19,14 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
+import {cn} from "@agenta/ui/styles"
 import {Spinner} from "@agenta/ui/ui"
-import {Key, Vault} from "@phosphor-icons/react"
+import {LockSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../../../../accounts/copy"
@@ -32,11 +34,17 @@ import {SecretRemoveDialog} from "../../../../secret/SecretRemoveDialog"
 import {ItemRow, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
+import {useSectionListLayout} from "../sectionListLayout"
 import {SectionPageAction} from "../SectionPageAction"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
 
-const tNow = createT(secretViewsCatalog, modelHarnessCatalog, secretAttachmentCatalog)
+const tNow = createT(
+    commonCatalog,
+    secretViewsCatalog,
+    modelHarnessCatalog,
+    secretAttachmentCatalog,
+)
 
 export interface SecretsSectionParams {
     sectionIndicator: SectionIndicatorFor
@@ -60,11 +68,14 @@ export const secretsSection = ({
 }: SecretsSectionParams): SectionResult =>
     Boolean(revisionId) && {
         key: "secrets",
-        icon: <Vault size={16} />,
+        icon: <LockSimple size={14} />,
         title: tNow("entityUi.secretViews.secrets"),
         summary: bindings.length
             ? tNow("entityUi.modelHarness.attachedCount", {count: bindings.length})
-            : tNow("entityUi.modelHarness.noneAttached"),
+            : tNow("common.none"),
+        // The phone row lists the variables (M07: "BILLING_API_KEY, GITHUB_TOKEN").
+        phoneSummary:
+            bindings.map((binding) => binding.binding.name).join(", ") || tNow("common.none"),
         indicator: sectionIndicator("secrets"),
         extra: !disabled ? (
             <SecretsAddButton
@@ -80,7 +91,8 @@ export const secretsSection = ({
                 onAdd={() => openAttach()}
             />
         ) : undefined,
-        defaultOpen: bindings.length > 0,
+        // Closed by default (canvas S02 opens Instructions and Integrations only).
+        defaultOpen: false,
         content: (
             <SecretsSectionBody
                 revisionId={revisionId ?? ""}
@@ -154,6 +166,8 @@ export const SecretsSectionBody = ({
     onRevisionCommitted?: (revisionId: string) => void
 }) => {
     const t = useT(agentSecretsCatalog)
+    // On the page the rows are flat in the card; a notice above them keeps off the card's edge.
+    const inset = useSectionListLayout() === "page" && bindings.length > 0
     const {namedSecrets, loading} = useVaultSecret()
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId))
     const commit = useSetAtom(commitAgentCredentialsAtom)
@@ -200,7 +214,12 @@ export const SecretsSectionBody = ({
     return (
         <div className="flex flex-col gap-2">
             {notice ? (
-                <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
+                <div
+                    className={cn(
+                        "rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary",
+                        inset && "m-3",
+                    )}
+                >
                     {notice}
                 </div>
             ) : null}
@@ -244,7 +263,7 @@ export const SecretsSectionBody = ({
                                     description: secretName,
                                     mono: "",
                                     color: "",
-                                    icon: <Key size={14} />,
+                                    icon: <LockSimple size={14} />,
                                     avatarClassName:
                                         "bg-colorFillSecondary text-colorTextSecondary",
                                     tags: [],

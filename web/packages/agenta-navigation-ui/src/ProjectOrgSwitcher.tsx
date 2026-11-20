@@ -292,7 +292,7 @@ export const ProjectOrgSwitcherView = ({
                 // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 pb-1.5 transition-all duration-300",
+                "flex gap-1 px-2 pb-2 transition-all duration-300",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -313,17 +313,22 @@ export const ProjectOrgSwitcherView = ({
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
-                                : "h-8 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
+                                : "h-10 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
-                        <InitialsAvatar size="small" name={projectLabel} className="shrink-0" />
+                        {/* The design's workspace mark: radius 5, a 10 px semibold initial. */}
+                        <InitialsAvatar
+                            size="small"
+                            name={projectLabel}
+                            className="shrink-0 !rounded-[5px] !text-[10px] !font-semibold"
+                        />
                         {/* One line, not two: the org already names itself on the panel's
                             caption, and stacking it here made the rail's shortest row its
                             tallest. */}
                         {!collapsed && (
                             <>
-                                <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-none text-colorText">
+                                <span className="min-w-0 flex-1 truncate text-left text-sm leading-none text-colorText">
                                     {projectLabel}
                                 </span>
                                 {triggerMeta ? (

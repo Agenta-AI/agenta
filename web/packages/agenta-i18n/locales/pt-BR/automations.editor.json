@@ -7,7 +7,6 @@
     "kindScheduleShort": "Agendamento",
     "kindEvent": "Quando algo acontece",
     "kindEventShort": "Evento",
-    "kindFixed": "O tipo de gatilho de uma automação não pode ser alterado depois que ela é criada.",
     "helperPaused": "Pausada: não será executada até que você a ative.",
     "helperEvent": "Executa toda vez que este evento chegar.",
     "instruction": "Instrução",
@@ -108,5 +107,12 @@
     "noFilters": "Este evento não precisa de filtros: ele é executado toda vez que chega.",
     "allApps": "Todos os apps",
     "done": "Concluir",
-    "untitledAutomation": "Automação sem título"
+    "untitledAutomation": "Automação sem título",
+    "schedule": "Agendamento",
+    "event": "Evento",
+    "app": "App",
+    "preview": "Pré-visualização",
+    "nextRunLabel": "Próxima execução",
+    "nextRunAt": "{{date}}, {{time}} UTC · {{relative}}",
+    "moreActionsFor": "Mais ações para {{name}}"
 }

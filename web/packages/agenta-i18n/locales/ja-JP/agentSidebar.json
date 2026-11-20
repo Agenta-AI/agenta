@@ -6,6 +6,7 @@
     "channels": "チャネル",
     "configuration": "設定",
     "earlier": "それ以前",
+    "filter": "フィルター",
     "loadError": "セッションを読み込めませんでした",
     "loading": "読み込み中",
     "newSession": "新しいセッション",
@@ -13,6 +14,7 @@
     "searchAgents": "エージェントを検索",
     "seeAllSessions": "すべてのセッションを表で表示",
     "sessions": "セッション",
+    "showOlderSessionsShort": "以前のセッションを表示",
     "showOlderSessions_other": "以前のセッションを{{count}}件表示",
     "today": "今日",
     "yesterday": "昨日"

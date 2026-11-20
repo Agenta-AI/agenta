@@ -9,10 +9,24 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    CollapseCaret,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretRight, Trash} from "@phosphor-icons/react"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
+import {useSectionListLayout} from "./sectionListLayout"
+
+/**
+ * On the Configuration page (canvas A04) the rows are flat inside the section's one card: no
+ * border of their own, a line above each row. The card hides the first row's line.
+ */
+const PAGE_ROW =
+    "rounded-none border-0 border-t border-solid border-colorBorderSecondary px-3.5 py-3"
 
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
@@ -49,7 +63,7 @@ const STATUS_TAG_TONE = {
 // antd pins `.ant-tag`'s line-height in px (22.4), so overriding only the FONT size leaves it
 // intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-xs` drops
 // (tags rendered 20.3px instead of 24.4px until this was restated).
-const TAG_CLS = "m-0 text-xs leading-[22.4px]"
+const TAG_CLS = "m-0 text-[12px] leading-4"
 // Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
 const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
     new: "var(--ag-colorSuccess)",
@@ -150,10 +164,12 @@ export function ItemRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
+    const page = useSectionListLayout() === "page"
     // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
+            data-page-row={page || undefined}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
@@ -164,6 +180,7 @@ export function ItemRow({
                 interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
+                page && PAGE_ROW,
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
@@ -230,9 +247,7 @@ export function ItemRow({
                         <Trash size={14} />
                     </button>
                 ) : null}
-                {interactive ? (
-                    <CaretRight size={13} className="text-[var(--ag-colorTextQuaternary)]" />
-                ) : null}
+                {interactive ? <CollapseCaret size={12} /> : null}
             </div>
         </div>
     )
@@ -317,9 +332,8 @@ export function ItemChildRow({
 }
 
 /**
- * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
- * content, clamped with an ellipsis. The whole row opens the editor drawer for the full content —
- * there is no inline expand, so it reads the same as the tool / MCP rows.
+ * An instructions markdown file row (canvas F01): avatar, the filename, and one line with the word
+ * count and the start of the (markdown-stripped) content. The whole row opens the editor.
  */
 export function InstructionsFileRow({
     filename,
@@ -333,12 +347,26 @@ export function InstructionsFileRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
-    const descriptor = describeInstruction(filename, content)
+    const page = useSectionListLayout() === "page"
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
     const meta =
         wordCount > 0
             ? t("entityUi.configItems.wordCount", {count: wordCount})
             : t("entityUi.configItems.empty")
+    if (page) {
+        return (
+            <InstructionsPagePreview
+                filename={filename}
+                content={content}
+                meta={meta}
+                onOpen={onOpen}
+                status={status}
+            />
+        )
+    }
+    const descriptor = describeInstruction(filename, content)
+    // An empty file has no preview: `descriptor.description` already says "Empty file".
+    const line = wordCount > 0 ? `${meta} · ${descriptor.description}` : meta
     return (
         <div
             role="button"
@@ -351,35 +379,87 @@ export function InstructionsFileRow({
                 }
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
-            // Same border and ground as the integration and subagent rows above: --ag-c-EAEFF5 is
-            // a fixed light hex, so this row's edge vanished against a dark section.
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2.5 transition-colors",
+                "group flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-2.5 pl-3 pr-2 transition-colors",
                 !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >
-            <ItemAvatar descriptor={descriptor} />
-            <div className="min-w-0 flex-1">
-                {/* Identity row: filename (color inherits → theme-correct) + a muted meta, so the
-                    name/type/size reads separately from the content preview below. */}
-                <div className="flex items-baseline gap-2">
-                    <span className="truncate font-mono text-[13px] font-medium leading-tight">
+            {/* The "md" monogram, not the file glyph (canvas F01). */}
+            <ItemAvatar descriptor={{...descriptor, icon: undefined}} />
+            <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex items-center gap-2">
+                    <span className="truncate font-mono text-[13px] leading-[18px]">
                         {filename}
-                    </span>
-                    {/* antd's Typography carries `line-height: token.lineHeight` (5/3); a bare
-                        span would inherit the row's instead, so restate it. */}
-                    <span className="shrink-0 text-xs leading-[1.6667] text-colorTextDescription">
-                        {meta}
                     </span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
-                {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
-                    clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
-                <span className="mt-1 line-clamp-2 text-xs leading-snug text-colorTextDescription">
-                    {descriptor.description}
+                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                    {line}
                 </span>
             </div>
-            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-zinc-5)]" />
+            <CollapseCaret size={12} />
+        </div>
+    )
+}
+
+/** How many lines of the file the page shows; `max-h-44` also cuts one long paragraph there. */
+const PREVIEW_LINES = 6
+
+/**
+ * The instructions file on the Configuration page (canvas A04): the filename and the word count
+ * on a header line, then the start of the file with its headings in bold. The whole card opens
+ * the editor.
+ */
+function InstructionsPagePreview({
+    filename,
+    content,
+    meta,
+    onOpen,
+    status,
+}: {
+    filename: string
+    content: string
+    meta: string
+    onOpen: () => void
+    status?: ItemRowStatus
+}) {
+    const lines = content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, PREVIEW_LINES)
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onOpen()
+                }
+            }}
+            data-page-row
+            className="flex cursor-pointer flex-col hover:bg-colorFillQuaternary"
+        >
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3.5 py-3">
+                <span className="truncate font-mono text-[13px] leading-[18px]">{filename}</span>
+                {status ? <StatusTag status={status} /> : null}
+                <span className="ml-auto shrink-0 text-[12px] leading-4 text-colorTextTertiary">
+                    {meta}
+                </span>
+            </div>
+            <div className="flex max-h-44 flex-col gap-1 overflow-hidden px-3.5 py-3 text-sm text-colorText">
+                {lines.map((line, index) =>
+                    line.startsWith("#") ? (
+                        <span key={index} className="mt-1 font-semibold first:mt-0">
+                            {line.replace(/^#+\s*/, "")}
+                        </span>
+                    ) : (
+                        <span key={index}>{line}</span>
+                    ),
+                )}
+            </div>
         </div>
     )
 }

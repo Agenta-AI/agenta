@@ -23,14 +23,14 @@ export const AgentsNavAction = ({base}: {base: string}) => {
             }}
         >
             <PopoverTrigger asChild>
-                {/* Same geometry and tokens as the session headings' "+". */}
+                {/* Shown at rest: a 14 px "+" in the quaternary ink, as the design draws it. */}
                 <button
                     type="button"
                     aria-label={t("navigation.items.newAgentOrOpen")}
                     title={t("navigation.items.newAgentOrOpen")}
-                    className="text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0"
+                    className="text-colorTextQuaternary hover:bg-colorFillTertiary hover:text-colorText flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0"
                 >
-                    <Plus size={12} />
+                    <Plus size={14} />
                 </button>
             </PopoverTrigger>
             <PopoverContent

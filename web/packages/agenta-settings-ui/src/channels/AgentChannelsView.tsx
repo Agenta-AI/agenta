@@ -56,6 +56,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     const t = useT(agentChannelsCatalog, channelsPageCatalog, commonCatalog)
     const agentName = props.agentName ?? t("channels.page.yourAgent")
     const [retrying, setRetrying] = useState(false)
+    const phone = useIsPhone()
     const {open, openRoute, panel} = useChannelPanel({
         ...props,
         renderPanel: (view) => (view.open ? <InlineChannelView {...view} /> : null),
@@ -95,15 +96,20 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     }
 
     return (
-        <div className="flex flex-col gap-5" data-testid="agent-channels">
-            <p className="m-0 text-[13px] leading-normal text-muted-foreground">
+        <div
+            className={phone ? "flex flex-col" : "flex flex-col gap-5"}
+            data-testid="agent-channels"
+        >
+            <p
+                className={`m-0 text-[13px] leading-5 text-muted-foreground ${phone ? "px-4 pb-1 pt-3.5" : ""}`}
+            >
                 {t("agentPages.channels.intro", {agent: agentName})}
             </p>
 
             {loadError ? (
                 <div
                     role="alert"
-                    className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-[13px] text-error"
+                    className={`flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-[13px] text-error ${phone ? "mx-4 mt-3" : ""}`}
                 >
                     <span className="min-w-0">{loadError}</span>
                     <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
@@ -111,11 +117,11 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                     </Button>
                 </div>
             ) : loading ? (
-                <ChannelRowsSkeleton />
+                <ChannelRowsSkeleton phone={phone} />
             ) : (
                 <>
                     {connected.length ? (
-                        <ChannelGroup title={t("agentPages.channels.connected")}>
+                        <ChannelGroup title={t("agentPages.channels.connected")} phone={phone}>
                             {connected.map(({platform, summary}) => {
                                 const mine = agentConnectionsOf(connections, platform)
                                 // Any of the agent's connections can need attention, not only
@@ -158,13 +164,15 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                                         action={
                                             revoked ? t("common.reconnect") : t("common.manage")
                                         }
+                                        connected
+                                        phone={phone}
                                         onClick={() => manage(platform)}
                                     />
                                 )
                             })}
                         </ChannelGroup>
                     ) : null}
-                    <ChannelGroup title={t("agentPages.channels.addChannel")}>
+                    <ChannelGroup title={t("agentPages.channels.addChannel")} phone={phone}>
                         {toAdd.map(({platform, summary}) => (
                             <ChannelRow
                                 key={platform}
@@ -178,6 +186,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                                         ? t("channels.page.connectHere")
                                         : t("common.connect")
                                 }
+                                phone={phone}
                                 onClick={() => open(platform)}
                             />
                         ))}
@@ -188,21 +197,50 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     )
 }
 
-const ChannelGroup = ({title, children}: {title: string; children: React.ReactNode}) => (
-    <section className="flex flex-col gap-1.5">
-        <h3 className="m-0 text-xs font-medium text-muted-foreground">{title}</h3>
-        <div className="flex flex-col overflow-hidden rounded-lg border border-solid border-border">
+/**
+ * A group of channels. On a desktop each channel is its own bordered card (A07); on a phone the
+ * rows run edge to edge with a line under each (M13).
+ */
+const ChannelGroup = ({
+    title,
+    phone,
+    children,
+}: {
+    title: string
+    phone: boolean
+    children: React.ReactNode
+}) =>
+    phone ? (
+        <section className="flex flex-col">
+            <h3 className="m-0 px-4 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-colorTextTertiary">
+                {title}
+            </h3>
+            <div className="flex flex-col">{children}</div>
+        </section>
+    ) : (
+        <section className="flex flex-col gap-2">
+            <h3 className="m-0 text-[12px] font-medium leading-4 text-muted-foreground">{title}</h3>
             {children}
-        </div>
-    </section>
-)
+        </section>
+    )
 
+const ROW_DESKTOP =
+    "box-border flex w-full items-center gap-2.5 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left text-sm leading-5"
+const ROW_PHONE =
+    "box-border flex min-h-14 w-full items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer py-1.5 pl-4 pr-2 text-left text-[15px] leading-5"
+
+/**
+ * One channel. A connected channel is one button that opens its manage view, with the action
+ * and a caret at the right; a channel to add has a "Connect" button.
+ */
 const ChannelRow = ({
     platform,
     sub,
     subClass,
     tag,
     action,
+    connected = false,
+    phone,
     onClick,
 }: {
     platform: ChannelPlatform
@@ -210,36 +248,77 @@ const ChannelRow = ({
     subClass: string
     tag?: React.ReactNode
     action: string
+    connected?: boolean
+    phone: boolean
     onClick: () => void
-}) => (
-    <div
-        className="flex items-center gap-3 border-0 border-b border-solid border-border px-3 py-2.5 last:border-b-0"
-        data-testid={`agent-channels-${platform}`}
-    >
-        <span className="flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted">
-            {platformLogo(platform, 16)}
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                {platformLabel(platform)}
-                {tag}
+}) => {
+    const body = (
+        <>
+            <span className="flex flex-none items-center" aria-hidden>
+                {platformLogo(platform, phone ? 22 : 32)}
             </span>
-            <span className={`truncate text-[12.5px] ${subClass}`}>{sub}</span>
-        </span>
-        <Button variant="outline" size="sm" className="max-md:h-11" onClick={onClick}>
-            {action}
-        </Button>
-    </div>
-)
-
-const ChannelRowsSkeleton = () => (
-    <div className="flex flex-col overflow-hidden rounded-lg border border-solid border-border">
-        {CHANNEL_PLATFORMS.slice(0, 3).map((platform) => (
-            <div
-                key={platform}
-                className="flex items-center gap-3 border-0 border-b border-solid border-border px-3 py-2.5 last:border-b-0"
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    {platformLabel(platform)}
+                    {tag}
+                </span>
+                <span className={`text-[12px] leading-4 ${phone ? "" : "truncate"} ${subClass}`}>
+                    {sub}
+                </span>
+            </span>
+        </>
+    )
+    if (connected) {
+        return (
+            <button
+                type="button"
+                className={`${phone ? ROW_PHONE : ROW_DESKTOP} cursor-pointer font-[inherit] hover:bg-muted/40`}
+                data-testid={`agent-channels-${platform}`}
+                onClick={onClick}
             >
-                <SkeletonBlock active className="size-[34px] rounded-lg" />
+                {body}
+                {phone ? (
+                    <span className="sr-only">{action}</span>
+                ) : (
+                    <span className="flex-none text-[13px] text-muted-foreground">{action}</span>
+                )}
+                <CaretRight
+                    size={phone ? 16 : 10}
+                    weight={phone ? "regular" : "fill"}
+                    aria-hidden
+                    className={`flex-none text-muted-foreground ${phone ? "mr-2" : "mx-1"}`}
+                />
+            </button>
+        )
+    }
+    return (
+        <div className={phone ? ROW_PHONE : ROW_DESKTOP} data-testid={`agent-channels-${platform}`}>
+            {body}
+            <Button
+                variant="outline"
+                size="compact"
+                // On a phone 36 px high with a 44 px hit area, as drawn (M13).
+                className={
+                    phone
+                        ? "relative mr-2 h-9 rounded-md text-sm after:absolute after:-inset-1 after:content-['']"
+                        : undefined
+                }
+                onClick={onClick}
+            >
+                {action}
+            </Button>
+        </div>
+    )
+}
+
+const ChannelRowsSkeleton = ({phone}: {phone: boolean}) => (
+    <div className={`flex flex-col ${phone ? "" : "gap-2"}`}>
+        {CHANNEL_PLATFORMS.slice(0, 3).map((platform) => (
+            <div key={platform} className={phone ? ROW_PHONE : ROW_DESKTOP}>
+                <SkeletonBlock
+                    active
+                    className={phone ? "size-[22px] rounded" : "size-8 rounded-md"}
+                />
                 <div className="flex flex-1 flex-col gap-1.5">
                     <SkeletonBlock active className="h-3.5 w-20" />
                     <SkeletonBlock active className="h-3 w-36" />

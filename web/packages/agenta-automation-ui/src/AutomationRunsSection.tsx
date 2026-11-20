@@ -2,7 +2,8 @@ import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {formatNextRun} from "@agenta/entities/gatewayTrigger"
 import {scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
-import {useT} from "@agenta/i18n"
+import {formatDate, useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import {CaretRight} from "@phosphor-icons/react"
 
@@ -13,11 +14,50 @@ import {runDotClass, runWhenLabel} from "./runModel"
 import {useRecentAutomationRuns} from "./useAutomationRuns"
 
 const GroupTitle = ({title, action}: {title: string; action?: ReactNode}) => (
-    <div className="flex min-h-8 items-center gap-2">
+    <div className="flex min-h-7 items-center gap-2">
         <h2 className="m-0 flex-1 text-[13px] font-semibold text-foreground">{title}</h2>
         {action}
     </div>
 )
+
+/** One row of the "Runs" card: a 72 px label, the value, and a chevron where it opens. */
+const RunsRow = ({
+    label,
+    children,
+    onClick,
+    testId,
+}: {
+    label: string
+    children: ReactNode
+    onClick?: () => void
+    testId?: string
+}) => {
+    const body = (
+        <>
+            <span className="w-[72px] shrink-0 text-[12px] text-muted-foreground">{label}</span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-foreground">
+                {children}
+            </span>
+            {onClick ? (
+                <CaretRight aria-hidden size={12} className="shrink-0 text-colorTextTertiary" />
+            ) : null}
+        </>
+    )
+    const frame =
+        "flex w-full items-center gap-2.5 border-0 border-t border-solid border-colorSplit bg-transparent px-3 py-2.5 text-left first:border-t-0"
+    return onClick ? (
+        <button
+            type="button"
+            data-testid={testId}
+            onClick={onClick}
+            className={cn(frame, "cursor-pointer", ROW_LINK)}
+        >
+            {body}
+        </button>
+    ) : (
+        <div className={frame}>{body}</div>
+    )
+}
 
 /** A section of the automation view: "Runs" or "Settings", with its title and its own action. */
 export const AutomationViewSection = ({
@@ -29,7 +69,7 @@ export const AutomationViewSection = ({
     action?: ReactNode
     children: ReactNode
 }) => (
-    <section className="flex flex-col gap-2">
+    <section className="flex flex-col gap-1.5">
         <GroupTitle title={title} action={action} />
         {children}
     </section>
@@ -50,8 +90,8 @@ export const AutomationRunsSection = ({
     /** Opens the run history; with a run id, that run open. */
     onOpenRunHistory: (runId?: string) => void
 }) => {
-    const t = useT(automationsPanelCatalog)
-    const {runs, caption} = useRecentAutomationRuns(automation)
+    const t = useT(automationsPanelCatalog, automationsEditorCatalog)
+    const {runs} = useRecentAutomationRuns(automation)
     const newest = runs[0]
     // "Next run" and its "in 14h" are read from the clock: a tick per minute keeps them true
     // while the view stays open, as the schedule row does.
@@ -60,40 +100,48 @@ export const AutomationRunsSection = ({
         const id = setInterval(() => setTick((count) => count + 1), 60_000)
         return () => clearInterval(id)
     }, [])
-    const nextRun = useMemo(
-        () =>
-            automation.kind === "schedule" && automation.isActive && automation.cron
-                ? formatNextRun(automation.cron, scheduleTextNow())
-                : "",
+    // "Fri, Nov 20, 09:00 UTC · in 14 hours": the shared next-run line, with no "Next run" words,
+    // since the row's label says it. A paused automation and an event have no next run.
+    const nextRun = useMemo(() => {
+        if (automation.kind !== "schedule" || !automation.isActive || !automation.cron) return ""
+        const text = scheduleTextNow()
+        return formatNextRun(automation.cron, {
+            ...text,
+            nextRun: (date, time, relative) =>
+                t("automations.editor.nextRunAt", {
+                    date: formatDate(date, {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        timeZone: "UTC",
+                    }),
+                    time,
+                    relative,
+                }),
+        })
         // `t` changes with the language, so the line is built again in the new one.
-        [automation.cron, automation.isActive, automation.kind, tick, t],
-    )
+    }, [automation.cron, automation.isActive, automation.kind, tick, t])
     const lastRunFailed = newest ? deliveryOutcome(newest) === "bad" : false
 
     return (
         <AutomationViewSection title={t("automations.panel.runs")} action={runNow}>
-            <div className="flex flex-col rounded-lg border border-solid border-border">
+            <div className="flex flex-col overflow-hidden rounded-lg border border-solid border-border">
                 {nextRun ? (
-                    <div className="px-3.5 py-2.5 text-[13px] text-foreground">{nextRun}</div>
+                    <RunsRow label={t("automations.editor.nextRunLabel")}>
+                        <span className="min-w-0 truncate">{nextRun}</span>
+                    </RunsRow>
                 ) : null}
                 {newest ? (
-                    <button
-                        type="button"
-                        data-testid="automation-last-run"
+                    <RunsRow
+                        label={t("automations.panel.lastRun")}
+                        testId="automation-last-run"
                         onClick={() => onOpenRunHistory(newest.id ?? undefined)}
-                        className={cn(
-                            "flex w-full cursor-pointer items-center gap-3 border-0 border-t border-solid border-border bg-transparent px-3.5 py-2.5 text-left first:border-t-0",
-                            ROW_LINK,
-                        )}
                     >
-                        <span className="w-20 shrink-0 text-[13px] text-muted-foreground">
-                            {t("automations.panel.lastRun")}
-                        </span>
                         <span
                             aria-hidden
                             className={cn("size-2 shrink-0 rounded-full", runDotClass(newest))}
                         />
-                        <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+                        <span className="min-w-0 truncate">
                             {[
                                 runWhenLabel(newest),
                                 lastRunFailed ? t("automations.panel.didNotFinish") : "",
@@ -101,31 +149,11 @@ export const AutomationRunsSection = ({
                                 .filter(Boolean)
                                 .join(" · ")}
                         </span>
-                        <CaretRight
-                            aria-hidden
-                            size={14}
-                            className="shrink-0 text-muted-foreground"
-                        />
-                    </button>
+                    </RunsRow>
                 ) : null}
-                <button
-                    type="button"
-                    onClick={() => onOpenRunHistory()}
-                    className={cn(
-                        "flex w-full cursor-pointer items-center gap-3 border-0 border-t border-solid border-border bg-transparent px-3.5 py-2.5 text-left first:border-t-0",
-                        ROW_LINK,
-                    )}
-                >
-                    <span className="w-20 shrink-0 text-[13px] text-muted-foreground">
-                        {t("automations.panel.history")}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-                        {caption}
-                    </span>
-                    <span className="shrink-0 text-[13px] text-foreground">
-                        {t("automations.panel.seeAllRuns")}
-                    </span>
-                </button>
+                <RunsRow label={t("automations.panel.history")} onClick={() => onOpenRunHistory()}>
+                    <span className="min-w-0 truncate">{t("automations.panel.seeAllRuns")}</span>
+                </RunsRow>
             </div>
         </AutomationViewSection>
     )

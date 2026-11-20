@@ -1,8 +1,10 @@
 import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 
+import {AutomationActiveSwitch} from "./AutomationActiveSwitch"
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationFailureBanner} from "./AutomationFailureBanner"
 import {AutomationInstructionField} from "./AutomationInstructionField"
@@ -52,6 +54,7 @@ export const AutomationDetailBody = ({
     onSave,
     actions,
     runNow,
+    panel = false,
 }: {
     /** The saved row — the identity half of the screen. */
     automation: Automation
@@ -93,18 +96,26 @@ export const AutomationDetailBody = ({
     actions?: ReactNode
     /** The Run now control: in the "Runs" title, or by the name where there is no "Runs" group. */
     runNow?: ReactNode
+    /**
+     * The panel's shape (F05 f5): a 16 px name with "On" and the switch at its right, the facts
+     * under it, and no Agent field (the panel opens over the agent that runs it).
+     */
+    panel?: boolean
 }) => {
     const t = useT(automationsPanelCatalog)
+    const tEditor = useT(automationsEditorCatalog)
     // With the "Runs" group, Run now sits in its title rather than by the name.
     const grouped = Boolean(onOpenRunHistory)
     const titleRun = grouped ? null : runNow
     const fields = (
-        <div className="flex flex-col gap-[22px]">
-            <AutomationAgentField
-                agentId={preview.agentId}
-                agentName={agentName}
-                onSelectAgent={onSelectAgent}
-            />
+        <div className={`flex flex-col ${panel ? "gap-3" : "gap-[22px]"}`}>
+            {panel ? null : (
+                <AutomationAgentField
+                    agentId={preview.agentId}
+                    agentName={agentName}
+                    onSelectAgent={onSelectAgent}
+                />
+            )}
             <AutomationRunsWhenField
                 automation={preview}
                 onChangeCron={onChangeCron}
@@ -123,12 +134,40 @@ export const AutomationDetailBody = ({
             />
         </div>
     )
-    return (
-        <div
-            className={
-                className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1"
-            }
-        >
+    const header = panel ? (
+        <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="flex min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1">
+                    <AutomationTitle
+                        name={automation.name}
+                        description={automation.description}
+                        onRename={onRename}
+                        compact
+                    />
+                </div>
+                {titleRun}
+                {actions}
+                <span aria-hidden className="text-[12px] text-muted-foreground">
+                    {automation.isActive
+                        ? tEditor("automations.editor.on")
+                        : tEditor("automations.editor.off")}
+                </span>
+                <AutomationActiveSwitch
+                    active={automation.isActive}
+                    onToggle={onToggle}
+                    label={false}
+                />
+            </div>
+            <AutomationMetaRow
+                active={automation.isActive}
+                agentName={agentName}
+                updatedAt={automation.updatedAt}
+                onToggle={onToggle}
+                factsOnly
+            />
+        </div>
+    ) : (
+        <>
             <div className="flex min-w-0 items-start gap-2">
                 <AutomationTitle
                     name={automation.name}
@@ -149,8 +188,20 @@ export const AutomationDetailBody = ({
                 onToggle={onToggle}
                 trailing={titleRun ? <span className="lg:hidden">{titleRun}</span> : null}
             />
+        </>
+    )
+
+    return (
+        <div
+            className={
+                className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1"
+            }
+        >
+            {header}
             {onOpenRunHistory ? (
-                <div className="mt-[26px] flex flex-col gap-[26px]">
+                <div
+                    className={`flex flex-col ${panel ? "mt-[18px] gap-[18px]" : "mt-[26px] gap-[26px]"}`}
+                >
                     <AutomationRunsSection
                         automation={automation}
                         runNow={runNow}

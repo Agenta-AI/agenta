@@ -3,6 +3,7 @@ import type {KeyboardEvent} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {ChevronDown} from "lucide-react"
 
 import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
@@ -92,6 +93,9 @@ export const ListTable = <Row,>({
     stickyHeader = false,
     hideHeader: hideHeaderProp = false,
     density = "default",
+    groupCaret = "fill",
+    rowClassName,
+    headerClassName,
     selection,
     className,
 }: ListTableProps<Row>) => {
@@ -192,6 +196,7 @@ export const ListTable = <Row,>({
                                       stickyHeader
                                           ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
                                           : "mb-1 py-2",
+                                      headerClassName,
                                   ],
                         )}
                         style={{gridTemplateColumns: grid}}
@@ -269,7 +274,11 @@ export const ListTable = <Row,>({
                             {Array.from({length: skeletonRows}, (_, row) => (
                                 <div
                                     key={row}
-                                    className={cn("grid w-full items-center gap-3", rowPad)}
+                                    className={cn(
+                                        "grid w-full items-center gap-3",
+                                        rowPad,
+                                        rowClassName,
+                                    )}
                                     style={{gridTemplateColumns: grid}}
                                 >
                                     {allColumns.map((column, index) => (
@@ -351,7 +360,18 @@ export const ListTable = <Row,>({
                                                     long repository truncates so the group's
                                                     action keeps its place on the right. */}
                                                 <span className="truncate">{group.label}</span>
-                                                <CollapseCaret open={!collapsed} size={12} />
+                                                {groupCaret === "chevron" ? (
+                                                    <ChevronDown
+                                                        aria-hidden
+                                                        size={12}
+                                                        className={cn(
+                                                            "shrink-0 text-colorTextTertiary transition-transform duration-150 motion-reduce:transition-none",
+                                                            collapsed && "-rotate-90",
+                                                        )}
+                                                    />
+                                                ) : (
+                                                    <CollapseCaret open={!collapsed} size={12} />
+                                                )}
                                             </button>
                                         ) : (
                                             <p className="m-0 min-w-0 truncate text-[13px] text-muted-foreground">
@@ -432,6 +452,7 @@ export const ListTable = <Row,>({
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
+                                                    rowClassName,
                                                     opens(row) &&
                                                         "cursor-pointer hover:bg-accent/60",
                                                     opens(row) && FOCUS_RING,

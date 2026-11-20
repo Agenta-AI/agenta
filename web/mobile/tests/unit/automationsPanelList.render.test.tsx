@@ -123,6 +123,17 @@ describe("Automations tab list", () => {
     })
 })
 
+describe("Schedule row", () => {
+    it("says Weekdays for a Monday to Friday cron, and names its menu after the automation", () => {
+        triggers.schedules = [{...schedule, data: {schedule: "0 9 * * 1-5"}}]
+        renderSection()
+        expect(container.textContent).toContain("Weekdays at 09:00 UTC")
+        expect(container.textContent).not.toContain("Monday")
+        const menu = container.querySelector("[aria-haspopup=menu]")
+        expect(menu?.getAttribute("aria-label")).toBe("More actions for Daily summary")
+    })
+})
+
 describe("Row menu", () => {
     it("deletes the row's automation only after the question", async () => {
         triggers.schedules = [schedule]

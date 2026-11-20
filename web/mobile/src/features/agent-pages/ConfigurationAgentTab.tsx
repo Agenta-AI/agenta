@@ -1,6 +1,7 @@
 import {useRef} from "react"
 
 import {ModelSetupBanner} from "@agenta/chat/components"
+import {SectionListLayoutContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 
 import {useOpenModelSetup} from "../chat/useOpenModelSetup"
@@ -38,26 +39,30 @@ export const ConfigurationAgentTab = ({
                 </aside>
                 <div
                     data-testid="configuration-agent-tab"
-                    // On a phone the rows run edge to edge, with no card around them (M07).
-                    className="min-w-0 overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-background max-md:rounded-none max-md:border-0"
+                    // The panel's field wrappers give the sections a 16 px inset and a white ground;
+                    // the page cards sit on the page ground at the column's edges instead. A phone
+                    // shows its section rows (M07), which take priority over the page layout.
+                    className="-mx-4 min-w-0 md:[&_.ag-drill-in-field-list]:bg-transparent max-md:mx-0"
                 >
-                    <AgentBuildPanel
-                        revisionId={revisionId}
-                        disabled={readOnly}
-                        // Automations have their own tab on this page.
-                        operations={false}
-                        automationDrawer={null}
-                        banner={
-                            // The alert keeps a gap above the rows; it collapses with the banner.
-                            <div className="px-4 [&_[data-slot=alert]]:mt-3">
-                                <ModelSetupBanner
-                                    revisionId={revisionId}
-                                    layout="alert"
-                                    onSetUp={openModelSetup}
-                                />
-                            </div>
-                        }
-                    />
+                    <SectionListLayoutContext.Provider value="page">
+                        <AgentBuildPanel
+                            revisionId={revisionId}
+                            disabled={readOnly}
+                            // Automations have their own tab on this page.
+                            operations={false}
+                            automationDrawer={null}
+                            banner={
+                                // The alert keeps a gap above the rows; it collapses with the banner.
+                                <div className="px-4 [&_[data-slot=alert]]:mt-3">
+                                    <ModelSetupBanner
+                                        revisionId={revisionId}
+                                        layout="alert"
+                                        onSetUp={openModelSetup}
+                                    />
+                                </div>
+                            }
+                        />
+                    </SectionListLayoutContext.Provider>
                 </div>
             </div>
         </div>

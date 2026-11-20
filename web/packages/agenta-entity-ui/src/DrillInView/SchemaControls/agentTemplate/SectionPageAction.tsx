@@ -19,13 +19,7 @@ export interface SectionPageActionProps {
 export const SectionPageAction = ({action, onClick, disabled}: SectionPageActionProps) => {
     const t = useT(commonCatalog, configItemsCatalog)
     return (
-        <Button
-            variant="outline"
-            // The canvas control size (h28, r6, 13 px); the shared `sm` size replaces it (lane 1).
-            className="h-7 gap-1 rounded-md px-2.5 text-[13px]"
-            disabled={disabled}
-            onClick={onClick}
-        >
+        <Button variant="outline" size="compact" disabled={disabled} onClick={onClick}>
             {action === "add" ? <Plus size={14} aria-hidden /> : null}
             {action === "edit" ? <PencilSimple size={14} aria-hidden /> : null}
             {action === "add"

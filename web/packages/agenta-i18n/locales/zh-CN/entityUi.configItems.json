@@ -50,5 +50,6 @@
     "countServer_other": "{{count}} 个服务器",
     "countSkill_other": "{{count}} 个 Skill",
     "countTool_other": "{{count}} 个工具",
-    "change": "更改"
+    "change": "更改",
+    "policyHint": "Agent 无需询问即可执行的操作"
 }
