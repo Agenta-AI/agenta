@@ -402,9 +402,8 @@ export const EventInlineCard = ({
     // the form with an app.
     const app =
         apps.find((candidate) => candidate.connectionId === automation.connectionId) ?? apps[0]
-    // The event and its filters wait here until the event's required filters are filled. Until
-    // then the draft holds no event, so "Create automation" stays blocked, as Done does in the
-    // picker.
+    // The event and its filters wait here until they are valid; until then the draft holds no
+    // event, so "Create automation" stays blocked, as Done does in the picker.
     const [eventKey, setEventKey] = useState(automation.eventKey ?? "")
     const [values, setValues] = useState<Record<string, unknown>>({})
 
@@ -426,13 +425,14 @@ export const EventInlineCard = ({
     const formRef = useRef<SchemaFormHandle>(null)
 
     // The draft gets the event once its filters pass the form's own validation, read through
-    // `getValues()` as the picker's Done does. Until then it holds no event, so Create stays
-    // blocked. Empty required filters block at once, without painting errors on a fresh form.
+    // `getValues()` as the picker's Done does. Empty required filters block at once, without
+    // painting errors on a fresh form.
     useEffect(() => {
         if (!app) return
         const connectionId = app.connectionId
         const block = () => onSelectEvent({connectionId, eventKey: "", triggerConfig: undefined})
-        if (!eventKey || eventLoading || requiredGaps(schema, values).length) {
+        // No event detail (still loading, or the request failed) is not "no filters".
+        if (!eventKey || eventLoading || !event || requiredGaps(schema, values).length) {
             block()
             return
         }
@@ -440,9 +440,13 @@ export const EventInlineCard = ({
             onSelectEvent({connectionId, eventKey, triggerConfig: undefined})
             return
         }
+        const form = formRef.current
+        if (!form) {
+            block()
+            return
+        }
         let live = true
-        const read = formRef.current?.getValues() ?? Promise.resolve(values)
-        read.then(
+        form.getValues().then(
             (valid) => {
                 if (live)
                     onSelectEvent({
@@ -458,7 +462,7 @@ export const EventInlineCard = ({
         return () => {
             live = false
         }
-    }, [app, eventKey, eventLoading, onSelectEvent, schema, values])
+    }, [app, event, eventKey, eventLoading, onSelectEvent, schema, values])
 
     // Another app starts with no event; another event starts its filters from empty.
     const selectApp = (connectionId: string) => {
