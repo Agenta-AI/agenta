@@ -422,6 +422,12 @@ export const Composer = ({
                                         variant="outline"
                                         className="w-full"
                                         onClick={openProviders}
+                                        // The list's own key handler takes Enter and Space to pick
+                                        // the active row; on this button they press the button.
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ")
+                                                event.stopPropagation()
+                                        }}
                                     >
                                         <Faders size={14} />
                                         {t("ui.llmProvider.manageProviders")}
