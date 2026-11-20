@@ -159,24 +159,24 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
         expect(changes[0].risks).toEqual([])
     })
 
-    it("shows the model and the reasoning as two value rows under one header", () => {
+    it("shows a merged object as one value row per changed field, under one header", () => {
         const llm = [...T, "llm"]
+        // The server keeps the merge's target: one change at `llm` with the old and new objects.
         const {changes} = describeConfigChanges(
-            [{operation: "merge", target: llm, value: {model: "opus", reasoning: "medium"}}],
+            [
+                {
+                    operation: "merge",
+                    target: llm,
+                    value: {model: "claude-opus-5-5", reasoning: "medium"},
+                },
+            ],
             applied([
                 {
-                    path: [...llm, "model"],
+                    path: llm,
                     operation_indexes: [0],
                     kind: "changed",
-                    old: "claude-sonnet-5-5",
-                    new: "claude-opus-5-5",
-                },
-                {
-                    path: [...llm, "reasoning"],
-                    operation_indexes: [0],
-                    kind: "changed",
-                    old: "low",
-                    new: "medium",
+                    old: {provider: "anthropic", model: "claude-sonnet-5-5", reasoning: "low"},
+                    new: {provider: "anthropic", model: "claude-opus-5-5", reasoning: "medium"},
                 },
             ]),
         )
@@ -192,6 +192,40 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
         const blocks = groupChanges(changes)
         expect(blocks).toHaveLength(1)
         expect(blocks[0]).toMatchObject({title: "Change the model", path: ["Model"]})
+    })
+
+    it("names the field of a long text in the path", () => {
+        const description = [...T, {list: "skills", key: "refund-check"}, "description"]
+        const {changes} = describeConfigChanges(
+            [{operation: "set", target: description, value: "x".repeat(130)}],
+            applied([
+                {
+                    path: description,
+                    operation_indexes: [0],
+                    kind: "changed",
+                    old: "Checks refunds.",
+                    new: "x".repeat(130),
+                },
+            ]),
+        )
+        expect(changes[0].path).toEqual(["Skills", "refund-check", "Description"])
+        expect(changes[0].detail?.kind).toBe("text_diff")
+    })
+
+    it("shows a whole list that appears as its values, not as one item", () => {
+        const {changes} = describeConfigChanges(
+            [{operation: "set", target: [...T, "mcps"], value: [{name: "linear"}]}],
+            applied([
+                {
+                    path: [...T, "mcps"],
+                    operation_indexes: [0],
+                    kind: "added",
+                    new: [{name: "linear"}],
+                },
+            ]),
+        )
+        expect(changes[0].detail?.kind).not.toBe("item")
+        expect(JSON.stringify(changes[0].detail)).toContain("linear")
     })
 
     it("adds a skill with its description and files, and marks a file that can run", () => {
@@ -316,6 +350,17 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
             title: "Change the model",
             path: ["Model"],
             detail: {kind: "item", change: "removed", name: "Extras"},
+        })
+    })
+
+    it("titles a remove of a whole entry as a removal", () => {
+        const {changes} = describeConfigChanges([
+            {operation: "remove", target: [...T, {list: "mcps", key: "linear"}]},
+        ])
+        expect(changes[0]).toMatchObject({
+            title: "Remove an MCP server",
+            path: ["MCP servers"],
+            detail: {kind: "item", change: "removed", name: "linear"},
         })
     })
 

@@ -243,7 +243,8 @@ export const locateTarget = (target: unknown[], value?: unknown): Location => {
                 section: "mcps",
                 path: [t(SECTION_LABEL.mcps), ...(key ? [key] : [])],
                 label: permission?.label ?? settingLabel(strings),
-                wholeItem: rest.length === 0,
+                // A bare list (no selector) is the whole list, shown as its values.
+                wholeItem: Boolean(key) && rest.length === 0,
                 itemKey: name,
                 permission: Boolean(permission),
                 tool: permission?.tool,
@@ -262,7 +263,8 @@ export const locateTarget = (target: unknown[], value?: unknown): Location => {
                 section,
                 path: [t(SECTION_LABEL[section]), ...(key && name ? [name] : [])],
                 label: permission?.label ?? settingLabel(strings),
-                wholeItem: rest.length === 0,
+                // A bare list (no selector) is the whole list, shown as its values.
+                wholeItem: Boolean(key) && rest.length === 0,
                 itemKey: name,
                 permission: Boolean(permission),
                 tool: permission?.tool,
@@ -321,13 +323,16 @@ const headerPath = (location: Location, kind: ChangeKind): string[] =>
         ? location.path.slice(0, 1)
         : location.path
 
-/** A change with no detail to show still names its field, at the end of its path. */
+/** A change with no detail, or a text, names its field at the end of its path; a value row names
+ * it in its label. */
 const withField = (
     path: string[],
     location: Location,
     detail: ApprovalChangeDetail | undefined,
 ): string[] =>
-    !detail && location.label && path[path.length - 1] !== location.label
+    (!detail || detail.kind === "text_diff") &&
+    location.label &&
+    path[path.length - 1] !== location.label
         ? [...path, location.label]
         : path
 
@@ -463,6 +468,29 @@ const risksOf = (
     return risks
 }
 
+/**
+ * A changed object (`merge` on `llm`) reads as one row per field that differs, so the model and
+ * the reasoning each get their own row. It compares the preview's own old and new values; it
+ * applies no operation.
+ */
+const splitObjectChange = (change: ChangePreviewChange): ChangePreviewChange[] => {
+    if (change.kind !== "changed" || !isRecord(change.old) || !isRecord(change.new)) return [change]
+    const before = change.old
+    const after = change.new
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+        (key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]),
+    )
+    if (!keys.length) return [change]
+    const path = Array.isArray(change.path) ? change.path : []
+    return keys.map((key) => ({
+        path: [...path, key],
+        operation_indexes: change.operation_indexes,
+        kind: key in before ? (key in after ? "changed" : "removed") : "added",
+        ...(key in before ? {old: before[key]} : {}),
+        ...(key in after ? {new: after[key]} : {}),
+    }))
+}
+
 /** The fields that have a value: a detail never carries `old: undefined`. */
 const defined = (fields: {old?: string; new?: string}): {old?: string; new?: string} => ({
     ...(fields.old !== undefined ? {old: fields.old} : {}),
@@ -533,6 +561,7 @@ const operationDetail = (
             return itemDetail("removed", location, undefined)
         // A field that goes away reads as a removed entry named by the field.
         case "remove":
+            if (location.wholeItem) return itemDetail("removed", location, undefined)
             return {
                 kind: "item",
                 change: "removed",
@@ -578,7 +607,7 @@ export const describeConfigChanges = (
     const effect = "version" as const
 
     if (preview?.applies) {
-        const changes = preview.changes.map((change): ApprovalChange => {
+        const changes = preview.changes.flatMap(splitObjectChange).map((change): ApprovalChange => {
             const target = Array.isArray(change.path) ? change.path : []
             const source = ops[change.operation_indexes?.[0] ?? -1]
             const location = locateTarget(target, change.new ?? change.old ?? source?.value)
@@ -605,8 +634,11 @@ export const describeConfigChanges = (
             Array.isArray(operation.target) ? operation.target : [],
             operation.value,
         )
-        const kind = operationKind(operation)
-        // `add_item` targets the list and `remove_item` the entry: both move a whole item.
+        // `remove` on a list entry takes the whole item away, as `remove_item` does.
+        const kind =
+            operation.operation === "remove" && location.wholeItem
+                ? "removed"
+                : operationKind(operation)
         if (kind !== "changed") location.wholeItem = true
         const detail = operationDetail(operation, location)
         return {

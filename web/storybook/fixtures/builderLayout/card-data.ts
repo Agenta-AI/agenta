@@ -121,20 +121,14 @@ export const CHANGE_MODEL = gate(
             value: {model: "claude-opus-5-5", reasoning: "medium"},
         },
     ],
+    // The server keeps the merge's target: one change at `llm` with the old and new objects.
     [
         {
-            path: [...T, "llm", "model"],
+            path: [...T, "llm"],
             operation_indexes: [0],
             kind: "changed",
-            old: "claude-sonnet-5-5",
-            new: "claude-opus-5-5",
-        },
-        {
-            path: [...T, "llm", "reasoning"],
-            operation_indexes: [0],
-            kind: "changed",
-            old: "low",
-            new: "medium",
+            old: {provider: "anthropic", model: "claude-sonnet-5-5", reasoning: "low"},
+            new: {provider: "anthropic", model: "claude-opus-5-5", reasoning: "medium"},
         },
     ],
 )
