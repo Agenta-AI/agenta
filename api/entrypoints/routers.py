@@ -1140,7 +1140,6 @@ _triggers_dispatcher = TriggersDispatcher(
     workflows_service=workflows_service,
     run_admission=run_admission,
     dispatch_fn=_dispatch_detached_run,
-    session_streams_dao=session_streams_dao,
 )
 
 _triggers_worker = TriggersWorker(

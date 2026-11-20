@@ -393,7 +393,6 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         workflows_service=workflows_service,
         run_admission=run_admission,
         dispatch_fn=_dispatch_detached_run,
-        session_streams_dao=session_streams_dao,
         session_starts_service=_build_session_starts_service(
             workflows_service=workflows_service,
             run_admission=run_admission,

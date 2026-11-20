@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 from urllib.parse import urlsplit, urlunsplit
 
+from oss.src.core.triggers.dtos import TriggerSchedule
+from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.crypting import decrypt, encrypt
@@ -198,7 +200,7 @@ def compose_event_inputs(
 
 async def purge_hidden_schedule(
     *,
-    dao: Any,
+    dao: TriggersDAOInterface,
     project_id: UUID,
     schedule_id: UUID,
 ) -> bool:
@@ -217,7 +219,7 @@ async def purge_hidden_schedule(
     return True
 
 
-def log_hidden_schedule_purged(*, project_id: UUID, schedule: Any) -> None:
+def log_hidden_schedule_purged(*, project_id: UUID, schedule: TriggerSchedule) -> None:
     """The log line of every purge of a hidden schedule: the schedule id, the target
     session and the principal."""
     log.info(

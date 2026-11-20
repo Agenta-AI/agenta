@@ -35,7 +35,7 @@ from oss.src.core.triggers.dtos import (
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.utils import compose_event_inputs, purge_hidden_schedule
 from oss.src.core.sessions.inputs.types import SessionInputError
-from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.streams.types import SessionStreamNotFound
 from oss.src.core.sessions.dtos import (
     SessionTriggerAttribution,
     SessionTriggerKind,
@@ -104,13 +104,11 @@ class TriggersDispatcher:
         dispatch_fn: Optional[Callable] = None,
         access_service: Optional[AccessService] = None,
         sharing_service: Optional[SharingService] = None,
-        session_streams_dao: Optional[SessionStreamsDAOInterface] = None,
         session_starts_service: Optional["SessionStartsService"] = None,
     ):
         self.triggers_dao = triggers_dao
         # A schedule with `data.session_id` sends its input into that existing session
-        # through `enqueue_session_input`; the streams DAO confirms the session exists.
-        self.session_streams_dao = session_streams_dao
+        # through `enqueue_session_input`, which refuses a session that does not exist.
         self.session_starts_service = session_starts_service
         # Admits every fire (the principal and the resolved agent) before the claim.
         self.run_admission = run_admission
@@ -366,23 +364,10 @@ class TriggersDispatcher:
                     origin_id=str(schedule.id),
                     created_by_id=schedule.created_by_id,
                 )
-            # The refusal of a missing envelope needs no session read, so a failed
-            # read cannot turn it into a retryable failure.
-            stream = (
-                await self.session_streams_dao.get_by_session_id_including_archived(
-                    project_id=project_id,
-                    session_id=session_id,
-                )
-                if envelope is not None
-                else None
-            )
             if envelope is None:
                 error = missing_principal_error(next_step="Create the schedule again.")
                 status = Status(code="409", message="failed")
                 update = {"error": error.message, "error_details": error}
-            elif stream is None:
-                status = Status(code="404", message="failed")
-                update = {"error": "The target session does not exist."}
             else:
                 result = await self.session_starts_service.enqueue_session_input(
                     project_id=project_id,
@@ -396,6 +381,9 @@ class TriggersDispatcher:
                 )
                 status = Status(code="202", message="dispatched")
                 update = {"result": result.model_dump(mode="json", exclude_none=True)}
+        except SessionStreamNotFound:
+            status = Status(code="404", message="failed")
+            update = {"error": "The target session does not exist."}
         except AdmissionDenied as denied:
             error = access_denied_error(
                 decision=denied.decision,

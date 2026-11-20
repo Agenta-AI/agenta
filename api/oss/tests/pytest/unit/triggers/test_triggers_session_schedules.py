@@ -39,6 +39,7 @@ from oss.src.core.access.dtos import (
 from oss.src.core.sessions.inputs.dtos import PendingInputKind, PendingInputState
 from oss.src.core.sessions.starts.dtos import SessionInputEnqueueResult
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.core.sessions.streams.types import SessionStreamNotFound
 from oss.src.core.sharing.admission import TRIGGER_DISPATCH_BOUNDARY
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.triggers.dtos import (
@@ -278,17 +279,13 @@ class TestDeleteSessionSchedule:
 # -- the fire into the session -------------------------------------------------------
 
 
-def _dispatcher(*, stream="exists", enqueue=None, claimed=True):
+def _dispatcher(*, enqueue=None, claimed=True):
     dao = MagicMock()
     dao.dedup_seen_schedule = AsyncMock(return_value=False)
     dao.claim_schedule_delivery = AsyncMock(return_value=claimed)
     dao.claim_trigger_delivery = AsyncMock()
     dao.update_delivery = AsyncMock()
     dao.purge_hidden_schedule = AsyncMock(return_value=None)
-    streams = MagicMock()
-    streams.get_by_session_id_including_archived = AsyncMock(
-        return_value=None if stream is None else SimpleNamespace()
-    )
     starts = MagicMock()
     starts.enqueue_session_input = enqueue or AsyncMock(
         return_value=SessionInputEnqueueResult(
@@ -302,7 +299,6 @@ def _dispatcher(*, stream="exists", enqueue=None, claimed=True):
         triggers_dao=dao,
         session_claims_dao=dao,
         workflows_service=MagicMock(),
-        session_streams_dao=streams,
         session_starts_service=starts,
     )
     return dispatcher, dao, starts
@@ -364,11 +360,13 @@ class TestFireIntoSession:
     async def test_deleted_target_fails_and_creates_no_session(self):
         project_id = uuid4()
         schedule = _session_schedule(project_id=project_id)
-        dispatcher, dao, starts = _dispatcher(stream=None)
+        # `enqueue_session_input` refuses a session that has no stream.
+        dispatcher, dao, starts = _dispatcher(
+            enqueue=AsyncMock(side_effect=SessionStreamNotFound("target-session"))
+        )
 
         await _fire(dispatcher, schedule, project_id)
 
-        starts.enqueue_session_input.assert_not_awaited()
         dao.claim_trigger_delivery.assert_not_awaited()
         assert _delivery_status(dao) == "404"
         dao.purge_hidden_schedule.assert_awaited_once()
@@ -422,7 +420,6 @@ class TestFireIntoSession:
         await _fire(dispatcher, schedule, project_id)
 
         starts.enqueue_session_input.assert_not_awaited()
-        dispatcher.session_streams_dao.get_by_session_id_including_archived.assert_not_awaited()
         assert dao.update_delivery.await_args.kwargs["status"].code == "409"
         dao.purge_hidden_schedule.assert_awaited_once()
 

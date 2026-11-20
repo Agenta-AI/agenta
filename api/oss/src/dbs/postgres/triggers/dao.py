@@ -50,6 +50,7 @@ from oss.src.dbs.postgres.triggers.mappings import (
     map_subscription_dto_to_dbe_edit,
 )
 from oss.src.dbs.postgres.triggers.upsert_utils import (
+    build_trigger_delivery_claim,
     build_trigger_delivery_conflict,
     build_trigger_delivery_values,
 )
@@ -1434,7 +1435,6 @@ class TriggersDAO(TriggersDAOInterface):
                 "data": data.model_dump(mode="json", exclude_none=True),
             }
         )
-        index_elements, index_where = build_trigger_delivery_conflict(by_schedule=True)
         live_schedule = (
             select(TriggerScheduleDBE.id)
             .where(
@@ -1446,31 +1446,8 @@ class TriggersDAO(TriggersDAOInterface):
             .with_for_update()
             .cte("live_trigger_schedule")
         )
-        columns = list(values)
-        delivery_insert = insert(TriggerDeliveryDBE).from_select(
-            columns,
-            select(
-                *(
-                    literal(
-                        values[column],
-                        type_=TriggerDeliveryDBE.__table__.c[column].type,
-                    )
-                    for column in columns
-                )
-            ).select_from(live_schedule),
-        )
-        stmt = delivery_insert.on_conflict_do_update(
-            index_elements=index_elements,
-            index_where=index_where,
-            where=TriggerDeliveryDBE.status["code"].astext
-            == TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
-            set_={
-                "id": delivery_insert.excluded.id,
-                "created_by_id": delivery_insert.excluded.created_by_id,
-                "status": delivery_insert.excluded.status,
-                "data": delivery_insert.excluded.data,
-                "updated_at": datetime.now(timezone.utc),
-            },
+        stmt = build_trigger_delivery_claim(
+            values, by_schedule=True, live_parent=live_schedule
         ).returning(TriggerDeliveryDBE.id)
 
         async with self.engine.session() as session:
