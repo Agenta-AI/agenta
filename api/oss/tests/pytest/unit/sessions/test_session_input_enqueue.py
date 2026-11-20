@@ -143,11 +143,13 @@ class _StreamsDAO:
     def __init__(self, *, deleted=False):
         self.deleted = deleted
         self.turn_id = None
+        self.read_in_task = None
 
     async def get_by_session_id(self, **_kwargs):
         return None
 
     async def get_by_session_id_including_archived(self, **_kwargs):
+        self.read_in_task = asyncio.current_task()
         return SimpleNamespace(
             deleted_at="2026-11-20" if self.deleted else None, turn_id=self.turn_id
         )
@@ -1039,6 +1041,10 @@ async def test_a_turn_end_holds_a_server_input_in_an_ended_session():
 
     assert await _turn_end(service, str(uuid4())) is None
     assert update.state == PendingInputState.pending
+    # The rule reads in its own task, so its sessions never touch the turn end's
+    # task-scoped transaction.
+    assert harness.streams_dao.read_in_task is not None
+    assert harness.streams_dao.read_in_task is not asyncio.current_task()
 
 
 @pytest.mark.asyncio
