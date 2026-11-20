@@ -29,9 +29,6 @@ import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer
 import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Button} from "@agenta/ui/ui"
-import {Faders} from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
 import {AnimatePresence, motion} from "motion/react"
 import dynamic from "next/dynamic"
@@ -40,6 +37,7 @@ import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
 import {ComposerModelButton} from "./ComposerModelButton"
+import {ComposerModelPanel} from "./ComposerModelPanel"
 import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
 
@@ -130,7 +128,10 @@ export const Composer = ({
      * agent is the platform's builder, whose model and permissions are not the person's to change.
      */
     hideSlashCommands?: boolean
-    /** The model needs setup (the "Connect a model" strip shows): no model button. */
+    /**
+     * The model needs setup (the "Connect a model" strip shows): no model button. The button
+     * shows with no palette too: the builder chats pick the builder's model with it.
+     */
     modelButtonHidden?: boolean
 }) => {
     const t = useT(chatMobileComposerCatalog, uiLlmProviderCatalog)
@@ -142,29 +143,23 @@ export const Composer = ({
     // The config panel's "Create with AI" writes its starter prompt here.
     useComposerPrefill(richInputRef)
 
-    // The `/` palette and its pickers, anchored to the composer box so they open where the
-    // palette was. /new mirrors the session rail's `+`, exactly as it does on the desktop.
-    const composerBoxRef = useRef<HTMLDivElement>(null)
+    // The `/` palette and its pickers open above the composer box, where the palette was. /new
+    // mirrors the session rail's `+`, exactly as it does on the desktop.
     // A tap outside is a deliberate move elsewhere — the one close that must not pull focus back.
     const skipFocusRestoreRef = useRef(false)
+    // An Escape that closed a list the model button opened: focus goes back to that button.
+    const escapeClosedRef = useRef(false)
+    const modelButtonRef = useRef<HTMLButtonElement>(null)
     const slash = useChatSlashCommands({
         entityId,
         onNewSession,
-        // The picker autofocuses itself; a still-focused Lexical editor takes focus back on the
-        // next reconcile, which Radix reads as an outside interaction and dismisses on.
+        // The list's search takes the caret; a still-focused Lexical editor would take it back on
+        // its next reconcile.
         onPickerOpen: useCallback(() => {
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
     const openModelPicker = slash.openModelPicker
-    useEffect(() => {
-        // No palette, no picker: "Switch model" elsewhere does nothing here either.
-        if (!modelPickerRef || hideSlashCommands) return
-        modelPickerRef.current = openModelPicker
-        return () => {
-            modelPickerRef.current = null
-        }
-    }, [modelPickerRef, openModelPicker, hideSlashCommands])
     // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
     // the still-focused panel leaves the DOM.
     const hadPickerRef = useRef(slash.picker)
@@ -176,9 +171,14 @@ export const Composer = ({
             skipFocusRestoreRef.current = false
             return
         }
+        const escaped = escapeClosedRef.current
+        escapeClosedRef.current = false
         // Only a `/` command came from typing. A list opened by a button leaves the editor alone,
-        // so a phone keyboard does not pop up after a pick.
-        if (slash.pickerOrigin !== "command") return
+        // so a phone keyboard does not pop up after a pick; an Escape returns to the button.
+        if (slash.pickerOrigin !== "command") {
+            if (escaped) modelButtonRef.current?.focus()
+            return
+        }
         richInputRef.current?.focus()
     }, [richInputRef, slash.picker, slash.pickerOrigin])
     // Stable: both panels register document-level listeners keyed on these.
@@ -186,6 +186,7 @@ export const Composer = ({
     const dismissPicker = useCallback(
         (reason: "escape" | "outside") => {
             if (reason === "outside") skipFocusRestoreRef.current = true
+            escapeClosedRef.current = reason === "escape"
             closePicker()
         },
         [closePicker],
@@ -202,12 +203,17 @@ export const Composer = ({
         closePicker()
         setProvidersOpen(true)
     }, [closePicker])
-    // No button where the palette is hidden (the builder chat's model is not the person's to
-    // change here), while the model needs setup, or with no model or no list to pick from.
+    // No button while the model needs setup, or with no model or no list to pick from.
     const modelButtonModel =
-        !hideSlashCommands && !modelButtonHidden && slash.modelGroups.length > 0
-            ? slash.currentModel
-            : null
+        !modelButtonHidden && slash.modelGroups.length > 0 ? slash.currentModel : null
+    useEffect(() => {
+        // "Switch model" opens the same list as the model button, and only where the button is.
+        if (!modelPickerRef || !modelButtonModel) return
+        modelPickerRef.current = openModelPicker
+        return () => {
+            modelPickerRef.current = null
+        }
+    }, [modelPickerRef, openModelPicker, modelButtonModel])
     // Held until the draft and tray leave the composer, not for the whole send.
     const sending = useRef(false)
     const presets = useMotionPresets()
@@ -371,7 +377,7 @@ export const Composer = ({
                                 : describeAccepted(attachments.limits)
                         }
                     />
-                    <div ref={composerBoxRef} className="relative">
+                    <div className="relative">
                         <AnimatePresence initial={false}>
                             {slash.picker === "permissions" ? (
                                 <motion.div
@@ -392,63 +398,34 @@ export const Composer = ({
                                 </motion.div>
                             ) : null}
                         </AnimatePresence>
-                        {/* The catalog picker: controlled open, no trigger, sized to the composer. */}
-                        <SelectLLMProviderBase
-                            open={slash.picker === "model"}
-                            onOpenChange={(next) => {
-                                if (!next) closePicker()
-                            }}
-                            onDismissOutside={() => {
-                                skipFocusRestoreRef.current = true
-                            }}
-                            onStepBack={
-                                slash.pickerOrigin === "command" ? backToCommands : undefined
-                            }
-                            anchorRef={composerBoxRef}
-                            hideTrigger
-                            showGroup
-                            showSearch
-                            searchPlaceholder={t("chat.mobileComposer.searchModels")}
-                            sectionTooltip={<HarnessTooltip />}
-                            options={slash.modelGroups}
-                            value={slash.currentModel}
-                            selectedKey={slash.currentModelKey}
-                            // A pick writes the agent config; auto-save commits it as a new version.
-                            onChange={(next, option) => slash.applyModel(next, option)}
-                            searchSuffix="/model"
-                            footerContent={
-                                <div className="border-border mt-1.5 border-0 border-t border-solid px-0.5 pt-2 pb-0.5">
-                                    <Button
-                                        variant="outline"
-                                        className="w-full"
-                                        onClick={openProviders}
-                                        // The list's own key handler takes Enter and Space to pick
-                                        // the active row; on this button they press the button.
-                                        onKeyDown={(event) => {
-                                            if (event.key === "Enter" || event.key === " ")
-                                                event.stopPropagation()
-                                        }}
-                                    >
-                                        <Faders size={14} />
-                                        {t("ui.llmProvider.manageProviders")}
-                                    </Button>
-                                </div>
-                            }
-                            // The way back exists only when the `/` palette opened the list.
-                            panelFooter={
-                                slash.pickerOrigin === "command" ? (
-                                    <div className="flex justify-end">
-                                        <button
-                                            type="button"
-                                            onClick={backToCommands}
-                                            className="text-muted-foreground cursor-pointer border-none bg-transparent p-0 text-[10.5px]"
-                                        >
-                                            {t("chat.mobileComposer.backToCommands")}
-                                        </button>
-                                    </div>
-                                ) : null
-                            }
-                        />
+                        <AnimatePresence initial={false}>
+                            {slash.picker === "model" ? (
+                                <motion.div
+                                    key="model"
+                                    variants={presets.crossfade}
+                                    initial="initial"
+                                    animate="animate"
+                                    exit="exit"
+                                    className="absolute inset-x-0 bottom-full z-50 mb-2"
+                                >
+                                    {/* A pick writes the agent config; auto-save commits it. */}
+                                    <ComposerModelPanel
+                                        groups={slash.modelGroups}
+                                        selectedKey={slash.currentModelKey}
+                                        value={slash.currentModel}
+                                        onPick={(next, option) => slash.applyModel(next, option)}
+                                        onDismiss={dismissPicker}
+                                        onManageProviders={openProviders}
+                                        onBackToCommands={
+                                            slash.pickerOrigin === "command"
+                                                ? backToCommands
+                                                : undefined
+                                        }
+                                        triggerRef={modelButtonRef}
+                                    />
+                                </motion.div>
+                            ) : null}
+                        </AnimatePresence>
                         <ChatComposer
                             inputRef={richInputRef}
                             onSubmit={submit}
@@ -469,6 +446,7 @@ export const Composer = ({
                                         disabled={disabled}
                                         onOpen={openModelPicker}
                                         onClose={closePicker}
+                                        buttonRef={modelButtonRef}
                                     />
                                 ) : null
                             }

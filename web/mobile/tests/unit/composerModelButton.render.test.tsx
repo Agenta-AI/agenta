@@ -75,16 +75,15 @@ describe("ComposerModelButton", () => {
         expect(button.querySelectorAll("svg").length).toBe(2)
         // The name is cut with "…" rather than wrapping the composer row.
         expect(screen.getByText("Claude Sonnet 5.5").className).toContain("truncate")
-        fireEvent.pointerDown(button)
-        fireEvent.click(button, {detail: 1})
+        fireEvent.click(button)
         expect(onOpen).toHaveBeenCalledOnce()
         expect(onClose).not.toHaveBeenCalled()
     })
 
-    it("closes on a press that started while the list was open", () => {
+    it("closes the list when it is open", () => {
         const onOpen = vi.fn()
         const onClose = vi.fn()
-        const view = render(
+        render(
             <ComposerModelButton
                 groups={groups}
                 selectedKey={null}
@@ -94,25 +93,9 @@ describe("ComposerModelButton", () => {
                 onClose={onClose}
             />,
         )
-        const button = screen.getByRole("button", {name: "Model: Claude Sonnet 5.5"})
-        fireEvent.pointerDown(button)
-        // The list closes on the pointer-down outside it before the click lands.
-        view.rerender(
-            <ComposerModelButton
-                groups={groups}
-                selectedKey={null}
-                modelId="claude-sonnet-5-5"
-                open={false}
-                onOpen={onOpen}
-                onClose={onClose}
-            />,
-        )
-        fireEvent.click(button, {detail: 1})
-        expect(onOpen).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole("button", {name: "Model: Claude Sonnet 5.5"}))
         expect(onClose).toHaveBeenCalledOnce()
-        // A keyboard click (no press) reads the state as it is now.
-        fireEvent.click(button, {detail: 0})
-        expect(onOpen).toHaveBeenCalledOnce()
+        expect(onOpen).not.toHaveBeenCalled()
     })
 
     it("marks the open state and shows the raw id when the list has no such row", () => {
