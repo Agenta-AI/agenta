@@ -13,5 +13,6 @@
     "uploadLine": "Text files only. The upload opens in the editor, and nothing is saved until \"Create skill\".",
     "or": "or",
     "scan": "Scan",
-    "leaveDescription": "Create the skill in your skill registry, or discard it?"
+    "leaveDescription": "Create the skill in your skill registry, or discard it?",
+    "notAddedToAgent": "Imported to the skill registry, but not added to this agent: {{names}}."
 }

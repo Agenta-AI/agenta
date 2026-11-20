@@ -7,7 +7,7 @@ import {useMemo} from "react"
 import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {ViewDrawerHost, type ViewRequest} from "@agenta/ui/view-stack"
 
-import type {NewSkillStart} from "./NewSkillBody"
+import type {NewSkillStart, NewSkillStep} from "./NewSkillBody"
 import {registryNewSkillView, type RegistryNewSkillParams} from "./registryNewSkillView"
 
 export interface SkillCreateDrawerProps {
@@ -17,8 +17,8 @@ export interface SkillCreateDrawerProps {
     projectId?: string
     /** A picked upload, still being read: the view opens on its upload step with it. */
     upload?: Promise<SkillUploadScan> | null
-    /** The step to open on when there is no upload; "write" by default. */
-    start?: "choose" | "write" | "import"
+    /** The step to open on; "upload" reads `upload`. "write" by default. */
+    start?: NewSkillStep
     width?: number
 }
 
@@ -30,7 +30,10 @@ export function SkillCreateDrawer({
     width,
 }: SkillCreateDrawerProps) {
     const request = useMemo<ViewRequest<RegistryNewSkillParams>>(() => {
-        const first: NewSkillStart = upload ? {step: "upload", scan: upload} : {step: start}
+        const first: NewSkillStart =
+            start === "upload" || upload
+                ? {step: "upload", scan: upload ?? undefined}
+                : {step: start}
         return {view: registryNewSkillView, params: {start: first}, target: {kind: "project"}}
     }, [start, upload])
     if (!open) return null

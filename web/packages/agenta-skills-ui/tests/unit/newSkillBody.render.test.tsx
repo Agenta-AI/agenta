@@ -11,11 +11,19 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {NewSkillBody, type NewSkillStart} from "../../src/NewSkillBody"
 
-const {createSkillWorkflow} = vi.hoisted(() => ({createSkillWorkflow: vi.fn()}))
+const {createSkillWorkflow, scanSkillSource, importSkillSource, querySkills} = vi.hoisted(() => ({
+    createSkillWorkflow: vi.fn(),
+    scanSkillSource: vi.fn(),
+    importSkillSource: vi.fn(),
+    querySkills: vi.fn(),
+}))
 
 vi.mock("@agenta/skills", async (original) => ({
     ...(await original<object>()),
     createSkillWorkflow,
+    scanSkillSource,
+    importSkillSource,
+    querySkills,
 }))
 vi.mock("@agenta/skills/state", () => ({invalidateSkillsListCache: vi.fn()}))
 // The editor is the skill editor's; here a button fills it with a valid skill.
@@ -113,6 +121,9 @@ beforeEach(() => {
     root = createRoot(host)
     onCreated.mockReset()
     createSkillWorkflow.mockReset()
+    scanSkillSource.mockReset()
+    importSkillSource.mockReset()
+    querySkills.mockReset()
 })
 
 afterEach(async () => {
@@ -162,5 +173,72 @@ describe("new skill", () => {
     it("an upload with no SKILL.md says so", async () => {
         await open({step: "upload", scan: Promise.resolve({candidates: [], fileCount: 0})})
         await waitFor(() => expect(byText("No SKILL.md found in the upload.")).toBeTruthy())
+    })
+
+    it("an upload with several skills imports the picked ones and adds them to the agent", async () => {
+        createSkillWorkflow
+            .mockResolvedValueOnce({slug: "a-1", workflowId: "wf-a"})
+            .mockResolvedValueOnce({slug: "b-1", workflowId: "wf-b"})
+        const candidate = (name: string) => ({
+            dir: name,
+            skill: {name, description: `${name} skill`, body: "# Steps", files: []},
+        })
+        await open({
+            step: "upload",
+            scan: Promise.resolve({candidates: [candidate("alpha"), candidate("beta")], fileCount: 2}),
+        })
+        await waitFor(() => expect(byText("Import 2 skills")).toBeTruthy())
+        await click(byText("Import 2 skills"))
+        await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1))
+        const [entries] = onCreated.mock.calls[0] as [Record<string, unknown>[]]
+        expect(entries.map((e) => e.name)).toEqual(["alpha", "beta"])
+    })
+
+    it("a repo import adds the imported skills to the agent and says which it could not add", async () => {
+        scanSkillSource.mockResolvedValue({
+            already_imported_paths: ["skills/old"],
+            scan: {
+                candidates: [
+                    {path_in_repo: "skills/old", valid: true, skill: {name: "old"}},
+                    {path_in_repo: "skills/pdf", valid: true, skill: {name: "pdf-reader"}},
+                    {path_in_repo: "skills/ref", valid: true, skill: {name: "refund-check"}},
+                ],
+            },
+        })
+        importSkillSource.mockResolvedValue({
+            imported: [
+                {path_in_repo: "skills/pdf", workflow_id: "wf-pdf", name: "pdf-reader"},
+                {path_in_repo: "skills/ref", workflow_id: "wf-ref", name: "refund-check"},
+            ],
+            skipped: [],
+        })
+        // The registry lists only one of the two; the name search finds none.
+        querySkills.mockImplementation(async ({search}: {search?: string}) => ({
+            skills: search
+                ? []
+                : [{workflow_id: "wf-pdf", workflow_slug: "pdf-reader-2b9e", skill_name: "pdf-reader"}],
+        }))
+        await open({step: "import"})
+        const input = document.querySelector("input") as HTMLInputElement
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+            setter?.call(input, "https://github.com/acme/agent-skills")
+            input.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await click(byText("Scan"))
+        await waitFor(() => expect(byText("Already imported")).toBeTruthy())
+        expect(byText("Skills found · 3")).toBeTruthy()
+        await click(byText("Import 2 skills"))
+        await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1))
+        const [entries] = onCreated.mock.calls[0] as [Record<string, unknown>[]]
+        expect(JSON.stringify(entries)).toContain("pdf-reader-2b9e")
+        expect(entries).toHaveLength(1)
+        await waitFor(() =>
+            expect(
+                byText(
+                    "Imported to the skill registry, but not added to this agent: refund-check.",
+                ),
+            ).toBeTruthy(),
+        )
     })
 })

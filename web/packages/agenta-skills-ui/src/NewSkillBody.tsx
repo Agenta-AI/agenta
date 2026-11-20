@@ -21,7 +21,7 @@ import skillTemplateCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import repoImportCatalog from "@agenta/i18n/catalogs/ui.repoImport"
 import {projectIdAtom} from "@agenta/shared/state"
-import {skillDisplayName} from "@agenta/shared/utils"
+import {extractApiErrorMessage, skillDisplayName} from "@agenta/shared/utils"
 import {
     buildSkillEmbedEntry,
     createSkillWorkflow,
@@ -31,6 +31,7 @@ import {
     skillContentSchema,
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
+import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle} from "@agenta/ui/view-stack"
@@ -46,13 +47,11 @@ export type NewSkillStart =
     | {step: "import"}
     | {step: "upload"; scan?: Promise<SkillUploadScan>}
 
-export interface NewSkillBodyProps {
-    start?: NewSkillStart
-    /** In an agent: each created or imported skill, as the embed entry the agent adds. */
-    onCreated?: (entries: Skill[]) => void
-}
+/** The bridge's props, with the step to open on; the Skills page gives no `onCreated`. */
+export type NewSkillBodyProps = Partial<BridgeNewSkillBodyProps> & {start?: NewSkillStart}
 
-type Step = NewSkillStart["step"]
+export type NewSkillStep = NewSkillStart["step"]
+type Step = NewSkillStep
 
 const EMPTY_SKILL: Skill = {name: "", description: "", body: "", files: []}
 
@@ -71,8 +70,14 @@ const embedEntry = (created: {
     description?: string
 }): Skill => buildSkillEmbedEntry({...created, mode: "latest"}) as unknown as Skill
 
-const errorText = (err: unknown): string | null =>
-    err instanceof Error && err.message ? err.message : null
+/** The server's own sentence for a failure, as the repo import drawer shows it. */
+const errorText = (err: unknown): string | null => {
+    const body = (err as {body?: {next_step?: unknown; detail?: {next_step?: unknown}}})?.body
+    const message = body ? extractApiErrorMessage(body) : null
+    const nextStep = body?.next_step ?? body?.detail?.next_step
+    if (message) return typeof nextStep === "string" ? `${message} ${nextStep}` : message
+    return err instanceof Error && err.message ? err.message : null
+}
 
 /** One repo scan row. */
 interface RepoCandidate {
@@ -273,25 +278,34 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         }
     }, [projectId, repoUrl, scanning, t])
 
-    /** The registry entry of each imported skill, for the agent's references. */
+    /** The embed entry of each imported skill; the import answer has no slug, the registry has. */
     const entriesOfImported = useCallback(
         async (imported: {workflow_id?: string | null; name?: string | null}[]) => {
+            const listed = await querySkills({projectId})
+            const byId = new Map((listed.skills ?? []).map((s) => [s.workflow_id, s]))
             const entries: Skill[] = []
+            const missed: string[] = []
             for (const item of imported) {
-                if (!item.workflow_id) continue
-                const listed = await querySkills({projectId, search: item.name ?? undefined})
-                const match = (listed.skills ?? []).find((s) => s.workflow_id === item.workflow_id)
-                if (!match?.workflow_slug) continue
+                let match = item.workflow_id ? byId.get(item.workflow_id) : undefined
+                // A large registry may not list it on the first page.
+                if (!match && item.workflow_id && item.name) {
+                    const found = await querySkills({projectId, search: item.name})
+                    match = (found.skills ?? []).find((s) => s.workflow_id === item.workflow_id)
+                }
+                if (!match?.workflow_slug) {
+                    missed.push(item.name || item.workflow_id || "")
+                    continue
+                }
                 entries.push(
                     embedEntry({
                         slug: match.workflow_slug,
-                        workflowId: item.workflow_id,
+                        workflowId: match.workflow_id ?? undefined,
                         name: match.skill_name ?? match.name ?? match.workflow_slug,
                         description: match.description ?? match.skill_description ?? undefined,
                     }),
                 )
             }
-            return entries
+            return {entries, missed}
         },
         [projectId],
     )
@@ -317,17 +331,25 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         }
         invalidateSkillsListCache()
         const imported = response.imported ?? []
-        if (onCreated && imported.length) onCreated(await entriesOfImported(imported))
+        const notes: string[] = []
+        if (onCreated && imported.length) {
+            const {entries, missed} = await entriesOfImported(imported)
+            if (entries.length) onCreated(entries)
+            if (missed.length)
+                notes.push(t("entityUi.skillNew.notAddedToAgent", {names: missed.join(", ")}))
+        }
         const skipped = response.skipped ?? []
-        if (skipped.length === 0) return true
-        // Some went in: keep the view open and say which were skipped.
+        if (skipped.length)
+            notes.push(
+                [
+                    t("skills.gallery.skippedCount", {count: skipped.length}),
+                    ...skipped.map((s) => s.path_in_repo),
+                ].join(" "),
+            )
+        if (notes.length === 0) return true
+        // Some went in: keep the view open and say what did not.
         setSelected(new Set())
-        setError(
-            [
-                t("skills.gallery.skippedCount", {count: skipped.length}),
-                ...skipped.map((s) => s.path_in_repo),
-            ].join(" "),
-        )
+        setError(notes.join(" "))
         return "stay" as const
     }, [entriesOfImported, onCreated, projectId, repoUrl, selected, t])
 

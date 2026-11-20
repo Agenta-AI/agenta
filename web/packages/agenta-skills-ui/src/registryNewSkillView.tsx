@@ -1,10 +1,6 @@
-import {lazy, Suspense} from "react"
-
 import {defineView, type ViewProps} from "@agenta/ui/view-stack"
 
-import type {NewSkillStart} from "./NewSkillBody"
-
-const Body = lazy(() => import("./NewSkillBody"))
+import {NewSkillBody, type NewSkillStart} from "./NewSkillBody"
 
 export interface RegistryNewSkillParams {
     start?: NewSkillStart
@@ -16,8 +12,6 @@ export const registryNewSkillView = defineView<RegistryNewSkillParams>({
     apply: "on_save",
     wide: true,
     Component: ({params}: ViewProps<RegistryNewSkillParams>) => (
-        <Suspense fallback={null}>
-            <Body start={params.start} />
-        </Suspense>
+        <NewSkillBody start={params.start} />
     ),
 })

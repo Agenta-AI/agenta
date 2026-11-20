@@ -13,5 +13,6 @@
     "uploadLine": "Nur Textdateien. Der Upload öffnet sich im Editor, und nichts wird gespeichert, bis du auf „Skill erstellen“ klickst.",
     "or": "oder",
     "scan": "Scannen",
-    "leaveDescription": "Den Skill in deiner Skill-Registry erstellen oder verwerfen?"
+    "leaveDescription": "Den Skill in deiner Skill-Registry erstellen oder verwerfen?",
+    "notAddedToAgent": "In die Skill-Registry importiert, aber nicht zu diesem Agent hinzugefügt: {{names}}."
 }

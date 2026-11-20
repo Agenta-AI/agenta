@@ -4078,7 +4078,8 @@
         "uploadLine": "0c1b5d820c83",
         "or": "7175517a370b",
         "scan": "ea1c510d1ddb",
-        "leaveDescription": "cb514ece433f"
+        "leaveDescription": "cb514ece433f",
+        "notAddedToAgent": "968a630b5026"
     },
     "entityUi.skillTemplate": {
         "skillReference": "eed422b6d6fa",

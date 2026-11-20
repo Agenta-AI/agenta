@@ -10,7 +10,7 @@ import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
 import {SkillMark} from "@agenta/ui/agent-icon"
-import type {SkillsAddBodyProps} from "@agenta/ui/drill-in"
+import type {AddSkillsBodyProps} from "@agenta/ui/drill-in"
 import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
 import {Check, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -77,7 +77,7 @@ function RowsSkeleton() {
     )
 }
 
-export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: SkillsAddBodyProps) {
+export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkillsBodyProps) {
     const t = useT(skillsGalleryCatalog)
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)

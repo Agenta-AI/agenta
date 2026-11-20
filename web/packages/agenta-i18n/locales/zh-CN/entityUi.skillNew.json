@@ -13,5 +13,6 @@
     "uploadLine": "仅限文本文件。上传内容会在编辑器中打开，点击“创建 Skill”之前不会保存任何内容。",
     "or": "或",
     "scan": "扫描",
-    "leaveDescription": "在你的 Skill 注册表中创建该 Skill，还是放弃？"
+    "leaveDescription": "在你的 Skill 注册表中创建该 Skill，还是放弃？",
+    "notAddedToAgent": "已导入到 Skill 注册表，但未添加到这个 Agent：{{names}}。"
 }

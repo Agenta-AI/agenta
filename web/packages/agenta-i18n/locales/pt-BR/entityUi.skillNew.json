@@ -13,5 +13,6 @@
     "uploadLine": "Somente arquivos de texto. O upload abre no editor, e nada é salvo até \"Criar habilidade\".",
     "or": "ou",
     "scan": "Escanear",
-    "leaveDescription": "Criar a habilidade no seu registro de habilidades ou descartá-la?"
+    "leaveDescription": "Criar a habilidade no seu registro de habilidades ou descartá-la?",
+    "notAddedToAgent": "Importada para o registro de habilidades, mas não adicionada a este agente: {{names}}."
 }

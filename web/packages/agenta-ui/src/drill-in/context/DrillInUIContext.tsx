@@ -217,7 +217,7 @@ export interface WorkflowReferenceBridge {
 }
 
 /** What the agent's "Add skills" view hands the registry list (F04 f2). */
-export interface SkillsAddBodyProps {
+export interface AddSkillsBodyProps {
     /** Embed slugs already on this agent; their rows show "Added". */
     addedSlugs: string[]
     /** Append one fully-built `@ag.embed` entry to the agent's skills. */
@@ -229,7 +229,7 @@ export interface SkillsAddBodyProps {
 }
 
 /** What the agent's "New skill" view hands the create steps (F07 f12 to f15). */
-export interface SkillsNewBodyProps {
+export interface NewSkillBodyProps {
     /** Each created or imported skill, as the `@ag.embed` entry the agent adds. */
     onCreated: (entries: Record<string, unknown>[]) => void
 }
@@ -251,9 +251,9 @@ export interface RegistrySkillParams {
 export interface SkillsBridge {
     enabled: boolean
     /** The body of the agent's "Add skills" view: the registry list. */
-    AddSkillsBody: ComponentType<SkillsAddBodyProps>
+    AddSkillsBody: ComponentType<AddSkillsBodyProps>
     /** The body of the agent's "New skill" view: choose how, write, upload, import. */
-    NewSkillBody: ComponentType<SkillsNewBodyProps>
+    NewSkillBody: ComponentType<NewSkillBodyProps>
     /** Registry head versions by embed slug (no "v" prefix) — the panel's pinned rows use
      * it for the "vN available" nudge. A hook (required, not optional: hook order) that
      * may answer {} while the registry list loads. */

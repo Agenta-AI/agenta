@@ -27,7 +27,12 @@ export {
 } from "./SkillDetailDrawer"
 export {SkillAgentPicker} from "./SkillAgentPicker"
 export {AddSkillsBody} from "./AddSkillsBody"
-export {NewSkillBody, type NewSkillBodyProps, type NewSkillStart} from "./NewSkillBody"
+export {
+    NewSkillBody,
+    type NewSkillBodyProps,
+    type NewSkillStart,
+    type NewSkillStep,
+} from "./NewSkillBody"
 export {registryNewSkillView, type RegistryNewSkillParams} from "./registryNewSkillView"
 export {registrySkillView, RegistrySkillBody} from "./registrySkillView"
 export {SourceRefreshButton} from "./SourceRefreshButton"
