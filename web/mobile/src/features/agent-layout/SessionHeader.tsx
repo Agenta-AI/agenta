@@ -191,16 +191,13 @@ export const SessionHeader = ({
                         />
                     ) : null}
                     {/* Mounted even when hidden: it drives session follow. A save can fail after
-                        the person leaves Configuration, so the notice and retry show here. Hit
-                        areas grow by 16 px on each side, so the 12 px retry glyph is 44 px; the
-                        retry is a span with the button role. */}
+                        the person leaves Configuration, so the notice and retry show here. With
+                        `phone` the status gives the retry and the version pill their own 44 px
+                        hit areas. */}
                     {revisionStatus ? (
                         <span
                             data-testid="session-header-save-status"
-                            className={cn(
-                                "shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-4 [&_:is(button,[role=button])]:after:content-['']",
-                                saveFailed ? "flex" : "hidden",
-                            )}
+                            className={cn("shrink-0 items-center", saveFailed ? "flex" : "hidden")}
                         >
                             {revisionStatus}
                         </span>
