@@ -1543,3 +1543,25 @@ describe("useAgentChatQueue refusal after the echo has gone", () => {
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 })
+
+describe("the history arriving on open", () => {
+    it("makes no second queue read when a read already listed the queue as empty", () => {
+        const refresh = vi.fn(() => Promise.resolve<number | null>(1))
+        const listedEmpty = {...durableServer().server, refresh, viewSeq: 1}
+        const {rerender} = setup({...settledEmpty, server: listedEmpty})
+        rerender({
+            ...settledEmpty,
+            messages: [userTurn("u1", "first"), userTurn("u2", "second")],
+            server: listedEmpty,
+        })
+        expect(refresh).not.toHaveBeenCalled()
+    })
+
+    it("still re-reads when the history lands before any read has listed the queue", () => {
+        const refresh = vi.fn(() => Promise.resolve<number | null>(1))
+        const notRead = {...durableServer().server, refresh, viewSeq: 0}
+        const {rerender} = setup({...settledEmpty, server: notRead})
+        rerender({...settledEmpty, messages: [userTurn("u1", "first")], server: notRead})
+        expect(refresh).toHaveBeenCalledTimes(1)
+    })
+})
