@@ -1,11 +1,13 @@
-// The Claude connect dialog: a pasted token, checked by the API, and never a device login.
+// The subscription views with their owner's connections: Claude's pasted token, checked by the
+// API and never a device login, and an organization subscription's projects.
 import {act} from "react"
 
 import type {ProviderConnection, SecretKind} from "@agenta/entities/secret"
 import {createRoot} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {SubscriptionSignInDialog} from "../../src/secretProvider/SubscriptionSignInDialog"
+import {waitFor} from "./domHelpers"
+import {loadSubscriptionViews, SubscriptionViewStage} from "./subscriptionViewHarness"
 
 const {
     CREATE_ATOM,
@@ -72,7 +74,6 @@ const refusal = (code: string, message: string, nextStep: string) =>
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
-const onClose = vi.fn()
 
 const ACME = {
     name: "Acme",
@@ -90,16 +91,18 @@ const render = async (
 ) => {
     await act(async () => {
         root.render(
-            <SubscriptionSignInDialog
-                open
-                onClose={onClose}
+            <SubscriptionViewStage
                 provider={provider}
                 connection={connection}
                 organization={organization}
             />,
         )
     })
+    await waitFor(() => expect(text()).toContain("depth:1"))
 }
+
+/** The stack went back to its root: the view closed. */
+const closed = () => waitFor(() => expect(text()).toContain("depth:0"))
 
 /** The same connection, owned by the organization and open to every project. */
 const organizationConnection = (connection: ProviderConnection): ProviderConnection => ({
@@ -140,9 +143,10 @@ const press = async (label: string) => {
     })
 }
 
+beforeAll(() => loadSubscriptionViews(), 400_000)
+
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
-    onClose.mockReset()
     createConnection.mockReset().mockResolvedValue("claude-1")
     setToken.mockReset().mockResolvedValue(undefined)
     setProjects.mockReset().mockResolvedValue(undefined)
@@ -164,10 +168,10 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-describe("opening the connect dialog", () => {
+describe("opening a subscription view", {timeout: 30_000}, () => {
     it("starts a device login for ChatGPT", async () => {
         await render("chatgpt")
-        expect(startLogin).toHaveBeenCalledOnce()
+        await waitFor(() => expect(startLogin).toHaveBeenCalledOnce())
     })
 
     it("starts no device login and creates nothing for Claude", async () => {
@@ -175,13 +179,13 @@ describe("opening the connect dialog", () => {
 
         expect(startLogin).not.toHaveBeenCalled()
         expect(createConnection).not.toHaveBeenCalled()
-        expect(text()).toContain("Connect Claude")
+        expect(text()).toContain("Paste a token to run agents on your Pro or Max plan.")
         expect(text()).toContain("claude setup-token")
         expect(text()).toContain("You need Claude Code installed.")
     })
 })
 
-describe("the token steps", () => {
+describe("the token steps", {timeout: 30_000}, () => {
     it("keeps Connect off until the field holds a setup-token", async () => {
         await render("claude")
         expect(button("Connect").disabled).toBe(true)
@@ -269,7 +273,7 @@ describe("the token steps", () => {
     it("opens a ready connection on its status, and replaces the token on the same row", async () => {
         await render("claude", claudeConnection("ready"))
 
-        expect(text()).toContain("Claude connected")
+        expect(text()).toContain("Agents can run on this subscription.")
         expect(text()).toContain("Ready. Pick a Claude model in any agent.")
         expect(text()).not.toContain("expires")
 
@@ -302,7 +306,7 @@ describe("the token steps", () => {
         expect(text()).not.toContain("Ready. Pick a Claude model in any agent.")
     })
 
-    it("cannot be dismissed while a check is in flight", async () => {
+    it("cannot be left while a check is in flight, and goes back once the token is stored", async () => {
         let finish: () => void = () => undefined
         createConnection.mockReturnValue(
             new Promise<string>((resolve) => (finish = () => resolve("claude-1"))),
@@ -312,25 +316,19 @@ describe("the token steps", () => {
         await press("Connect")
 
         expect(button("Cancel").disabled).toBe(true)
-        await act(async () => {
-            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
-        })
-        expect(onClose).not.toHaveBeenCalled()
         expect(text()).toContain("Checking…")
 
-        // The check answers, then the dialog closes normally.
         await act(async () => finish())
         expect(setToken).toHaveBeenCalledWith({
             secretId: "claude-1",
             token: TOKEN,
             scope: "project",
         })
-        await press("Cancel")
-        expect(onClose).toHaveBeenCalledOnce()
+        await closed()
     })
 })
 
-describe("an organization subscription", () => {
+describe("an organization subscription", {timeout: 30_000}, () => {
     it("shows the API's sentence when the organization already has the provider", async () => {
         const sentence =
             "This organization already has a Claude subscription connection. Remove it before you add another one."
@@ -361,21 +359,26 @@ describe("an organization subscription", () => {
             projects: {availability: "selected_projects", projectIds: []},
         })
         expect(setToken).not.toHaveBeenCalled()
-        expect(onClose).toHaveBeenCalledOnce()
+        await closed()
     })
 
-    it("sends no token when Done saves only the projects", async () => {
+    it("stores a typed token, then the projects, with Connect", async () => {
         await render("claude", organizationConnection(claudeConnection("pending_login")), ACME)
         await type(TOKEN)
         await chooseSelectedProjects()
-        await press("Done")
+        await press("Connect")
 
-        expect(setToken).not.toHaveBeenCalled()
         expect(createConnection).not.toHaveBeenCalled()
+        expect(setToken).toHaveBeenCalledWith({
+            secretId: "claude-1",
+            token: TOKEN,
+            scope: "organization",
+        })
         expect(setProjects).toHaveBeenCalledWith({
             connectionId: "claude-1",
             projects: {availability: "selected_projects", projectIds: []},
         })
+        await closed()
     })
 
     it("names the plan when the organization may not limit projects", async () => {
@@ -397,10 +400,10 @@ describe("an organization subscription", () => {
 
         expect(text()).toContain("Choosing projects is available on Business and Enterprise plans.")
         expect(text()).not.toContain("no longer an owner or admin")
-        expect(onClose).not.toHaveBeenCalled()
+        expect(text()).toContain("depth:1")
     })
 
-    it("saves its projects while a device sign-in waits", async () => {
+    it("saves a changed choice at once while a device sign-in waits", async () => {
         const chatgpt = organizationConnection({
             ...claudeConnection("pending_login"),
             id: "chatgpt-1",
@@ -408,14 +411,32 @@ describe("an organization subscription", () => {
             subscription: {provider: "chatgpt", loginState: "pending_login"},
         } as ProviderConnection)
         await render("chatgpt", chatgpt, ACME)
-        expect(text()).toContain("ABCD-1234")
+        await waitFor(() => expect(text()).toContain("ABCD-1234"))
         await chooseSelectedProjects()
-        await press("Done")
 
-        expect(setProjects).toHaveBeenCalledWith({
-            connectionId: "chatgpt-1",
-            projects: {availability: "selected_projects", projectIds: []},
-        })
-        expect(onClose).toHaveBeenCalledOnce()
+        await waitFor(() =>
+            expect(setProjects).toHaveBeenCalledWith({
+                connectionId: "chatgpt-1",
+                projects: {availability: "selected_projects", projectIds: []},
+            }),
+        )
+        // The sign-in keeps waiting: the choice did not end it.
+        expect(text()).toContain("ABCD-1234")
+    })
+
+    it("sends a refused choice once, with no retry", async () => {
+        setProjects.mockRejectedValue(new Error("Status code: 500"))
+        const chatgpt = organizationConnection({
+            ...claudeConnection("pending_login"),
+            id: "chatgpt-1",
+            name: "ChatGPT",
+            subscription: {provider: "chatgpt", loginState: "pending_login"},
+        } as ProviderConnection)
+        await render("chatgpt", chatgpt, ACME)
+        await waitFor(() => expect(text()).toContain("ABCD-1234"))
+        await chooseSelectedProjects()
+        await waitFor(() => expect(setProjects).toHaveBeenCalledOnce())
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
+        expect(setProjects).toHaveBeenCalledOnce()
     })
 })

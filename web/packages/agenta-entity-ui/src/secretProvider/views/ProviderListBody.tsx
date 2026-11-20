@@ -7,12 +7,11 @@
  * A body, not a view: the panel mounts it in `providerListView`, and Settings › AI providers
  * mounts it as the root of its container. The host decides how the rows open.
  */
-import {createElement, useMemo, useState, type ReactNode} from "react"
+import {createElement, useMemo, type ReactNode} from "react"
 
 import {
     buildModelProviderList,
     providerConnectionsAtom,
-    subscriptionProviderFamily,
     vaultSecretsQueryAtom,
     type ProviderConnection,
 } from "@agenta/entities/secret"
@@ -26,12 +25,13 @@ import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {providerIconFor} from "../providerIcon"
-import SubscriptionSignInDialog from "../SubscriptionSignInDialog"
 
 export interface ProviderListBodyProps {
     onAdd: () => void
     /** "Edit" on an API key connection. */
     onOpenConnection: (connection: ProviderConnection) => void
+    /** "Edit" or "Sign in again" on a subscription. */
+    onOpenSubscription: (connection: ProviderConnection) => void
     /** "Edit" on the "Agenta" row. */
     onOpenBuiltin: () => void
     /** Extra actions of a row (Settings puts Delete here). */
@@ -78,15 +78,10 @@ const Row = ({
     </li>
 )
 
-interface SignInTarget {
-    provider: string
-    /** Read from the current list on each render, so a finished sign-in shows at once. */
-    connectionId: string
-}
-
 export const ProviderListBody = ({
     onAdd,
     onOpenConnection,
+    onOpenSubscription,
     onOpenBuiltin,
     rowMenu,
 }: ProviderListBodyProps) => {
@@ -98,8 +93,6 @@ export const ProviderListBody = ({
         () => buildModelProviderList({connections, builtinEndpoints}),
         [connections, builtinEndpoints],
     )
-    // A subscription row opens its sign-in; the subscriptions milestone turns it into a view.
-    const [signIn, setSignIn] = useState<(SignInTarget & {open: boolean}) | null>(null)
 
     const loading = vault.isPending
     const failed = vault.isError && !connections.length
@@ -134,33 +127,25 @@ export const ProviderListBody = ({
                             <>
                                 <GroupLabel>{t("entityUi.providerList.subscriptions")}</GroupLabel>
                                 <ul className="m-0 list-none p-0">
-                                    {list.subscriptions.map(({connection, signInNeeded}) => {
-                                        const provider = connection.subscription?.provider ?? ""
-                                        return (
-                                            <Row
-                                                key={connection.id}
-                                                kind={connection.kind}
-                                                name={connection.name}
-                                                state={
-                                                    signInNeeded
-                                                        ? t("entityUi.providerList.signInNeeded")
-                                                        : undefined
-                                                }
-                                                action={{
-                                                    label: signInNeeded
-                                                        ? t("settings.providers.signInAgain")
-                                                        : t("common.edit"),
-                                                    onClick: () =>
-                                                        setSignIn({
-                                                            provider,
-                                                            connectionId: connection.id,
-                                                            open: true,
-                                                        }),
-                                                }}
-                                                menu={rowMenu?.(connection)}
-                                            />
-                                        )
-                                    })}
+                                    {list.subscriptions.map(({connection, signInNeeded}) => (
+                                        <Row
+                                            key={connection.id}
+                                            kind={connection.kind}
+                                            name={connection.name}
+                                            state={
+                                                signInNeeded
+                                                    ? t("entityUi.providerList.signInNeeded")
+                                                    : undefined
+                                            }
+                                            action={{
+                                                label: signInNeeded
+                                                    ? t("settings.providers.signInAgain")
+                                                    : t("common.edit"),
+                                                onClick: () => onOpenSubscription(connection),
+                                            }}
+                                            menu={rowMenu?.(connection)}
+                                        />
+                                    ))}
                                 </ul>
                             </>
                         ) : null}
@@ -192,19 +177,6 @@ export const ProviderListBody = ({
                     {t("entityUi.providerList.addProviderOrSubscription")}
                 </Button>
             </div>
-            {signIn ? (
-                <SubscriptionSignInDialog
-                    key={signIn.connectionId}
-                    open={signIn.open}
-                    onClose={() => setSignIn({...signIn, open: false})}
-                    provider={signIn.provider}
-                    connection={
-                        connections.find((connection) => connection.id === signIn.connectionId) ??
-                        null
-                    }
-                    logo={<ProviderTile kind={subscriptionProviderFamily(signIn.provider)} />}
-                />
-            ) : null}
         </div>
     )
 }

@@ -7,8 +7,7 @@ import {useModelHarness} from "../useModelHarness"
 //     must run BELOW the providers — wrapping its output in them does nothing. A body rendered from
 //     the parent's `mh` silently ignores both filters.
 //  2. Cost. `useModelHarness` carries harness-catalog + vault-secrets + build-kit-overlay
-//     subscriptions; mounting it per body keeps them scoped to the bodies that are on screen
-//     (`SectionDrawer` uses `destroyOnClose`).
+//     subscriptions; mounting it per body keeps them scoped to the bodies that are on screen.
 export const ModelHarnessSectionBody = ({
     section,
     ...params
@@ -17,9 +16,7 @@ export const ModelHarnessSectionBody = ({
 } & Parameters<typeof useModelHarness>[0]) => {
     const mh = useModelHarness(params)
     if (section === "permissions") return <>{mh.permissionsBody}</>
-    if (section === "advanced") {
-        return <>{mh.advancedDrawerBody}</>
-    }
+    if (section === "advanced") return <>{mh.advancedChangeBody}</>
     return <>{mh.modelHarnessBody}</>
 }
 

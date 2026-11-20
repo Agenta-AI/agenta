@@ -103,6 +103,14 @@ export const providerOf = (text: string): RunErrorProvider | null => {
     }
 }
 
+/**
+ * The runner's own sentence for a refused model credential ("pi_core: model authentication
+ * failed — add the project's OpenAI key …"). It sends it with the code `runner_error`, so the
+ * text is the only sign of a key failure. It names harness ids and the vault, so it goes to
+ * the fold, not under the headline.
+ */
+const MODEL_AUTH_FAILED = /\bmodel authentication failed\b/i
+
 /** The failures a reader can act on, in the product's words; anything else keeps the provider's sentence. */
 export type RunErrorKind = "credits" | "key" | "rate" | "outage"
 
@@ -127,7 +135,12 @@ const recognise = (
             remedy: tNow("chat.mobileRunError.creditsRemedy"),
         }
     }
-    if (status === 401 || status === 403 || /api key|unauthori[sz]ed|invalid.*key/.test(lower)) {
+    if (
+        status === 401 ||
+        status === 403 ||
+        /api key|unauthori[sz]ed|invalid.*key/.test(lower) ||
+        MODEL_AUTH_FAILED.test(text)
+    ) {
         return {
             kind: "key",
             headline: tNow("chat.mobileRunError.keyHeadline", {key}),
@@ -279,7 +292,8 @@ export const formatRunError = (
     const told = humanizeNumbers(whole || !isBig(view.message) ? view.message : view.headline)
     if (view.remedy) {
         // Recognised: our sentence and remedy, with the provider's own words between them.
-        const quote = told && told !== view.headline ? told : null
+        const quote =
+            told && told !== view.headline && !MODEL_AUTH_FAILED.test(reason) ? told : null
         return {
             paragraphs: [view.headline, view.remedy],
             quote,

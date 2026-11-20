@@ -1,6 +1,7 @@
 import {useState, type ComponentProps, type ReactNode} from "react"
 
 import {AutomationActionsMenu} from "@/features/automations/AutomationActionsMenu"
+import {SecretRemoveDialog} from "@agenta/entity-ui/secret"
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
@@ -10,17 +11,14 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {screen, userEvent, within} from "storybook/test"
 
 // Imported from source: the package barrel does not re-export these two.
-import {AgentSecretsSection} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/AgentSecretsSection"
 import {RemoveFromAgentDialog} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/RemoveFromAgentDialog"
-import {storyScope, type StoryScope} from "../../../.storybook/decorators/withAgentaData"
+import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {
     agentTabQueries,
     DELETED_AUTOMATION,
     REMOVED_INTEGRATION,
     REVERT,
 } from "../../../fixtures/builderLayout/agent-tab"
-import {SECRET_NAMES} from "../../../fixtures/builderLayout/index"
-import {workflowIds} from "../../../fixtures/workflow"
 
 const noop = () => undefined
 
@@ -124,26 +122,15 @@ export const RemoveFromAgentStory: Story = {
     ),
 }
 
-/** F06 f3: "Remove this secret attachment?", opened from the bin of the first secret. */
+/** F06 f3: "Remove this secret attachment?", as the bin of a secret row opens it. */
 export const RemoveSecretStory: Story = {
     name: "Remove secret",
-    // The ids of the story's fixture: the scope comes from the story id, as the decorator makes it.
-    render: (_args, {id}) => (
+    render: () => (
         <Frame>
-            <AgentSecretsSection
-                revisionId={workflowIds(storyScope(id)).revisionId}
-                bindings={SECRET_NAMES.map((name) => ({
-                    secret: {slug: name.toLowerCase()},
-                    binding: {type: "env" as const, name},
-                }))}
-            />
+            <SecretRemoveDialog onRemove={async () => undefined} onClose={noop} />
         </Frame>
     ),
-    play: async ({canvasElement}) => {
-        const bin = await within(canvasElement).findByRole("button", {
-            name: `Remove ${SECRET_NAMES[0]}`,
-        })
-        await userEvent.click(bin)
+    play: async () => {
         await screen.findByText("Remove this secret attachment?")
     },
 }

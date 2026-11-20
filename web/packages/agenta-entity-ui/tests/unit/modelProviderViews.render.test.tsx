@@ -103,11 +103,6 @@ vi.mock("../../src/secretProvider/ProviderConnectionCard", () => ({
     },
 }))
 
-vi.mock("../../src/secretProvider/SubscriptionSignInDialog", () => ({
-    default: ({open, provider}: {open: boolean; provider: string}) =>
-        open ? createElement("div", null, `sign-in ${provider}`) : null,
-}))
-
 const Chrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
     <div>
         <nav>
@@ -168,6 +163,7 @@ beforeAll(async () => {
         import("../../src/secretProvider/views/ProviderAddViewBody"),
         import("../../src/secretProvider/views/ProviderConnectionViewBody"),
         import("../../src/secretProvider/views/BuiltinModelsViewBody"),
+        import("../../src/secretProvider/views/SubscriptionTokenViewBody"),
     ])
 }, 400_000)
 
@@ -259,10 +255,12 @@ describe("Model providers list", {timeout: 30_000}, () => {
         await findByText("No provider matches this search.")
     })
 
-    it("a subscription row opens its sign-in", async () => {
+    it("a subscription row opens its sign-in one level down", async () => {
         await openList()
         await click(byText("Sign in again"))
-        await findByText("sign-in claude")
+        await findByText("here:Claude")
+        expect(byText("crumb:Model providers")).toBeTruthy()
+        expect(document.body.textContent).toContain("Paste the token the command prints")
     })
 
     it("the Agenta card lists every built-in model, with no switches and Done only", async () => {

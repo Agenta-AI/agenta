@@ -9,12 +9,14 @@ import {
 import {
     ProviderDrawer,
     providerIconFor,
-    SubscriptionSignInDialog,
+    SubscriptionOwnerContext,
+    subscriptionViewFor,
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
+import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
 import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 
 import {
@@ -78,15 +80,7 @@ interface DrawerTarget {
 
 type SubscriptionProvider = "chatgpt" | "claude"
 
-/**
- * Which group's ChatGPT or Claude sign-in the dialog shows: the cards open the project's. It
- * stays set while the dialog closes, so the closing dialog keeps its owner.
- */
-interface SignInTarget {
-    groupKey: string
-    provider: SubscriptionProvider
-    open: boolean
-}
+const PROJECT: ViewTarget = {kind: "project"}
 
 const subscriptionProviderOf = (connection: ProviderConnection): SubscriptionProvider | null => {
     const provider = connection.subscription?.provider
@@ -135,7 +129,9 @@ export const ProvidersPanel = ({
               (candidate) => candidate.id === drawerTarget.connectionId,
           ) ?? null)
         : null
-    const [signInTarget, setSignInTarget] = useState<SignInTarget | null>(null)
+    // The group whose subscription view is open; it stays set while the drawer closes.
+    const [signInGroupKey, setSignInGroupKey] = useState<string | null>(null)
+    const views = useViewOpener()
     const [pendingRemoval, setPendingRemoval] = useState<{
         groupKey: string
         connection: ProviderConnection
@@ -148,13 +144,14 @@ export const ProvidersPanel = ({
         [renderRemoveDialog],
     )
 
-    const signInGroup = signInTarget
-        ? (ownerGroups.find((group) => group.key === signInTarget.groupKey) ?? null)
-        : null
-    const signInConnection =
-        signInTarget && signInGroup
-            ? subscriptionConnectionFor(signInGroup.source.connections, signInTarget.provider)
-            : null
+    const signInGroup = ownerGroups.find((group) => group.key === signInGroupKey) ?? null
+    const openSignIn = useCallback(
+        (groupKey: string, provider: SubscriptionProvider, connectionId?: string) => {
+            setSignInGroupKey(groupKey)
+            void views.open(subscriptionViewFor(provider), {provider, connectionId}, PROJECT)
+        },
+        [views],
+    )
 
     const requestRemoval = useCallback((groupKey: string, connection: ProviderConnection) => {
         setRemoveError(null)
@@ -186,7 +183,7 @@ export const ProvidersPanel = ({
             const canRemove = canRemoveIn(source)
             const open = (connection: ProviderConnection) => {
                 const provider = subscriptionProviderOf(connection)
-                if (provider) setSignInTarget({groupKey, provider, open: true})
+                if (provider) openSignIn(groupKey, provider, connection.id)
                 else setDrawerTarget({groupKey, connectionId: connection.id})
             }
             const held = source.rows.map<SettingsCatalogItem>((connection) => ({
@@ -235,7 +232,7 @@ export const ProvidersPanel = ({
                           statusLabel: t("settings.providers.connectName", {
                               name: subscriptionProviderName(provider),
                           }),
-                          onOpen: () => setSignInTarget({groupKey, provider, open: true}),
+                          onOpen: () => openSignIn(groupKey, provider),
                       }))
                     : []
             return {
@@ -253,13 +250,7 @@ export const ProvidersPanel = ({
                       : {}),
             }
         })
-    }, [ownerGroups, canRemoveIn, requestRemoval, t])
-
-    const removeSubscription = useCallback(
-        (connection: ProviderConnection) =>
-            signInGroup && requestRemoval(signInGroup.key, connection),
-        [signInGroup, requestRemoval],
-    )
+    }, [ownerGroups, canRemoveIn, requestRemoval, openSignIn, t])
 
     return (
         <div className="ph-no-capture">
@@ -284,18 +275,19 @@ export const ProvidersPanel = ({
                 onClose: () => setPendingRemoval(null),
             })}
 
-            {signInTarget && signInGroup ? (
-                <SubscriptionSignInDialog
-                    key={`${signInTarget.groupKey}:${signInTarget.provider}`}
-                    open={signInTarget.open}
-                    onClose={() => setSignInTarget({...signInTarget, open: false})}
-                    provider={signInTarget.provider}
-                    connection={signInConnection}
-                    logo={<ProviderLogo kind={subscriptionProviderFamily(signInTarget.provider)} />}
-                    onRemove={canRemoveIn(signInGroup.source) ? removeSubscription : undefined}
-                    organization={signInGroup.source.organization}
-                />
-            ) : null}
+            {/* The views find this group's connections, and sign in on the organization's routes. */}
+            <SubscriptionOwnerContext.Provider
+                value={
+                    signInGroup?.source.organization
+                        ? {
+                              connections: signInGroup.source.connections,
+                              organization: signInGroup.source.organization,
+                          }
+                        : null
+                }
+            >
+                {views.drawer}
+            </SubscriptionOwnerContext.Provider>
 
             <ProviderDrawer
                 open={!!drawerTarget}

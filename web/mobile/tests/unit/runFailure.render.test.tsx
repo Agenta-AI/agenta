@@ -125,15 +125,15 @@ const billingOn = () => {
 
 describe("mobile TurnRow: a run that failed", () => {
     it("names the failure in the fold and shows the server's text as the message", () => {
-        const text = renderTurn(failedTurn("model authentication failed"))
+        const text = renderTurn(failedTurn("The sandbox went away."))
 
         expect(text).toContain("Run stopped")
-        expect(text).toContain("model authentication failed")
+        expect(text).toContain("The sandbox went away.")
         expect(text).not.toContain("The agent run failed")
     })
 
     it("offers no retry for a refusal nothing but a new request would fix", () => {
-        renderTurn(failedTurn("model authentication failed"))
+        renderTurn(failedTurn("The model declined this request."))
         expect(hasRetry()).toBe(false)
     })
 
@@ -282,6 +282,21 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(link?.getAttribute("href")).toBe("https://openrouter.ai/settings/credits")
         expect(link?.getAttribute("target")).toBe("_blank")
         expect(hasRetry()).toBe(true)
+    })
+
+    it("opens the provider form for the runner's refused-credential sentence", async () => {
+        const text = renderTurn(
+            failedTurn(
+                "pi_core: model authentication failed — add the project's OpenAI key to the project vault, or log in (OAuth).",
+                "runner_error",
+            ),
+        )
+
+        expect(text).toContain("The model provider rejected the OpenAI key.")
+        // The reader fixes the key, then runs the turn again.
+        expect(hasRetry()).toBe(true)
+        await pressAndLoad("Update key")
+        expect(shown()).toContain("[providers drawer: openai]")
     })
 
     it("opens the failed provider's card when its key was rejected", async () => {

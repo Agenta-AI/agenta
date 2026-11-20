@@ -1,7 +1,7 @@
 import {
     providerIconFor,
     SubscriptionConnectionCard,
-    SubscriptionSignInDialog,
+    subscriptionTokenView,
 } from "@agenta/entity-ui/secretProvider"
 import {useT} from "@agenta/i18n"
 import creditsCatalog from "@agenta/i18n/catalogs/onboarding.credits"
@@ -14,6 +14,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@agenta/ui/ui"
+import {useViewOpener} from "@agenta/ui/view-stack"
 import {ArrowRight, Check, Coins, OpenAiLogo} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
@@ -43,6 +44,16 @@ export const OnboardingCreditsStep = ({
 }) => {
     const t = useT(creditsCatalog)
     const {credits, chatgpt, claude, keys} = model
+    // The Claude token view, in a drawer: its Save goes back, which closes the drawer.
+    const views = useViewOpener()
+    const connectClaude = () => {
+        claude.setDialogOpen(true)
+        void views.open(
+            subscriptionTokenView,
+            {provider: "claude", connectionId: claude.connection?.id},
+            {kind: "project"},
+        )
+    }
     const balance = credits?.balanceMusd ?? null
     const heading = credits
         ? balance !== null
@@ -132,11 +143,7 @@ export const OnboardingCreditsStep = ({
                                     : t("onboarding.credits.connected")}
                             </span>
                         ) : (
-                            <Button
-                                variant="outline"
-                                className={ACTION}
-                                onClick={() => claude.setDialogOpen(true)}
-                            >
+                            <Button variant="outline" className={ACTION} onClick={connectClaude}>
                                 {t("onboarding.credits.connect")}
                             </Button>
                         )
@@ -234,13 +241,7 @@ export const OnboardingCreditsStep = ({
                     ) : null}
                 </DialogContent>
             </Dialog>
-            <SubscriptionSignInDialog
-                open={claude.dialogOpen}
-                onClose={() => claude.setDialogOpen(false)}
-                provider="claude"
-                connection={claude.connection}
-                logo={<ClaudeLogo />}
-            />
+            {views.drawer}
         </div>
     )
 }
