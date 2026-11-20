@@ -17,7 +17,7 @@ import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {cn, textColors} from "@agenta/ui/styles"
 
 /** The pane's own inset. Section bands fill it edge to edge and pad their content inward. */
-const PANE_PAD = "px-3"
+const PANE_PAD = "px-5"
 /** What a band pads inward, so text sits on one line with the heading above it. */
 const BAND_PAD = "px-2"
 
@@ -106,7 +106,7 @@ export const ChangesPane = ({
                     {t("playground.versionHistory.whatVersionChanged", {version: version ?? "—"})}
                 </span>
                 {message ? (
-                    <span className={cn("text-xs leading-snug", textColors.tertiary)}>
+                    <span className={cn("text-[12px] leading-4", textColors.tertiary)}>
                         {message}
                     </span>
                 ) : null}

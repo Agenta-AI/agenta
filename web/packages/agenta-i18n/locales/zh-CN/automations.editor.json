@@ -7,7 +7,6 @@
     "kindScheduleShort": "定时任务",
     "kindEvent": "当某件事发生时",
     "kindEventShort": "事件",
-    "kindFixed": "自动化创建后，触发类型就不能更改。",
     "helperPaused": "已暂停：开启之前不会运行。",
     "helperEvent": "每次收到这个事件时运行。",
     "instruction": "指令",
@@ -106,5 +105,12 @@
     "noFilters": "这个事件不需要筛选条件，每次收到都会运行。",
     "allApps": "所有应用",
     "done": "完成",
-    "untitledAutomation": "未命名自动化"
+    "untitledAutomation": "未命名自动化",
+    "schedule": "定时",
+    "event": "事件",
+    "app": "应用",
+    "preview": "预览",
+    "nextRunLabel": "下次运行",
+    "nextRunAt": "{{date}} {{time}} UTC · {{relative}}",
+    "moreActionsFor": "{{name}} 的更多操作"
 }

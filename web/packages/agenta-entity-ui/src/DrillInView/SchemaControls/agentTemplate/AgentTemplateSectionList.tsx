@@ -25,6 +25,7 @@ import {CaretRight} from "@phosphor-icons/react"
 
 import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
 import {useSectionListLayout} from "./sectionListLayout"
+import {SectionPageRow} from "./SectionPageRow"
 
 /** One config section, fully resolved by the container. */
 export interface AgentTemplateSectionDescriptor {
@@ -55,6 +56,11 @@ export interface AgentTemplateSectionDescriptor {
      * section's own add flow: the page draws a text button, not the panel's "+" menu.
      */
     pageAction?: ReactNode
+    /**
+     * On the Configuration page, the card's content in place of `content` (or of the one row a
+     * section that opens a view draws): the Advanced parts, the Permissions policy row.
+     */
+    pageContent?: ReactNode
     /** On a phone the section screen shows no `extra` (its add control): the add view is read only there. */
     hideExtraOnPhone?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
@@ -75,11 +81,6 @@ export interface AgentTemplateSectionListProps {
     onOpenChange?: (key: string, open: boolean) => void
     /** Shown instead of the list when `sections` is empty. */
     emptyText?: ReactNode
-    /**
-     * Bleed classes for the expanded-header band — must match the host container's padding
-     * (the config panel wraps this in `px-4`).
-     */
-    headerBand?: string
 }
 
 export const AgentTemplateSectionList = ({
@@ -88,7 +89,6 @@ export const AgentTemplateSectionList = ({
     openByKey,
     onOpenChange,
     emptyText,
-    headerBand = "-mx-4 px-4",
 }: AgentTemplateSectionListProps) => {
     const t = useT(configItemsCatalog)
     const phoneSections = usePhoneSections()
@@ -129,11 +129,9 @@ export const AgentTemplateSectionList = ({
                             indicator={s.indicator}
                             onOpen={s.onOpen}
                             bodyClassName={s.bodyClassName}
-                            // The panel body sits in the config section's `px-4` field wrapper
-                            // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
-                            // each side to the panel edges while its text stays aligned with the
-                            // content below.
-                            headerBand={headerBand}
+                            // Canvas S02: rows inset in the panel's `px-4`, an open section stays
+                            // white (no band).
+                            canvas
                             noDivider={index === sections.length - 1}
                             {...(controlled
                                 ? {
@@ -159,6 +157,7 @@ const IndicatorDot = ({indicator}: {indicator: AgentTemplateSectionDescriptor["i
     indicator ? (
         <span
             aria-hidden
+            data-section-indicator={indicator.tone}
             className="size-1.5 shrink-0 rounded-full"
             style={{background: sectionIndicatorColor(indicator.tone)}}
         />
@@ -220,7 +219,8 @@ const PhoneSectionList = ({
                     {s.icon ? (
                         <span
                             aria-hidden
-                            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-colorFillTertiary text-colorTextSecondary"
+                            // Canvas M07: an 18 px glyph in a 32 px warm gray tile.
+                            className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--ag-colorBgLayout)] text-[var(--ag-zinc-8)] [&_svg]:size-[18px]"
                         >
                             {s.icon}
                         </span>
@@ -232,12 +232,12 @@ const PhoneSectionList = ({
                             {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
                         </span>
                         {summaryOf(s) ? (
-                            <span className="truncate text-xs text-colorTextSecondary">
+                            <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
                                 {summaryOf(s)}
                             </span>
                         ) : null}
                     </span>
-                    <CaretRight size={16} aria-hidden className="shrink-0 text-colorTextTertiary" />
+                    <CaretRight size={14} aria-hidden className="shrink-0 text-colorTextTertiary" />
                 </button>
             ))}
         </div>
@@ -267,36 +267,22 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                     {s.pageAction ? <span className="shrink-0">{s.pageAction}</span> : null}
                 </div>
                 <div className="overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer">
-                    {s.onOpen ? (
-                        <button
-                            type="button"
-                            className="flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 py-3 text-left font-[inherit] hover:bg-colorFillQuaternary"
+                    {s.pageContent ? (
+                        s.pageContent
+                    ) : s.onOpen ? (
+                        <SectionPageRow
+                            icon={s.icon}
+                            title={s.title}
+                            summary={s.summary}
                             onClick={s.onOpen}
-                        >
-                            {s.icon ? (
-                                <span
-                                    aria-hidden
-                                    className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillTertiary text-colorTextSecondary"
-                                >
-                                    {s.icon}
-                                </span>
-                            ) : null}
-                            <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-sm text-colorText">{s.title}</span>
-                                {s.summary ? (
-                                    <span className="truncate text-xs text-colorTextSecondary">
-                                        {s.summary}
-                                    </span>
-                                ) : null}
-                            </span>
-                            <CaretRight
-                                size={14}
-                                aria-hidden
-                                className="shrink-0 text-colorTextTertiary"
-                            />
-                        </button>
+                        />
                     ) : (
-                        <div className="flex flex-col gap-2 p-3">{s.content}</div>
+                        // Flat rows draw a line above themselves: -mt-px tucks the first one under
+                        // the card's edge, and a list of rows keeps no gap. Content with no rows
+                        // (an empty line, a notice) gets the card's padding instead.
+                        <div className="-mt-px flex flex-col [&:not(:has([data-page-row]))]:mt-0 [&:not(:has([data-page-row]))]:px-3.5 [&:not(:has([data-page-row]))]:py-3 [&_:has([data-page-row])]:gap-0 empty:hidden">
+                            {s.content}
+                        </div>
                     )}
                 </div>
             </section>

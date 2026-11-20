@@ -326,18 +326,26 @@ export function TriggerManagementSection({
         ],
     )
 
+    // Desktop: 12 px medium secondary text over cards 10 px apart (F05 f1). Phone: tertiary text
+    // over flat rows with full-width dividers (M10).
     const groupHeading = (label: string) => (
-        <h3 className="m-0 px-0.5 text-[12px] font-medium text-[var(--ag-colorTextTertiary)]">
+        <h3
+            className={
+                phone
+                    ? "m-0 pb-1.5 pt-4 text-[12px] font-medium text-[var(--ag-colorTextTertiary)]"
+                    : "m-0 mt-1 text-[12px] font-medium text-[var(--ag-colorTextSecondary)]"
+            }
+        >
             {label}
         </h3>
     )
     // On a phone each row has a switch that acts like "Activate" and "Deactivate" (M10). A person
     // who cannot edit gets no switch: a read-only view shows no edit control.
     const switches = phone && !disabled
-    const groupClass = `flex flex-col ${phone ? "gap-1" : "gap-2"}`
+    const groupClass = `flex flex-col ${phone ? "" : "gap-2.5"}`
 
     return (
-        <div className={`flex flex-col py-3 ${phone ? "gap-4" : "gap-3"}`}>
+        <div className={`flex flex-col ${phone ? "" : "gap-2.5 pb-3 pt-2.5"}`}>
             {/* Two groups, "Scheduled triggers" first; a group with no automation does not
                 show (F05 f1). App triggers stay grouped by the app they arrive from. */}
             {scopedSchedules.length > 0 ? (
