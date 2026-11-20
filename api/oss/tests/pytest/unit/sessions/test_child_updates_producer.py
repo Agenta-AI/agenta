@@ -240,13 +240,13 @@ class _Records:
             )
         )
 
-    async def get_turn_records(self, *, project_id, session_id, turn_ids):
+    async def get_execution_records(self, *, project_id, session_id, execution_ids):
         return [
             record
             for record in self.records
             if record.project_id == project_id
             and record.session_id == session_id
-            and record.turn_id in turn_ids
+            and record.turn_id in execution_ids
         ]
 
 
@@ -863,7 +863,7 @@ async def test_the_ending_is_read_again_when_the_signal_outruns_the_records():
     harness = _Harness()
     harness.inputs.add_child_input()
     reads = {"count": 0}
-    original = harness.records.get_turn_records
+    original = harness.records.get_execution_records
 
     async def late(**kwargs):
         reads["count"] += 1
@@ -871,12 +871,41 @@ async def test_the_ending_is_read_again_when_the_signal_outruns_the_records():
             _completed(harness)
         return await original(**kwargs)
 
-    harness.records.get_turn_records = late
+    harness.records.get_execution_records = late
 
     await harness.ended()
 
     assert reads["count"] == 2
     assert harness.part()["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_a_settled_execution_waits_for_its_last_records():
+    harness = _Harness()
+    harness.inputs.add_child_input()
+    harness.executions.add(CHILD_EXECUTION, outcome="completed")
+    reads = {"count": 0}
+    original = harness.records.get_execution_records
+
+    async def late(**kwargs):
+        reads["count"] += 1
+        if reads["count"] == 2:
+            harness.records.add(CHILD_EXECUTION, "message", {"text": "The answer."})
+            harness.records.add(CHILD_EXECUTION, "done", {"stopReason": "end_turn"})
+        return await original(**kwargs)
+
+    harness.records.get_execution_records = late
+
+    await harness.ended()
+
+    assert reads["count"] == 2
+    assert harness.part()["status"] == "completed"
+    assert (
+        "The answer."
+        in harness.starts.calls[0]["content"]["data"]["inputs"]["messages"][-1][
+            "content"
+        ]
+    )
 
 
 # --- the consumer's failure rule ----------------------------------------------------
@@ -941,7 +970,7 @@ async def test_a_turn_started_signal_is_acknowledged_without_work():
     assert harness.starts.calls == []
 
 
-def test_only_database_and_redis_outages_are_short_failures():
+def test_only_outages_and_an_unproven_dispatch_are_short_failures():
     from redis.exceptions import ConnectionError as RedisConnectionError
 
     assert is_short_failure(OperationalError("x", {}, Exception()))

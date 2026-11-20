@@ -107,6 +107,9 @@ class _Executions:
         )
         self.settles = []
 
+    async def fetch_execution(self, *, project_id, session_id, execution_id):
+        return self.row
+
     async def settle(self, **kwargs):
         self.settles.append(kwargs)
         if self.row.terminal_outcome is not None:
@@ -152,7 +155,10 @@ async def test_a_kill_settles_the_running_execution_stopped_by_the_watchdog():
     service._promote_next_input = AsyncMock()
 
     settled = await service.settle_execution_killed(
-        project_id=PROJECT_ID, session_id=SESSION_ID, execution_id=EXECUTION_ID
+        project_id=PROJECT_ID,
+        session_id=SESSION_ID,
+        execution_id=EXECUTION_ID,
+        is_running=True,
     )
 
     assert settled is True
@@ -168,7 +174,10 @@ async def test_a_kill_after_a_runner_ending_settles_nothing():
     service = _commands(executions)
 
     settled = await service.settle_execution_killed(
-        project_id=PROJECT_ID, session_id=SESSION_ID, execution_id=EXECUTION_ID
+        project_id=PROJECT_ID,
+        session_id=SESSION_ID,
+        execution_id=EXECUTION_ID,
+        is_running=True,
     )
 
     assert settled is False
@@ -219,7 +228,10 @@ async def test_the_kill_route_settles_the_execution_that_ran(monkeypatch):
 
     assert streams.killed
     commands.settle_execution_killed.assert_awaited_once_with(
-        project_id=PROJECT_ID, session_id=SESSION_ID, execution_id=EXECUTION_ID
+        project_id=PROJECT_ID,
+        session_id=SESSION_ID,
+        execution_id=EXECUTION_ID,
+        is_running=True,
     )
 
 
@@ -240,7 +252,7 @@ async def test_a_failed_settle_leaves_the_session_for_a_retry_of_the_kill(monkey
 
 
 @pytest.mark.asyncio
-async def test_the_kill_of_an_idle_session_settles_nothing(monkeypatch):
+async def test_the_kill_passes_the_live_flag_for_the_latest_execution(monkeypatch):
     route, request, commands, streams, module = await _kill_route(running=False)
     monkeypatch.setattr(module, "check_action_access", AsyncMock(return_value=True))
     monkeypatch.setattr(module, "allow_resource", AsyncMock(return_value=True))
@@ -249,7 +261,45 @@ async def test_the_kill_of_an_idle_session_settles_nothing(monkeypatch):
     await route.delete_session_stream(request, session_id=SESSION_ID)
 
     assert streams.killed
-    commands.settle_execution_killed.assert_not_awaited()
+    commands.settle_execution_killed.assert_awaited_once_with(
+        project_id=PROJECT_ID,
+        session_id=SESSION_ID,
+        execution_id=EXECUTION_ID,
+        is_running=False,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_kill_settles_an_unsettled_execution_when_redis_lost_the_flag():
+    executions = _Executions()
+    service = _commands(executions)
+
+    settled = await service.settle_execution_killed(
+        project_id=PROJECT_ID,
+        session_id=SESSION_ID,
+        execution_id=EXECUTION_ID,
+        is_running=False,
+    )
+
+    assert settled is True
+    assert executions.row.terminal_outcome == "stopped"
+
+
+@pytest.mark.asyncio
+async def test_a_kill_of_an_idle_session_with_no_execution_row_settles_nothing():
+    executions = _Executions()
+    executions.row = None
+    service = _commands(executions)
+
+    settled = await service.settle_execution_killed(
+        project_id=PROJECT_ID,
+        session_id=SESSION_ID,
+        execution_id=EXECUTION_ID,
+        is_running=False,
+    )
+
+    assert settled is False
+    assert executions.settles == []
 
 
 # --- 4.6: the cancel cause -----------------------------------------------------------

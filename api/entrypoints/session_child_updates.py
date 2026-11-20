@@ -7,7 +7,7 @@ recoverable-continuation check and the Stop-versus-Steer read, and the mounts se
 the result file.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.access.service import get_access_service
@@ -65,7 +65,11 @@ from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
 from oss.src.utils.env import env
 
 
-def _workflows_service(*, transactions_engine, mounts_store) -> WorkflowsService:
+def _workflows_service(
+    *, transactions_engine, mounts_store
+) -> Tuple[WorkflowsService, MountsService]:
+    """The workflows service and the mounts service it looks mounts up in; the
+    producer writes result files through the same mounts service."""
     workflows_service = WorkflowsService(
         workflows_dao=WorkflowsDAO(
             ArtifactDBE=WorkflowArtifactDBE,
@@ -74,16 +78,15 @@ def _workflows_service(*, transactions_engine, mounts_store) -> WorkflowsService
         ),
         watch_publisher=SessionsWatchPublisher(),
     )
-    workflows_service.set_mount_lookup(
-        MountsService(
-            mounts_dao=MountsDAO(engine=transactions_engine),
-            mounts_store=mounts_store,
-            bucket=env.store.bucket,
-            namespace=env.store.namespace,
-            workflows_service=workflows_service,
-            lock_engine=get_lock_engine(),
-        )
+    mounts_service = MountsService(
+        mounts_dao=MountsDAO(engine=transactions_engine),
+        mounts_store=mounts_store,
+        bucket=env.store.bucket,
+        namespace=env.store.namespace,
+        workflows_service=workflows_service,
+        lock_engine=get_lock_engine(),
     )
+    workflows_service.set_mount_lookup(mounts_service)
     environments_service = EnvironmentsService(
         environments_dao=GitDAO(
             ArtifactDBE=EnvironmentArtifactDBE,
@@ -109,7 +112,7 @@ def _workflows_service(*, transactions_engine, mounts_store) -> WorkflowsService
             ),
         )
     )
-    return workflows_service
+    return workflows_service, mounts_service
 
 
 def build_session_child_updates_service() -> SessionChildUpdatesService:
@@ -124,7 +127,7 @@ def build_session_child_updates_service() -> SessionChildUpdatesService:
         sts_endpoint_url=env.store.sts_endpoint_url,
         signing_key=env.store.signing_key,
     )
-    workflows_service = _workflows_service(
+    workflows_service, mounts_service = _workflows_service(
         transactions_engine=transactions_engine, mounts_store=store
     )
     run_admission = RunAdmission(
@@ -222,17 +225,10 @@ def build_session_child_updates_service() -> SessionChildUpdatesService:
         turns_dao=turns_dao,
         records_service=records_service,
         starts_service=starts_service,
-        result_files=MountsService(
-            mounts_dao=MountsDAO(engine=transactions_engine),
-            mounts_store=store,
-            bucket=env.store.bucket,
-            namespace=env.store.namespace,
-            workflows_service=workflows_service,
-            lock_engine=lock_engine,
-        ),
+        result_files=mounts_service,
         agent_lookup=_agent_lookup,
         # The still-running schedule is created and deleted through the triggers
-        # service of the session-target schedules (TriggersService.delete_session_schedule).
+        # service of the session-target schedules (`purge_session_schedule`, PR 8499).
         # Until the start and send handlers create such schedules, none exists.
         delete_still_running_schedule=None,
     )

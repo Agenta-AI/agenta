@@ -22,14 +22,13 @@ from oss.src.core.sessions.child_updates.dtos import (
     ChildTurnRevision,
     ChildTurnStatus,
     ChildTurnWaitingFor,
-    child_update_part,
 )
 from oss.src.core.sessions.child_updates.form import (
     ERROR_MESSAGE_LIMIT,
     LAST_MESSAGE_LIMIT,
+    child_update_message,
     cut_text,
     one_line,
-    render_child_turn,
 )
 from oss.src.core.sessions.child_updates.result_file import (
     last_message,
@@ -56,8 +55,6 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 CHILD_UPDATE_KEY_PREFIX = "ag:child_update:"
-# The fixed label of the still-running schedule (`TriggerScheduleData.event_key`).
-STILL_RUNNING_EVENT_KEY = "still_running"
 
 # The signal can outrun the commit of the turn's last records (the channels outbox
 # measured about 150 ms): one read plus two re-reads, 0.8 s apart, as the outbox does.
@@ -192,6 +189,11 @@ class SessionChildUpdatesService:
             )
             return None
 
+        user_id = self._acting_user(child_input)
+        if user_id is None:
+            log.warning("[CHILD-UPDATES] child input has no acting user", **context)
+            return None
+
         # 2. One row per child execution, whatever its content.
         key = child_update_key(child_session_id=session_id, execution_id=execution_id)
         existing = await self._inputs.fetch_by_idempotency_key(
@@ -268,7 +270,7 @@ class SessionChildUpdatesService:
         if status != ChildTurnStatus.paused:
             result.result_path = await self._write_result_file(
                 project_id=project_id,
-                user_id=self._acting_user(child_input),
+                user_id=user_id,
                 calling_session_id=calling_session_id,
                 child_session_id=session_id,
                 child_turn=child_turn,
@@ -288,29 +290,11 @@ class SessionChildUpdatesService:
             ),
             approved_by=None,
         )
-        user_id = self._acting_user(child_input)
-        if user_id is None:
-            log.warning("[CHILD-UPDATES] child input has no acting user", **context)
-            return None
         content = {
             "session_id": calling_session_id,
             "references": keyed_references(calling_turn.references)
             or keyed_references(calling.references),
-            "data": {
-                "inputs": {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": render_child_turn(result),
-                            "child_update": child_update_part(
-                                session_id=session_id,
-                                turn_id=chain[0],
-                                status=status,
-                            ),
-                        }
-                    ]
-                }
-            },
+            "data": {"inputs": {"messages": [child_update_message(result)]}},
         }
         return await self._starts.enqueue_session_input(
             project_id=project_id,
@@ -410,8 +394,8 @@ class SessionChildUpdatesService:
         execution_id = chain[-1]
         for attempt in range(_ENDING_READ_ATTEMPTS):
             # The records of this turn's executions only, not of the whole session.
-            records = await self._records.get_turn_records(
-                project_id=project_id, session_id=session_id, turn_ids=chain
+            records = await self._records.get_execution_records(
+                project_id=project_id, session_id=session_id, execution_ids=chain
             )
             by_execution: Dict[str, List[SessionRecord]] = {key: [] for key in chain}
             for record in records:
@@ -423,9 +407,17 @@ class SessionChildUpdatesService:
             status = ending_status(
                 records=by_execution[execution_id], execution=execution
             )
-            if status is not None:
+            # A settled execution can be visible before its last records commit (the
+            # record route settles first, and `complete_turn` signals too). Read again
+            # until the `done` record is there; after the last read, the settled
+            # outcome alone is the ending (a lost run writes no `done`).
+            last_attempt = attempt == _ENDING_READ_ATTEMPTS - 1
+            has_done = (
+                _last(by_execution[execution_id], TERMINAL_RECORD_TYPE) is not None
+            )
+            if status is not None and (has_done or last_attempt):
                 return status, [by_execution[key] for key in chain], execution
-            if attempt < _ENDING_READ_ATTEMPTS - 1:
+            if not last_attempt:
                 await self._sleep(_ENDING_READ_BACKOFF_SECONDS)
         return None
 
@@ -473,7 +465,7 @@ class SessionChildUpdatesService:
                 else None
             ),
             waiting_for=(
-                waiting_for(messages_records=records)
+                waiting_for(records=records)
                 if status == ChildTurnStatus.paused
                 else None
             ),
@@ -483,7 +475,7 @@ class SessionChildUpdatesService:
         self,
         *,
         project_id: UUID,
-        user_id: Optional[UUID],
+        user_id: UUID,
         calling_session_id: str,
         child_session_id: str,
         child_turn: Optional[SessionTurn],
@@ -492,7 +484,7 @@ class SessionChildUpdatesService:
         messages: List[Dict],
         context: Dict[str, str],
     ) -> Optional[str]:
-        if self._result_files is None or user_id is None or child_turn is None:
+        if self._result_files is None or child_turn is None:
             if child_turn is None:
                 log.warning(
                     "[CHILD-UPDATES] child turn has no row; no result file", **context
@@ -596,9 +588,9 @@ def run_error(records: List[SessionRecord]) -> Optional[ChildTurnError]:
     )
 
 
-def waiting_for(*, messages_records: List[SessionRecord]) -> List[ChildTurnWaitingFor]:
+def waiting_for(*, records: List[SessionRecord]) -> List[ChildTurnWaitingFor]:
     """What a paused execution waits for: its last interaction request."""
-    request = _last(messages_records, "interaction_request")
+    request = _last(records, "interaction_request")
     if request is None:
         return []
     attributes = request.attributes or {}

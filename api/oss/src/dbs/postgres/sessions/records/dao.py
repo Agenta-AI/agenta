@@ -251,16 +251,17 @@ class RecordsDAO(RecordsDAOInterface):
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
 
-    async def get_turn_records(
+    async def get_execution_records(
         self,
         *,
         project_id: UUID,
         session_id: str,
-        turn_ids: List[str],
+        execution_ids: List[str],
     ) -> List[SessionRecord]:
-        """The records of the given executions only, in send order, quarantined ones left
-        out as in `get_records`."""
-        if not turn_ids:
+        """The records of the given executions only (the stored `turn_id` of a record
+        is its execution id), in send order, quarantined ones left out as in
+        `get_records`."""
+        if not execution_ids:
             return []
         async with self.engine.session() as session:
             stmt = (
@@ -268,7 +269,7 @@ class RecordsDAO(RecordsDAOInterface):
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
-                    RecordDBE.turn_id.in_(turn_ids),
+                    RecordDBE.turn_id.in_(execution_ids),
                     RecordDBE.quarantined_at.is_(None),
                 )
                 .order_by(*self._send_order())

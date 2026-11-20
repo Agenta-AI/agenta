@@ -50,17 +50,24 @@ def _as_text(value: Any) -> str:
         return str(value)
 
 
-def _approval_answer(approved: Optional[bool]) -> str:
-    if approved is True:
+# The answer of an approval step. The approved line is the one D8 gives.
+_NOT_ANSWERED = "not_answered"
+
+
+def _approval_answer(answer: Any) -> str:
+    if answer is True:
         return "<approved by a person>"
-    if approved is False:
+    if answer is False:
         return "<rejected by a person>"
-    return "<no answer>"
+    if answer == _NOT_ANSWERED:
+        return "<no answer>"
+    return "<answered by a person>"
 
 
 def turn_messages(execution_records: Sequence[Sequence[SessionRecord]]) -> List[Dict]:
     """The folded messages of every execution of the turn, in order. An execution that
     paused adds one approval step for its pending interaction."""
+    # True or False for an approval answer, None for an answer with no `approved`.
     answers: Dict[str, Optional[bool]] = {}
     for records in execution_records:
         for record in records:
@@ -90,7 +97,7 @@ def turn_messages(execution_records: Sequence[Sequence[SessionRecord]]) -> List[
                 {
                     "role": "approval",
                     "tool_name": pending.get("tool"),
-                    "answer": answers.get(str(pending.get("id"))),
+                    "answer": answers.get(str(pending.get("id")), _NOT_ANSWERED),
                 }
             )
     return messages

@@ -2093,8 +2093,14 @@ class SessionCommandsService:
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        is_running: bool,
     ) -> bool:
         """Settle the execution that ran when a person ended (killed) its session.
+
+        `execution_id` is the session's latest execution. `is_running` is the live flag,
+        which Redis can lose: when it is False, the execution is settled only when its
+        row exists with no terminal outcome, so a turn that already ended and has no
+        row is never marked stopped.
 
         The kill writes no record and hides the turn from the orphan sweep's stream
         queries, so nothing else would settle it when the runner is gone. This settles it
@@ -2106,6 +2112,14 @@ class SessionCommandsService:
         Returns whether this call settled it."""
         if self._executions is None:
             return False
+        if not is_running:
+            stored = await self._executions.fetch_execution(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+            )
+            if stored is None or stored.terminal_outcome is not None:
+                return False
         # `settle` takes the row lock (`lock_for_control`) and writes nothing when the
         # execution already has a terminal outcome.
         async with self._dao.transaction() as transaction:

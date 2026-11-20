@@ -9,9 +9,9 @@ session. The child's own text sits only inside the delimited fields, so a line s
 
 import json
 import re
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from oss.src.core.sessions.child_updates.dtos import ChildTurnResult
+from oss.src.core.sessions.child_updates.dtos import ChildTurnResult, child_update_part
 
 # `last_message` in a tool result or an update; the result file keeps it whole.
 LAST_MESSAGE_LIMIT = 8_000
@@ -112,3 +112,17 @@ def render_child_turn(result: ChildTurnResult) -> str:
         *_field(_ERROR_MESSAGE_FIELD, error_message),
     ]
     return "\n".join(parts)
+
+
+def child_update_message(result: ChildTurnResult) -> Dict[str, Any]:
+    """The one message of a `child_update` row: the marked form as a user message, and
+    the structured part at the message's `child_update` key."""
+    return {
+        "role": "user",
+        "content": render_child_turn(result),
+        "child_update": child_update_part(
+            session_id=result.session_id,
+            turn_id=result.turn_id,
+            status=result.status,
+        ),
+    }

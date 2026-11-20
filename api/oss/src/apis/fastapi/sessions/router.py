@@ -907,16 +907,12 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        if (
-            stream is not None
-            and stream.flags.is_running
-            and stream.turn_id
-            and self._commands_service is not None
-        ):
+        if stream is not None and stream.turn_id and self._commands_service is not None:
             await self._commands_service.settle_execution_killed(
                 project_id=UUID(str(project_id)),
                 session_id=session_id,
                 execution_id=stream.turn_id,
+                is_running=stream.flags.is_running,
             )
         await self._service.kill(
             project_id=UUID(str(project_id)),
