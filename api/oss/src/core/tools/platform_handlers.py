@@ -22,7 +22,16 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+)
 from uuid import UUID
 
 import httpx
@@ -95,6 +104,10 @@ from oss.src.core.gateways.egress import EgressRefusedError
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.env import env
 from oss.src.utils.web_links import agent_page_url
+
+if TYPE_CHECKING:  # pragma: no cover - `gate.py` imports this module
+    from oss.src.core.tools.gate import GateReader
+
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -2197,7 +2210,7 @@ async def handle_resolve_gate(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
     session_caller: SessionCaller,
-    gate_reader: Any = None,
+    gate_reader: Optional[GateReader] = None,
 ) -> PlatformHandlerResult:
     """The server's answer at the gate of a session write: `{permission, basis}`."""
     from oss.src.core.tools.gate import resolve_gate
@@ -2406,7 +2419,7 @@ async def dispatch_platform_tool_handler(
     workspace_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
-    gate_reader: Any = None,
+    gate_reader: Optional[GateReader] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:

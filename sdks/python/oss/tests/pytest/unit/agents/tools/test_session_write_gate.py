@@ -8,16 +8,21 @@ from typing import Sequence
 
 import pytest
 
+from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
+from agenta.sdk.agents.permission_rules import wire_author_permission_rules
 from agenta.sdk.agents.tools import (
     CallbackToolSpec,
     GatewayToolResolution,
     PlatformToolConfig,
+    ResolvedToolSet,
     ToolCallback,
     ToolResolver,
     coerce_tool_configs,
 )
 from agenta.sdk.agents.tools.models import SESSION_WRITE_CALL_REFS, target_permission
 from agenta.sdk.agents.wire_models import WireResolvedToolSpec
+
+from ..test_agent_composition_seam import _FakeBackend, _no_connection, _request
 
 _OPS = ("start_session", "send_session_message", "cancel_session")
 
@@ -105,13 +110,14 @@ def _reference(slug: str, permission=None, **extra) -> dict:
     return entry
 
 
-async def _resolve(entries: list, *, mode="allow"):
+async def _resolve(entries: list, *, mode="allow", rules=()):
     resolved = await ToolResolver(
         platform_resolver=_Platform(), workflow_resolver=_Workflows()
     ).resolve(
         coerce_tool_configs(entries).tool_configs,
         permission_default=mode,
         session_id="s-1",
+        permission_rules=rules,
     )
     return {spec.name: spec for spec in resolved.tool_specs}
 
@@ -152,6 +158,77 @@ async def test_the_configured_permission_comes_from_the_tool_or_the_agent_mode()
     # No permission on the tool: a write under `allow_reads` asks.
     assert specs["send_session_message"].configured_permission == "ask"
     assert specs["send_session_message"].permission == "ask"
+
+
+def _rules(**lists) -> list:
+    return wire_author_permission_rules(lists)
+
+
+@pytest.mark.parametrize(
+    "mode, rules, expected_permission, expected_configured",
+    [
+        # An authored deny on the tool stays deny at the runner.
+        ("allow", _rules(deny=["start_session"]), "deny", "deny"),
+        # An authored ask is not lost: the server reads `ask`.
+        ("allow", _rules(ask=["start_session"]), "ask", "ask"),
+        # An authored allow wins over the mode, as at the runner.
+        ("ask", _rules(allow=["start_session"]), "ask", "allow"),
+        # The strictest rule that names the tool wins, as at the runner.
+        (
+            "allow",
+            _rules(allow=["start_session"], deny=["start_session"]),
+            "deny",
+            "deny",
+        ),
+        # A rule with an argument prefix can only make every call stricter.
+        ("allow", _rules(deny=["start_session(email:*)"]), "deny", "deny"),
+        ("ask", _rules(allow=["start_session(email:*)"]), "ask", "ask"),
+        # A rule for another tool changes nothing.
+        ("allow", _rules(deny=["cancel_session", "start"]), "ask", "allow"),
+    ],
+)
+async def test_the_configured_permission_keeps_the_authored_rules(
+    mode, rules, expected_permission, expected_configured
+):
+    specs = await _resolve([_platform("start_session")], mode=mode, rules=rules)
+    assert specs["start_session"].permission == expected_permission
+    assert specs["start_session"].configured_permission == expected_configured
+
+
+async def test_the_tools_own_permission_wins_over_a_rule_as_at_the_runner():
+    specs = await _resolve(
+        [_platform("start_session", "ask")], rules=_rules(allow=["start_session"])
+    )
+    assert specs["start_session"].configured_permission == "ask"
+
+
+async def test_the_agent_handler_passes_the_authored_rules_to_the_resolver():
+    seen: dict = {}
+
+    async def _resolve_tools(tools, **kwargs):
+        seen.update(kwargs)
+        return ResolvedToolSet()
+
+    comp = AgentComposition(
+        select_backend=lambda template: _FakeBackend(),
+        resolve_connection=_no_connection,
+        resolve_tools=_resolve_tools,
+    )
+    await make_agent_handler(comp)(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={
+            "agent": {
+                "harness": {
+                    "kind": "pi_core",
+                    "permissions": {"deny": ["start_session"]},
+                }
+            }
+        },
+    )
+    assert seen["permission_rules"] == [
+        {"pattern": "start_session", "permission": "deny"}
+    ]
 
 
 async def test_two_entries_for_one_slug_keep_the_stricter_permission():

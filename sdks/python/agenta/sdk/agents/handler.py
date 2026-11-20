@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 from opentelemetry import trace as otel_trace
 
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
+from agenta.sdk.agents.permission_rules import wire_author_permission_rules
 from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
@@ -552,6 +553,10 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 run_tools,
                 permission_default=agent_template.permission_default,
                 session_id=session_id,
+                # The session writes keep what these rules decide at the runner.
+                permission_rules=wire_author_permission_rules(
+                    agent_template.harness_permissions
+                ),
                 # A code tool whose custom secret is missing runs without it: only a
                 # model item blocks a run (needs setup); the editor tags the secret.
                 missing_secret_policy=MissingSecretPolicy.OMIT,

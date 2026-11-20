@@ -72,8 +72,7 @@
         },
         "args_into": "data.inputs"
       }
-    }
-,
+    },
     {
       "name": "start_session",
       "description": "Start a session with another agent.",

@@ -12,6 +12,7 @@ from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.access.context import reset_request_access, set_request_access
 from oss.src.core.access.dtos import RunContext, RunOrigin
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.inputs.dtos import PendingInputKind
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.sessions.types import SessionCallingSession, SessionReference
@@ -77,8 +78,11 @@ class _Streams:
 
 
 class _Executions:
+    def __init__(self):
+        self.rows = {}
+
     async def fetch_execution(self, *, project_id, session_id, execution_id, **_):
-        return None
+        return self.rows.get((session_id, execution_id))
 
 
 class _Inputs:
@@ -106,11 +110,12 @@ class _Workflows:
     async def fetch_workflow(self, *, project_id, workflow_ref, include_archived):
         if project_id != PROJECT_ID:
             return None
+        ids = {slug: agent_id for agent_id, slug in SLUGS.items()}
         if workflow_ref.id is not None:
             slug = SLUGS.get(workflow_ref.id)
-            return SimpleNamespace(slug=slug) if slug else None
-        if workflow_ref.slug in SLUGS.values():
-            return SimpleNamespace(slug=workflow_ref.slug)
+            return SimpleNamespace(id=workflow_ref.id, slug=slug) if slug else None
+        if workflow_ref.slug in ids:
+            return SimpleNamespace(id=ids[workflow_ref.slug], slug=workflow_ref.slug)
         return None
 
 
@@ -119,11 +124,12 @@ class _World:
 
     def __init__(self):
         self.streams = _Streams()
+        self.executions = _Executions()
         self.inputs = _Inputs()
         self.turns = _Turns()
         self.reader = GateReader(
             streams_dao=self.streams,
-            executions_dao=_Executions(),
+            executions_dao=self.executions,
             inputs_dao=self.inputs,
             turns_dao=self.turns,
             workflows_service=_Workflows(),
@@ -131,12 +137,13 @@ class _World:
         self.execution = str(uuid4())
         self.streams.add(CALLER_SESSION, turn_id=self.execution)
         self.turn(self.execution, RunOrigin.WEB)
-        # The sessions the run authority may run.
+        # The sessions and the agents the run authority may run.
         self.runnable = set()
+        self.runnable_agents = set(SLUGS)
         self.caller = SessionCaller(
             envelope=make_envelope(project_id=PROJECT_ID, principal_id=USER_ID),
-            session_id=CALLER_SESSION,
-            agent_id=CALLER_AGENT_ID,
+            run_session_id=CALLER_SESSION,
+            run_agent_id=CALLER_AGENT_ID,
         )
 
     def turn(self, execution_id, origin, *, kind=None):
@@ -186,7 +193,12 @@ def world(monkeypatch):
         assert action == Permission.RUN_SESSIONS
         return session_id in world.runnable
 
+    async def _may_run_agent(*, envelope, agent_id):
+        assert envelope is world.caller.envelope
+        return agent_id in world.runnable_agents
+
     monkeypatch.setattr(gate_module, "caller_may", _caller_may)
+    monkeypatch.setattr(gate_module, "may_run_agent", _may_run_agent)
     return world
 
 
@@ -214,7 +226,7 @@ async def test_a_start_by_agent_id_reads_the_entry_by_slug(world):
         await target_slug(
             call_ref=START,
             arguments={"agent": str(EMAIL_WRITER_ID)},
-            caller_session_id=CALLER_SESSION,
+            caller=world.caller,
             project_id=PROJECT_ID,
             reader=world.reader,
         )
@@ -308,6 +320,49 @@ async def test_cancel_in_a_child_update_turn_gets_ask(world):
     assert await world.answer(CANCEL, {"session_id": child}) == ASK
 
 
+async def test_a_queued_child_update_after_a_persons_turn_gets_ask(world):
+    """A child update that waited behind a person's turn is promoted into a new
+    execution whose parent is that turn's execution. It is its own turn, not the
+    person's, so its session writes ask."""
+    persons_turn = world.execution
+    promoted = str(uuid4())
+    world.executions.rows[(CALLER_SESSION, promoted)] = SessionExecutionSettlement(
+        project_id=PROJECT_ID,
+        session_id=CALLER_SESSION,
+        execution_id=promoted,
+        parent_execution_id=persons_turn,
+    )
+    world.turn(promoted, RunOrigin.WEB, kind=PendingInputKind.child_update)
+    world.streams.add(CALLER_SESSION, turn_id=promoted)
+    assert await world.answer(START, {"agent": "blog-writer"}, execution=promoted) == (
+        ASK
+    )
+
+
+async def test_an_approval_continuation_of_a_persons_turn_keeps_it(world):
+    # The paused execution settled, so it has a row; the continuation names it.
+    world.executions.rows[(CALLER_SESSION, world.execution)] = (
+        SessionExecutionSettlement(
+            project_id=PROJECT_ID,
+            session_id=CALLER_SESSION,
+            execution_id=world.execution,
+        )
+    )
+    continuation = str(uuid4())
+    world.executions.rows[(CALLER_SESSION, continuation)] = SessionExecutionSettlement(
+        project_id=PROJECT_ID,
+        session_id=CALLER_SESSION,
+        execution_id=continuation,
+        parent_execution_id=world.execution,
+        source_interaction_id=uuid4(),
+    )
+    world.streams.add(CALLER_SESSION, turn_id=continuation)
+    assert (
+        await world.answer(START, {"agent": "blog-writer"}, execution=continuation)
+        == ALLOW
+    )
+
+
 async def test_an_api_key_turn_counts_as_sent_by_a_person(world):
     world.turn(world.execution, RunOrigin.API)
     assert await world.answer(START, {"agent": "blog-writer"}) == ALLOW
@@ -322,6 +377,22 @@ async def test_an_api_key_turn_counts_as_sent_by_a_person(world):
 )
 async def test_a_start_target_that_is_not_found_gets_ask(world, arguments):
     assert await world.answer(START, arguments) == ASK
+
+
+async def test_a_hidden_agent_reads_as_an_unknown_one(world):
+    """An agent the run authority may not run answers like one that does not exist, so
+    a `deny` guess cannot tell that a private agent is there."""
+    world.runnable_agents.discard(EMAIL_WRITER_ID)
+    for agent in ("email-writer", str(EMAIL_WRITER_ID)):
+        answer = await world.answer(
+            START, {"agent": agent}, configured="deny", targets={"email-writer": "deny"}
+        )
+        assert answer == await world.answer(
+            START, {"agent": "unknown-agent"}, configured="deny"
+        )
+        assert answer == ASK
+    child = world.child("email-child", EMAIL_WRITER_ID)
+    assert await world.answer(SEND, {"session_id": child}) == ASK
 
 
 async def test_a_send_to_a_session_that_is_not_a_child_gets_ask(world):

@@ -24,6 +24,7 @@ from agenta.sdk.agents.tools.models import (
     target_permission,
 )
 
+from oss.src.core.access.dtos import ResourceKind, ResourceRef, RunEnvelope
 from oss.src.core.access.permissions.types import Permission as AccessPermission
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.executions.senders import is_sent_by_person
@@ -39,8 +40,8 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-# Why the server answered `allow` or `deny`. `approval_choice` (auto-approve, design
-# D32) is not built.
+# Why the server answered `allow` or `deny`: the configured permission for this call,
+# the Subagent entry's included. `approval_choice` (auto-approve, design D32) is not built.
 CONFIGURED_PERMISSION_BASIS = "configured_permission"
 
 
@@ -61,8 +62,9 @@ class GateRequest(BaseModel):
 
 
 class GateAnswer(BaseModel):
-    permission: Literal["allow", "ask", "deny"]
-    basis: Optional[str] = None
+    permission: Permission
+    # `configured_permission` on `allow` and `deny`; None on `ask`.
+    basis: Optional[Literal["configured_permission"]] = None
 
 
 ASK = GateAnswer(permission="ask")
@@ -107,13 +109,34 @@ class GateReader:
         )
 
     async def agent_slug(
-        self, *, project_id: UUID, reference: Reference
+        self, *, project_id: UUID, reference: Reference, envelope: RunEnvelope
     ) -> Optional[str]:
-        """The stored slug of the workflow that `reference` names in the project."""
+        """The stored slug of the agent that `reference` names in the project, when the
+        run authority may run it. A hidden agent reads as an unknown one, so the answer
+        does not tell that it exists."""
         workflow = await self._workflows.fetch_workflow(
             project_id=project_id, workflow_ref=reference, include_archived=True
         )
-        return workflow.slug if workflow is not None else None
+        if workflow is None:
+            return None
+        if not await may_run_agent(envelope=envelope, agent_id=workflow.id):
+            return None
+        return workflow.slug
+
+
+async def may_run_agent(*, envelope: RunEnvelope, agent_id: UUID) -> bool:
+    """Whether the run authority has `RUN_WORKFLOWS` on the agent, decided now: the
+    check `RunAdmission` makes before a run of that agent."""
+    from oss.src.core.access.service import get_access_service  # noqa: PLC0415
+
+    decision = await get_access_service().decide(
+        authority=envelope.authority,
+        principal=envelope.authority.principal,
+        action=AccessPermission.RUN_WORKFLOWS,
+        resource=ResourceRef(kind=ResourceKind.AGENT, id=str(agent_id)),
+        context=envelope.context,
+    )
+    return decision.allowed
 
 
 def _agent_reference(raw: Any) -> Optional[Reference]:
@@ -148,7 +171,7 @@ async def target_slug(
     *,
     call_ref: str,
     arguments: Dict[str, Any],
-    caller_session_id: str,
+    caller: SessionCaller,
     project_id: UUID,
     reader: GateReader,
 ) -> Optional[str]:
@@ -165,7 +188,9 @@ async def target_slug(
         reference = _agent_reference(arguments.get("agent"))
         if reference is None:
             return None
-        return await reader.agent_slug(project_id=project_id, reference=reference)
+        return await reader.agent_slug(
+            project_id=project_id, reference=reference, envelope=caller.envelope
+        )
 
     if call_ref == SEND_SESSION_MESSAGE_CALL_REF:
         session_id = arguments.get("session_id")
@@ -175,13 +200,15 @@ async def target_slug(
         if (
             child is None
             or child.calling_session is None
-            or child.calling_session.id != caller_session_id
+            or child.calling_session.id != caller.run_session_id
         ):
             return None
         reference = _workflow_reference(child.references)
         if reference is None:
             return None
-        return await reader.agent_slug(project_id=project_id, reference=reference)
+        return await reader.agent_slug(
+            project_id=project_id, reference=reference, envelope=caller.envelope
+        )
 
     return None
 
@@ -235,7 +262,9 @@ async def _resolve(
 
     # The execution comes from the runner; the server checks that it runs in the
     # calling session (the claim) now, so an older execution gets `ask`.
-    calling = await reader.session(project_id=project_id, session_id=caller.session_id)
+    calling = await reader.session(
+        project_id=project_id, session_id=caller.run_session_id
+    )
     if calling is None or calling.turn_id != request.execution_id:
         return ASK
 
@@ -245,7 +274,7 @@ async def _resolve(
         slug = await target_slug(
             call_ref=request.call_ref,
             arguments=request.arguments,
-            caller_session_id=caller.session_id,
+            caller=caller,
             project_id=project_id,
             reader=reader,
         )
@@ -266,7 +295,7 @@ async def _resolve(
         return GateAnswer(permission="deny", basis=CONFIGURED_PERMISSION_BASIS)
     if permission == "allow" and await reader.is_sent_by_person(
         project_id=project_id,
-        session_id=caller.session_id,
+        session_id=caller.run_session_id,
         execution_id=request.execution_id,
     ):
         return GateAnswer(permission="allow", basis=CONFIGURED_PERMISSION_BASIS)

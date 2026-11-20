@@ -158,19 +158,22 @@ def effective_permission(
 _STRICTNESS: Dict[str, int] = {"allow": 0, "ask": 1, "deny": 2}
 
 
+def stricter_permission(first: Permission, second: Permission) -> Permission:
+    """The stricter of two permissions: ``deny`` over ``ask`` over ``allow``."""
+    return second if _STRICTNESS[second] > _STRICTNESS[first] else first
+
+
 def target_permission(
     tool_permission: Permission,
     entry_permission: Optional[Permission],
 ) -> Permission:
     """The permission of a session start or send for one target: the stricter of the
-    tool's permission and the permission on the target's Subagent entry (``deny`` over
-    ``ask`` over ``allow``). The tool's permission when the target has no entry or the
-    entry sets none. The one place that computes it (design D12)."""
+    tool's permission and the permission on the target's Subagent entry. The tool's
+    permission when the target has no entry or the entry sets none. The one place that
+    computes it (design D12)."""
     if entry_permission is None:
         return tool_permission
-    if _STRICTNESS[entry_permission] > _STRICTNESS[tool_permission]:
-        return entry_permission
-    return tool_permission
+    return stricter_permission(tool_permission, entry_permission)
 
 
 # The session writes whose gate the runner asks the server about (`resolve_gate`, design
