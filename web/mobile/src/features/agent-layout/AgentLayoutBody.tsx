@@ -174,7 +174,9 @@ export const AgentLayoutBody = ({
         const was = content
         setContent(null)
         // Escape or Close at the root: focus goes back to the header icon that opened it.
-        if (was) document.getElementById(`agent-panel-icon-${was}`)?.focus()
+        // After the commit: on a phone the header is inert until the panel closes.
+        if (was)
+            requestAnimationFrame(() => document.getElementById(`agent-panel-icon-${was}`)?.focus())
         return true
     }, [confirmLeave, content, setContent])
 

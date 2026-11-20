@@ -62,7 +62,8 @@ export const parsePanelState = (raw: string | null): AgentPanelState => {
 
 /**
  * Browser storage can be missing or refuse reads and writes (private mode, quota): the panel then
- * opens closed and still works. A stored value is validated field by field.
+ * opens closed and still works. A stored value is validated field by field. Another browser tab's
+ * choice is not followed live: it would swap or close this panel past the leave guard.
  */
 const panelStorage = {
     getItem: (key: string): AgentPanelState => {
@@ -85,13 +86,6 @@ const panelStorage = {
         } catch {
             // Nothing to remove.
         }
-    },
-    subscribe: (key: string, callback: (value: AgentPanelState) => void) => {
-        const onStorage = (event: StorageEvent) => {
-            if (event.key === key) callback(parsePanelState(event.newValue))
-        }
-        window.addEventListener("storage", onStorage)
-        return () => window.removeEventListener("storage", onStorage)
     },
 }
 
