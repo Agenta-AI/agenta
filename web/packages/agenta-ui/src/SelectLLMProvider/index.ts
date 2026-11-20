@@ -24,6 +24,8 @@
  */
 
 export {default as SelectLLMProviderBase} from "./SelectLLMProviderBase"
+export {default as ModelPickerList} from "./ModelPickerList"
+export type {ModelPickerListProps} from "./ModelPickerList"
 export {default as ManageProvidersRow} from "./ManageProvidersRow"
 export type {ManageProvidersRowProps} from "./ManageProvidersRow"
 export {default as HarnessTooltip} from "./HarnessTooltip"
