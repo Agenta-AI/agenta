@@ -27,6 +27,8 @@ class SessionInputDBE(Base, ProjectScopeDBA, LifecycleDBA, IdentifierDBA):
     position = Column(BigInteger, nullable=False)
     state = Column(String, nullable=False, default="pending", server_default="pending")
     policy = Column(String, nullable=False)
+    # What the input is (`PendingInputKind`). Server-owned; NULL reads as `message`.
+    kind = Column(String, nullable=True)
     idempotency_key = Column(String, nullable=False)
     request_fingerprint = Column(String(64), nullable=False)
     promoted_execution_id = Column(String, nullable=True)

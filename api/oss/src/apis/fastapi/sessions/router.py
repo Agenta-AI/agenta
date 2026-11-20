@@ -150,12 +150,15 @@ from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
     SessionInputBusy,
+    SessionInputEditRefused,
     SessionInputIdempotencyConflict,
+    SessionInputKeyReserved,
     SessionInputNotFound,
     SessionInputNotRemovable,
     SessionInputNotEditable,
     SessionInputContentInvalid,
     SessionInputRemoved,
+    is_reserved_input_key,
 )
 from oss.src.core.sessions.inputs.dtos import PendingInputState
 from oss.src.core.sessions.attachments.dtos import Attachment
@@ -747,6 +750,7 @@ class SessionStreamsRouter:
                 user_id=user_id,
                 request=payload,
                 access=policy_for_request(request, kind=SharedItemKind.SESSION),
+                envelope=request_run_envelope(request),
                 recheck=recheck,
             )
         except SessionStreamNotFound as error:
@@ -1120,6 +1124,7 @@ class SessionStreamsRouter:
             access=policy_for_request(
                 request, kind=SharedItemKind.SESSION, requested=visibility
             ),
+            envelope=request_run_envelope(request),
             recheck=session_recheck(request, action=action, session_id=session_id),
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
@@ -3163,6 +3168,16 @@ class SessionsRootRouter:
                     "details": {"input_id": str(input_id)},
                 },
             ) from error
+        except SessionInputEditRefused as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "pending_input_edit_refused",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": error.input_id, "reason": error.reason},
+                },
+            ) from error
         except SessionInputNotEditable as error:
             raise HTTPException(
                 status_code=409,
@@ -3389,6 +3404,17 @@ def _handle_input_exceptions():
                         "details": {"current_execution_id": error.current_execution_id},
                     },
                 ) from error
+            except SessionInputKeyReserved as error:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "code": "idempotency_key_reserved",
+                        "message": str(error),
+                        "retryable": False,
+                        "next_step": "Send a key that does not start with 'ag:'.",
+                        "details": {"field": "Idempotency-Key"},
+                    },
+                ) from error
             except SessionInputIdempotencyConflict as error:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -3572,6 +3598,9 @@ class SessionControlRouter:
             idempotency_key = (
                 idempotency_key.strip()[:_MAX_IDEMPOTENCY_KEY_CHARACTERS] or None
             )
+        # `ag:` keys are server keys; a client may not take one first.
+        if is_reserved_input_key(idempotency_key):
+            raise SessionInputKeyReserved()
         admission = await self._inputs_service.admit(
             project_id=project_id,
             user_id=UUID(str(user_id)) if user_id else None,

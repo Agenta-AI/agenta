@@ -519,6 +519,7 @@ def _service(lock_engine, dao) -> SessionStreamsService:
 
 async def _rename(service, *, name, source, replacing=None, revision=None):
     return await service.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -629,6 +630,7 @@ async def test_repeating_a_person_name_does_not_open_the_door(lock_engine):
 
     await _rename(service, name=_PERSON_NAME, source=SessionNameSource.manual)
     await service.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,

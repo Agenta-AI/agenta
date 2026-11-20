@@ -350,11 +350,13 @@ class SessionStreamsService:
         user_id: UUID,
         request: SessionStreamCommandRequest,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         arrived_at_ms: Optional[int] = None,
         recheck: Optional[SessionRecheck] = None,
     ) -> SessionStreamCommandResponse:
         """`access` is the policy a send or steer writes when it creates the row; an
-        existing row keeps its policy.
+        existing row keeps its policy. `envelope` is the request's run: a row that this
+        command creates takes its session origin from it (`session_origin_tags`).
 
         `recheck` is the route's session check. When that check found no row, a row that
         exists now was created by a concurrent request and was never checked. That path
@@ -393,6 +395,7 @@ class SessionStreamsService:
                             session_id=session_id,
                             name=proposed_name,
                             access=access,
+                            run_envelope=envelope,
                         ),
                     )
                     created_row = True
@@ -429,6 +432,7 @@ class SessionStreamsService:
                 session_id=session_id,
                 name=proposed_name,
                 access=access,
+                envelope=envelope,
                 recheck=recheck,
                 created_row=created_row,
             )
@@ -447,6 +451,7 @@ class SessionStreamsService:
                 session_id=session_id,
                 name=proposed_name,
                 access=access,
+                envelope=envelope,
                 recheck=recheck,
                 created_row=created_row,
             )
@@ -1083,6 +1088,7 @@ class SessionStreamsService:
                         references=request.references or None,
                         access=access,
                         channel_binding_id=channel_binding_id,
+                        run_envelope=envelope,
                     ),
                 )
             except SessionStreamAlreadyExists:
@@ -1264,6 +1270,7 @@ class SessionStreamsService:
         session_id: str,
         header: SessionStreamHeaderEdit,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         name_source: SessionNameSource = SessionNameSource.manual,
         recheck: Optional[SessionRecheck] = None,
     ) -> Optional[SessionStream]:
@@ -1282,6 +1289,8 @@ class SessionStreamsService:
         holds no name to protect, and the concurrent-create arm re-enters the guarded update.
 
         `access` is written only by the create arm; a rename never changes the policy.
+        `envelope` is the request's run: the create arm takes the session origin from it
+        (`session_origin_tags`); a rename never changes the origin.
 
         `recheck` is the route's session check. When that check found no row, the call
         creates first and never edits a row it did not check: a row that a concurrent
@@ -1294,6 +1303,7 @@ class SessionStreamsService:
                 user_id=user_id,
                 session_id=session_id,
                 access=access,
+                envelope=envelope,
                 recheck=recheck,
             )
         unchecked = recheck is not None and session_was_missing(
@@ -1319,6 +1329,7 @@ class SessionStreamsService:
                         description=header.description,
                         name_source=name_source,
                         access=access,
+                        run_envelope=envelope,
                     ),
                 )
             except SessionStreamAlreadyExists:
@@ -1346,6 +1357,7 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         recheck: Optional[SessionRecheck],
     ) -> Optional[SessionStream]:
         """A header call with no header field only creates the session with `access`
@@ -1357,7 +1369,9 @@ class SessionStreamsService:
             created = await self._create_row(
                 project_id=project_id,
                 user_id=user_id,
-                stream=SessionStreamCreate(session_id=session_id, access=access),
+                stream=SessionStreamCreate(
+                    session_id=session_id, access=access, run_envelope=envelope
+                ),
             )
         except SessionStreamAlreadyExists:
             if recheck is not None and session_was_missing(
@@ -1528,6 +1542,7 @@ class SessionStreamsService:
         user_id: UUID,
         session_id: str,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         name: Optional[str] = None,
         recheck: Optional[SessionRecheck] = None,
         created_row: bool = False,
@@ -1596,6 +1611,7 @@ class SessionStreamsService:
                         turn_id=turn_id,
                         name=name,
                         access=access,
+                        run_envelope=envelope,
                     ),
                 )
                 created = True

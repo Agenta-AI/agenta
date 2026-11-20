@@ -669,6 +669,7 @@ async def test_concurrent_create_authorizes_the_winning_row(
 
     # Alice names her new private session first (`set_header` creates the row).
     await service.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_ALICE,
         session_id="race",
@@ -719,6 +720,7 @@ async def test_concurrent_create_winner_readable_by_participant(
     while dao.count("create") == 0:
         await asyncio.sleep(0)
     await service.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_ALICE,
         session_id="race",

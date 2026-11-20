@@ -107,6 +107,7 @@ async def test_send_publishes_lifecycle_running(lock_engine):
     session_id = _session_id()
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -126,6 +127,7 @@ async def test_steer_publishes_lifecycle_running(lock_engine):
     session_id = _session_id()
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -145,6 +147,7 @@ async def test_cancel_publishes_lifecycle_ended(lock_engine):
     session_id = _session_id()
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -156,6 +159,7 @@ async def test_cancel_publishes_lifecycle_ended(lock_engine):
     publisher.lifecycle_calls.clear()
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id, force=False),
@@ -186,6 +190,7 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
 
     # Start a turn (send), then the runner reports the turn ended.
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -353,6 +358,7 @@ async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engin
     session_id = _session_id()
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -406,6 +412,7 @@ async def test_a_send_refused_on_a_reserved_id_hands_back_its_locks(lock_engine)
     session_id = _session_id()
     with pytest.raises(SessionIdTombstoned):
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=SessionStreamCommandRequest(

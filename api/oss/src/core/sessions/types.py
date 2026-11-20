@@ -1,8 +1,8 @@
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from oss.src.core.shared.dtos import Reference
 
@@ -47,8 +47,19 @@ class SessionReference(Reference):
 
 
 class SessionOrigin(str, Enum):
+    """How the session was created. Written once, with the row, and never changed.
+
+    `manual`: a person in the app, or not recorded (every session from before the
+    other values existed reads `manual`). `trigger`: an automation fire. `channel`: a
+    channel installation. `api`: an API key. `calling_session`: an agent in another
+    session.
+    """
+
     manual = "manual"
     trigger = "trigger"
+    channel = "channel"
+    api = "api"
+    calling_session = "calling_session"
 
 
 class SessionTriggerKind(str, Enum):
@@ -70,3 +81,24 @@ class SessionTrigger(BaseModel):
 
 class SessionDelivery(BaseModel):
     id: UUID
+
+
+class SessionCallingSession(BaseModel):
+    """The session whose agent created this session: the calling session, the calling
+    turn, the calling agent and its revision. Set only when the origin is
+    `calling_session`."""
+
+    id: str
+    turn_id: str
+    agent_id: UUID
+    revision_id: UUID
+
+
+class SessionCallingSessionQuery(BaseModel):
+    """List filter on the calling session record. `ids` are calling session ids, not
+    the listed sessions' own ids (that is `session_ids`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ids: Optional[List[str]] = None
+    agent_ids: Optional[List[UUID]] = None
