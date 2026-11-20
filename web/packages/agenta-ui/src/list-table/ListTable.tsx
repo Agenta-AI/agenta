@@ -274,7 +274,11 @@ export const ListTable = <Row,>({
                             {Array.from({length: skeletonRows}, (_, row) => (
                                 <div
                                     key={row}
-                                    className={cn("grid w-full items-center gap-3", rowPad)}
+                                    className={cn(
+                                        "grid w-full items-center gap-3",
+                                        rowPad,
+                                        rowClassName,
+                                    )}
                                     style={{gridTemplateColumns: grid}}
                                 >
                                     {allColumns.map((column, index) => (
