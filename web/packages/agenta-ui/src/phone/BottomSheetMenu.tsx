@@ -75,7 +75,7 @@ export const BottomSheetMenu = ({
                             disabled={item.disabled}
                             className={cn(
                                 "box-border flex min-h-14 w-full cursor-pointer items-center gap-3.5 border-0 border-t border-solid border-colorBorderSecondary bg-transparent px-4 py-2 text-left font-[inherit]",
-                                "active:bg-colorFillTertiary disabled:cursor-not-allowed disabled:opacity-50",
+                                "outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-not-allowed disabled:opacity-50",
                             )}
                             onClick={() => {
                                 onOpenChange(false)
