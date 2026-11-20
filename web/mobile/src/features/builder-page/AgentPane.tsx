@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {
     AgentEditorContext,
     SectionMarksContext,
@@ -19,7 +20,7 @@ import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {DrawerViewChrome, useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -104,17 +105,24 @@ export const AgentPane = ({
     // Follow the builder (the 10 second rule): a save of this agent shows the Agent pane tab,
     // unless the person clicked in the pane in the last 10 seconds or a form has edits; then the
     // Agent pane tab gets a dot.
+    const latestRevision = useAtomValue(workflowLatestRevisionQueryAtomFamily(agentId))
     const lastPointerDown = useRef<number | null>(null)
     const followed = useRef(builderSaveToolCallId)
     useEffect(() => {
         if (!builderSaveToolCallId || builderSaveToolCallId === followed.current) return
         followed.current = builderSaveToolCallId
+        const dirty = guardRef.current?.stack.dirty ?? false
+        // The pane shows the version the builder saved, unless a form still edits the held one.
+        if (!dirty)
+            void latestRevision.refetch().then((result) => {
+                if (!result.isError && result.data?.id) pin(result.data.id)
+            })
         const action = followAction<PaneTab>({
             paneTab: tab,
             target: "agent",
             now: Date.now(),
             lastPointerDown: lastPointerDown.current,
-            dirty: guardRef.current?.stack.dirty ?? false,
+            dirty,
         })
         if (action === "show") {
             setTab("agent")
@@ -124,16 +132,13 @@ export const AgentPane = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [builderSaveToolCallId])
 
+    const markLabel = t("builder.page.changedByBuilder")
     const sectionMarks = useMemo<SectionMarks | null>(
         () =>
             changedSections?.length && onSectionOpened
-                ? {
-                      keys: new Set(changedSections),
-                      label: t("builder.page.changedByBuilder"),
-                      onOpened: onSectionOpened,
-                  }
+                ? {keys: new Set(changedSections), label: markLabel, onOpened: onSectionOpened}
                 : null,
-        [changedSections, onSectionOpened, t],
+        [changedSections, markLabel, onSectionOpened],
     )
 
     const needsRevision = tab === "agent" || tab === "automations"
