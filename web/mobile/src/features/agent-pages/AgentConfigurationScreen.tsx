@@ -15,10 +15,10 @@ import {useRouter} from "next/router"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
-import {useAgentRow} from "../agent-layout/useAgentRow"
-import {AgentPrivacyPanelHost} from "../chat/AgentPrivacyHost"
+import {AccessTab} from "../agent-layout/AccessTab"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {SessionWorkspaceDrawers} from "../chat/SessionWorkspaceDrawers"
+import {useTriggerTestRun} from "../chat/useTriggerTestRun"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 import {AppShell} from "../nav/AppShell"
@@ -67,7 +67,6 @@ export const AgentConfigurationScreen = ({
     const t = useT(agentSidebarCatalog, agentLayoutPanelCatalog)
     useBindProjectContext(projectId)
     const router = useRouter()
-    const {row} = useAgentRow(agentId)
     const {revisionId, pin} = useConfigurationRevision(agentId)
     // The API refuses a Viewer's edits; editing stays open while the check is in flight.
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
@@ -76,29 +75,31 @@ export const AgentConfigurationScreen = ({
         () => (revisionId ? {revisionId, readOnly} : null),
         [readOnly, revisionId],
     )
+    // An automation's "Test run" starts a new session of this agent, as from the panel.
+    useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     const openTab = (next: ConfigurationTab) =>
         void router.replace({query: {...router.query, tab: next}}, undefined, {shallow: true})
 
-    const body = !revisionId ? (
+    const loading = (
         <div className="flex flex-col gap-3" aria-busy>
             <SkeletonBlock active className="h-12 w-full" />
             <SkeletonBlock active className="h-24 w-full" />
             <SkeletonBlock active className="h-24 w-full" />
         </div>
-    ) : tab === "agent" ? (
-        <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
-    ) : tab === "automations" ? (
-        <ConfigurationAutomationsTab revisionId={revisionId} readOnly={readOnly} />
-    ) : (
-        <div className="flex max-w-[560px] flex-col gap-4">
-            <AgentPrivacyPanelHost
-                agentId={agentId}
-                agentName={row?.name || row?.slug || ""}
-                workspaceId={workspaceId}
-                projectId={projectId}
-            />
-        </div>
     )
+    // Access needs no revision; the other tabs wait for one.
+    const body =
+        tab === "access" ? (
+            <div className="max-w-[560px]">
+                <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
+            </div>
+        ) : !revisionId ? (
+            loading
+        ) : tab === "agent" ? (
+            <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
+        ) : (
+            <ConfigurationAutomationsTab revisionId={revisionId} readOnly={readOnly} />
+        )
 
     return (
         <>
@@ -118,6 +119,9 @@ export const AgentConfigurationScreen = ({
                                     <AgentRevisionStatus
                                         revisionId={revisionId}
                                         historyWorkflowId={agentId}
+                                        // Follows a version saved elsewhere, unless a view form
+                                        // here has edits (the status then offers the update).
+                                        onUpdate={pin}
                                         autoUpdate
                                     />
                                 ) : null}

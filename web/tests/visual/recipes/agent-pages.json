@@ -49,7 +49,7 @@
         "theme": "light",
         "steps": [
             {
-                "wait": 2000
+                "wait": "Automations"
             }
         ]
     },
@@ -61,7 +61,7 @@
         "theme": "light",
         "steps": [
             {
-                "wait": 2000
+                "wait": "Who can see this agent"
             }
         ]
     },

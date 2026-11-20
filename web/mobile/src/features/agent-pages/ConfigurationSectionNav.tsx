@@ -48,7 +48,11 @@ export const ConfigurationSectionNav = ({
             })
         update()
         const observer = new MutationObserver(update)
-        observer.observe(root, {childList: true, subtree: true, attributes: true})
+        observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributeFilter: ["data-config-section", "data-config-section-title"],
+        })
         return () => observer.disconnect()
     }, [contentRef])
 
@@ -59,9 +63,11 @@ export const ConfigurationSectionNav = ({
         const mark = () => {
             const top = root.getBoundingClientRect().top + 8
             let inView = sections[0].key
-            for (const section of sections) {
-                const el = anchorOf(root, section.key)
-                if (el && el.getBoundingClientRect().top <= top) inView = section.key
+            // One scan per scroll: the anchors in document order.
+            for (const el of root.querySelectorAll<HTMLElement>("[data-config-section]")) {
+                const key = el.dataset.configSection
+                if (key && el.dataset.configSectionTitle && el.getBoundingClientRect().top <= top)
+                    inView = key
             }
             setCurrent(inView)
         }

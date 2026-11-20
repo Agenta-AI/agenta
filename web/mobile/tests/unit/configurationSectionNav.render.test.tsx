@@ -8,8 +8,8 @@ import {act, useRef} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {isConfigurationTab} from "@/features/agent-pages/configurationTabs"
 import {ConfigurationSectionNav} from "@/features/agent-pages/ConfigurationSectionNav"
+import {isConfigurationTab} from "@/features/agent-pages/configurationTabs"
 
 const Page = ({sections}: {sections: {key: string; title?: string}[]}) => {
     const ref = useRef<HTMLDivElement>(null)
