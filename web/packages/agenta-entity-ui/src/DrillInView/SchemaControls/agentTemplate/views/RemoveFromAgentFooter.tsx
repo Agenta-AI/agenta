@@ -13,7 +13,7 @@ export function RemoveFromAgentFooter({onClick}: {onClick: () => void}) {
             <Button
                 variant="ghost"
                 size="compact"
-                className="-ml-[3px] gap-1.5 text-[var(--ag-danger-text)] hover:text-[var(--ag-danger-text)] max-md:h-11 max-md:text-[15px] max-md:[&>svg]:hidden"
+                className="-ml-[3px] gap-1.5 text-[var(--ag-danger-text)] hover:text-[var(--ag-danger-text)] max-md:ml-0 max-md:h-11 max-md:rounded-[10px] max-md:px-3 max-md:text-[15px] max-md:[&>svg]:hidden"
                 onClick={onClick}
             >
                 <Trash />

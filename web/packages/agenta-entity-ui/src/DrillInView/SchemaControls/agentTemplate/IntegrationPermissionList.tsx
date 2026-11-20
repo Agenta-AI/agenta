@@ -887,7 +887,11 @@ export function IntegrationTitle({
                 ) : null}
             </div>
             {notConnected || missing ? (
-                <Badge variant="outlined" className={`${tag} text-colorTextSecondary`}>
+                // Canvas F10 f3: a square white tag with a light border.
+                <Badge
+                    variant="outlined"
+                    className={`${tag} h-5 rounded-[4px] border-colorBorderSecondary bg-colorBgContainer px-[7px] text-colorTextSecondary`}
+                >
                     {tCommon("common.notConnected")}
                 </Badge>
             ) : attention !== undefined ? (

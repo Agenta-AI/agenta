@@ -140,7 +140,9 @@ export function SkillViewHeader({
                                         }}
                                         className={cn(
                                             SKILL_ACTION_ROW,
-                                            action.danger && "text-[var(--ag-colorError)]",
+                                            // `color:` so the merge keeps it over the row's
+                                            // own text color (F07 f10: Archive in red).
+                                            action.danger && "text-[color:var(--ag-danger-text)]",
                                         )}
                                     >
                                         {action.icon}

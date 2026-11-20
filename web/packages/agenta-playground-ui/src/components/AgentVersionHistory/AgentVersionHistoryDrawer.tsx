@@ -125,6 +125,8 @@ export const AgentVersionHistoryDrawer = ({
 
     // Drawer-local: nothing outside reads either.
     const [phase, setPhase] = useState<RevertPhase>("idle")
+    // The panel element, so the revert confirmation can mask the drawer and not the page.
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     // Phone: one pane at a time. Picking a version pushes the diff; a back link returns.
     const [mobileView, setMobileView] = useState<"list" | "diff">("list")
 
@@ -231,6 +233,7 @@ export const AgentVersionHistoryDrawer = ({
                           header: {paddingLeft: 24},
                       }
             }
+            panelRef={setPanel}
             // px-3 so the buttons' outer edge lands on the same line as the section bands.
             classNames={{
                 body: phone ? "!p-0 flex flex-col" : "!p-0",
@@ -262,6 +265,7 @@ export const AgentVersionHistoryDrawer = ({
         >
             <RevertConfirmDialog
                 open={phase === "confirm"}
+                container={panel}
                 selectedVersion={selectedRow?.version ?? null}
                 latestVersion={latestRow?.version ?? null}
                 onCancel={() => setPhase("idle")}

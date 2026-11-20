@@ -33,13 +33,7 @@ import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/dril
 import {cn} from "@agenta/ui/styles"
 import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {useViewTitle} from "@agenta/ui/view-stack"
-import {
-    CaretRight,
-    GithubLogo,
-    PencilSimple,
-    UploadSimple,
-    WarningCircle,
-} from "@phosphor-icons/react"
+import {ArrowUp, CaretRight, Export, PencilSimple, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 type Skill = Record<string, unknown>
@@ -94,7 +88,12 @@ interface RepoCandidate {
     imported: boolean
 }
 
-const ROW = "box-border flex items-start gap-2.5 rounded-md border border-solid p-2.5"
+/** A found skill (canvas F07 f15): a plain 55 px row under a divider, the checkbox on the column
+ *  edge. */
+const ROW =
+    "box-border flex items-center gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] py-2.5"
+/** "Skills found · N" over the rows: 13/600. */
+const FOUND_HEADING = "mb-2.5 text-[13px] font-semibold leading-5 text-colorText"
 
 export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBodyProps) {
     const t = useT(
@@ -461,6 +460,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                         autoFocusName={parsedCount == null}
                         showMissing={writeDirty && !writeValid}
                         onUploadControl={onUploadControl}
+                        advanced={false}
                     />
                 </div>
             </div>
@@ -502,11 +502,12 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                         {reading ? (
                             <Spinner size="small" />
                         ) : (
-                            <UploadSimple size={20} className="text-colorTextSecondary" />
+                            <ArrowUp size={20} className="text-colorTextSecondary" />
                         )}
                         <span className="text-xs text-colorTextSecondary">
+                            {/* ".zip" and ".skill" in the line's own font (F07 f7). */}
                             {richText(t("entityUi.skillTemplate.dragHint"), {
-                                mono: (text) => <span className="font-mono">{text}</span>,
+                                mono: (text) => text,
                             })}
                         </span>
                         <span className="text-xs text-colorTextTertiary">
@@ -553,6 +554,8 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                 <div className="flex items-center gap-2">
                     <Input
                         autoFocus
+                        size="compact"
+                        className="font-mono md:text-[12px]"
                         value={repoUrl}
                         aria-label={t("ui.repoImport.repositoryUrl")}
                         placeholder="https://github.com/owner/repo"
@@ -568,6 +571,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                     />
                     <Button
                         variant="outline"
+                        size="compact"
                         className="shrink-0"
                         onClick={() => void scanRepo()}
                         disabled={scanning || importing || !repoUrl.trim()}
@@ -578,8 +582,8 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                 </div>
                 {scanning ? <ScanSkeleton /> : null}
                 {found ? (
-                    <div className="flex flex-col gap-1.5 text-xs">
-                        <span className="font-medium">
+                    <div className="flex flex-col">
+                        <span className={FOUND_HEADING}>
                             {t("skills.gallery.skillsFound", {count: found.length})}
                         </span>
                         {found.map((row) => {
@@ -587,14 +591,9 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                             return (
                                 <label
                                     key={row.path}
-                                    className={cn(
-                                        ROW,
-                                        "border-colorBorderSecondary",
-                                        locked ? "opacity-60" : "cursor-pointer",
-                                    )}
+                                    className={cn(ROW, locked ? "opacity-60" : "cursor-pointer")}
                                 >
                                     <Checkbox
-                                        className="mt-0.5"
                                         checked={selected.has(row.path)}
                                         disabled={locked}
                                         onCheckedChange={() =>
@@ -608,23 +607,22 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                                             name: row.name,
                                         })}
                                     />
-                                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                        <span className="flex min-w-0 items-center gap-1.5">
-                                            <span className="min-w-0 truncate font-medium">
-                                                {row.name}
-                                            </span>
-                                            {row.imported ? (
-                                                <span className="shrink-0 rounded bg-colorFillTertiary px-1.5 py-px text-[10px] text-colorTextTertiary">
-                                                    {t("skills.gallery.alreadyImported")}
-                                                </span>
-                                            ) : null}
+                                    <span className="flex min-w-0 flex-1 flex-col">
+                                        <span className="min-w-0 truncate font-mono text-[13px] leading-5 text-colorText">
+                                            {row.name}
                                         </span>
-                                        <span className="line-clamp-1 text-colorTextSecondary">
+                                        <span className="line-clamp-1 text-[12px] leading-4 text-colorTextSecondary">
                                             {row.unavailable ??
                                                 (row.description ||
                                                     t("skills.gallery.noDescription"))}
                                         </span>
                                     </span>
+                                    {row.imported ? (
+                                        // Canvas F07 f15: a square white tag with a light border.
+                                        <span className="flex h-5 shrink-0 items-center rounded-[4px] border border-solid border-colorBorderSecondary bg-colorBgContainer px-[7px] text-[12px] leading-4 text-colorTextTertiary">
+                                            {t("skills.gallery.alreadyImported")}
+                                        </span>
+                                    ) : null}
                                 </label>
                             )
                         })}
@@ -650,13 +648,13 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                     onSelect={() => openWrite(EMPTY_SKILL, null)}
                 />
                 <WayRow
-                    icon={<UploadSimple size={14} />}
+                    icon={<ArrowUp size={14} />}
                     title={t("skills.gallery.menuUploadTitle")}
                     hint={t("skills.gallery.menuUploadHint")}
                     onSelect={() => setStep("upload")}
                 />
                 <WayRow
-                    icon={<GithubLogo size={14} />}
+                    icon={<Export size={14} />}
                     title={t("skills.gallery.menuImportTitle")}
                     hint={t("skills.gallery.menuImportHint")}
                     onSelect={() => setStep("import")}
@@ -705,28 +703,24 @@ function UploadPicks({
 }) {
     const t = useT(skillsGalleryCatalog)
     return (
-        <div className="flex flex-col gap-1.5 text-xs">
-            <span className="font-medium">
+        <div className="flex flex-col">
+            <span className={FOUND_HEADING}>
                 {t("skills.gallery.skillsFound", {count: picks.scan.candidates.length})}
             </span>
             {picks.scan.candidates.map((candidate) => (
-                <label
-                    key={candidate.dir}
-                    className={cn(ROW, "cursor-pointer border-colorBorderSecondary")}
-                >
+                <label key={candidate.dir} className={cn(ROW, "cursor-pointer")}>
                     <Checkbox
-                        className="mt-0.5 rounded"
                         checked={picks.selected.has(candidate.dir)}
                         onCheckedChange={() => onToggle(candidate.dir)}
                         aria-label={t("skills.gallery.importAria", {
                             name: candidate.skill.name || candidate.dir,
                         })}
                     />
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate font-mono">
+                    <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate font-mono text-[13px] leading-5 text-colorText">
                             {candidate.skill.name || candidate.dir || t("skills.gallery.unnamed")}
                         </span>
-                        <span className="line-clamp-1 text-colorTextSecondary">
+                        <span className="line-clamp-1 text-[12px] leading-4 text-colorTextSecondary">
                             {candidate.skill.description ||
                                 candidate.dir ||
                                 t("skills.gallery.noDescription")}
@@ -740,10 +734,10 @@ function UploadPicks({
 
 function ScanSkeleton() {
     return (
-        <div aria-hidden className="flex flex-col gap-1">
+        <div aria-hidden className="flex flex-col">
             {[0, 1, 2].map((row) => (
-                <div key={row} className={cn(ROW, "border-colorBorderSecondary")}>
-                    <SkeletonBlock active className="mt-0.5 size-4 rounded" />
+                <div key={row} className={ROW}>
+                    <SkeletonBlock active className="size-4 rounded" />
                     <span className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <SkeletonBlock active className="h-3.5 w-2/5 rounded" />
                         <SkeletonBlock active className="h-3.5 w-4/5 rounded" />

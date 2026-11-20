@@ -106,6 +106,8 @@ export interface SkillFormViewProps {
      * `onUploadControl` from `useSkillViewForm`. Left out, the step draws its own two buttons.
      */
     onUploadControl?: (control: SkillUploadControl | null) => void
+    /** The Advanced row under SKILL.md. Off for a skill being written (F07 f13). @default true */
+    advanced?: boolean
 }
 
 const tNow = createT(skillCatalog)
@@ -222,6 +224,7 @@ export function SkillFormView({
     showMissing = false,
     downloadable = false,
     onUploadControl,
+    advanced = true,
 }: SkillFormViewProps) {
     const t = useT(skillCatalog, skillViewCatalog, skillsGalleryCatalog, schemaControlsCatalog)
     const skill = (value ?? {}) as Record<string, unknown>
@@ -243,7 +246,7 @@ export function SkillFormView({
     const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set())
     const [uploading, setUploading] = useState(false)
     const [skipped, setSkipped] = useState<{path: string; reason: string}[]>([])
-    const [expanded, setExpanded] = useState(false)
+    const [expandedState, setExpanded] = useState(false)
     const [deleting, setDeleting] = useState<number | null>(null)
     // A new or renamed file takes the caret in its path field.
     const pathInput = useRef<HTMLInputElement>(null)
@@ -365,6 +368,8 @@ export function SkillFormView({
     const activeFile = typeof selected === "number" ? files[selected] : undefined
     const showSkill = selected === "skill" || !activeFile
     const activeIndex = showSkill ? null : (selected as number)
+    // Only SKILL.md expands; a bundled file keeps its fixed box (F07 f4).
+    const expanded = expandedState && activeIndex === null
     const pathProblem = activeIndex === null ? undefined : filePathProblem(files, activeIndex)
     // An empty path waits for a submit before it says so, like an empty name.
     const shownPathProblem =
@@ -376,7 +381,9 @@ export function SkillFormView({
 
     const edited = (entry: SkillFileSelection) =>
         entry === "skill" ? skillMdEdited(skill, baseline) : fileEdited(files, entry, baselineFiles)
-    const editedCount = editedFileCount(skill, baseline)
+    // A file just added and still empty is not an edit yet (canvas F07 f6: "15 files").
+    const freshUntouched = freshFile !== null && !files[freshFile]?.content
+    const editedCount = editedFileCount(skill, baseline) - (freshUntouched ? 1 : 0)
     const fileCount = files.length + 1
     const countLine = editedCount
         ? `${t("entityUi.skillView.files", {count: fileCount})} · ${t("entityUi.skillView.edited", {count: editedCount})}`
@@ -438,9 +445,10 @@ export function SkillFormView({
                     </PopoverTrigger>
                     <PopoverContent
                         align="start"
+                        alignOffset={-1}
                         sideOffset={4}
                         container={formRoot}
-                        className="w-[332px] p-0"
+                        className="w-[340px] p-0"
                     >
                         <SkillFileMenu
                             files={files}
@@ -484,7 +492,8 @@ export function SkillFormView({
                         />
                     </PopoverContent>
                 </Popover>
-                {activeIndex !== null && !disabled && !uploading ? (
+                {/* A file being added has no bin: Cancel drops it (canvas F07 f6). */}
+                {activeIndex !== null && !disabled && !uploading && !newFile ? (
                     <button
                         type="button"
                         aria-label={t("entityUi.skillView.deleteFile")}
@@ -600,7 +609,8 @@ export function SkillFormView({
                                                     placeholder="my-skill"
                                                     disabled={disabled}
                                                     aria-describedby={helpId}
-                                                    className="h-[34px] rounded-[6px] font-mono text-[13px]"
+                                                    size="compact"
+                                                    className="font-mono"
                                                 />
                                             )}
                                         </Field>
@@ -629,7 +639,8 @@ export function SkillFormView({
                                                         set("description", event.target.value)
                                                     }
                                                     autoSize={{minRows: 4}}
-                                                    className="resize-y rounded-[6px] text-[13px]"
+                                                    size="compact"
+                                                    className="resize-y"
                                                     aria-describedby={helpId}
                                                     aria-invalid={
                                                         descriptionMissing || descriptionError
@@ -698,7 +709,7 @@ export function SkillFormView({
                                 </div>
                             </div>
                         </Field>
-                        {!expanded ? (
+                        {!expanded && advanced ? (
                             <div className="flex shrink-0 flex-col">
                                 <button
                                     type="button"
@@ -789,7 +800,8 @@ export function SkillFormView({
                                                     }
                                                     aria-describedby={helpId}
                                                     disabled={disabled}
-                                                    className="h-[34px] rounded-[6px] font-mono text-[13px]"
+                                                    size="compact"
+                                                    className="font-mono"
                                                 />
                                             )}
                                         </Field>
@@ -810,14 +822,9 @@ export function SkillFormView({
                                 />
                             </>
                         ) : null}
-                        {/* Plain text with no toolbar row (F07 f4); the expand button floats in the corner. */}
-                        <div
-                            className={cn(
-                                "relative flex flex-col overflow-hidden rounded-[6px] border border-solid border-border",
-                                expanded ? "min-h-0 flex-1" : `${EDITOR_MIN} flex-1`,
-                            )}
-                        >
-                            <div className="absolute right-1 top-1 z-10">{expandButton}</div>
+                        {/* Plain text in one 330 px box, with no toolbar row and no expand
+                            button (F07 f4, f6). */}
+                        <div className="flex h-[330px] shrink-0 flex-col overflow-hidden rounded-[6px] border border-solid border-border">
                             <div className="flex min-h-0 flex-1 flex-col">
                                 {/* Keyed by index (paths are editable) for a fresh editor per file;
                                     no debounce, so a file switch cannot drop a pending edit. */}

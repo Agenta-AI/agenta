@@ -16,8 +16,10 @@ import {toSourceInfo} from "./registrySections"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
+/** Canvas F04 f2: rows on the search field's edge, 8 px above and below, 60 px apart; the hover
+ *  fill bleeds 8 px past the column. */
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-3 rounded-[10px] border-0 bg-transparent px-2 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-2 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
 
 function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => void}) {
     const t = useT(skillsGalleryCatalog, skillNewCatalog)
@@ -46,7 +48,7 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
                 </span>
             </span>
             {option.added ? (
-                <span className="flex shrink-0 items-center gap-1 pl-2 text-xs text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-1 pl-2 text-[12px] leading-4 text-colorTextSecondary">
                     <Check aria-hidden size={14} />
                     {t("entityUi.skillNew.added")}
                 </span>
@@ -103,15 +105,17 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
     const searching = Boolean(search.trim())
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-3 pt-3.5">
             <div className="flex items-center gap-2">
                 <SearchInput
+                    size="compact-search"
+                    className="border-colorBorderSecondary max-md:h-11"
                     placeholder={t("skills.gallery.searchPlaceholder")}
                     aria-label={t("skills.gallery.searchAria")}
                     value={search}
                     onValueChange={setSearch}
                 />
-                <Button variant="outline" onClick={onNewSkill} className="shrink-0 gap-1.5">
+                <Button variant="outline" size="compact" onClick={onNewSkill} className="shrink-0">
                     <Plus size={14} />
                     {t("skills.gallery.newSkill")}
                 </Button>
@@ -137,7 +141,7 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
                     }
                 />
             ) : (
-                <div className="-mx-2 flex flex-col gap-0.5">
+                <div className="-mx-2 flex flex-col gap-2">
                     {visible.map((option) => (
                         <SkillRow
                             key={option.id}

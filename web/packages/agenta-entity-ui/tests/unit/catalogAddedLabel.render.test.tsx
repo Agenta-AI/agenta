@@ -25,6 +25,8 @@ const {connections} = vi.hoisted(() => ({
             integration_key: "github",
             provider_key: "composio",
             status: "ACTIVE",
+            // A working connection: only those show "Added" (a pending one shows its tag).
+            flags: {is_active: true, is_valid: true},
         },
     ],
 }))
