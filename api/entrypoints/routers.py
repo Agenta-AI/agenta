@@ -1140,6 +1140,7 @@ _triggers_dispatcher = TriggersDispatcher(
     workflows_service=workflows_service,
     run_admission=run_admission,
     dispatch_fn=_dispatch_detached_run,
+    session_streams_dao=session_streams_dao,
 )
 
 _triggers_worker = TriggersWorker(
@@ -1692,6 +1693,8 @@ session_starts_service = SessionStartsService(
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
 )
+# A schedule's fire into an existing session puts its input on the session queue.
+_triggers_dispatcher.session_starts_service = session_starts_service
 agent_template_catalog_path = (
     Path(__file__).resolve().parents[1]
     / "oss"

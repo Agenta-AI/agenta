@@ -7,6 +7,7 @@ Composio is the source of truth and the value is cached encrypted in Redis.
 
 import json
 from typing import Any, Dict, Optional
+from uuid import UUID
 from urllib.parse import urlsplit, urlunsplit
 
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
@@ -193,3 +194,31 @@ def compose_event_inputs(
     else:
         content = (content or "") + text
     return {**inputs, "messages": [*messages[:-1], {**last, "content": content}]}
+
+
+async def delete_hidden_schedule(
+    *,
+    dao: Any,
+    project_id: UUID,
+    schedule_id: UUID,
+) -> bool:
+    """Remove a schedule that server code created, with its deliveries, from the table,
+    and log the schedule id, the target session and the principal, so an operator can
+    trace a fire after the row is gone. A schedule that is gone (or is not hidden) is
+    left as it is, and the call answers False."""
+
+    removed = await dao.purge_hidden_schedule(
+        project_id=project_id,
+        schedule_id=schedule_id,
+    )
+    if removed is None:
+        return False
+    log.info(
+        "[SCHEDULE] Deleted hidden schedule",
+        schedule_id=str(removed.id),
+        project_id=str(project_id),
+        session_id=removed.data.session_id,
+        principal_kind=removed.principal.kind.value if removed.principal else None,
+        principal_id=str(removed.principal.id) if removed.principal else None,
+    )
+    return True

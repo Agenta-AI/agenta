@@ -117,7 +117,8 @@ class TriggersWorker:
                 )
                 return
 
-            entity = await self.triggers_dao.fetch_schedule(
+            # The fire path's own read: it also finds a hidden schedule.
+            entity = await self.triggers_dao.fetch_schedule_to_fire(
                 project_id=resolved_project_id,
                 schedule_id=resolved_schedule_id,
             )

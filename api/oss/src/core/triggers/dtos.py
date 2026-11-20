@@ -6,11 +6,12 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from oss.src.core.tools.dtos import AgentError
-from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope
 from oss.src.core.gateway.catalog.dtos import (
     CatalogIntegration,
     CatalogProvider,
 )
+from oss.src.core.sessions.inputs.dtos import PendingInputKind
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
@@ -321,6 +322,19 @@ class TriggerSubscriptionQuery(BaseModel):
 class TriggerScheduleFlags(BaseModel):
     # No is_valid: a schedule has no external connection to invalidate.
     is_active: bool = True
+    # A schedule that server code created (`TriggersService.create_session_schedule`).
+    # The reads of the public routes leave it and its deliveries out, and the public
+    # create and edit routes refuse `true`.
+    is_hidden: bool = False
+
+
+class TriggerScheduleSessionInput(BaseModel):
+    """The input that a schedule with `data.session_id` sends into that session.
+    `content` is the turn's invoke request on the session, as `enqueue_session_input`
+    takes it."""
+
+    kind: PendingInputKind
+    content: Dict[str, Any]
 
 
 class TriggerScheduleData(BaseModel):
@@ -342,9 +356,13 @@ class TriggerScheduleData(BaseModel):
     # A bare selector string (e.g. "$") is allowed at top level = whole context.
     inputs_fields: Optional[Union[Dict[str, Any], str]] = None
     #
-    # DESTINATION — the bound workflow, by reference (the /retrieve shape).
+    # DESTINATION — the bound workflow, by reference (the /retrieve shape), or an
+    # existing session of the same project (`session_id`), which gets `session_input`.
+    # Only server code sets `session_id` and `session_input`.
     references: Optional[Dict[str, Reference]] = None
     selector: Optional[Selector] = None
+    session_id: Optional[str] = None
+    session_input: Optional[TriggerScheduleSessionInput] = None
 
     @model_validator(mode="after")
     def _check_period(self) -> "TriggerScheduleData":
@@ -360,6 +378,23 @@ class TriggerScheduleData(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _check_destination(self) -> "TriggerScheduleData":
+        if (self.session_id is None) != (self.session_input is None):
+            raise ValueError(
+                "A schedule has data.session_input exactly when it has data.session_id."
+            )
+        if self.session_id is not None and (
+            self.references is not None
+            or self.selector is not None
+            or self.inputs_fields is not None
+        ):
+            raise ValueError(
+                "A schedule with session_id cannot have references, selector or "
+                "inputs_fields."
+            )
+        return self
+
 
 class TriggerSchedule(Identifier, Lifecycle, Header, Metadata):
     data: TriggerScheduleData
@@ -370,6 +405,10 @@ class TriggerSchedule(Identifier, Lifecycle, Header, Metadata):
     # agent (NULL for an environment reference).
     principal: Optional[PrincipalRef] = None
     artifact_id: Optional[UUID] = None
+    #
+    # The stored authority of a schedule that server code created
+    # (`trigger_schedules.run_envelope`). Internal: never in a response.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
 
 
 class TriggerScheduleCreate(Header, Metadata):

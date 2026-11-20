@@ -24,10 +24,11 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
 )
-from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope
 from oss.src.core.triggers.interfaces import KEEP_ARTIFACT_ID, TriggersDAOInterface
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.dbs.postgres.access.mappings import map_envelope_to_column
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
@@ -77,6 +78,27 @@ def _map_schedule_rows(
                 error_type=type(e).__name__,
             )
     return schedules
+
+
+def _schedule_is_visible():
+    """Not a hidden schedule (`flags.is_hidden`). Every read that a public route uses
+    filters on it; the fire path reads through its own functions."""
+    return func.coalesce(
+        TriggerScheduleDBE.flags["is_hidden"].astext.cast(Boolean), False
+    ).is_(False)
+
+
+def _delivery_is_visible():
+    """Not a delivery of a hidden schedule."""
+    return ~(
+        select(TriggerScheduleDBE.id)
+        .where(
+            TriggerScheduleDBE.project_id == TriggerDeliveryDBE.project_id,
+            TriggerScheduleDBE.id == TriggerDeliveryDBE.schedule_id,
+            TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+        )
+        .exists()
+    )
 
 
 def _set_principal(dbe, *, principal: PrincipalRef) -> None:
@@ -748,6 +770,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerDeliveryDBE).where(
                 TriggerDeliveryDBE.project_id == project_id,
                 TriggerDeliveryDBE.id == delivery_id,
+                _delivery_is_visible(),
             )
 
             result = await session.execute(stmt)
@@ -773,6 +796,7 @@ class TriggersDAO(TriggersDAOInterface):
         async with self.engine.session() as session:
             stmt = select(TriggerDeliveryDBE).filter(
                 TriggerDeliveryDBE.project_id == project_id,
+                _delivery_is_visible(),
             )
 
             if delivery:
@@ -969,6 +993,7 @@ class TriggersDAO(TriggersDAOInterface):
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             result = await session.execute(stmt)
@@ -993,6 +1018,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
+                _schedule_is_visible(),
             )
             schedule_dbe = (await session.execute(stmt)).scalar_one_or_none()
             if schedule_dbe is None:
@@ -1017,6 +1043,7 @@ class TriggersDAO(TriggersDAOInterface):
                     TriggerScheduleDBE.id == schedule.id,
                     TriggerScheduleDBE.project_id == project_id,
                     TriggerScheduleDBE.deleted_at.is_(None),
+                    _schedule_is_visible(),
                 )
                 .with_for_update()
             )
@@ -1066,6 +1093,7 @@ class TriggersDAO(TriggersDAOInterface):
                     TriggerScheduleDBE.project_id == project_id,
                     TriggerScheduleDBE.id == schedule_id,
                     TriggerScheduleDBE.deleted_at.is_(None),
+                    _schedule_is_visible(),
                 )
                 .values(
                     deleted_at=now,
@@ -1108,6 +1136,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).filter(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             if schedule:
@@ -1235,3 +1264,171 @@ class TriggersDAO(TriggersDAOInterface):
             result = await session.execute(stmt)
 
             return _map_schedule_rows(result.scalars().all())
+
+    # --- SCHEDULES THAT SERVER CODE CREATES ---------------------------------- #
+
+    async def fetch_schedule_to_fire(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        """The schedule a queued fire names, hidden or not. Only the fire path reads
+        through it; the public reads leave hidden schedules out."""
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+                TriggerScheduleDBE.deleted_at.is_(None),
+            )
+            schedule_dbe = (await session.execute(stmt)).scalar_one_or_none()
+            if schedule_dbe is None:
+                return None
+            return map_schedule_dbe_to_dto(schedule_dbe=schedule_dbe)
+
+    async def create_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule_id: UUID,
+        schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
+        run_envelope: RunEnvelope,
+    ) -> Optional[TriggerSchedule]:
+        """Insert a hidden schedule with the given id, or do nothing when a row with
+        that id exists. Returns the hidden schedule with that id, the earlier one on a
+        repeat, or None when the id names a visible schedule."""
+        schedule_dbe = map_schedule_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            schedule=schedule,
+        )
+        _set_principal_and_target(schedule_dbe, principal=principal, artifact_id=None)
+        values = {
+            column.name: getattr(schedule_dbe, column.name)
+            for column in TriggerScheduleDBE.__table__.columns
+            if getattr(schedule_dbe, column.name) is not None
+        }
+        values["id"] = schedule_id
+        values["run_envelope"] = map_envelope_to_column(envelope=run_envelope)
+
+        insert_stmt = (
+            insert(TriggerScheduleDBE)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["project_id", "id"])
+        )
+        async with self.engine.session() as session:
+            await session.execute(insert_stmt)
+            await session.commit()
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+                TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+            )
+            stored = (await session.execute(stmt)).scalar_one_or_none()
+            if stored is None:
+                return None
+            return map_schedule_dbe_to_dto(schedule_dbe=stored)
+
+    async def purge_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        """Remove a hidden schedule from the table; its deliveries go with it
+        (`ON DELETE CASCADE`). Returns the removed schedule, or None when no hidden
+        schedule has this id. Never removes a visible schedule."""
+        async with self.engine.session() as session:
+            stmt = (
+                delete(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.project_id == project_id,
+                    TriggerScheduleDBE.id == schedule_id,
+                    TriggerScheduleDBE.flags.contains({"is_hidden": True}),
+                )
+                .returning(TriggerScheduleDBE)
+            )
+            removed = (await session.execute(stmt)).scalar_one_or_none()
+            schedule = (
+                map_schedule_dbe_to_dto(schedule_dbe=removed)
+                if removed is not None
+                else None
+            )
+            await session.commit()
+            return schedule
+
+    async def claim_schedule_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery_id: UUID,
+        schedule_id: UUID,
+        event_id: str,
+        data: TriggerDeliveryData,
+    ) -> bool:
+        """Claim the delivery of one fire of a live, active schedule, and create no
+        session (a fire into an existing session). The same claim as
+        `claim_trigger_delivery`: an insert on the dedup key that only a retryable
+        delivery lets a second attempt take over. True when this call holds it."""
+        values = build_trigger_delivery_values(
+            {
+                "id": delivery_id,
+                "project_id": project_id,
+                "created_by_id": user_id,
+                "subscription_id": None,
+                "schedule_id": schedule_id,
+                "event_id": event_id,
+                "status": Status(code="102", message="claimed").model_dump(
+                    mode="json", exclude_none=True
+                ),
+                "data": data.model_dump(mode="json", exclude_none=True),
+            }
+        )
+        index_elements, index_where = build_trigger_delivery_conflict(by_schedule=True)
+        live_schedule = (
+            select(TriggerScheduleDBE.id)
+            .where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+                TriggerScheduleDBE.deleted_at.is_(None),
+                TriggerScheduleDBE.flags.contains({"is_active": True}),
+            )
+            .with_for_update()
+            .cte("live_trigger_schedule")
+        )
+        columns = list(values)
+        delivery_insert = insert(TriggerDeliveryDBE).from_select(
+            columns,
+            select(
+                *(
+                    literal(
+                        values[column],
+                        type_=TriggerDeliveryDBE.__table__.c[column].type,
+                    )
+                    for column in columns
+                )
+            ).select_from(live_schedule),
+        )
+        stmt = delivery_insert.on_conflict_do_update(
+            index_elements=index_elements,
+            index_where=index_where,
+            where=TriggerDeliveryDBE.status["code"].astext
+            == TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
+            set_={
+                "id": delivery_insert.excluded.id,
+                "created_by_id": delivery_insert.excluded.created_by_id,
+                "status": delivery_insert.excluded.status,
+                "data": delivery_insert.excluded.data,
+                "updated_at": datetime.now(timezone.utc),
+            },
+        ).returning(TriggerDeliveryDBE.id)
+
+        async with self.engine.session() as session:
+            claimed = (await session.execute(stmt)).scalar_one_or_none() is not None
+            await session.commit()
+        return claimed

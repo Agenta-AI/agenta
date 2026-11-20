@@ -10,7 +10,7 @@ Self-contained so it can run inside its own TaskIQ worker process.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
@@ -33,7 +33,9 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscription,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
-from oss.src.core.triggers.utils import compose_event_inputs
+from oss.src.core.triggers.utils import compose_event_inputs, delete_hidden_schedule
+from oss.src.core.sessions.inputs.types import SessionInputError
+from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.dtos import (
     SessionTriggerAttribution,
     SessionTriggerKind,
@@ -54,6 +56,9 @@ from agenta.sdk.agents.requirements import (
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 from agenta.sdk.utils.resolvers import resolve_target_fields
+
+if TYPE_CHECKING:  # pragma: no cover - types only
+    from oss.src.core.sessions.starts.service import SessionStartsService
 
 log = get_module_logger(__name__)
 
@@ -99,8 +104,14 @@ class TriggersDispatcher:
         dispatch_fn: Optional[Callable] = None,
         access_service: Optional[AccessService] = None,
         sharing_service: Optional[SharingService] = None,
+        session_streams_dao: Optional[SessionStreamsDAOInterface] = None,
+        session_starts_service: Optional["SessionStartsService"] = None,
     ):
         self.triggers_dao = triggers_dao
+        # A schedule with `data.session_id` sends its input into that existing session
+        # through `enqueue_session_input`; the streams DAO confirms the session exists.
+        self.session_streams_dao = session_streams_dao
+        self.session_starts_service = session_starts_service
         # Admits every fire (the principal and the resolved agent) before the claim.
         self.run_admission = run_admission
         self.session_claims_dao = session_claims_dao
@@ -279,12 +290,152 @@ class TriggersDispatcher:
             )
             return
 
+        if schedule.data.session_id is not None:
+            await self._fire_into_session(
+                project_id=project_id,
+                schedule=schedule,
+                event_id=event_id,
+            )
+            return
+
         await self._run(
             project_id=project_id,
             entity=schedule,
             event_id=event_id,
             event=event,
         )
+
+    async def _fire_into_session(
+        self,
+        *,
+        project_id: UUID,
+        schedule: TriggerSchedule,
+        event_id: str,
+    ) -> None:
+        """Send a schedule's `session_input` into its existing session.
+
+        Mints no session id. Claims the delivery, then calls `enqueue_session_input`
+        with the input's kind and content, the key `ag:schedule:<event id>` and
+        `TRIGGER_DISPATCH_BOUNDARY`, which checks `RUN_SESSIONS` on the session and
+        `RUN_WORKFLOWS` on the agent that the input's request names when it starts the
+        turn at once. It runs with the stored run envelope, or one built from the
+        stored principal as for any schedule. A hidden schedule is then removed with
+        its delivery, after every outcome except a retryable failure, which the next
+        tick fires again."""
+        session_id = schedule.data.session_id
+        session_input = schedule.data.session_input
+        user_id = schedule.created_by_id
+        delivery_id = uuid_compat.uuid7()
+        delivery_data = TriggerDeliveryData(
+            event_key=schedule.data.event_key, session_id=session_id
+        )
+
+        claimed = await self.triggers_dao.claim_schedule_delivery(
+            project_id=project_id,
+            user_id=user_id,
+            delivery_id=delivery_id,
+            schedule_id=schedule.id,
+            event_id=event_id,
+            data=delivery_data,
+        )
+        if not claimed:
+            log.info(
+                "[TRIGGERS DISPATCHER] claim lost for schedule=%s event=%s — already "
+                "claimed/delivered, skipping",
+                schedule.id,
+                event_id,
+            )
+            return
+
+        status: Status
+        update: Dict[str, Any]
+        envelope = schedule.run_envelope
+        try:
+            if envelope is None and schedule.principal is not None:
+                envelope = stored_work_envelope(
+                    principal=schedule.principal,
+                    organization_id=await self._organization_id(project_id=project_id),
+                    project_id=project_id,
+                    origin=RunOrigin.SCHEDULE,
+                    origin_id=str(schedule.id),
+                    created_by_id=schedule.created_by_id,
+                )
+            stream = (
+                await self.session_streams_dao.get_by_session_id_including_archived(
+                    project_id=project_id,
+                    session_id=session_id,
+                )
+            )
+            if envelope is None:
+                error = missing_principal_error(next_step="Create the schedule again.")
+                status = Status(code="409", message="failed")
+                update = {"error": error.message, "error_details": error}
+            elif stream is None:
+                status = Status(code="404", message="failed")
+                update = {"error": "The target session does not exist."}
+            else:
+                result = await self.session_starts_service.enqueue_session_input(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    kind=session_input.kind,
+                    content=session_input.content,
+                    idempotency_key=f"ag:schedule:{event_id}",
+                    run_envelope=envelope,
+                    dispatch_boundary=TRIGGER_DISPATCH_BOUNDARY,
+                )
+                status = Status(code="202", message="dispatched")
+                update = {"result": result.model_dump(mode="json", exclude_none=True)}
+        except AdmissionDenied as denied:
+            error = access_denied_error(
+                decision=denied.decision,
+                principal_kind=envelope.authority.principal.kind,
+                project_id=project_id,
+            )
+            status = Status(code="403", message="failed")
+            update = {"error": error.message, "error_details": error}
+        except (SessionInputError, ValueError) as e:
+            status = Status(code="400", message="failed")
+            update = {"error": str(e)}
+        except Exception as e:
+            skipped = (
+                _needs_setup_details(
+                    e.__cause__.failure_code, e.__cause__.failure_details
+                )
+                if isinstance(e.__cause__, WorkflowDetachedStartRejected)
+                else None
+            )
+            if skipped is None:
+                # Retryable: the schedule stays, and the next tick fires it again.
+                log.error("[TRIGGERS DISPATCHER] fire into session failed: %s", e)
+                await self._complete_delivery(
+                    project_id=project_id,
+                    delivery_id=delivery_id,
+                    status=Status(code="500", message="failed"),
+                    data=delivery_data.model_copy(update={"error": str(e)}),
+                )
+                raise
+            status = Status(code=SKIPPED_STATUS_CODE, message=SKIPPED_STATUS_MESSAGE)
+            update = {"error": skipped.message, "error_details": skipped}
+
+        await self._complete_delivery(
+            project_id=project_id,
+            delivery_id=delivery_id,
+            status=status,
+            data=delivery_data.model_copy(update=update),
+        )
+        log.info(
+            "[TRIGGERS DISPATCHER] fire into session schedule=%s event=%s status=%s",
+            schedule.id,
+            event_id,
+            status.code,
+        )
+        if schedule.flags.is_hidden:
+            await delete_hidden_schedule(
+                dao=self.triggers_dao,
+                project_id=project_id,
+                schedule_id=schedule.id,
+            )
 
     async def _run(
         self,

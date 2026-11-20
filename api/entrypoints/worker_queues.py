@@ -42,6 +42,7 @@ from entrypoints.access import bootstrap_access
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sharing.admission import RunAdmission
 from oss.src.core.sessions.commands.delivery import (
+    deliver_continue_input,
     deliver_continue_interaction,
 )
 from oss.src.utils import heartbeat
@@ -65,6 +66,7 @@ from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsS
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.inputs.service import SessionInputsService
+from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.sessions.context import make_session_context_resolver
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
@@ -235,6 +237,80 @@ def _run_admission(workflows_service: WorkflowsService) -> RunAdmission:
     )
 
 
+def _build_session_starts_service(
+    *,
+    workflows_service: WorkflowsService,
+    run_admission: RunAdmission,
+    transactions_engine,
+    dispatch_fn,
+) -> SessionStartsService:
+    """The session queue the API composition has, for a worker that puts a server
+    input into an existing session (a schedule's fire into a session). The commands
+    service gives the recoverable-continuation check and the Stop-versus-Steer read, as
+    in the API."""
+
+    streams_dao = SessionStreamsDAO(engine=transactions_engine)
+    streams_service = SessionStreamsService(
+        streams_dao=streams_dao,
+        lock_engine=get_lock_engine(),
+    )
+    executions_dao = SessionExecutionsDAO(engine=transactions_engine)
+    inputs_dao = SessionInputsDAO(engine=transactions_engine)
+    interactions_dao = SessionInteractionsDAO(engine=transactions_engine)
+    turns_dao = SessionTurnsDAO(engine=transactions_engine)
+    turns_service = SessionTurnsService(turns_dao=turns_dao)
+    interactions_dispatcher = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        run_admission=run_admission,
+        interactions_service=SessionInteractionsService(
+            interactions_dao=interactions_dao,
+            watch_publisher=SessionsWatchPublisher(),
+        ),
+        records_service=RecordsService(
+            records_dao=RecordsDAO(engine=get_analytics_engine()),
+        ),
+        turns_service=turns_service,
+        streams_service=streams_service,
+        dispatch_fn=dispatch_fn,
+    )
+    commands_service = SessionCommandsService(
+        commands_dao=SessionCommandsDAO(engine=transactions_engine),
+        streams_service=streams_service,
+        interactions_service=interactions_dispatcher.interactions_service,
+        lock_engine=get_lock_engine(),
+        delivery=DirectControlDelivery(
+            continue_interaction=lambda command: deliver_continue_interaction(
+                command=command,
+                interactions_dispatcher=interactions_dispatcher,
+            ),
+            continue_input=lambda command: deliver_continue_input(
+                command=command,
+                workflows_service=workflows_service,
+                run_admission=run_admission,
+            ),
+        ),
+        executions_dao=executions_dao,
+        inputs_dao=inputs_dao,
+    )
+    return SessionStartsService(
+        inputs_service=SessionInputsService(
+            inputs_dao=inputs_dao,
+            interactions_dao=interactions_dao,
+            streams_service=streams_service,
+            executions_dao=executions_dao,
+            continuation_resumer=commands_service.resume_recoverable_continuation,
+        ),
+        run_admission=run_admission,
+        executions_dao=executions_dao,
+        streams_dao=streams_dao,
+        inputs_dao=inputs_dao,
+        turns_dao=turns_dao,
+        cancelled_by_steer=commands_service.cancelled_by_steer,
+        workflows_service=workflows_service,
+        lock_engine=get_lock_engine(),
+    )
+
+
 def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
     broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
@@ -308,12 +384,20 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     # The delivery now settles at 202/dispatched. That is honest but incomplete: nothing writes
     # the run's terminal outcome afterwards, so a delivery stays "dispatched" for good. The
     # durable completion callback that would close it is still to come.
+    run_admission = _run_admission(workflows_service)
     triggers_dispatcher = TriggersDispatcher(
         triggers_dao=triggers_dao,
         session_claims_dao=session_streams_dao,
         workflows_service=workflows_service,
-        run_admission=_run_admission(workflows_service),
+        run_admission=run_admission,
         dispatch_fn=_dispatch_detached_run,
+        session_streams_dao=session_streams_dao,
+        session_starts_service=_build_session_starts_service(
+            workflows_service=workflows_service,
+            run_admission=run_admission,
+            transactions_engine=transactions_engine,
+            dispatch_fn=_dispatch_detached_run,
+        ),
     )
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao

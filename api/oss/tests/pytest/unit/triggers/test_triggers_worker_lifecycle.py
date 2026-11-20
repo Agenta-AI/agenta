@@ -29,7 +29,7 @@ def _worker(*, resolved):
     dispatcher.dispatch_schedule = AsyncMock()
     dispatcher.dispatch_subscription = AsyncMock()
     dao = MagicMock()
-    dao.fetch_schedule = AsyncMock(return_value=resolved)
+    dao.fetch_schedule_to_fire = AsyncMock(return_value=resolved)
     worker = TriggersWorker(
         broker=_Broker(),
         dispatcher=dispatcher,
@@ -50,7 +50,7 @@ async def test_schedule_task_reresolves_new_id_payload_before_dispatch():
         event={},
     )
 
-    dao.fetch_schedule.assert_awaited_once_with(
+    dao.fetch_schedule_to_fire.assert_awaited_once_with(
         project_id=project_id,
         schedule_id=current.id,
     )
@@ -111,7 +111,7 @@ async def test_schedule_task_skips_when_no_schedule_or_schedule_id_provided():
         event={},
     )
 
-    dao.fetch_schedule.assert_not_awaited()
+    dao.fetch_schedule_to_fire.assert_not_awaited()
     dispatcher.dispatch_schedule.assert_not_awaited()
 
 
@@ -126,7 +126,7 @@ async def test_schedule_task_skips_malformed_project_id():
         event={},
     )
 
-    dao.fetch_schedule.assert_not_awaited()
+    dao.fetch_schedule_to_fire.assert_not_awaited()
     dispatcher.dispatch_schedule.assert_not_awaited()
 
 
@@ -140,7 +140,7 @@ async def test_schedule_task_skips_malformed_schedule_id():
         event={},
     )
 
-    dao.fetch_schedule.assert_not_awaited()
+    dao.fetch_schedule_to_fire.assert_not_awaited()
     dispatcher.dispatch_schedule.assert_not_awaited()
 
 

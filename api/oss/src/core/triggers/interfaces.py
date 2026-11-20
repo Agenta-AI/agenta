@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEventDetails,
@@ -460,3 +460,48 @@ class TriggersDAOInterface(ABC):
         due_by: datetime,
         limit: int,
     ) -> List[Tuple[UUID, TriggerSchedule]]: ...
+
+    # Schedules that server code creates: hidden from every public read, fired into an
+    # existing session, and removed from the table after the fire.
+
+    @abstractmethod
+    async def fetch_schedule_to_fire(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def create_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule_id: UUID,
+        schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
+        run_envelope: RunEnvelope,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def purge_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def claim_schedule_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery_id: UUID,
+        schedule_id: UUID,
+        event_id: str,
+        data: TriggerDeliveryData,
+    ) -> bool: ...
