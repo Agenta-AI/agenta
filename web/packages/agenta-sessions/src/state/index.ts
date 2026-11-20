@@ -58,7 +58,7 @@ export {
     sessionGroupRows,
     awaitingHiddenRows,
     shouldLoadMoreForHiddenRows,
-    childSessionsListPolicy,
+    childSessionsFilter,
     type SessionOriginPolicy,
     type SessionListRequestPolicy,
     sessionListPolicies,

@@ -26,7 +26,7 @@ import {
     selectedSessionListPolicy,
     sessionGroupRows,
     shouldLoadMoreForHiddenRows,
-    childSessionsListPolicy,
+    childSessionsFilter,
     type SessionListRequestPolicy,
 } from "./sessionListPolicy"
 import {
@@ -133,10 +133,14 @@ export const useSessionsList = ({
     const showChildSessions = useAtomValue(sessionShowChildSessionsAtom)
     const projectFiltersActive = useAtomValue(sessionFiltersActiveAtom)
     const scopedFiltersActive = useAtomValue(sessionFiltersActiveExceptAgentAtom)
-    // The child sessions switch counts only on a list that reads it, and not in automations mode.
+    const childSessions = childSessionsFilter({
+        policy: selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy),
+        hideChildSessions,
+        showChildSessions,
+        automationMode: showTriggered,
+    })
     const filtersActive =
-        (scopedAgentId ? scopedFiltersActive : projectFiltersActive) ||
-        (hideChildSessions && showChildSessions && !showTriggered)
+        (scopedAgentId ? scopedFiltersActive : projectFiltersActive) || childSessions.active
     const resetFilters = useSetAtom(resetSessionFiltersAtom)
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
 
@@ -150,10 +154,7 @@ export const useSessionsList = ({
         [pendingBySession],
     )
 
-    const selectedPolicy = selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy)
-    const policy = hideChildSessions
-        ? childSessionsListPolicy(selectedPolicy, showChildSessions)
-        : selectedPolicy
+    const policy = childSessions.policy
     const shared = {
         originPolicy: policy.origin,
         expansions: policy.expansions,

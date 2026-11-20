@@ -12,7 +12,7 @@ import {
     sessionListRequestFilters,
     shouldLoadMoreForHiddenRows,
     startedSessions,
-    childSessionsListPolicy,
+    childSessionsFilter,
 } from "../../src/state/sessionListPolicy"
 
 const streamRow = (row: Partial<SessionStream>): SessionStream =>
@@ -276,23 +276,42 @@ describe("awaitingHiddenRows", () => {
 describe("child sessions in the session list", () => {
     const human = {origin: "exclude-trigger", expansions: []} as const
     const automation = {origin: "trigger-only", expansions: ["trigger"]} as const
+    const filter = (overrides: Partial<Parameters<typeof childSessionsFilter>[0]>) =>
+        childSessionsFilter({
+            policy: human,
+            hideChildSessions: true,
+            showChildSessions: false,
+            automationMode: false,
+            ...overrides,
+        })
 
     it("hides sessions that another session created by default", () => {
-        const policy = childSessionsListPolicy(human, false)
+        const {policy, active} = filter({})
         expect(sessionListRequestFilters(policy).excludeOrigins).toEqual([
             "trigger",
             "calling_session",
         ])
+        expect(active).toBe(false)
     })
 
     it("shows them, still without automation runs, when the switch is on", () => {
-        const policy = childSessionsListPolicy(human, true)
+        const {policy, active} = filter({showChildSessions: true})
         expect(sessionListRequestFilters(policy).excludeOrigins).toEqual(["trigger"])
+        expect(active).toBe(true)
     })
 
-    it("leaves the automations list and the unfiltered surfaces alone", () => {
-        expect(childSessionsListPolicy(automation, false)).toBe(automation)
-        const all = {origin: "all", expansions: []} as const
-        expect(childSessionsListPolicy(all, false)).toBe(all)
+    it("leaves a list that does not opt in unchanged, even with the switch on", () => {
+        expect(filter({hideChildSessions: false})).toEqual({policy: human, active: false})
+        expect(filter({hideChildSessions: false, showChildSessions: true})).toEqual({
+            policy: human,
+            active: false,
+        })
+    })
+
+    it("leaves the automations list alone, and the switch does not count there", () => {
+        expect(
+            filter({policy: automation, automationMode: true, showChildSessions: true}),
+        ).toEqual({policy: automation, active: false})
+        expect(filter({policy: automation, automationMode: true}).policy).toBe(automation)
     })
 })

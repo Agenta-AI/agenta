@@ -34,8 +34,8 @@ export const isServerInput = (input: {kind?: string | null}): boolean =>
  *
  * Read only on a row with `kind = child_update`: only the server writes that kind, so a client
  * that copies the part into its own message changes nothing. It sits on the last message of the
- * row's invoke request (`content.data.inputs.messages[-1]`), beside `display_content`. Never parse the message text for it: that
- * text is for the model and its form can change.
+ * row's invoke request (`content.data.inputs.messages[-1]`), beside `display_content`. Never
+ * parse the message text for it: that text is for the model and its form can change.
  */
 export const childUpdateOfInput = (input: PendingSessionInput): ChildUpdate | null => {
     if (input.kind !== "child_update") return null

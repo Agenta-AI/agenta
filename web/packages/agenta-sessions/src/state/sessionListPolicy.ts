@@ -33,17 +33,28 @@ export const sessionListRequestFilters = (
 })
 
 /**
- * The policy of a list that hides child sessions (origin `calling_session`) unless the reader's
- * switch shows them. Only the human list narrows: the automations list holds trigger sessions
- * alone.
+ * The child sessions switch on one list. A list that opts in (`hideChildSessions`) hides child
+ * sessions (origin `calling_session`) until the reader's switch shows them, and counts the switch
+ * as an active filter. Only the human list narrows: the automations list holds trigger sessions
+ * alone, so in automations mode the switch does nothing. A list that does not opt in is unchanged.
  */
-export const childSessionsListPolicy = (
-    policy: SessionListRequestPolicy,
-    showChildSessions: boolean,
-): SessionListRequestPolicy =>
-    policy.origin === "exclude-trigger" && !showChildSessions
-        ? {...policy, origin: "exclude-trigger-and-calling-session"}
-        : policy
+export const childSessionsFilter = ({
+    policy,
+    hideChildSessions,
+    showChildSessions,
+    automationMode,
+}: {
+    policy: SessionListRequestPolicy
+    hideChildSessions: boolean
+    showChildSessions: boolean
+    automationMode: boolean
+}): {policy: SessionListRequestPolicy; active: boolean} => ({
+    policy:
+        hideChildSessions && !showChildSessions && policy.origin === "exclude-trigger"
+            ? {...policy, origin: "exclude-trigger-and-calling-session"}
+            : policy,
+    active: hideChildSessions && showChildSessions && !automationMode,
+})
 
 export const selectedSessionListPolicy = (
     automationMode: boolean,
