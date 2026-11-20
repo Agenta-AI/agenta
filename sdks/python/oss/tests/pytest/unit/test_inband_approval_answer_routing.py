@@ -14,6 +14,7 @@ import pytest
 from starlette.requests import Request
 
 from agenta.sdk.decorators.routing import (
+    MAX_INBAND_APPROVAL_ANSWERS,
     apply_invoke_prelude,
     record_inband_approval_answers,
 )
@@ -89,8 +90,14 @@ def _resume(*answers, meta=None, history=()):
     )
 
 
-async def _record(req, request, responses=()):
+async def _record(req, request, responses=(), client_kwargs=None):
     captured = []
+
+    def _client(**kwargs):
+        if client_kwargs is not None:
+            client_kwargs.update(kwargs)
+        return _Client(responses, captured)
+
     with (
         patch(
             "agenta.sdk.decorators.routing.PlatformConnection",
@@ -98,7 +105,7 @@ async def _record(req, request, responses=()):
         ),
         patch(
             "agenta.sdk.decorators.routing.httpx.AsyncClient",
-            return_value=_Client(responses, captured),
+            side_effect=_client,
         ),
     ):
         await record_inband_approval_answers(req, request)
@@ -260,3 +267,134 @@ async def test_the_public_vercel_approval_response_part_is_recorded():
         "verdict": "approved",
         "tool_call_id": "tc-1",
     }
+
+
+@pytest.mark.asyncio
+async def test_a_browser_session_cookie_is_sent_when_there_is_no_header():
+    req = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/invoke",
+            "headers": [(b"cookie", b"sAccessToken=person-session")],
+            "query_string": b"project_id=project-1",
+        }
+    )
+    client_kwargs = {}
+    captured = await _record(
+        req,
+        _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"})),
+        client_kwargs=client_kwargs,
+    )
+
+    assert client_kwargs["cookies"] == {"sAccessToken": "person-session"}
+    assert "Authorization" not in captured[0]["headers"]
+    assert captured[0]["params"] == {"project_id": "project-1"}
+
+
+@pytest.mark.asyncio
+async def test_an_answered_vercel_tool_part_is_recorded():
+    # The inline form: the AI SDK keeps the decision on the tool part itself.
+    req = _request(
+        {"Authorization": "ApiKey person-key", "x-ag-messages-format": "vercel"}
+    )
+    request = WorkflowInvokeRequest(
+        session_id="session-1",
+        data={
+            "inputs": {
+                "messages": [
+                    {
+                        "id": "u1",
+                        "role": "user",
+                        "parts": [{"type": "text", "text": "send it"}],
+                    },
+                    {
+                        "id": "a1",
+                        "role": "assistant",
+                        "parts": [
+                            {
+                                "type": "tool-send_email",
+                                "toolCallId": "tc-1",
+                                "state": "approval-responded",
+                                "input": {"to": "sam"},
+                                "approval": {"id": "tok-1", "approved": False},
+                            }
+                        ],
+                    },
+                ]
+            }
+        },
+    )
+    apply_invoke_prelude(req, request)
+
+    captured = await _record(req, request)
+
+    assert [call["json"]["token"] for call in captured] == ["tok-1"]
+    assert captured[0]["json"]["resolution"] == {
+        "verdict": "denied",
+        "tool_call_id": "tc-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_chat_request_with_no_answer_sends_nothing_and_does_not_raise():
+    # A chat workflow in a session: an assistant message with `content: null` and tool
+    # calls is valid input and must reach the workflow untouched.
+    request = WorkflowInvokeRequest(
+        session_id="session-1",
+        data={
+            "inputs": {
+                "messages": [
+                    {"role": "user", "content": "weather?"},
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [{"id": "c1", "type": "function"}],
+                    },
+                    {"role": "tool", "tool_call_id": "c1", "content": "sunny"},
+                ]
+            }
+        },
+    )
+
+    captured = await _record(_request({"Authorization": "ApiKey person-key"}), request)
+
+    assert captured == []
+
+
+@pytest.mark.asyncio
+async def test_an_answer_with_no_tool_call_id_is_not_recorded():
+    captured = await _record(
+        _request({"Authorization": "ApiKey person-key"}),
+        _resume((None, {"approved": True, "interactionToken": "tok-1"})),
+    )
+
+    assert captured == []
+
+
+@pytest.mark.asyncio
+async def test_one_request_records_a_bounded_number_of_answers():
+    answers = [
+        (f"tc-{i}", {"approved": True, "interactionToken": f"tok-{i}"})
+        for i in range(MAX_INBAND_APPROVAL_ANSWERS + 10)
+    ]
+    captured = await _record(
+        _request({"Authorization": "ApiKey person-key"}),
+        _resume(*answers),
+    )
+
+    assert len(captured) == MAX_INBAND_APPROVAL_ANSWERS
+
+
+@pytest.mark.asyncio
+async def test_the_api_asking_to_slow_down_stops_the_recording():
+    captured = await _record(
+        _request({"Authorization": "ApiKey person-key"}),
+        _resume(
+            ("tc-1", {"approved": True, "interactionToken": "tok-1"}),
+            ("tc-2", {"approved": True, "interactionToken": "tok-2"}),
+        ),
+        responses=[429, 200],
+    )
+
+    assert len(captured) == 1

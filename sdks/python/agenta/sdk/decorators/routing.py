@@ -52,7 +52,6 @@ from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workf
 from agenta.sdk.engines.running.errors import ErrorStatus
 from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
 from agenta.sdk.agents.platform.connection import PlatformConnection
-from agenta.sdk.agents.dtos import to_messages
 
 
 log = get_module_logger(__name__)
@@ -249,40 +248,60 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
             }
 
 
+#: The most approval answers one request records. A turn that pauses on more gates than this
+#: shows the extra cards again.
+MAX_INBAND_APPROVAL_ANSWERS = 32
+
+
 def _inband_approval_answers(
     messages: Any,
 ) -> List[Tuple[str, bool, str]]:
     """The approval answers this turn carries in its messages, as ``(token, approved,
     tool_call_id)``.
 
-    An answer is a ``tool_result`` whose output is ``{approved, interactionToken}``: what the
-    Vercel adapter makes of a ``tool-approval-response`` part or an answered tool part. Only
-    the current turn counts (from the last ``user`` message on): earlier answers are history
-    whose rows are already settled. An answer with no ``interactionToken`` names no row.
+    An answer is a ``tool_result`` block with a ``toolCallId`` whose output is
+    ``{approved, interactionToken}``: what the Vercel adapter makes of a
+    ``tool-approval-response`` part or an answered tool part. Only the current turn counts
+    (from the last ``user`` message on, or the whole list when it has no ``user`` message):
+    earlier answers are history whose rows are already settled. An answer with no
+    ``interactionToken`` names no row.
+
+    The scan reads only the fields it needs, so it accepts any message shape that a
+    workflow takes (a chat message with ``content: null``, for example) and never raises.
     """
-    turn = to_messages(messages if isinstance(messages, list) else [])
+    if not isinstance(messages, list):
+        return []
+    turn = [message for message in messages if isinstance(message, dict)]
     start = 0
     for index in range(len(turn) - 1, -1, -1):
-        if turn[index].role == "user":
+        if turn[index].get("role") == "user":
             start = index
             break
     answers: List[Tuple[str, bool, str]] = []
     seen = set()
     for message in turn[start:]:
-        if not isinstance(message.content, list):
+        content = message.get("content")
+        if not isinstance(content, list):
             continue
-        for block in message.content:
-            output = block.output if block.type == "tool_result" else None
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            output = block.get("output")
             if not isinstance(output, dict):
                 continue
             approved = output.get("approved")
             token = output.get("interactionToken")
-            if not isinstance(approved, bool) or not isinstance(token, str):
+            tool_call_id = block.get("toolCallId") or block.get("tool_call_id")
+            if not isinstance(approved, bool):
                 continue
-            if not token or token in seen:
+            if not isinstance(token, str) or not token or token in seen:
+                continue
+            if not isinstance(tool_call_id, str) or not tool_call_id:
                 continue
             seen.add(token)
-            answers.append((token, approved, block.tool_call_id or token))
+            answers.append((token, approved, tool_call_id))
+            if len(answers) >= MAX_INBAND_APPROVAL_ANSWERS:
+                return answers
     return answers
 
 
@@ -356,6 +375,10 @@ async def record_inband_approval_answers(
                         token=token,
                         status_code=response.status_code,
                     )
+                    # The API asks this service to slow down: stop, and the remaining
+                    # cards show again.
+                    if response.status_code == 429:
+                        break
     except httpx.HTTPError as error:
         log.warning(
             "[HITL] in-band approval answer not recorded",
