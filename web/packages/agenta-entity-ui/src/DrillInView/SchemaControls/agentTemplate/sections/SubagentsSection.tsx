@@ -12,7 +12,7 @@ import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
-import {subagentItemRef} from "../subagentReference"
+import {subagentItemRef, subagentSlugRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -36,6 +36,8 @@ export interface SubagentsSectionParams {
     openSubagent: (item: ConfigItemRef) => void
     /** Removes the subagent from the agent, after the row bin's question. */
     removeSubagent: (item: ConfigItemRef) => void
+    /** Removes an entry that has no key, by its index in `tools`. */
+    removeSubagentAt: (index: number) => void
     toolStatusFor: SubagentListProps["statusFor"]
 }
 
@@ -51,6 +53,7 @@ export const subagentsSection = ({
     subagentTools,
     openSubagent,
     removeSubagent,
+    removeSubagentAt,
     toolStatusFor,
 }: SubagentsSectionParams): SectionResult =>
     hasTools &&
@@ -80,6 +83,7 @@ export const subagentsSection = ({
                 statusFor={toolStatusFor}
                 openSubagent={openSubagent}
                 removeSubagent={removeSubagent}
+                removeSubagentAt={removeSubagentAt}
             />
         ),
     }
@@ -94,6 +98,7 @@ const SubagentSectionBody = ({
     statusFor,
     openSubagent,
     removeSubagent,
+    removeSubagentAt,
 }: {
     entries: SubagentListProps["entries"]
     workflowReference: WorkflowReferenceBridge | undefined
@@ -101,9 +106,12 @@ const SubagentSectionBody = ({
     statusFor: SubagentListProps["statusFor"]
     openSubagent: (item: ConfigItemRef) => void
     removeSubagent: (item: ConfigItemRef) => void
+    removeSubagentAt: (index: number) => void
 }) => {
     const [removing, setRemoving] = useState<{
-        item: ConfigItemRef
+        /** By slug when the entry has one, so a write that drops a copied name keeps it. */
+        item: ConfigItemRef | null
+        index: number
         slug: string
         name: string
     } | null>(null)
@@ -119,17 +127,21 @@ const SubagentSectionBody = ({
         },
         removeItem: (_kind, index) => {
             const tool = entries.find((entry) => entry.index === index)?.item
-            const item = subagentItemRef(tool, subagentItems)
-            if (item)
-                setRemoving({
-                    item,
-                    slug: toolReferenceSlug(tool) ?? "",
-                    name: describeSubagent(tool).name,
-                })
+            const slug = toolReferenceSlug(tool)
+            setRemoving({
+                item: slug ? subagentSlugRef(slug) : subagentItemRef(tool, subagentItems),
+                index,
+                slug: slug ?? "",
+                name: describeSubagent(tool).name,
+            })
         },
     }
     const confirmRemove = () => {
-        if (removing) removeSubagent(removing.item)
+        // An entry with no key at all (no slug, no name) can only be removed where it is.
+        if (removing) {
+            if (removing.item) removeSubagent(removing.item)
+            else removeSubagentAt(removing.index)
+        }
         setRemoving(null)
     }
     return (

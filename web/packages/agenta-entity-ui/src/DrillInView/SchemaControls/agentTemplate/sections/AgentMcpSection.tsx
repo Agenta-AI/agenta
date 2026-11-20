@@ -22,6 +22,7 @@ export interface AgentMcpSectionParams {
     openAddMcpServer: (() => void) | undefined
     openMcpServer: McpServersSectionBodyProps["openServer"]
     removeMcpServer: McpServersSectionBodyProps["removeServer"]
+    removeMcpServerAt: McpServersSectionBodyProps["removeServerAt"]
     openForm: McpServersSectionBodyProps["openForm"]
     mcpStatusFor: McpServersSectionBodyProps["statusFor"]
 }
@@ -37,6 +38,7 @@ export const agentMcpSection = ({
     openAddMcpServer,
     openMcpServer,
     removeMcpServer,
+    removeMcpServerAt,
     openForm,
     mcpStatusFor,
 }: AgentMcpSectionParams): SectionResult =>
@@ -62,6 +64,7 @@ export const agentMcpSection = ({
                 openForm={openForm}
                 openServer={openMcpServer}
                 removeServer={removeMcpServer}
+                removeServerAt={removeMcpServerAt}
                 statusFor={mcpStatusFor}
             />
         ),
