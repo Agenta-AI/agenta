@@ -1,5 +1,5 @@
 /** The two connected halves of the Subagents section: the picker and the saved list. */
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {agentIconAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {agentIconChrome} from "@agenta/ui/agent-icon"
@@ -14,16 +14,14 @@ import {useAtomValue} from "jotai"
 import {useFamilyMap} from "../hooks/useFamilyMap"
 import {useIntegrationLogos} from "../hooks/useIntegrationLogos"
 
-import {AddSubagentDrawer, type SubagentOption} from "./AddSubagentDrawer"
+import {AddSubagentList, type SubagentOption} from "./AddSubagentList"
 import {toolReferenceSlug} from "./itemDescriptors"
 import {SubagentList, type SubagentListProps} from "./ToolManagementList"
 
 const iconFamily = (id: string) => agentIconAtomFamily(id)
 const artifactNameFamily = (id: string) => workflowMolecule.selectors.artifactName(id)
 
-export interface SubagentDrawerContainerProps {
-    open: boolean
-    onClose: () => void
+export interface ConnectedAddSubagentListProps {
     bridge: WorkflowReferenceBridge
     /** The revision being edited, so the agent cannot be offered itself. */
     revisionId: string | null
@@ -33,19 +31,20 @@ export interface SubagentDrawerContainerProps {
     onRemoveSlug: (slug: string) => void
 }
 
-export function SubagentDrawerContainer({
-    open,
-    onClose,
+/** "Add subagents" with the project's agents. Mounted only while its view is open. */
+export function ConnectedAddSubagentList({
     bridge,
     revisionId,
     savedSlugs,
     onAdd,
     onRemoveSlug,
-}: SubagentDrawerContainerProps) {
-    // Gated on `open` throughout: the container outlives the drawer and must idle when closed.
+}: ConnectedAddSubagentListProps) {
+    // The project-wide list is lazy: opening the picker is what needs it.
+    const activate = bridge.activate
+    useEffect(() => activate?.(), [activate])
     const projectSlugs = useMemo(
-        () => (open ? bridge.workflows.map((w) => w.slug).filter(Boolean) : []),
-        [open, bridge.workflows],
+        () => bridge.workflows.map((w) => w.slug).filter(Boolean),
+        [bridge.workflows],
     )
     const {
         bySlug,
@@ -62,13 +61,11 @@ export function SubagentDrawerContainer({
     // Agents only. Every type is undefined while the catalog loads, so the drawer shows loading.
     const agents = useMemo(
         () =>
-            open
-                ? bridge.workflows.filter((w) => {
-                      if (!w.slug || (selfWorkflowId && w.id === selfWorkflowId)) return false
-                      return bySlug[w.slug]?.type === "agent"
-                  })
-                : [],
-        [open, bridge.workflows, bySlug, selfWorkflowId],
+            bridge.workflows.filter((w) => {
+                if (!w.slug || (selfWorkflowId && w.id === selfWorkflowId)) return false
+                return bySlug[w.slug]?.type === "agent"
+            }),
+        [bridge.workflows, bySlug, selfWorkflowId],
     )
 
     // Icons for the listed agents only: the whole project list leaves permanent family entries.
@@ -116,7 +113,7 @@ export function SubagentDrawerContainer({
                 await onAdd({slug: option.id})
             }
         },
-        [bySlug, onAdd],
+        [onAdd],
     )
 
     const handleRemove = useCallback(
@@ -127,9 +124,7 @@ export function SubagentDrawerContainer({
     )
 
     return (
-        <AddSubagentDrawer
-            open={open}
-            onClose={onClose}
+        <AddSubagentList
             options={options}
             loading={catalogLoading || bridge.workflowsLoading}
             failedCount={failedSlugs.length}
