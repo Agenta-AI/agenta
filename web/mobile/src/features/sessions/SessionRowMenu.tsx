@@ -45,7 +45,6 @@ export const SessionRowMenu = ({
                     size="icon-xs"
                     variant="ghost"
                     aria-label={`Actions for ${label}`}
-                    // On a phone the 24 px box keeps its size and gets a 44 px hit area.
                     className="text-muted-foreground hover:bg-foreground/10 dark:hover:bg-foreground/15 max-md:relative max-md:after:absolute max-md:after:-inset-[10px] max-md:after:content-['']"
                 >
                     {/* `size-3.5` as a CLASS, not a `size` prop: the button's own

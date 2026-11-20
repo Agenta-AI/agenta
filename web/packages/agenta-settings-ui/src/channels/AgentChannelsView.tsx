@@ -226,7 +226,6 @@ const ChannelRow = ({
             </span>
             <span className={`truncate text-[12.5px] ${subClass}`}>{sub}</span>
         </span>
-        {/* 44 px high on a phone, the touch size. */}
         <Button variant="outline" size="sm" className="max-md:h-11" onClick={onClick}>
             {action}
         </Button>
@@ -260,7 +259,7 @@ const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPan
         return (
             <div
                 className="fixed inset-0 z-50 flex flex-col bg-colorBgContainer"
-                data-testid="agent-channels-open-view"
+                data-testid="agent-channels-open-view-phone"
             >
                 <PhoneScreenHeader
                     title={title}

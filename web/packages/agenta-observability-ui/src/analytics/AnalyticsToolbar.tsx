@@ -284,7 +284,7 @@ export const AnalyticsToolbar = ({
                                 dim: t(dim.label),
                             })}
                             onClick={() => onFiltersChange({...filters, [dim.key]: []})}
-                            className="grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                            className="relative grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground max-md:after:absolute max-md:after:-inset-3 max-md:after:content-['']"
                         >
                             <X size={12} />
                         </button>
