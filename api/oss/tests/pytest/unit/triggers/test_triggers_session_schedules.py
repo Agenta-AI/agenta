@@ -422,6 +422,7 @@ class TestFireIntoSession:
         await _fire(dispatcher, schedule, project_id)
 
         starts.enqueue_session_input.assert_not_awaited()
+        dispatcher.session_streams_dao.get_by_session_id_including_archived.assert_not_awaited()
         assert dao.update_delivery.await_args.kwargs["status"].code == "409"
         dao.purge_hidden_schedule.assert_awaited_once()
 
@@ -577,16 +578,31 @@ def _session_data():
     )
 
 
+def _cron_session_data():
+    # No run_at, so the session-target check itself must refuse it.
+    return TriggerScheduleData(
+        event_key="still_running",
+        schedule="0 9 * * *",
+        session_id=_SESSION_ID,
+        session_input=_session_input(),
+    )
+
+
 _REFUSED = {
-    "session_target": (_session_data, TriggerScheduleFlags()),
-    "is_hidden": (_cron_data, TriggerScheduleFlags(is_hidden=True)),
+    "session_target": (_session_data, TriggerScheduleFlags(), "data.run_at"),
+    "session_target_on_cron": (
+        _cron_session_data,
+        TriggerScheduleFlags(),
+        "data.session_id",
+    ),
+    "is_hidden": (_cron_data, TriggerScheduleFlags(is_hidden=True), "flags.is_hidden"),
 }
 
 
 class TestPublicRoutesRefuseServerOnlyFields:
     @pytest.mark.parametrize("case", list(_REFUSED))
     async def test_create_is_refused(self, case):
-        data, flags = _REFUSED[case]
+        data, flags, field = _REFUSED[case]
         service = MagicMock(create_schedule=AsyncMock())
         router = TriggersRouter(triggers_service=service)
         router._check = AsyncMock()
@@ -600,11 +616,12 @@ class TestPublicRoutesRefuseServerOnlyFields:
             )
 
         assert refusal.value.status_code == 422
+        assert f"with {field} " in refusal.value.detail
         service.create_schedule.assert_not_awaited()
 
     @pytest.mark.parametrize("case", list(_REFUSED))
     async def test_edit_is_refused(self, case):
-        data, flags = _REFUSED[case]
+        data, flags, field = _REFUSED[case]
         service = MagicMock(edit_schedule=AsyncMock())
         router = TriggersRouter(triggers_service=service)
         router._check = AsyncMock()
@@ -622,6 +639,7 @@ class TestPublicRoutesRefuseServerOnlyFields:
             )
 
         assert refusal.value.status_code == 422
+        assert f"with {field} " in refusal.value.detail
         service.edit_schedule.assert_not_awaited()
 
     async def test_a_visible_schedule_with_is_hidden_false_is_accepted(self):

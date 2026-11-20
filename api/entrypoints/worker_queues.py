@@ -291,6 +291,8 @@ def _build_session_starts_service(
         ),
         executions_dao=executions_dao,
         inputs_dao=inputs_dao,
+        streams_dao=streams_dao,
+        turns_dao=turns_dao,
     )
     return SessionStartsService(
         inputs_service=SessionInputsService(

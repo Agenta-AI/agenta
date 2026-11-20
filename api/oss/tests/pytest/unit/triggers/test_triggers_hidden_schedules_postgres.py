@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from oss.tests.pytest.utils.principals import any_principal
 
@@ -27,6 +28,7 @@ from oss.src.core.triggers.dtos import (
 from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE  # noqa: F401
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
+from oss.src.dbs.postgres.triggers.dbes import TriggerDeliveryDBE
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -80,10 +82,11 @@ async def test_a_hidden_schedule_is_out_of_every_public_read(trigger_scope):
     )
     assert repeat.id == schedule_id
 
+    delivery_id = uuid4()
     assert await dao.claim_schedule_delivery(
         project_id=project_id,
         user_id=user_id,
-        delivery_id=uuid4(),
+        delivery_id=delivery_id,
         schedule_id=schedule_id,
         event_id=f"{schedule_id}:2001-01-01T10:30:00+00:00",
         data=TriggerDeliveryData(session_id="target-session"),
@@ -127,6 +130,16 @@ async def test_a_hidden_schedule_is_out_of_every_public_read(trigger_scope):
         project_id=project_id, schedule_id=schedule_id
     )
     assert removed.id == schedule_id
+    # The delivery goes with it (read without the public filter).
+    async with get_transactions_engine().session() as session:
+        assert (
+            await session.execute(
+                select(TriggerDeliveryDBE.id).where(
+                    TriggerDeliveryDBE.project_id == project_id,
+                    TriggerDeliveryDBE.id == delivery_id,
+                )
+            )
+        ).scalar_one_or_none() is None
     assert (
         await dao.purge_hidden_schedule(project_id=project_id, schedule_id=schedule_id)
         is None

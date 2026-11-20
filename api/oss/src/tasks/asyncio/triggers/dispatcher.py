@@ -366,11 +366,15 @@ class TriggersDispatcher:
                     origin_id=str(schedule.id),
                     created_by_id=schedule.created_by_id,
                 )
+            # The refusal of a missing envelope needs no session read, so a failed
+            # read cannot turn it into a retryable failure.
             stream = (
                 await self.session_streams_dao.get_by_session_id_including_archived(
                     project_id=project_id,
                     session_id=session_id,
                 )
+                if envelope is not None
+                else None
             )
             if envelope is None:
                 error = missing_principal_error(next_step="Create the schedule again.")
