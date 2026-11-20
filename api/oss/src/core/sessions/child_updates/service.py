@@ -28,6 +28,7 @@ from oss.src.core.sessions.child_updates.form import (
     ERROR_MESSAGE_LIMIT,
     LAST_MESSAGE_LIMIT,
     cut_text,
+    one_line,
     render_child_turn,
 )
 from oss.src.core.sessions.child_updates.result_file import (
@@ -49,6 +50,7 @@ from oss.src.core.sessions.turns.dtos import SessionTurn
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.sharing.admission import QUEUED_DISPATCH_BOUNDARY
 from oss.src.core.shared.idempotency import resource_identity
+from oss.src.dbs.redis.sessions.contract import validate_session_id
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -354,7 +356,13 @@ class SessionChildUpdatesService:
     ) -> Tuple[List[str], Optional[PendingInput]]:
         """The executions of the turn, first to `execution_id`, and the input row that
         started the turn. The walk follows each execution's parent and stops at an
-        execution that an input row promoted, because that execution starts its turn."""
+        execution that an input row promoted, because that execution starts its turn.
+
+        It gives the same first execution as `turn_first_execution` for an approval
+        continuation and for a promoted queued input. It does not use that function
+        because it also needs every execution of the turn, and because it also follows
+        the replacement of a lost continuation (a parent and no `source_interaction_id`),
+        where `turn_first_execution` stops."""
         chain = [execution_id]
         current = execution_id
         for _ in range(_MAX_EXECUTIONS_PER_TURN):
@@ -401,8 +409,9 @@ class SessionChildUpdatesService:
         turn. Re-reads a few times while the ending is not yet visible."""
         execution_id = chain[-1]
         for attempt in range(_ENDING_READ_ATTEMPTS):
-            records = await self._records.get_records(
-                project_id=project_id, session_id=session_id
+            # The records of this turn's executions only, not of the whole session.
+            records = await self._records.get_turn_records(
+                project_id=project_id, session_id=session_id, turn_ids=chain
             )
             by_execution: Dict[str, List[SessionRecord]] = {key: [] for key in chain}
             for record in records:
@@ -489,11 +498,21 @@ class SessionChildUpdatesService:
                     "[CHILD-UPDATES] child turn has no row; no result file", **context
                 )
             return None
+        if not validate_session_id(child_session_id):
+            # The id names a folder; a stored id always matches the pattern.
+            log.warning(
+                "[CHILD-UPDATES] child session id not valid; no result file", **context
+            )
+            return None
         path = result_file_path(
             child_session_id=child_session_id, turn_index=child_turn.turn_index
         )
         text = render_result_file(
-            title=(result.agent.name if result.agent and result.agent.name else None)
+            title=(
+                one_line(result.agent.name)
+                if result.agent and result.agent.name
+                else None
+            )
             or f"Child session {child_session_id}",
             turn_index=child_turn.turn_index,
             child_session_id=child_session_id,

@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
@@ -220,6 +221,22 @@ async def test_the_kill_route_settles_the_execution_that_ran(monkeypatch):
     commands.settle_execution_killed.assert_awaited_once_with(
         project_id=PROJECT_ID, session_id=SESSION_ID, execution_id=EXECUTION_ID
     )
+
+
+@pytest.mark.asyncio
+async def test_a_failed_settle_leaves_the_session_for_a_retry_of_the_kill(monkeypatch):
+    route, request, commands, streams, module = await _kill_route(running=True)
+    monkeypatch.setattr(module, "check_action_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(module, "allow_resource", AsyncMock(return_value=True))
+    monkeypatch.setattr(module, "prefetch_session", lambda *a, **k: None)
+    commands.settle_execution_killed.side_effect = RuntimeError("database down")
+
+    # The route answers 500, and the row is not soft-deleted yet, so a retry still
+    # finds the running execution.
+    with pytest.raises(HTTPException):
+        await route.delete_session_stream(request, session_id=SESSION_ID)
+
+    assert not streams.killed
 
 
 @pytest.mark.asyncio

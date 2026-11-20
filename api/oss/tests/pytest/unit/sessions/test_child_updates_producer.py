@@ -240,11 +240,13 @@ class _Records:
             )
         )
 
-    async def get_records(self, *, project_id, session_id):
+    async def get_turn_records(self, *, project_id, session_id, turn_ids):
         return [
             record
             for record in self.records
-            if record.project_id == project_id and record.session_id == session_id
+            if record.project_id == project_id
+            and record.session_id == session_id
+            and record.turn_id in turn_ids
         ]
 
 
@@ -861,7 +863,7 @@ async def test_the_ending_is_read_again_when_the_signal_outruns_the_records():
     harness = _Harness()
     harness.inputs.add_child_input()
     reads = {"count": 0}
-    original = harness.records.get_records
+    original = harness.records.get_turn_records
 
     async def late(**kwargs):
         reads["count"] += 1
@@ -869,7 +871,7 @@ async def test_the_ending_is_read_again_when_the_signal_outruns_the_records():
             _completed(harness)
         return await original(**kwargs)
 
-    harness.records.get_records = late
+    harness.records.get_turn_records = late
 
     await harness.ended()
 
@@ -952,3 +954,37 @@ def test_only_database_and_redis_outages_are_short_failures():
             boundary=QUEUED_DISPATCH_BOUNDARY,
         )
     )
+
+
+@pytest.mark.asyncio
+async def test_an_unproven_dispatch_is_retried_but_dropped_past_the_budget():
+    from oss.src.core.sessions.starts.types import SessionStartNotDurable
+
+    harness = _Harness(starts_raises=SessionStartNotDurable())
+    harness.inputs.add_child_input()
+    _completed(harness)
+    worker = ChildUpdatesWorker(
+        service=harness.service, redis_client=AsyncMock(), stream_name="test"
+    )
+
+    _, acked = await worker.process_batch([_entry()])
+
+    assert acked == []
+    assert worker.is_permanent_failure(b"1-0", {})
+    # Once dropped, the entry is forgotten.
+    assert not worker.is_permanent_failure(b"1-0", {})
+
+
+@pytest.mark.asyncio
+async def test_an_outage_is_never_dropped_past_the_budget():
+    harness = _Harness(starts_raises=OperationalError("enqueue", {}, Exception()))
+    harness.inputs.add_child_input()
+    _completed(harness)
+    worker = ChildUpdatesWorker(
+        service=harness.service, redis_client=AsyncMock(), stream_name="test"
+    )
+
+    _, acked = await worker.process_batch([_entry()])
+
+    assert acked == []
+    assert not worker.is_permanent_failure(b"1-0", {})

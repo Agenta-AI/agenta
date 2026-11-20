@@ -36,6 +36,15 @@ class RecordsDAOInterface:
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
+    async def get_turn_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_ids: List[str],
+    ) -> List[SessionRecord]:
+        raise NotImplementedError
+
     async def get_records_page(
         self,
         *,

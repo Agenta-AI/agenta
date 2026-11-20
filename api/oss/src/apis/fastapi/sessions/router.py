@@ -898,30 +898,31 @@ class SessionStreamsRouter:
         ):
             return {"ok": True}
 
-        # The execution that runs now, read before the kill clears the flags. The kill
-        # writes no ending for it, so it is settled below.
+        # The kill writes no ending for the execution that runs now, so it is settled
+        # `stopped` by the watchdog, and the orphan sweep writes the missing `done` when
+        # the runner writes none. It is settled before the kill: the kill clears the
+        # flags and soft-deletes the row, so a retry after a failed settle could not
+        # find the execution again.
         stream = await self._service.fetch(
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        running_execution_id = (
-            stream.turn_id
-            if stream is not None and stream.flags.is_running and stream.turn_id
-            else None
-        )
+        if (
+            stream is not None
+            and stream.flags.is_running
+            and stream.turn_id
+            and self._commands_service is not None
+        ):
+            await self._commands_service.settle_execution_killed(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                execution_id=stream.turn_id,
+            )
         await self._service.kill(
             project_id=UUID(str(project_id)),
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        if running_execution_id is not None and self._commands_service is not None:
-            # Settled `stopped` by the watchdog, so the orphan sweep writes the missing
-            # `done` when the runner writes none.
-            await self._commands_service.settle_execution_killed(
-                project_id=UUID(str(project_id)),
-                session_id=session_id,
-                execution_id=running_execution_id,
-            )
         # kill orphans every pending gate — no one will answer them.
         await self._interactions_service.cancel_session_pending(
             project_id=UUID(str(project_id)),

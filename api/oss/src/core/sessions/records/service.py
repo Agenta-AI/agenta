@@ -357,6 +357,19 @@ class RecordsService:
             session_id=session_id,
         )
 
+    async def get_turn_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_ids: List[str],
+    ) -> List[SessionRecord]:
+        return await self.records_dao.get_turn_records(
+            project_id=project_id,
+            session_id=session_id,
+            turn_ids=turn_ids,
+        )
+
     async def get_event(
         self,
         *,

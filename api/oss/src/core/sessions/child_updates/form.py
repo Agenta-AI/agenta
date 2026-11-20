@@ -28,6 +28,19 @@ _CLOSING_DELIMITER = re.compile(
 )
 
 
+# A name or a code that other people or the child's run write, printed outside a field.
+_LINE_VALUE_LIMIT = 200
+_LINE_BREAKS = re.compile(r"[\s\x00-\x1f\x7f]+")
+
+
+def one_line(text: str) -> str:
+    """`text` as one short line for the header or a `name: value` line: line breaks and
+    control characters become one space, and square brackets are dropped, so the value
+    cannot close the header or start a line of its own."""
+    flat = _LINE_BREAKS.sub(" ", text).replace("[", "").replace("]", "").strip()
+    return flat[:_LINE_VALUE_LIMIT]
+
+
 def cut_text(text: str, limit: int) -> Tuple[str, bool]:
     """`text` cut at `limit` characters, and whether it was cut."""
     if len(text) <= limit:
@@ -42,7 +55,7 @@ def _escaped(text: str) -> str:
 
 
 def _header(result: ChildTurnResult) -> str:
-    name = result.agent.name if result.agent and result.agent.name else None
+    name = one_line(result.agent.name) if result.agent and result.agent.name else None
     child = (
         f"child session {result.session_id} ({name})"
         if name
@@ -61,14 +74,14 @@ def _lines(result: ChildTurnResult) -> List[str]:
         lines.append(f"turn_id: {result.turn_id}")
     if result.revision is not None:
         lines.append(
-            f"revision: {result.revision.version} ({result.revision.id})"
+            f"revision: {one_line(result.revision.version)} ({result.revision.id})"
             if result.revision.version
             else f"revision: {result.revision.id}"
         )
     if result.cancelled_by:
         lines.append(f"cancelled_by: {result.cancelled_by}")
     if result.error is not None and result.error.code:
-        lines.append(f"error.code: {result.error.code}")
+        lines.append(f"error.code: {one_line(result.error.code)}")
     if result.waiting_for:
         waiting_for = [
             entry.model_dump(mode="json", exclude_none=True)

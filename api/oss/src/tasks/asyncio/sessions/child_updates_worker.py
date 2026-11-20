@@ -8,13 +8,19 @@ file and the dispatch of an update never delay the records of other sessions. Th
 payload is the plain JSON `SessionTurnEvent` that `_publish_turn_event` writes.
 
 Failure rule (design D5): only a short failure (the database or Redis unavailable)
-leaves the entry pending, and the reclaim pass delivers it again. A refusal, a missing
-calling session, a key conflict or any other failure is logged and the entry is
-acknowledged. The key check of the producer makes a repeat write nothing.
+leaves the entry pending, and the reclaim pass delivers it again until the outage ends.
+A refusal, a missing calling session, a key conflict or any other failure is logged and
+the entry is acknowledged. The key check of the producer makes a repeat write nothing.
+
+One more case is retried, a bounded number of times: `SessionStartNotDurable`, when the
+update row is written but its dispatch could not be shown to have started. A retry with
+the same key finishes that dispatch and never starts a second turn. A dispatch claim
+that stays held makes every retry fail the same way, so after `max_deliveries` the
+entry is dropped with the loss log, and the update row stays as the helper left it.
 """
 
 import asyncio
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
@@ -41,15 +47,13 @@ _SHORT_FAILURES = (
     RedisTimeoutError,
     ConnectionError,
     asyncio.TimeoutError,
-    # The helper could not show that the update's turn started. A retry with the same
-    # key finishes that dispatch; it never starts a second turn.
-    SessionStartNotDurable,
 )
 
 
 def is_short_failure(error: BaseException) -> bool:
-    """True for a failure that a retry can fix: the database or Redis unavailable."""
-    return isinstance(error, _SHORT_FAILURES)
+    """True for a failure that a retry can fix: the database or Redis unavailable, or
+    a dispatch that could not be shown to have started (`SessionStartNotDurable`)."""
+    return isinstance(error, (*_SHORT_FAILURES, SessionStartNotDurable))
 
 
 class ChildUpdatesWorker(StreamConsumer):
@@ -80,11 +84,21 @@ class ChildUpdatesWorker(StreamConsumer):
             max_batch_mb=max_batch_mb,
             # An entry is left pending only on a short failure; without the reclaim pass
             # nothing would read it again and the calling session would get no update.
-            # It is retried until the outage ends: `is_permanent_failure` stays False.
+            # An outage is retried until it ends; see `is_permanent_failure`.
             reclaim_pending=True,
             reclaim_min_idle_ms=reclaim_min_idle_ms,
         )
         self.service = service
+        # Entries whose last failure was `SessionStartNotDurable`, in this process.
+        self._not_durable: Set[bytes] = set()
+
+    def is_permanent_failure(self, msg_id: bytes, data: Dict[bytes, bytes]) -> bool:
+        """Past `max_deliveries`, only an entry whose last failure here was
+        `SessionStartNotDurable` is dropped; an outage keeps its entry."""
+        if msg_id not in self._not_durable:
+            return False
+        self._not_durable.discard(msg_id)
+        return True
 
     def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
         try:
@@ -122,7 +136,12 @@ class ChildUpdatesWorker(StreamConsumer):
                     execution_id=event.turn_id,
                 )
                 processed_ids.append(msg_id)
+                self._not_durable.discard(msg_id)
             except Exception as error:
+                if isinstance(error, SessionStartNotDurable):
+                    self._not_durable.add(msg_id)
+                else:
+                    self._not_durable.discard(msg_id)
                 if is_short_failure(error):
                     log.warning(
                         "[CHILD-UPDATES] Short failure; the signal stays pending",
@@ -141,5 +160,6 @@ class ChildUpdatesWorker(StreamConsumer):
                     exc_info=True,
                 )
                 processed_ids.append(msg_id)
+                self._not_durable.discard(msg_id)
 
         return len(processed_ids), processed_ids
