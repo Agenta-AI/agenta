@@ -130,6 +130,8 @@ export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/
 // hosts (web/oss, /m) wire to the generated channels client.
 export {
     ChannelsPage,
+    AgentChannelsView,
+    type AgentChannelsViewProps,
     ChannelsPanelSheet,
     useChannelPanel,
     ChannelsHubView,

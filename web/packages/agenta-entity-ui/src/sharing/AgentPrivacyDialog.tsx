@@ -138,13 +138,26 @@ const OwnerRow = ({
     </div>
 )
 
-export const AgentPrivacyDialog = ({
-    open,
-    onOpenChange,
+export interface AgentPrivacyPanelProps extends AgentPrivacyProps {
+    /**
+     * The panel is on screen and may act. A confirmation acts only while it is true, and turning
+     * it false drops a pending confirmation or transfer step.
+     */
+    active: boolean
+    /** Shared with the top bar control's popover; made here when absent. */
+    writes?: AgentSharingWrites
+}
+
+/**
+ * Who can see the agent and who owns it, with the "Make private?" confirmation and the transfer
+ * step. The privacy dialog shows it in a dialog; the Access tab of the agent shows it in place.
+ */
+export const AgentPrivacyPanel = ({
+    active,
     writes: sharedWrites,
     ...props
-}: AgentPrivacyDialogProps) => {
-    // The texts come from `copy`; this draws the dialog again when the language's text loads.
+}: AgentPrivacyPanelProps) => {
+    // The texts come from `copy`; this draws the panel again when the language's text loads.
     useT(sharingCatalog)
     const {
         agentName,
@@ -169,16 +182,16 @@ export const AgentPrivacyDialog = ({
     const visibility = sharing?.policy.visibility ?? "project"
     const ownerName = personName(owner) || ownerId || ""
     const ready = Boolean(sharing) && !loading && !loadError
-    // An open confirmation acts only inside the open dialog, on a state that is known and still
+    // An open confirmation acts only inside the shown panel, on a state that is known and still
     // the owner's: a re-read that fails, loads an account name, or takes the ownership away
     // closes it.
-    const writable = open && ready && isOwner
-    // A confirmation left pending when the dialog closes does not come back on its own later.
+    const writable = active && ready && isOwner
+    // A confirmation left pending when the panel goes away does not come back on its own later.
     useEffect(() => {
-        if (open) return
+        if (active) return
         setConfirm(null)
         setTransferOpen(false)
-    }, [open])
+    }, [active])
 
     const confirmVisibility = async () => {
         if (!confirm || !writable) return
@@ -308,31 +321,23 @@ export const AgentPrivacyDialog = ({
 
     return (
         <>
-            <SharingSurface
-                open={open}
-                onOpenChange={onOpenChange}
-                title={copy.dialogTitle}
-                description={agentName}
-                footer={<Button onClick={() => onOpenChange(false)}>{copy.done}</Button>}
-            >
-                <Note notice={writes.notice} owner={ownerName} />
-                {body}
-                {ready && channelsOff.length > 0 ? (
-                    <Alert
-                        type="info"
-                        showIcon
-                        role="status"
-                        message={copy.channelsOff(channelsOff)}
-                        action={
-                            onOpenChannels ? (
-                                <Button size="sm" variant="link" onClick={onOpenChannels}>
-                                    {copy.openChannels}
-                                </Button>
-                            ) : undefined
-                        }
-                    />
-                ) : null}
-            </SharingSurface>
+            <Note notice={writes.notice} owner={ownerName} />
+            {body}
+            {ready && channelsOff.length > 0 ? (
+                <Alert
+                    type="info"
+                    showIcon
+                    role="status"
+                    message={copy.channelsOff(channelsOff)}
+                    action={
+                        onOpenChannels ? (
+                            <Button size="sm" variant="link" onClick={onOpenChannels}>
+                                {copy.openChannels}
+                            </Button>
+                        ) : undefined
+                    }
+                />
+            ) : null}
 
             <AlertDialog
                 open={writable && confirm === "private"}
@@ -384,5 +389,26 @@ export const AgentPrivacyDialog = ({
                 onFailed={(result) => writes.settle(result)}
             />
         </>
+    )
+}
+
+export const AgentPrivacyDialog = ({
+    open,
+    onOpenChange,
+    writes,
+    ...props
+}: AgentPrivacyDialogProps) => {
+    // The texts come from `copy`; this draws the dialog again when the language's text loads.
+    useT(sharingCatalog)
+    return (
+        <SharingSurface
+            open={open}
+            onOpenChange={onOpenChange}
+            title={copy.dialogTitle}
+            description={props.agentName}
+            footer={<Button onClick={() => onOpenChange(false)}>{copy.done}</Button>}
+        >
+            <AgentPrivacyPanel {...props} active={open} writes={writes} />
+        </SharingSurface>
     )
 }

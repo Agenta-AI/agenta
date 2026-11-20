@@ -12,6 +12,10 @@ const AgentSessionsPage = dynamic(
     () => import("@/features/sessions/SessionListScreen").then((m) => m.SessionListScreen),
     {loading: () => <SessionsPageSkeleton />},
 )
+const AgentChannelsPage = dynamic(
+    () => import("@/features/agent-pages/AgentChannelsScreen").then((m) => m.AgentChannelsScreen),
+    {loading: () => <SessionsPageSkeleton />},
+)
 const AgentAnalyticsPage = dynamic(
     () => import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),
     {loading: () => <SessionsPageSkeleton />},
@@ -42,6 +46,15 @@ export default function AgentOverviewPage() {
                 workspaceId={workspaceId}
                 projectId={projectId}
                 lockedAgentId={agentId}
+            />
+        )
+    if (view === "channels")
+        return (
+            <AgentChannelsPage
+                key={agentId}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                agentId={agentId}
             />
         )
     if (view === "analytics")
