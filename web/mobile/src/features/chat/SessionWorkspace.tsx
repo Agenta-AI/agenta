@@ -139,7 +139,7 @@ export const SessionWorkspace = ({
                     conversation={<div className="min-h-0 flex-1">{chat}</div>}
                 />
             </div>
-            <SessionWorkspaceDrawers workspaceId={workspaceId} projectId={projectId} />
+            <SessionWorkspaceDrawers />
         </DriveSessionProvider>
     )
 

@@ -152,7 +152,7 @@ export const LiveConversation = ({
     readOnly = null,
     canSend = true,
     accessPending = false,
-    embedded = false,
+    parentOwnsShell = false,
     beforeSend,
     emptyState,
     composerHeaderExtra,
@@ -194,7 +194,7 @@ export const LiveConversation = ({
      * Rendered inside a workspace pane — the shell and its rail belong to the parent. Layout only:
      * the conversation's role ("page" or "embedded" builder chat) comes from `ConversationRoleContext`.
      */
-    embedded?: boolean
+    parentOwnsShell?: boolean
     /**
      * Called when a message leaves the composer, with the person's trimmed words. Returns the
      * text the model reads instead (the builder chat puts its context line first); the words
@@ -1096,7 +1096,7 @@ export const LiveConversation = ({
             <ScreenScaffold
                 scrollRef={autoScroll.ref}
                 onScroll={autoScroll.onScroll}
-                embedded={embedded}
+                embedded={parentOwnsShell}
                 scrollClassName={
                     groupLayout === "middle"
                         ? "basis-auto"
@@ -1357,8 +1357,8 @@ export const LiveConversation = ({
         </ContentRailCapContext.Provider>
     )
 
-    // Embedded: the workspace owns the shell and the pane geometry.
-    return embedded ? (
+    // The workspace owns the shell and the pane geometry.
+    return parentOwnsShell ? (
         rootedScaffold
     ) : (
         <AppShell workspaceId={workspaceId} projectId={projectId}>

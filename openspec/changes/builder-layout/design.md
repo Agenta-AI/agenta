@@ -605,7 +605,7 @@ The builder page has the new chat (B01) with the hero, Browse ideas (B02), and a
 | Page session id | atom (memory) | `pageSessionIdAtom` | Read low in the tree (D6). |
 | Page context | atom (memory), then a snapshot in the queued message, then the context line in the stored message | `pageContextAtom`; the context line plus `metadata.display_content` | Read at send time; the chip is rebuilt after a reload (D13). |
 | Chip removed | atom (memory) | per builder chat id | Resets on reload; harmless. |
-| Latest-version check trigger | atom family (memory) | per workflow id; written by a committed builder tool result, window focus and visibility | A trigger, never a pin (D7). |
+| Latest-version check trigger | callback registry (memory) | per workflow id; written by a committed builder tool result, window focus and visibility | A trigger, never a pin (D7). |
 | Revisions, sessions, builder chats | TanStack Query | today's keys | Server data with a cache. |
 | Builder chat link to its agent | localStorage | `agenta:builder:chats:${userId}:${projectId}` (PROPOSED) | No backend; per browser (D12). |
 | Who started a session | server, session origin and tag (builder agent work) | `origin: "builder"`, `ag.builder.session_id` | Read by the builder spark and the session menu (D12, D19). |

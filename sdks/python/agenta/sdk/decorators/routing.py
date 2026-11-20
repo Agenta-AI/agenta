@@ -37,7 +37,7 @@ from agenta.sdk.agents.adapters.vercel.messages import (
 from agenta.sdk.agents.adapters.vercel.stream import (
     agent_stream_to_vercel_stream,
 )
-from agenta.sdk.middlewares.routing.otel import baggage_value
+from agenta.sdk.middlewares.routing.otel import header_session_id
 from agenta.sdk.agents.adapters.vercel.sse import (
     VERCEL_UI_MESSAGE_STREAM_HEADERS as _VERCEL_UI_MESSAGE_STREAM_HEADERS,
     vercel_sse_stream as _vercel_sse_stream,
@@ -223,12 +223,7 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
     request.flags = _flags
 
     if request.session_id is None:
-        _otel = getattr(req.state, "otel", None) or {}
-        _bag = _otel.get("baggage") or {}
-        _bag_sid = _bag.get("ag.session.id") or baggage_value(
-            req.headers.get("baggage"), "ag.session.id"
-        )
-        request.session_id = req.headers.get("x-ag-session-id") or _bag_sid
+        request.session_id = header_session_id(req)
 
     if _wants_vercel_format(req) and request.data and request.data.inputs:
         _msgs = request.data.inputs.get("messages")

@@ -152,7 +152,7 @@ export const AgentOverviewScreen = ({
             </AppShell>
             {publish.panel}
             {/* Mounted at screen level so a drawer survives its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
+            <SessionAutomationDrawers base={base} />
         </>
     )
 }

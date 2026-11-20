@@ -351,7 +351,7 @@ const render = async (props: {
         root.render(
             <Provider store={createStore()}>
                 <LiveConversation
-                    embedded
+                    parentOwnsShell
                     entityId="rev-1"
                     sessionId="session-1"
                     projectId="proj-1"
