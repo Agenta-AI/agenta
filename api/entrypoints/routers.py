@@ -1410,6 +1410,8 @@ session_commands_service = SessionCommandsService(
     ),
     executions_dao=session_executions_dao,
     inputs_dao=session_inputs_dao,
+    streams_dao=session_streams_dao,
+    turns_dao=session_turns_dao,
 )
 
 _channels_inbox_dispatcher = InboxDispatcher(

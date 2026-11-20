@@ -49,17 +49,17 @@ class SessionInputContentInvalid(SessionInputError):
 # Every key that server code builds for a session input starts with this namespace. A
 # client key with it is refused, so a client never takes a server key first in a session
 # it can also write to. The prefix only reserves keys: rules read `kind`, never the key.
-SERVER_INPUT_KEY_PREFIX = "ag:"
+RESERVED_KEY_PREFIX = "ag:"
 
 
 def is_reserved_input_key(key: Optional[str]) -> bool:
-    return bool(key) and key.startswith(SERVER_INPUT_KEY_PREFIX)
+    return bool(key) and key.startswith(RESERVED_KEY_PREFIX)
 
 
 class SessionInputKeyReserved(SessionInputError):
     def __init__(self):
         super().__init__(
-            f"Idempotency keys that start with '{SERVER_INPUT_KEY_PREFIX}' are reserved."
+            f"Idempotency keys that start with '{RESERVED_KEY_PREFIX}' are reserved."
         )
 
 

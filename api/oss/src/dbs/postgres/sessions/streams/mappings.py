@@ -106,8 +106,10 @@ def session_origin_tags(
     `envelope` is the run that creates the row. `attribution` is the identity of the
     creator, when it has one: the `SessionTriggerAttribution` of a fire, or the
     `SessionCallingSession` of a start from another session. A fire's attribution is
-    enough on its own (a refused fire claims its session before any envelope exists);
-    any other attribution must match the envelope's run origin."""
+    enough on its own (a refused fire claims its session before any envelope exists).
+    A calling session record and the run origin `calling_session` come together: one
+    without the other is refused, so no row reads `calling_session` without its
+    record."""
     run_origin = envelope.context.origin if envelope is not None else None
     if isinstance(attribution, SessionTriggerAttribution):
         if run_origin not in (None, RunOrigin.SCHEDULE, RunOrigin.SUBSCRIPTION):
@@ -123,6 +125,8 @@ def session_origin_tags(
             SESSION_ORIGIN_TAG_KEY: SessionOrigin.calling_session.value,
             **_calling_session_tags(attribution),
         }
+    if run_origin == RunOrigin.CALLING_SESSION:
+        raise ValueError("the run origin calling_session without its record")
     origin = (
         _SESSION_ORIGIN_BY_RUN_ORIGIN[run_origin] if run_origin is not None else None
     )
@@ -171,8 +175,12 @@ def _strip_reserved_tags(
 def decode_session_attribution(
     tags: Optional[Dict[str, Any]],
 ) -> tuple[
-    Optional[SessionOrigin], Optional[SessionTrigger], Optional[SessionDelivery]
+    Optional[SessionOrigin],
+    Optional[SessionTrigger],
+    Optional[SessionDelivery],
+    Optional[SessionCallingSession],
 ]:
+    """The creation record of a row: its origin and the creator's objects."""
     # A malformed JSONB value (e.g. a list) must not 500 every list containing the
     # row (P3-10) — treat anything but a dict as untagged.
     tags = tags if isinstance(tags, dict) else {}
@@ -201,25 +209,20 @@ def decode_session_attribution(
     except ValidationError:
         delivery = None
 
-    return origin, trigger, delivery
+    # None when the row has no calling session record, or a broken one.
+    calling_session = None
+    if SESSION_CALLING_SESSION_ID_TAG_KEY in tags:
+        try:
+            calling_session = SessionCallingSession(
+                id=tags.get(SESSION_CALLING_SESSION_ID_TAG_KEY),
+                turn_id=tags.get(SESSION_CALLING_SESSION_TURN_ID_TAG_KEY),
+                agent_id=tags.get(SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY),
+                revision_id=tags.get(SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY),
+            )
+        except ValidationError:
+            calling_session = None
 
-
-def decode_calling_session(
-    tags: Optional[Dict[str, Any]],
-) -> Optional[SessionCallingSession]:
-    """The calling session record, or None when the row has none or a broken one."""
-    tags = tags if isinstance(tags, dict) else {}
-    if SESSION_CALLING_SESSION_ID_TAG_KEY not in tags:
-        return None
-    try:
-        return SessionCallingSession(
-            id=tags.get(SESSION_CALLING_SESSION_ID_TAG_KEY),
-            turn_id=tags.get(SESSION_CALLING_SESSION_TURN_ID_TAG_KEY),
-            agent_id=tags.get(SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY),
-            revision_id=tags.get(SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY),
-        )
-    except ValidationError:
-        return None
+    return origin, trigger, delivery, calling_session
 
 
 def encode_name_state(
@@ -323,7 +326,9 @@ def map_stream_dbe_to_dto(
     *,
     stream_dbe: SessionStreamDBE,
 ) -> SessionStream:
-    origin, trigger, delivery = decode_session_attribution(stream_dbe.tags)
+    origin, trigger, delivery, calling_session = decode_session_attribution(
+        stream_dbe.tags
+    )
     return SessionStream(
         id=stream_dbe.id,
         created_at=stream_dbe.created_at,
@@ -349,7 +354,7 @@ def map_stream_dbe_to_dto(
         origin=origin,
         trigger=trigger,
         delivery=delivery,
-        calling_session=decode_calling_session(stream_dbe.tags),
+        calling_session=calling_session,
         # NULL is a row written by pre-sharing code: project-visible until assigned.
         visibility=Visibility(stream_dbe.visibility)
         if stream_dbe.visibility

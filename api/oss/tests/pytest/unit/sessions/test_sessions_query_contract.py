@@ -653,7 +653,7 @@ def test_typed_attribution_and_legacy_raw_tags_coexist():
         "ag.trigger.delivery_id": str(delivery_id),
         "team": "support",
     }
-    origin, trigger, delivery = decode_session_attribution(tags)
+    origin, trigger, delivery, _ = decode_session_attribution(tags)
     item = SessionListItem(
         id=uuid4(),
         project_id=uuid4(),
@@ -674,7 +674,7 @@ def test_typed_attribution_and_legacy_raw_tags_coexist():
 
 def test_malformed_trigger_and_delivery_ids_degrade_independently():
     delivery_id = uuid4()
-    origin, trigger, delivery = decode_session_attribution(
+    origin, trigger, delivery, _ = decode_session_attribution(
         {
             "ag.origin": "trigger",
             "ag.trigger.id": "not-a-uuid",
@@ -688,7 +688,7 @@ def test_malformed_trigger_and_delivery_ids_degrade_independently():
     assert delivery.id == delivery_id
 
     trigger_id = uuid4()
-    _, trigger, delivery = decode_session_attribution(
+    _, trigger, delivery, _ = decode_session_attribution(
         {
             "ag.origin": "trigger",
             "ag.trigger.id": str(trigger_id),

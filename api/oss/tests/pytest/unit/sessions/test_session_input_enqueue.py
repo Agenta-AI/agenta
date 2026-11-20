@@ -74,6 +74,43 @@ class _InputsDAO(MemoryInputsDAO):
         self.dispatched.add(input_id)
         return True
 
+    async def promote_next(
+        self,
+        *,
+        project_id,
+        session_id,
+        execution_id,
+        input_id=None,
+        messages_only=False,
+        **_kwargs,
+    ):
+        item = next(
+            (
+                candidate
+                for candidate in sorted(self.items, key=lambda row: row.position)
+                if candidate.project_id == project_id
+                and candidate.session_id == session_id
+                and candidate.state == PendingInputState.pending
+                and (input_id is None or candidate.id == input_id)
+                and not (messages_only and candidate.kind != PendingInputKind.message)
+            ),
+            None,
+        )
+        if item is None:
+            return None
+        item.state = PendingInputState.promoted
+        item.promoted_execution_id = execution_id
+        return item
+
+    async def has_pending_server_input(self, *, project_id, session_id, **_kwargs):
+        return any(
+            item.project_id == project_id
+            and item.session_id == session_id
+            and item.state == PendingInputState.pending
+            and item.kind != PendingInputKind.message
+            for item in self.items
+        )
+
     async def fetch_by_execution_id(self, *, project_id, session_id, execution_id):
         return next(
             (
@@ -101,21 +138,38 @@ class _Streams:
 
 
 class _StreamsDAO:
+    """`turn_id` is the session's latest execution, as the stream row keeps it."""
+
     def __init__(self, *, deleted=False):
         self.deleted = deleted
+        self.turn_id = None
+        self.read_in_task = None
 
     async def get_by_session_id(self, **_kwargs):
         return None
 
     async def get_by_session_id_including_archived(self, **_kwargs):
-        return SimpleNamespace(deleted_at="2026-11-20" if self.deleted else None)
+        self.read_in_task = asyncio.current_task()
+        return SimpleNamespace(
+            deleted_at="2026-11-20" if self.deleted else None, turn_id=self.turn_id
+        )
 
 
 class _Executions:
     def __init__(self):
         self.rows = {}
 
-    def add(self, execution_id, *, parent=None, outcome=None, session_id=SESSION_ID):
+    def add(
+        self,
+        execution_id,
+        *,
+        parent=None,
+        interaction=None,
+        outcome=None,
+        session_id=SESSION_ID,
+    ):
+        """`interaction` marks an approval continuation; a promoted queued input has a
+        parent (the turn before it) and no interaction."""
         self.rows[(session_id, execution_id)] = SessionExecutionSettlement(
             project_id=PROJECT_ID,
             session_id=session_id,
@@ -124,6 +178,7 @@ class _Executions:
             if outcome
             else SessionExecutionState.running,
             parent_execution_id=parent,
+            source_interaction_id=interaction,
             terminal_outcome=outcome,
         )
 
@@ -185,23 +240,26 @@ class _Harness:
         self.turns = _Turns()
         self.admission = RecordingRunAdmission()
         self.workflows = AsyncMock()
+        self.streams = _Streams(
+            running=running,
+            turn_id="execution-parked" if waits_for_approval else None,
+        )
+        self.streams_dao = _StreamsDAO(deleted=deleted)
 
         async def invoke(**kwargs):
             self.executions.add(kwargs["run_id"])
+            self.streams.running = True
 
         self.workflows.invoke_workflow_detached.side_effect = invoke
         self.inputs = SessionInputsService(
             inputs_dao=self.inputs_dao,
-            streams_service=_Streams(
-                running=running,
-                turn_id="execution-parked" if waits_for_approval else None,
-            ),
+            streams_service=self.streams,
             interactions_dao=_Interactions() if waits_for_approval else None,
         )
         self.service = SessionStartsService(
             inputs_service=self.inputs,
             executions_dao=self.executions,
-            streams_dao=_StreamsDAO(deleted=deleted),
+            streams_dao=self.streams_dao,
             inputs_dao=self.inputs_dao,
             turns_dao=self.turns,
             cancelled_by_steer=AsyncMock(return_value=steer),
@@ -314,6 +372,25 @@ async def test_a_stopped_session_does_not_wake():
     [person] = _ids(1)
     harness.turns.add(person, RunOrigin.WEB)
     harness.executions.add(person, outcome="stopped")
+    harness.streams_dao.turn_id = person
+
+    result = await harness.enqueue()
+
+    assert result.state == PendingInputState.pending
+    harness.workflows.invoke_workflow_detached.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stopped_approval_continuation_holds_the_server_input():
+    """The Stop lands on the latest execution, not on the turn's first one."""
+    harness = _Harness()
+    first, continuation = _ids(2)
+    harness.turns.add(first, RunOrigin.WEB)
+    harness.executions.add(first, outcome="completed")
+    harness.executions.add(
+        continuation, parent=first, interaction=uuid4(), outcome="stopped"
+    )
+    harness.streams_dao.turn_id = continuation
 
     result = await harness.enqueue()
 
@@ -327,6 +404,7 @@ async def test_a_steer_is_not_a_person_stopping_the_session():
     [person] = _ids(1)
     harness.turns.add(person, RunOrigin.WEB)
     harness.executions.add(person, outcome="stopped")
+    harness.streams_dao.turn_id = person
 
     result = await harness.enqueue()
 
@@ -350,6 +428,7 @@ async def test_a_relayed_message_is_not_held_by_a_stop():
     [person] = _ids(1)
     harness.turns.add(person, RunOrigin.WEB)
     harness.executions.add(person, outcome="stopped")
+    harness.streams_dao.turn_id = person
 
     result = await harness.enqueue(
         key="ag:send:calling:execution:call-1", kind=PendingInputKind.message
@@ -480,6 +559,20 @@ async def test_concurrent_repeats_dispatch_once():
     assert results[0].input_id == results[1].input_id
 
 
+@pytest.mark.asyncio
+async def test_two_keys_at_once_start_one_turn_and_queue_the_other():
+    """The lock is per session: the second input finds the first turn running."""
+    harness = _Harness()
+
+    results = await asyncio.gather(
+        harness.enqueue(key="ag:child_update:child-1:x1"),
+        harness.enqueue(key="ag:child_update:child-2:x2"),
+    )
+
+    assert harness.workflows.invoke_workflow_detached.await_count == 1
+    assert sorted(result.state.value for result in results) == ["pending", "promoted"]
+
+
 # --- is_sent_by_person -------------------------------------------------------------
 
 
@@ -526,7 +619,9 @@ async def test_a_persons_message_into_an_idle_session_and_its_continuation():
     harness = _Harness()
     first, continuation = _ids(2)
     harness.turns.add(first, RunOrigin.WEB)
-    harness.executions.add(continuation, parent=first)
+    # The pause settles the first execution, so it has a row before the continuation.
+    harness.executions.add(first, outcome="paused")
+    harness.executions.add(continuation, parent=first, interaction=uuid4())
 
     assert await _sent_by_person(harness, first) is True
     assert await _sent_by_person(harness, continuation) is True
@@ -538,7 +633,8 @@ async def test_a_child_update_and_its_approval_continuation():
     first, continuation = _ids(2)
     # The update turn carries the calling turn's attribution (design D5).
     harness.turns.add(first, RunOrigin.WEB)
-    harness.executions.add(continuation, parent=first)
+    harness.executions.add(first, outcome="paused")
+    harness.executions.add(continuation, parent=first, interaction=uuid4())
     harness.inputs_dao.items.append(
         to_pending_input(
             _row(kind=PendingInputKind.child_update, promoted_execution_id=first)
@@ -546,6 +642,37 @@ async def test_a_child_update_and_its_approval_continuation():
     )
 
     assert await _sent_by_person(harness, first) is False
+    assert await _sent_by_person(harness, continuation) is False
+
+
+@pytest.mark.asyncio
+async def test_a_promoted_server_input_after_a_persons_turn_is_not_sent_by_a_person():
+    """A person's turn runs, a child update queues, the turn ends and a settle promotes
+    the update. Its execution has the person's execution as its parent, with no
+    interaction, so the walk stops there and reads the update's own row."""
+    harness = _Harness()
+    person, update = _ids(2)
+    harness.turns.add(person, RunOrigin.WEB)
+    harness.executions.add(person, outcome="completed")
+    # The update turn carries the calling turn's attribution (design D5).
+    harness.turns.add(update, RunOrigin.WEB)
+    harness.executions.add(update, parent=person)
+    harness.inputs_dao.items.append(
+        to_pending_input(
+            _row(kind=PendingInputKind.child_update, promoted_execution_id=update)
+        )
+    )
+
+    assert await _sent_by_person(harness, person) is True
+    assert await _sent_by_person(harness, update) is False
+
+
+@pytest.mark.asyncio
+async def test_a_broken_continuation_chain_is_not_sent_by_a_person():
+    harness = _Harness()
+    [continuation] = _ids(1)
+    harness.executions.add(continuation, parent=str(uuid4()), interaction=uuid4())
+
     assert await _sent_by_person(harness, continuation) is False
 
 
@@ -672,12 +799,15 @@ async def _queued(dao, *, envelope, kind=PendingInputKind.message):
 async def _edit(service, item, editor):
     from oss.src.core.sessions.inputs.dtos import PendingInputUpdate
 
+    from oss.src.core.access.dtos import RunSender
+
     return await service.update(
         project_id=PROJECT_ID,
         session_id=SESSION_ID,
         input_id=item.id,
         user_id=editor,
         update=PendingInputUpdate(text="Ben's text."),
+        sender=RunSender(user_id=editor) if editor is not None else None,
     )
 
 
@@ -783,3 +913,194 @@ def test_a_client_marker_in_content_does_not_change_the_kind():
     row = _row()
     row.content = {"kind": "child_update", "child_update": {"status": "completed"}}
     assert to_pending_input(row).kind == PendingInputKind.message
+
+
+@pytest.mark.asyncio
+async def test_a_chain_of_promoted_updates_does_not_count_the_persons_first_turn():
+    """Each promoted update's parent is the turn before it. The person's turn is older
+    than the window, so the cap holds the next update."""
+    harness = _Harness()
+    person, *updates = _ids(21)
+    harness.turns.add(person, RunOrigin.WEB)
+    harness.executions.add(person, outcome="completed")
+    previous = person
+    for execution_id in updates:
+        harness.turns.add(execution_id, RunOrigin.WEB)
+        harness.executions.add(execution_id, parent=previous, outcome="completed")
+        harness.inputs_dao.items.append(
+            to_pending_input(
+                _row(
+                    kind=PendingInputKind.child_update,
+                    promoted_execution_id=execution_id,
+                )
+            )
+        )
+        previous = execution_id
+
+    result = await harness.enqueue()
+
+    assert result.state == PendingInputState.pending
+    harness.workflows.invoke_workflow_detached.assert_not_awaited()
+
+
+# --- the hold rule at the queue promotion ------------------------------------------
+
+
+class _CommandsDAO:
+    def __init__(self):
+        self.commands = []
+
+    async def create_command(self, *, user_id, command, **_kwargs):
+        self.commands.append(command)
+        return command
+
+
+class _ContinuationExecutions(_Executions):
+    async def create_continuation(
+        self,
+        *,
+        project_id,
+        session_id,
+        execution_id,
+        parent_execution_id,
+        source_interaction_id,
+        **_kwargs,
+    ):
+        self.add(
+            execution_id,
+            parent=parent_execution_id,
+            interaction=source_interaction_id,
+            session_id=session_id,
+        )
+
+
+def _commands_service(harness, *, steer=False):
+    from oss.src.core.sessions.commands.service import SessionCommandsService
+
+    service = SessionCommandsService(
+        commands_dao=_CommandsDAO(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=None,
+        executions_dao=harness.executions,
+        inputs_dao=harness.inputs_dao,
+        streams_dao=harness.streams_dao,
+        turns_dao=harness.turns,
+    )
+    service.cancelled_by_steer = AsyncMock(return_value=steer)
+    return service
+
+
+async def _queue(harness, kind, key):
+    return await harness.inputs.queue_input(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        session_id=SESSION_ID,
+        content=_content(),
+        idempotency_key=key,
+        envelope=ENVELOPE,
+        kind=kind,
+    )
+
+
+async def _turn_end(service, parent):
+    return await service._promote_next_input(
+        project_id=PROJECT_ID,
+        session_id=SESSION_ID,
+        parent_execution_id=parent,
+        transaction=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_turn_end_holds_a_server_input_and_runs_the_persons_message_behind_it():
+    harness = _Harness()
+    harness.executions = _ContinuationExecutions()
+    service = _commands_service(harness)
+    previous = None
+    for execution_id in _ids(20):
+        harness.turns.add(execution_id, RunOrigin.SCHEDULE)
+        previous = execution_id
+    update = await _queue(harness, PendingInputKind.child_update, "ag:child_update:c:1")
+    message = await _queue(harness, PendingInputKind.message, "client-key-1")
+
+    admission = await _turn_end(service, previous)
+
+    assert admission is not None
+    assert message.state == PendingInputState.promoted
+    assert update.state == PendingInputState.pending
+
+
+@pytest.mark.asyncio
+async def test_a_turn_end_holds_a_server_input_in_an_ended_session():
+    harness = _Harness(deleted=True)
+    harness.executions = _ContinuationExecutions()
+    service = _commands_service(harness)
+    update = await _queue(harness, PendingInputKind.child_update, "ag:child_update:c:1")
+
+    assert await _turn_end(service, str(uuid4())) is None
+    assert update.state == PendingInputState.pending
+    # The rule reads in its own task, so its sessions never touch the turn end's
+    # task-scoped transaction.
+    assert harness.streams_dao.read_in_task is not None
+    assert harness.streams_dao.read_in_task is not asyncio.current_task()
+
+
+@pytest.mark.asyncio
+async def test_a_turn_end_promotes_a_server_input_when_no_rule_holds():
+    harness = _Harness()
+    harness.executions = _ContinuationExecutions()
+    service = _commands_service(harness)
+    [person] = _ids(1)
+    harness.turns.add(person, RunOrigin.WEB)
+    harness.streams_dao.turn_id = person
+    update = await _queue(harness, PendingInputKind.child_update, "ag:child_update:c:1")
+
+    admission = await _turn_end(service, person)
+
+    assert admission is not None
+    assert update.state == PendingInputState.promoted
+    assert update.promoted_execution_id == admission.execution_id
+
+
+@pytest.mark.asyncio
+async def test_an_api_key_of_the_sender_cannot_edit_her_browser_message(monkeypatch):
+    """The route reads the editor from the request's own envelope. An API key request
+    has no sender, so the key's creator does not count as the sender."""
+    import oss.src.apis.fastapi.sessions.router as module
+    from oss.src.apis.fastapi.sessions.router import SessionsRootRouter
+    from oss.src.core.access.dtos import RequestCredentialKind
+
+    ana = uuid4()
+    dao = _EditableDAO()
+    service, item = await _queued(
+        dao, envelope=make_envelope(project_id=PROJECT_ID, principal_id=ana)
+    )
+    router = SessionsRootRouter.__new__(SessionsRootRouter)
+    router.inputs_service = service
+    key_envelope = make_envelope(project_id=PROJECT_ID, kind="api_key")
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            project_id=str(PROJECT_ID),
+            user_id=str(ana),  # the key's creator
+            run_envelope=key_envelope,
+            credential_kind=RequestCredentialKind.API_KEY,
+        )
+    )
+
+    async def allow(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(module, "allow_resource", allow)
+    with pytest.raises(Exception) as raised:
+        await router.update_pending_input(
+            request,
+            SESSION_ID,
+            item.id,
+            module.PendingInputUpdateRequest(text="Ben's text."),
+        )
+
+    assert getattr(raised.value, "status_code", None) == 403
+    assert raised.value.detail["details"]["reason"] == "not_sender"
+    assert _text(dao.items[0]) != "Ben's text."
