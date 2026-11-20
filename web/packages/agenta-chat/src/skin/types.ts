@@ -68,13 +68,42 @@ export interface ChangePreviewChange {
 /** Risk kinds a change can add; each shows one warning line on the card. */
 export type ApprovalChangeRisk = "fewer_approvals" | "data_egress" | "cost" | "breakage"
 
+/** One warning line: the kind of risk and the line the card shows, ready to show. */
+export interface ApprovalChangeRiskLine {
+    kind: ApprovalChangeRisk
+    message: string
+}
+
+/**
+ * The section of the agent configuration a change lands in. It picks the card's icon; the words
+ * are in `ApprovalChange.path`.
+ */
+export type ApprovalChangeSection =
+    | "instructions"
+    | "model"
+    | "skills"
+    | "mcps"
+    | "integrations"
+    | "tools"
+    | "permissions"
+    | "settings"
+
+/** One file of an added skill. */
+export interface ApprovalChangeFile {
+    path: string
+    /** The file can run as a program. */
+    executable?: boolean
+}
+
 /**
  * The detail of one change, in one of four forms. Values are display text, ready to show.
  * - `text_diff`: a text field. `old` and `new` (or `diff`) come from the server preview; with no
  *   preview, `fragmentsOnly` is set and `edits` holds the proposed fragments of `edit_text`, or
  *   `new` holds the proposed text of a `set`.
- * - `value_change`: a short value; `old` is absent when the preview is missing.
- * - `item`: a whole list item added or removed (a skill, a tool, an MCP server).
+ * - `value_change`: a short value, named by `label` ("Model", "Close ticket"); `old` is absent
+ *   when the preview is missing.
+ * - `item`: a whole list item added or removed (a skill, a tool, an MCP server), with what the
+ *   card shows of it: its description, its address (an MCP server URL), its files.
  * - `user_step`: a step the person does before the change (connect, paste a secret).
  */
 export type ApprovalChangeDetail =
@@ -86,20 +115,28 @@ export type ApprovalChangeDetail =
           fragmentsOnly?: boolean
           edits?: {old?: string; new?: string}[]
       }
-    | {kind: "value_change"; old?: string; new?: string}
-    | {kind: "item"; change: "added" | "removed"; name: string}
+    | {kind: "value_change"; label?: string; old?: string; new?: string}
+    | {
+          kind: "item"
+          change: "added" | "removed"
+          name: string
+          description?: string
+          address?: string
+          files?: ApprovalChangeFile[]
+      }
     | {kind: "user_step"; step: string}
 
 /** One change a card proposes (shared contract SC6). */
 export interface ApprovalChange {
     title: string
-    /** Readable path segments, for example `["skills", "release-qa", "body"]`. */
+    /** Readable path segments, for example `["Skills", "release-qa", "SKILL.md"]`. */
     path: string[]
+    section: ApprovalChangeSection
     /** Absent for an operation the card cannot render: it shows its title and path only. */
     detail?: ApprovalChangeDetail
     /** "version": saved as part of a new version; "immediate": applies at once. */
     effect: "version" | "immediate"
-    risks: ApprovalChangeRisk[]
+    risks: ApprovalChangeRiskLine[]
     /** The server preview names this operation as the one that cannot apply. */
     fails?: boolean
 }
@@ -122,6 +159,15 @@ export interface ApprovalPreview {
     proposedValues?: boolean
     /** The server preview says the change set cannot apply to the current version. */
     cannotApply?: boolean
+    /** The agent the changes are for, as the card names it ("{{count}} changes to {{agent}}"). */
+    agent?: string
+    /** The card's own header, for a call that is more than its changes (`create_agent`). */
+    heading?: {title: string; path: string[]}
+    /**
+     * The revision the change is made on: from the server preview, else the call's
+     * `base_revision_id`. The host reads its version and the agent's latest version.
+     */
+    base?: {revisionId?: string; version?: number}
 }
 
 /**

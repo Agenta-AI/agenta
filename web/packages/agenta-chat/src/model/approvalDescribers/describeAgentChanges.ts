@@ -15,6 +15,8 @@ import type {ApprovalPreview} from "../../skin/types"
 import {describeConfigChanges} from "./describeChanges"
 import {describeOperationItems} from "./describeCommitRevision"
 
+const tCard = createT(chatChangeCardCatalog)
+
 const stringField = (value: unknown, field: string): string | undefined => {
     const found = asRecord(value)?.[field]
     return typeof found === "string" && found.trim() ? found.trim() : undefined
@@ -46,10 +48,16 @@ export const describeEditAgentConfig = (
     const operations = asRecord(input)?.operations
     const items = describeOperationItems(operations)
     const described = describeConfigChanges(operations, changePreview)
+    // The preview names the revision it ran on; without one the call names it by id only.
+    const baseRevisionId = stringField(input, "base_revision_id")
+    const base = described.base ?? (baseRevisionId ? {revisionId: baseRevisionId} : undefined)
     return {
         sentence: `Save ${changes(items.length)} to the agent ${agent}. Agenta saves this as a new version of that agent and does not deploy it.`,
         items,
-        ...(described.changes.length || described.cannotApply ? described : {}),
+        agent,
+        ...(described.changes.length || described.cannotApply
+            ? {...described, ...(base ? {base} : {})}
+            : {}),
     }
 }
 
@@ -71,15 +79,18 @@ export const describeCreateAgent = (
             ? "Everyone in this project will see it."
             : "Only you will see it."
     const described = describeConfigChanges(asRecord(input)?.operations, changePreview)
-    // A new agent with no operations has nothing to list.
+    // A new agent has no base version: the card has its own header and the sentence as detail.
     return {
         sentence: `${create} ${audience}`,
         items,
-        ...(described.changes.length || described.cannotApply ? described : {}),
+        agent: name,
+        heading: {title: tCard("chat.changeCard.titleCreateAgent"), path: [name]},
+        changes: described.changes,
+        // Nothing to label when the new agent has no operations.
+        proposedValues: described.proposedValues && described.changes.length > 0,
+        cannotApply: described.cannotApply,
     }
 }
-
-const tCard = createT(chatChangeCardCatalog)
 
 /**
  * The version a committed result saved, from `revision: {id, version}`; null for any other
