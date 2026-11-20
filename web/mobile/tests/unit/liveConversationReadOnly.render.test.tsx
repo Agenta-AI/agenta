@@ -186,7 +186,9 @@ vi.mock("@agenta/ui/app-message", () => ({
     modal: dialog,
 }))
 vi.mock("@agenta/ui/components/presentational", () => ({ChatBubble: () => null}))
-vi.mock("@agenta/ui/quote-selection", () => ({QuoteSelectionLayer: () => null}))
+vi.mock("@agenta/ui/quote-selection", () => ({
+    QuoteSelectionLayer: () => <div data-testid="quote-layer" />,
+}))
 vi.mock("@agenta/ui/shortcuts", () => ({
     isAltChord: (e: KeyboardEvent) => e.altKey && !e.ctrlKey && !e.metaKey,
 }))
@@ -429,6 +431,8 @@ describe("a read-only run (F05)", () => {
         expect(byId("approval-card")?.dataset.readOnly).toBe("false")
         // Rewind and a queued edit put text back in the composer: none without one.
         expect(byId("transcript")?.dataset.rewind).toBe("false")
+        // A quote reply is sent by the composer too.
+        expect(byId("quote-layer")).toBeNull()
     })
 })
 

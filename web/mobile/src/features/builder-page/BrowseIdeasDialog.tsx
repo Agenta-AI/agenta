@@ -95,7 +95,7 @@ export const BrowseIdeasDialog = ({
                     ;(event.currentTarget as HTMLElement | null)?.focus()
                 }}
                 // 60 px from the top of the page: the positioner pads 16 px.
-                className="mt-11 flex h-[min(460px,calc(100%-44px))] max-w-[760px] flex-col gap-0 self-start overflow-hidden rounded-[12px] p-0 shadow-[0_0_0_1px_rgba(36,36,36,.1),0_20px_50px_rgba(0,0,0,.18)] sm:max-w-[760px]"
+                className="mt-11 flex h-[min(460px,calc(100%-44px))] max-w-[760px] flex-col gap-0 self-start overflow-hidden rounded-[12px] p-0 shadow-dialog sm:max-w-[760px]"
             >
                 <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-4 py-3.5">
                     <DialogTitle className="m-0 flex-1 text-sm font-semibold">

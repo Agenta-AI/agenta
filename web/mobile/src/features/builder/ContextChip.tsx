@@ -60,7 +60,8 @@ export const ContextChip = ({
                     className={cn(
                         "flex shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:bg-colorFillSecondary hover:text-colorText",
                         phone
-                            ? "relative size-[26px] after:absolute after:-inset-[9px] after:content-['']"
+                            ? // Above the editor that follows, so the whole 44 px area answers.
+                              "relative z-10 size-[26px] after:absolute after:-inset-[9px] after:content-['']"
                             : "size-[18px]",
                     )}
                 >
