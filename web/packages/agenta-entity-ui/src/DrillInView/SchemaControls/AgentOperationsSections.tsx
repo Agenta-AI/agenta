@@ -12,20 +12,17 @@
  * The config surface shows one flat file view; the agent's durable folder is a SUBFOLDER of the
  * conversation's working folder, not a separate "App drive" (that split lives only in the drawer).
  */
-import {useCallback, type ReactNode} from "react"
+import {type ReactNode} from "react"
 
-import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperations"
 import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
-import {Lightning} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {
+    AddTriggerDropdown,
     TriggerManagementSection,
     useAgentTriggers,
     type TriggerOwnerRef,
@@ -109,6 +106,9 @@ export function AgentOperationsSections({
     storageHeader,
     automationDrawer,
     onOpenRunHistory,
+    onOpenAutomation,
+    onAddAutomation,
+    showFiles = true,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -126,21 +126,18 @@ export function AgentOperationsSections({
     automationDrawer: ReactNode
     /** A row's "Run history" destination; see {@link TriggerManagementSection}. */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
+    /** A row's destination; see {@link TriggerManagementSection}. */
+    onOpenAutomation?: (owner: TriggerOwnerRef) => void
+    /** False drops the Files region (a host with no session, such as the Configuration page). */
+    showFiles?: boolean
+    /** Where "Add automation" opens the chosen form; absent, the automation drawer. */
+    onAddAutomation?: (
+        kind: TriggerOwnerRef["kind"],
+        references: Record<string, {id?: string; slug?: string}>,
+    ) => void
 }) {
     const t = useT(agentOperationsCatalog)
-    const {count: triggerCount, defaultReferences, defaultBoundLabel} = useAgentTriggers(revisionId)
-    const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
-
-    // The region's own "+", now that Subscriptions and Schedules are one list with no headers of
-    // their own to hang it from. It opens a schedule-shaped draft; the drawer's own "Runs when"
-    // control is where a reader switches it to an event, so there is nothing to choose here.
-    const onAdd = useCallback(() => {
-        openScheduleDrawer({
-            defaultReferences,
-            defaultBoundLabel,
-            playgroundEntityId: revisionId ?? undefined,
-        })
-    }, [defaultBoundLabel, defaultReferences, openScheduleDrawer, revisionId])
+    const {count: triggerCount} = useAgentTriggers(revisionId)
 
     return (
         <>
@@ -155,15 +152,9 @@ export function AgentOperationsSections({
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             {countSummary(triggerCount, "automation")}
                         </span>
+                        {/* "Add automation": the kind is chosen in the menu (F05 f2). */}
                         {disabled ? null : (
-                            <CreateWithAIAddMenu
-                                label={t("entityUi.agentOperations.addAutomation")}
-                                starterPrompt={t("entityUi.agentOperations.automationStarter")}
-                                onManual={onAdd}
-                                manualTitle={t("entityUi.agentOperations.createManually")}
-                                manualHint={t("entityUi.agentOperations.runOnScheduleOrEvent")}
-                                manualIcon={<Lightning size={16} />}
-                            />
+                            <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
                         )}
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>
@@ -173,29 +164,32 @@ export function AgentOperationsSections({
                         disabled={disabled}
                         automationDrawer={automationDrawer}
                         onOpenRunHistory={onOpenRunHistory}
+                        onOpenAutomation={onOpenAutomation}
                     />
                 </div>
             </section>
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            <section className="flex grow flex-col">
-                <AgentRegionHeaderBar
-                    title={t("entityUi.agentOperations.recentFiles")}
-                    sticky={sticky}
-                >
-                    {storageHeader}
-                </AgentRegionHeaderBar>
-                {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
-                <div className={`flex grow flex-col ${bodyClass}`}>
-                    {storage ?? (
-                        // Static fallback for surfaces that don't slot the live Files body.
-                        <span className="text-xs text-colorTextDescription">
-                            {t("entityUi.agentOperations.workingFilesHint")}
-                        </span>
-                    )}
-                </div>
-            </section>
+            {showFiles ? (
+                <section className="flex grow flex-col">
+                    <AgentRegionHeaderBar
+                        title={t("entityUi.agentOperations.recentFiles")}
+                        sticky={sticky}
+                    >
+                        {storageHeader}
+                    </AgentRegionHeaderBar>
+                    {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
+                    <div className={`flex grow flex-col ${bodyClass}`}>
+                        {storage ?? (
+                            // Static fallback for surfaces that don't slot the live Files body.
+                            <span className="text-xs text-colorTextDescription">
+                                {t("entityUi.agentOperations.workingFilesHint")}
+                            </span>
+                        )}
+                    </div>
+                </section>
+            ) : null}
         </>
     )
 }

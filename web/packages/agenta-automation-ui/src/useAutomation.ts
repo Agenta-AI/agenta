@@ -71,6 +71,7 @@ export const useAutomation = (id: string | undefined, kind: AutomationKind) => {
         automation,
         isLoading: kind === "schedule" ? scheduleHook.isLoading : subscriptionHook.isLoading,
         error: kind === "schedule" ? scheduleHook.error : subscriptionHook.error,
+        refetch: kind === "schedule" ? scheduleHook.refetch : subscriptionHook.refetch,
         create,
         edit,
         remove,

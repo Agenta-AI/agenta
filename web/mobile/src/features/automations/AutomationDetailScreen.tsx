@@ -20,8 +20,8 @@ import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
+import {AutomationRunNowButton} from "./AutomationRunNowButton"
 import {AutomationScreenHeader} from "./AutomationScreenHeader"
-import {AutomationTestRunButton} from "./AutomationTestRunButton"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
 /**
@@ -57,7 +57,6 @@ export const AutomationDetailScreen = ({
         automation,
         preview,
         agentName,
-        runHistoryCaption,
         failureReason,
         missing,
         loading,
@@ -97,7 +96,12 @@ export const AutomationDetailScreen = ({
         applied.current = true
         if (router.query.view === "runs") setShowRuns(true)
     }, [router.isReady, router.query.view])
-    const openRuns = useCallback(() => setShowRuns(true), [])
+    // "Last run" opens the history on that run; "See all runs" on the newest.
+    const [openRunId, setOpenRunId] = useState<string | undefined>(undefined)
+    const openRuns = useCallback((runId?: string) => {
+        setOpenRunId(runId)
+        setShowRuns(true)
+    }, [])
     const closeRuns = useCallback(() => setShowRuns(false), [])
 
     const renderConversation = useCallback(
@@ -156,13 +160,22 @@ export const AutomationDetailScreen = ({
                                 />
                             }
                             renderConversation={renderConversation}
+                            initialRunId={openRunId}
+                            runNow={
+                                automation ? (
+                                    <AutomationRunNowButton
+                                        automation={automation}
+                                        base={base}
+                                        dirty={dirty}
+                                    />
+                                ) : null
+                            }
                         />
                     ) : automation && preview ? (
                         <AutomationDetailBody
                             automation={automation}
                             preview={preview}
                             agentName={agentName}
-                            runHistoryCaption={runHistoryCaption}
                             onOpenRunHistory={openRuns}
                             failureReason={failureReason}
                             dirty={dirty}
@@ -175,8 +188,8 @@ export const AutomationDetailScreen = ({
                             includeEvent={draft.includeEvent}
                             onChangeIncludeEvent={setIncludeEvent}
                             onToggle={onToggle}
-                            testRun={
-                                <AutomationTestRunButton
+                            runNow={
+                                <AutomationRunNowButton
                                     automation={automation}
                                     base={base}
                                     dirty={dirty}

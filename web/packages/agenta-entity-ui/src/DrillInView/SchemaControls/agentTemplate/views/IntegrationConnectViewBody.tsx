@@ -46,7 +46,7 @@ const IntegrationConnectViewBody = ({params}: ViewProps<IntegrationConnectViewPa
             params={params}
             name={integration.name}
             logo={integration.logo}
-            description={integration.description}
+            description={params.description ?? integration.description}
             authSchemes={(integration.auth_schemes as string[] | null | undefined) ?? []}
         />
     )
