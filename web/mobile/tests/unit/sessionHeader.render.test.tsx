@@ -24,7 +24,13 @@ vi.mock("@agenta/entity-ui/agent", () => ({
     AgentIdentity: ({name}: {name: string}) => <span>{name}</span>,
     useAgentActions: () => actions,
 }))
-vi.mock("@agenta/playground-ui/agent-page-header", () => ({AgentRevisionStatus: () => null}))
+vi.mock("@agenta/playground-ui/agent-page-header", () => ({
+    AgentRevisionStatus: () => (
+        <button type="button" aria-label="Retry saving">
+            v4
+        </button>
+    ),
+}))
 vi.mock("@agenta/sessions-ui", () => ({SessionCardList: () => null}))
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/sessions/useSessionRowMenu", () => ({useSessionRowMenu: () => ({})}))
@@ -222,14 +228,19 @@ describe("the session header on a phone", () => {
         await waitFor(() => expect(screen.queryByTestId("session-sheet")).toBeNull())
     })
 
-    it("keeps the version status hidden in row 2, and shows it while a save failed", () => {
+    // jsdom applies no Tailwind styles, so the shown or hidden state is read from the class.
+    it("keeps the version status mounted but hidden in row 2, and shows it while a save failed", () => {
         renderHeader(panel({phone: true}))
-        expect(screen.getByTestId("session-header-save-status").className).toContain("hidden")
+        const hidden = screen.getByTestId("session-header-save-status")
+        // Mounted while hidden: it drives session follow.
+        expect(within(hidden).getByRole("button", {name: "Retry saving"})).toBeTruthy()
+        expect(hidden.className).toContain("hidden")
         cleanup()
         renderHeader(panel({phone: true}), {saveFailed: true})
-        const status = screen.getByTestId("session-header-save-status")
-        expect(status.className).not.toContain("hidden")
-        expect(status.className).toContain("flex")
+        const shown = screen.getByTestId("session-header-save-status")
+        expect(within(shown).getByRole("button", {name: "Retry saving"})).toBeTruthy()
+        expect(shown.className).not.toContain("hidden")
+        expect(shown.className).toContain("flex")
     })
 
     it("shows no Configuration and no Builder for a private agent the reader cannot see", () => {
