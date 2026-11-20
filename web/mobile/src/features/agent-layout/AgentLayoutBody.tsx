@@ -242,14 +242,22 @@ export const AgentLayoutBody = ({
     // On a phone the open panel covers the session: the browser back closes it, as its back arrow
     // does. useIsPhone, not `phone`: it stays false while hydrating, so a desktop never pushes.
     useSystemBack(useIsPhone() && content ? 1 : 0, "panel", close)
-    // The panel stays open across a move to another session: its entry moves to the new page.
+    // The panel stays open across a move to another session: its entry moves to the new page. A
+    // move the leave guard stopped (the person kept editing) gets its entry back the same way.
     const router = useRouter()
     useEffect(() => {
         const onComplete = (_url: string, options?: {shallow?: boolean}) => {
             if (!options?.shallow) restartSystemBack()
         }
+        const onError = (_error: unknown, _url: string, options?: {shallow?: boolean}) => {
+            if (!options?.shallow) restartSystemBack()
+        }
         router.events.on("routeChangeComplete", onComplete)
-        return () => router.events.off("routeChangeComplete", onComplete)
+        router.events.on("routeChangeError", onError)
+        return () => {
+            router.events.off("routeChangeComplete", onComplete)
+            router.events.off("routeChangeError", onError)
+        }
     }, [router.events])
 
     // "Show me the configuration" from elsewhere (model setup, the agent overview, a new agent).
