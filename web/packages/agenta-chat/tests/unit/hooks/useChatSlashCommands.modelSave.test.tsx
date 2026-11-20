@@ -5,8 +5,9 @@
  * The pick writes the agent config through `updateConfiguration`, the draft write the
  * Configuration Model section makes too. Auto-save (`agentAutoCommit`, armed when
  * `@agenta/playground/state` loads) sees that write and commits it. The workflow layer is replaced
- * by a small store here: its draft write fires `onDraftChange` the way `updateWorkflowDraftAtom`
- * does, and the commit is recorded instead of sent.
+ * by a small store here, so one link is stubbed: the mocked `updateConfiguration` fires
+ * `onDraftChange` itself, as the real one does through `updateWorkflowDraftAtom`. The commit is
+ * recorded instead of sent. The auto-save rules themselves are tested in `agentAutoCommit.test.ts`.
  */
 import {act, renderHook} from "@testing-library/react"
 import {getDefaultStore} from "jotai"

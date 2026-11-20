@@ -176,8 +176,11 @@ export const Composer = ({
             skipFocusRestoreRef.current = false
             return
         }
+        // Only a `/` command came from typing. A list opened by a button leaves the editor alone,
+        // so a phone keyboard does not pop up after a pick.
+        if (slash.pickerOrigin !== "command") return
         richInputRef.current?.focus()
-    }, [richInputRef, slash.picker])
+    }, [richInputRef, slash.picker, slash.pickerOrigin])
     // Stable: both panels register document-level listeners keyed on these.
     const closePicker = slash.closePicker
     const dismissPicker = useCallback(
