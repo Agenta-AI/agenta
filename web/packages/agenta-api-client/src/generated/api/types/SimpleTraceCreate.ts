@@ -11,6 +11,9 @@ export interface SimpleTraceCreate {
     data: Record<string, AgentaApi.FullJsonInput | null>;
     references: AgentaApi.SimpleTraceReferences;
     links: SimpleTraceCreate.Links;
+    scope?: (AgentaApi.AnnotationScope | null) | undefined;
+    session_id?: (string | null) | undefined;
+    turn_id?: (string | null) | undefined;
 }
 
 export namespace SimpleTraceCreate {

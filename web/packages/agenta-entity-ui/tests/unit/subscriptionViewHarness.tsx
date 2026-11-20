@@ -24,7 +24,7 @@ const Chrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
         </nav>
         {children}
         {/* As the real chromes: no action row for a view that asks for none. */}
-        {actions.readOnly ? null : <ViewFormActions {...actions} />}
+        {actions.hideActionRow ? null : <ViewFormActions {...actions} />}
     </div>
 )
 

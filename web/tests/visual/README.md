@@ -6,7 +6,7 @@ baseline image and never run in CI. They use the `@playwright/test` of `web/test
 A recipe file (`recipes/<slug>.json`) is one JSON array.
 
 - A story recipe: `{id, story, width, height, theme, selector?}`. `story` is the Storybook story id.
-- A screen recipe: `{id, route, width, height, theme, steps, selector?}`. A `{name}` in `route` is replaced by the id of that name in the file `IDS`. A step is one of `{click: target}`, `{fill: target, value}`, `{press: key}`, `{wait: target | milliseconds}`. A target is a visible text, or `role:name` (for example `button:Save`).
+- A screen recipe: `{id, route, width, height, theme, steps, selector?}`. A `{name}` in `route` is replaced by the id of that name in the file `IDS`. A step is one of `{click: target}`, `{fill: target, value}`, `{press: key}`, `{wait: target | milliseconds}`. A target is a visible text, or `role:name` (for example `button:Save`). A quoted name (`button:"Files"`) must match exactly.
 
 Run from `web/`. Start Storybook first (`NODE_OPTIONS=--max-old-space-size=6144 pnpm --filter @agenta/storybook storybook --ci`).
 

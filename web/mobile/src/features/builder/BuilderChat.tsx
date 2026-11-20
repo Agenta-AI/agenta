@@ -180,7 +180,7 @@ export const BuilderChat = ({
         body = (
             <LiveConversation
                 key={builderSessionId}
-                embedded
+                parentOwnsShell
                 entityId={builderRevisionId}
                 sessionId={builderSessionId}
                 projectId={projectId}

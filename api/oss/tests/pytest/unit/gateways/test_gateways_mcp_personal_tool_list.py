@@ -290,6 +290,7 @@ async def test_both_exchanges_sign_the_same_claim_for_the_same_input(monkeypatch
             without_grants=True,
             workflow_id=None,
             item_keys=[ITEM_KEY],
+            session_id=None,
         )
 
     access_token = json.loads(allowed.body)["credentials"].removeprefix("Secret ")
