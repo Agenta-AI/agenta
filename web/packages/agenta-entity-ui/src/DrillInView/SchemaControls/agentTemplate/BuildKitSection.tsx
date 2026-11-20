@@ -4,7 +4,7 @@ import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 
 import type {GatewayConnectionPermissions} from "../toolUtils"
 
-import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
+import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionList"
 import type {ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
 import {PolicyGlyph} from "./PermissionGlyph"

@@ -1,0 +1,19 @@
+{
+    "chooseWhose": "Escolha de quem é a conta do {{name}} que o agente usa",
+    "eachPersonsOwn": "A de cada pessoa",
+    "eachPersonsOwnNote": "Cada pessoa usa a própria conta do {{name}}.",
+    "oneShared": "Uma conta compartilhada",
+    "oneSharedNote": "Todos usam a conta que você escolher.",
+    "yourAccount": "Sua conta",
+    "yourAccountNote": "A conta do {{name}} que suas próprias execuções usam",
+    "sharedAccount": "Conta compartilhada",
+    "sharedAccountNote": "Toda execução usa esta conta, não importa quem a inicie",
+    "useMyDefault": "Usar minha conta padrão",
+    "connectAnotherShared": "Conectar outra conta compartilhada",
+    "noAccountYet": "Nenhuma conta ainda",
+    "connectApp": "Conectar {{name}}",
+    "noSharedAccountYet": "Nenhuma conta compartilhada ainda",
+    "noPersonWarning": "Execuções de um canal ou de uma automação criada com uma chave de API não têm pessoa. Elas não podem usar a conta própria de cada pessoa, então esta integração não está disponível para elas.",
+    "onlyMeShort": "Só as suas próprias execuções a usam.",
+    "everyoneShort": "Agentes deste projeto podem usá-la."
+}

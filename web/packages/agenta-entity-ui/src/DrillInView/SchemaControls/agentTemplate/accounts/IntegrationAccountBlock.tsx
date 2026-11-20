@@ -1,60 +1,53 @@
-/**
- * The "Account" block of a Composio item's permission drawer (contract section 12, spec 5.1).
- *
- * The select writes the item's account source: each person's default account (`"user"`, no slug)
- * or one of the project's connections (its slug). With "each person", one line says which of the
- * viewer's own accounts the agent uses when they run it, and "Change" lets them pick another one
- * for this agent, make it their default, or connect another account. The line shows only the
- * viewer's own account.
- */
-import {useMemo, useState} from "react"
+/** The "Account" part of an integration view (F10): whose account the agent uses. */
+import {useMemo, type ReactNode} from "react"
 
-import {userItemKey} from "@agenta/entities/accountChoice"
+import {USER_ACCOUNT_SOURCE, userItemKey} from "@agenta/entities/accountChoice"
 import {
-    invalidateToolConnections,
-    isConnectionDefault,
-    makeDefaultToolConnection,
     usePersonalToolConnections,
     useToolConnectionsQuery,
     useToolIntegrationDetail,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {message} from "@agenta/ui/app-message"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@agenta/ui/ui"
-import {Check, Plus} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
+import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
+import {Button} from "@agenta/ui/ui"
+import {Plus, Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {AccountLine, AccountLineAction} from "../../../../accounts/AccountLine"
-import {ACCOUNT_COPY} from "../../../../accounts/copy"
+import {AccountSwitch} from "../../../../accounts/AccountSwitch"
 import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {useAccountChoice} from "../../../../accounts/useAccountChoice"
-import {useItemAccount, type ItemAccountContext} from "../../../../accounts/useItemAccount"
-import ConnectDrawer from "../../../../gatewayTool/drawers/ConnectDrawer"
+import {
+    useItemAccount,
+    useItemWorkflowId,
+    type ItemAccountContext,
+} from "../../../../accounts/useItemAccount"
 import type {
     GatewayConnectionAccount,
     GatewayConnectionTarget,
     ParsedGatewayConnection,
 } from "../../toolUtils"
 
-import {AccountBlock} from "./AccountBlock"
+import {AccountSelect, CONNECT_ANOTHER} from "./AccountSelect"
 import {
-    integrationAccountFromValue,
-    integrationAccountOptions,
-    integrationAccountValue,
-} from "./accountOptions"
+    accountSourcePick,
+    defaultAccountOf,
+    sharedAccountOptions,
+    showAccountSwitch,
+    USE_MY_DEFAULT,
+    yourAccountValue,
+} from "./integrationAccountSwitch"
+import {useRunsWithoutPerson} from "./useRunsWithoutPerson"
 
 export interface IntegrationAccountBlockProps {
     target: GatewayConnectionTarget
     entry: ParsedGatewayConnection
     context: ItemAccountContext
     onChange: (account: GatewayConnectionAccount) => void
+    /** Opens the connect view for this app: `"user"` for the viewer's own, `"project"` shared. */
+    onConnect: (owner: "user" | "project") => void
     disabled?: boolean
 }
 
@@ -63,12 +56,15 @@ export function IntegrationAccountBlock({
     entry,
     context,
     onChange,
+    onConnect,
     disabled,
 }: IntegrationAccountBlockProps) {
+    const t = useT(accountSwitchCatalog, accountsCatalog)
     const {integration} = useToolIntegrationDetail(target.integration)
     const name = integration?.name || target.integration
     const {connections} = useToolConnectionsQuery()
     const access = useAtomValue(personalAccountsAccessAtom)
+    const eachPerson = entry.accountSource === USER_ACCOUNT_SOURCE
 
     const projectConnections = useMemo(
         () =>
@@ -79,163 +75,187 @@ export function IntegrationAccountBlock({
             ),
         [connections, target.integration, target.provider],
     )
-    const options = useMemo(
-        () =>
-            integrationAccountOptions({
-                integrationName: name,
-                projectConnections,
-                entry,
-                personalAccounts: access === "on",
-            }),
-        [access, entry, name, projectConnections],
+    const shared = useMemo(
+        () => sharedAccountOptions(projectConnections, entry),
+        [projectConnections, entry],
     )
 
+    const pickSource = (next: string) => {
+        const pick = accountSourcePick(next, entry, shared)
+        if ("write" in pick) onChange(pick.write)
+        else onConnect(pick.connect)
+    }
+
     return (
-        <AccountBlock
-            value={integrationAccountValue(entry)}
-            options={options}
-            onChange={(value) => onChange(integrationAccountFromValue(value))}
-            disabled={disabled}
-            line={
-                entry.accountSource === "user" && access === "on" ? (
-                    <YourAccountLine
+        <div className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-2">
+                <FieldHeading
+                    label={t("entityUi.accounts.label")}
+                    note={t("entityUi.accountSwitch.chooseWhose", {name})}
+                />
+                {showAccountSwitch(access, entry) ? (
+                    <AccountSwitch
+                        value={eachPerson ? USER_ACCOUNT_SOURCE : "agent"}
+                        choices={[
+                            {
+                                value: USER_ACCOUNT_SOURCE,
+                                label: t("entityUi.accountSwitch.eachPersonsOwn"),
+                                note: t("entityUi.accountSwitch.eachPersonsOwnNote", {name}),
+                            },
+                            {
+                                value: "agent",
+                                label: t("entityUi.accountSwitch.oneShared"),
+                                note: t("entityUi.accountSwitch.oneSharedNote"),
+                            },
+                        ]}
+                        onChange={pickSource}
+                        aria-label={t("entityUi.accounts.label")}
+                        disabled={disabled}
+                    />
+                ) : null}
+                {eachPerson ? <NoPersonWarning context={context} /> : null}
+            </div>
+
+            {eachPerson ? (
+                // Only the viewer's own accounts, which exist only while personal accounts are on.
+                access === "on" ? (
+                    <YourAccount
                         target={target}
-                        integrationName={name}
-                        integrationLogo={integration?.logo ?? undefined}
-                        authSchemes={integration?.auth_schemes ?? ["oauth"]}
+                        name={name}
                         context={context}
+                        // The viewer's own accounts, not the agent: no edit right needed.
+                        onConnect={() => onConnect("user")}
                     />
                 ) : null
-            }
-        />
+            ) : (
+                <div className="flex flex-col gap-2">
+                    <FieldHeading
+                        label={t("entityUi.accountSwitch.sharedAccount")}
+                        note={t("entityUi.accountSwitch.sharedAccountNote")}
+                    />
+                    <AccountSelect
+                        value={entry.connection}
+                        placeholder={t("entityUi.accountSwitch.noSharedAccountYet")}
+                        options={shared.map((option) => ({
+                            value: option.slug,
+                            label: option.name,
+                        }))}
+                        connectLabel={t("entityUi.accountSwitch.connectAnotherShared")}
+                        onChange={(slug) =>
+                            slug === CONNECT_ANOTHER
+                                ? onConnect("project")
+                                : onChange({accountSource: "agent", slug})
+                        }
+                        aria-label={t("entityUi.accountSwitch.sharedAccount")}
+                        disabled={disabled}
+                    />
+                </div>
+            )}
+        </div>
     )
 }
 
-/** "When you run it: …" for the viewer, with "Change". */
-function YourAccountLine({
+/** Shown when the agent has runs without a person: a channel, or an automation saved by an API key. */
+function NoPersonWarning({context}: {context: ItemAccountContext}) {
+    const t = useT(accountSwitchCatalog)
+    if (!useRunsWithoutPerson(useItemWorkflowId(context))) return null
+    return (
+        <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
+            <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
+            <span>{t("entityUi.accountSwitch.noPersonWarning")}</span>
+        </div>
+    )
+}
+
+function FieldHeading({label, note}: {label: string; note: string}) {
+    return (
+        <div className="flex flex-col gap-px">
+            <span className="text-[13px] font-semibold text-colorText">{label}</span>
+            <span className="text-xs text-colorTextSecondary">{note}</span>
+        </div>
+    )
+}
+
+/** "Your account": the viewer's own accounts of the app, or "No account yet" and a connect. */
+function YourAccount({
     target,
-    integrationName,
-    integrationLogo,
-    authSchemes,
+    name,
     context,
+    onConnect,
 }: {
     target: GatewayConnectionTarget
-    integrationName: string
-    integrationLogo?: string
-    authSchemes: string[]
+    name: string
     context: ItemAccountContext
+    onConnect: () => void
 }) {
+    const t = useT(accountSwitchCatalog, accountsCatalog)
     const itemKey = userItemKey("app_connection", target.integration)
     const {workflowId, account, loading, failed} = useItemAccount(context, itemKey)
     const {connections: personal} = usePersonalToolConnections()
-    const {choose: storeChoice, busy: choosing} = useAccountChoice(workflowId, itemKey)
-    const [connectOpen, setConnectOpen] = useState(false)
-    const [defaulting, setDefaulting] = useState(false)
-    const busy = choosing || defaulting
-
+    const choice = useAccountChoice(workflowId, itemKey)
     const yours = useMemo<ToolConnection[]>(
         () => personalConnectionsFor(personal, target),
         [personal, target],
     )
 
-    if (loading || failed) return null
-
-    const usedId = account?.match ? account.gateway_connection_id : null
-    const used = yours.find((connection) => connection.id === usedId)
-
-    const choose = async (connection: ToolConnection) => {
-        if (!connection.id || connection.id === usedId) return
-        const stored = await storeChoice({gatewayConnectionId: connection.id})
-        if (stored === false) message.error(ACCOUNT_COPY.choiceFailed)
-    }
-
-    const makeDefault = async () => {
-        if (!usedId) return
-        setDefaulting(true)
-        try {
-            await makeDefaultToolConnection(usedId)
-            invalidateToolConnections()
-        } catch {
-            message.error(ACCOUNT_COPY.defaultFailed)
-        } finally {
-            setDefaulting(false)
+    let body: ReactNode
+    if (yours.length === 0) {
+        body = (
+            <div className="flex items-center justify-between gap-3">
+                <span className="text-[13px] text-colorTextSecondary">
+                    {t("entityUi.accountSwitch.noAccountYet")}
+                </span>
+                <Button variant="outline" size="sm" onClick={onConnect}>
+                    <Plus size={14} />
+                    {t("entityUi.accountSwitch.connectApp", {name})}
+                </Button>
+            </div>
+        )
+    } else {
+        const fallback = defaultAccountOf(yours, account)
+        const pick = async (value: string) => {
+            if (value === CONNECT_ANOTHER) return onConnect()
+            if (value === yourAccountValue(account)) return
+            if (value === USE_MY_DEFAULT) await choice.clear()
+            else await choice.choose({gatewayConnectionId: value})
         }
-    }
-
-    const connectDrawer = (
-        <ConnectDrawer
-            open={connectOpen}
-            integrationKey={target.integration}
-            integrationName={integrationName}
-            integrationLogo={integrationLogo}
-            authSchemes={authSchemes}
-            owners={["user"]}
-            onClose={() => setConnectOpen(false)}
-            onSuccess={() => setConnectOpen(false)}
-        />
-    )
-
-    if (yours.length === 0 && !account?.match) {
-        return (
-            <AccountLine text={ACCOUNT_COPY.noAccountYet(integrationName)}>
-                <AccountLineAction onClick={() => setConnectOpen(true)}>
-                    {ACCOUNT_COPY.connectOne}
-                </AccountLineAction>
-                {connectDrawer}
-            </AccountLine>
+        body = (
+            <AccountSelect
+                // Unknown until the read answers: show no value rather than a guess.
+                value={loading || failed ? "" : yourAccountValue(account)}
+                options={[
+                    {
+                        value: USE_MY_DEFAULT,
+                        label: t("entityUi.accountSwitch.useMyDefault"),
+                        meta: fallback ? fallback.name || fallback.slug || "" : undefined,
+                    },
+                    ...yours
+                        .filter((connection) => connection.id)
+                        .map((connection) => ({
+                            value: connection.id as string,
+                            label: connection.name || connection.slug || "",
+                        })),
+                ]}
+                connectLabel={t("entityUi.accounts.connectAnother", {name})}
+                onChange={(value) => void pick(value)}
+                aria-label={t("entityUi.accountSwitch.yourAccount")}
+                disabled={choice.busy || loading || failed}
+            />
         )
     }
 
-    const accountName = account?.match ? (account.name ?? used?.name ?? "") : ""
-    const text = account?.match
-        ? ACCOUNT_COPY.whenYouRun(
-              account.match === "default"
-                  ? `${accountName} ${ACCOUNT_COPY.yourDefault}`
-                  : accountName,
-          )
-        : ACCOUNT_COPY.noneChosen
-    const usedIsDefault = account?.match === "default" || isConnectionDefault(used)
-
     return (
-        <AccountLine text={text}>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <AccountLineAction disabled={busy}>
-                        {account?.match ? ACCOUNT_COPY.change : ACCOUNT_COPY.choose}
-                    </AccountLineAction>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[220px]">
-                    {yours.map((connection) => (
-                        <DropdownMenuItem
-                            key={connection.id ?? connection.slug}
-                            onSelect={() => void choose(connection)}
-                        >
-                            <span className="flex size-3.5 shrink-0 items-center">
-                                {connection.id === usedId ? <Check size={14} /> : null}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate">
-                                {connection.name || connection.slug}
-                            </span>
-                            {isConnectionDefault(connection) ? (
-                                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
-                                    {ACCOUNT_COPY.defaultMark}
-                                </span>
-                            ) : null}
-                        </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    {usedId && !usedIsDefault ? (
-                        <DropdownMenuItem onSelect={() => void makeDefault()}>
-                            {ACCOUNT_COPY.makeDefault}
-                        </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem onSelect={() => setConnectOpen(true)}>
-                        <Plus size={14} />
-                        {ACCOUNT_COPY.connectAnother(integrationName)}
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-            {connectDrawer}
-        </AccountLine>
+        <div className="flex flex-col gap-2">
+            <FieldHeading
+                label={t("entityUi.accountSwitch.yourAccount")}
+                note={t("entityUi.accountSwitch.yourAccountNote", {name})}
+            />
+            {body}
+            {choice.failed ? (
+                <span className="text-xs text-colorError">
+                    {t("entityUi.accounts.choiceFailed")}
+                </span>
+            ) : null}
+        </div>
     )
 }

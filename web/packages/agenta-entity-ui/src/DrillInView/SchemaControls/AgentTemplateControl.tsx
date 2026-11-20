@@ -1008,16 +1008,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIndicator = (key: string) =>
         withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
 
-    // A tagged integration opens the drawer that picks or connects its account.
-    const openIntegrationRow = useCallback(
-        (row: IntegrationRow) => {
-            if (integrationRowIndices(row).some((i) => isNeedsSetupStatus(toolResolutionStatus(i))))
-                openAddIntegration()
-            else openIntegrationPermissions(row)
-        },
-        [openAddIntegration, openIntegrationPermissions, toolResolutionStatus],
-    )
-
     // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
     const openSubagentSelector = workflowReference?.enabled
         ? () => {
@@ -1067,7 +1057,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             integrationRows,
             toolStatusFor,
             gatewayToolsEnabled: Boolean(gatewayTools?.enabled),
-            openIntegrationRow,
+            openIntegrationRow: openIntegrationPermissions,
             askRemoveIntegration: setRemovingIntegration,
         }),
         subagentsSection({
