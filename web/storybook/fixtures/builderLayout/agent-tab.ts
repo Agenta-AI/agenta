@@ -1,26 +1,17 @@
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
-import {workflowIds} from "../workflow"
 
 import {configSliceQueries} from "./foundation-a2"
 
 /**
  * The Agent tab and the confirmation dialogs: the agent "Support triage" of S02 as a saved
- * revision (the first slice's fixture), and the values the dialogs of F06 name.
+ * revision (the first slice's fixture), the vault the Secrets list reads, and the values the
+ * dialogs of F06 name.
  */
-
-export interface AgentTabIds {
-    projectId: string
-    workflowId: string
-    revisionId: string
-}
-
-export const agentTabIds = (scope: StoryScope): AgentTabIds => {
-    const ids = workflowIds(scope)
-    return {projectId: ids.projectId, workflowId: ids.workflowId, revisionId: ids.revisionId}
-}
-
-export const agentTabQueries = (scope: StoryScope): [readonly unknown[], unknown][] =>
-    configSliceQueries(scope)
+export const agentTabQueries = (scope: StoryScope): [readonly unknown[], unknown][] => [
+    ...configSliceQueries(scope),
+    // The Secrets list waits for the vault; an empty vault shows each attachment by its slug.
+    [["vault", "secrets", undefined, scope.projectId], []],
+]
 
 /** F06 f2: the integration being removed. */
 export const REMOVED_INTEGRATION = "Zendesk"

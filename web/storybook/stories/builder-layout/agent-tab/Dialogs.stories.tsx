@@ -12,21 +12,20 @@ import {screen, userEvent, within} from "storybook/test"
 // Imported from source: the package barrel does not re-export these two.
 import {AgentSecretsSection} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/AgentSecretsSection"
 import {RemoveFromAgentDialog} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/RemoveFromAgentDialog"
-import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
+import {storyScope, type StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {
-    agentTabIds,
     agentTabQueries,
     DELETED_AUTOMATION,
     REMOVED_INTEGRATION,
     REVERT,
-    type AgentTabIds,
 } from "../../../fixtures/builderLayout/agent-tab"
 import {SECRET_NAMES} from "../../../fixtures/builderLayout/index"
+import {workflowIds} from "../../../fixtures/workflow"
 
 const noop = () => undefined
 
 /** A frame the size of the panel, so each dialog shows over what it guards. */
-const Frame = ({children}: {children: ReactNode}) => (
+const Frame = ({children}: {children?: ReactNode}) => (
     <div data-testid="agent-panel" className="relative h-[480px] w-[440px]">
         {children}
     </div>
@@ -59,17 +58,6 @@ const RemoveFromAgent = () => {
     )
 }
 
-/** F06 f3: the Secrets list of the agent; the story clicks the bin of the first secret. */
-const RemoveSecret = ({ids}: {ids: AgentTabIds}) => (
-    <AgentSecretsSection
-        revisionId={ids.revisionId}
-        bindings={SECRET_NAMES.map((name) => ({
-            secret: {slug: name.toLowerCase()},
-            binding: {type: "env" as const, name},
-        }))}
-    />
-)
-
 // The storybook package does not depend on @agenta/automation-ui; the type comes from the menu.
 type Automation = ComponentProps<typeof AutomationActionsMenu>["automation"]
 
@@ -86,9 +74,6 @@ const AUTOMATION: Automation = {
     updatedAt: null,
     raw: {id: "automation-daily-summary", name: DELETED_AUTOMATION} as Automation["raw"],
 }
-
-/** F06 f4: the automation's menu; the story opens it and picks Delete. */
-const DeleteAutomation = () => <AutomationActionsMenu automation={AUTOMATION} base="/w/w/p/p" />
 
 /** F06 f5: revert from the version history; the dialog sits inside the history drawer. */
 const Revert = () => {
@@ -107,51 +92,53 @@ const Revert = () => {
     )
 }
 
-type Dialog = "unsaved" | "remove" | "secret" | "automation" | "revert"
-
-const Dialogs = ({dialog, ids}: {dialog: Dialog; ids: AgentTabIds}) => (
-    <Frame>
-        {dialog === "unsaved" ? <UnsavedChanges /> : null}
-        {dialog === "remove" ? <RemoveFromAgent /> : null}
-        {dialog === "secret" ? <RemoveSecret ids={ids} /> : null}
-        {dialog === "automation" ? <DeleteAutomation /> : null}
-        {dialog === "revert" ? <Revert /> : null}
-    </Frame>
-)
-
 const meta = {
     title: "BuilderLayout/agent-tab/Dialogs",
-    component: Dialogs,
+    component: Frame,
     parameters: {
         layout: "padded",
-        agenta: {
-            queries: (scope: StoryScope) => agentTabQueries(scope),
-            args: (scope: StoryScope) => ({ids: agentTabIds(scope)}),
-        },
+        agenta: {queries: (scope: StoryScope) => agentTabQueries(scope)},
     },
-} satisfies Meta<typeof Dialogs>
+} satisfies Meta<typeof Frame>
 
 export default meta
 type Story = StoryObj<typeof meta>
 
-const ids: AgentTabIds = {projectId: "", workflowId: "", revisionId: ""}
-
 /** F06 f1: "You have unsaved changes", Keep editing, Discard, Save changes. */
 export const UnsavedChangesDialogStory: Story = {
     name: "Unsaved changes",
-    args: {dialog: "unsaved", ids},
+    render: () => (
+        <Frame>
+            <UnsavedChanges />
+        </Frame>
+    ),
 }
 
 /** F06 f2: "Remove Zendesk from this agent?" */
 export const RemoveFromAgentStory: Story = {
     name: "Remove from agent",
-    args: {dialog: "remove", ids},
+    render: () => (
+        <Frame>
+            <RemoveFromAgent />
+        </Frame>
+    ),
 }
 
-/** F06 f3: "Remove this secret attachment?" */
+/** F06 f3: "Remove this secret attachment?", opened from the bin of the first secret. */
 export const RemoveSecretStory: Story = {
     name: "Remove secret",
-    args: {dialog: "secret", ids},
+    // The ids of the story's fixture: the scope comes from the story id, as the decorator makes it.
+    render: (_args, {id}) => (
+        <Frame>
+            <AgentSecretsSection
+                revisionId={workflowIds(storyScope(id)).revisionId}
+                bindings={SECRET_NAMES.map((name) => ({
+                    secret: {slug: name.toLowerCase()},
+                    binding: {type: "env" as const, name},
+                }))}
+            />
+        </Frame>
+    ),
     play: async ({canvasElement}) => {
         const bin = await within(canvasElement).findByRole("button", {
             name: `Remove ${SECRET_NAMES[0]}`,
@@ -161,10 +148,14 @@ export const RemoveSecretStory: Story = {
     },
 }
 
-/** F06 f4: "Delete this automation?" */
+/** F06 f4: "Delete this automation?", opened from the automation's menu. */
 export const DeleteAutomationStory: Story = {
     name: "Delete automation",
-    args: {dialog: "automation", ids},
+    render: () => (
+        <Frame>
+            <AutomationActionsMenu automation={AUTOMATION} base="/w/w/p/p" />
+        </Frame>
+    ),
     play: async ({canvasElement}) => {
         const menu = await within(canvasElement).findByRole("button", {
             name: "Automation actions",
@@ -179,5 +170,9 @@ export const DeleteAutomationStory: Story = {
 /** F06 f5: "Revert to v3?" */
 export const RevertStory: Story = {
     name: "Revert version",
-    args: {dialog: "revert", ids},
+    render: () => (
+        <Frame>
+            <Revert />
+        </Frame>
+    ),
 }
