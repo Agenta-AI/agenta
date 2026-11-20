@@ -221,7 +221,8 @@ function YourAccount({
         }
         body = (
             <AccountSelect
-                value={loading || failed ? USE_MY_DEFAULT : yourAccountValue(account)}
+                // Unknown until the read answers: show no value rather than a guess.
+                value={loading || failed ? "" : yourAccountValue(account)}
                 options={[
                     {
                         value: USE_MY_DEFAULT,
@@ -238,7 +239,7 @@ function YourAccount({
                 connectLabel={t("entityUi.accounts.connectAnother", {name})}
                 onChange={(value) => void pick(value)}
                 aria-label={t("entityUi.accountSwitch.yourAccount")}
-                disabled={choice.busy}
+                disabled={choice.busy || loading || failed}
             />
         )
     }
