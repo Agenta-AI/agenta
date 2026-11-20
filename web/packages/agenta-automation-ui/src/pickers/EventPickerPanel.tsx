@@ -403,13 +403,15 @@ export const EventInlineCard = ({
     // The app is held here until an event is picked: the draft stores a connection and an event
     // together.
     const [connectionId, setConnectionId] = useState(automation.connectionId ?? "")
+    // The first connected app until one is picked, as the canvas shows the form with an app.
     const app =
         apps.find((candidate) => candidate.connectionId === connectionId) ??
         apps.find(
             (candidate) =>
                 candidate.integrationKey ===
                 connections.find((connection) => connection.id === connectionId)?.integration_key,
-        )
+        ) ??
+        apps[0]
     const eventKey =
         app && app.connectionId === automation.connectionId ? (automation.eventKey ?? "") : ""
 
