@@ -56,5 +56,6 @@
     "countSkill_one": "{{count}} skill",
     "countSkill_other": "{{count}} skills",
     "countTool_one": "{{count}} tool",
-    "countTool_other": "{{count}} tools"
+    "countTool_other": "{{count}} tools",
+    "change": "Change"
 }

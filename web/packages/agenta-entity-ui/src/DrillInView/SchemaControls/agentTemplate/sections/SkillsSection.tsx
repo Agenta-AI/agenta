@@ -10,6 +10,7 @@ import {ConfigItemList} from "../ConfigItemList"
 import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
 import {describeSkill, isEmbedRefSkill, skillCommandName} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
+import {SectionPageAction} from "../SectionPageAction"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
@@ -57,6 +58,10 @@ export const skillsSection = ({
                 .join(", ") || tNow("common.none"),
         indicator: sectionIndicator("skills"),
         extra: !disabled ? <SkillsAddMenu t={t} onManual={handleAddSkill} /> : undefined,
+        // On the Configuration page "Add" opens the add flow.
+        pageAction: !disabled ? (
+            <SectionPageAction action="add" onClick={handleAddSkill} />
+        ) : undefined,
         defaultOpen: skills.length > 0,
         content: (
             <SkillsList

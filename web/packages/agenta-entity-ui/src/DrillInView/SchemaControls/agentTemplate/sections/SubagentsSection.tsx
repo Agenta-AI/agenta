@@ -11,6 +11,7 @@ import {ConnectedSubagentList} from "../ConnectedSubagents"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
+import {SectionPageAction} from "../SectionPageAction"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
 import {findSubagentIndex, subagentItemRef, subagentSlugRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
@@ -75,6 +76,10 @@ export const subagentsSection = ({
                     label={t("entityUi.agentTemplate.addSubagent")}
                     onClick={openAddSubagents}
                 />
+            ) : undefined,
+        pageAction:
+            !disabled && openAddSubagents ? (
+                <SectionPageAction action="add" onClick={openAddSubagents} />
             ) : undefined,
         defaultOpen: subagentCount > 0,
         content: (

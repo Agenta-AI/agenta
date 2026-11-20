@@ -32,6 +32,7 @@ import {SecretRemoveDialog} from "../../../../secret/SecretRemoveDialog"
 import {ItemRow, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
+import {SectionPageAction} from "../SectionPageAction"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
 
@@ -72,6 +73,14 @@ export const secretsSection = ({
                 onAdd={() => openAttach()}
             />
         ) : undefined,
+        pageAction: !disabled ? (
+            <SecretsAddButton
+                revisionId={revisionId ?? ""}
+                canEditSecrets={canEditSecrets}
+                onAdd={() => openAttach()}
+                page
+            />
+        ) : undefined,
         defaultOpen: bindings.length > 0,
         content: (
             <SecretsSectionBody
@@ -96,13 +105,17 @@ const SecretsAddButton = ({
     revisionId,
     canEditSecrets,
     onAdd,
+    page = false,
 }: {
     revisionId: string
     canEditSecrets: boolean
     onAdd: () => void
+    /** The Configuration page's text button in place of the header "+". */
+    page?: boolean
 }) => {
     const t = useT(secretAttachmentCatalog)
     const {canChange} = useCanChange(revisionId, canEditSecrets)
+    if (page) return <SectionPageAction action="add" disabled={!canChange} onClick={onAdd} />
     return (
         <SectionAddButton
             label={t("entityUi.secretAttachment.attachTitle")}
