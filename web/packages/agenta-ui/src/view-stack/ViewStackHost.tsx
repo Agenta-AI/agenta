@@ -405,6 +405,7 @@ export const ViewStackHost = ({
                                 replace={replace}
                                 back={back}
                                 cancel={cancel}
+                                save={save}
                             />
                         ))}
                     </Chrome>
@@ -434,6 +435,7 @@ const MountedView = ({
     replace,
     back,
     cancel,
+    save,
 }: {
     entry: Entry
     isTop: boolean
@@ -457,6 +459,7 @@ const MountedView = ({
     ) => Promise<boolean>
     back: () => Promise<boolean>
     cancel: () => void
+    save: () => Promise<void>
 }) => {
     const {key} = entry
     const api = useMemo<ViewEntryApi>(
@@ -483,8 +486,9 @@ const MountedView = ({
             replace: (view, params, target) => replace(key, view, params, target),
             back,
             cancel,
+            save,
         }),
-        [depth, key, push, replace, back, cancel],
+        [depth, key, push, replace, back, cancel, save],
     )
     const Component = entry.view.Component
     return (

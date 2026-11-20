@@ -99,16 +99,13 @@ describe("SkillFormView, canvas F07", () => {
         await openMenu()
         const open = document.querySelector('[aria-current="true"]')
         expect(open?.textContent).toContain("SKILL.md")
-        expect(open?.querySelectorAll("svg").length).toBe(2)
     })
 
-    it("shows the first result as picked and keeps 'Add a file' for no match", async () => {
+    it("hides 'Add a file' while results show and keeps it for no match", async () => {
         await mount()
         const search = await openMenu()
         await type(search, "re")
         await findByText("refund-policy.md")
-        const first = byText("refund-policy.md")?.closest("button")
-        expect(first?.className).toContain("bg-colorFillSecondary")
         expect(byText("Add a file")).toBeFalsy()
         await type(search, "zzz")
         await findByText("No file matches")

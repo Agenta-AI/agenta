@@ -76,6 +76,37 @@ describe("ViewForm step fields", () => {
         expect(screen.queryByRole("button", {name: "Save"})).toBeNull()
     })
 
+    it("nav.save runs the form's save and leaves the view", async () => {
+        let saved = 0
+        const view: ViewDef<Record<string, never>> = defineView({
+            id: "test.navSave",
+            apply: "on_save",
+            actionRow: false,
+            Component: ({nav}) => {
+                useViewTitle("token")
+                useViewForm({
+                    dirty: true,
+                    valid: true,
+                    leaveDescription: "Unsaved",
+                    save: async () => {
+                        saved += 1
+                        return true
+                    },
+                })
+                return <button onClick={() => void nav.save()}>connect</button>
+            },
+        })
+        render(
+            <ViewStackHost chrome={DrawerViewChrome} rootTitle="Agent">
+                <Opener view={view} />
+            </ViewStackHost>,
+        )
+        await act(async () => screen.getByText("open").click())
+        await act(async () => (await screen.findByText("connect")).click())
+        expect(saved).toBe(1)
+        expect(screen.queryByText("connect")).toBeNull()
+    })
+
     it("cancel runs in place of leaving the view", async () => {
         await openIn(makeView((back) => ({cancel: back})))
         await act(async () => screen.getByText("start step").click())

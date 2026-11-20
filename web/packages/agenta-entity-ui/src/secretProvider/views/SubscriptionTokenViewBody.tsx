@@ -58,8 +58,8 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
         return draft.apply()
     }
 
-    // The view draws no action row (`actionRow: false`); the form still guards leaving, and the
-    // unsaved-changes dialog saves through it.
+    // The view draws no action row (`actionRow: false`); the form guards leaving, and Connect and
+    // the unsaved-changes dialog both save through it.
     useViewForm({
         dirty: typed || draft.changed,
         valid,
@@ -69,12 +69,13 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
         save,
     })
 
-    // Connect and Cancel sit in the card (F11 f10): Connect first, as the primary action.
+    // Connect and Cancel sit in the card (F11 f10): Connect first, as the primary action. Connect
+    // is the stack's own Save (`nav.save`), so the stack guards it and leaves when it lands.
     const connect = async () => {
         if (!valid || saving) return
         setSaving(true)
         try {
-            if (await save()) nav.cancel()
+            await nav.save()
         } finally {
             setSaving(false)
         }

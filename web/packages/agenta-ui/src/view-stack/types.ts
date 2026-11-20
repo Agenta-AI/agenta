@@ -78,6 +78,11 @@ export interface ViewNav {
     back: () => Promise<boolean>
     /** Cancel: discards the local form without asking, then goes back. */
     cancel: () => void
+    /**
+     * The action row's Save, for a view that draws its own Save inside the body
+     * (`actionRow: false`): the same guarded save, and the view leaves when it lands.
+     */
+    save: () => Promise<void>
 }
 
 /**

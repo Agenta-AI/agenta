@@ -237,9 +237,7 @@ export const useSecretAttachForm = ({
         const secret =
             next.kind === "shared"
                 ? allProjectSecrets.find((candidate) => candidate.slug === next.slug)
-                : next.kind === "user"
-                  ? ownSecrets.find((candidate) => candidate.id === next.secretId)
-                  : undefined
+                : ownSecrets.find((candidate) => candidate.id === next.secretId)
         setEnvVarState(
             preserveAgentSecretEnvOverride({
                 current: envVar,

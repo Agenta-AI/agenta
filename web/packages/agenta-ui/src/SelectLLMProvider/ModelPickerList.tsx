@@ -150,7 +150,7 @@ const ModelPickerList = ({
                                 "inline-flex h-5 shrink-0 items-center rounded px-[7px] text-[12px] leading-4",
                                 group.tagTone === "olive"
                                     ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
-                                    : "bg-colorBgContainer text-colorTextSecondary shadow-[inset_0_0_0_1px_var(--colorBorderSecondary)]",
+                                    : "bg-colorBgContainer text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary",
                             )}
                         >
                             {group.tag}
