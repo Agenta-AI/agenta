@@ -167,9 +167,28 @@ def test_gemini_flash_is_priced_at_the_list_price_times_one_point_two(model):
     assert _gemini_charge(model) == (3621, RATE_CARD_VERSION)
 
 
-def test_gemini_argon_is_priced_at_the_list_price_times_one_point_two():
-    """List price read 2026-10-14 (global, through 2026-11-30): $2 input, $0.10 cached
-    input, $10 output per million tokens. Ours is x 1.2."""
+@pytest.mark.parametrize("model", ["google/gemini-4-argon", "google/gemini-4-carbon"])
+def test_gemini_argon_and_carbon_are_priced_at_the_list_price_times_one_point_two(
+    model,
+):
+    """List price read 2026-10-14 for Argon and 2026-11-19 for Carbon (global, through
+    2026-11-30): $2 input, $0.10 cached input, $10 output per million tokens. Ours is x 1.2."""
     # 2457 x 2_400_000 + 12256 x 120_000 + 68 x 12_000_000
     # = 5_896_800_000 + 1_470_720_000 + 816_000_000 = 8_183_520_000; / 1e6 up = 8184
-    assert _gemini_charge("google/gemini-4-argon") == (8184, RATE_CARD_VERSION)
+    assert _gemini_charge(model) == (8184, RATE_CARD_VERSION)
+
+
+def test_gemini_hydrogen_is_priced_at_the_list_price_times_one_point_two():
+    """List price read 2026-11-19 (global, no promotion): $1.50 input, $0.075 cached
+    input, $7.50 output per million tokens. Ours is x 1.2."""
+    # 2457 x 1_800_000 + 12256 x 90_000 + 68 x 9_000_000
+    # = 4_422_600_000 + 1_103_040_000 + 612_000_000 = 6_137_640_000; / 1e6 up = 6138
+    assert _gemini_charge("google/gemini-4-hydrogen") == (6138, RATE_CARD_VERSION)
+
+
+def test_gemini_neon_is_priced_at_the_list_price_times_one_point_two():
+    """List price read 2026-11-19 (global, no promotion): $3 input, $0.15 cached input,
+    $15 output per million tokens. Ours is x 1.2."""
+    # 2457 x 3_600_000 + 12256 x 180_000 + 68 x 18_000_000
+    # = 8_845_200_000 + 2_206_080_000 + 1_224_000_000 = 12_275_280_000; / 1e6 up = 12276
+    assert _gemini_charge("google/gemini-4-neon") == (12276, RATE_CARD_VERSION)

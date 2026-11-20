@@ -83,6 +83,9 @@ _AGENT_CATALOG_IDS: set = _agent_catalog_ids()
 # catalog. Remove an id once a litellm bump indexes it.
 _KNOWN_LIVE_MAP_ONLY = {
     "gemini/gemini-4-argon",
+    "gemini/gemini-4-carbon",
+    "gemini/gemini-4-hydrogen",
+    "gemini/gemini-4-neon",
     "gpt-5.6-cyber",
     "xai/grok-4.20-0309-non-reasoning",
 }
