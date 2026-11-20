@@ -158,9 +158,15 @@ def service(workflows, hidden):
     return service
 
 
-def _call(handler, service, *, workspace_id=None, **arguments):
+_NO_OWNER = object()
+
+
+def _call(handler, service, *, workspace_id=None, owner=USER, **arguments):
     # Only the agent tools take a workspace; `commit_revision` shares this helper.
     extra = {"workspace_id": workspace_id} if workspace_id else {}
+    if handler is handle_create_agent and owner is not _NO_OWNER:
+        # A create is made by a person's run unless a test says otherwise.
+        extra["first_agent_owner_user_id"] = owner
     return handler(
         arguments=arguments,
         project_id=PROJECT,
@@ -625,10 +631,12 @@ class TestTheTargetIsAnotherAgentInThisProject:
         "handler", [handle_read_agent_config, handle_edit_agent_config]
     )
     async def test_a_hidden_agent_answers_exactly_what_an_unknown_one_answers(
-        self, service, hidden, handler
+        self, service, hidden, handler, workflows
     ):
         hidden.add(TARGET)
         hidden_answer = await _call(handler, service, **_edit_args())
+        # The same slug, now naming no agent at all.
+        del workflows[TARGET]
         service.fetch_workflow_revision.return_value = None
         unknown_answer = await _call(
             handler, service, **_edit_args(agent="invoice-helper-k3x9")
@@ -1265,10 +1273,26 @@ class TestCreateAgent:
 
         assert create.await_args.kwargs["request_key"] != private_key
 
+    async def test_a_run_without_an_owner_cannot_make_a_private_agent(
+        self, service, create
+    ):
+        # An agent nobody owns is visible to the project, so a private request is
+        # refused before any write instead of making a project-visible agent.
+        for arguments in (self._args(visibility="private"), self._args()):
+            result = await _call(
+                handle_create_agent, service, owner=_NO_OWNER, **arguments
+            )
+            assert not result.ok
+            assert result.content.code == "invalid_arguments"
+            assert "visibility: project" in result.content.next_step
+        create.assert_not_awaited()
+
     async def test_a_run_without_an_owner_makes_a_project_agent(self, service, create):
-        # A private agent nobody owns would be hidden from everyone.
         result = await _call(
-            handle_create_agent, service, **self._args(visibility="private")
+            handle_create_agent,
+            service,
+            owner=_NO_OWNER,
+            **self._args(visibility="project"),
         )
 
         assert create.await_args.kwargs["access"] is None
@@ -1644,6 +1668,7 @@ class TestCreateAgentRetry:
             user_id=USER,
             workflows_service=service,
             agent_read_scope=scope,
+            first_agent_owner_user_id=USER,
         )
 
         assert not result.ok
