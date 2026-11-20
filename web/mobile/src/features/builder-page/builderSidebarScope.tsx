@@ -9,8 +9,9 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {Spinner} from "@agenta/ui/ui"
-import {ArrowClockwiseIcon, SparkleIcon} from "@phosphor-icons/react"
+import {ArrowClockwiseIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
@@ -136,7 +137,7 @@ export const createBuilderSidebarScope = (
                         className={`flex min-w-0 items-center gap-2 ${collapsed ? "" : "h-[38px] flex-1"}`}
                     >
                         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorSplit text-colorText">
-                            <SparkleIcon aria-hidden size={18} />
+                            <BuilderIcon size={18} />
                         </span>
                         {collapsed ? null : (
                             <span className="truncate text-sm font-medium text-colorText">

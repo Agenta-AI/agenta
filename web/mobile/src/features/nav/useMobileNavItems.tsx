@@ -40,6 +40,7 @@ import {
 } from "@agenta/sessions-ui"
 import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
@@ -55,7 +56,6 @@ import {
     RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
-    SparkleIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -303,7 +303,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: "mobile-builder",
                 title: tBuilder("builder.page.builder"),
-                icon: createElement(SparkleIcon, {size: 16}),
+                icon: createElement(BuilderIcon, {size: 16}),
                 link: `${projectURL}/builder`,
             },
             {
