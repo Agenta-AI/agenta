@@ -657,6 +657,35 @@ describe("one form: the address checks itself", () => {
         expect(document.querySelector('[data-testid="mcp-probe-result"]')).toBeTruthy()
     })
 
+    it("takes typing while a check runs, and drops that check's late answer", async () => {
+        let release: (value: unknown) => void = () => undefined
+        probeMcpUrl.mockReturnValueOnce(new Promise((resolve) => (release = resolve)))
+        await openJourney()
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
+        await pressEnter(field("Server URL")!)
+        expect(probeMcpUrl).toHaveBeenCalledTimes(1)
+
+        // Typing during the check is not lost.
+        expect(field("Server URL")!.readOnly).toBe(false)
+        await typeInto(field("Server URL")!, "https://mcp.other.test/")
+        expect(field("Server URL")!.value).toBe("https://mcp.other.test/")
+
+        // The answer for the first address arrives late and is dropped.
+        await act(async () =>
+            release({
+                count: 1,
+                probe: {
+                    reachable: true,
+                    server_name: "Acme",
+                    auth: {mode: "none", scopes_offered: []},
+                },
+            }),
+        )
+        await settle()
+        expect(document.querySelector('[data-testid="mcp-probe-result"]')).toBeNull()
+        expect(field("Server URL")!.value).toBe("https://mcp.other.test/")
+    })
+
     it("checks when the field is left", async () => {
         await openJourney()
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")

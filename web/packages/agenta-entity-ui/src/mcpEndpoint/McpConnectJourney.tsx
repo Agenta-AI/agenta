@@ -857,10 +857,11 @@ export function useMcpConnectScreens({
                         placeholder="https://mcp.example.com/mcp"
                         value={reconnect?.url ?? state.url}
                         // A reconnect repairs one address and never points a saved connection
-                        // somewhere else. While a check or a connect runs, the field keeps the
-                        // cursor but takes no typing: a new address would race the answer.
+                        // somewhere else. While a connect runs, the field keeps the cursor but
+                        // takes no typing. A check does not lock it: typing drops that check's
+                        // answer and the next pause checks the new address.
                         disabled={!!reconnect}
-                        readOnly={busy}
+                        readOnly={busy && state.status !== "checking_url"}
                         aria-label={t("entityUi.mcpJourney.serverUrl")}
                         // The failure box, when the check has failed. The help line
                         // is `HintedField`'s to name, and it names it only while it
