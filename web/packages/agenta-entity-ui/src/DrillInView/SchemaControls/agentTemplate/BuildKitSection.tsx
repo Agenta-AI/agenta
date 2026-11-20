@@ -23,6 +23,8 @@ export interface BuildKitSectionProps {
     state: BuildKitUiState
     onChange: (next: BuildKitUiState) => void
     disabled?: boolean
+    /** A read-only view (a phone): the permissions show as text. */
+    readOnly?: boolean
     tools: BuildKitTool[]
 }
 
@@ -86,7 +88,13 @@ export const buildKitToolOptions: PermissionPolicyOption[] = [
     toolOption("deny", "entityUi.buildKit.toolDeactivate", "entityUi.buildKit.toolDeactivateHelp"),
 ]
 
-export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSectionProps) {
+export function BuildKitSection({
+    state,
+    onChange,
+    disabled,
+    readOnly,
+    tools,
+}: BuildKitSectionProps) {
     const t = useT(buildKitCatalog)
     const platform = tools.filter((tool) => tool.op)
     const permissions: GatewayConnectionPermissions = {
@@ -179,6 +187,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                     },
                 }}
                 disabled={disabled}
+                valuesAsText={readOnly}
                 lockedTool={() =>
                     state.enabled ? null : t("entityUi.buildKit.buildKitDeactivated")
                 }

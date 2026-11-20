@@ -24,10 +24,11 @@ function embedRow(entry: Record<string, unknown>, fallbackKey: string): BuildKit
 
 export function useBuildKit({
     revisionId,
-    disabled,
+    readOnly,
 }: {
     revisionId: string | null
-    disabled?: boolean
+    /** A read-only view (a phone): the permissions show as text. */
+    readOnly?: boolean
 }) {
     const overlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
@@ -75,7 +76,8 @@ export function useBuildKit({
             <BuildKitSection
                 state={value}
                 onChange={onChange}
-                disabled={disabled || !scope}
+                disabled={!scope}
+                readOnly={readOnly}
                 tools={tools}
             />
         ) : null,
