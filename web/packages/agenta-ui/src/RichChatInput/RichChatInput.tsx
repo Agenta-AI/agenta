@@ -177,22 +177,9 @@ const chatInputExtension = defineExtension({
 /** The composer box's look; see `RichChatInputProps.surface`. */
 export type ComposerSurface = "default" | "canvas"
 
-export function ShortcutHint({
-    keys,
-    label,
-    className,
-}: {
-    keys: string
-    label: string
-    className?: string
-}) {
+export function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
-        <span
-            className={clsx(
-                "flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]",
-                className,
-            )}
-        >
+        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
             <KbdGroup>
                 {keys.split(" ").map((key) => (
                     <Kbd key={key} size="md">
@@ -498,8 +485,10 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 className={clsx(
                                     // Below md: phones have no Enter/Cmd chords worth advertising.
                                     "flex items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
-                                    // The canvas row stays one line; its Newline hint gives way.
-                                    canvas ? "shrink-0" : "flex-wrap",
+                                    // The canvas row stays one line. In a narrow box (the builder
+                                    // panel, P1b) the hints give way so the model name keeps its
+                                    // room: they hold their width even while faded out.
+                                    canvas ? "shrink-0 @max-[520px]/composer:hidden" : "flex-wrap",
                                     hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",
@@ -513,12 +502,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     <span aria-hidden className="h-4 w-px bg-border/60" />
                                 ) : null}
                                 <ShortcutHint keys="↵" label={t("ui.chatInput.send")} />
-                                {/* One row in a narrow box (P1b): the model name keeps its room
-                                    and only the Send hint stays. */}
                                 <ShortcutHint
                                     keys={`${modKey} ↵`}
                                     label={t("ui.chatInput.newline")}
-                                    className={canvas ? "@max-[520px]/composer:hidden" : undefined}
                                 />
                             </div>
                         )}
