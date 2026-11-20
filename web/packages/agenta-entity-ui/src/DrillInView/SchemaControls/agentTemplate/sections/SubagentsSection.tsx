@@ -67,6 +67,8 @@ export const subagentsSection = ({
         // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
         // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its
         // `-my-2`), so no per-button sizing is needed here.
+        // Add MCP server and Add subagent are read only on a phone: the list shows, no add.
+        hideExtraOnPhone: true,
         extra:
             !disabled && openAddSubagents ? (
                 <SectionAddButton

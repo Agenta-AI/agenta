@@ -49,6 +49,8 @@ export const agentMcpSection = ({
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(mcpServers.length, "server") || tNow("common.none"),
         indicator: sectionIndicator("mcp"),
+        // Add MCP server and Add subagent are read only on a phone: the list shows, no add.
+        hideExtraOnPhone: true,
         extra:
             !disabled && openAddMcpServer ? (
                 <SectionAddButton

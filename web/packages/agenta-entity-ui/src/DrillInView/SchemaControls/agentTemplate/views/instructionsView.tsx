@@ -14,6 +14,8 @@ export const instructionsView = defineView<InstructionsViewParams>({
     id: "agent.instructions",
     apply: "on_save",
     wide: true,
+    // Read only on a phone (phone-layout "Read-only views on a phone").
+    readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./InstructionsViewBody"),
         <div className="p-4">

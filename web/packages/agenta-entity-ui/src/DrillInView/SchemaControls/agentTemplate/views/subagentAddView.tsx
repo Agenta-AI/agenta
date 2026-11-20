@@ -13,6 +13,8 @@ export type SubagentAddViewParams = Record<string, never>
 export const subagentAddView = defineView<SubagentAddViewParams>({
     id: "agent.subagent.add",
     apply: "immediate",
+    // Read only on a phone (phone-layout "Read-only views on a phone").
+    readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./SubagentAddViewBody"),
         <div className="px-4 py-3">

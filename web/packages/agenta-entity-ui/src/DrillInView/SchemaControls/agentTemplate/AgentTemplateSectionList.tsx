@@ -42,6 +42,8 @@ export interface AgentTemplateSectionDescriptor {
      * at the bottom of the screen, in place of `extra`.
      */
     phoneAction?: {label: string; icon?: ReactNode; onClick: () => void}
+    /** On a phone the section screen shows no `extra` (its add control): the add view is read only there. */
+    hideExtraOnPhone?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
     onOpen?: () => void
     bodyClassName?: string
@@ -154,7 +156,7 @@ const PhoneSectionList = ({
         return (
             // The column fills the screen, so the primary action sits at its bottom.
             <div data-config-section={shown.key} className="flex min-h-full flex-col gap-3 pt-3">
-                {shown.extra && !shown.phoneAction ? (
+                {shown.extra && !shown.phoneAction && !shown.hideExtraOnPhone ? (
                     <div className="flex justify-end">{shown.extra}</div>
                 ) : null}
                 {shown.content}
