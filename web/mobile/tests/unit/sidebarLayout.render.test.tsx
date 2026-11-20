@@ -7,7 +7,8 @@ afterEach(cleanup)
 
 const items = [{key: "configuration", title: "Configuration", link: "/configuration"}]
 
-const rowOf = (text: string) => screen.getByText(text).closest("div[class*='rounded-md']")
+// The row is the element with the 6 px rail radius.
+const rowOf = (text: string) => screen.getByText(text).closest("div[class*='rounded-sm']")
 
 describe("sidebar layout", () => {
     it("keeps the rail's 28 px rows by default", () => {
@@ -24,5 +25,7 @@ describe("sidebar layout", () => {
         const row = rowOf("Configuration")
         expect(row?.className).toContain("h-11")
         expect(row?.className).not.toContain("h-7")
+        // Edge to edge, as the phone design draws the sheet's rows.
+        expect(row?.className).toContain("mb-0")
     })
 })

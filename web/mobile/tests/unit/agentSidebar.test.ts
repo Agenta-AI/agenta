@@ -137,8 +137,6 @@ describe("the agent sidebar's session rows", () => {
         sessions: [],
         total: null,
         t,
-        newSessionHref: "/w/w1/p/p1/agents/a1",
-        onNewSession: () => undefined,
     }
     const sessionsGroup = (items: ReturnType<typeof agentSidebarItems>) =>
         items.find((item) => item.key === "agent-sidebar-sessions")!
@@ -154,8 +152,23 @@ describe("the agent sidebar's session rows", () => {
         expect(onRetry).toHaveBeenCalledOnce()
     })
 
+    it("draws Configuration, Channels, Analytics and the Sessions heading, with no New session row", () => {
+        const items = agentSidebarItems(base)
+        expect(items.map((item) => item.key)).toEqual([
+            "agent-sidebar-configuration",
+            "agent-sidebar-channels",
+            "agent-sidebar-analytics",
+            "agent-sidebar-sessions",
+        ])
+        // No icon and always open: the rail draws it as a heading link with a Filter button.
+        const group = sessionsGroup(items)
+        expect(group.icon).toBeUndefined()
+        expect(group.alwaysOpen).toBe(true)
+        expect(group.groupAction).toBeDefined()
+    })
+
     it("shows Sessions without a number until the count loads, then the older sessions row", () => {
-        expect(sessionsGroup(agentSidebarItems(base)).groupAction).toBeUndefined()
+        expect(sessionsGroup(agentSidebarItems(base)).suffix).toBeUndefined()
         const session = {
             sessionId: "s1",
             appId: "a1",
@@ -167,7 +180,12 @@ describe("the agent sidebar's session rows", () => {
             isAutomation: false,
         }
         const group = sessionsGroup(agentSidebarItems({...base, sessions: [session], total: 42}))
-        expect(group.groupAction).toBeDefined()
+        expect(group.suffix).toBe("42")
         expect(group.submenu!.at(-1)!.title).toBe("agentSidebar.showOlderSessions:41")
+        // The phone sheet writes the row without the count.
+        const phone = sessionsGroup(
+            agentSidebarItems({...base, sessions: [session], total: 42, phone: true}),
+        )
+        expect(phone.submenu!.at(-1)!.title).toBe("agentSidebar.showOlderSessionsShort")
     })
 })
