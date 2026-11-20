@@ -267,12 +267,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // FLAT; execution parts (harness / runner / sandbox) are nested sub-objects (see useModelHarness).
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
 
-    // Set one flat field of the agent definition (instructions / tools / mcps / skills).
-    const setAgentField = useCallback(
-        (key: string, fieldValue: unknown) => onChange({...config, [key]: fieldValue}),
-        [config, onChange],
-    )
-
     // The server's needs-setup check for this saved revision; null until it answers.
     // A personal requirement belongs to each person who runs the agent, so the editor skips it.
     // The path and item lookups skip it themselves; the section summaries below filter it here.
@@ -1003,7 +997,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       )
                   })()
                 : null}
-
 
             {/* A view in this drawer follows the revision on screen and the edit right. */}
             <AgentEditorContext.Provider value={editor}>{views.drawer}</AgentEditorContext.Provider>
