@@ -17,6 +17,7 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
+    sidebarSessionPageCountAtomFamily,
     sidebarSessionsNeedNextPageAtomFamily,
     RELEASES,
     SIDEBAR_UNBOUNDED,
@@ -255,9 +256,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // Each agent section shows 4 rows, so the rail can be too short to scroll while agents with
     // older sessions are still on later pages: ask for the next page without a scroll.
     const needNextPage = useAtomValue(sidebarSessionsNeedNextPageAtomFamily(MOBILE_NAV_SCOPE_ID))
+    // Read so the effect runs again after each page, also when a page came from the cache and
+    // the answer stayed true.
+    const pages = useAtomValue(sidebarSessionPageCountAtomFamily(MOBILE_NAV_SCOPE_ID))
     useEffect(() => {
         if (needNextPage) loadMoreSessions()
-    }, [needNextPage, loadMoreSessions])
+    }, [needNextPage, pages, loadMoreSessions])
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
     // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
     // call changes identity on every render — which busts the memo below, re-buckets every row,

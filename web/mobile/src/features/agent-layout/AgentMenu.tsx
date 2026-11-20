@@ -46,10 +46,12 @@ export const AgentMenu = ({
     const target = {id: agentId, name}
     // Set when the person picks Archive. The confirmation and the request belong to the shared
     // agent actions, so the menu learns the result from the agent list.
-    const [archiveAsked, setArchiveAsked] = useState(false)
+    const [archiveAskedFor, setArchiveAskedFor] = useState<string | null>(null)
     return (
         <>
-            {archiveAsked ? <LeaveWhenArchived agentId={agentId} base={base} /> : null}
+            {archiveAskedFor === agentId ? (
+                <LeaveWhenArchived agentId={agentId} base={base} />
+            ) : null}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon-sm" aria-label={name} className="shrink-0">
@@ -83,7 +85,7 @@ export const AgentMenu = ({
                     {canEdit ? (
                         <DropdownMenuItem
                             onSelect={() => {
-                                setArchiveAsked(true)
+                                setArchiveAskedFor(agentId)
                                 actions.remove(target)
                             }}
                         >

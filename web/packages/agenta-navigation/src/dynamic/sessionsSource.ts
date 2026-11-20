@@ -1230,6 +1230,11 @@ export const sidebarSessionsNeedNextPageAtomFamily = atomFamily((scopeId: string
         if (filters.groupBy !== "agent" || filters.type !== "chat" || filters.status !== "all")
             return false
         if (get(sidebarSessionPageCountAtomFamily(scopeId)) >= MAX_AUTO_SESSION_PAGES) return false
+        // Not mid-drag (a page then is a no-op; this turns true again after the drop), and not
+        // from a previous filter's rows still shown as placeholder: the tail boundary is taken
+        // from the head and would come from the wrong list.
+        if (get(sidebarReorderActiveAtom)) return false
+        if (get(sidebarSessionsQueryAtomFamily(scopeId)).isPlaceholderData) return false
         const paging = get(sidebarSessionPagingAtomFamily(scopeId))
         if (!paging.hasMore || paging.isLoadingMore || paging.isError) return false
         const live = get(liveAgentIdsAtom)
