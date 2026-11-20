@@ -2023,6 +2023,10 @@
         "tryDifferentName": "4e761553c541",
         "createAgentFirst": "2d945aca7c2b"
     },
+    "entityUi.advancedView": {
+        "toolsSummary_one": "1322736387cd",
+        "toolsSummary_other": "0f0c4ae9dd69"
+    },
     "entityUi.agentActions": {
         "nameTaken": "7a94d43a5c73",
         "agentName": "1cfb21871a03",
@@ -3928,6 +3932,15 @@
         "availableToEveryAgent": "017086649266",
         "savedThenSelected": "bde4d643da6e",
         "whoCanUseIt": "82d9af69e1a1"
+    },
+    "entityUi.secretViews": {
+        "attachLeaveDescription": "b2533950d5bf",
+        "back": "76900f1bfd16",
+        "everyone": "da2e5dc515b1",
+        "formLeaveDescription": "f67f616ee430",
+        "onlyYouLine": "297e32348e0e",
+        "removedState": "0308c4b6fb6c",
+        "secrets": "d8707d411d99"
     },
     "entityUi.selection": {
         "levelApp": "0d04bfeb7d64",

@@ -1,34 +1,32 @@
 import {useState} from "react"
 
 import {personalAccountsAccessAtom, useVaultSecret} from "@agenta/entities/secret"
+import {secretFormView} from "@agenta/entity-ui/secret"
 import {richText, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsSecretsTabCatalog from "@agenta/i18n/catalogs/settings.secretsTab"
 import {addAccountOwners, NamedSecretTable} from "@agenta/settings-ui"
 import type {LlmProvider} from "@agenta/shared/types"
+import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
 import {ConfirmModal} from "./ConfirmModal"
-import {SecretFormSheet} from "./SecretFormSheet"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
 /**
- * Mobile binding: the shared vault table, with create/edit in a sheet and delete in a modal. The
- * desktop puts the same two surfaces in antd modals; the table and its mutations are shared,
- * so only the surfaces differ. `edit_secret` decides whether a new secret asks "Who can use it".
+ * Mobile binding: the shared vault table, with create and edit in the one secret form (a view with
+ * the target "project", in a drawer) and delete in a modal. `edit_secret` decides whether a new
+ * secret asks "Who can use it".
  */
 export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(settingsSecretsTabCatalog, commonCatalog)
     const {handleDeleteVaultSecret} = useVaultSecret()
     const [deleting, setDeleting] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const {projectSwitch, projectName, projectCount} = useSettingsProjectGroup(
-        workspaceId,
-        projectId,
-    )
+    const {projectSwitch, projectCount} = useSettingsProjectGroup(workspaceId, projectId)
     const canEdit = useProjectPermission(projectId, "edit_secret")
     const access = useAtomValue(personalAccountsAccessAtom)
     const owners = addAccountOwners(access, canEdit)
@@ -37,15 +35,18 @@ export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
         <NamedSecretTable
             projectSwitch={projectSwitch}
             projectCount={projectCount}
-            renderConfigureDialog={({selectedSecret, open, onClose}) => (
-                <SecretFormSheet
-                    open={open}
-                    secret={selectedSecret}
-                    onClose={onClose}
-                    owners={owners}
-                    projectName={projectName}
-                />
-            )}
+            renderConfigureDialog={({selectedSecret, open, onClose}) =>
+                open ? (
+                    <ViewDrawerHost
+                        request={{
+                            view: secretFormView,
+                            params: {secretId: selectedSecret?.id, owners},
+                            target: {kind: "project"},
+                        }}
+                        onClosed={onClose}
+                    />
+                ) : null
+            }
             renderDeleteDialog={({selectedProvider, open, onClose}) => (
                 <ConfirmModal
                     open={open}
