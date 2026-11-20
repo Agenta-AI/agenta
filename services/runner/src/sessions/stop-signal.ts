@@ -1,30 +1,37 @@
 /**
- * Labelling the abort so the park policy can tell a user Stop from every other abort.
+ * Labelling the abort so the park policy can tell one kind of cancel from another.
  *
  * WHY A LABEL AND NOT THE FLAG. The runner has one `AbortController` per run, and several
- * different events end a run through it. Only one of them is a cooperative user Stop: the
- * heartbeat reporting `is_current_turn: false` after the API cleared this turn's alive lock
- * (`sessions/alive.ts`, wired at `server.ts`). The rest — a client disconnect on a
- * non-session run, anything a future call site adds — are not Stops, and their environments
- * must still be destroyed.
+ * different events end a run through it. Cooperative cancels are a subset: a user Stop, a runner
+ * shutdown, and the platform reporting the turn is no longer current. The rest — a client
+ * disconnect on a non-session run, anything a future call site adds — are not cancels, and their
+ * environments must still be destroyed.
  *
  * Before this label, `shouldPark` could only read `signal.aborted`, which cannot answer WHY.
- * Inferring the Stop from `stopReason === "cancelled"` would be worse than it looks: the turn
+ * Inferring the cancel from `stopReason === "cancelled"` would be worse than it looks: the turn
  * sets that value whenever the signal aborts, whatever aborted it, so any new
  * `controller.abort()` anywhere in the runner would silently start parking sandboxes whose
  * state nobody has checked. The teardown allowlist exists precisely to stop that from being
- * possible, and this label is what keeps the allowlist honest.
+ * possible, and these labels are what keep the allowlist honest.
  *
  * The mechanism is the standard one: `AbortController.abort(reason)` puts the value on
  * `signal.reason`, and the same signal object reaches the park decision, so nothing new has to
  * be threaded through the engine, the coordinator or the turn.
  *
- * WHAT THIS LABEL DOES NOT DISTINGUISH. Cancel, steer and hard kill all reach the runner the
- * same way today: the API clears the alive lock and the next heartbeat reports it. So all three
- * arrive labelled as a user Stop. That is safe rather than merely tolerable. A steer WANTS the
- * warm environment for the turn it starts, and a kill separately calls the runner's `/kill`,
- * which destroys the pool entry by key whether or not it was parked first. Naming the actual
- * operation needs the durable command plane, which is work package B.
+ * WHY A USER STOP AND A DISPLACED TURN ARE LABELLED APART. Every real user Stop now travels the
+ * durable command plane: the platform sends `POST /cancel`, routed to the turn's own binding, and
+ * the applier aborts the run directly (`sessions/control-channel.ts`, wired in `server.ts`). The
+ * heartbeat's `is_current_turn: false` is what is left over, and it means the platform took the
+ * turn away — a steer opened a new turn on the session, a kill or the API's own watchdog ended
+ * it. Calling that a user Stop made the runner write down a Stop nobody performed, which is
+ * exactly what hid the cause of a lost turn. So the sweep now has its own label.
+ *
+ * WHAT IS STILL SHARED. A displaced turn is a cooperative cancel for the PARK decision: a steer
+ * starts its next turn on the same pool key and wants the warm environment it inherits, and a
+ * kill destroys the pool entry by key whether or not it was parked first. Only the recorded
+ * ending differs (`server.ts` no longer rewrites a displacement into the `cancelled` envelope).
+ * The heartbeat answer is one boolean, so takeover and a lost turn cannot be told apart here;
+ * separating those two needs the platform to say which happened.
  */
 
 /**
@@ -58,7 +65,37 @@ export function isRunnerShutdownAbort(signal: AbortSignal | undefined): boolean 
   return signal?.aborted === true && signal.reason === RUNNER_SHUTDOWN_ABORT_REASON;
 }
 
-/** True for the two aborts that cancel the harness and may park: a user Stop and a shutdown. */
+/**
+ * The `signal.reason` value an abort carries when the platform reports this turn is no longer
+ * current and no user Stop asked for it: another turn took the session over, or the platform
+ * declared this turn lost.
+ *
+ * Set by the alive watchdog's `onInterrupted` callback in `server.ts`, which is the only place
+ * that observes the heartbeat's `is_current_turn: false`. It is NOT `USER_STOP_ABORT_REASON`:
+ * the runner cannot report a Stop the user never performed, and the turn's ending must not be
+ * rewritten into the `cancelled` envelope a real Stop earns.
+ */
+export const TURN_DISPLACED_ABORT_REASON = Object.freeze({
+  agentaAbort: "turn-displaced",
+} as const);
+
+/** True when this signal was aborted because the platform reported the turn is no longer current. */
+export function isTurnDisplacedAbort(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true && signal.reason === TURN_DISPLACED_ABORT_REASON;
+}
+
+/**
+ * True for the three aborts that cancel the harness and may park: a user Stop, a shutdown, and a
+ * turn the platform displaced.
+ *
+ * A displacement belongs here for the reason above: the environment is idle and worth keeping
+ * warm for the turn that takes the session over. It is labelled apart only so the recorded
+ * ending can say what actually happened.
+ */
 export function isCooperativeCancelAbort(signal: AbortSignal | undefined): boolean {
-  return isUserStopAbort(signal) || isRunnerShutdownAbort(signal);
+  return (
+    isUserStopAbort(signal) ||
+    isRunnerShutdownAbort(signal) ||
+    isTurnDisplacedAbort(signal)
+  );
 }
