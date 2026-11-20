@@ -1,23 +1,56 @@
-{
-    "slug": "builder-page",
-    "recipes": [
-        {
-            "frame": "B01",
-            "name": "Builder page, new chat",
-            "kind": "story",
-            "story": "builderlayout-builder-page-builder-page--new-chat",
-            "crop": "[data-testid=\"builder-page-story\"]",
-            "design": "boards/builder__B01-new-chat.png",
-            "themes": ["light", "dark"]
-        },
-        {
-            "frame": "B02",
-            "name": "Builder page, Browse ideas",
-            "kind": "story",
-            "story": "builderlayout-builder-page-builder-page--browse-ideas",
-            "crop": "[data-testid=\"builder-ideas\"]",
-            "design": "boards/builder__B02-browse-ideas.png",
-            "themes": ["light"]
-        }
-    ]
-}
+[
+    {
+        "id": "builder-page-b01-new-chat-light",
+        "story": "builderlayout-builder-page-builder-page--new-chat",
+        "width": 1000,
+        "height": 860,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-page-story\"]",
+        "ready": "text=Browse ideas"
+    },
+    {
+        "id": "builder-page-b01-new-chat-dark",
+        "story": "builderlayout-builder-page-builder-page--new-chat",
+        "width": 1000,
+        "height": 860,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-page-story\"]",
+        "ready": "text=Browse ideas"
+    },
+    {
+        "id": "builder-page-b02-browse-ideas-light",
+        "story": "builderlayout-builder-page-builder-page--browse-ideas",
+        "width": 1000,
+        "height": 860,
+        "theme": "light",
+        "selector": "body",
+        "ready": "[data-testid=\"builder-ideas\"]"
+    },
+    {
+        "id": "builder-page-b03-tabs-light",
+        "story": "builderlayout-builder-page-builder-tabs--pane-tabs",
+        "width": 700,
+        "height": 200,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-tabs-story\"]",
+        "ready": "text=2 more"
+    },
+    {
+        "id": "builder-page-b03-tabs-dark",
+        "story": "builderlayout-builder-page-builder-tabs--pane-tabs",
+        "width": 700,
+        "height": 200,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-tabs-story\"]",
+        "ready": "text=2 more"
+    },
+    {
+        "id": "builder-page-b03-tab-dot-light",
+        "story": "builderlayout-builder-page-builder-tabs--changed-tab",
+        "width": 700,
+        "height": 200,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-tabs-story\"]",
+        "ready": "text=2 more"
+    }
+]

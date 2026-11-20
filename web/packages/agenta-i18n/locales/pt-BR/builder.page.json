@@ -78,5 +78,14 @@
     "drives": "Drives",
     "sessions": "Sessões",
     "noSessions": "Este agente ainda não tem sessões.",
-    "sessionsFailed": "Não foi possível carregar as sessões."
+    "sessionsFailed": "Não foi possível carregar as sessões.",
+    "openItem": "Abrir um item",
+    "closeTab": "Fechar {{name}}",
+    "moreTabs": "Mais {{count}}",
+    "kindAgent": "Agente",
+    "kindAutomation": "Automação",
+    "kindTool": "Ferramenta",
+    "kindApp": "App",
+    "itemNotShown": "Este item ainda não pode ser exibido aqui.",
+    "changedByBuilder": "Alterado pelo Builder"
 }

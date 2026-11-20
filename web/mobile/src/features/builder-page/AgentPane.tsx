@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useState, type MutableRefObject} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {
@@ -48,11 +48,14 @@ export type PaneTab = (typeof PANE_TABS)[number]
  */
 export const AgentPane = ({
     agentId,
+    guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     agentId: string
+    /** The open pane tab's views, shared with the page so it can ask before a builder tab change. */
+    guardRef: MutableRefObject<PageViewStackGuardApi | null>
     /** The builder chat: the session the Drives pane reads its session files from. */
     builderSessionId: string
     workspaceId: string
@@ -73,7 +76,6 @@ export const AgentPane = ({
     // An automation's "Run now" starts a new session of this agent, as from the panel.
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     // The open pane tab's views: an open form with edits asks before a switch.
-    const guardRef = useRef<PageViewStackGuardApi | null>(null)
     const openTab = async (next: PaneTab) => {
         if (next === tab) return
         if (guardRef.current && !(await guardRef.current.stack.closeAll())) return
