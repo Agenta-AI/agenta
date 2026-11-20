@@ -599,11 +599,13 @@ class SessionStreamsRouter:
         interactions_service: SessionInteractionsService,
         run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
+        commands_service: Optional[SessionCommandsService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
         self._run_admission = run_admission
         self._records_service = records_service
+        self._commands_service = commands_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -896,6 +898,31 @@ class SessionStreamsRouter:
         ):
             return {"ok": True}
 
+        # The kill writes no ending for the execution that runs now, so it is settled
+        # `stopped` by the watchdog, and the orphan sweep writes the missing `done` when
+        # the runner writes none. It is settled before the kill: the kill clears the
+        # flags and soft-deletes the row, so a retry after a failed settle could not
+        # find the execution again.
+        stream = await self._service.fetch(
+            project_id=UUID(str(project_id)),
+            session_id=session_id,
+        )
+        if (
+            stream is not None
+            and stream.turn_id
+            and self._commands_service is not None
+            and await self._execution_runs(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                execution_id=stream.turn_id,
+                is_running=stream.flags.is_running,
+            )
+        ):
+            await self._commands_service.settle_execution_killed(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                execution_id=stream.turn_id,
+            )
         await self._service.kill(
             project_id=UUID(str(project_id)),
             user_id=UUID(str(user_id)),
@@ -907,6 +934,26 @@ class SessionStreamsRouter:
             session_id=session_id,
         )
         return {"ok": True}
+
+    async def _execution_runs(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        is_running: bool,
+    ) -> bool:
+        """Whether the session's latest execution is still running. The live flag says
+        so, but Redis can lose it: then an execution with no `done` record has neither
+        ended nor paused (a paused one has its `done` with `stopReason: paused`)."""
+        if is_running or self._records_service is None:
+            return is_running
+        records = await self._records_service.get_execution_records(
+            project_id=project_id,
+            session_id=session_id,
+            execution_ids=[execution_id],
+        )
+        return not any(record.record_type == TERMINAL_RECORD_TYPE for record in records)
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -1631,13 +1678,15 @@ class RecordsRouter:
             # The runner cannot tell a Steer from a Stop: both abort the turn the same way. The
             # cancel command can, so name the cause on the record and the transcript does not
             # call a turn the user's own reply replaced "Stopped".
+            # `cancel_session` marks its cancel command the same way.
             try:
-                if await self.commands_service.cancelled_by_steer(
+                cancelled_by = await self.commands_service.cancel_cause(
                     project_id=UUID(project_id),
                     session_id=body.session_id,
                     execution_id=body.turn_id,
-                ):
-                    attributes = {**(attributes or {}), "cancelledBy": "steer"}
+                )
+                if cancelled_by is not None:
+                    attributes = {**(attributes or {}), "cancelledBy": cancelled_by}
             except Exception:  # noqa: BLE001 - the cause is a label; the record must land
                 log.warning(
                     "cancel cause lookup failed session=%s turn=%s",
@@ -3811,6 +3860,7 @@ class SessionsRouter:
             interactions_service=interactions_service,
             run_admission=run_admission,
             records_service=records_service,
+            commands_service=commands_service,
         )
         self.records = RecordsRouter(
             records_service=records_service,

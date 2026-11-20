@@ -34,6 +34,7 @@ def to_pending_input(row: SessionInputDBE) -> PendingInput:
         request_fingerprint=row.request_fingerprint,
         promoted_execution_id=row.promoted_execution_id,
         run_envelope=map_envelope_column(data=row.run_envelope),
+        calling_turn_id=row.calling_turn_id,
     )
 
 

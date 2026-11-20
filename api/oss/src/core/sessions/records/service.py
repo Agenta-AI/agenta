@@ -385,6 +385,20 @@ class RecordsService:
             execution_ids=execution_ids,
         )
 
+
+    async def get_execution_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        return await self.records_dao.get_execution_records(
+            project_id=project_id,
+            session_id=session_id,
+            execution_ids=execution_ids,
+        )
+
     async def get_event(
         self,
         *,
