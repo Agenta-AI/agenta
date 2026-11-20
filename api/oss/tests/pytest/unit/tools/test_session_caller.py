@@ -133,8 +133,8 @@ async def test_the_caller_comes_from_the_claims(world):
             agent_id=agent_id,
         )
     )
-    assert caller.session_id == world.ben_session.session_id
-    assert caller.agent_id == agent_id
+    assert caller.run_session_id == world.ben_session.session_id
+    assert caller.run_agent_id == agent_id
     assert caller.envelope.authority.principal.id == world.ben
 
 
@@ -143,7 +143,9 @@ async def test_a_session_made_private_after_the_mint_is_refused(world):
     access = world.access_of(
         world.ben, kind="run_credential", session_id=world.ana_shared.session_id
     )
-    assert (await session_caller_of(access)).session_id == world.ana_shared.session_id
+    assert (
+        await session_caller_of(access)
+    ).run_session_id == world.ana_shared.session_id
 
     key = (world.world.project_id, world.ana_shared.session_id)
     world.world.dao.sessions[key] = world.ana_shared.model_copy(
@@ -162,7 +164,7 @@ async def test_a_credential_of_another_session_acts_only_as_that_session(world):
             world.ben, kind="run_credential", session_id=world.ben_session.session_id
         )
     )
-    assert caller.session_id == world.ben_session.session_id
+    assert caller.run_session_id == world.ben_session.session_id
     assert not await caller_may(
         caller,
         session_id=world.ana_private.session_id,
@@ -282,4 +284,4 @@ async def test_tools_call_with_a_run_credential_runs_the_op_as_its_session(
     assert response.call.status.code == "STATUS_CODE_OK"
     (call,) = stub_op
     # The argument is the model's; the calling session is the claim.
-    assert call["session_caller"].session_id == world.ben_session.session_id
+    assert call["session_caller"].run_session_id == world.ben_session.session_id

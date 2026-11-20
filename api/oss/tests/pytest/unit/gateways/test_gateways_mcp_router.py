@@ -436,6 +436,28 @@ async def test_agenta_credential_confines_the_issued_value_to_the_gateway_audien
 
 
 @pytest.mark.asyncio
+async def test_agenta_credential_copies_the_callers_run_session(router, signer, allow):
+    """The builtin MCP relay reaches `/tools/call` with this credential, so a session op
+    sees the same calling session as on the direct path."""
+
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1", run_session_id="session-a"),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+    assert signer.await_args.kwargs["run_session_id"] == "session-a"
+
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1"),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+    assert signer.await_args.kwargs["run_session_id"] is None
+
+
+@pytest.mark.asyncio
 async def test_agenta_credential_lives_as_long_as_the_gateway_credential_setting(
     router, signer, allow, monkeypatch
 ):

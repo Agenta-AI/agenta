@@ -102,7 +102,7 @@ async def _prepared_grants(monkeypatch, *, revision_url):
     credentials, service_url = await service._prepare_invoke(
         project_id=uuid4(),
         user_id=uuid4(),
-        request=SimpleNamespace(meta=None),
+        request=SimpleNamespace(session_id=None, meta=None),
         envelope=make_envelope(),
     )
 
