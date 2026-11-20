@@ -2,8 +2,7 @@
  * The Claude token as a view (F11 f10): "Paste a token to run agents on your Pro or Max plan."
  * and the three numbered steps in a card, with "Connect" and "Cancel" inside it. "Connect" is on
  * only for a setup token (`sk-ant-oat…`) and reads "Checking…" while the token is stored; then
- * the stack goes back. A
- * connected subscription opens to its status with "Replace token".
+ * the stack goes back. A connected subscription opens to its status with "Replace token".
  *
  * For an organization subscription the view also offers "Projects that can use it". A new
  * connection is created with the chosen projects; on a saved one, Save writes a changed choice,

@@ -18,6 +18,15 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("../../src/DrillInView/SchemaControls/MarkdownEditor", () => ({
     MarkdownEditor: () => createElement("div", {"data-testid": "markdown"}),
 }))
+// The browser file reader is not this test's subject: a picked file reads as one text file.
+vi.mock("../../src/DrillInView/SchemaControls/skillUpload", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../src/DrillInView/SchemaControls/skillUpload")>()),
+    readSkillUploadFromFileList: async () => ({
+        hasSkillMd: false,
+        skill: {body: "", files: [{path: "classify.py", content: "print('hi')"}]},
+        skipped: [],
+    }),
+}))
 vi.mock("../../src/DrillInView/SchemaControls/CodeEditor", () => ({
     CodeEditor: () => createElement("div", {"data-testid": "code"}),
     codeLanguageFromPath: () => "code",
@@ -116,6 +125,23 @@ describe("skill upload in the view's action row", () => {
         await waitFor(() => expect(byText("Browse files")).toBeFalsy())
         // The view is still open, back on SKILL.md, with its own Save.
         expect(byText("Name")).toBeTruthy()
+        expect(footerButton("Save")).toBeTruthy()
+    })
+
+    it("Upload adds the picked file to the draft and the view stays open", async () => {
+        const trigger = document.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')
+        await click(trigger as HTMLButtonElement)
+        await click((await findByText("Upload a folder or a .zip")) as HTMLElement)
+        const input = document.querySelector<HTMLInputElement>('input[type="file"]')
+        const file = new File(["print('hi')"], "classify.py", {type: "text/plain"})
+        await act(async () => {
+            Object.defineProperty(input, "files", {value: [file], configurable: true})
+            input?.dispatchEvent(new Event("change", {bubbles: true}))
+        })
+        await waitFor(() => expect(footerButton("Upload")?.disabled).toBe(false))
+        await click(footerButton("Upload") as HTMLButtonElement)
+        await waitFor(() => expect(byText("Browse files")).toBeFalsy())
+        expect(byText("2 files · 1 edited")).toBeTruthy()
         expect(footerButton("Save")).toBeTruthy()
     })
 })
