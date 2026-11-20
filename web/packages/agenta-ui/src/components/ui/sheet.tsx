@@ -71,7 +71,7 @@ const sheetVariants = cva(
                 ],
                 // The phone's sidebar sheet: the rail's own surface, radius 12 as the design draws it.
                 left: [
-                    "inset-y-2 left-2 h-auto w-3/4 rounded-[12px] bg-[var(--ag-sidebar-bg)] sm:max-w-sm",
+                    "inset-y-2 left-2 h-auto w-3/4 rounded-[12px] bg-[var(--ag-sidebar-bg)] shadow-[0_0_0_1px_rgba(36,36,36,0.08),0_9px_28px_8px_rgba(0,0,0,0.08)] dark:shadow-drawer-left sm:max-w-sm",
                     "data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left",
                 ],
                 top: [

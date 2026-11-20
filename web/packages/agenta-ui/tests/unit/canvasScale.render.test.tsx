@@ -2,181 +2,95 @@
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {BuilderIcon} from "../../src/agent-icon"
 import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogContent,
-    AlertDialogDescription,
     AlertDialogFooter,
-    AlertDialogHeader,
     AlertDialogTitle,
 } from "../../src/components/ui/alert-dialog"
 import {Button} from "../../src/components/ui/button"
-import {Sheet, SheetContent, SheetTitle} from "../../src/components/ui/sheet"
 import {UnsavedChangesDialog} from "../../src/view-stack/UnsavedChangesDialog"
 
 /**
- * The canvas scale (design decision D1) the builder layout surfaces share: a 28px control with
- * radius 6, 13px text and a 16px glyph, and on a phone a 44px icon button with a 20px glyph.
+ * How a Button picks its size on the canvas scale (design decision D1): a surface can give its
+ * buttons a default size, and the caller's own choices still win. The look itself is checked
+ * against the design with browser captures, not here.
  */
 afterEach(cleanup)
 
-const button = () => screen.getByRole("button")
+const byName = (name: string) => screen.getByRole("button", {name})
 
-describe("Button canvas sizes", () => {
-    it("compact is a 28px control, radius 6, 13px text, 16px glyph", () => {
-        render(<Button size="compact">Save</Button>)
-        const cls = button().className
-        for (const c of ["h-control-sm", "rounded-[6px]", "text-btn-sm", "size-btn-icon"]) {
-            expect(cls).toContain(c)
-        }
-        expect(button().dataset.size).toBe("compact")
-    })
+const InDialog = ({children}: {children: React.ReactNode}) => (
+    <AlertDialog open>
+        <AlertDialogContent>
+            <AlertDialogTitle>Delete this automation?</AlertDialogTitle>
+            <AlertDialogFooter>{children}</AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+)
 
-    it("icon-compact is 28 on desktop and the 44px phone button with a 20px glyph", () => {
+describe("Button size on the canvas scale", () => {
+    it("a confirmation dialog gives a plain Button and its own action the compact size", () => {
         render(
-            <Button size="icon-compact" aria-label="Builder">
-                <BuilderIcon />
-            </Button>,
+            <InDialog>
+                <Button variant="outline">Cancel</Button>
+                <AlertDialogAction>Delete</AlertDialogAction>
+            </InDialog>,
         )
-        const cls = button().className
-        for (const c of [
-            "size-control-sm",
-            "rounded-[6px]",
-            "max-md:size-11",
-            "max-md:rounded-[8px]",
-            "max-md:[&_svg:not([class*='size-'])]:size-5",
-        ]) {
-            expect(cls).toContain(c)
-        }
+        expect(byName("Cancel").dataset.size).toBe("compact")
+        expect(byName("Delete").className).toContain("h-control-sm")
     })
 
-    it("a ghost control on the canvas scale is secondary text, and compact ghost pads 8px", () => {
+    it("an icon-only Button in the dialog takes the compact icon size", () => {
         render(
-            <Button variant="ghost" size="compact">
-                Keep editing
-            </Button>,
+            <InDialog>
+                <Button aria-label="More">
+                    <svg />
+                </Button>
+            </InDialog>,
         )
-        const cls = button().className.split(" ")
-        expect(cls).toContain("text-colorTextSecondary")
-        expect(cls).not.toContain("text-foreground")
-        expect(cls).toContain("px-2")
-        expect(cls).not.toContain("px-btn-sm")
-    })
-
-    it("a ghost button on the app scale keeps the foreground text", () => {
-        render(<Button variant="ghost">Open</Button>)
-        expect(button().className.split(" ")).toContain("text-foreground")
-    })
-
-    it("a caller's className still wins over the canvas ghost color", () => {
-        render(
-            <Button variant="ghost" size="icon-compact" aria-label="x" className="text-colorText">
-                <BuilderIcon />
-            </Button>,
-        )
-        const cls = button().className.split(" ")
-        expect(cls).toContain("text-colorText")
-        expect(cls).not.toContain("text-colorTextSecondary")
-    })
-
-    it("destructive paints the palette's error pair", () => {
-        render(<Button variant="destructive">Remove</Button>)
-        const cls = button().className.split(" ")
-        expect(cls).toContain("bg-colorErrorBg")
-        expect(cls).toContain("text-error")
-    })
-})
-
-describe("BuilderIcon", () => {
-    it("draws the one four-point sparkle at 16px by default", () => {
-        const {container} = render(<BuilderIcon />)
-        const svg = container.querySelector("svg")
-        expect(svg?.getAttribute("width")).toBe("16")
-        expect(svg?.getAttribute("aria-hidden")).toBe("true")
-        expect(svg?.getAttribute("class")).toContain("lucide-sparkle")
-        expect(container.querySelectorAll("path")).toHaveLength(1)
-    })
-
-    it("takes another size", () => {
-        const {container} = render(<BuilderIcon size={20} />)
-        expect(container.querySelector("svg")?.getAttribute("width")).toBe("20")
-    })
-})
-
-describe("Confirmation dialog on the canvas scale", () => {
-    it("draws a 400px box, a 14px/600 title, 13px secondary text and no footer band", () => {
-        render(
-            <AlertDialog open>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Remove Zendesk from this agent?</AlertDialogTitle>
-                        <AlertDialogDescription>The connection stays.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter data-testid="footer">
-                        <Button variant="outline">Cancel</Button>
-                        <AlertDialogAction>Remove</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>,
-        )
-        const dialog = screen.getByRole("alertdialog")
-        expect(dialog.className).toContain("max-w-[400px]")
-        expect(dialog.className).toContain("rounded-[12px]")
-        expect(screen.getByText("Remove Zendesk from this agent?").className).toContain(
-            "font-semibold",
-        )
-        expect(screen.getByText("The connection stays.").className).toContain("text-[13px]")
-        const footer = screen.getByTestId("footer").className
-        expect(footer).not.toContain("border-t")
-        expect(footer).not.toContain("bg-")
-        // A caller's plain Button and the dialog's own action both take the 28px canvas size.
-        expect(screen.getByRole("button", {name: "Cancel"}).dataset.size).toBe("compact")
-        expect(screen.getByRole("button", {name: "Remove"}).className).toContain("h-control-sm")
+        expect(byName("More").dataset.size).toBe("icon-compact")
     })
 
     it("an explicit size beats the dialog's default", () => {
         render(
-            <AlertDialog open>
-                <AlertDialogContent>
-                    <AlertDialogTitle>t</AlertDialogTitle>
-                    <Button size="lg">Big</Button>
-                </AlertDialogContent>
-            </AlertDialog>,
+            <InDialog>
+                <Button size="lg">Big</Button>
+            </InDialog>,
         )
-        expect(screen.getByRole("button", {name: "Big"}).dataset.size).toBe("lg")
+        expect(byName("Big").dataset.size).toBe("lg")
     })
 
-    it("draws Keep editing as a secondary ghost in the unsaved changes dialog", () => {
+    it("outside a dialog a Button keeps the app scale", () => {
+        render(<Button>Open</Button>)
+        expect(byName("Open").dataset.size).toBe("default")
+    })
+
+    it("a ghost control on the canvas scale is secondary, and a caller's color still wins", () => {
         render(
-            <UnsavedChangesDialog
-                open
-                description="Save your changes?"
-                canSave
-                onAnswer={() => undefined}
-            />,
+            <>
+                <Button variant="ghost" size="compact">
+                    Keep
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon-compact"
+                    aria-label="Pick"
+                    className="text-colorText"
+                >
+                    <svg />
+                </Button>
+            </>,
         )
-        const keep = screen.getByRole("button", {name: "Keep editing"})
+        expect(byName("Keep").className.split(" ")).toContain("text-colorTextSecondary")
+        expect(byName("Pick").className.split(" ")).not.toContain("text-colorTextSecondary")
+    })
+
+    it("Keep editing in the unsaved changes dialog is a compact secondary ghost", () => {
+        render(<UnsavedChangesDialog open description="Save?" canSave onAnswer={() => undefined} />)
+        const keep = byName("Keep editing")
         expect(keep.dataset.size).toBe("compact")
         expect(keep.className.split(" ")).toContain("text-colorTextSecondary")
-    })
-})
-
-describe("Sheet backdrop", () => {
-    it("is the light blurred scrim on a phone and the flat dark mask from md up", () => {
-        render(
-            <Sheet open>
-                <SheetContent>
-                    <SheetTitle>History</SheetTitle>
-                </SheetContent>
-            </Sheet>,
-        )
-        const overlay = document.querySelector("[data-slot=sheet-overlay]")
-        const cls = overlay?.className.split(" ") ?? []
-        expect(cls).toContain("bg-black/10")
-        expect(cls).toContain("supports-[backdrop-filter]:backdrop-blur-[4px]")
-        expect(cls).toContain("md:bg-black/45")
-        expect(cls).toContain("md:supports-[backdrop-filter]:backdrop-blur-none")
     })
 })

@@ -107,7 +107,7 @@ const inferIconSize = (children: React.ReactNode): "icon" | undefined => {
 /**
  * The size a labelled Button takes when its caller passes none. A surface that draws all its
  * buttons on one scale (the confirmation dialog) provides it, so every caller's footer follows.
- * An explicit `size` still wins, and an icon-only button still infers `icon`.
+ * An explicit `size` still wins, and an icon-only button infers the matching icon size.
  */
 const ButtonSizeContext = React.createContext<ButtonProps["size"]>(undefined)
 
@@ -115,8 +115,9 @@ function Button({className, variant = "default", size, asChild = false, ...props
     const Comp = asChild ? Slot : "button"
     const contextSize = React.useContext(ButtonSizeContext)
     // `asChild` hands rendering to the child, so its single element is the button, not an icon.
+    const inferred = asChild ? undefined : inferIconSize(props.children)
     const effectiveSize =
-        size ?? (asChild ? contextSize : (inferIconSize(props.children) ?? contextSize))
+        size ?? (inferred && contextSize === "compact" ? "icon-compact" : (inferred ?? contextSize))
     return (
         <Comp
             data-slot="button"
