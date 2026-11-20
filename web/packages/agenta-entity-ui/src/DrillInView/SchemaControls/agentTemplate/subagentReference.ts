@@ -38,6 +38,18 @@ const sharesKey = (tools: unknown[], key: string) =>
     tools.filter((tool) => subagentItemKey(tool) === key).length > 1
 
 /**
+ * The prefix of a view-only address by slug. Engine keys are tool names, which hold no "@", so a
+ * slug address can never be read as an engine key.
+ */
+const SLUG_REF = "@slug:"
+
+/** A view-only address of the subagent entry with this `slug`. */
+export const subagentSlugRef = (slug: string): ConfigItemRef => ({
+    list: "tools",
+    key: `${SLUG_REF}${slug}`,
+})
+
+/**
  * The address of a subagent in the agent's `tools`, or null for an entry with no key. It is the
  * engine's key, except when two legacy entries share a copied `name`: the engine refuses such a
  * list (duplicate item key), and the view then addresses the entry by its `slug`, so opening or
@@ -47,21 +59,23 @@ export function subagentItemRef(tool: unknown, tools: unknown[]): ConfigItemRef 
     const key = subagentItemKey(tool)
     if (!key) return null
     const slug = toolReferenceSlug(tool)
-    return sharesKey(tools, key) && slug ? {list: "tools", key: slug} : {list: "tools", key}
+    return sharesKey(tools, key) && slug ? subagentSlugRef(slug) : {list: "tools", key}
 }
 
 /**
  * The index of the subagent `ref` names in the tools as they are now, or -1: the one entry with
- * that engine key, else the one entry with that slug (see {@link subagentItemRef}).
+ * that engine key, or for a slug address the one entry with that slug. An address that matches
+ * more than one entry names none.
  */
 export function findSubagentIndex(tools: unknown[], ref: ConfigItemRef): number {
     if (ref.list !== "tools") return -1
-    const byKey = tools.flatMap((tool, index) => (subagentItemKey(tool) === ref.key ? [index] : []))
-    if (byKey.length === 1) return byKey[0]
-    const bySlug = tools.flatMap((tool, index) =>
-        toolReferenceSlug(tool) === ref.key ? [index] : [],
+    const slug = ref.key.startsWith(SLUG_REF) ? ref.key.slice(SLUG_REF.length) : null
+    const matches = tools.flatMap((tool, index) =>
+        (slug !== null ? toolReferenceSlug(tool) === slug : subagentItemKey(tool) === ref.key)
+            ? [index]
+            : [],
     )
-    return bySlug.length === 1 ? bySlug[0] : -1
+    return matches.length === 1 ? matches[0] : -1
 }
 
 /** The tools without the subagent `ref` names; unchanged when it is gone already. */

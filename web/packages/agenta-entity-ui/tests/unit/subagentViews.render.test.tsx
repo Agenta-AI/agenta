@@ -349,10 +349,15 @@ describe("two legacy subagents with the same copied name", () => {
 
     it("are addressed by slug, so the second one never touches the first", async () => {
         const tools = [us, eu]
-        expect(subagentItemRef(eu, tools)).toEqual({list: "tools", key: "support-eu"})
-        expect(findSubagentIndex(tools, {list: "tools", key: "support-eu"})).toBe(1)
+        expect(subagentItemRef(eu, tools)).toEqual({list: "tools", key: "@slug:support-eu"})
+        expect(findSubagentIndex(tools, subagentItemRef(eu, tools)!)).toBe(1)
         // The engine key alone is ambiguous here, so it addresses nothing.
         expect(findSubagentIndex(tools, {list: "tools", key: "Support"})).toBe(-1)
+        // A slug address is never read as a name, even when another entry is named like it.
+        const namedLikeSlug = {...reference("other"), name: "support-eu"}
+        const withClash = [us, eu, namedLikeSlug]
+        expect(findSubagentIndex(withClash, subagentItemRef(eu, withClash)!)).toBe(1)
+        expect(findSubagentIndex(withClash, {list: "tools", key: "support-eu"})).toBe(2)
     })
 
     it("open, save and remove the second one only", async () => {
