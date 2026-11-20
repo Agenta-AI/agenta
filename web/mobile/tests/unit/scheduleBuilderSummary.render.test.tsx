@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
-/**
- * The "Runs when" field reads its words from `useScheduleBuilder`. A cron the builder cannot
- * show ("*\/15 * * * *") used to come back as the raw expression; it now reads as the automation
- * row reads it.
- */
+/** The words `useScheduleBuilder` gives the "Runs when" field for a cron. */
 import {describeSchedule} from "@agenta/entities/gatewayTrigger"
 import {scheduleTextNow, useScheduleBuilder} from "@agenta/entity-ui/gatewayTrigger"
 import {renderHook} from "@testing-library/react"

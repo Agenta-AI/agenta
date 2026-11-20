@@ -3,6 +3,9 @@ import type {Automation} from "@agenta/automation-ui"
 import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {describe, expect, it} from "vitest"
 
+// A zone away from UTC, so a local-time reading of the run would show another hour and day.
+process.env.TZ = "America/New_York"
+
 const delivery = (fields: Partial<TriggerDelivery>): TriggerDelivery =>
     ({id: "d1", event_id: "e1", ...fields}) as unknown as TriggerDelivery
 
@@ -16,22 +19,13 @@ describe("run times", () => {
 })
 
 describe("how long a run took", () => {
-    it("runs to the time of its status, which is when a detached run ended", () => {
+    it("runs to the time of its status, which is when the run ended", () => {
         const run = delivery({
             created_at: "2026-11-20T09:00:00Z",
             updated_at: "2026-11-20T09:00:01Z",
             status: {message: "success", timestamp: "2026-11-20T09:00:42Z"},
         })
         expect(runDuration(run)).toBe("42s")
-    })
-
-    it("falls back to the row's last touch when the status has no time", () => {
-        const run = delivery({
-            created_at: "2026-11-20T09:00:00Z",
-            updated_at: "2026-11-20T09:01:05Z",
-            status: {message: "failed"},
-        })
-        expect(runDuration(run)).toBe("1m 5s")
     })
 
     it("is not known while the run goes on", () => {

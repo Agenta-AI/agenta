@@ -209,17 +209,16 @@ export function runOutcomeLabel(delivery: TriggerDelivery): string {
  * How long a run took.
  *
  * DERIVED, not reported: a delivery carries no duration field, so this is the distance between
- * the row being written (`created_at`) and the time of its status. For a detached run the API
- * sets that time to when the run ended; an older payload without it falls back to the row's
- * last touch (`updated_at`). A run that has not ended has no length yet. A zero distance would
- * be a measurement rather than the absence of one, so that case returns null too and the
- * caller drops the clause.
+ * the row being written (`created_at`) and the time of its status, which the API sets to when
+ * the run ended. A run that has not ended has no length yet. A zero distance would be a
+ * measurement rather than the absence of one, so that case returns null too and the caller drops
+ * the clause.
  */
 export function runDuration(delivery: TriggerDelivery): string | null {
     const outcome = deliveryOutcome(delivery)
     if (outcome !== "ok" && outcome !== "bad") return null
     const started = Date.parse(delivery.created_at ?? "")
-    const ended = Date.parse(delivery.status?.timestamp ?? delivery.updated_at ?? "")
+    const ended = Date.parse(delivery.status?.timestamp ?? "")
     if (!Number.isFinite(started) || !Number.isFinite(ended)) return null
     const ms = ended - started
     if (ms <= 0) return null

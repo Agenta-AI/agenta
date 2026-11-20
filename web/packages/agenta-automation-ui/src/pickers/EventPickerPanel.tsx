@@ -366,6 +366,21 @@ export const EventPickerPanel = ({
  * it can never disagree. JSON Schema's `required` is untyped here (the schema arrives as raw
  * provider JSON), hence the narrowing rather than a cast.
  */
+function requiredGaps(
+    schema: Record<string, unknown> | null,
+    values: Record<string, unknown>,
+): string[] {
+    const declared = schema?.required
+    if (!Array.isArray(declared)) return []
+    return declared
+        .filter((key): key is string => typeof key === "string")
+        .filter((key) => {
+            const value = values[key]
+            if (value === undefined || value === null || value === "") return true
+            return Array.isArray(value) && value.length === 0
+        })
+}
+
 /**
  * The event's filter schema without the fields the provider marks deprecated.
  *
@@ -389,21 +404,6 @@ function liveConfigSchema(config: unknown): Record<string, unknown> | null {
         ? schema.required.filter((key) => typeof key === "string" && key in kept)
         : schema.required
     return {...schema, properties: kept, required}
-}
-
-function requiredGaps(
-    schema: Record<string, unknown> | null,
-    values: Record<string, unknown>,
-): string[] {
-    const declared = schema?.required
-    if (!Array.isArray(declared)) return []
-    return declared
-        .filter((key): key is string => typeof key === "string")
-        .filter((key) => {
-            const value = values[key]
-            if (value === undefined || value === null || value === "") return true
-            return Array.isArray(value) && value.length === 0
-        })
 }
 
 /**

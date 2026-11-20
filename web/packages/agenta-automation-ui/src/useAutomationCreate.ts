@@ -266,13 +266,9 @@ export const useAutomationCreate = ({
         }
     }, [draft])
 
-    // What an unnamed automation is called: built from what is already chosen, so the heading
-    // previews the saved name rather than a placeholder that turns into something else.
+    // The picked event's name: an unnamed event automation is saved under it, and the heading
+    // shows it (see `defaultAutomationName`).
     const eventName = usePickedEventName(preview)
-    const generatedName = useMemo(
-        () => defaultAutomationName({typed: "", preview, agentName, eventName}),
-        [agentName, eventName, preview],
-    )
 
     const {create: createEntity} = useAutomation(undefined, draft.kind)
 
@@ -362,8 +358,6 @@ export const useAutomationCreate = ({
         draft,
         preview,
         agentName,
-        generatedName,
-        /** The picked event's name: the heading shows it, as {@link generatedName} saves it. */
         eventName,
         blocked,
         errors,

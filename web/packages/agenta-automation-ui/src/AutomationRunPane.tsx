@@ -63,7 +63,7 @@ export const AutomationRunPane = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* The run line, with a hairline under it that sets the transcript apart (F05 f7). */}
+            {/* The run line, with a hairline under it that sets the transcript apart. */}
             <div className="flex shrink-0 items-center gap-2.5 border-0 border-b border-solid border-colorSplit px-3.5 py-3">
                 {onBack ? (
                     <button

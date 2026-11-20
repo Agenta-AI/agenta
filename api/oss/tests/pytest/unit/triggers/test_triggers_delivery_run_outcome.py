@@ -34,14 +34,15 @@ def _delivery(*, message="dispatched", session_id="s1", run_id="r1"):
     )
 
 
-def _settlement(*, session_id="s1", run_id="r1", outcome="completed"):
+def _settlement(*, session_id="s1", run_id="r1", outcome="completed", parent=None):
     return SessionExecutionSettlement(
         project_id=_PROJECT,
         session_id=session_id,
         execution_id=run_id,
+        parent_execution_id=parent,
         terminal_outcome=outcome,
-        settled_by="runner",
-        settled_at=_SETTLED_AT,
+        settled_by="runner" if outcome else None,
+        settled_at=_SETTLED_AT if outcome else None,
     )
 
 
@@ -50,7 +51,9 @@ def _service(*, deliveries, settled=None, with_executions=True):
     dao.query_deliveries = AsyncMock(return_value=deliveries)
     dao.fetch_delivery = AsyncMock(return_value=deliveries[0] if deliveries else None)
     executions = MagicMock()
-    executions.query_settled = AsyncMock(return_value=settled or {})
+    executions.query_session_executions = AsyncMock(
+        return_value=list((settled or {}).values())
+    )
     service = TriggersService(
         adapter_registry=MagicMock(),
         catalog_service=MagicMock(),
@@ -83,8 +86,8 @@ async def test_settled_run_shows_its_outcome(outcome, message):
     assert result.status.message == message
     assert result.status.code == "202"
     assert result.status.timestamp == _SETTLED_AT
-    executions.query_settled.assert_awaited_once_with(
-        project_id=_PROJECT, keys=[("s1", "r1")]
+    executions.query_session_executions.assert_awaited_once_with(
+        project_id=_PROJECT, session_ids=["s1"]
     )
     # The stored row is not changed.
     assert delivery.status.message == "dispatched"
@@ -117,7 +120,7 @@ async def test_finished_rows_are_not_looked_up():
     result = await service.query_deliveries(project_id=_PROJECT)
 
     assert [row.status.message for row in result] == ["success", "failed"]
-    executions.query_settled.assert_not_awaited()
+    executions.query_session_executions.assert_not_awaited()
 
 
 async def test_dispatched_row_without_run_id_is_left_alone():
@@ -126,7 +129,7 @@ async def test_dispatched_row_without_run_id_is_left_alone():
     [result] = await service.query_deliveries(project_id=_PROJECT)
 
     assert result.status.message == "dispatched"
-    executions.query_settled.assert_not_awaited()
+    executions.query_session_executions.assert_not_awaited()
 
 
 async def test_one_lookup_for_many_rows_keeps_order():
@@ -148,10 +151,10 @@ async def test_one_lookup_for_many_rows_keeps_order():
         "success",
         "success",
     ]
-    executions.query_settled.assert_awaited_once()
-    assert executions.query_settled.await_args.kwargs["keys"] == [
-        ("s1", "r1"),
-        ("s3", "r3"),
+    executions.query_session_executions.assert_awaited_once()
+    assert executions.query_session_executions.await_args.kwargs["session_ids"] == [
+        "s1",
+        "s3",
     ]
 
 
@@ -179,6 +182,50 @@ async def test_execution_with_no_outcome_stays_dispatched():
     service, _ = _service(
         deliveries=[_delivery()],
         settled={("s1", "r1"): _settlement(outcome=None)},
+    )
+
+    [result] = await service.query_deliveries(project_id=_PROJECT)
+
+    assert result.status.message == "dispatched"
+
+
+async def test_running_child_execution_keeps_the_run_dispatched():
+    # The run waited for a person; the answer started a child execution that still runs.
+    service, _ = _service(
+        deliveries=[_delivery()],
+        settled={
+            ("s1", "r1"): _settlement(outcome="continued"),
+            ("s1", "r2"): _settlement(run_id="r2", outcome=None, parent="r1"),
+        },
+    )
+
+    [result] = await service.query_deliveries(project_id=_PROJECT)
+
+    assert result.status.message == "dispatched"
+
+
+@pytest.mark.parametrize(
+    "outcome, message", [("completed", "success"), ("failed", "failed")]
+)
+async def test_settled_child_execution_ends_the_run(outcome, message):
+    service, _ = _service(
+        deliveries=[_delivery()],
+        settled={
+            ("s1", "r1"): _settlement(outcome="continued"),
+            ("s1", "r2"): _settlement(run_id="r2", outcome="continued", parent="r1"),
+            ("s1", "r3"): _settlement(run_id="r3", outcome=outcome, parent="r2"),
+        },
+    )
+
+    [result] = await service.query_deliveries(project_id=_PROJECT)
+
+    assert result.status.message == message
+
+
+async def test_execution_of_another_run_in_the_session_is_not_used():
+    service, _ = _service(
+        deliveries=[_delivery(run_id="r1")],
+        settled={("s1", "other"): _settlement(run_id="other", outcome="completed")},
     )
 
     [result] = await service.query_deliveries(project_id=_PROJECT)

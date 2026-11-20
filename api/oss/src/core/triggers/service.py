@@ -2090,34 +2090,50 @@ class TriggersService:
 
         The dispatcher writes `202 dispatched` when the runner accepts a detached run. It has
         no callback for the end of the run, so the stored row never changes after that. The
-        end of the run is in `session_executions` (the run id is the execution id). One
-        batched read turns a settled run into `success` or `failed`. A run that still goes
-        on, or that went on in a continuation, keeps `dispatched`. The stored row does not
-        change.
+        end of the run is in `session_executions`: the run id is the first execution id, and a
+        run that waited for a person goes on in a child execution (`parent_execution_id`).
+        One read of the sessions' executions finds the last one of each run. A settled run
+        reads `success` or `failed`; a run that still goes on keeps `dispatched`. The stored
+        row does not change.
         """
         if self.executions_dao is None:
             return deliveries
 
-        keys: Dict[UUID, Tuple[str, str]] = {}
+        runs: Dict[UUID, Tuple[str, str]] = {}
         for delivery in deliveries:
             if delivery.id is None or delivery.status.message != "dispatched":
                 continue
             data = delivery.data
             run_id = (data.result or {}).get("run_id") if data else None
             if data and data.session_id and run_id:
-                keys[delivery.id] = (data.session_id, str(run_id))
-        if not keys:
+                runs[delivery.id] = (data.session_id, str(run_id))
+        if not runs:
             return deliveries
 
-        settled = await self.executions_dao.query_settled(
+        executions = await self.executions_dao.query_session_executions(
             project_id=project_id,
-            keys=list(keys.values()),
+            session_ids=[session_id for session_id, _ in runs.values()],
         )
+        by_id = {(e.session_id, e.execution_id): e for e in executions}
+        child_of = {
+            (e.session_id, e.parent_execution_id): e
+            for e in executions
+            if e.parent_execution_id
+        }
 
         resolved: List[TriggerDelivery] = []
         for delivery in deliveries:
-            key = keys.get(delivery.id) if delivery.id else None
-            execution = settled.get(key) if key else None
+            run = runs.get(delivery.id) if delivery.id else None
+            execution = by_id.get(run) if run else None
+            # Follow the run into its continuations; `seen` stops a malformed cycle.
+            seen = set()
+            while (
+                execution is not None
+                and execution.terminal_outcome == "continued"
+                and execution.execution_id not in seen
+            ):
+                seen.add(execution.execution_id)
+                execution = child_of.get((execution.session_id, execution.execution_id))
             message = (
                 _RUN_OUTCOME_STATUS.get(execution.terminal_outcome or "")
                 if execution
