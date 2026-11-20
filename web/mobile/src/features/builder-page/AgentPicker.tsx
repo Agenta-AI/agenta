@@ -79,6 +79,7 @@ export const AgentPicker = ({
                             <Button
                                 variant="outline"
                                 size="sm"
+                                disabled={agents.isFetching}
                                 onClick={() => invalidateWorkflowsListCache()}
                             >
                                 {t("builder.page.retry")}

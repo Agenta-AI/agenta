@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import {agentSharingQueryAtomFamily} from "@agenta/entities/sharing"
 import {
     agentWorkflowsListQueryStateAtom,
@@ -54,6 +55,9 @@ import {
     type AgentRef,
 } from "./paneAgent"
 
+/** The chat keeps at least this width beside the pane, in px. */
+const CHAT_MIN_WIDTH = 320
+
 /** The agents one chat's messages name. */
 interface ChatFacts {
     sessionId: string
@@ -82,6 +86,8 @@ export const BuilderPage = ({
 }) => {
     const t = useT(builderPageCatalog)
     useBindProjectContext(projectId)
+    // An unsaved file edit in the Drives pane tab warns before a tab close, as on the session page.
+    useDriveDirtyGuard()
     const router = useRouter()
     const userId = useAtomValue(userAtom)?.id ?? null
     const builder = useAtomValue(builderAgentRevisionIdQueryAtom)
@@ -212,10 +218,12 @@ export const BuilderPage = ({
             />
         )
 
-    // Below 768 px the pane and the chat do not fit side by side: the pane shows only full screen.
-    const phone = !useMediaQuery("(min-width: 768px)")
-    const paneOpen = Boolean(agentId) && !layout.hidden && (!phone || layout.fullScreen)
-    const paneFull = paneOpen && layout.fullScreen
+    // Below 768 px the pane and the chat do not fit side by side: the pane shows full screen
+    // when the person opens it, and this choice is not stored (a wider window keeps its layout).
+    const phone = useMediaQuery("(max-width: 767.98px)")
+    const [phonePane, setPhonePane] = useState(false)
+    const paneOpen = Boolean(agentId) && (phone ? phonePane : !layout.hidden)
+    const paneFull = paneOpen && (phone || layout.fullScreen)
     // Live width while the divider moves; stored when the drag ends.
     const [dragWidth, setDragWidth] = useState<number | null>(null)
     const chatColumn = (
@@ -236,9 +244,7 @@ export const BuilderPage = ({
                             size="icon-sm"
                             aria-label={t("builder.page.openItems")}
                             onClick={() =>
-                                setLayout(
-                                    phone ? {hidden: false, fullScreen: true} : {hidden: false},
-                                )
+                                phone ? setPhonePane(true) : setLayout({hidden: false})
                             }
                         >
                             <SidebarSimple size={16} className="-scale-x-100" />
@@ -261,10 +267,10 @@ export const BuilderPage = ({
                 agentId={agentId}
                 name={agentName}
                 fullScreen={layout.fullScreen}
-                onFullScreen={() =>
-                    setLayout(phone ? {fullScreen: false} : {fullScreen: !layout.fullScreen})
+                onFullScreen={phone ? null : () => setLayout({fullScreen: !layout.fullScreen})}
+                onHide={() =>
+                    phone ? setPhonePane(false) : setLayout({hidden: true, fullScreen: false})
                 }
-                onHide={() => setLayout({hidden: true, fullScreen: false})}
             />
             <div className="min-h-0 flex-1">
                 {noAccess ? (
@@ -300,7 +306,7 @@ export const BuilderPage = ({
                         paneSize={paneOpen ? (dragWidth ?? layout.width) : 0}
                         paneMin={paneOpen && !paneFull ? PANE_MIN_WIDTH : 0}
                         paneMax={PANE_MAX_WIDTH}
-                        fillMin={paneOpen && !paneFull ? 320 : 0}
+                        fillMin={paneOpen && !paneFull ? CHAT_MIN_WIDTH : 0}
                         resizable={paneOpen && !paneFull}
                         barHidden={!paneOpen || paneFull}
                         paneGrow={paneFull}
@@ -333,7 +339,8 @@ const PaneHeader = ({
     agentId: string
     name: string
     fullScreen: boolean
-    onFullScreen: () => void
+    /** Null on a phone, where the pane is always full screen. */
+    onFullScreen: (() => void) | null
     onHide: () => void
 }) => {
     const t = useT(builderPageCatalog)
@@ -364,17 +371,19 @@ const PaneHeader = ({
                     ) : null}
                 </span>
             </div>
-            <SimpleTooltip title={t("builder.page.fullScreen")}>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("builder.page.fullScreen")}
-                    aria-pressed={fullScreen}
-                    onClick={onFullScreen}
-                >
-                    {fullScreen ? <ArrowsInSimple size={16} /> : <ArrowsOutSimple size={16} />}
-                </Button>
-            </SimpleTooltip>
+            {onFullScreen ? (
+                <SimpleTooltip title={t("builder.page.fullScreen")}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("builder.page.fullScreen")}
+                        aria-pressed={fullScreen}
+                        onClick={onFullScreen}
+                    >
+                        {fullScreen ? <ArrowsInSimple size={16} /> : <ArrowsOutSimple size={16} />}
+                    </Button>
+                </SimpleTooltip>
+            ) : null}
             <SimpleTooltip title={t("builder.page.hideOpenItems")}>
                 <Button
                     variant="ghost"
