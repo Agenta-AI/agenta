@@ -69,10 +69,12 @@ async function startFakeApi(
   url: string;
   beats: Beat[];
   paths: string[];
+  sweeps: Record<string, unknown>[];
   close: () => Promise<void>;
 }> {
   const beats: Beat[] = [];
   const paths: string[] = [];
+  const sweeps: Record<string, unknown>[] = [];
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(c as Buffer));
@@ -108,6 +110,9 @@ async function startFakeApi(
         );
         return;
       }
+      if (path.endsWith("/sessions/interactions/cancel-stale")) {
+        sweeps.push(body);
+      }
       res.writeHead(200, { "content-type": "application/json" });
       res.end("{}");
     });
@@ -118,6 +123,7 @@ async function startFakeApi(
     url: `http://127.0.0.1:${port}`,
     beats,
     paths,
+    sweeps,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }
@@ -503,6 +509,71 @@ describe("runner admission: an admitted turn proceeds", () => {
     } finally {
       await runner.close();
     }
+  });
+});
+
+describe("runner admission: the turn-start stale sweep", () => {
+  async function sweepOf(
+    messages: unknown[],
+  ): Promise<Record<string, unknown>> {
+    const api = await startFakeApi(() => true);
+    process.env[INTERNAL_ENV] = api.url;
+    const runner = await startRunner(async () => ({
+      ok: true,
+      output: "",
+      events: [],
+    }));
+    try {
+      await postRun(
+        runner.url,
+        sessionRequest({ messages } as Partial<AgentRunRequest>),
+      );
+      // The sweep is fire-and-forget, so it can land after the run's response ends.
+      const deadline = Date.now() + 5_000;
+      while (api.sweeps.length === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.equal(api.sweeps.length, 1, "one sweep per admitted turn");
+      return api.sweeps[0];
+    } finally {
+      await runner.close();
+      await api.close();
+    }
+  }
+
+  it("spares the gate a cold reply answers, so a denial is not filed as cancelled", async () => {
+    // A gateway gate never parks, so its deny reply starts a cold turn with no parked set.
+    const sweep = await sweepOf([
+      { role: "user", content: "delete the record" },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: "run_tool",
+            input: { action: "delete" },
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "run_tool",
+            output: { approved: false, interactionToken: "tok-gateway-1" },
+          },
+        ],
+      },
+    ]);
+    assert.deepEqual(sweep.tokens, ["tok-gateway-1"]);
+  });
+
+  it("spares nothing on a plain new message", async () => {
+    const sweep = await sweepOf([{ role: "user", content: "hello" }]);
+    assert.equal(sweep.tokens, undefined);
   });
 });
 
