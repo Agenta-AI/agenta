@@ -51,11 +51,15 @@ const Row = ({label, children}: {label: string; children: ReactNode}) => (
     </div>
 )
 
-const ICON = <Clock size={15} />
+const ICON = (
+    <span className="flex size-7 items-center justify-center rounded bg-[var(--ag-colorInfo)] text-white">
+        <Clock size={14} />
+    </span>
+)
 
 export const Variants: Story = {
     args: {
-        icon: ICON,
+        tile: ICON,
         name: "Morning digest",
         subtitle: "Summarize yesterday's tickets.",
         active: true,
@@ -66,7 +70,7 @@ export const Variants: Story = {
         <div className="flex max-w-[640px] flex-col">
             <Row label="active · named">
                 <TriggerRow
-                    icon={ICON}
+                    tile={ICON}
                     name="Morning digest"
                     subtitle="Summarize yesterday's tickets."
                     active
@@ -76,7 +80,7 @@ export const Variants: Story = {
             </Row>
             <Row label="paused · unnamed (muted)">
                 <TriggerRow
-                    icon={ICON}
+                    tile={ICON}
                     name="Untitled schedule"
                     nameMuted
                     subtitle="No message set"
@@ -87,7 +91,7 @@ export const Variants: Story = {
             </Row>
             <Row label="read-only">
                 <TriggerRow
-                    icon={ICON}
+                    tile={ICON}
                     name="Weekly report"
                     subtitle="Post the weekly summary to #ops."
                     active
@@ -115,7 +119,7 @@ function Panel({render}: {render: (c: HTMLElement) => ReactNode}) {
  */
 export const OpenState: Story = {
     args: {
-        icon: ICON,
+        tile: ICON,
         name: "Morning digest",
         subtitle: "Summarize yesterday's tickets.",
         active: true,
@@ -127,7 +131,7 @@ export const OpenState: Story = {
             <Panel
                 render={(c) => (
                     <TriggerRow
-                        icon={ICON}
+                        tile={ICON}
                         name="Morning digest"
                         subtitle="Summarize yesterday's tickets."
                         active

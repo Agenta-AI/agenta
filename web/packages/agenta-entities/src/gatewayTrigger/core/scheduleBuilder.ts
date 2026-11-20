@@ -121,7 +121,7 @@ export function cronToBuilder(cron: string): {
     }
     // Weekly: day-of-week list, no day-of-month.
     if (dom === "*" && dow !== "*") {
-        const weekdays = plainIntList(dow)
+        const weekdays = dayOfWeekList(dow)
         if (!weekdays) return custom()
         return {state: {...defaultBuilderState("weekly"), weekdays, times}, representable: true}
     }
@@ -263,6 +263,28 @@ function plainIntList(field: string): number[] | null {
     for (const part of field.split(",")) {
         if (!/^\d+$/.test(part)) return null
         out.push(Number(part))
+    }
+    return sortedUnique(out)
+}
+
+/**
+ * The day-of-week field as sorted unique days (0 = Sunday), or null for syntax the builder cannot
+ * show. Accepts plain ranges ("1-5") as well as lists, and reads 7 as Sunday, as cron does: a
+ * weekday schedule written by hand is still a weekday schedule.
+ */
+function dayOfWeekList(field: string): number[] | null {
+    const out: number[] = []
+    for (const part of field.split(",")) {
+        const range = part.match(/^(\d)-(\d)$/)
+        if (range) {
+            const from = Number(range[1])
+            const to = Number(range[2])
+            if (from > to || to > 7) return null
+            for (let day = from; day <= to; day += 1) out.push(day % 7)
+            continue
+        }
+        if (!/^\d$/.test(part) || Number(part) > 7) return null
+        out.push(Number(part) % 7)
     }
     return sortedUnique(out)
 }

@@ -2,9 +2,11 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
+    cronToBuilder,
     describeCron,
     isEntityActive,
     nextCronRuns,
+    summarizeSchedule,
     type TriggerSchedule,
 } from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
@@ -13,6 +15,7 @@ import {Clock} from "@phosphor-icons/react"
 
 import {scheduleTextNow} from "../../../gatewayTrigger/scheduleText"
 
+import {RowTile} from "./rowParts"
 import {TriggerRow} from "./TriggerRow"
 
 const tNow = createT(triggersCatalog)
@@ -53,9 +56,16 @@ export function ScheduleTriggerRow({
     const named = !!record.name?.trim()
     // Subtitle answers "when does this run?" — the cadence plus the next fire. Both parse the
     // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
+    // The builder's words first ("Weekdays at 09:00 UTC"), as the automation view says it; the
+    // longhand only for an expression the builder cannot show.
     const cadence = useMemo(
-        () =>
-            cron ? describeCron(cron, scheduleTextNow()) : tNow("entityUi.triggers.noScheduleSet"),
+        () => {
+            if (!cron) return tNow("entityUi.triggers.noScheduleSet")
+            const {state, representable} = cronToBuilder(cron)
+            return representable
+                ? summarizeSchedule(state, scheduleTextNow())
+                : describeCron(cron, scheduleTextNow())
+        },
         // `t` re-words the cadence when the language changes.
         [cron, t],
     )
@@ -71,7 +81,12 @@ export function ScheduleTriggerRow({
 
     return (
         <TriggerRow
-            icon={<Clock size={15} />}
+            // The canvas violet has no token yet; the info ink is the nearest one.
+            tile={
+                <RowTile className="bg-[var(--ag-colorInfo)]">
+                    <Clock />
+                </RowTile>
+            }
             name={named ? (record.name as string) : t("entityUi.triggers.untitledSchedule")}
             nameMuted={!named}
             subtitle={next ? `${cadence} · ${next}` : cadence}

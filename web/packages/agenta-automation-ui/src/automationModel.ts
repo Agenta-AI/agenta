@@ -168,6 +168,8 @@ export function runsWhenLabel(
  * than demanded. Without an agent there is nothing to build from and the generic name stands.
  */
 export function generatedAutomationName(a: Automation, agentName: string | null): string {
+    // An event automation with no event yet has nothing to be named after.
+    if (a.kind === "event" && !a.eventKey) return UNTITLED_AUTOMATION
     // Saved to the API, so the schedule words stay English (see RULES: never translate saved text).
     const runsWhen = runsWhenLabel(a, englishScheduleText(), tEnglish).trim()
     const agent = (agentName ?? "").trim()
@@ -184,6 +186,7 @@ export function generatedAutomationLabel(
     agentName: string | null,
     untitled: string,
 ): string {
+    if (a.kind === "event" && !a.eventKey) return untitled
     const runsWhen = runsWhenLabel(a).trim()
     const agent = (agentName ?? "").trim()
     if (!agent || !runsWhen) return untitled

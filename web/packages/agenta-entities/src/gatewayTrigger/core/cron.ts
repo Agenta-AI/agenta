@@ -116,6 +116,9 @@ export function describeCron(expression: string, text: ScheduleText): string {
         // "0 9 * * 1-5" / "0 9 * * 1,3" — a day set, not a single day.
         if (/^[\d,-]+$/.test(dow)) {
             const days = expandDayList(dow)
+            // Monday to Friday is one word, as the schedule builder says it.
+            if (days.length === 5 && days.every((day, index) => day === index + 1))
+                return text.cronDaysAt(text.weekdays, time)
             if (days.length)
                 return text.cronDaysAt(days.map((day) => text.dayLong(day)).join(", "), time)
         }

@@ -34,7 +34,7 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
         saveLabel: t("automations.screens.createAutomation"),
     })
     return (
-        <div className="ag-scroll-no-bar h-full min-h-0 overflow-y-auto px-4 pb-6 pt-2">
+        <div className="ag-scroll-no-bar h-full min-h-0 overflow-y-auto px-4 pb-6 pt-3.5">
             <AutomationCreateBody
                 state={state}
                 // The panel binds the agent; the field shows only when its id did not resolve.

@@ -107,5 +107,12 @@
     "noFilters": "This event needs no filters — it runs every time it arrives.",
     "allApps": "All apps",
     "done": "Done",
-    "untitledAutomation": "Untitled automation"
+    "untitledAutomation": "Untitled automation",
+    "schedule": "Schedule",
+    "event": "Event",
+    "app": "App",
+    "preview": "Preview",
+    "nextRunLabel": "Next run",
+    "nextRunAt": "{{date}}, {{time}} UTC · {{relative}}",
+    "moreActionsFor": "More actions for {{name}}"
 }

@@ -106,5 +106,12 @@
     "noFilters": "这个事件不需要筛选条件，每次收到都会运行。",
     "allApps": "所有应用",
     "done": "完成",
-    "untitledAutomation": "未命名自动化"
+    "untitledAutomation": "未命名自动化",
+    "schedule": "定时",
+    "event": "事件",
+    "app": "应用",
+    "preview": "预览",
+    "nextRunLabel": "下次运行",
+    "nextRunAt": "{{date}} {{time}} UTC · {{relative}}",
+    "moreActionsFor": "{{name}} 的更多操作"
 }

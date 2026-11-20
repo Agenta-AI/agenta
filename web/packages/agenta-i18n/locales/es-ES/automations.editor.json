@@ -108,5 +108,12 @@
     "noFilters": "Este evento no necesita filtros: se ejecuta cada vez que llega.",
     "allApps": "Todas las apps",
     "done": "Listo",
-    "untitledAutomation": "Automatización sin título"
+    "untitledAutomation": "Automatización sin título",
+    "schedule": "Programación",
+    "event": "Evento",
+    "app": "App",
+    "preview": "Vista previa",
+    "nextRunLabel": "Próxima ejecución",
+    "nextRunAt": "{{date}}, {{time}} UTC · {{relative}}",
+    "moreActionsFor": "Más acciones para {{name}}"
 }

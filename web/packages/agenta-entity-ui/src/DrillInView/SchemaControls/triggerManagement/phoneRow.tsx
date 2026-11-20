@@ -4,9 +4,12 @@
  */
 import {Switch} from "@agenta/ui/ui"
 
-/** The row frame on a phone: no card, a divider under it, at least 56 px high. */
+/**
+ * The row frame on a phone: no card, at least 56 px high, and a divider under it that runs the
+ * full width of the screen (the list's 16 px gutter moves inside the row).
+ */
 export const PHONE_ROW_CLASS =
-    "flex min-h-14 items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] py-2.5"
+    "-mx-4 flex min-h-14 items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-1.5 pl-4 pr-2"
 
 /** The name on a phone: 15 px, wraps instead of being cut. */
 export const PHONE_NAME_CLASS = "break-words text-[15px] leading-5"
@@ -35,7 +38,8 @@ export function PhoneRowSwitch({
             onCheckedChange={onToggle}
             aria-label={name}
             onClick={(event) => event.stopPropagation()}
-            className="relative after:absolute after:-inset-x-1 after:-inset-y-[11px] after:content-['']"
+            // 44 x 26 with a 22 px thumb, as the canvas draws a phone switch.
+            className="relative h-[26px] after:absolute after:-inset-x-1 after:-inset-y-[9px] after:content-[''] [&_[data-slot=switch-thumb]]:!size-[22px] data-[state=checked]:[&_[data-slot=switch-thumb]]:![transform:translateX(18px)]"
         />
     )
 }

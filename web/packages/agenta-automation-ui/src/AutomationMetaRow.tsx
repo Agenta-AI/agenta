@@ -20,12 +20,15 @@ export const AutomationMetaRow = ({
     updatedAt,
     onToggle,
     trailing,
+    factsOnly = false,
 }: {
     active: boolean
     agentName: string | null
     updatedAt: string | null
     onToggle: (next: boolean) => Promise<void>
     trailing?: ReactNode
+    /** Only the facts line, with no switch: the panel puts the switch beside the name (F05 f5). */
+    factsOnly?: boolean
 }) => {
     const t = useT(automationsEditorCatalog)
     const edited = updatedAt ? timeAgo(Date.parse(updatedAt)) : ""
@@ -37,6 +40,9 @@ export const AutomationMetaRow = ({
     ]
         .filter((fact): fact is string => fact !== null)
         .join(" · ")
+
+    if (factsOnly)
+        return <span className="min-w-0 truncate text-xs text-muted-foreground">{facts}</span>
 
     return (
         <div className="mb-1 mt-4 flex min-w-0 flex-wrap items-center gap-3.5">

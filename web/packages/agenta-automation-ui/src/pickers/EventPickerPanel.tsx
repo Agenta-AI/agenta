@@ -4,6 +4,7 @@ import {
     normalizeRepoFilters,
     triggerCatalogDrawerOpenAtom,
     triggerEventsSearchAtom,
+    useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
     useTriggerConnectionsQuery,
     useTriggerEvent,
@@ -13,7 +14,15 @@ import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
 import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    Button,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -363,4 +372,128 @@ function requiredGaps(
             if (value === undefined || value === null || value === "") return true
             return Array.isArray(value) && value.length === 0
         })
+}
+
+/**
+ * Which event runs a new automation, open in the form (F05 f4): an "App" select over the connected
+ * apps, an "Event" select over that app's events, and the event's filters with the optional ones
+ * behind "Add optional filters (n)". Every change goes to the host's draft at once; nothing is
+ * saved here. With no app connected, it offers to connect one.
+ */
+export const EventInlineCard = ({
+    automation,
+    onSelectEvent,
+}: {
+    automation: Automation
+    onSelectEvent: (selection: EventSelection) => void
+}) => {
+    const t = useT(automationsEditorCatalog)
+    const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
+    const {integrations} = useTriggerCatalogIntegrations()
+    const catalogNames = useMemo(
+        () => new Map(integrations.map((integration) => [integration.key, integration.name])),
+        [integrations],
+    )
+    const apps = useMemo(
+        () => connectedApps(connections, catalogNames),
+        [catalogNames, connections],
+    )
+    const openCatalogDrawer = useSetAtom(triggerCatalogDrawerOpenAtom)
+
+    // The app is held here until an event is picked: the draft stores a connection and an event
+    // together.
+    const [connectionId, setConnectionId] = useState(automation.connectionId ?? "")
+    const app =
+        apps.find((candidate) => candidate.connectionId === connectionId) ??
+        apps.find(
+            (candidate) =>
+                candidate.integrationKey ===
+                connections.find((connection) => connection.id === connectionId)?.integration_key,
+        )
+    const eventKey =
+        app && app.connectionId === automation.connectionId ? (automation.eventKey ?? "") : ""
+
+    const {events} = useTriggerCatalogEvents(app?.integrationKey ?? "")
+    const {event} = useTriggerEvent(app?.integrationKey ?? "", eventKey)
+    const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
+
+    const [configForm] = useSchemaFormInstance()
+    const emit = useCallback(
+        (nextEventKey: string, values?: Record<string, unknown>) => {
+            if (!app || !nextEventKey) return
+            onSelectEvent({
+                connectionId: app.connectionId,
+                eventKey: nextEventKey,
+                triggerConfig: values ? normalizeRepoFilters(schema, values) : undefined,
+            })
+        },
+        [app, onSelectEvent, schema],
+    )
+
+    // A different event starts its filters from empty.
+    useEffect(() => {
+        configForm.resetFields()
+    }, [configForm, eventKey])
+
+    const accountOf = (id: string) => {
+        const connection = connections.find((candidate) => candidate.id === id)
+        return connection?.name || connection?.slug || ""
+    }
+
+    if (!connectionsLoading && apps.length === 0)
+        return <EventPickerNoApps onConnect={() => openCatalogDrawer(true)} />
+
+    const label = "text-xs font-medium text-muted-foreground"
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+                <span className={label}>{t("automations.editor.app")}</span>
+                <Select value={app?.connectionId ?? ""} onValueChange={setConnectionId}>
+                    <SelectTrigger
+                        className="h-auto min-h-11 py-1.5"
+                        aria-label={t("automations.editor.app")}
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {apps.map((candidate) => (
+                            <SelectItem key={candidate.connectionId} value={candidate.connectionId}>
+                                <span className="flex min-w-0 flex-col text-left">
+                                    <span className="truncate">{candidate.label}</span>
+                                    {accountOf(candidate.connectionId) ? (
+                                        <span className="truncate text-xs font-normal text-colorTextTertiary">
+                                            {accountOf(candidate.connectionId)}
+                                        </span>
+                                    ) : null}
+                                </span>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+                <span className={label}>{t("automations.editor.event")}</span>
+                <Select value={eventKey} disabled={!app} onValueChange={(next) => emit(next)}>
+                    <SelectTrigger aria-label={t("automations.editor.event")}>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {events.map((candidate) => (
+                            <SelectItem key={candidate.key} value={candidate.key}>
+                                {eventLabel(candidate.name, candidate.key)}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            {schema ? (
+                <SchemaForm
+                    form={configForm}
+                    schema={schema}
+                    optionalLabel={(count) => t("automations.editor.optionalFilters", {count})}
+                    onValuesChange={(values) => emit(eventKey, values)}
+                />
+            ) : null}
+        </div>
+    )
 }

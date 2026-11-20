@@ -42,7 +42,7 @@ export const AutomationCreateBody = ({
         <>
             {/* The switch sits where the saved screen puts Run now — the title line's right
                 end — so the same corner always carries the automation's own control. */}
-            <div className="flex min-w-0 items-center gap-3">
+            <div className={`flex min-w-0 items-center ${fixedKind ? "gap-2" : "gap-3"}`}>
                 <div className="min-w-0 flex-1">
                     <AutomationTitle
                         name={draft.name}
@@ -55,9 +55,22 @@ export const AutomationCreateBody = ({
                             agentName,
                             t("automations.editor.untitledAutomation"),
                         )}
+                        compact={fixedKind}
                     />
                 </div>
-                <span className="hidden shrink-0 items-center gap-[9px] lg:flex">
+                {/* The panel form puts "On" before the switch, at every width (F05 f3). */}
+                <span
+                    className={`shrink-0 items-center ${
+                        fixedKind ? "flex gap-2" : "hidden gap-[9px] lg:flex"
+                    }`}
+                >
+                    {fixedKind ? (
+                        <span className="text-xs text-muted-foreground">
+                            {draft.isActive
+                                ? t("automations.editor.on")
+                                : t("automations.editor.off")}
+                        </span>
+                    ) : null}
                     <Switch
                         size="sm"
                         checked={draft.isActive}
@@ -66,13 +79,17 @@ export const AutomationCreateBody = ({
                         // announces the state, so a label that inverts reads "…switched off, on".
                         aria-label={t("automations.editor.createSwitchedOnAria")}
                     />
-                    <span className="text-[14px] text-foreground">
-                        {draft.isActive ? t("automations.editor.on") : t("automations.editor.off")}
-                    </span>
+                    {fixedKind ? null : (
+                        <span className="text-[14px] text-foreground">
+                            {draft.isActive
+                                ? t("automations.editor.on")
+                                : t("automations.editor.off")}
+                        </span>
+                    )}
                 </span>
             </div>
 
-            <div className="mt-[26px] flex flex-col gap-[22px]">
+            <div className={`flex flex-col ${fixedKind ? "mt-3 gap-3" : "mt-[26px] gap-[22px]"}`}>
                 {showAgentField ? (
                     <AutomationAgentField
                         agentId={draft.agentId}
@@ -85,6 +102,7 @@ export const AutomationCreateBody = ({
                     automation={preview}
                     onChangeCron={state.setCron}
                     onChangeKind={fixedKind ? undefined : state.setKind}
+                    inline={fixedKind}
                     onSelectEvent={state.setEvent}
                     error={errors.runsWhen}
                 />

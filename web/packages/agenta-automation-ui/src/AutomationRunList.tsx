@@ -38,6 +38,7 @@ export const AutomationRunList = ({
     loadingMore = false,
     onEndReached,
     emptyAction,
+    plainEmpty = false,
     phone = false,
 }: {
     runs: TriggerDelivery[]
@@ -56,6 +57,11 @@ export const AutomationRunList = ({
     onEndReached?: () => void
     /** The action under "No runs yet" (the host's "Run now"). Not shown for a filtered list. */
     emptyAction?: ReactNode
+    /**
+     * The panel's empty state (F05 f9): the text right under the heading, with no glyph, rather
+     * than centred in the column.
+     */
+    plainEmpty?: boolean
     /** Phone: rows and buttons are at least 44 px high. */
     phone?: boolean
 }) => {
@@ -116,6 +122,16 @@ export const AutomationRunList = ({
                         </div>
                     </section>
                 ))
+            ) : plainEmpty && !filtered ? (
+                <div className="flex flex-col items-center gap-1.5 px-6 py-20 text-center">
+                    <p className="m-0 text-sm font-medium text-foreground">
+                        {t("automations.editor.noRuns")}
+                    </p>
+                    <p className="m-0 text-[13px] leading-snug text-muted-foreground">
+                        {t("automations.editor.noRunsBody")}
+                    </p>
+                    {emptyAction ? <div className="mt-2">{emptyAction}</div> : null}
+                </div>
             ) : (
                 <AutomationRunHistoryEmpty
                     filtered={filtered}

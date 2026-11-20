@@ -107,5 +107,12 @@
     "noFilters": "Dieses Ereignis braucht keine Filter – es läuft bei jedem Eintreffen.",
     "allApps": "Alle Apps",
     "done": "Fertig",
-    "untitledAutomation": "Unbenannte Automatisierung"
+    "untitledAutomation": "Unbenannte Automatisierung",
+    "schedule": "Zeitplan",
+    "event": "Ereignis",
+    "app": "App",
+    "preview": "Vorschau",
+    "nextRunLabel": "Nächste Ausführung",
+    "nextRunAt": "{{date}}, {{time}} UTC · {{relative}}",
+    "moreActionsFor": "Weitere Aktionen für {{name}}"
 }
