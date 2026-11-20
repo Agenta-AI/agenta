@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Release QA bug 4: the builder page pane must show a builder save even when it mounts after the
- * save's result arrived (the save opened the tab, or the tab opened while the builder saved).
+ * Release QA bug 4: the builder page pane pins a builder save even when it mounts after the save's
+ * result arrived (the save opened the tab, or the tab opened while the builder saved). The pin is
+ * what the pane shows (useConfigurationRevision); the live check covers the shown text.
  */
 import {createElement, type ReactNode} from "react"
 
@@ -58,12 +59,12 @@ const pane = (save: {toolCallId: string; revisionId: string} | null) =>
 afterEach(() => pin.mockClear())
 
 describe("AgentPane follows a builder save", () => {
-    it("shows a save that arrived before the pane mounted", () => {
+    it("pins a save that arrived before the pane mounted", () => {
         render(pane({toolCallId: "c1", revisionId: "rev-1"}))
         expect(pin).toHaveBeenCalledWith("rev-1")
     })
 
-    it("shows a save that arrives while the pane is open, once", () => {
+    it("pins a save that arrives while the pane is open, once", () => {
         const view = render(pane(null))
         expect(pin).not.toHaveBeenCalled()
         act(() => view.rerender(pane({toolCallId: "c1", revisionId: "rev-1"})))

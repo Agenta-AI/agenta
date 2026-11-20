@@ -226,30 +226,26 @@ export const followBuilderResults = (
     fallbackAgent: AgentRef | null,
     /**
      * The tool calls the chat loaded with in this visit. Without it every result is history. A
-     * saved result outside it is fresh: when it opens the chat's first tab, the tab keeps its
-     * changed sections ("Changed by the builder").
+     * result outside it is fresh and is followed, also when it opens the chat's first tab.
      */
     history?: ReadonlySet<string>,
 ): BuilderTabsState => {
-    if (isUntouched(state)) {
-        const latest = results.at(-1)?.agent ?? fallbackAgent
-        const marked = history
-            ? results
-                  .filter(
-                      (result) =>
-                          result.saved &&
-                          !history.has(result.toolCallId) &&
-                          result.agent.id === latest?.id,
-                  )
-                  .flatMap((result) => result.changedSections)
-            : []
-        const fresh = latest ? followBuilderResult(state, agentTab(latest, marked)) : state
-        return markFollowed(
-            fresh,
-            results.map((result) => result.toolCallId),
-        )
-    }
     let next = state
+    if (isUntouched(state)) {
+        // The chat's first tab: the latest result's agent, else the fallback. The results the
+        // chat loaded with count as followed; a fresh one goes through the loop below like any
+        // other, so its tab keeps its changed sections.
+        const latest = results.at(-1)?.agent ?? fallbackAgent
+        const opened = latest ? followBuilderResult(state, agentTab(latest)) : state
+        const loaded = history
+            ? results.filter((result) => history.has(result.toolCallId))
+            : results
+        next = markFollowed(
+            opened,
+            loaded.map((result) => result.toolCallId),
+        )
+        if (!history) return next
+    }
     for (const result of results) {
         if (next.followedToolCallIds.includes(result.toolCallId)) continue
         next = markFollowed(next, [result.toolCallId])
