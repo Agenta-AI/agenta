@@ -64,7 +64,7 @@ import {CatalogRowSkeleton} from "./CatalogRowSkeleton"
 import {CategoryChips} from "./CategoryChips"
 import {CategorySelect} from "./CategorySelect"
 import {ConnectionActionConfirm, type ConnectionAction} from "./ConnectionActionConfirm"
-import {ConnectionRowMenu, type ConnectionMenuAction} from "./ConnectionRowMenu"
+import {ConnectionRowMenu, type ConnectionMenuItem} from "./ConnectionRowMenu"
 import {
     catalogSections,
     filterConnectedGroups,
@@ -80,7 +80,7 @@ interface PendingConnect extends CreatedConnection {
     integrationKey: string
 }
 
-/** Whether "Connected" is folded away; remembered per viewer. */
+/** Whether "Connected" is folded away; remembered per viewer, one key for every host. */
 const connectedCollapsedAtom = atomWithStorage(
     "agenta:agent-integrations:connected-collapsed",
     false,
@@ -137,12 +137,18 @@ export interface IntegrationCatalogProps {
      */
     layout?: "panel" | "page"
     searchPlaceholder?: string
-    /** The project group's heading, e.g. the project switch: it never folds and stays when empty. */
-    connectedLabel?: ReactNode
+    /**
+     * The project group's heading in place of "Connected", e.g. the Settings project switch. A
+     * heading also pins the group: it does not fold and stays when empty, outside a search.
+     */
+    projectHeading?: ReactNode
     yours?: IntegrationCatalogYours
     run?: IntegrationCatalogRun
-    /** Confirms Revoke and Delete itself (the host's own dialog); absent, the catalog asks. */
-    onConnectionAction?: (action: ConnectionAction, connection: ToolConnection) => void
+    /**
+     * Takes over Revoke and Delete: the host asks in its own dialog AND runs the action. Absent,
+     * the catalog asks and runs it.
+     */
+    confirmConnectionAction?: (action: ConnectionAction, connection: ToolConnection) => void
 }
 
 interface ConnectedGroup {
@@ -222,7 +228,7 @@ interface RowVerbs {
 const works = (connection: ToolConnection) =>
     isConnectionActive(connection) && isConnectionValid(connection)
 
-const menuActions = (connection: ToolConnection, verbs: RowVerbs): ConnectionMenuAction[] => [
+const menuItems = (connection: ToolConnection, verbs: RowVerbs): ConnectionMenuItem[] => [
     ...(verbs.run
         ? [
               {
@@ -363,7 +369,7 @@ function ConnectedRow({
                     {/* Per-connection verbs need one connection to act on. */}
                     {multiple ? null : (
                         <ConnectionRowMenu
-                            actions={menuActions(single, verbs)}
+                            items={menuItems(single, verbs)}
                             onRefresh={() => handlers.onRefresh(single)}
                             onRevoke={() => handlers.onConfirm("revoke", single, title)}
                             onDelete={() => handlers.onConfirm("delete", single, title)}
@@ -402,7 +408,7 @@ function ConnectedRow({
                                         </span>
                                     )}
                                     <ConnectionRowMenu
-                                        actions={menuActions(connection, verbs)}
+                                        items={menuItems(connection, verbs)}
                                         onRefresh={() => handlers.onRefresh(connection)}
                                         onRevoke={() =>
                                             handlers.onConfirm("revoke", connection, label)
@@ -557,10 +563,10 @@ export function IntegrationCatalog({
     onConnect,
     layout = "panel",
     searchPlaceholder,
-    connectedLabel,
+    projectHeading,
     yours,
     run,
-    onConnectionAction,
+    confirmConnectionAction,
 }: IntegrationCatalogProps) {
     const t = useT(integrationDrawerCatalog)
     const page = layout === "page"
@@ -593,10 +599,10 @@ export function IntegrationCatalog({
     } | null>(null)
     const confirmAction = useCallback(
         (action: ConnectionAction, connection: ToolConnection, label: string) =>
-            onConnectionAction
-                ? onConnectionAction(action, connection)
+            confirmConnectionAction
+                ? confirmConnectionAction(action, connection)
                 : setConfirming({action, connection, label}),
-        [onConnectionAction],
+        [confirmConnectionAction],
     )
     const refreshConnection = useRefreshToolConnection()
     const {handleDelete, handleRevoke} = useToolConnectionActions()
@@ -644,25 +650,23 @@ export function IntegrationCatalog({
     }
 
     const allConnectedGroups = useMemo(() => groupConnections(connections), [connections])
+    const showsYours = Boolean(yours)
     const allYoursGroups = useMemo(
-        () => (yours ? groupConnections(personalConnections ?? []) : []),
-        [yours, personalConnections],
+        () => (showsYours ? groupConnections(personalConnections ?? []) : []),
+        [showsYours, personalConnections],
     )
 
     // Read through the SAME query atoms each row uses, so this shares their cache.
-    const connectedKeys = useMemo(
-        () =>
-            [
-                ...new Set(
-                    [...allConnectedGroups, ...allYoursGroups].map((group) => group.integrationKey),
-                ),
-            ].sort(),
-        [allConnectedGroups, allYoursGroups],
-    )
+    // Keyed by the joined keys: a new atom on every render would subscribe again and loop.
+    const connectedKeys = [
+        ...new Set([...allConnectedGroups, ...allYoursGroups].map((group) => group.integrationKey)),
+    ]
+        .sort()
+        .join("\n")
     const connectedDetailsAtom = useMemo(
         () =>
             atom((get) =>
-                connectedKeys.map((key) => ({
+                (connectedKeys ? connectedKeys.split("\n") : []).map((key) => ({
                     key,
                     integration: get(toolIntegrationDetailQueryFamily(key)).data?.integration,
                 })),
@@ -682,7 +686,7 @@ export function IntegrationCatalog({
     }, [connectedDetails])
 
     // Filtered here, not inside each row, so the section count matches the rows it heads.
-    const {connected: connectedGroups, connectable: catalogRows} = useMemo(
+    const {connected: connectedGroups, connectable: allRows} = useMemo(
         () =>
             catalogSections({
                 integrations,
@@ -701,6 +705,16 @@ export function IntegrationCatalog({
             namesByIntegration,
         ],
     )
+    // The server searches from three characters; below that, narrow what has loaded.
+    const catalogRows = useMemo(() => {
+        const needle = query.trim().toLowerCase()
+        if (!needle || needle.length >= 3) return allRows
+        return allRows.filter((integration) =>
+            [integration.name, integration.description].some((text) =>
+                text?.toLowerCase().includes(needle),
+            ),
+        )
+    }, [allRows, query])
     const yoursGroups = useMemo(
         () =>
             filterConnectedGroups({
@@ -760,9 +774,11 @@ export function IntegrationCatalog({
         yoursGroups.length === 0 &&
         catalogRows.length === 0
     // Under a heading such as the project switch the group stays, except in a search.
-    const showConnected = connectedGroups.length > 0 || (Boolean(connectedLabel) && !searching)
+    // A search or a category shows only what it matched: no pinned heading, no empty note.
+    const filtering = searching || category !== null
+    const showConnected = connectedGroups.length > 0 || (Boolean(projectHeading) && !filtering)
     const yoursFooter =
-        yours?.error ?? (!searching && yoursGroups.length === 0 ? yours?.empty : null)
+        yours?.error ?? (!filtering && yoursGroups.length === 0 ? yours?.empty : null)
 
     const search = (
         <SearchInput
@@ -845,11 +861,11 @@ export function IntegrationCatalog({
 
                     {showConnected ? (
                         <RowGroup
-                            label={connectedLabel ?? t("entityUi.integrationDrawer.connected")}
+                            label={projectHeading ?? t("entityUi.integrationDrawer.connected")}
                             count={connectedGroups.length}
-                            collapsed={!connectedLabel && !searching && connectedCollapsed}
+                            collapsed={!projectHeading && !searching && connectedCollapsed}
                             onToggle={
-                                connectedLabel || searching
+                                projectHeading || searching
                                     ? undefined
                                     : () => setConnectedCollapsed((value) => !value)
                             }

@@ -204,7 +204,7 @@ export const SettingsPage: Story = {
             <IntegrationCatalog
                 layout="page"
                 searchPlaceholder="Search integrations"
-                connectedLabel="Default project"
+                projectHeading="Default project"
                 run={{label: "Run action", onRun: noop}}
                 onConnect={noop}
             />

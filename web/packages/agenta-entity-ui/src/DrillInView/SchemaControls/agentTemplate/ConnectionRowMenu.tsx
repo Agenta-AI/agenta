@@ -13,8 +13,8 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowClockwise, DotsThreeVertical, Trash, XCircle} from "@phosphor-icons/react"
 
-/** A verb a host adds to the menu, such as Run or Make default. */
-export interface ConnectionMenuAction {
+/** An item a host adds to the menu, such as Run or Make default. */
+export interface ConnectionMenuItem {
     key: string
     label: string
     icon: ReactNode
@@ -22,12 +22,12 @@ export interface ConnectionMenuAction {
 }
 
 export function ConnectionRowMenu({
-    actions = [],
+    items = [],
     onRefresh,
     onRevoke,
     onDelete,
 }: {
-    actions?: ConnectionMenuAction[]
+    items?: ConnectionMenuItem[]
     onRefresh: () => void
     onRevoke: () => void
     onDelete: () => void
@@ -49,10 +49,10 @@ export function ConnectionRowMenu({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[160px]">
-                {actions.map((action) => (
-                    <DropdownMenuItem key={action.key} onSelect={action.onSelect}>
-                        {action.icon}
-                        {action.label}
+                {items.map((item) => (
+                    <DropdownMenuItem key={item.key} onSelect={item.onSelect}>
+                        {item.icon}
+                        {item.label}
                     </DropdownMenuItem>
                 ))}
                 <DropdownMenuItem onSelect={onRefresh}>

@@ -97,7 +97,7 @@ export default function GatewayToolsSection({
         [copy.run, setExecutionDrawer],
     )
 
-    const onConnectionAction = useCallback(
+    const confirmConnectionAction = useCallback(
         (action: ConnectionAction, connection: ToolConnection) => {
             const remove = action === "delete"
             confirm?.({
@@ -166,10 +166,10 @@ export default function GatewayToolsSection({
                 <IntegrationCatalog
                     layout="page"
                     searchPlaceholder={copy.searchPlaceholder}
-                    connectedLabel={projectSwitch}
+                    projectHeading={projectSwitch}
                     yours={yours}
                     run={run}
-                    onConnectionAction={confirm ? onConnectionAction : undefined}
+                    confirmConnectionAction={confirm ? confirmConnectionAction : undefined}
                     onConnect={setConnectTarget}
                 />
             </section>

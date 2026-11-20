@@ -52,6 +52,18 @@ const mount = async (element: ReturnType<typeof createElement>) => {
 
 const text = () => document.body.textContent ?? ""
 
+const click = async (el: HTMLElement) => {
+    await act(async () => {
+        el.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true, button: 0}))
+        el.click()
+    })
+}
+
+const button = (label: string) =>
+    [...document.querySelectorAll<HTMLElement>("button, [role=menuitem]")].find(
+        (node) => (node.textContent ?? "").trim() === label,
+    )
+
 const yours = (overrides = {}) => ({
     label: "Yours",
     empty: createElement("p", null, "No accounts of your own"),
@@ -94,7 +106,7 @@ describe("the integration list on the Settings page", () => {
                 layout: "page",
                 onConnect: vi.fn(),
                 yours: yours(),
-                connectedLabel: createElement("span", null, "Project Alpha"),
+                projectHeading: createElement("span", null, "Project Alpha"),
             }),
         )
         const body = text()
@@ -111,7 +123,7 @@ describe("the integration list on the Settings page", () => {
                 layout: "page",
                 onConnect: vi.fn(),
                 yours: yours(),
-                connectedLabel: createElement("span", null, "Project Alpha"),
+                projectHeading: createElement("span", null, "Project Alpha"),
             }),
         )
         expect(text()).toContain("Project Alpha")
@@ -157,12 +169,63 @@ describe("the integration list on the Settings page", () => {
         expect(onRun).toHaveBeenCalledWith(connection)
     })
 
-    it("filters by category chips on a page and by a select in a panel", async () => {
+    it("picks a category with the chips on a page and keeps the select in a panel", async () => {
         await mount(createElement(IntegrationCatalog, {layout: "page", onConnect: vi.fn()}))
         expect(document.querySelector("[role=toolbar]")).not.toBeNull()
         expect(document.querySelector("[aria-pressed=true]")?.textContent).toBe("All")
+        const crm = [...document.querySelectorAll<HTMLElement>("[aria-pressed]")].find(
+            (chip) => chip.textContent === "CRM",
+        )
+        await click(crm!)
+        expect(document.querySelector("[aria-pressed=true]")?.textContent).toBe("CRM")
 
         await mount(createElement(IntegrationCatalog, {onConnect: vi.fn()}))
         expect(document.querySelector("[role=toolbar]")).toBeNull()
+    })
+
+    it("offers Make default on the person's own working account that is not the default", async () => {
+        const mine = {id: "p2", slug: "gmail-work", name: "Work", integration_key: "gmail", flags}
+        state.personal = [mine]
+        const onMakeDefault = vi.fn()
+        await mount(
+            createElement(IntegrationCatalog, {
+                layout: "page",
+                onConnect: vi.fn(),
+                yours: yours({
+                    makeDefault: {label: "Make default", defaultLabel: "Default", onMakeDefault},
+                }),
+            }),
+        )
+        await click(document.querySelector<HTMLElement>("[aria-label='Connection actions']")!)
+        await click(button("Make default")!)
+        expect(onMakeDefault).toHaveBeenCalledWith(mine)
+    })
+
+    it("hands Delete to the host's own confirm, from the finish sign-in dialog", async () => {
+        const pending = {
+            id: "c2",
+            slug: "github-new",
+            name: "New",
+            integration_key: "github",
+            provider_key: "composio",
+            flags: {is_active: true, is_valid: false},
+        }
+        state.connections = [pending]
+        const confirmConnectionAction = vi.fn()
+        await mount(
+            createElement(IntegrationCatalog, {
+                layout: "page",
+                onConnect: vi.fn(),
+                confirmConnectionAction,
+            }),
+        )
+        const row = [...document.querySelectorAll<HTMLElement>("[role=button]")].find((node) =>
+            (node.textContent ?? "").includes("New"),
+        )
+        await act(async () => row!.click())
+        await click(button("Delete")!)
+        expect(confirmConnectionAction).toHaveBeenCalledWith("delete", pending)
+        // The catalog runs no dialog of its own.
+        expect(text()).not.toContain("Delete connection:")
     })
 })
