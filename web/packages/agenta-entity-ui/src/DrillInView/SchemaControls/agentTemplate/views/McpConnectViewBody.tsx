@@ -17,6 +17,14 @@ interface Connected {
     name: string
 }
 
+/** Whether this code runs inside a press the browser still counts (it then allows a window). */
+const hasUserActivation = (): boolean => {
+    const activation = (navigator as Navigator & {userActivation?: {isActive: boolean}})
+        .userActivation
+    // Without the API, assume a press: the journey's own window fallback still applies.
+    return activation ? activation.isActive : true
+}
+
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     const t = useT(mcpViewsCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
