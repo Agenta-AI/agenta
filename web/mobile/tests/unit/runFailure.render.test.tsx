@@ -133,7 +133,7 @@ describe("mobile TurnRow: a run that failed", () => {
     })
 
     it("offers no retry for a refusal nothing but a new request would fix", () => {
-        renderTurn(failedTurn("model authentication failed"))
+        renderTurn(failedTurn("The model declined this request."))
         expect(hasRetry()).toBe(false)
     })
 
@@ -282,6 +282,19 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(link?.getAttribute("href")).toBe("https://openrouter.ai/settings/credits")
         expect(link?.getAttribute("target")).toBe("_blank")
         expect(hasRetry()).toBe(true)
+    })
+
+    it("opens the provider form for the runner's refused-credential sentence", async () => {
+        const text = renderTurn(
+            failedTurn(
+                "pi_core: model authentication failed — add the project's OpenAI key to the project vault, or log in (OAuth).",
+                "runner_error",
+            ),
+        )
+
+        expect(text).toContain("The model provider rejected the OpenAI key.")
+        await pressAndLoad("Update key")
+        expect(shown()).toContain("[providers drawer: openai]")
     })
 
     it("opens the failed provider's card when its key was rejected", async () => {

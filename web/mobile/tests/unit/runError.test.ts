@@ -54,6 +54,31 @@ describe("describeRunError", () => {
         expect(describeRunError('400: {"message":"Unknown field credits."}').remedy).toBeUndefined()
     })
 
+    it("reads the runner's refused-credential sentence as a key failure", () => {
+        const text =
+            "pi_core: model authentication failed — add the project's OpenAI key to the project vault, or log in (OAuth)."
+        const error = formatRunError(text)
+
+        expect(error.kind).toBe("key")
+        expect(error.paragraphs[0]).toBe("The model provider rejected the OpenAI key.")
+        expect(error.provider?.kind).toBe("openai")
+        // The connection form of a custom route has no provider name in the sentence.
+        expect(
+            formatRunError(
+                "pi_core: model authentication failed — add the model connection's API key to the project vault, or log in (OAuth).",
+            ).kind,
+        ).toBe("key")
+    })
+
+    it("still lets a failure that is not about a key fall through", () => {
+        const error = formatRunError("The sandbox went away before the OpenAI model answered.")
+
+        expect(error.kind).toBeUndefined()
+        expect(error.paragraphs).toEqual([
+            "The sandbox went away before the OpenAI model answered.",
+        ])
+    })
+
     it("never shows an empty headline", () => {
         expect(describeRunError("   ").headline).toBe("Something went wrong.")
     })

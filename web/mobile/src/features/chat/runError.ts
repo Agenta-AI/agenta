@@ -127,7 +127,15 @@ const recognise = (
             remedy: tNow("chat.mobileRunError.creditsRemedy"),
         }
     }
-    if (status === 401 || status === 403 || /api key|unauthori[sz]ed|invalid.*key/.test(lower)) {
+    // The runner says a refused model credential in its own words: "model authentication failed
+    // — add the project's OpenAI key …". A provider name followed by "key" is the same failure.
+    const namesProviderKey = !!provider && lower.includes(`${provider.name.toLowerCase()} key`)
+    if (
+        status === 401 ||
+        status === 403 ||
+        /api key|unauthori[sz]ed|invalid.*key|authentication failed/.test(lower) ||
+        namesProviderKey
+    ) {
         return {
             kind: "key",
             headline: tNow("chat.mobileRunError.keyHeadline", {key}),
