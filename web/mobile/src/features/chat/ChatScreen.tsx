@@ -26,6 +26,7 @@ import {ApprovalDock} from "./ApprovalDock"
 import {conversationKey} from "./conversationKey"
 import {ConversationRoleContext} from "./conversationRole"
 import {ConversationRoot} from "./ConversationRoot"
+import {KeptConversations, useKeptConversations} from "./keptConversations"
 import {LiveConversation} from "./LiveConversation"
 import {usePublishPageSessionId} from "./pageSessionId"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
@@ -181,6 +182,30 @@ export const ChatScreen = ({
     // turn keeps the revision it started on, so neither may move this session's pin.
     const autoUpdateRevision =
         Boolean(entityId) && followsAgent && Boolean(liveness.data) && !turnActive && !viewFormDirty
+    // The open conversation and the last ones left stay mounted (see `useKeptConversations`).
+    const liveConversation =
+        !access.blocked && !showLoading && !unreachable && heldEntityId ? (
+            <LiveConversation
+                // Per SESSION only — see `conversationKey`. Keying it here and not the page keeps the
+                // shell, the split and the config pane mounted while the transcript is rebuilt.
+                key={conversationKey({sessionId, revisionId: heldEntityId})}
+                embedded
+                entityId={heldEntityId}
+                sessionId={sessionId}
+                projectId={projectId}
+                workspaceId={workspaceId}
+                running={running}
+                stopStateLoading={liveness.isLoading}
+                sessionTurnId={liveStream?.turn_id}
+                stoppingTurnId={liveStream?.stopping_turn_id}
+                sharedReader={sharedReader}
+                agentId={heldAgentId}
+                readOnly={access.readOnly}
+                canSend={access.canSend}
+                accessPending={access.accessPending}
+            />
+        ) : null
+    const keptConversations = useKeptConversations(sessionId, liveConversation)
     // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
     // agent from the chat before it, so a private chat looks exactly like an unknown one.
     if (access.blocked) {
@@ -206,26 +231,8 @@ export const ChatScreen = ({
         <ChatLoading />
     ) : unreachable ? (
         <ChatUnreachable onRetry={retry} retrying={retrying} />
-    ) : heldEntityId ? (
-        <LiveConversation
-            // Per SESSION only — see `conversationKey`. Keying it here and not the page keeps the
-            // shell, the split and the config pane mounted while the transcript is rebuilt.
-            key={conversationKey({sessionId, revisionId: heldEntityId})}
-            embedded
-            entityId={heldEntityId}
-            sessionId={sessionId}
-            projectId={projectId}
-            workspaceId={workspaceId}
-            running={running}
-            stopStateLoading={liveness.isLoading}
-            sessionTurnId={liveStream?.turn_id}
-            stoppingTurnId={liveStream?.stopping_turn_id}
-            sharedReader={sharedReader}
-            agentId={heldAgentId}
-            readOnly={access.readOnly}
-            canSend={access.canSend}
-            accessPending={access.accessPending}
-        />
+    ) : liveConversation ? (
+        <KeptConversations sessionId={sessionId} kept={keptConversations} />
     ) : (
         <ReplayScreen
             // Per session, as the live conversation: its transcript state is per session, and a
