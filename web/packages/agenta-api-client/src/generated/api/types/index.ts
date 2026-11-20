@@ -554,6 +554,7 @@ export * from "./ParsedSkillFile.js";
 export * from "./PendingInput.js";
 export * from "./PendingInputAdmissionResponse.js";
 export * from "./PendingInputAttachment.js";
+export * from "./PendingInputKind.js";
 export * from "./PendingInputResponse.js";
 export * from "./PendingInputState.js";
 export * from "./Permission.js";
