@@ -16,7 +16,8 @@ export const AGENT_CHANNELS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[760p
 
 /**
  * The header of an agent's Sessions, Analytics and Channels pages: the agent pages header (a
- * 48 px bar with the Builder icon) on a desktop, the phone page header on a phone.
+ * 48 px bar; it shows the Builder icon when the builder panel host is on the page) on a desktop,
+ * the phone page header on a phone.
  */
 export const AgentListPageHeader = ({
     title,
