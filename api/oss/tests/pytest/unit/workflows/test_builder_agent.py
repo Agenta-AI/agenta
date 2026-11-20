@@ -28,6 +28,7 @@ from oss.src.core.workflows.builder_agent import (
     BUILDER_AGENT_TOOLS,
     BUILDER_LEARNING_DRIVE_SLUG,
 )
+from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
 from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import (
@@ -362,3 +363,33 @@ def test_learning_skill_keeps_private_content_out_of_the_shared_drive():
 
     assert "Content from a private agent or a private conversation" in body
     assert "agrees" in body
+
+
+def test_manage_skill_names_every_field_the_save_refuses():
+    """The builder must not set a field that the agent commit scope refuses; the list
+    in the text comes from the scope itself, so the two cannot drift."""
+    skills = {skill["name"]: skill for skill in _agent()["skills"]}
+    body = skills["manage-project-agents"]["body"]
+    refused = [".".join(path[2:]) for path in AGENT_COMMIT_SCOPE._refused]
+
+    assert refused
+    for field in refused:
+        assert f"`{field}`" in body, field
+    assert "the platform owns them" in body
+
+
+def test_instructions_ask_for_a_connection_once():
+    instructions = _agent()["instructions"]["agents_md"]
+
+    assert (
+        "- Ask for a connection one time. When the person does not connect the app, or "
+        "says that no card shows, do not ask again and do not wait: build without it. "
+        "Say once, in the results, what the agent cannot do until the app is connected, "
+        "and that the person can ask you for the connection again later. Never name "
+        "`request_connection` or another tool to the person." in instructions
+    )
+    assert (
+        "A turn that asks for a connection also says in one sentence what the person "
+        "should do (connect the app in the card), so the turn is never empty text."
+        in instructions
+    )
