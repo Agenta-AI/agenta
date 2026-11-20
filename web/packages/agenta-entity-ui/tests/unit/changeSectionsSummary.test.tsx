@@ -3,9 +3,10 @@
  * added pair drops the start they share, so the box shows what changed.
  */
 import type {ExtendedDiffLine} from "@agenta/ui/diff"
+import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it} from "vitest"
 
-import {summaryLines} from "../../src/changes/ChangeSections"
+import {ChangeSummary, summaryLines} from "../../src/changes/ChangeSections"
 
 const line = (type: ExtendedDiffLine["type"], content: string) =>
     ({type, content}) as ExtendedDiffLine
@@ -38,5 +39,27 @@ describe("summaryLines", () => {
             {type: "added", content: "A bug is high."},
             {type: "added", content: "Billing is high."},
         ])
+    })
+})
+
+describe("ChangeSummary", () => {
+    it("shows each section with its plain status and its rows, with no toggle", () => {
+        const html = renderToStaticMarkup(
+            <ChangeSummary
+                sections={[
+                    {
+                        id: "tools",
+                        title: "Tools",
+                        tags: [{kind: "added", label: "1 added"}],
+                        totalCount: 1,
+                        items: [{id: "t1", label: "send_email", kind: "added"}],
+                    },
+                ]}
+            />,
+        )
+        expect(html).toContain("Tools")
+        expect(html).toContain("1 added")
+        expect(html).toContain("send_email")
+        expect(html).not.toContain("aria-expanded")
     })
 })

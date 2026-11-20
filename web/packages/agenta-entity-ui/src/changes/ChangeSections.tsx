@@ -40,9 +40,9 @@ import {
 
 /** Inline text-diff rows before the "View full diff" link takes over. */
 export const INLINE_TEXT_DIFF_LINES = 6
-/** Row inset inside a card body; ghost sits on a tighter one, its band filling the pane's width. */
+/** Row inset inside a card body; the version history summary sits on a tighter one. */
 const ROW_PAD = "px-3.5"
-const GHOST_ROW_PAD = "px-2"
+const SUMMARY_ROW_PAD = "px-2"
 const SUBGROUP_VISIBLE = 5
 const VIRTUALIZE_AT = 50
 
@@ -309,7 +309,6 @@ export function SectionCard({
     onOpenInstructions,
     onOpenTool,
     small,
-    ghost,
 }: {
     section: ChangeSection
     items?: ChangeItem[]
@@ -320,27 +319,16 @@ export function SectionCard({
     /** Omit to make edited tools non-clickable (no detail view to drill into). */
     onOpenTool?: (itemId: string) => void
     small?: boolean
-    /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
-    ghost?: boolean
 }) {
     const t = useT(changeSectionsCatalog)
     const toolItems = items ?? section.items
-    // Ghost bands fill the pane's box and pad inward, so nothing relies on a negative margin —
-    // one bled outward gets clipped by the collapse wrapper's overflow-hidden.
-    const rowPad = ghost ? GHOST_ROW_PAD : ROW_PAD
     // Split frame per DetailCard; each header sticks only within its own card wrapper.
     return (
-        <div className={cn(ghost ? "mb-1" : small ? "mb-1.5" : "mb-2.5")}>
-            {/* Sticky only with the card chrome behind it — a borderless row pinned over the
-                scrolling diff has nothing separating it from the content it covers. */}
+        <div className={cn(small ? "mb-1.5" : "mb-2.5")}>
             <div
                 className={cn(
-                    ghost
-                        ? "rounded-md"
-                        : cn(
-                              "sticky top-0 z-[1] bg-[var(--ag-colorBgContainer)]",
-                              open ? "rounded-t-[10px]" : "rounded-[10px]",
-                          ),
+                    "sticky top-0 z-[1] bg-[var(--ag-colorBgContainer)]",
+                    open ? "rounded-t-[10px]" : "rounded-[10px]",
                 )}
             >
                 <button
@@ -350,19 +338,9 @@ export function SectionCard({
                     className={cn(
                         "flex w-full cursor-pointer items-center border-0 text-left font-[inherit] transition-colors",
                         FOCUS_RING,
-                        // Ghost bleeds its fill outward so the icon column still lines up with
-                        // the heading above it — same left edge, no visible inset.
-                        ghost
-                            ? cn(
-                                  GHOST_ROW_PAD,
-                                  "rounded-md border-0 bg-[var(--ag-colorFillQuaternary)] hover:bg-[var(--ag-colorFillTertiary)]",
-                                  small ? "gap-2 py-2" : "gap-2.5 py-2.5",
-                              )
-                            : cn(
-                                  "border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] hover:bg-[var(--ag-colorFillTertiary)]",
-                                  open ? "rounded-t-[10px]" : "rounded-[10px]",
-                                  small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
-                              ),
+                        "border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] hover:bg-[var(--ag-colorFillTertiary)]",
+                        open ? "rounded-t-[10px]" : "rounded-[10px]",
+                        small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                     )}
                 >
                     <span
@@ -392,37 +370,30 @@ export function SectionCard({
                 </button>
             </div>
             <HeightCollapse open={open}>
-                <div
-                    className={cn(
-                        "overflow-hidden",
-                        ghost
-                            ? "border-0 bg-transparent"
-                            : "rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]",
-                    )}
-                >
+                <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
                     {/* MCPs and Skills carry rows too; only the tool kinds drill into a detail view. */}
                     {toolItems?.length ? (
                         <CappedItems
                             items={toolItems}
                             onOpenTool={DRILLABLE.has(section.id) ? onOpenTool : undefined}
-                            padX={rowPad}
+                            padX={ROW_PAD}
                         />
                     ) : null}
                     {section.scalarChanges ? (
-                        <ScalarRows changes={section.scalarChanges} padX={rowPad} />
+                        <ScalarRows changes={section.scalarChanges} padX={ROW_PAD} />
                     ) : null}
                     {section.textDiff ? (
                         <div>
                             <HunkRows
                                 hunks={section.textDiff.hunks}
                                 limit={onOpenInstructions ? INLINE_TEXT_DIFF_LINES : undefined}
-                                padX={rowPad}
+                                padX={ROW_PAD}
                             />
                             {onOpenInstructions ? (
                                 <div
                                     className={cn(
                                         "flex items-center border-t border-[var(--ag-colorBorderSecondary)] py-2",
-                                        rowPad,
+                                        ROW_PAD,
                                     )}
                                 >
                                     <button
@@ -555,10 +526,10 @@ function SummarySection({section}: {section: ChangeSection}) {
             </div>
             <div className="mx-2 overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] text-[12.5px] leading-5">
                 {section.items?.length ? (
-                    <CappedItems items={section.items} padX={GHOST_ROW_PAD} />
+                    <CappedItems items={section.items} padX={SUMMARY_ROW_PAD} />
                 ) : null}
                 {section.scalarChanges ? (
-                    <ScalarRows changes={section.scalarChanges} padX={GHOST_ROW_PAD} />
+                    <ScalarRows changes={section.scalarChanges} padX={SUMMARY_ROW_PAD} />
                 ) : null}
                 {section.textDiff ? <SummaryText hunks={section.textDiff.hunks} /> : null}
             </div>
@@ -615,13 +586,6 @@ export interface ChangeSectionsProps {
     /** Wired by hosts that own a detail view (the commit modal); omitted, rows stay inline. */
     onOpenInstructions?: (sectionId: string) => void
     onOpenTool?: (sectionId: string, itemId: string) => void
-    /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
-    ghost?: boolean
-    /**
-     * The version history's summary (S06): each section open, a plain status at the right, and
-     * the changed lines in one box. The open state and the size do not apply.
-     */
-    summary?: boolean
 }
 
 /**
@@ -635,18 +599,7 @@ export function ChangeSections({
     onToggleSection,
     onOpenInstructions,
     onOpenTool,
-    ghost,
-    summary,
 }: ChangeSectionsProps) {
-    if (summary) {
-        return (
-            <>
-                {sections.map((section) => (
-                    <SummarySection key={section.id} section={section} />
-                ))}
-            </>
-        )
-    }
     return (
         <>
             {sections.map((section) => (
@@ -656,13 +609,23 @@ export function ChangeSections({
                     items={section.items}
                     open={openState[section.id] ?? false}
                     small={size === "small"}
-                    ghost={ghost}
                     onToggle={() => onToggleSection(section.id)}
                     onOpenInstructions={
                         onOpenInstructions ? () => onOpenInstructions(section.id) : undefined
                     }
                     onOpenTool={onOpenTool ? (itemId) => onOpenTool(section.id, itemId) : undefined}
                 />
+            ))}
+        </>
+    )
+}
+
+/** The version history's summary of a version (S06): every section, open, read only. */
+export function ChangeSummary({sections}: {sections: ChangeSection[]}) {
+    return (
+        <>
+            {sections.map((section) => (
+                <SummarySection key={section.id} section={section} />
             ))}
         </>
     )

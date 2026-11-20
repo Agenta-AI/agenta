@@ -5,7 +5,8 @@ import {Check, Copy} from "lucide-react"
 import type {IconMap} from "streamdown"
 
 /**
- * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
+ * Streamdown's built-in classes assume a 14–30px type scale; the app sets its own body scale
+ * (APP_SCALE and CHAT_SCALE below).
  * Descendant selectors (specificity 0,2,0+) win over its own single-class utilities without
  * having to fork every element renderer. Semantic tokens only — the `sidebar` role Streamdown
  * reaches for is not part of the generated token bridge, so code chrome is re-surfaced onto

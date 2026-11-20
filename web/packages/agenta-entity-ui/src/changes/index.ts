@@ -6,6 +6,7 @@
  */
 export {
     ChangeSections,
+    ChangeSummary,
     SectionCard,
     DetailCard,
     StatusTags,

@@ -400,7 +400,7 @@ describe("ActivityTimeline", () => {
         )
         const line = screen.getAllByRole("button")[0]
         expect(line.textContent).toContain("Worked for 9 s")
-        expect(line.textContent).not.toContain("85m")
+        expect(line.textContent).not.toContain("85 m")
     })
 
     it("settles to Worked without duration when an unclocked turn had an approval", () => {
@@ -421,7 +421,7 @@ describe("ActivityTimeline", () => {
         })
         const line = screen.getAllByRole("button")[0]
         expect(line.textContent).toBe("Worked")
-        expect(line.textContent).not.toContain("85m")
+        expect(line.textContent).not.toContain("85 m")
     })
 
     it("keeps approval history when replay removes the answered gate from the timeline", () => {
@@ -475,7 +475,7 @@ describe("ActivityTimeline", () => {
             </Provider>
         )
         const view = render(tree(true))
-        expect(screen.getAllByRole("button")[0].textContent).not.toMatch(/85:|85m/)
+        expect(screen.getAllByRole("button")[0].textContent).not.toMatch(/85:|85 m/)
         act(() => {
             vi.advanceTimersByTime(6000)
         })
