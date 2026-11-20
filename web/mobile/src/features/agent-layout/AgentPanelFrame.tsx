@@ -100,15 +100,25 @@ export const AgentPanelFrame = ({
     return (
         <div
             className={cn(
-                "min-h-0 shrink-0",
+                "min-h-0",
                 !open && "hidden",
-                mode === "push" && "relative h-full",
+                // Beside the page it gives way to the page's minimum column, down to its own
+                // minimum width; over the page it keeps its width.
+                mode === "push" ? "relative h-full shrink" : "shrink-0",
                 mode === "overlay" &&
                     cn("absolute bottom-0 right-0 z-20 shadow-overlay", overlayTop ?? "top-0"),
                 mode === "full" && "absolute inset-0 z-30",
                 mode !== "full" && "border-0 border-l border-solid border-colorBorderSecondary",
             )}
-            style={mode === "full" ? undefined : {width}}
+            style={
+                mode === "full"
+                    ? undefined
+                    : {
+                          width,
+                          minWidth:
+                              mode === "push" ? Math.min(width, resize?.min ?? width) : undefined,
+                      }
+            }
             onKeyDown={(event) => {
                 // A view goes back first (the view stack handles it); a menu or dialog closes itself.
                 // What is left closes the panel, also from the resize edge.

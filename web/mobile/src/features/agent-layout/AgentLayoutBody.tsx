@@ -395,7 +395,12 @@ export const AgentLayoutBody = ({
                 off its left edge when focus moves into it. */}
             <div className="relative flex h-full min-h-0 overflow-x-clip">
                 <div
-                    className="ag-canvas flex h-full min-h-0 min-w-0 flex-1 flex-col"
+                    className={cn(
+                        "ag-canvas flex h-full min-h-0 flex-1 flex-col",
+                        // A pushed panel stops short of this column (a wide panel at 1100 px), so
+                        // the session header keeps the agent name, the session and its icons.
+                        mode === "push" && open ? "min-w-[480px]" : "min-w-0",
+                    )}
                     inert={mode === "full" && open}
                 >
                     {header}
