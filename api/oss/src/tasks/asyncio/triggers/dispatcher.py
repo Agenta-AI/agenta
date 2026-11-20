@@ -351,7 +351,13 @@ class TriggersDispatcher:
         update: Dict[str, Any]
         envelope = schedule.run_envelope
         try:
-            if envelope is None and schedule.principal is not None:
+            # A hidden schedule always stores its envelope: a missing one is an
+            # unreadable column, refused rather than rebuilt with less restriction.
+            if (
+                envelope is None
+                and schedule.principal is not None
+                and not schedule.flags.is_hidden
+            ):
                 envelope = stored_work_envelope(
                     principal=schedule.principal,
                     organization_id=await self._organization_id(project_id=project_id),

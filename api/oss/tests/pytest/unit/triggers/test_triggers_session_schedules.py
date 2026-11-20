@@ -412,9 +412,24 @@ class TestFireIntoSession:
         dao.update_delivery.assert_not_awaited()
         dao.purge_hidden_schedule.assert_not_awaited()
 
-    async def test_without_a_stored_envelope_the_principal_runs_it(self):
+    async def test_a_hidden_schedule_without_a_readable_envelope_is_refused(self):
+        # Server code always stores the envelope of a hidden schedule; a missing or
+        # unreadable one is refused, never rebuilt from the principal columns.
         project_id = uuid4()
         schedule = _session_schedule(project_id=project_id, envelope=None)
+        dispatcher, dao, starts = _dispatcher()
+
+        await _fire(dispatcher, schedule, project_id)
+
+        starts.enqueue_session_input.assert_not_awaited()
+        assert dao.update_delivery.await_args.kwargs["status"].code == "409"
+        dao.purge_hidden_schedule.assert_awaited_once()
+
+    async def test_without_a_stored_envelope_the_principal_runs_it(self):
+        project_id = uuid4()
+        schedule = _session_schedule(
+            project_id=project_id, envelope=None, is_hidden=False
+        )
         dispatcher, dao, starts = _dispatcher()
         dispatcher._organization_id = AsyncMock(return_value=uuid4())
 
