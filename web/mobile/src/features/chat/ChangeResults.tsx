@@ -1,6 +1,10 @@
 import {useContext, useMemo} from "react"
 
-import {ChangeResultRows, type ChangeResultActions} from "@agenta/chat/components"
+import {
+    ChangeResultRows,
+    type ChangeResultActions,
+    type ChangeVersionRef,
+} from "@agenta/chat/components"
 import {useT} from "@agenta/i18n"
 import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
 import {
@@ -17,35 +21,35 @@ import {ChangeResultHostContext} from "./changeResultHost"
  * "Revert to vN" asks first (the production revert); Try again asks the builder to read the
  * agent again. The history drawer is the one the page header mounts for its agent.
  */
-export const ChangeResults = ({parts}: {parts: readonly unknown[] | undefined}) => {
+export const ChangeResults = ({
+    parts,
+    finished,
+    latest,
+}: {
+    parts: readonly unknown[] | undefined
+    /** The turn is over. */
+    finished: boolean
+    /** The last turn: only its conflict offers "Try again" (a later turn may have recovered). */
+    latest: boolean
+}) => {
     const t = useT(chatChangeCardStatesCatalog)
     const {readOnly, send} = useContext(ChangeResultHostContext)
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     const selectVersion = useSetAtom(selectAgentVersionAtom)
     const actions = useMemo<ChangeResultActions>(() => {
-        const showVersion = (workflowId: string, revisionId: string) => {
-            selectVersion({workflowId, revisionId})
-            openHistory(workflowId)
+        const showVersion = (version: ChangeVersionRef) => {
+            selectVersion(version)
+            openHistory(version.workflowId)
         }
         return {
-            onView: (call) => {
-                if (call.state.kind !== "saved") return
-                const {agentId, revisionId} = call.state
-                if (agentId && revisionId) showVersion(agentId, revisionId)
-            },
-            onRevert: readOnly
-                ? undefined
-                : (call) => {
-                      if (call.state.kind !== "saved") return
-                      const {agentId} = call.state
-                      if (agentId && call.baseRevisionId) showVersion(agentId, call.baseRevisionId)
-                  },
+            onView: showVersion,
+            onRevert: readOnly ? undefined : showVersion,
             onTryAgain:
-                readOnly || !send
-                    ? undefined
-                    : // The person's own message, in the language they read the chat in.
-                      () => send(t("chat.changeCardStates.tryAgainMessage")),
+                latest && send
+                    ? // The person's own message, in the language they read the chat in.
+                      () => send(t("chat.changeCardStates.tryAgainMessage"))
+                    : undefined,
         }
-    }, [readOnly, send, openHistory, selectVersion, t])
-    return <ChangeResultRows parts={parts} actions={actions} touch />
+    }, [readOnly, send, latest, openHistory, selectVersion, t])
+    return <ChangeResultRows parts={parts} actions={actions} finished={finished} touch />
 }

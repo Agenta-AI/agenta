@@ -310,7 +310,11 @@ const TurnRowInner = ({
                 }
             />
             {/* What each answered change call came to; outside the fold, which starts closed. */}
-            <ChangeResults parts={turn.message.parts} />
+            <ChangeResults
+                parts={turn.message.parts}
+                finished={!runOpen}
+                latest={turn.isLast}
+            />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
                     {activity.messages.map((message, at) => (

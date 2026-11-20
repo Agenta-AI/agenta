@@ -18,7 +18,6 @@
     "reasonNoChange": "Agent 已经是这些值。",
     "revert": "还原",
     "saved": "已保存",
-    "savedAs": "已保存为 v{{version}}",
     "savedTogether": "一起保存为 v{{version}}",
     "tryAgain": "重试",
     "tryAgainMessage": "请重新读取 Agent，并在其最新版本上提出相同的更改。",

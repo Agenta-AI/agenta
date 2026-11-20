@@ -34,7 +34,7 @@ import type {
     ApprovalChangeSection,
 } from "../skin/types"
 
-export const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
+const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
     instructions: FileText,
     model: Cpu,
     skills: BookOpen,
@@ -90,7 +90,7 @@ export const groupChanges = (changes: ApprovalChange[]): ChangeBlock[] => {
     return blocks
 }
 
-export interface DiffRow {
+interface DiffRow {
     type: "context" | "added" | "removed" | "fold"
     content: string
 }

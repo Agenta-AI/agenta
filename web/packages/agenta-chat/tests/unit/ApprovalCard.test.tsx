@@ -691,7 +691,7 @@ describe("the grouped card of several change calls (task 26.2)", () => {
         const html = render(() => undefined)
         expect(html).toContain("2 changes to Support triage")
         expect(html.match(/Saved together as v5/g)?.length).toBe(2)
-        expect(html.match(/data-testid="change-group-row"/g)?.length).toBe(2)
+        expect(html.match(/data-testid="change-block-row"/g)?.length).toBe(2)
         expect(html).toContain("claude-sonnet-5.5 to claude-opus-5.5")
         expect(html).toContain("Open a row to see its details")
         expect(html).toContain("Deny all")

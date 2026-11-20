@@ -84,6 +84,7 @@ export const ChangeResultRow = ({
     className = "px-3 py-2",
 }: ChangeResultRowProps) => {
     const t = useT(chatChangeCardStatesCatalog)
+    const tChange = useT(chatChangeCardCatalog)
     const touchCls = touch
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
         : ""
@@ -108,7 +109,7 @@ export const ChangeResultRow = ({
                 </Mark>
             )
             title = state.version
-                ? t("chat.changeCardStates.savedAs", {version: state.version})
+                ? tChange("chat.changeCard.savedAs", {version: state.version})
                 : t("chat.changeCardStates.saved")
             detail = summary
             actions = (
@@ -181,7 +182,7 @@ export const ChangeResultRow = ({
 }
 
 /** The call's request title: its one change, or "{N} changes to {agent}". */
-export const useChangeCallSummary = (call: Pick<ChangeCall, "toolName" | "input">) => {
+const useChangeCallSummary = (call: Pick<ChangeCall, "toolName" | "input">) => {
     const tChange = useT(chatChangeCardCatalog)
     const tStates = useT(chatChangeCardStatesCatalog)
     return useMemo(() => {
@@ -200,11 +201,20 @@ export const useChangeCallSummary = (call: Pick<ChangeCall, "toolName" | "input"
     }, [call.toolName, call.input, tChange, tStates])
 }
 
+/** A version of an agent, as the version history opens it. */
+export interface ChangeVersionRef {
+    workflowId: string
+    revisionId: string
+}
+
 /** What a host does from a result row. Each one is optional: a missing one hides its button. */
 export interface ChangeResultActions {
-    onView?: (call: ChangeCall) => void
-    onRevert?: (call: ChangeCall) => void
-    onTryAgain?: (call: ChangeCall) => void
+    /** Show the saved version. */
+    onView?: (version: ChangeVersionRef) => void
+    /** Go back to the version the call changed. */
+    onRevert?: (version: ChangeVersionRef) => void
+    /** Ask the builder to read the agent again. */
+    onTryAgain?: () => void
 }
 
 const CallRow = ({
@@ -219,16 +229,18 @@ const CallRow = ({
     const summary = useChangeCallSummary(call)
     const {onView, onRevert, onTryAgain} = actions ?? {}
     const saved = call.state.kind === "saved" ? call.state : null
+    const workflowId = saved?.workflowId
+    const viewed = workflowId && saved.revisionId ? {workflowId, revisionId: saved.revisionId} : null
+    const base =
+        workflowId && call.baseRevisionId ? {workflowId, revisionId: call.baseRevisionId} : null
     return (
         <ChangeResultRow
             state={call.state as RowState}
             summary={summary}
             touch={touch}
-            onView={saved?.revisionId && saved.agentId && onView ? () => onView(call) : undefined}
-            onRevert={
-                saved?.agentId && call.baseRevisionId && onRevert ? () => onRevert(call) : undefined
-            }
-            onTryAgain={onTryAgain ? () => onTryAgain(call) : undefined}
+            onView={viewed && onView ? () => onView(viewed) : undefined}
+            onRevert={base && onRevert ? () => onRevert(base) : undefined}
+            onTryAgain={onTryAgain}
         />
     )
 }
@@ -241,15 +253,18 @@ const CallRow = ({
 export const ChangeResultRows = ({
     parts,
     actions,
+    finished = false,
     touch = false,
     className = "border border-solid border-colorBorderSecondary bg-colorBgContainer",
 }: {
     parts: readonly unknown[] | undefined
     actions?: ChangeResultActions
+    /** The turn is over: a call with no result by now has no row. */
+    finished?: boolean
     touch?: boolean
     className?: string
 }) => {
-    const calls = useMemo(() => answeredChangeCalls(parts ?? []), [parts])
+    const calls = useMemo(() => answeredChangeCalls(parts ?? [], {finished}), [parts, finished])
     if (!calls.length) return null
     return (
         <div

@@ -8,9 +8,10 @@
  */
 import {createT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
-import {asRecord, formatCount, tryParseAsObject} from "@agenta/shared/utils"
+import {asRecord, formatCount} from "@agenta/shared/utils"
 
 import type {ApprovalPreview} from "../../skin/types"
+import {changeCallState, toolOutputRecord} from "../changeCallState"
 
 import {describeConfigChanges} from "./describeChanges"
 import {describeOperationItems} from "./describeCommitRevision"
@@ -24,9 +25,7 @@ const stringField = (value: unknown, field: string): string | undefined => {
 
 const changes = (count: number) => formatCount(count, "change")
 
-/** A tool result, which reaches the chat either parsed or still JSON-encoded. */
-export const toolOutputRecord = (output: unknown): Record<string, unknown> | null =>
-    asRecord(output) ?? (typeof output === "string" ? tryParseAsObject(output) : null)
+export {toolOutputRecord}
 
 /**
  * The agent a call is about: the name the result reports, else the name `create_agent` was given,
@@ -97,10 +96,8 @@ export const describeCreateAgent = (
  * result (denied, refused, a conflict).
  */
 export const savedVersion = (output: unknown): string | null => {
-    const result = toolOutputRecord(output)
-    if (result?.status !== "committed") return null
-    const version = asRecord(result.revision)?.version
-    return typeof version === "string" && version ? version : null
+    const state = changeCallState({partState: "output-available", output})
+    return state.kind === "saved" ? (state.version ?? null) : null
 }
 
 /** The settled row's one-liner: "Saved as vN" when the call saved, the agent's name, then what changed. */

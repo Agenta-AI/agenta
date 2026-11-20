@@ -456,12 +456,18 @@ export const LiveConversation = ({
     const changeResultHost = useMemo(
         () => ({
             readOnly: locked,
-            send: (text: string) => {
-                if (lockedRef.current) return
-                void send({text, executionText: beforeSend?.(text)}).catch(() => undefined)
-            },
+            // The composer's own gates: no send while the history loads or setup blocks it.
+            send:
+                locked || isHydrating || modelBlocked || setupBlocked
+                    ? undefined
+                    : (text: string) => {
+                          if (lockedRef.current) return
+                          void send({text, executionText: beforeSend?.(text)}).catch(
+                              () => undefined,
+                          )
+                      },
         }),
-        [locked, send, beforeSend],
+        [locked, isHydrating, modelBlocked, setupBlocked, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)

@@ -8,7 +8,7 @@
  * Hosts adapt transport only: how a response actually fires arrives as callbacks. There is no
  * `body` slot and no mode flag.
  *
- * Several change calls of one turn share one grouped card (`ChangeGroups`). After the answer the
+ * Several change calls of one turn share one grouped card (`ChangeCallGroups`). After the answer the
  * card shrinks to the row "Waiting for the agent"; a reader who cannot answer sees the row "Only
  * the owner can approve" in place of the buttons (`ChangeResultRow`).
  */
@@ -31,8 +31,9 @@ import {useChangeVersions} from "../hooks/useChangeVersions"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 import {describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
+import {changeCallState} from "../model/changeCallState"
 
-import {ChangeGroups} from "./ChangeGroups"
+import {ChangeCallGroups} from "./ChangeGroups"
 import {ChangeResultRow} from "./ChangeResultRow"
 import {ChangeSections, removesOnly, RiskLine} from "./ChangeSections"
 
@@ -201,8 +202,6 @@ export const ApprovalCard = ({
     const conflict =
         baseVersion !== undefined && latestVersion !== undefined && latestVersion > baseVersion
 
-    if (!current || !preview) return null
-
     const removes = changes ? removesOnly(changes) : false
     const risky = Boolean(
         (grouped ? grouped.flatMap((one) => one.changes ?? []) : changes)?.some(
@@ -213,7 +212,9 @@ export const ApprovalCard = ({
     // A batch answers as a whole, so the grant covers every tool it would approve, not just the
     // first gate's. Ineligible members (a commit op mixed in) simply stay gated.
     const grantableTools = [
-        ...new Set((batched ? approvals : [current]).map((approval) => approval.toolName)),
+        ...new Set(
+            (batched ? approvals : current ? [current] : []).map((approval) => approval.toolName),
+        ),
     ].filter((toolName) => {
         const info = infoFor(toolName)
         return info.eligible && !info.alreadyAllowed
@@ -228,14 +229,14 @@ export const ApprovalCard = ({
     const showKeys = hasKeyboard
 
     const approve = () => {
-        if (responding || readOnly || answered) return
+        if (!current || responding || readOnly || answered) return
         setFiredAction("approve")
         if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }
     const deny = () => {
-        if (responding || readOnly || answered) return
+        if (!current || responding || readOnly || answered) return
         setFiredAction("deny")
         // No always-allow grant on a deny, ever.
         if (batched && onDenyAll) return onDenyAll(approvals.map((a) => a.approvalId))
@@ -280,14 +281,25 @@ export const ApprovalCard = ({
         return () => window.removeEventListener("keydown", onKeyDown)
     })
 
+    // Every hook ran above: a card with no gate renders nothing.
+    if (!current || !preview) return null
+
+    // One state for the card, from the same function as the result rows. A recoverable answer
+    // keeps the full card with the production retry text.
+    const cardState = changeCallState({
+        partState: "approval-requested",
+        answered: answered && !recoverable,
+        readOnly,
+    })
+
     // Answered: the card shrinks to its result row until the tool result replaces it.
-    if (answered && !recoverable) {
+    if (cardState.kind === "waiting") {
         return (
             <div
                 ref={rootRef}
                 className="flex flex-col gap-1 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer py-1"
             >
-                <ChangeResultRow state={{kind: "waiting"}} />
+                <ChangeResultRow state={cardState} />
                 {errorText ? (
                     <p
                         role="alert"
@@ -315,9 +327,7 @@ export const ApprovalCard = ({
                     <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
                     <span className="text-xs font-medium text-colorText">
                         {answered
-                            ? recoverable
-                                ? t("chat.approvalCard.answerSavedRetry")
-                                : t("chat.approvalCard.answeredWaiting")
+                            ? t("chat.approvalCard.answerSavedRetry")
                             : t("chat.approvalCard.needsApproval")}
                     </span>
                 </div>
@@ -325,7 +335,7 @@ export const ApprovalCard = ({
 
             {/* The whole ask, in one sentence — what happens, and what it costs. */}
             {grouped ? (
-                <ChangeGroups previews={grouped} />
+                <ChangeCallGroups previews={grouped} />
             ) : changes ? (
                 <ChangeSections
                     changes={changes}
@@ -426,9 +436,9 @@ export const ApprovalCard = ({
 
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
-            {readOnly && !answered ? (
+            {cardState.kind === "read_only" ? (
                 <ChangeResultRow
-                    state={{kind: "read_only"}}
+                    state={cardState}
                     readOnlyNote={readOnlyNote}
                     className="-mx-1 rounded-md bg-colorFillQuaternary px-2.5 py-2"
                 />
@@ -574,9 +584,7 @@ export const ApprovalCard = ({
 
             {answered ? (
                 <p role="status" aria-live="polite" className="m-0 text-xs text-colorTextSecondary">
-                    {recoverable
-                        ? t("chat.approvalCard.answerSavedRetryHint")
-                        : t("chat.approvalCard.answerSavedWaiting")}
+                    {t("chat.approvalCard.answerSavedRetryHint")}
                 </p>
             ) : null}
             {errorText ? (

@@ -4,7 +4,7 @@ import {createContext} from "react"
 export interface ChangeResultHost {
     /** The reader cannot send here: no Revert and no Try again. */
     readOnly: boolean
-    /** Sends a message as the person, as the composer does. */
+    /** Sends a message as the person, as the composer does; absent while the composer cannot. */
     send?: (text: string) => void
 }
 

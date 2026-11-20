@@ -22,7 +22,6 @@
     "reasonNoChange": "The agent already has these values.",
     "revert": "Revert",
     "saved": "Saved",
-    "savedAs": "Saved as v{{version}}",
     "savedTogether": "Saved together as v{{version}}",
     "tryAgain": "Try again",
     "tryAgainMessage": "Read the agent again and propose the same change on its latest version.",

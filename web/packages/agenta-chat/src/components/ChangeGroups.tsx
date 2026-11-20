@@ -23,7 +23,7 @@ type Translate = (
 ) => string
 
 /** The short line a row shows beside its label: what the change does, in a few words. */
-export const blockSummary = (block: ChangeBlock, t: Translate): string | undefined => {
+const blockSummary = (block: ChangeBlock, t: Translate): string | undefined => {
     const detail = block.changes.find((change) => change.detail)?.detail
     if (!detail) return undefined
     switch (detail.kind) {
@@ -75,7 +75,7 @@ const Row = ({block}: {block: ChangeBlock}) => {
     const mark = blockMark(block)
     const summary = blockSummary(block, t)
     return (
-        <div className="flex min-w-0 flex-col" data-testid="change-group-row">
+        <div className="flex min-w-0 flex-col" data-testid="change-block-row">
             <button
                 type="button"
                 onClick={() => setOpen((value) => !value)}
@@ -124,7 +124,14 @@ const Row = ({block}: {block: ChangeBlock}) => {
                 <div className="py-2 pl-6">
                     <Block block={block} small pathPrefix={[]} />
                 </div>
-            ) : null}
+            ) : (
+                // A closed row still says its risk: "Approve all" never hides a warning line.
+                block.risks.map((risk) => (
+                    <div key={risk.message} className="pb-1 pl-6">
+                        <RiskLine>{risk.message}</RiskLine>
+                    </div>
+                ))
+            )}
         </div>
     )
 }
@@ -174,7 +181,7 @@ const CallGroup = ({preview}: {preview: ApprovalPreview}) => {
 }
 
 /** The grouped card's header and groups; the footer (note and buttons) is the card's. */
-export const ChangeGroups = ({previews}: {previews: ApprovalPreview[]}) => {
+export const ChangeCallGroups = ({previews}: {previews: ApprovalPreview[]}) => {
     const t = useT(chatChangeCardStatesCatalog)
     const tChange = useT(chatChangeCardCatalog)
     const count = previews.reduce(

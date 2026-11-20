@@ -77,5 +77,5 @@ export {
     ChangeResultRows,
     type ChangeResultActions,
     type ChangeResultRowProps,
+    type ChangeVersionRef,
 } from "./ChangeResultRow"
-export {ChangeGroups} from "./ChangeGroups"

@@ -7,6 +7,10 @@ import {act} from "react"
 
 import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
 import type {UIMessage} from "ai"
+import {
+    versionHistoryOpenAtomFamily,
+    versionHistorySelectedAtomFamily,
+} from "@agenta/playground-ui/agent-version-history/store"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
@@ -56,6 +60,7 @@ const conflictCall = {
 const renderTurn = (
     parts: unknown[],
     host?: {readOnly: boolean; send?: (text: string) => void},
+    store = createStore(),
 ): HTMLElement => {
     const message = {id: "turn-1", role: "assistant", parts} as unknown as UIMessage
     const [turn] = buildTurnViewModels([message], {
@@ -68,7 +73,7 @@ const renderTurn = (
     act(() => {
         root!.render(
             <WithQueryClient>
-                <Provider store={createStore()}>
+                <Provider store={store}>
                     {host ? (
                         <ChangeResultHostContext.Provider value={host}>
                             {row}
@@ -112,5 +117,32 @@ describe("mobile TurnRow: change results", () => {
         const element = renderTurn([conflictCall])
         expect(element.textContent).toContain("Not saved")
         expect(element.textContent).not.toContain("Try again")
+    })
+
+    it("opens the version history on the saved version, and Revert on the one before", () => {
+        const savedCall = {
+            ...conflictCall,
+            state: "output-available",
+            errorText: undefined,
+            output: {
+                status: "committed",
+                agent: {id: "agent-1", name: "Support triage"},
+                revision: {id: "rev-5", version: "5"},
+            },
+        }
+        const store = createStore()
+        const element = renderTurn([savedCall], {readOnly: false}, store)
+        const click = (label: string) =>
+            act(() =>
+                [...element.querySelectorAll("button")]
+                    .find((node) => node.textContent === label)!
+                    .click(),
+            )
+        expect(element.textContent).toContain("Saved as v5")
+        click("View")
+        expect(store.get(versionHistoryOpenAtomFamily("agent-1"))).toBe(true)
+        expect(store.get(versionHistorySelectedAtomFamily("agent-1"))).toBe("rev-5")
+        click("Revert")
+        expect(store.get(versionHistorySelectedAtomFamily("agent-1"))).toBe("rev-4")
     })
 })

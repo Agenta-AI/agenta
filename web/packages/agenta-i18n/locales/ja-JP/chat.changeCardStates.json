@@ -18,7 +18,6 @@
     "reasonNoChange": "エージェントにはすでにこの値が設定されています。",
     "revert": "元に戻す",
     "saved": "保存済み",
-    "savedAs": "v{{version}} として保存済み",
     "savedTogether": "まとめて v{{version}} として保存",
     "tryAgain": "再試行",
     "tryAgainMessage": "エージェントをもう一度読み込み、最新バージョンに対して同じ変更を提案してください。",

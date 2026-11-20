@@ -26,7 +26,6 @@
     "reasonNoChange": "El agente ya tiene estos valores.",
     "revert": "Revertir",
     "saved": "Guardado",
-    "savedAs": "Guardado como v{{version}}",
     "savedTogether": "Guardados juntos como v{{version}}",
     "tryAgain": "Reintentar",
     "tryAgainMessage": "Vuelve a leer el agente y propón el mismo cambio sobre su versión más reciente.",
