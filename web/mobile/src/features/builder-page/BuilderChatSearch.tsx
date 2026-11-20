@@ -41,6 +41,7 @@ const BuilderChatSearchWindow = ({
     }, [query])
     // With no term this is the sidebar's own list query, so opening the window sends nothing new.
     const chats = useBuilderChats(term)
+    const searching = chats.stale || term !== query.trim()
     const groups = useMemo<CommandPaletteGroup[]>(() => {
         const now = new Date()
         const words = {today: t("builder.page.today"), yesterday: t("builder.page.yesterday")}
@@ -49,8 +50,9 @@ const BuilderChatSearchWindow = ({
                 key: "builder-chats",
                 // No heading: the window lists one kind of thing.
                 heading: "",
-                // The previous term's rows are not matches for this one.
-                entries: (chats.stale ? [] : chats.rows).map((row) => ({
+                // The previous term's rows are not matches for this one: hidden while the new
+                // term waits for its debounce or for the server.
+                entries: (searching ? [] : chats.rows).map((row) => ({
                     key: row.session_id,
                     label: row.name?.trim() || t("builder.page.untitledChat"),
                     icon: row.flags?.is_running
@@ -61,7 +63,7 @@ const BuilderChatSearchWindow = ({
                 })),
             },
         ]
-    }, [chats.rows, chats.stale, projectId, t, workspaceId])
+    }, [chats.rows, projectId, searching, t, workspaceId])
     return (
         <CommandPalette
             open
@@ -69,7 +71,7 @@ const BuilderChatSearchWindow = ({
             query={query}
             onQueryChange={setQuery}
             groups={groups}
-            loading={chats.pending || chats.stale || term !== query.trim()}
+            loading={chats.pending || searching}
             onNavigate={(href) => void router.push(href)}
             placeholder={t("navigation.items.searchChats")}
         />
