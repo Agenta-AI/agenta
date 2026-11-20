@@ -252,21 +252,21 @@ const SessionRowActions = ({
             onOpenChange={onContextMenuOpenChange}
         >
             <span
-                className="group/row relative flex w-full min-w-0 items-center"
+                className="group/row flex w-full min-w-0 items-center"
                 onPointerDown={() => {
                     contextMenuPressRef.current = false
                 }}
             >
                 <span className="min-w-0 flex-1 truncate">{link}</span>
                 <span
-                    // -right-2 (-mr-2 on touch) pulls the kebab out past ROW_BASE's px-3 so it sits
-                    // at the row's right edge. Only session rows are wrapped, so no other nav row
-                    // shifts. w-6, not w-7: at 28 the 20px button sat 2px left of the group carets
-                    // and the filter trigger above it, and the rail's right-hand controls read as a
-                    // column. With a pointer the kebab floats over the title's faded tail, so the
-                    // title keeps the whole row at rest and nothing moves when it shows (N10). On
-                    // touch it is always shown and keeps its own slot.
-                    className="absolute -right-2 top-1/2 z-[1] flex h-5 w-6 shrink-0 -translate-y-1/2 items-center justify-center pointer-coarse:relative pointer-coarse:right-0 pointer-coarse:top-0 pointer-coarse:-mr-2 pointer-coarse:translate-y-0"
+                    // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
+                    // right edge. Only session rows are wrapped, so no other nav row shifts.
+                    // w-6, not w-7: at 28 the 20px button sat 2px left of the group carets and the
+                    // filter trigger above it, and the rail's right-hand controls read as a column.
+                    // With a fine pointer the kebab floats over the title's faded tail (placed
+                    // against the nav row, the link overlay's own box, at the same spot), so the
+                    // title keeps the whole row at rest and nothing moves when it shows (N10).
+                    className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:mr-0 pointer-fine:-translate-y-1/2"
                     onClick={swallow}
                 >
                     {armed ? (

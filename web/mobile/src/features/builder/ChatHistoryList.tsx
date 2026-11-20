@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import {SearchInput, SkeletonRows} from "@agenta/ui/ui"
+import {MagnifyingGlass} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
@@ -77,9 +78,10 @@ export const ChatHistoryList = ({
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
                     // Phone: no clear button (M06). The search glyph is tertiary (S09, M06).
+                    prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
                     allowClear={!phone}
                     className={cn(
-                        "gap-2 border-colorBorderSecondary px-2 [&>span:first-child]:text-colorTextTertiary",
+                        "gap-2 border-colorBorderSecondary px-2",
                         phone
                             ? "h-10 items-stretch rounded-[8px] py-0 [&_input]:text-[15px]"
                             : "h-[30px] rounded-[6px] [&_input]:text-[13px] md:[&_input]:text-[13px]",
