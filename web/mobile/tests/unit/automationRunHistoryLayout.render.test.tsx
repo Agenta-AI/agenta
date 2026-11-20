@@ -13,6 +13,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const pages = vi.hoisted(() => ({
     deliveries: [] as unknown[],
     hasMore: false,
+    loadingMore: false,
     loadMore: vi.fn(),
 }))
 
@@ -31,7 +32,7 @@ vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
         error: null,
         refetch: vi.fn(),
         hasMore: pages.hasMore,
-        loadingMore: false,
+        loadingMore: pages.loadingMore,
         loadMore: pages.loadMore,
     }),
 }))
@@ -66,6 +67,7 @@ beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     pages.deliveries = []
     pages.hasMore = false
+    pages.loadingMore = false
     pages.loadMore.mockReset()
     observers.length = 0
     intersect = null
@@ -181,6 +183,24 @@ describe("AutomationRunHistoryView layout", () => {
         pages.hasMore = true
         render(440)
         expect(container.querySelector("[data-testid=run-list-end]")).not.toBeNull()
+        act(() => {
+            intersect?.(
+                [{isIntersecting: true} as IntersectionObserverEntry],
+                {} as IntersectionObserver,
+            )
+        })
+        expect(pages.loadMore).toHaveBeenCalledTimes(1)
+    })
+
+    it("asks again once a page finishes, though the visible rows did not change", () => {
+        pages.deliveries = [run(1)]
+        pages.hasMore = true
+        pages.loadingMore = true
+        render(440)
+        // No observer while a page loads.
+        expect(intersect).toBeNull()
+        pages.loadingMore = false
+        render(440)
         act(() => {
             intersect?.(
                 [{isIntersecting: true} as IntersectionObserverEntry],

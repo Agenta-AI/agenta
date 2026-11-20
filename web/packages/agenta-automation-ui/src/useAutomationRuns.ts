@@ -16,7 +16,7 @@ import {
 } from "./runModel"
 
 /**
- * One automation's newest runs (at most 101, the capped recent read), plus the two facts the screens state about them: the count line
+ * One automation's newest runs, plus the two facts the screens state about them: the count line
  * and why the last run failed.
  *
  * Reads the capped recent query (the newest 101 runs), so the card, the list row and the run
