@@ -4124,6 +4124,24 @@
         "allowExecutable": "c9fbcde5e67d",
         "allowExecutableHint": "b2f48b0cbb45"
     },
+    "entityUi.skillNew": {
+        "addManuallyHint": "e219d0c8d9aa",
+        "added": "6b02e0d363a4",
+        "addSkillAria": "27b604fcdd6f",
+        "removeSkillAria": "43e1269ac88a",
+        "removeRegistryBody": "a0798ceeb2a0",
+        "removeAgentOnlyBody": "28dacfbc288f",
+        "chooseLine": "0c4d3663b0d9",
+        "stepTitle": "350734a621d4",
+        "stepWrite": "3f00927a7193",
+        "stepImport": "2cff9baabf56",
+        "notSavedYet": "35c5fe43950d",
+        "uploadLine": "0c1b5d820c83",
+        "or": "7175517a370b",
+        "scan": "ea1c510d1ddb",
+        "leaveDescription": "cb514ece433f",
+        "notAddedToAgent": "968a630b5026"
+    },
     "entityUi.skillTemplate": {
         "skillReference": "eed422b6d6fa",
         "skill": "6df1bb18a59a",

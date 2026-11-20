@@ -1,0 +1,92 @@
+[
+    {
+        "id": "skill-new-f04-f1-light",
+        "story": "builderlayout-skill-new-new-skill-flows--plus-menu",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "body",
+        "ready": "text=From your registry, or write one"
+    },
+    {
+        "id": "skill-new-f04-f2-light",
+        "story": "builderlayout-skill-new-new-skill-flows--add-skills",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=refund-check"
+    },
+    {
+        "id": "skill-new-f04-f2-added-light",
+        "story": "builderlayout-skill-new-new-skill-flows--add-one",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "[aria-label=\"Remove refund-check\"]"
+    },
+    {
+        "id": "skill-new-f04-f2-nomatch-light",
+        "story": "builderlayout-skill-new-new-skill-flows--search-no-match",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=No skills match your search"
+    },
+    {
+        "id": "skill-new-f04-f2-empty-light",
+        "story": "builderlayout-skill-new-new-skill-flows--empty-registry",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=No skills yet"
+    },
+    {
+        "id": "skill-new-f07-f12-light",
+        "story": "builderlayout-skill-new-new-skill-flows--choose-how",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Import from a repo"
+    },
+    {
+        "id": "skill-new-f07-f13-light",
+        "story": "builderlayout-skill-new-new-skill-flows--write-from-scratch",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Not saved yet"
+    },
+    {
+        "id": "skill-new-f07-f14-light",
+        "story": "builderlayout-skill-new-new-skill-flows--upload",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Browse files"
+    },
+    {
+        "id": "skill-new-f07-f15-light",
+        "story": "builderlayout-skill-new-new-skill-flows--import-from-repo",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Scan"
+    },
+    {
+        "id": "skill-new-f06-f2-light",
+        "story": "builderlayout-skill-new-new-skill-flows--remove-dialog",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "body",
+        "ready": "text=Removing it deletes it"
+    }
+]
