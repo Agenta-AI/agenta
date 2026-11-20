@@ -50,7 +50,7 @@ const deferred = () => {
     return {promise, resolve}
 }
 
-let saveImpl: () => Promise<boolean> = async () => true
+let saveImpl: () => Promise<boolean | "stay"> = async () => true
 const seen: {target?: ViewTarget; push?: unknown}[] = []
 
 const FormBody = ({params, target, nav}: ViewProps<{name: string}>) => {
@@ -343,6 +343,30 @@ describe("ViewStackHost", () => {
         await screen.findByRole("alert")
         expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
         ok = true
+        answer("Save")
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it('a step that resolves "stay" keeps the view, shows no failure and takes input again', async () => {
+        let result: boolean | "stay" = "stay"
+        saveImpl = async () => result
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        answer("Save")
+        await waitFor(() =>
+            expect(screen.getByRole("button", {name: "Save"}).hasAttribute("disabled")).toBe(false),
+        )
+        expect(screen.queryByRole("alert")).toBeNull()
+        expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
+        // From the unsaved-changes dialog, "stay" keeps the person on the view.
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        result = true
         answer("Save")
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
     })

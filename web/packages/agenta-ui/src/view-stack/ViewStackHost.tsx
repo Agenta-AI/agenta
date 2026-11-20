@@ -73,7 +73,7 @@ export const ViewStackHost = ({
     entriesRef.current = entries
     const formsRef = useRef(forms)
     formsRef.current = forms
-    const savingRef = useRef<Promise<boolean> | null>(null)
+    const savingRef = useRef<Promise<boolean | "stay"> | null>(null)
     // One guarded navigation at a time, from its first wait to its stack update.
     const navigatingRef = useRef(false)
     const hostRef = useRef<HTMLDivElement>(null)
@@ -85,10 +85,11 @@ export const ViewStackHost = ({
 
     /**
      * One save at a time; a second call while one runs is ignored (resolves false). A failure
-     * from the Save button marks the view; the dialog shows its own failures.
+     * from the Save button marks the view; the dialog shows its own failures. "stay" is a step
+     * that worked: no failure, and the view stays.
      */
     const runSave = useCallback(
-        async (entryKey: number, markFailure: boolean): Promise<boolean> => {
+        async (entryKey: number, markFailure: boolean): Promise<boolean | "stay"> => {
             const form = formsRef.current[entryKey]
             if (!form || savingRef.current) return false
             const run = (async () => {
@@ -101,11 +102,11 @@ export const ViewStackHost = ({
             savingRef.current = run
             setSaving(true)
             setFailedKey(null)
-            const ok = await run
+            const result = await run
             savingRef.current = null
             setSaving(false)
-            if (!ok && markFailure) setFailedKey(entryKey)
-            return ok
+            if (result === false && markFailure) setFailedKey(entryKey)
+            return result
         },
         [],
     )
@@ -143,7 +144,10 @@ export const ViewStackHost = ({
                 const answer = await ask(form, saveFailed)
                 if (answer === "keep") return false
                 if (answer === "discard") return "discarded"
-                if (await runSave(dirty.key, false)) return "saved"
+                const result = await runSave(dirty.key, false)
+                if (result === true) return "saved"
+                // A step of the form worked: the person stays on it, as with "Keep editing".
+                if (result === "stay") return false
                 saveFailed = true
             }
         },
@@ -251,7 +255,7 @@ export const ViewStackHost = ({
     const save = useCallback(async () => {
         const top = entriesRef.current.at(-1)
         if (!top || navigatingRef.current) return
-        if (await runSave(top.key, true)) {
+        if ((await runSave(top.key, true)) === true) {
             setStack(entriesRef.current.filter((entry) => entry.key !== top.key))
         }
     }, [runSave, setStack])

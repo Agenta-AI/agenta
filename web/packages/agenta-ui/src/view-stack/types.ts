@@ -59,9 +59,14 @@ export interface ViewForm {
     valid: boolean
     /**
      * Write the edits. Resolve true on success. From Save the stack then goes back; before a
-     * child form opens, the view mounts again from the saved data.
+     * child form opens, the view mounts again from the saved data. Resolve false on failure.
+     *
+     * Resolve "stay" for a step of a form with several steps: the step worked and the view stays
+     * open, with no failure text. A view that leaves by itself later (the last step ends outside
+     * the Save press) calls `nav.cancel()`. From the unsaved-changes dialog, "stay" keeps the
+     * person on the view, as "Keep editing" does.
      */
-    save: () => Promise<boolean>
+    save: () => Promise<boolean | "stay">
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
     leaveDescription: string
     /** The Save button's label when the view names its action (for example "Connect"). */
