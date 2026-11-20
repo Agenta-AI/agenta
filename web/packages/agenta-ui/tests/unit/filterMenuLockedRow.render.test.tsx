@@ -40,6 +40,25 @@ describe("FilterMenuRow locked", () => {
         expect(onOpenChange).not.toHaveBeenCalled()
     })
 
+    it("passes only the arrow keys to the panel", () => {
+        const onKeyDown = vi.fn()
+        render(
+            <FilterMenuRow
+                section={section(true)}
+                options={[]}
+                open={false}
+                onOpenChange={() => undefined}
+                onKeyDown={onKeyDown}
+            />,
+        )
+        const row = screen.getByRole("button", {name: /Agent/})
+        fireEvent.keyDown(row, {key: "Enter"})
+        fireEvent.keyDown(row, {key: "ArrowRight"})
+        expect(onKeyDown).not.toHaveBeenCalled()
+        fireEvent.keyDown(row, {key: "ArrowDown"})
+        expect(onKeyDown).toHaveBeenCalledTimes(1)
+    })
+
     it("keeps the normal row when not locked", () => {
         const onOpenChange = vi.fn()
         render(

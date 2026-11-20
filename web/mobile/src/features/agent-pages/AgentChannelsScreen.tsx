@@ -35,7 +35,6 @@ export const AgentChannelsScreen = ({
                             title={t("agentSidebar.channels")}
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            phoneFrame={SESSIONS_PAGE_FRAME}
                         />
                     }
                 >

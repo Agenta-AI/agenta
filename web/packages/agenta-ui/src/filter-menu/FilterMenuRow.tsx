@@ -91,7 +91,11 @@ export const FilterMenuRow = ({
                 aria-disabled="true"
                 tabIndex={tabIndex}
                 onFocus={onRowFocus}
-                onKeyDown={onKeyDown}
+                // Only the arrows move on; Enter, Space and ArrowRight would open a flyout this
+                // row does not have.
+                onKeyDown={(event) => {
+                    if (event.key === "ArrowUp" || event.key === "ArrowDown") onKeyDown?.(event)
+                }}
                 className={cn(
                     "box-border cursor-default appearance-none border-0 bg-transparent font-[inherit]",
                     "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",

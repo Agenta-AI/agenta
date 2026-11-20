@@ -232,7 +232,6 @@ const SessionListBody = ({
                                 title={t("sessions.mobileList.sessions")}
                                 workspaceId={workspaceId}
                                 projectId={projectId}
-                                phoneFrame={SESSIONS_PAGE_FRAME}
                             />
                         ) : (
                             // The same frame the automations header uses, so the two pages line up at

@@ -3,6 +3,7 @@ import type {ReactNode} from "react"
 import {useIsPhone} from "@agenta/ui/phone"
 
 import {NavDrawer} from "../nav/NavDrawer"
+import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 
 import {AgentPagesHeader} from "./AgentPagesHeader"
 
@@ -21,13 +22,10 @@ export const AgentListPageHeader = ({
     title,
     workspaceId,
     projectId,
-    phoneFrame,
 }: {
     title: ReactNode
     workspaceId: string
     projectId: string
-    /** The phone header's column classes, so it lines up with the page body under it. */
-    phoneFrame: string
 }) => {
     const phone = useIsPhone()
     if (!phone) {
@@ -36,7 +34,7 @@ export const AgentListPageHeader = ({
     return (
         // The phone page header: 52 px with a line under it (M13).
         <div
-            className={`box-border flex h-[52px] shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-4 ${phoneFrame}`}
+            className={`box-border flex h-[52px] shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-4 ${SESSIONS_PAGE_FRAME}`}
         >
             <div className="flex min-w-0 flex-1 items-center gap-2">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />

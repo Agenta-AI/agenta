@@ -35,7 +35,6 @@ export const AgentAnalyticsScreen = ({
                             title={t("agentSidebar.analytics")}
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            phoneFrame={SESSIONS_PAGE_FRAME}
                         />
                     }
                 >
