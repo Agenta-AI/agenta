@@ -41,7 +41,16 @@ export const ConfigurationAgentTab = ({
                 </aside>
                 {/* On a desktop each section is its own card (A04); on a phone the sections are
                 rows that run edge to edge (M07). */}
-                <div data-testid="configuration-agent-tab" className="min-w-0">
+                <div
+                    data-testid="configuration-agent-tab"
+                    // The panel's field wrappers give the sections a 16 px inset and a white ground;
+                    // the page cards sit on the page ground at the column's edges instead.
+                    className={
+                        phone
+                            ? "min-w-0"
+                            : "-mx-4 min-w-0 [&_.ag-drill-in-field-list]:bg-transparent"
+                    }
+                >
                     <SectionListLayoutContext.Provider value={phone ? null : "page"}>
                         <AgentBuildPanel
                             revisionId={revisionId}
