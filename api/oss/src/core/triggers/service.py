@@ -1775,9 +1775,10 @@ class TriggersService:
             cls._normalize_window(data)
             return
         run_at = data.run_at
+        if run_at.tzinfo is None:
+            run_at = run_at.replace(tzinfo=timezone.utc)
         floored = cls._align_to_minute_utc(run_at)
-        whole = run_at.second == 0 and run_at.microsecond == 0
-        data.run_at = floored if whole else floored + timedelta(minutes=1)
+        data.run_at = floored if floored == run_at else floored + timedelta(minutes=1)
 
     async def create_schedule(
         self,
