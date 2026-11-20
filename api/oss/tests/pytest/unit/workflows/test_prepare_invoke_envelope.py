@@ -63,7 +63,7 @@ async def test_prepare_invoke_writes_claims_and_run_id(prelude):
     credentials, _ = await prelude.service._prepare_invoke(
         project_id=prelude.project_id,
         user_id=envelope.authority.principal.id,
-        request=SimpleNamespace(meta={"run_id": "turn-7"}),
+        request=SimpleNamespace(session_id=None, meta={"run_id": "turn-7"}),
         envelope=envelope,
     )
     signed = _envelope_of(credentials)
@@ -85,7 +85,7 @@ async def test_prepare_invoke_under_key_carries_api_key(prelude):
     credentials, _ = await prelude.service._prepare_invoke(
         project_id=prelude.project_id,
         user_id=uuid4(),
-        request=SimpleNamespace(meta=None),
+        request=SimpleNamespace(session_id=None, meta=None),
         envelope=envelope,
     )
     signed = _envelope_of(credentials)
@@ -98,7 +98,7 @@ async def test_an_envelope_of_another_project_is_refused_at_mint(prelude):
         await prelude.service._prepare_invoke(
             project_id=prelude.project_id,
             user_id=uuid4(),
-            request=SimpleNamespace(meta=None),
+            request=SimpleNamespace(session_id=None, meta=None),
             envelope=make_envelope(),  # another project and organization
         )
 
@@ -126,7 +126,7 @@ async def _prepare(prelude, *, envelope, user_id):
     credentials, _ = await prelude.service._prepare_invoke(
         project_id=prelude.project_id,
         user_id=user_id,
-        request=SimpleNamespace(meta={}),
+        request=SimpleNamespace(session_id=None, meta={}),
         envelope=envelope,
     )
     return _claims(credentials)
@@ -188,6 +188,7 @@ async def test_prepare_invoke_writes_the_resolved_agent_never_the_callers(prelud
         project_id=prelude.project_id,
         user_id=envelope.authority.principal.id,
         request=SimpleNamespace(
+            session_id=None,
             meta={"run_agent_id": str(uuid4())},
             references={"workflow": {"id": str(uuid4())}},
         ),
@@ -204,7 +205,7 @@ async def _claim_of(prelude, *, references, resolved):
     credentials, _ = await prelude.service._prepare_invoke(
         project_id=prelude.project_id,
         user_id=envelope.authority.principal.id,
-        request=SimpleNamespace(meta=None, references=references),
+        request=SimpleNamespace(session_id=None, meta=None, references=references),
         envelope=envelope,
     )
     return _claims(credentials).get("run_agent_id")

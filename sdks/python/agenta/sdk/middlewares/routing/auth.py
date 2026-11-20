@@ -15,7 +15,7 @@ from agenta.sdk.utils.exceptions import display_exception
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.agents.accounts import read_user_items
-from agenta.sdk.middlewares.routing.otel import baggage_value
+from agenta.sdk.middlewares.routing.otel import header_session_id
 
 import agenta as ag
 
@@ -175,30 +175,28 @@ async def _run_accounts_params(request: Request) -> Dict[str, Any]:
 
 async def _run_session_params(request: Request) -> Dict[str, Any]:
     """The session of a turn (`.../invoke`), for the credential's `run_session_id`
-    claim. Read where the invoke prelude reads it (`apply_invoke_prelude`): the body's
-    `session_id`, else the `x-ag-session-id` header, else the `ag.session.id` baggage.
-    Empty when the request is not a turn or names no session: the credential then names
-    no session, also when the running normalizer mints one for the turn later."""
+    claim, chosen as the invoke prelude chooses it (`apply_invoke_prelude`): the body's
+    `session_id` when it is set, else `header_session_id`. Empty when the request is
+    not a turn or names no session: the credential then names no session, also when
+    the running normalizer mints one for the turn later."""
     url = getattr(request, "url", None)
     if getattr(request, "method", None) != "POST" or not str(
         getattr(url, "path", "")
     ).endswith("/invoke"):
         return {}
-    session_id = None
-    if "json" in (request.headers.get("content-type") or ""):
+    body = None
+    # The route reads a body with no content type as JSON too.
+    content_type = request.headers.get("content-type") or ""
+    if not content_type or "json" in content_type:
         try:
             body = await request.json()
         except Exception:  # pylint: disable=broad-except
             body = None
-        if isinstance(body, dict) and isinstance(body.get("session_id"), str):
-            session_id = body["session_id"]
-    if not session_id:
-        otel = getattr(request.state, "otel", None) or {}
-        session_id = (
-            request.headers.get("x-ag-session-id")
-            or (otel.get("baggage") or {}).get("ag.session.id")
-            or baggage_value(request.headers.get("baggage"), "ag.session.id")
-        )
+    body_session_id = body.get("session_id") if isinstance(body, dict) else None
+    if body_session_id is not None:
+        session_id = body_session_id if isinstance(body_session_id, str) else None
+    else:
+        session_id = header_session_id(request)
     return {"session_id": session_id} if session_id else {}
 
 

@@ -1223,10 +1223,10 @@ class SessionCaller:
     the arguments can name another calling agent or session."""
 
     envelope: RunEnvelope
-    # The `run_session_id` claim: the calling session.
-    session_id: str
-    # The `run_agent_id` claim: the calling agent (None when the run names no agent).
-    agent_id: Optional[UUID]
+    # The calling session (the `run_session_id` claim). A target is a `session_id`.
+    run_session_id: str
+    # The calling agent (the `run_agent_id` claim; None when the run names no agent).
+    run_agent_id: Optional[UUID]
 
 
 def _run_credential_required(message: str) -> _Refusal:
@@ -1259,8 +1259,8 @@ async def session_caller_of(access: Optional[RequestAccess]) -> SessionCaller:
         )
     return SessionCaller(
         envelope=access.envelope,
-        session_id=access.run_session_id,
-        agent_id=access.run_agent_id,
+        run_session_id=access.run_session_id,
+        run_agent_id=access.run_agent_id,
     )
 
 
