@@ -22,7 +22,7 @@
         "@agenta/ui": "workspace:*",
         "@phosphor-icons/react": "^2.1.10",
         "lucide-react": "^0.479.0",
-        "next": "15.5.28"
+        "next": "15.5.29"
     },
     "devDependencies": {
         "@storybook/addon-docs": "9.1.20",
@@ -36,7 +36,7 @@
         "clsx": "^2.1.1",
         "jotai": "^2.16.1",
         "jotai-tanstack-query": "^0.11.0",
-        "next": "15.5.28",
+        "next": "15.5.29",
         "postcss": "^8.5.23",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
