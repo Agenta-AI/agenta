@@ -382,6 +382,35 @@ describe("Daytona provider reconnect", () => {
   });
 });
 
+describe("Daytona provider reconnect handoff", () => {
+  it("uses the one Daytona get of the reconnect for the daemon start and the preview link", async () => {
+    for (const state of ["started", "stopped"]) {
+      const sandbox = fakeSandbox("sb-1", { state, start: async () => {} });
+      const client = fakeClient(sandbox);
+      const provider = daytonaWithLifecycle({}, { client: client as any });
+
+      await provider.reconnect("sb-1");
+      await provider.ensureServer("sb-1");
+      assert.equal(await provider.getUrl("sb-1"), "https://3000-sb-1.proxy.test");
+
+      assert.equal(client.gets, 1, `${state}: only the reconnect fetches the sandbox`);
+      assert.equal(provider.previewToken("3000-sb-1.proxy.test")?.value, "token-1");
+    }
+  });
+
+  it("fetches the sandbox again for a later daemon start", async () => {
+    const sandbox = fakeSandbox("sb-1");
+    const client = fakeClient(sandbox);
+    const provider = daytonaWithLifecycle({}, { client: client as any });
+
+    await provider.reconnect("sb-1");
+    await provider.ensureServer("sb-1");
+    await provider.ensureServer("sb-1");
+
+    assert.equal(client.gets, 2);
+  });
+});
+
 describe("Daytona provider delete", () => {
   it("deletes an existing sandbox and treats not found as success", async () => {
     let deletes = 0;
@@ -547,25 +576,5 @@ describe("Daytona provider reconnect network policy sync", () => {
     const provider = providerWithPolicy({ networkBlockAll: true }, sandbox);
 
     await assert.doesNotReject(() => provider.reconnect("sandbox-1"));
-  });
-
-  it("compares against the fetched fields when refreshData fails", async () => {
-    const calls: any[] = [];
-    const sandbox = {
-      state: "started",
-      networkBlockAll: true,
-      async refreshData() {
-        throw new Error("stale handle");
-      },
-      async updateNetworkSettings(settings: any) {
-        calls.push(settings);
-      },
-    };
-    // Live is block-all, plan is open, so reconnect must still converge to open.
-    const provider = providerWithPolicy({}, sandbox);
-
-    await provider.reconnect("sandbox-1");
-
-    assert.deepEqual(calls, [{ networkBlockAll: false }]);
   });
 });

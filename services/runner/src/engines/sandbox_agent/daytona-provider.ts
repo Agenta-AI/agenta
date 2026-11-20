@@ -242,8 +242,10 @@ export function daytonaWithLifecycle(
 
   // The preview token of each daemon host this provider handed out, with its sandbox.
   const previewTokens = new Map<string, { sandboxId: string; token: PreviewToken }>();
-  // The preview URL of a sandbox this provider just created; `getUrl` hands it out once.
+  // The preview URL of a sandbox this provider just created or started; `getUrl` hands it out once.
   const issuedUrls = new Map<string, Promise<string>>();
+  // The sandbox object the reconnect just fetched, so the daemon start does not fetch it again.
+  const reconnected = new Map<string, Sandbox>();
 
   /** Fetch the sandbox's preview link and record its token; returns the daemon base URL. */
   const issuePreviewLink = async (sandboxId: string, sandbox: Sandbox): Promise<string> => {
@@ -271,6 +273,7 @@ export function daytonaWithLifecycle(
 
   const forget = (sandboxId: string): void => {
     issuedUrls.delete(sandboxId);
+    reconnected.delete(sandboxId);
     for (const [host, entry] of previewTokens) {
       if (entry.sandboxId === sandboxId) previewTokens.delete(host);
     }
@@ -305,11 +308,7 @@ export function daytonaWithLifecycle(
    * prior policy and logs, rather than aborting the reconnect.
    */
   const syncNetworkPolicy = async (sandbox: Sandbox, sandboxId: string): Promise<void> => {
-    try {
-      await sandbox.refreshData();
-    } catch {
-      // A stale handle still carries the fields fetched by `get`; compare against those.
-    }
+    // `sandbox` was just fetched (`get`) or started, and both leave its fields current.
     const live = policyFromSandbox(sandbox);
     if (policiesMatch(live, desiredPolicy)) return;
     try {
@@ -375,8 +374,10 @@ export function daytonaWithLifecycle(
       }
       return issuePreviewLink(sandboxId, await client.get(sandboxId));
     },
+    /** Start the daemon; after a reconnect, on the sandbox object the reconnect fetched. */
     async ensureServer(sandboxId: string): Promise<void> {
-      const sandbox = await client.get(sandboxId);
+      const sandbox = reconnected.get(sandboxId) ?? (await client.get(sandboxId));
+      reconnected.delete(sandboxId);
       await sandbox.process.executeCommand(startDaemon);
     },
     async refreshActivity(sandboxId: string): Promise<void> {
@@ -427,13 +428,22 @@ export function daytonaWithLifecycle(
       // Daytona reports, which this `get` already returned.
       recordSandboxSnapshot(sandboxId, sandbox.snapshot);
       const state = await waitForStableState(sandbox, sandboxId, "reconnect");
-      if (RUNNING_STATES.has(state)) {
+      // Running or just started: keep the object for the daemon start, and fetch the preview link
+      // (a start issues a new token) while the daemon starts. A failed fetch surfaces in `getUrl`.
+      const ready = async (): Promise<void> => {
+        reconnected.set(sandboxId, sandbox);
+        const url = issuePreviewLink(sandboxId, sandbox);
+        url.catch(() => {});
+        issuedUrls.set(sandboxId, url);
         await syncNetworkPolicy(sandbox, sandboxId);
+      };
+      if (RUNNING_STATES.has(state)) {
+        await ready();
         return;
       }
       if (STOPPED_STATES.has(state)) {
         await sandbox.start();
-        await syncNetworkPolicy(sandbox, sandboxId);
+        await ready();
         return;
       }
       if (FAILED_STATES.has(state)) {
