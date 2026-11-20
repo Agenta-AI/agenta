@@ -294,12 +294,13 @@ function ConnectedRow({
     const added = Boolean(row)
     const swappable = Boolean(row?.entry)
     const single = group.connections[0]
+    const singleLabel = connectionLabel(single, integration?.name)
 
     const logo = integration?.logo ?? null
     // One connection reads as Settings reads it: the connection's own name, then "App · Auth".
     const attention = multiple ? null : attentionOf(single)
     // The panel names the app and puts the account under it (canvas F02 f4).
-    const title = multiple || canvas ? name : connectionLabel(single, integration?.name)
+    const title = multiple || canvas ? name : singleLabel
 
     const subtitle =
         choosing && onAdd
@@ -309,7 +310,7 @@ function ConnectedRow({
               : multiple
                 ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
                 : canvas
-                  ? connectionLabel(single, integration?.name)
+                  ? singleLabel
                   : // What the app does says more than repeating its name; the old line is the fallback.
                     integration?.description?.trim() ||
                     [name, authLabel(single)].filter(Boolean).join(" · ")
@@ -401,27 +402,16 @@ function ConnectedRow({
                         <span
                             className={
                                 canvas
-                                    ? "hidden group-focus-within/row:flex group-hover/row:flex has-[[data-state=open]]:flex [@media(hover:none)]:flex"
+                                    ? // Zero width, not hidden, so Tab still reaches the menu button.
+                                      "flex max-w-0 overflow-hidden group-focus-within/row:max-w-none group-hover/row:max-w-none has-[[data-state=open]]:max-w-none [@media(hover:none)]:max-w-none"
                                     : "contents"
                             }
                         >
                             <ConnectionRowMenu
                                 items={menuItems(single, verbs)}
                                 onRefresh={() => handlers.onRefresh(single)}
-                                onRevoke={() =>
-                                    handlers.onConfirm(
-                                        "revoke",
-                                        single,
-                                        connectionLabel(single, integration?.name),
-                                    )
-                                }
-                                onDelete={() =>
-                                    handlers.onConfirm(
-                                        "delete",
-                                        single,
-                                        connectionLabel(single, integration?.name),
-                                    )
-                                }
+                                onRevoke={() => handlers.onConfirm("revoke", single, singleLabel)}
+                                onDelete={() => handlers.onConfirm("delete", single, singleLabel)}
                             />
                         </span>
                     )}
@@ -923,8 +913,7 @@ export function IntegrationCatalog({
                     // Fixed above the scroll. pt-1 keeps the focus ring inside the body's clip.
                     <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-1">
                         {search}
-                        {/* Canvas F02 f4: 120 px, 28 px high, radius 6, 12 px (desktop only). */}
-                        <div className="shrink-0 md:w-[120px] md:[&_[data-slot=combobox-trigger]]:!h-7 md:[&_[data-slot=combobox-trigger]]:!w-full md:[&_[data-slot=combobox-trigger]]:!rounded-[6px] md:[&_[data-slot=combobox-trigger]]:!pl-2 md:[&_[data-slot=combobox-trigger]]:!text-[12px]">
+                        <div className="shrink-0">
                             <CategorySelect
                                 value={category}
                                 container={container}

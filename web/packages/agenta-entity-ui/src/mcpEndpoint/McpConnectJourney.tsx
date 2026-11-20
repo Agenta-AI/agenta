@@ -835,9 +835,10 @@ export function useMcpConnectScreens({
         <div
             className={cn(
                 "flex flex-col gap-4",
-                // The canvas labels: 12/16, weight 500, secondary text; 12 px between fields.
+                // The canvas labels at every width, as in ConnectOwnerField: 12/16, weight 500,
+                // secondary text. 12 px between fields on the desktop.
                 canvas &&
-                    "md:gap-3 md:[&_[data-slot=field-label]]:text-[12px] md:[&_[data-slot=field-label]]:leading-4 md:[&_[data-slot=field-label]]:text-colorTextSecondary",
+                    "md:gap-3 [&_[data-slot=field-label]]:text-[12px] [&_[data-slot=field-label]]:leading-4 [&_[data-slot=field-label]]:text-colorTextSecondary",
             )}
             data-testid="mcp-connect-journey"
         >

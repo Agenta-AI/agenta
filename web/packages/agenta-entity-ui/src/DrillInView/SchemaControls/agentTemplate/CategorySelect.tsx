@@ -52,8 +52,10 @@ export function CategorySelect({
         <span className="relative flex w-full shrink-0">
             <Combobox
                 aria-label={t("entityUi.integrationDrawer.category")}
-                // Narrower on a phone so the search keeps room for its placeholder.
-                className="w-36 shrink-0 pr-7 sm:w-48 [&>span:last-child]:hidden"
+                // Narrower on a phone so the search keeps room for its placeholder. The canvas
+                // size on the desktop (F02 f4): 120 px, 28 px high, radius 6, 12 px. The last
+                // child is the trigger's chevron and clear; "All categories" clears instead.
+                className="w-36 shrink-0 pr-7 sm:w-48 md:h-7 md:w-[120px] md:rounded-[6px] md:pl-2 md:text-[12px] [&>span:last-child]:hidden"
                 // The list may be wider than its field, so names stay on one line on a phone.
                 contentClassName="w-56"
                 options={options}

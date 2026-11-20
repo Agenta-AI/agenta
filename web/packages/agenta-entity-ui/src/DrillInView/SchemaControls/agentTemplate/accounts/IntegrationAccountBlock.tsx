@@ -32,6 +32,7 @@ import type {
 
 import {AccountSelect, CONNECT_ANOTHER} from "./AccountSelect"
 import {EmptyAccountBox} from "./EmptyAccountBox"
+import {FieldHeading} from "./FieldHeading"
 import {
     accountSourcePick,
     defaultAccountOf,
@@ -165,18 +166,6 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
         <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
             <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
             <span>{t("entityUi.accountSwitch.noPersonWarning")}</span>
-        </div>
-    )
-}
-
-/** Canvas F02 f6: 13/20/600 and a 12/16 note; 14/20 on a phone (M09). `text-xs` is 13 px in /m. */
-function FieldHeading({label, note}: {label: string; note: string}) {
-    return (
-        <div className="flex flex-col gap-px">
-            <span className="text-[13px] font-semibold leading-5 text-colorText max-md:text-[14px]">
-                {label}
-            </span>
-            <span className="text-[12px] leading-4 text-colorTextSecondary">{note}</span>
         </div>
     )
 }

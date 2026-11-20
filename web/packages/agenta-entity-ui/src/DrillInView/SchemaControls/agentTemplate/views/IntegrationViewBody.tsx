@@ -118,12 +118,13 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
               integration: integrationTarget.integration,
           })
         : undefined
-    // Unknown until the check answers: no tag rather than a guess.
-    const attention = requirements
-        ? requirement
-            ? (needsSetupReasonText(requirement.reason) ?? needsSetupLabel())
-            : null
-        : null
+    // Until the check answers (or for a revision it has not checked), the title reads the
+    // connection's own status, as before.
+    const attention = !requirements
+        ? undefined
+        : requirement
+          ? (needsSetupReasonText(requirement.reason) ?? needsSetupLabel())
+          : null
     const eachPerson = row.entry?.accountSource === USER_ACCOUNT_SOURCE
     const notConnected =
         eachPerson &&
