@@ -430,6 +430,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                         className={clsx(
                                             "pointer-events-none absolute inset-0 select-none break-words text-[var(--ag-composer-placeholder)]",
                                             leading,
+                                            // The canvas editor is one line high: a long hint
+                                            // ends in "…" rather than spilling under the toolbar.
+                                            canvas && "truncate",
                                             editorPad,
                                             textSizeClassName,
                                         )}
