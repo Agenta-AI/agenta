@@ -23,6 +23,11 @@ from oss.src.dbs.postgres.shared.engine import (
 )
 
 
+def _is_message_row():
+    # NULL reads as `message`: rows written before the column, or by an older pod.
+    return or_(SessionInputDBE.kind.is_(None), SessionInputDBE.kind == "message")
+
+
 class SessionInputsDAO(SessionInputsDAOInterface):
     def __init__(self, engine: Optional[TransactionsEngine] = None):
         self.engine = engine or get_transactions_engine()
@@ -372,6 +377,7 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         input_id: Optional[UUID] = None,
         only_policy: Optional[str] = None,
         transaction: Optional[Any] = None,
+        messages_only: bool = False,
     ) -> Optional[PendingInput]:
         async def execute(session: Any) -> Optional[PendingInput]:
             await self._lock_session(session, project_id, session_id)
@@ -382,6 +388,8 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             )
             if only_policy is not None:
                 stmt = stmt.where(SessionInputDBE.policy == only_policy)
+            if messages_only:
+                stmt = stmt.where(_is_message_row())
             if input_id is not None:
                 stmt = stmt.where(SessionInputDBE.id == input_id)
             row = (
@@ -398,6 +406,33 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             row.updated_at = datetime.now(timezone.utc)
             await session.flush()
             return to_pending_input(row)
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def has_pending_server_input(
+        self, *, project_id: UUID, session_id: str, transaction: Optional[Any] = None
+    ) -> bool:
+        async def execute(session: Any) -> bool:
+            # The same lock as `create_input`, held to the end of the caller's
+            # transaction: a row written after this answer waits for the next promotion,
+            # so the hold check and the promotion see one queue.
+            await self._lock_session(session, project_id, session_id)
+            row = (
+                await session.execute(
+                    select(SessionInputDBE.id)
+                    .where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        SessionInputDBE.state == "pending",
+                        ~_is_message_row(),
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            return row is not None
 
         if transaction is not None:
             return await execute(transaction)

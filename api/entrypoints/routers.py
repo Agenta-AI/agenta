@@ -181,6 +181,7 @@ from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
+from oss.src.core.tools.gate import GateReader
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
 from oss.src.core.account_choices.lifecycle import AccountsLifecycle
@@ -1326,6 +1327,13 @@ tools = ToolsRouter(
     tracing_service=tracing_service,
     mounts_service=mounts_service,
     sessions_service=sessions_service,
+    gate_reader=GateReader(
+        streams_dao=session_streams_dao,
+        executions_dao=session_executions_dao,
+        inputs_dao=session_inputs_dao,
+        turns_dao=session_turns_dao,
+        workflows_service=workflows_service,
+    ),
 )
 
 triggers = TriggersRouter(
@@ -1419,6 +1427,8 @@ session_commands_service = SessionCommandsService(
     ),
     executions_dao=session_executions_dao,
     inputs_dao=session_inputs_dao,
+    streams_dao=session_streams_dao,
+    turns_dao=session_turns_dao,
 )
 
 _channels_inbox_dispatcher = InboxDispatcher(
@@ -1687,6 +1697,9 @@ session_starts_service = SessionStartsService(
     run_admission=run_admission,
     executions_dao=session_executions_dao,
     streams_dao=session_streams_dao,
+    inputs_dao=session_inputs_dao,
+    turns_dao=session_turns_dao,
+    cancelled_by_steer=session_commands_service.cancelled_by_steer,
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
 )

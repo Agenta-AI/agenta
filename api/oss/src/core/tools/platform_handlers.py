@@ -133,8 +133,10 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.env import env
 from oss.src.utils.web_links import agent_page_url
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover - `gate.py` imports this module
     from oss.src.core.sessions.service import SessionsService
+    from oss.src.core.tools.gate import GateReader
+
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -1178,8 +1180,13 @@ EDIT_AGENT_CONFIG_CALL_REF = "tools.agenta.edit_agent_config"
 # Not a model tool: the runner calls it when the approval gate of one of the two writes
 # above opens, and puts the answer on the approval card.
 PREVIEW_AGENT_CHANGE_CALL_REF = "tools.agenta.preview_agent_change"
+# Not a model tool: the runner calls it when the gate of a session write would show a card
+# (`core/tools/gate.py`).
+RESOLVE_GATE_CALL_REF = "tools.agenta.resolve_gate"
 # The handlers only the runner calls. Every other handler backs an op of the SDK catalog.
-RUNNER_ONLY_CALL_REFS = frozenset({PREVIEW_AGENT_CHANGE_CALL_REF})
+RUNNER_ONLY_CALL_REFS = frozenset(
+    {PREVIEW_AGENT_CHANGE_CALL_REF, RESOLVE_GATE_CALL_REF}
+)
 
 _FIND_AGENT_STEP = (
     "Call list_agents and pass the agent's `slug` or `id` as `agent`, not its name."
@@ -3501,6 +3508,32 @@ def _arguments_include_delta(arguments: Any) -> bool:
     return isinstance(arguments, dict) and arguments.get("delta") is not None
 
 
+async def handle_resolve_gate(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+    session_caller: SessionCaller,
+    gate_reader: Optional[GateReader] = None,
+) -> PlatformHandlerResult:
+    """The server's answer at the gate of a session write: `{permission, basis}`."""
+    from oss.src.core.tools.gate import resolve_gate
+
+    if gate_reader is None:
+        raise PlatformToolHandlerRefused("resolve_gate is unavailable.")
+    answer = await resolve_gate(
+        caller=session_caller,
+        project_id=project_id,
+        arguments=arguments,
+        reader=gate_reader,
+    )
+    return PlatformHandlerResult(content=answer.model_dump(mode="json"))
+
+
 @dataclass(frozen=True)
 class PlatformToolHandlerRegistration:
     call_ref: str
@@ -3527,6 +3560,8 @@ class PlatformToolHandlerRegistration:
     needs_session_caller: bool = False
     # Handlers that read sessions take the router's SessionsService as `sessions_service`.
     needs_sessions: bool = False
+    # `resolve_gate` takes the router's `GateReader` as `gate_reader`.
+    needs_gate_reader: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -3602,6 +3637,15 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_preview_agent_change,
         elevated_permission=Permission.VIEW_WORKFLOWS,
         needs_agent_read_scope=True,
+    ),
+    # Writes nothing. Guarded by the run credential check (design D31), like the session
+    # ops it answers for.
+    RESOLVE_GATE_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=RESOLVE_GATE_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_resolve_gate,
+        needs_session_caller=True,
+        needs_gate_reader=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
@@ -3712,6 +3756,7 @@ async def dispatch_platform_tool_handler(
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
     sessions_service: Optional[SessionsService] = None,
+    gate_reader: Optional[GateReader] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -3743,6 +3788,8 @@ async def dispatch_platform_tool_handler(
             return PlatformHandlerResult.failure(e.error)
     if registration.needs_sessions:
         extra["sessions_service"] = sessions_service
+    if registration.needs_gate_reader:
+        extra["gate_reader"] = gate_reader
     return await registration.handler(
         arguments=arguments,
         headers=headers,
