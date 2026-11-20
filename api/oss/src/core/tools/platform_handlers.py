@@ -2245,19 +2245,9 @@ DRIVE_OPS_DEFAULT_TIMEOUT_MS = 15_000
 _LIST_DRIVES_STEP = "List the drives with `list_agent_drives`."
 
 
-def _require_builder(
-    caller: SessionCaller, workflows_service: WorkflowsService
-) -> None:
+def _require_builder(caller: SessionCaller) -> None:
     """The drive ops are the builder's only: any other calling agent is refused."""
-    from oss.src.core.workflows.builder_agent import BUILDER_AGENT_SLUG
-
-    static = workflows_service.static_catalog
-    builder = (
-        static.retrieve_revision(slug=BUILDER_AGENT_SLUG)
-        if static is not None
-        else None
-    )
-    if builder is None or caller.run_agent_id != builder.artifact_id:
+    if not is_builder_agent(caller.run_agent_id):
         raise _agent_refusal(
             "agent_not_allowed",
             "Only the builder can read the drives of other agents.",
@@ -2289,13 +2279,21 @@ async def _allowed_on_drive(*, project_id: UUID, mount_id: UUID) -> bool:
 async def _would_widen(
     caller: SessionCaller, *, project_id: UUID, mount_id: UUID
 ) -> bool:
-    """Design D11 for a drive read: the drive's text would reach a reader of the
-    calling session who cannot read the drive."""
+    """Design D11 for a drive read, `is_wider(calling session, drive)`: the drive's
+    text would reach a reader of the calling session who cannot read the drive. A
+    session or a drive with no row counts as wider. A drive has no grants."""
     from oss.src.core.sharing.service import get_sharing_service
 
-    return await get_sharing_service().session_wider_than_drive(
-        project_id=project_id, session_id=caller.run_session_id, mount_id=mount_id
+    sharing = get_sharing_service()
+    drive = await sharing.fetch_mount_policy(project_id=project_id, mount_id=mount_id)
+    if drive is None:
+        return True
+    calling = await sharing.session_readers(
+        project_id=project_id, session_id=caller.run_session_id
     )
+    if calling is None:
+        return True
+    return is_wider(calling, SharedItemReaders(policy=drive))
 
 
 def _listed_drive_slugs(head: Any) -> List[tuple[str, bool]]:
@@ -2340,7 +2338,7 @@ async def handle_list_agent_drives(
     read_scope = agent_read_scope or AgentReadScope(owner_user_id=None)
 
     try:
-        _require_builder(session_caller, workflows_service)
+        _require_builder(session_caller)
         parsed = _parse_arguments(arguments)
         workflow, head = await _resolve_other_agent(
             workflows_service=workflows_service,
@@ -2475,11 +2473,11 @@ async def handle_read_drive(
         MountPathInvalid,
     )
 
-    if workflows_service is None or mounts_service is None:
+    if mounts_service is None:
         raise PlatformToolHandlerRefused("read_drive is unavailable.")
 
     try:
-        _require_builder(session_caller, workflows_service)
+        _require_builder(session_caller)
         parsed = _parse_arguments(arguments)
         path = _drive_path(parsed)
         try:

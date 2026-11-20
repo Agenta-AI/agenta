@@ -529,46 +529,41 @@ async def test_a_call_without_a_run_credential_is_refused(world, call_ref, kind)
     assert content["code"] == RUN_CREDENTIAL_REQUIRED
 
 
-# -- the D11 stand-in -------------------------------------------------------------------
+# -- design D11 for a drive: the shared `is_wider` ------------------------------------
+
+
+def _wider(world, session, drive):
+    caller = SimpleNamespace(run_session_id=session.session_id)
+    return platform_handlers._would_widen(
+        caller, project_id=world.project_id, mount_id=drive.id
+    )
 
 
 async def test_a_grant_or_a_channel_makes_a_private_session_wider(world):
-    service = world.world.service
     session = world.world.add_session(policy=world.private(world.ana))
 
-    async def wider():
-        return await service.session_wider_than_drive(
-            project_id=world.project_id,
-            session_id=session.session_id,
-            mount_id=world.ana_drive.id,
-        )
-
-    assert not await wider()
+    assert not await _wider(world, session, world.ana_drive)
     world.world.add_grant(state=session, user_id=world.ben, role=SessionRole.VIEWER)
-    assert await wider()
+    assert await _wider(world, session, world.ana_drive)
 
-    # A channel shows the text outside the project: wider than a project drive too.
+    # A channel shows the text outside the project: wider than every private drive.
     session = world.world.add_session(policy=world.private(world.ana), is_channel=True)
-    assert await wider()
-    assert await service.session_wider_than_drive(
-        project_id=world.project_id,
-        session_id=session.session_id,
-        mount_id=world.shared_drive.id,
-    )
+    assert await _wider(world, session, world.ana_drive)
+    # A project drive is never narrower than a session of its project (`is_wider`), so
+    # a channel session reads it, as `read_session` reads a project-visible session.
+    assert not await _wider(world, session, world.shared_drive)
 
 
 @pytest.mark.parametrize("drive", ["shared_drive", "ana_drive"])
 async def test_a_session_with_no_row_is_wider_than_any_drive(world, drive):
-    assert await world.world.service.session_wider_than_drive(
-        project_id=world.project_id,
-        session_id=str(uuid4()),
-        mount_id=getattr(world, drive).id,
-    )
+    session = SimpleNamespace(session_id=str(uuid4()))
+    assert await _wider(world, session, getattr(world, drive))
+
+
+async def test_a_drive_with_no_row_is_wider_than_any_session(world):
+    drive = SimpleNamespace(id=uuid4())
+    assert await _wider(world, world.ana_private, drive)
 
 
 async def test_a_project_drive_is_not_narrower_than_a_project_visible_session(world):
-    assert not await world.world.service.session_wider_than_drive(
-        project_id=world.project_id,
-        session_id=world.ana_shared.session_id,
-        mount_id=world.shared_drive.id,
-    )
+    assert not await _wider(world, world.ana_shared, world.shared_drive)
