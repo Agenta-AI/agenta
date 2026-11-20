@@ -1,0 +1,11 @@
+{
+    "scheduledTriggers": "Disparadores programados",
+    "appTriggers": "Disparadores de aplicación",
+    "deleteFailed": "No se pudo eliminar esta automatización. Inténtalo de nuevo.",
+    "runs": "Ejecuciones",
+    "settings": "Configuración",
+    "history": "Historial",
+    "seeAllRuns": "Ver todas las ejecuciones",
+    "lastRun": "Última ejecución",
+    "didNotFinish": "no terminó"
+}

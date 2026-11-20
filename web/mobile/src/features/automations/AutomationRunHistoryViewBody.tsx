@@ -53,7 +53,11 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
                 sessionHref={sessionHref}
                 runNow={
                     automation ? (
-                        <AutomationRunNowButton automation={automation} base={base} dirty={false} />
+                        <AutomationRunNowButton
+                            automation={automation}
+                            base={base}
+                            dirty={Boolean(params.unsavedSettings)}
+                        />
                     ) : null
                 }
                 renderConversation={renderConversation}

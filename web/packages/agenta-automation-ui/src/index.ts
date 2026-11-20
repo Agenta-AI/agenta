@@ -43,7 +43,6 @@ export {AutomationSaveBar} from "./AutomationSaveBar"
 export {AutomationBackLink} from "./AutomationBackLink"
 export {AutomationLastRunCell} from "./AutomationLastRunCell"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
-export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
 export {AutomationRunHistoryDrawer} from "./AutomationRunHistoryDrawer"
 export {
