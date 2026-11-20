@@ -196,15 +196,24 @@ export const BuilderChat = ({
                 composerHeaderExtra={
                     <ContextChip projectId={projectId} agentName={agentName} phone={phone} />
                 }
-                emptyState={<NewChatIntro agentName={agentName} />}
+                emptyState={<NewChatIntro agentName={agentName} phone={phone} />}
+                // A new chat: the intro, the composer and the quick actions in the middle (S07), at
+                // the top on a phone (M04), and "Recent chats" at the bottom.
+                newChatLayout={phone ? "top" : "middle"}
                 belowComposer={
                     isUnlinked ? (
-                        <div className="flex flex-col gap-4 px-3 pb-3">
+                        <div className="px-3 pt-3">
                             <QuickActions
                                 sessionId={builderSessionId}
                                 onPick={fillComposer}
                                 phone={phone}
                             />
+                        </div>
+                    ) : null
+                }
+                newChatFooter={
+                    isUnlinked ? (
+                        <div className={phone ? "px-2 pt-2 pb-5" : "px-2 pt-3 pb-3.5"}>
                             <RecentChats
                                 rows={recent.rows}
                                 failed={recent.failed}

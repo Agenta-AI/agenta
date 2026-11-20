@@ -11,7 +11,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {ArrowLeft, ArrowsOut, CaretDown, Hammer, Plus, X} from "@phosphor-icons/react"
+import {ArrowsOutSimple, CaretDown, CaretLeft, Hammer, Plus, X} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {cn} from "@/lib/utils"
@@ -23,7 +23,7 @@ import {useChatAgeLabel} from "./useChatAgeLabel"
 export const TITLE_MENU_CHATS = 5
 
 const headerClass =
-    "flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2"
+    "flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pl-2.5 pr-2"
 
 /**
  * The builder panel header: the chat title as a menu of the latest chats about this agent and
@@ -83,8 +83,10 @@ export const BuilderHeader = ({
                     type="button"
                     data-testid="builder-chat-title"
                     className={cn(
-                        "flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent font-semibold text-colorText hover:bg-colorFillTertiary",
-                        phone ? "h-11 rounded-lg px-2 text-base" : "h-8 rounded-md px-2 text-sm",
+                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-semibold text-colorText hover:bg-zinc-2",
+                        phone
+                            ? "h-11 rounded-lg px-2 text-base leading-5"
+                            : "h-[30px] rounded-[6px] px-2 text-sm",
                     )}
                 >
                     <Hammer aria-hidden size={14} className="shrink-0" />
@@ -141,7 +143,7 @@ export const BuilderHeader = ({
         <div className={headerClass} data-testid="builder-panel-header">
             {isHistory ? (
                 <>
-                    {iconButton(t("builder.panel.back"), <ArrowLeft aria-hidden />, onBack)}
+                    {iconButton(t("builder.panel.back"), <CaretLeft aria-hidden />, onBack)}
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">
                         {t("builder.panel.chatHistory")}
                     </span>
@@ -160,7 +162,7 @@ export const BuilderHeader = ({
                     title={t("builder.panel.openInBuilder")}
                 >
                     <Link href={openInBuilderHref} data-testid="builder-open-in-builder">
-                        <ArrowsOut aria-hidden />
+                        <ArrowsOutSimple aria-hidden />
                     </Link>
                 </Button>
             ) : null}

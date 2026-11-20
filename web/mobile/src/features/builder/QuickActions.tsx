@@ -2,7 +2,14 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
-import {ChartBar, ChatText, Compass, Lightning, Sparkle, type Icon} from "@phosphor-icons/react"
+import {
+    ChartBar,
+    Chats,
+    Compass,
+    Lightning,
+    SlidersHorizontal,
+    type Icon,
+} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
@@ -16,17 +23,17 @@ import {
 } from "./quickActions"
 
 const ICONS: Record<QuickAction, Icon> = {
-    improve: Sparkle,
+    improve: SlidersHorizontal,
     test: ChartBar,
     skills: Compass,
     automate: Lightning,
-    explain: ChatText,
+    explain: Chats,
 }
 
 /**
- * The quick actions under the composer of a new chat. One opens its ready requests under the row;
- * a pick puts the request in the composer and sends nothing. On a phone (M04) the actions are
- * 40 px with their icon and a 44 px hit area.
+ * The quick actions under the composer of a new chat (S07, S08). One opens its ready requests in
+ * a card under the row; a pick puts the request in the composer and sends nothing. On a phone
+ * (M04) the actions are 40 px with their icon and a 44 px hit area.
  */
 export const QuickActions = ({
     sessionId,
@@ -45,7 +52,7 @@ export const QuickActions = ({
     }
     const RowIcon = open ? ICONS[open] : null
     return (
-        <div className="flex flex-col gap-2" data-testid="builder-quick-actions">
+        <div className="flex flex-col gap-3" data-testid="builder-quick-actions">
             <div className={cn("flex flex-wrap justify-center", phone ? "gap-2" : "gap-1.5")}>
                 {QUICK_ACTIONS.map((action) => {
                     const ActionIcon = ICONS[action]
@@ -56,13 +63,13 @@ export const QuickActions = ({
                             aria-pressed={open === action}
                             onClick={() => setOpen(open === action ? null : action)}
                             className={cn(
-                                "inline-flex cursor-pointer items-center rounded-full border-0 text-colorTextSecondary ring-1 ring-inset",
+                                "inline-flex cursor-pointer items-center rounded-full border-0 text-zinc-8 ring-1 ring-inset",
                                 phone
                                     ? "relative h-10 gap-1.5 px-3.5 text-sm after:absolute after:-inset-0.5 after:content-['']"
                                     : "h-[30px] px-3 text-[13px]",
                                 open === action
-                                    ? "bg-colorFillSecondary ring-colorBorder"
-                                    : "bg-transparent ring-colorBorderSecondary hover:bg-colorFillTertiary",
+                                    ? "bg-zinc-2 ring-colorBorder"
+                                    : "bg-colorBgContainer ring-colorBorderSecondary hover:bg-zinc-1",
                             )}
                         >
                             {phone ? (
@@ -78,7 +85,10 @@ export const QuickActions = ({
                 })}
             </div>
             {open && RowIcon ? (
-                <div className="flex flex-col" data-testid="builder-ready-requests">
+                <div
+                    className="flex flex-col overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer"
+                    data-testid="builder-ready-requests"
+                >
                     {READY_REQUESTS[open].map((entry) => {
                         const request = t(entry.request)
                         return (
@@ -86,18 +96,18 @@ export const QuickActions = ({
                                 key={entry.request}
                                 type="button"
                                 onClick={() => onPick(request)}
-                                className="flex w-full cursor-pointer items-start gap-2.5 rounded-md border-0 bg-transparent px-2 py-2 text-left hover:bg-colorFillTertiary"
+                                className="flex w-full cursor-pointer items-center gap-2.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-3 py-2 text-left last:border-b-0 hover:bg-zinc-1"
                             >
                                 <RowIcon
                                     aria-hidden
                                     size={14}
-                                    className="mt-0.5 shrink-0 text-colorTextSecondary"
+                                    className="shrink-0 text-colorTextSecondary"
                                 />
                                 <span className="flex min-w-0 flex-col">
-                                    <span className="text-[13px] font-medium text-colorText">
+                                    <span className="text-[13px] font-medium leading-5 text-colorText">
                                         {request}
                                     </span>
-                                    <span className="text-xs text-colorTextSecondary">
+                                    <span className="text-[12px] leading-4 text-colorTextSecondary">
                                         {t(entry.line)}
                                     </span>
                                 </span>

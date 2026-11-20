@@ -35,7 +35,7 @@ import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {followAction} from "./followBuilder"
-import {PaneSessions, usePaneSessions} from "./PaneSessions"
+import {PaneSessionSwitcher, PaneSessions, usePaneSessionPick} from "./PaneSessions"
 
 /** The pane tabs of an agent tab (B03): the Configuration tabs, then Drives and Sessions. */
 export const PANE_TABS = [
@@ -90,7 +90,8 @@ export const AgentPane = ({
         () => (revisionId ? {revisionId, readOnly} : null),
         [readOnly, revisionId],
     )
-    const sessions = usePaneSessions(projectId, agentId)
+    const sessionPick = usePaneSessionPick(projectId, agentId)
+    const sessions = sessionPick.query
     const sessionCount = sessions.data?.total ?? sessions.data?.sessions?.length ?? 0
     // An automation's "Run now" starts a new session of this agent, as from the panel.
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
@@ -184,7 +185,15 @@ export const AgentPane = ({
                 builderSessionId={builderSessionId}
             />
         )
-    else body = <PaneSessions agentId={agentId} projectId={projectId} workspaceId={workspaceId} />
+    else
+        body = (
+            <PaneSessions
+                pick={sessionPick}
+                agentId={agentId}
+                projectId={projectId}
+                workspaceId={workspaceId}
+            />
+        )
 
     const label = (key: PaneTab) =>
         key === "drives"
@@ -229,12 +238,17 @@ export const AgentPane = ({
                             />
                         ) : null}
                         {key === "sessions" && sessionCount > 0 ? (
-                            <span className="text-xs text-colorTextTertiary">
+                            <span className="text-[12px] leading-5 text-colorTextTertiary">
                                 {formatNumber(sessionCount)}
                             </span>
                         ) : null}
                     </button>
                 ))}
+                {tab === "sessions" ? (
+                    <span className="ml-auto">
+                        <PaneSessionSwitcher pick={sessionPick} />
+                    </span>
+                ) : null}
             </div>
             <div role="tabpanel" className="min-h-0 flex-1">
                 <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pin}>

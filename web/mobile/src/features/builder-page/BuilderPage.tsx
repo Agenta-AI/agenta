@@ -29,6 +29,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AgentPicker} from "./AgentPicker"
+import {BuilderChatTitle} from "./BuilderChatMenu"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
@@ -171,6 +172,10 @@ export const BuilderPage = ({
         [projectId, workspaceId],
     )
 
+    // A page-sized layer for dialogs that cover the page but not the sidebar (Browse ideas, B02).
+    // `contain: layout` makes it the box their fixed mask and positioner fill.
+    const [dialogHost, setDialogHost] = useState<HTMLDivElement | null>(null)
+
     const header = useSessionHeader(projectId, routeChatId ?? "")
     const title = (routeChatId && header.data?.name?.trim()) || t("builder.page.newChat")
 
@@ -186,6 +191,7 @@ export const BuilderPage = ({
                 key={sessionId}
                 builderRevisionId={builderRevisionId}
                 sessionId={sessionId}
+                isNew={routeChatId !== sessionId}
                 userId={userId}
                 workspaceId={workspaceId}
                 projectId={projectId}
@@ -193,6 +199,7 @@ export const BuilderPage = ({
                 activeTabKey={tabs.state.active}
                 onFirstSend={onFirstSend}
                 onMessagesChanged={tabs.onMessagesChanged}
+                dialogContainer={dialogHost}
             />
         )
 
@@ -206,15 +213,26 @@ export const BuilderPage = ({
     const [dragWidth, setDragWidth] = useState<number | null>(null)
     const chatColumn = (
         <section aria-label={title} className="flex h-full min-h-0 min-w-0 flex-col">
-            <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
+            <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 md:pl-4">
                 <NavDrawer
                     workspaceId={workspaceId}
                     projectId={projectId}
                     scope={builderSidebar ? scope : undefined}
                 />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-colorText">
-                    {title}
-                </span>
+                {routeChatId && routeChatId === sessionId ? (
+                    <BuilderChatTitle
+                        title={title}
+                        session={header.data}
+                        sessionId={sessionId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        userId={userId}
+                    />
+                ) : (
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-colorText">
+                        {title}
+                    </span>
+                )}
                 {activeTab && !paneOpen ? (
                     <SimpleTooltip title={t("builder.page.openItems")}>
                         <Button
@@ -259,7 +277,7 @@ export const BuilderPage = ({
             aria-label={t("builder.page.openItems")}
             className="flex h-full min-h-0 min-w-0 flex-col border-0 border-l border-solid border-colorBorderSecondary bg-colorBgContainer"
         >
-            <div className="flex h-11 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2">
+            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
                 <BuilderTabStrip
                     tabs={tabs.state.tabs}
                     active={tabs.state.active}
@@ -280,6 +298,9 @@ export const BuilderPage = ({
                         tabs.open(next)
                     }}
                 />
+                {phone ? null : (
+                    <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorderSecondary" />
+                )}
                 {phone ? null : (
                     <SimpleTooltip title={t("builder.page.fullScreen")}>
                         <Button
@@ -342,7 +363,7 @@ export const BuilderPage = ({
                 projectId={projectId}
                 scope={builderSidebar ? scope : undefined}
             >
-                <div className="h-full min-h-0" data-testid="builder-page">
+                <div className="relative h-full min-h-0" data-testid="builder-page">
                     {/* One tree for every layout: a change of layout never remounts the chat. */}
                     <SplitPane
                         className="h-full"
@@ -363,6 +384,10 @@ export const BuilderPage = ({
                         paneClassName={paneOpen ? undefined : "hidden"}
                         fill={chatColumn}
                         fillClassName={paneFull ? "hidden" : undefined}
+                    />
+                    <div
+                        ref={setDialogHost}
+                        className="pointer-events-none absolute inset-0 z-50 [contain:layout]"
                     />
                 </div>
             </AppShell>

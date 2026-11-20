@@ -3,9 +3,9 @@ import builderContextCatalog from "@agenta/i18n/catalogs/builder.context"
 
 import type {PagePart} from "./pageContext"
 
-/** Classes of the context chip, unsent and sent. */
+/** Classes of the context chip, unsent and sent (S07): 24 px, radius 6, 12 / 20 text. */
 export const chipClass =
-    "inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 rounded-md bg-colorFillTertiary px-2 text-xs text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary"
+    "inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 rounded-[6px] bg-zinc-1 px-2 text-[12px] leading-5 text-zinc-8 ring-1 ring-inset ring-colorBorderSecondary"
 
 /** What follows the agent name on the chip, or null when the page part names nothing more. */
 export const usePageLabel = () => {

@@ -63,8 +63,8 @@ export const IDEAS: readonly Idea[] = [
 ]
 
 /** The ideas of `category` whose title or prompt holds `search`, ignoring case. */
-export const filterIdeas = (
-    ideas: readonly {category: IdeaCategory; title: string; prompt: string}[],
+export const filterIdeas = <T extends {category: IdeaCategory; title: string; prompt: string}>(
+    ideas: readonly T[],
     category: IdeaCategory | "all",
     search: string,
 ) => {
