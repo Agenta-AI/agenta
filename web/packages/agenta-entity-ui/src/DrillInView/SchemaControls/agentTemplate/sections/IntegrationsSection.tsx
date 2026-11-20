@@ -1,5 +1,6 @@
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {Wrench} from "@phosphor-icons/react"
 
@@ -10,6 +11,8 @@ import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
+
+const tNow = createT(commonCatalog)
 
 export interface IntegrationsSectionParams {
     t: AgentTemplateT
@@ -48,7 +51,8 @@ export const integrationsSection = ({
         key: "tools",
         icon: <Wrench size={16} />,
         title: t("entityUi.agentTemplate.integrations"),
-        summary: countSummary(integrationCount, "integration"),
+        // "None" when empty, as the canvas draws the Agent tab.
+        summary: countSummary(integrationCount, "integration") || tNow("common.none"),
         indicator: sectionIndicator("tools"),
         // "Create with AI" beside the view that adds one by hand.
         extra:
