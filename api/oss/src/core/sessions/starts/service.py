@@ -22,7 +22,9 @@ from oss.src.core.sessions.inputs.dtos import (
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
+    SessionInputCarriesApprovalAnswer,
     SessionInputEnvelopeMismatch,
+    carries_approval_answer,
     is_reserved_input_key,
 )
 from oss.src.core.sessions.starts.dtos import (
@@ -464,6 +466,8 @@ class SessionStartsService:
         One row per key in the session: a repeat writes nothing and answers the first
         row. Raises `SessionInputEnvelopeMismatch` for an envelope of another project,
         `SessionInputIdempotencyConflict` for a key reused with other content,
+        `SessionInputCarriesApprovalAnswer` for content with an approval answer (no row
+        is written),
         `AdmissionDenied` when the immediate dispatch is refused (no row is written), and
         `SessionStartNotDurable` when the dispatch cannot be shown to have started."""
         if run_envelope.authority.project_id != project_id:
@@ -480,6 +484,12 @@ class SessionStartsService:
         if request.on_busy is not None:
             # The detached invoke would run the service's own admission again.
             raise ValueError("A server input's request must not carry on_busy.")
+        if carries_approval_answer(content):
+            log.warning(
+                "[SESSIONS] server input refused, content carries an approval answer: "
+                f"project={project_id} session={session_id} kind={kind.value}"
+            )
+            raise SessionInputCarriesApprovalAnswer()
         execution_id = str(
             resource_identity(
                 project_id,
