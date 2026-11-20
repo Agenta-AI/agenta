@@ -3,5 +3,8 @@
 export const SessionOrigin = {
     Manual: "manual",
     Trigger: "trigger",
+    Channel: "channel",
+    Api: "api",
+    CallingSession: "calling_session",
 } as const;
 export type SessionOrigin = (typeof SessionOrigin)[keyof typeof SessionOrigin];

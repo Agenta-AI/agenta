@@ -10,6 +10,7 @@ from sqlalchemy.dialects import postgresql
 
 from oss.src.apis.fastapi.sessions.models import (
     SessionExcludeRequest,
+    SessionCallingSessionRequest,
     SessionPredicatesRequest,
     SessionQueryRequest,
 )
@@ -746,6 +747,54 @@ def _request(project_id, user_id):
     request.state.project_id = str(project_id)
     request.state.user_id = str(user_id)
     return request
+
+
+async def test_router_passes_the_calling_session_filter_apart_from_session_ids():
+    service = AsyncMock()
+    service.query_sessions_page.return_value = SessionQueryPage()
+    router = SessionsRootRouter(sessions_service=service)
+    agent_id = uuid4()
+    body = SessionQueryRequest(
+        session=SessionPredicatesRequest(
+            origins=[SessionOrigin.calling_session],
+            calling_session=SessionCallingSessionRequest(
+                ids=["builder-b", "builder-a", "builder-a"], agent_ids=[agent_id]
+            ),
+        ),
+        session_ids=["builder-a"],
+    )
+
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        await router.query_sessions(request=_request(uuid4(), uuid4()), body=body)
+
+    query = service.query_sessions_page.await_args.kwargs["query"]
+    assert query.calling_session.ids == ["builder-a", "builder-b"]
+    assert query.calling_session.agent_ids == [agent_id]
+    assert query.origins == [SessionOrigin.calling_session]
+    # `session_ids` still selects sessions by their own id.
+    assert query.session_ids == ["builder-a"]
+
+
+def test_an_empty_calling_session_filter_is_no_filter():
+    normalized = normalize_session_query_request(
+        SessionQueryRequest(
+            session=SessionPredicatesRequest(
+                calling_session=SessionCallingSessionRequest()
+            )
+        )
+    )
+    assert normalized.predicates.calling_session is None
+
+
+def test_the_calling_session_filter_refuses_unknown_fields_and_bad_agent_ids():
+    with pytest.raises(ValidationError):
+        SessionCallingSessionRequest(session_ids=["a"])
+    with pytest.raises(ValidationError):
+        SessionCallingSessionRequest(agent_ids=["not-a-uuid"])
 
 
 async def test_router_consumes_nested_fields_and_projection_options():

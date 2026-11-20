@@ -8,5 +8,6 @@ export const RunOrigin = {
     Subscription: "subscription",
     Evaluation: "evaluation",
     Child: "child",
+    CallingSession: "calling_session",
 } as const;
 export type RunOrigin = (typeof RunOrigin)[keyof typeof RunOrigin];
