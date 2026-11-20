@@ -131,6 +131,32 @@ describe("describeConfigChanges without a preview", () => {
         expect(JSON.stringify(described)).not.toContain("does not occur")
     })
 
+    it("drops preview entries that are not objects", () => {
+        const described = describeConfigChanges(operations, {
+            applies: false,
+            operations: [null, {index: 1, applies: false}],
+            changes: [null],
+        })
+        expect(described.cannotApply).toBe(true)
+        expect(described.changes[1].fails).toBe(true)
+    })
+
+    it("keeps the refusal of a call with no operations", () => {
+        const preview = describeEditAgentConfig(
+            {agent: "x", operations: []},
+            undefined,
+            undefined,
+            {
+                applies: false,
+                operations: [],
+                changes: [],
+                error: {code: "invalid_arguments", message: "no base"},
+            },
+        )
+        expect(preview?.cannotApply).toBe(true)
+        expect(preview?.changes).toEqual([])
+    })
+
     it("treats a payload that is not a preview as no preview", () => {
         expect(describeConfigChanges(operations, {changes: "x"}).proposedValues).toBe(true)
     })

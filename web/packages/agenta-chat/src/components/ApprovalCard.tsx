@@ -155,7 +155,11 @@ export const ApprovalCard = ({
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.
     // One agent change shows its changes in place; the rows behind the toggle would repeat them.
-    const changes = !batched && preview?.changes?.length ? preview.changes : null
+    // A refused change with no rows still shows its notice.
+    const changes =
+        !batched && (preview?.changes?.length || preview?.cannotApply)
+            ? (preview.changes ?? [])
+            : null
     const items = useMemo(
         () =>
             batched

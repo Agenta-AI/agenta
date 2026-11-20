@@ -25,7 +25,12 @@ export const parseChangePreview = (value: unknown): ChangePreview | null => {
     const preview = asRecord(value)
     if (!preview || typeof preview.applies !== "boolean") return null
     if (!Array.isArray(preview.operations) || !Array.isArray(preview.changes)) return null
-    return preview as unknown as ChangePreview
+    // Entries that are not objects are dropped, so a malformed entry cannot take the card down.
+    return {
+        ...preview,
+        operations: preview.operations.filter(isRecord),
+        changes: preview.changes.filter(isRecord),
+    } as unknown as ChangePreview
 }
 
 /** Addressing scaffolding at the start of a target; nothing to read. */
