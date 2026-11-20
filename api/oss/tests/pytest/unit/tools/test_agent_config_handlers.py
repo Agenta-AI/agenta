@@ -67,7 +67,7 @@ TARGET_VARIANT = UUID("00000000-0000-4000-8000-000000000005")
 HEAD = UUID("00000000-0000-4000-8000-000000000006")
 STATIC_ID = "00000000-0000-4000-8000-000000000007"
 OTHER = UUID("00000000-0000-4000-8000-000000000008")
-WORKSPACE = UUID("00000000-0000-4000-8000-000000000009")
+ORGANIZATION = UUID("00000000-0000-4000-8000-000000000009")
 SESSION = "01a1-session"
 INSTRUCTIONS = ["parameters", "agent", "instructions", "agents_md"]
 
@@ -161,9 +161,9 @@ def service(workflows, hidden):
 _NO_OWNER = object()
 
 
-def _call(handler, service, *, workspace_id=None, owner=USER, **arguments):
-    # Only the agent tools take a workspace; `commit_revision` shares this helper.
-    extra = {"workspace_id": workspace_id} if workspace_id else {}
+def _call(handler, service, *, organization_id=None, owner=USER, **arguments):
+    # Only the agent tools take an organization; `commit_revision` shares this helper.
+    extra = {"organization_id": organization_id} if organization_id else {}
     if handler is handle_create_agent and owner is not _NO_OWNER:
         # A create is made by a person's run unless a test says otherwise.
         extra["first_agent_owner_user_id"] = owner
@@ -248,8 +248,8 @@ class TestRegistration:
             EDIT_AGENT_CONFIG_CALL_REF,
         ],
     )
-    def test_the_agent_tools_take_the_workspace_for_their_links(self, ref):
-        assert PLATFORM_TOOL_HANDLERS[ref].needs_workspace is True
+    def test_the_agent_tools_take_the_organization_for_their_links(self, ref):
+        assert PLATFORM_TOOL_HANDLERS[ref].needs_organization is True
 
     @pytest.mark.parametrize(
         "ref",
@@ -380,10 +380,10 @@ class TestListAgents:
     async def test_each_row_links_its_agent(self, listing, monkeypatch):
         monkeypatch.setattr(env.agenta, "web_url", "https://cloud.agenta.ai")
 
-        result = await _call(handle_list_agents, listing, workspace_id=WORKSPACE)
+        result = await _call(handle_list_agents, listing, organization_id=ORGANIZATION)
 
         assert [agent["url"] for agent in result.content["agents"]] == [
-            f"https://cloud.agenta.ai/m/w/{WORKSPACE}/p/{PROJECT}/agents/{agent_id}"
+            f"https://cloud.agenta.ai/m/w/{ORGANIZATION}/p/{PROJECT}/agents/{agent_id}"
             for agent_id in (TARGET, CALLER)
         ]
 
@@ -1343,20 +1343,20 @@ class TestCreateAgent:
 
 class TestEveryAgentCarriesALinkToItsPage:
     """Each agent the tools return carries `url`, its page in the web app (`/m`), so the
-    model can give the person a link. Without a workspace or a usable web address there is
+    model can give the person a link. Without an organization or a usable web address there is
     no `url`, never a guessed one."""
 
-    URL = f"https://cloud.agenta.ai/m/w/{WORKSPACE}/p/{PROJECT}/agents/{TARGET}"
+    URL = f"https://cloud.agenta.ai/m/w/{ORGANIZATION}/p/{PROJECT}/agents/{TARGET}"
 
     @pytest.fixture(autouse=True)
     def web_url(self, monkeypatch):
         monkeypatch.setattr(env.agenta, "web_url", "https://cloud.agenta.ai/")
 
-    def _read(self, service, workspace_id=WORKSPACE):
+    def _read(self, service, organization_id=ORGANIZATION):
         return _call(
             handle_read_agent_config,
             service,
-            workspace_id=workspace_id,
+            organization_id=organization_id,
             agent="invoice-helper-k3x9",
             caller_agent_id=str(CALLER),
         )
@@ -1364,7 +1364,10 @@ class TestEveryAgentCarriesALinkToItsPage:
     async def test_read_and_edit_answers_link_the_agent(self, service):
         read = await self._read(service)
         edit = await _call(
-            handle_edit_agent_config, service, workspace_id=WORKSPACE, **_edit_args()
+            handle_edit_agent_config,
+            service,
+            organization_id=ORGANIZATION,
+            **_edit_args(),
         )
 
         assert read.content["agent"] == {
@@ -1375,7 +1378,7 @@ class TestEveryAgentCarriesALinkToItsPage:
         }
         assert edit.content["agent"]["url"] == self.URL
 
-    async def test_the_dispatcher_hands_the_caller_workspace_on(self, service):
+    async def test_the_dispatcher_hands_the_caller_organization_on(self, service):
         result = await dispatch_platform_tool_handler(
             call_ref=READ_AGENT_CONFIG_CALL_REF,
             arguments={"agent": "invoice-helper-k3x9", "caller_agent_id": str(CALLER)},
@@ -1385,13 +1388,13 @@ class TestEveryAgentCarriesALinkToItsPage:
             workflows_service=service,
             tracing_service=None,
             run_admission=AsyncMock(),
-            workspace_id=WORKSPACE,
+            organization_id=ORGANIZATION,
         )
 
         assert result.content["agent"]["url"] == self.URL
 
-    async def test_no_workspace_means_no_link(self, service):
-        result = await self._read(service, workspace_id=None)
+    async def test_no_organization_means_no_link(self, service):
+        result = await self._read(service, organization_id=None)
 
         assert "url" not in result.content["agent"]
 
