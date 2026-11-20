@@ -21,6 +21,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {openAgentFromList} from "../agent-pages/openAgentFromList"
+import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
@@ -122,8 +123,12 @@ export const AgentListScreen = ({
     // the unnarrowed list — a search that matches nothing empties this one too.
     const projectHasAgents = (query.data ?? []).length > 0
     const openRow = useCallback(
-        (row: AgentListRow) =>
-            void openAgentFromList({queryClient, base, projectId, agentId: row.id}),
+        (row: AgentListRow) => {
+            // An archived agent has no agent sidebar (the sidebar shows only listed agents): it
+            // opens a new session, as before.
+            if (row.archived) startBlankSession(base, row.id)
+            else void openAgentFromList({queryClient, base, projectId, agentId: row.id})
+        },
         [base, projectId, queryClient],
     )
     const failed = showArchived ? archived.isError : query.isError

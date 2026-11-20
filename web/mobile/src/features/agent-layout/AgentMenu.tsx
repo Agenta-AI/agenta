@@ -1,6 +1,6 @@
-import {useEffect, useState} from "react"
+import {useState} from "react"
 
-import {agentWorkflowsListQueryStateAtom, SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
+import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
 import {useAgentActions} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
@@ -14,10 +14,11 @@ import {
 } from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
-import {useRouter} from "next/router"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
+
+import {LeaveWhenArchived} from "./LeaveWhenArchived"
 
 /** The agent menu of the session header: History, Rename, Export agent, Archive agent. */
 export const AgentMenu = ({
@@ -93,26 +94,4 @@ export const AgentMenu = ({
             </DropdownMenu>
         </>
     )
-}
-
-/**
- * Moves the screen to the Agents list once the agent is gone from the agent list, which is what
- * a confirmed archive does. Mounted only after Archive is picked, so the session screen does not
- * load the agent list for it. The route change also shows the main sidebar.
- */
-export const LeaveWhenArchived = ({agentId, base}: {agentId: string; base: string}) => {
-    const router = useRouter()
-    const agents = useAtomValue(agentWorkflowsListQueryStateAtom)
-    const listed = (agents.data ?? []).some((agent) => agent.id === agentId)
-    // Only an agent this list has shown can leave it: an agent it never lists (a list still
-    // loading, or one it does not cover) must not move the screen before the archive.
-    const [seen, setSeen] = useState(false)
-    useEffect(() => {
-        if (listed) setSeen(true)
-    }, [listed])
-    const gone = seen && !listed && !agents.isPending && !agents.isError
-    useEffect(() => {
-        if (gone) void router.push(`${base}/agents`)
-    }, [gone, base, router])
-    return null
 }

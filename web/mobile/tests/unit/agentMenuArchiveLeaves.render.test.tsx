@@ -26,7 +26,7 @@ vi.mock("@agenta/playground-ui/agent-version-history", async () => {
 })
 vi.mock("@/features/context/useProjectPermission", () => ({useProjectPermission: () => true}))
 
-const {LeaveWhenArchived} = await import("@/features/agent-layout/AgentMenu")
+const {LeaveWhenArchived} = await import("@/features/agent-layout/LeaveWhenArchived")
 
 interface ListState {
     data: {id: string}[]
