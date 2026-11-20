@@ -196,5 +196,41 @@
         "theme": "dark",
         "selector": "[data-testid=\"agent-panel\"]",
         "ready": "text=Anthropic Messages"
+    },
+    {
+        "id": "provider-keys-phone-list-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-list",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add a provider or subscription"
+    },
+    {
+        "id": "provider-keys-phone-list-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-list",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add a provider or subscription"
+    },
+    {
+        "id": "provider-keys-phone-form-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-form",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=The key works. Agenta found 42 models."
+    },
+    {
+        "id": "provider-keys-phone-form-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-form",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=The key works. Agenta found 42 models."
     }
 ]
