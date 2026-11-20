@@ -49,10 +49,10 @@ export interface SkillFileMenuProps {
 }
 
 const ROW =
-    "box-border flex w-full min-w-0 cursor-pointer appearance-none items-center gap-1.5 rounded-[6px] border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-colorText outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary max-md:min-h-11"
+    "box-border flex w-full min-w-0 cursor-pointer appearance-none items-center gap-1.5 rounded-[6px] border-0 px-2 py-1 text-left font-[inherit] text-[13px] text-colorText outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary max-md:min-h-11"
 
 /** The open file, or the result Enter opens: a gray row (F07 f2, f3). */
-const CURRENT = "bg-colorFillTertiary"
+const CURRENT = "bg-colorFillSecondary"
 
 /** The check at the end of the open file's row (F07 f2). */
 const OpenCheck = ({show}: {show: boolean}) =>
@@ -103,11 +103,11 @@ export function SkillFileMenu({
                     aria-current={selected === index ? "true" : undefined}
                     className={cn(
                         ROW,
-                        (selected === index || highlight) && CURRENT,
+                        selected === index || highlight ? CURRENT : "bg-transparent",
                         !withFolder && "pl-6",
                     )}
                 >
-                    <FileIcon size={14} className="shrink-0 text-colorTextSecondary" />
+                    <FileIcon size={12} className="shrink-0 text-colorTextSecondary" />
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span
                             className={cn(
@@ -166,6 +166,8 @@ export function SkillFileMenu({
                     onKeyDown={onSearchKey}
                     placeholder={t("entityUi.skillView.findFile")}
                     aria-label={t("entityUi.skillView.findFile")}
+                    // A phone keeps a 44 px search field (touch rule).
+                    className="max-md:h-11 max-md:[&_input]:h-full"
                     prefix={<MagnifyingGlass size={13} className="text-muted-foreground" />}
                 />
             </div>
@@ -187,9 +189,9 @@ export function SkillFileMenu({
                             type="button"
                             onClick={() => onOpen("skill")}
                             aria-current={selected === "skill" ? "true" : undefined}
-                            className={cn(ROW, selected === "skill" && CURRENT)}
+                            className={cn(ROW, selected === "skill" ? CURRENT : "bg-transparent")}
                         >
-                            <FileIcon size={14} className="shrink-0 text-colorTextSecondary" />
+                            <FileIcon size={12} className="shrink-0 text-colorTextSecondary" />
                             <span
                                 className={cn(
                                     "min-w-0 flex-1 truncate font-mono text-[12px] leading-5",
@@ -211,7 +213,7 @@ export function SkillFileMenu({
                                         aria-expanded={!folded.has(group.folder)}
                                         onClick={() => onToggleFolder(group.folder)}
                                         title={group.folder}
-                                        className={ROW}
+                                        className={cn(ROW, "bg-transparent")}
                                     >
                                         <CaretDown
                                             size={12}

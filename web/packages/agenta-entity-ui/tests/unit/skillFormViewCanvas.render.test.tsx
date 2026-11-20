@@ -108,7 +108,7 @@ describe("SkillFormView, canvas F07", () => {
         await type(search, "re")
         await findByText("refund-policy.md")
         const first = byText("refund-policy.md")?.closest("button")
-        expect(first?.className).toContain("bg-colorFillTertiary")
+        expect(first?.className).toContain("bg-colorFillSecondary")
         expect(byText("Add a file")).toBeFalsy()
         await type(search, "zzz")
         await findByText("No file matches")

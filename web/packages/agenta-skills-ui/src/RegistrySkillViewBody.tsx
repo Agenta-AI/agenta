@@ -47,6 +47,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
+    PHONE_TOUCH_TARGET_CLASS,
     Popover,
     PopoverAnchor,
     PopoverContent,
@@ -379,7 +380,10 @@ const RegistrySkillEditor = ({
                         href={registryLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-inherit underline underline-offset-2"
+                        className={cn(
+                            "text-inherit underline underline-offset-2",
+                            PHONE_TOUCH_TARGET_CLASS,
+                        )}
                     >
                         {text}
                     </a>
