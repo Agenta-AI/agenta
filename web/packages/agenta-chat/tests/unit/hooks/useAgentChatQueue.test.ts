@@ -1557,6 +1557,19 @@ describe("the history arriving on open", () => {
         expect(refresh).not.toHaveBeenCalled()
     })
 
+    it("still re-reads when a send of this view is parked but not listed yet", async () => {
+        const {server, watchers} = durableServer("queued")
+        const refresh = vi.fn(() => Promise.resolve<number | null>(2))
+        const listedEmpty = {...server, busy: true, refresh, viewSeq: 1}
+        const {result, rerender} = setup({...settledEmpty, server: listedEmpty})
+        await act(async () => {
+            await result.current.steer({text: "skip that"})
+        })
+        act(() => watchers[0].onParked?.("input-1"))
+        rerender({...settledEmpty, messages: [userTurn("u1", "skip that")], server: listedEmpty})
+        expect(refresh).toHaveBeenCalledTimes(1)
+    })
+
     it("still re-reads when the history lands before any read has listed the queue", () => {
         const refresh = vi.fn(() => Promise.resolve<number | null>(1))
         const notRead = {...durableServer().server, refresh, viewSeq: 0}

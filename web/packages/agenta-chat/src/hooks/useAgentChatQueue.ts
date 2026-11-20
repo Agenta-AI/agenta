@@ -315,7 +315,7 @@ export const useAgentChatQueue = ({
         if (!grew) return
         const ids = retiredParkedIdsRef.current
         // Nothing listed and nothing of ours parked: no input can have started, so a re-read has
-        // nothing to drop. This is the history arriving on open, which made a second queue read.
+        // nothing to drop.
         if (listedEmptyRef.current && ids.size === 0) return
         const settle = (untilSeq: number) =>
             setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
