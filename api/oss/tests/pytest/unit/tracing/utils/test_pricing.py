@@ -47,6 +47,9 @@ def _fresh_pricing_caches():
         ("anthropic/claude-sonnet-5.5", "claude-sonnet-5-5"),
         ("claude-fable-5-1", "claude-fable-5-1"),
         ("anthropic/claude-fable-5.1", "claude-fable-5-1"),
+        ("claude-fable-5-2", "claude-fable-5-2"),
+        ("anthropic/claude-fable-5-2", "claude-fable-5-2"),
+        ("fable", MODEL_ALIASES["fable"]),
     ],
 )
 def test_resolve_pricing_model_finds_the_litellm_key(model, expected):
@@ -81,6 +84,9 @@ def test_every_alias_points_to_a_priced_litellm_key():
         ("claude-sonnet-5-5", 2.0, 10.0),
         ("sonnet", 2.0, 10.0),
         ("claude-fable-5-1", 10.0, 50.0),
+        ("claude-fable-5-2", 8.0, 40.0),
+        ("fable", 8.0, 40.0),
+        ("haiku", 0.1, 0.5),
     ],
 )
 def test_claude_5_family_uses_the_anthropic_list_price(model, input_rate, output_rate):
@@ -118,7 +124,16 @@ def test_price_map_additions_are_priced_from_their_listed_rates():
         cache_read_tokens=1_000_000,
         cache_write_tokens=1_000_000,
     )
-    assert prompt_cost == pytest.approx(2.0 + 0.2 + 2.5)
+    assert prompt_cost == pytest.approx(2.0 + 0.1 + 2.5)
+
+    prompt_cost, _ = price_tokens(
+        model="claude-fable-5-2",
+        prompt_tokens=3_000_000,
+        completion_tokens=0,
+        cache_read_tokens=1_000_000,
+        cache_write_tokens=1_000_000,
+    )
+    assert prompt_cost == pytest.approx(8.0 + 0.2 + 10.0)
 
 
 def test_resolve_pricing_model_is_cached():

@@ -215,15 +215,21 @@ def test_claude_catalog_uses_stable_harness_request_values():
         "default",
         "sonnet",
         "haiku",
-        "opus[1m]",
-        "claude-fable-5-1",
+        "opus",
+        "fable",
     ]
 
 
-def test_claude_catalog_labels_fable_5_1_as_the_frontier():
-    entry = next(e for e in claude_model_catalog().models if e.id == "claude-fable-5-1")
-    assert entry.name == "Claude Fable 5.1"
+def test_claude_catalog_labels_fable_5_2_as_the_frontier():
+    entry = next(e for e in claude_model_catalog().models if e.id == "fable")
+    assert entry.name == "Claude Fable 5.2"
     assert entry.ratings is not None and entry.ratings.intelligence == 5
+
+
+def test_claude_catalog_haiku_is_haiku_5_5():
+    entry = next(e for e in claude_model_catalog().models if e.id == "haiku")
+    assert entry.name == "Claude Haiku 5.5"
+    assert entry.pricing is not None and entry.pricing.input_per_mtok == 0.1
 
 
 def test_fable_ships_as_a_current_fact_via_the_pi_anthropic_block():
@@ -369,11 +375,10 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
     assert len(pi_defaults["openrouter"]) == 10
 
-    # Claude selects by alias: `claude-fable-5-1` is its own request value, and the versioned
-    # opus, sonnet and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives
-    # as the bracketed `opus[1m]` because that is the spelling Claude publishes for the Opus tier.
+    # Claude selects by tier alias: the versioned opus, fable, sonnet and haiku ids arrive under
+    # the alias Claude Code lists for that tier.
     assert catalog["claude"]["capabilities"]["default_models"] == {
-        "anthropic": ["opus[1m]", "claude-fable-5-1", "sonnet", "haiku"]
+        "anthropic": ["opus", "fable", "sonnet", "haiku"]
     }
     # Codex reaches openai only, names its models bare, and offers only the curated ids it runs.
     assert catalog["codex"]["capabilities"]["default_models"] == {
@@ -414,19 +419,19 @@ def test_curated_default_models_exist_in_the_pinned_pi_catalog():
     assert entry.name == "Claude Opus 5.5" and entry.source == "pi_generated"
 
 
-def test_fable_5_1_keeps_its_own_claude_request_value():
-    # A curated Fable 5.1 id must reach Claude as Fable 5.1, never be respelled as Fable 5.
-    fable_aliases = {
-        alias
-        for prefix, alias in MODEL_ID_ALIASES.items()
-        if "anthropic/claude-fable-5-1".startswith(prefix)
-    }
-    assert fable_aliases == {"claude-fable-5-1"}
+def test_every_fable_id_reaches_claude_as_the_fable_alias():
+    # Claude Code lists no concrete Fable 5.x value, so every curated Fable id runs on `fable`.
+    for model_id in ("anthropic/claude-fable-5-2", "anthropic/claude-fable-5-1"):
+        fable_aliases = {
+            alias
+            for prefix, alias in MODEL_ID_ALIASES.items()
+            if model_id.startswith(prefix)
+        }
+        assert fable_aliases == {"fable"}, model_id
     claude_defaults = harness_catalog_document()["claude"]["capabilities"][
         "default_models"
     ]["anthropic"]
-    assert "claude-fable-5-1" in claude_defaults
-    assert "claude-fable-5" not in claude_defaults
+    assert "fable" in claude_defaults
 
 
 def test_opus_5_5_is_a_prompt_model_and_a_default():

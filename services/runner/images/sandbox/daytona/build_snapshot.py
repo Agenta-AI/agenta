@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["daytona"]
+# dependencies = ["daytona<2"]
 # ///
 """Build a Daytona snapshot for the Agenta sandbox-agent runner.
 
@@ -89,13 +89,19 @@ PI_ACP_UPDATE_CHECK_GATE = (
 # parks warm. Keep this version in agreement with the runner image.
 CODEX_ACP_VERSION = "2.8.0"
 CODEX_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/codex/node_modules/@agentclientprotocol/codex-acp/package.json"
+# The Codex package ships a voice host (about 51 MB) for in-app voice, which an ACP run never
+# starts. The snapshot drops it to stay under the size budget.
+CODEX_VOICE_DIR = (
+    f"{PI_ACP_INSTALL_DIR}/codex/node_modules/@openai/codex-linux-x64/vendor/"
+    "x86_64-unknown-linux-musl/codex-resources/voice"
+)
 
 # Claude ACP adapter. Same disease and cure as Codex: the `-full` base bakes an unpinned,
 # stale Claude adapter (its bundled @anthropic-ai/claude-agent-sdk model table predates
 # Opus 5.5). Pin it to the SAME @agentclientprotocol/claude-agent-acp version the runner
 # pins (`services/runner/package.json`), so local and Daytona sandboxes serve the same
 # Claude model set. Keep this version in agreement with the runner.
-CLAUDE_ACP_VERSION = "0.84.0"
+CLAUDE_ACP_VERSION = "0.109.0"
 CLAUDE_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/claude/node_modules/@agentclientprotocol/claude-agent-acp/package.json"
 
 # The pi-ai provider-cost patch (harness cost issue H1) is single-sourced with the runner image,
@@ -278,7 +284,9 @@ console.log("pi-acp-update-check=opt-in");
     )
 
 
-def pin_agent_process_command(agent: str, version: str) -> str:
+def pin_agent_process_command(
+    agent: str, version: str, prune: tuple[str, ...] = ()
+) -> str:
     """One RUN that replaces the base image's ACP adapter for `agent` with `version`.
 
     Not `install-agent --reinstall`: that also re-downloads the agent's native CLI, which the
@@ -292,11 +300,14 @@ def pin_agent_process_command(agent: str, version: str) -> str:
     install-agent verifies the adapter by running `<adapter> --help` with its own stdin. codex-acp
     2.x starts its server on `--help` and exits only when stdin closes, which the RUN's `/dev/null`
     never signals, so the command gets an empty pipe instead.
+
+    `prune` lists paths the adapter install brings that no sandbox run uses. They are removed in
+    the same RUN, so they never reach the layer.
     """
     return (
         f"RUN rm -rf {PI_ACP_INSTALL_DIR}/{agent} {PI_ACP_INSTALL_DIR}/{agent}-acp "
         f"&& true | sandbox-agent install-agent {agent} --agent-process-version {version} "
-        "&& rm -rf /home/sandbox/.npm/_cacache"
+        f"&& rm -rf /home/sandbox/.npm/_cacache{''.join(' ' + path for path in prune)}"
     )
 
 
@@ -547,7 +558,9 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
             f"&& echo pi-acp-version={PI_ACP_VERSION}",
             pi_acp_update_check_patch_command(),
             # Same treatment for Codex: pin the adapter to the runner's version, then assert it.
-            pin_agent_process_command("codex", CODEX_ACP_VERSION),
+            pin_agent_process_command(
+                "codex", CODEX_ACP_VERSION, prune=(CODEX_VOICE_DIR,)
+            ),
             f'RUN test "$(node -p "require(\'{CODEX_ACP_PACKAGE_JSON}\').version")" '
             f'= "{CODEX_ACP_VERSION}" '
             f"&& echo codex-acp-version={CODEX_ACP_VERSION}",
@@ -559,13 +572,14 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
             f'RUN test "$(node -p "require(\'{CLAUDE_ACP_PACKAGE_JSON}\').version")" '
             f'= "{CLAUDE_ACP_VERSION}" '
             f"&& echo claude-acp-version={CLAUDE_ACP_VERSION}",
-            # The bundled SDK binary must actually carry Opus 5.5, Sonnet 5.5, and Fable 5.1 (all
-            # in the published Claude catalog); fail the build otherwise.
+            # The bundled SDK binary must actually carry the models the published Claude
+            # catalog's aliases resolve to; fail the build otherwise.
             f"RUN BIN=$(find {PI_ACP_INSTALL_DIR}/claude -type f -name claude | head -1) "
             '&& test -n "$BIN" && grep -aq claude-opus-5-5 "$BIN" '
             '&& grep -aq claude-sonnet-5-5 "$BIN" '
-            '&& grep -aq claude-fable-5-1 "$BIN" '
-            "&& echo claude-model-table-has-opus-5-5-sonnet-5-5-and-fable-5-1",
+            '&& grep -aq claude-fable-5-2 "$BIN" '
+            '&& grep -aq claude-haiku-5-5 "$BIN" '
+            "&& echo claude-model-table-has-opus-5-5-sonnet-5-5-fable-5-2-and-haiku-5-5",
         ]
     )
 
