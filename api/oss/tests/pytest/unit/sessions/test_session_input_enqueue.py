@@ -110,6 +110,11 @@ class _InputsDAO(MemoryInputsDAO):
         item.promoted_execution_id = execution_id
         return item
 
+    async def release_dispatch(self, *, project_id, session_id, input_id, execution_id):
+        released = input_id in self.dispatched
+        self.dispatched.discard(input_id)
+        return released
+
     async def has_pending_server_input(self, *, project_id, session_id, **_kwargs):
         return any(
             item.project_id == project_id
@@ -150,6 +155,7 @@ class _StreamsDAO:
 
     def __init__(self, *, deleted=False):
         self.deleted = deleted
+        self.missing = False
         self.turn_id = None
         self.read_in_task = None
 
@@ -158,6 +164,8 @@ class _StreamsDAO:
 
     async def get_by_session_id_including_archived(self, **_kwargs):
         self.read_in_task = asyncio.current_task()
+        if self.missing:
+            return None
         return SimpleNamespace(
             deleted_at="2026-11-20" if self.deleted else None, turn_id=self.turn_id
         )
@@ -1119,20 +1127,22 @@ async def test_an_api_key_of_the_sender_cannot_edit_her_browser_message(monkeypa
 
 @pytest.mark.asyncio
 async def test_a_retry_of_a_released_dispatch_finishes_it_even_when_the_hold_now_applies():
-    """The first call passed the hold, was promoted, and its invoke was never sent. A
-    retry with the same key resumes that dispatch instead of answering `promoted` for a
-    turn that never started."""
+    """The first call passed the hold, was promoted, and its invoke was never sent, so
+    the service released the claim. A retry with the same key resumes that dispatch
+    instead of answering `promoted` for a turn that never started."""
+    from oss.src.core.sessions.starts.types import SessionStartNotDurable
+    from oss.src.core.workflows.types import WorkflowDetachedStartNeverSent
+
     harness = _Harness()
-    harness.workflows.invoke_workflow_detached.side_effect = None
-    first = None
-    try:
+    harness.workflows.invoke_workflow_detached.side_effect = (
+        WorkflowDetachedStartNeverSent()
+    )
+    with pytest.raises(SessionStartNotDurable):
         await harness.enqueue()
-    except Exception:
-        pass
     [item] = harness.inputs_dao.items
     assert item.state == PendingInputState.promoted
+    assert item.id not in harness.inputs_dao.dispatched  # released by the service
     first = item.promoted_execution_id
-    harness.inputs_dao.dispatched.clear()  # the claim was released
     [person] = _ids(1)
     harness.turns.add(person, RunOrigin.WEB)
     harness.executions.add(person, outcome="stopped")
@@ -1147,6 +1157,38 @@ async def test_a_retry_of_a_released_dispatch_finishes_it_even_when_the_hold_now
     assert result.state == PendingInputState.promoted
     assert result.execution_id == first
     assert harness.executions.rows.get((SESSION_ID, first)) is not None
+
+
+@pytest.mark.asyncio
+async def test_a_retry_with_another_envelope_does_not_resume_the_dispatch():
+    from oss.src.core.sessions.starts.types import SessionStartNotDurable
+    from oss.src.core.workflows.types import WorkflowDetachedStartNeverSent
+
+    harness = _Harness()
+    harness.workflows.invoke_workflow_detached.side_effect = (
+        WorkflowDetachedStartNeverSent()
+    )
+    with pytest.raises(SessionStartNotDurable):
+        await harness.enqueue()
+    harness.workflows.invoke_workflow_detached.reset_mock()
+
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await harness.enqueue(run_envelope=make_envelope(project_id=PROJECT_ID))
+
+    harness.workflows.invoke_workflow_detached.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_session_that_does_not_exist_gets_no_input():
+    from oss.src.core.sessions.streams.types import SessionStreamNotFound
+
+    harness = _Harness()
+    harness.streams_dao.missing = True
+
+    with pytest.raises(SessionStreamNotFound):
+        await harness.enqueue()
+
+    assert harness.inputs_dao.items == []
 
 
 # --- approval answers ---------------------------------------------------------------
@@ -1200,6 +1242,14 @@ def _with_ui_part(part):
         ),
         _with_ui_part(
             {"type": "dynamic-tool", "toolCallId": "call-1", "state": "output-denied"}
+        ),
+        _with_ui_part(
+            {
+                "type": "tool-send_email",
+                "toolCallId": "call-1",
+                "state": ["queued"],
+                "approval": {"approved": True},
+            }
         ),
         _with_ui_part(
             {
