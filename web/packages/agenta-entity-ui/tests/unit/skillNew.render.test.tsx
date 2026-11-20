@@ -180,6 +180,21 @@ describe("Skills section remove", () => {
         if (!section) throw new Error("no section")
         await render(<>{section.content}</>)
     }
+    it('says "None" when the agent has no skill', () => {
+        const section = skillsSection({
+            t: ((key: string) => key) as never,
+            hasSkills: true,
+            fieldTitle: (_f, fallback) => fallback,
+            sectionIndicator: () => undefined,
+            skills: [],
+            handleAddSkill: () => undefined,
+            openSkillItem: () => undefined,
+            removeItem: () => undefined,
+            closeEditor: () => undefined,
+            skillStatusFor: () => undefined,
+        })
+        expect(section && section.summary).toBe("None")
+    })
     const bins = () => [...document.querySelectorAll<HTMLElement>('button[aria-label="Remove"]')]
 
     it("asks first, then removes the skill; the registry text says the skill stays", async () => {

@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
 import {Compass} from "@phosphor-icons/react"
 
@@ -13,6 +14,8 @@ import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
 type ConfigItemListProps = Parameters<typeof ConfigItemList>[0]
+
+const tNow = createT(commonCatalog)
 
 export interface SkillsSectionParams {
     t: AgentTemplateT
@@ -46,7 +49,8 @@ export const skillsSection = ({
         key: "skills",
         icon: <Compass size={16} />,
         title: fieldTitle("skills", t("entityUi.agentTemplate.skills")),
-        summary: countSummary(skills.length, "skill"),
+        // "None" when empty, as the canvas draws the Agent tab.
+        summary: countSummary(skills.length, "skill") || tNow("common.none"),
         indicator: sectionIndicator("skills"),
         extra: !disabled ? <SkillsAddMenu t={t} onManual={handleAddSkill} /> : undefined,
         defaultOpen: skills.length > 0,
