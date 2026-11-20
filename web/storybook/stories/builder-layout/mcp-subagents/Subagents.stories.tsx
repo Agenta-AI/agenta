@@ -38,7 +38,11 @@ const Open = ({frame, revisionId}: {frame: Frame; revisionId: string}) => {
         const agent: ViewTarget = {kind: "agent_draft", revisionId}
         if (frame === "add") void stack.open(subagentAddView, {}, agent)
         if (frame === "subagent")
-            void stack.open(subagentView, {item: {list: "tools", key: "email-writer"}}, agent)
+            void stack.open(
+                subagentView,
+                {item: {list: "tools" as const, key: "email-writer"}},
+                agent,
+            )
         // Open once on mount, like a click.
     }, [])
     return null
