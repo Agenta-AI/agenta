@@ -73,7 +73,7 @@ import {
     translateProtocolField,
     translateProviderField,
 } from "./providerFieldText"
-import {useKeyCheck, keyCheckSignature, type KeyCheckRequest} from "./useKeyCheck"
+import {useKeyCheck, type KeyCheckRequest} from "./useKeyCheck"
 import {
     organizationSavedToast,
     organizationSaveError,
@@ -258,39 +258,7 @@ const ProviderConnectionCard = ({
     // The field a paste landed in: its next change starts the check.
     const pastedInto = useRef<string | null>(null)
 
-    // The card is remounted per provider by its key in the hosts, but a Settings row click can
-    // swap the connection under a mounted card; reseed rather than show the previous one's state.
-    const seededFor = useRef<string | null>(connection?.id ?? null)
-    const drop = keyCheck.drop
-    useEffect(() => {
-        const identity = connection?.id ?? null
-        if (seededFor.current === identity) return
-        seededFor.current = identity
-        const seed = {
-            credential: storedCredential,
-            name: connection?.name ?? null,
-            bedrockWay: initialBedrockWay(connection),
-            manualModels: [] as string[],
-            checkedModels: connection?.models ?? null,
-            harnesses: connection?.harnesses ?? null,
-            protocol: initialEndpointProtocol(connection),
-            owner: "project" as ProviderOwner,
-            projects: savedProjectsOf(connection) ?? ALL_PROJECTS,
-        }
-        setCredential(seed.credential)
-        setName(seed.name)
-        setBedrockWay(seed.bedrockWay)
-        setSaveError(null)
-        setManualModels(seed.manualModels)
-        setCheckedModels(seed.checkedModels)
-        setHarnesses(seed.harnesses)
-        setProtocol(seed.protocol)
-        setOwner(seed.owner)
-        setProjects(seed.projects)
-        openedWith.current = JSON.stringify(seed)
-        refreshedFor.current = null
-        drop()
-    }, [connection, storedCredential, drop])
+    // The hosts key the card by the connection id, so another connection mounts a new card.
     const dirty = !readOnly && snapshot !== openedWith.current
 
     // Bedrock shows, checks and saves only the fields of the chosen way to sign in.
@@ -320,15 +288,19 @@ const ProviderConnectionCard = ({
         [connection, otherWayFields],
     )
     const credentialFilled = hasRequiredCredential(kind, chosenCredential, storedFields)
-    const storedCredentialUnchanged = useMemo(
-        () =>
+    /** A saved connection whose credential fields hold what it opened with. */
+    const unchangedFromStored = useCallback(
+        (values: CredentialValues) =>
             !!connection &&
             (!isBedrock || bedrockWay === initialBedrockWay(connection)) &&
             fields.every(
-                (field) => (credential[field.key] ?? "") === (storedCredential[field.key] ?? ""),
+                (field) =>
+                    otherWayFields.includes(field.key) ||
+                    (values[field.key] ?? "") === (storedCredential[field.key] ?? ""),
             ),
-        [connection, isBedrock, bedrockWay, credential, fields, storedCredential],
+        [connection, isBedrock, bedrockWay, fields, storedCredential, otherWayFields],
     )
+    const storedCredentialUnchanged = unchangedFromStored(credential)
 
     // Bedrock needs its region as well as one way to sign in before a check can say anything.
     const readyToCheck = useCallback(
@@ -361,17 +333,17 @@ const ProviderConnectionCard = ({
         connection?.availability !== "selected_projects" ||
         (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
 
-    // "key": a typed credential is checked, and the line under the field follows it. "refresh":
-    // the stored key fetches the list again, and the line under the list follows it.
+    // "key": an edited credential is checked, and the line under the field follows it.
+    // "refresh": a saved connection's stored credential fetches the list again, and the line
+    // under the list follows it.
     const [checkMode, setCheckMode] = useState<"key" | "refresh">("key")
-    const runCheck = useCallback(
-        (request: KeyCheckRequest) => {
-            setCheckMode(request.secret_id ? "refresh" : "key")
-            setSaveError(null)
-            keyCheck.check(request)
-        },
-        [keyCheck],
-    )
+    const runCheck = (values: CredentialValues, force: boolean) => {
+        const request = requestFor(values)
+        if (!testableFor(request)) return
+        setCheckMode(unchangedFromStored(values) ? "refresh" : "key")
+        setSaveError(null)
+        void keyCheck.check(request, {force})
+    }
 
     /**
      * Starts the check by itself when the credential is complete and changed since the last
@@ -381,24 +353,17 @@ const ProviderConnectionCard = ({
         if (readOnly || !keyCheck.ready) return
         const chosen = forChosenWay(values)
         if (!readyToCheck(chosen)) return
-        const request = requestFor(chosen)
-        // A saved connection with nothing typed refreshes when it opens and on "Update" only.
-        if (request.secret_id) return
-        if (!testableFor(request)) return
-        const {state} = keyCheck
-        if (!pasted && state.phase !== "idle" && state.signature === keyCheckSignature(request))
-            return
-        runCheck(request)
+        // A saved connection with nothing edited refreshes when it opens and on "Update" only.
+        if (unchangedFromStored(chosen)) return
+        runCheck(chosen, pasted)
     }
 
     // A saved connection fetches its list again when it opens, with the stored key.
     useEffect(() => {
         if (!connection || !keyCheck.ready || refreshedFor.current === connection.id) return
         if (!connection.hasStoredCredential && !readyToCheck(storedCredential)) return
-        const request = requestFor(storedCredential)
-        if (!testableFor(request)) return
         refreshedFor.current = connection.id
-        runCheck(request)
+        runCheck(storedCredential, true)
         // Once per opened connection; the request reads the form as it opened.
     }, [connection, keyCheck.ready])
 
@@ -637,11 +602,11 @@ const ProviderConnectionCard = ({
             console.warn("[provider key check]", probeFailureMessage(failedError, title))
     }, [failedError, title])
 
-    const checkAgain = () => runCheck(requestFor(chosenCredential))
+    const checkAgain = () => runCheck(chosenCredential, true)
 
     // The line under the credential fields: the check that runs, or what it answered.
     const statusLine = ((): StatusLine | null => {
-        if (checkState.phase === "idle") return null
+        if (checkState.phase === "idle" || checkState.phase === "stopped") return null
         if (checking) return checkMode === "key" ? {tone: "progress"} : null
         if (checkFailed) {
             if (checkMode === "refresh") return null
@@ -678,7 +643,7 @@ const ProviderConnectionCard = ({
         if (probe.discovery.status === "failed") {
             return {
                 tone: "neutral",
-                text: t("entityUi.providerKeyForm.timedOut", {provider: displayTitle}),
+                text: t("entityUi.providerKeyForm.notReachedInTime", {provider: displayTitle}),
                 checkAgain: true,
             }
         }
@@ -692,11 +657,11 @@ const ProviderConnectionCard = ({
         if (kind === "custom" && !(chosenCredential.apiKey ?? "").trim()) {
             return {
                 tone: "neutral",
-                text: t("entityUi.providerKeyForm.keyNotTested"),
+                text: t("entityUi.providerKeyForm.answeredWithoutKey"),
                 checkAgain: false,
             }
         }
-        return {tone: "neutral", text: t("entityUi.providerKeyForm.untested"), checkAgain: false}
+        return {tone: "neutral", text: t("entityUi.providerKeyForm.noFreeCheck"), checkAgain: false}
     })()
 
     // A refresh with the stored key that did not come back: the saved list stays.
@@ -816,7 +781,7 @@ const ProviderConnectionCard = ({
                     variant="link"
                     size="sm"
                     className="h-auto px-0"
-                    onClick={() => keyCheck.drop()}
+                    onClick={() => keyCheck.stop()}
                 >
                     {t("entityUi.providerKeyForm.stop")}
                 </Button>
@@ -971,7 +936,7 @@ const ProviderConnectionCard = ({
                         setCheckedModels([...effectiveChecked.filter((model) => model !== id), id])
                     }}
                     fetchedAt={discovered ? (probe?.fetched_at ?? null) : null}
-                    onRefetch={() => runCheck(requestFor(chosenCredential))}
+                    onRefetch={() => runCheck(chosenCredential, true)}
                     refetching={checking && checkMode === "refresh"}
                     unreachableNote={unreachableNote}
                 />

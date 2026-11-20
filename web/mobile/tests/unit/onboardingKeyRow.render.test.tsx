@@ -5,6 +5,23 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 
 const saveKey = vi.hoisted(() => vi.fn())
+/** The key check: idle until a test makes `check` answer. */
+const keyCheck = vi.hoisted(() => ({
+    state: {phase: "idle"} as {phase: string},
+    ready: true,
+    check: vi.fn(),
+    stop: vi.fn(),
+    drop: vi.fn(),
+}))
+const answer = (status: "valid" | "invalid" | "unknown") => ({
+    phase: "done",
+    signature: "s",
+    result: {
+        credential: {status, message: ""},
+        discovery: {status: "unsupported", models: [], model_names: {}},
+        fetched_at: "",
+    },
+})
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     KEY_PROVIDERS: [
         {kind: "openai", title: "OpenAI", secretKind: "provider_key"},
@@ -16,6 +33,7 @@ vi.mock("@agenta/entity-ui/secretProvider", () => ({
         ({openai: "sk-…", anthropic: "sk-ant-…", groq: "gsk_…"})[kind] ?? "",
     providerIconFor: () => () => null,
     useSaveProviderKey: () => saveKey,
+    useKeyCheck: () => keyCheck,
 }))
 vi.mock("motion/react", async () => {
     const {createElement} = await import("react")
@@ -34,6 +52,7 @@ import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
     true
 
 beforeAll(() => {
+    keyCheck.check.mockResolvedValue(answer("valid"))
     globalThis.ResizeObserver ??= class {
         observe = () => undefined
         unobserve = () => undefined
@@ -50,6 +69,8 @@ afterEach(() => {
     host?.remove()
     root = undefined
     saveKey.mockReset()
+    keyCheck.check.mockReset()
+    keyCheck.check.mockResolvedValue(answer("valid"))
 })
 
 const keys = (): OnboardingModel["keys"] => ({
@@ -156,6 +177,37 @@ describe("onboarding API key row", () => {
             "Couldn’t save this key. Try again.",
         )
         expect(keyInput()!.value).toBe("sk-live-12345678")
+    })
+
+    it("checks an unchecked key on Save, and saves it when the key works", async () => {
+        saveKey.mockResolvedValue("conn-1")
+        render()
+        click("Add key")
+        type(keyInput()!, "sk-live-12345678")
+        await submit()
+        expect(keyCheck.check).toHaveBeenCalledWith(
+            expect.objectContaining({kind: "openai", provider: {key: "sk-live-12345678"}}),
+            {force: true},
+        )
+        expect(saveKey).toHaveBeenCalledWith("openai", "sk-live-12345678")
+    })
+
+    it("does not save a key the provider rejects", async () => {
+        keyCheck.check.mockResolvedValue(answer("invalid"))
+        render()
+        click("Add key")
+        type(keyInput()!, "sk-live-12345678")
+        await submit()
+        expect(saveKey).not.toHaveBeenCalled()
+    })
+
+    it("does not save when the check was stopped", async () => {
+        keyCheck.check.mockResolvedValue(null)
+        render()
+        click("Add key")
+        type(keyInput()!, "sk-live-12345678")
+        await submit()
+        expect(saveKey).not.toHaveBeenCalled()
     })
 
     it("names the connected key and still opens the form to add another", () => {

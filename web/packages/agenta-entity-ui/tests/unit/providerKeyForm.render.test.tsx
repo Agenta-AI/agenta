@@ -361,3 +361,50 @@ describe("submit", () => {
         expect(saveState?.error).toBe("Agenta could not save this OpenAI connection. Try again.")
     })
 })
+
+describe("review fixes", () => {
+    it("checks a saved connection again when a field other than the key changes", async () => {
+        const azure = {
+            id: "conn-az",
+            slug: "azure",
+            name: "Azure OpenAI",
+            kind: "azure",
+            title: "Azure OpenAI",
+            secretKind: SecretKind.CustomProvider,
+            hasStoredCredential: true,
+            models: ["gpt-5.5"],
+            source: {
+                id: "conn-az",
+                kind: "azure",
+                apiKey: "",
+                apiBaseUrl: "https://old.openai.azure.com",
+                version: "2024-10-01",
+                hasKey: true,
+            },
+        } as unknown as ProviderConnection
+        await render("azure", {connection: azure})
+        probeMutation.mutateAsync.mockClear()
+        const url = inputs().find((input) => input.value === "https://old.openai.azure.com")
+        if (!url) throw new Error("no base URL field")
+
+        await type(url, "https://new.openai.azure.com")
+        await blur(url)
+
+        expect(probeMutation.mutateAsync).toHaveBeenCalledWith(
+            expect.objectContaining({secretId: "conn-az"}),
+        )
+        expect(saveState?.canSave).toBe(true)
+    })
+
+    it("a blur after Stop does not start the stopped check again", async () => {
+        await render("openai")
+        deferredProbe()
+        const key = field("Paste your OpenAI API key")
+        await paste(key, "sk-pasted")
+        await click(button("Stop"))
+
+        await blur(key)
+
+        expect(probeMutation.mutateAsync).toHaveBeenCalledTimes(1)
+    })
+})

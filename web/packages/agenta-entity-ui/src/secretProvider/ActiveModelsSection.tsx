@@ -119,7 +119,7 @@ const ActiveModelsSection = ({
             <div className="flex shrink-0 items-baseline justify-between gap-2">
                 <span className="font-medium text-colorText">
                     {richText(
-                        t("entityUi.providerKeyForm.activeModelsCount", {
+                        t("entityUi.providerKeyForm.activeModelsHeading", {
                             summary: activeModelsCount(activeCount, options.length),
                         }),
                         {

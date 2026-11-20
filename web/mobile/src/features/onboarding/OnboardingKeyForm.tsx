@@ -1,8 +1,7 @@
-import {createElement, useCallback, useEffect, useRef, useState, type FormEvent} from "react"
+import {createElement, useEffect, useRef, useState, type FormEvent} from "react"
 
 import {probeRequestFor} from "@agenta/entities/secret"
 import {
-    keyCheckSignature,
     KEY_PROVIDERS,
     keyPlaceholderFor,
     providerIconFor,
@@ -32,7 +31,7 @@ import {CaretUpDown} from "@phosphor-icons/react"
 /** Shorter than any provider's real key; the provider still judges the rest. */
 const MIN_KEY_LENGTH = 8
 
-type Phase = "editing" | "invalid" | "saving" | "failed"
+type Phase = "editing" | "invalid" | "saving" | "saveFailed"
 
 /** Plain substring search; cmdk's fuzzy score lets "gro" match Together AI. */
 const matchProvider = (value: string, search: string, keywords: string[] = []) =>
@@ -61,8 +60,6 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
     const t = useT(keyFormCatalog, providerKeyFormCatalog)
     const save = useSaveProviderKey()
     const keyCheck = useKeyCheck()
-    // Save was pressed before the check answered: it saves when the key passes.
-    const saveWhenChecked = useRef(false)
     const [kind, setKind] = useState(KEY_PROVIDERS[0]?.kind ?? "")
     const [key, setKey] = useState("")
     const [phase, setPhase] = useState<Phase>("editing")
@@ -75,30 +72,22 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
 
     useEffect(() => keyRef.current?.focus(), [])
 
-    const requestFor = (forKind: string, value: string) =>
-        probeRequestFor(forKind, {apiKey: value.trim()})
-
-    /** Checks the key unless it is too short or was already checked as it is. */
-    const checkKey = (forKind: string, value: string, force = false) => {
-        if (value.trim().length < MIN_KEY_LENGTH) return
-        const request = requestFor(forKind, value)
-        const {state} = keyCheck
-        if (!force && state.phase !== "idle" && state.signature === keyCheckSignature(request))
-            return
-        keyCheck.check(request)
-    }
+    /** Checks the key unless it is too short; the same key is not checked twice by itself. */
+    const checkKey = (forKind: string, value: string, force = false) =>
+        value.trim().length < MIN_KEY_LENGTH
+            ? Promise.resolve(null)
+            : keyCheck.check(probeRequestFor(forKind, {apiKey: value.trim()}), {force})
 
     const pick = (next: string) => {
         pickedRef.current = true
         setKind(next)
         setPhase("editing")
         setPickerOpen(false)
-        saveWhenChecked.current = false
         keyCheck.drop()
-        checkKey(next, key, true)
+        void checkKey(next, key, true)
     }
 
-    const store = useCallback(async () => {
+    const store = async () => {
         if (!provider) return
         const apiKey = key.trim()
         setPhase("saving")
@@ -106,14 +95,15 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
             const connectionId = await save(provider.kind, apiKey)
             onSaved({provider: provider.title, last4: apiKey.slice(-4), connectionId})
         } catch {
-            setPhase("failed")
+            setPhase("saveFailed")
         }
-    }, [provider, key, save, onSaved])
+    }
 
     const checkState = keyCheck.state
     const status = checkState.phase === "done" ? checkState.result.credential.status : null
-    // A key that works, or one Agenta cannot prove, may be saved.
-    const passed = status === "valid" || status === "unknown"
+    /** A key that works, or one Agenta cannot prove, may be saved. */
+    const passes = (state: typeof checkState | null) =>
+        state?.phase === "done" && state.result.credential.status !== "invalid"
 
     const submit = async (event: FormEvent) => {
         event.preventDefault()
@@ -126,18 +116,12 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
         if (status === "invalid") return
         // A check that could not answer does not keep a new user from saving: the second
         // press saves, as onboarding did before the check.
-        if (passed || checkState.phase === "failed") return void store()
-        // Not checked yet: check first, then save if the key passes.
-        saveWhenChecked.current = true
-        if (checkState.phase !== "checking") checkKey(provider.kind, key, true)
+        if (passes(checkState) || checkState.phase === "failed") return void store()
+        // Not checked yet (or still checking): check, then save if the key passes. A Stop or an
+        // edit meanwhile resolves to null, and nothing is saved.
+        const answer = await checkKey(provider.kind, key, true)
+        if (passes(answer)) await store()
     }
-
-    // A save that waited for the check goes on once the key passed.
-    useEffect(() => {
-        if (!saveWhenChecked.current || checkState.phase === "checking") return
-        saveWhenChecked.current = false
-        if (passed) void store()
-    }, [checkState.phase, passed, store])
 
     if (!provider) return null
     const providerName = provider.title
@@ -152,10 +136,7 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                     variant="link"
                     size="sm"
                     className="h-auto px-0 text-xs"
-                    onClick={() => {
-                        saveWhenChecked.current = false
-                        keyCheck.drop()
-                    }}
+                    onClick={() => keyCheck.stop()}
                 >
                     {t("entityUi.providerKeyForm.stop")}
                 </Button>
@@ -174,7 +155,7 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
             </span>
         ) : status === "unknown" ? (
             <span role="status" className="text-muted-foreground text-xs leading-4">
-                {t("entityUi.providerKeyForm.untested")}
+                {t("entityUi.providerKeyForm.noFreeCheck")}
             </span>
         ) : checkState.phase === "failed" ? (
             <span role="alert" className="text-destructive text-xs leading-4">
@@ -184,7 +165,7 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
     const error =
         phase === "invalid"
             ? t("onboarding.keyForm.invalid")
-            : phase === "failed"
+            : phase === "saveFailed"
               ? t("onboarding.keyForm.saveFailed")
               : null
 
@@ -254,15 +235,14 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                     onPaste={() => {
                         pastedRef.current = true
                     }}
-                    onBlur={() => checkKey(provider.kind, key)}
+                    onBlur={() => void checkKey(provider.kind, key)}
                     onChange={(event) => {
                         const next = event.target.value
                         setKey(next)
                         if (phase !== "saving") setPhase("editing")
                         // The last answer belonged to the previous key.
-                        saveWhenChecked.current = false
                         keyCheck.drop()
-                        if (pastedRef.current) checkKey(provider.kind, next, true)
+                        if (pastedRef.current) void checkKey(provider.kind, next, true)
                         pastedRef.current = false
                     }}
                 />
