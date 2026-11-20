@@ -43,19 +43,23 @@ const {writer, listeners, endpoints} = vi.hoisted(() => ({
 }))
 
 // A writer that renders again on each write, as the real draft atom does.
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", async () => {
-    const {useSyncExternalStore} = await import("react")
-    const subscribe = (listener: () => void) => {
-        listeners.add(listener)
-        return () => void listeners.delete(listener)
-    }
-    return {
-        useAgentConfigWriter: () => {
-            useSyncExternalStore(subscribe, () => writer.agent)
-            return writer
-        },
-    }
-})
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (original) => {
+        const {useSyncExternalStore} = await import("react")
+        const subscribe = (listener: () => void) => {
+            listeners.add(listener)
+            return () => void listeners.delete(listener)
+        }
+        return {
+            ...(await original<object>()),
+            useAgentConfigWriter: () => {
+                useSyncExternalStore(subscribe, () => writer.agent)
+                return writer
+            },
+        }
+    },
+)
 
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     const original = await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()

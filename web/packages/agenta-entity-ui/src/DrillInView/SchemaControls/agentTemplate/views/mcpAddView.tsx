@@ -13,6 +13,7 @@ export type McpAddViewParams = Record<string, never>
 export const mcpAddView = defineView<McpAddViewParams>({
     id: "agent.mcp.add",
     apply: "immediate",
+    readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./McpAddViewBody"),
         <div className="px-4 py-3">

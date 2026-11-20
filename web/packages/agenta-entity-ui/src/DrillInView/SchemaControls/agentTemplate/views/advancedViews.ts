@@ -4,10 +4,13 @@ import {lazyView} from "./lazyView"
 
 export type AdvancedViewParams = Record<string, never>
 
+// Every Advanced part is read only on a phone (phone-layout "Read-only views on a phone").
+
 /** "Advanced" (F04 f9): one row per part that applies to the agent; a row opens the part. */
 export const advancedView = defineView<AdvancedViewParams>({
     id: "agent.advanced",
     apply: "immediate",
+    readOnlyOnPhone: true,
     Component: lazyView(() => import("./AdvancedViewBody")),
 })
 
@@ -15,6 +18,7 @@ export const advancedView = defineView<AdvancedViewParams>({
 export const executionView = defineView<AdvancedViewParams>({
     id: "agent.advanced.execution",
     apply: "immediate",
+    readOnlyOnPhone: true,
     Component: lazyView(() => import("./ExecutionViewBody")),
 })
 
@@ -22,6 +26,7 @@ export const executionView = defineView<AdvancedViewParams>({
 export const agentaToolsView = defineView<AdvancedViewParams>({
     id: "agent.advanced.agentaTools",
     apply: "on_save",
+    readOnlyOnPhone: true,
     Component: lazyView(() => import("./AgentaToolsViewBody")),
 })
 
@@ -29,5 +34,6 @@ export const agentaToolsView = defineView<AdvancedViewParams>({
 export const buildKitView = defineView<AdvancedViewParams>({
     id: "agent.advanced.buildKit",
     apply: "immediate",
+    readOnlyOnPhone: true,
     Component: lazyView(() => import("./BuildKitViewBody")),
 })

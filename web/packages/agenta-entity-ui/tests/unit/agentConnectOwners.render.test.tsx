@@ -59,9 +59,13 @@ vi.mock("@agenta/ui/view-stack", async (importOriginal) => ({
     useViewTitle: () => undefined,
 }))
 
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", () => ({
-    useAgentConfigWriter: () => writer,
-}))
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (original) => ({
+        ...(await original<object>()),
+        useAgentConfigWriter: () => writer,
+    }),
+)
 
 import {IntegrationCatalog} from "../../src/DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
 import IntegrationAddViewBody from "../../src/DrillInView/SchemaControls/agentTemplate/views/IntegrationAddViewBody"

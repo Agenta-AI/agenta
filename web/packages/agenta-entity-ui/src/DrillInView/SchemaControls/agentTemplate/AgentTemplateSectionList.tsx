@@ -43,6 +43,8 @@ export interface AgentTemplateSectionDescriptor {
      * a size container (`[container-type:size]`), or the screen is a full viewport tall.
      */
     phoneAction?: {label: string; icon?: ReactNode; onClick: () => void}
+    /** On a phone the section screen shows no `extra` (its add control): the add view is read only there. */
+    hideExtraOnPhone?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
     onOpen?: () => void
     bodyClassName?: string
@@ -159,7 +161,7 @@ const PhoneSectionList = ({
                 // container is a size container), so the action sits at the bottom of the screen.
                 className={`flex flex-col gap-3 pt-3 ${shown.phoneAction ? "min-h-[100cqh]" : "pb-6"}`}
             >
-                {shown.extra && !shown.phoneAction ? (
+                {shown.extra && !shown.phoneAction && !shown.hideExtraOnPhone ? (
                     <div className="flex justify-end">{shown.extra}</div>
                 ) : null}
                 {shown.content}
