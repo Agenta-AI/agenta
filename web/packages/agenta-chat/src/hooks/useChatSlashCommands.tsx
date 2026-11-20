@@ -54,9 +54,9 @@ export type SlashPickerOrigin = "command" | "direct"
  *
  * `/model` (and the composer's model button) drills into a picker whose apply writes the agent
  * config through `updateConfiguration`, the draft write the Configuration Model section makes too.
- * Auto-save (`agentAutoCommit`) commits that write as a new version. Tools and skills insert their name as plain text: the
- * request carries text and file parts only, so an inserted name is a hint the agent usually
- * follows, never a dispatch. Nothing in the UI may claim otherwise.
+ * Auto-save (`agentAutoCommit`) commits that write as a new version. Tools and skills insert
+ * their name as plain text: the request carries text and file parts only, so an inserted name is
+ * a hint the agent usually follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
 const tNow = createT(chatSlashCommandsCatalog)
 

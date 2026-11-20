@@ -43,7 +43,7 @@ import {ComposerModelButton} from "./ComposerModelButton"
 import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
 
-// Only once "Manage model providers" is used: the provider list is not part of the chat's load.
+// Loaded on the first "Manage model providers": the provider list is not part of the chat's load.
 const ProvidersDrawer = dynamic(
     () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
     {ssr: false},
@@ -193,25 +193,18 @@ export const Composer = ({
         closePicker()
         richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
-    // "Manage model providers" under the model list. Mounted from the first use on.
+    // "Manage model providers" under the model list opens the providers drawer.
     const [providersOpen, setProvidersOpen] = useState(false)
-    const [providersUsed, setProvidersUsed] = useState(false)
     const openProviders = useCallback(() => {
         closePicker()
-        setProvidersUsed(true)
         setProvidersOpen(true)
     }, [closePicker])
-    // A press on the button while the list is open has already closed it (the list closes on a
-    // pointer-down outside), so the click that follows must not open it again.
-    const modelOpenAtPressRef = useRef(false)
-    const toggleModelList = useCallback(() => {
-        const wasOpen = modelOpenAtPressRef.current
-        modelOpenAtPressRef.current = false
-        if (wasOpen) closePicker()
-        else openModelPicker()
-    }, [closePicker, openModelPicker])
-    // The same gate as the palette: the builder chat's model is not the person's to change here.
-    const showModelButton = !hideSlashCommands && !modelButtonHidden && slash.modelGroups.length > 0
+    // No button where the palette is hidden (the builder chat's model is not the person's to
+    // change here), while the model needs setup, or with no model or no list to pick from.
+    const modelButtonModel =
+        !hideSlashCommands && !modelButtonHidden && slash.modelGroups.length > 0
+            ? slash.currentModel
+            : null
     // Held until the draft and tray leave the composer, not for the whole send.
     const sending = useRef(false)
     const presets = useMotionPresets()
@@ -458,17 +451,15 @@ export const Composer = ({
                             slashCommands={hideSlashCommands ? undefined : slash.sections}
                             headerExtra={headerExtra}
                             beforeSend={
-                                showModelButton ? (
+                                modelButtonModel ? (
                                     <ComposerModelButton
                                         groups={slash.modelGroups}
                                         selectedKey={slash.currentModelKey}
-                                        modelId={slash.currentModel}
+                                        modelId={modelButtonModel}
                                         open={slash.picker === "model"}
                                         disabled={disabled}
-                                        onPressStart={() => {
-                                            modelOpenAtPressRef.current = slash.picker === "model"
-                                        }}
-                                        onOpen={toggleModelList}
+                                        onOpen={openModelPicker}
+                                        onClose={closePicker}
                                     />
                                 ) : null
                             }
@@ -521,8 +512,8 @@ export const Composer = ({
                     </AnimatePresence>
                 </div>
             </ContentRail>
-            {providersUsed ? (
-                <ProvidersDrawer open={providersOpen} onClose={() => setProvidersOpen(false)} />
+            {providersOpen ? (
+                <ProvidersDrawer open onClose={() => setProvidersOpen(false)} />
             ) : null}
         </div>
     )

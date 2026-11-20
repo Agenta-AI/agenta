@@ -36,7 +36,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     const configuration = family<Record<string, unknown> | null>(() => saved)
     const isDirty = family<boolean>(() => false)
     const candidates = atom({
-        status: "loading" as const,
+        status: "ready" as const,
         candidates: [],
         connections: [],
         capabilities: null,
@@ -84,6 +84,15 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     }
 })
 
+// One group in the list, so the palette offers `/model`.
+vi.mock("@agenta/entity-ui/drill-in", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entity-ui/drill-in")>()),
+    buildConnectionPickerRows: () => [],
+    buildPickerGroupsWithSections: () => [
+        {key: "agenta", label: "Agenta", options: [{value: "gpt-5.5", label: "GPT-5.5"}]},
+    ],
+}))
+
 import {workflowMolecule} from "@agenta/entities/workflow"
 // Loading the playground state arms auto-save on the draft write, as the app does.
 import "@agenta/playground/state"
@@ -130,5 +139,16 @@ describe("composer model pick", () => {
         })
         expect(result.current.picker).toBe("model")
         expect(result.current.pickerOrigin).toBe("direct")
+
+        act(() => result.current.closePicker())
+        const modelRow = result.current.sections
+            .flatMap((section) => section.items)
+            .find((item) => item.key === "model")
+        await act(async () => {
+            modelRow?.onSelect?.()
+            await vi.advanceTimersByTimeAsync(20)
+        })
+        expect(result.current.picker).toBe("model")
+        expect(result.current.pickerOrigin).toBe("command")
     })
 })

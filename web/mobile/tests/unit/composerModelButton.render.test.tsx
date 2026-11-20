@@ -43,11 +43,13 @@ describe("selectedModelOf", () => {
         })
     })
 
-    it("falls back to the model id when no row has the key", () => {
+    it("matches by model id only when no key is known, as the list does", () => {
         expect(selectedModelOf(groups, null, "claude-sonnet-5-5")).toEqual({
             label: "Claude Sonnet 5.5",
             iconKey: "anthropic",
         })
+        // A key the list no longer has marks no row in the list, so the button names no row.
+        expect(selectedModelOf(groups, "gone::gpt-5.5", "gpt-5.5")).toBeNull()
         expect(selectedModelOf(groups, null, "unknown")).toBeNull()
     })
 })
@@ -55,15 +57,15 @@ describe("selectedModelOf", () => {
 describe("ComposerModelButton", () => {
     it("shows the logo, the model name and a caret, and opens the list", () => {
         const onOpen = vi.fn()
-        const onPressStart = vi.fn()
+        const onClose = vi.fn()
         render(
             <ComposerModelButton
                 groups={groups}
                 selectedKey="anthropic-org::claude-sonnet-5-5"
                 modelId="claude-sonnet-5-5"
                 open={false}
-                onPressStart={onPressStart}
                 onOpen={onOpen}
+                onClose={onClose}
             />,
         )
         const button = screen.getByRole("button", {name: "Model: Claude Sonnet 5.5"})
@@ -74,8 +76,42 @@ describe("ComposerModelButton", () => {
         // The name is cut with "…" rather than wrapping the composer row.
         expect(screen.getByText("Claude Sonnet 5.5").className).toContain("truncate")
         fireEvent.pointerDown(button)
-        fireEvent.click(button)
-        expect(onPressStart).toHaveBeenCalledOnce()
+        fireEvent.click(button, {detail: 1})
+        expect(onOpen).toHaveBeenCalledOnce()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it("closes on a press that started while the list was open", () => {
+        const onOpen = vi.fn()
+        const onClose = vi.fn()
+        const view = render(
+            <ComposerModelButton
+                groups={groups}
+                selectedKey={null}
+                modelId="claude-sonnet-5-5"
+                open
+                onOpen={onOpen}
+                onClose={onClose}
+            />,
+        )
+        const button = screen.getByRole("button", {name: "Model: Claude Sonnet 5.5"})
+        fireEvent.pointerDown(button)
+        // The list closes on the pointer-down outside it before the click lands.
+        view.rerender(
+            <ComposerModelButton
+                groups={groups}
+                selectedKey={null}
+                modelId="claude-sonnet-5-5"
+                open={false}
+                onOpen={onOpen}
+                onClose={onClose}
+            />,
+        )
+        fireEvent.click(button, {detail: 1})
+        expect(onOpen).not.toHaveBeenCalled()
+        expect(onClose).toHaveBeenCalledOnce()
+        // A keyboard click (no press) reads the state as it is now.
+        fireEvent.click(button, {detail: 0})
         expect(onOpen).toHaveBeenCalledOnce()
     })
 
@@ -87,6 +123,7 @@ describe("ComposerModelButton", () => {
                 modelId="custom/model-x"
                 open
                 onOpen={vi.fn()}
+                onClose={vi.fn()}
             />,
         )
         const button = screen.getByRole("button", {name: "Model: custom/model-x"})
@@ -94,18 +131,5 @@ describe("ComposerModelButton", () => {
         expect(button.getAttribute("data-state")).toBe("open")
         // No row, no logo: only the caret.
         expect(button.querySelectorAll("svg").length).toBe(1)
-    })
-
-    it("renders nothing with no model at all", () => {
-        const {container} = render(
-            <ComposerModelButton
-                groups={[]}
-                selectedKey={null}
-                modelId={null}
-                open={false}
-                onOpen={vi.fn()}
-            />,
-        )
-        expect(container.firstChild).toBeNull()
     })
 })

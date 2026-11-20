@@ -1,3 +1,5 @@
+import {useRef} from "react"
+
 import {useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
 import {getProviderIcon, type ProviderGroup} from "@agenta/ui/select-llm-provider"
@@ -16,29 +18,37 @@ export const ComposerModelButton = ({
     modelId,
     open,
     disabled,
-    onPressStart,
     onOpen,
+    onClose,
 }: {
     groups: ProviderGroup[]
     selectedKey: string | null | undefined
-    modelId: string | null | undefined
+    modelId: string
     /** The list is open: the button shows its pressed fill. */
     open: boolean
     disabled?: boolean
-    /** Pointer-down, before the open list sees it as a press outside and closes. */
-    onPressStart?: () => void
     onOpen: () => void
+    onClose: () => void
 }) => {
     const t = useT(chatMobileComposerCatalog)
+    // A press while the list is open closes it first (a pointer-down outside the list), so the
+    // click must read the state from the press, not from now. A keyboard click has no press.
+    const openAtPressRef = useRef(false)
     const selected = selectedModelOf(groups, selectedKey, modelId)
     const label = selected?.label ?? modelId
-    if (!label) return null
     const Logo = selected ? getProviderIcon(selected.iconKey) : null
     return (
         <button
             type="button"
-            onPointerDown={onPressStart}
-            onClick={onOpen}
+            onPointerDown={() => {
+                openAtPressRef.current = open
+            }}
+            onClick={(event) => {
+                const wasOpen = event.detail === 0 ? open : openAtPressRef.current
+                openAtPressRef.current = false
+                if (wasOpen) onClose()
+                else onOpen()
+            }}
             disabled={disabled}
             aria-haspopup="listbox"
             aria-expanded={open}
