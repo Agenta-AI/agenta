@@ -113,9 +113,7 @@ export const SessionHeader = ({
                 checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
             />
         ) : null
-    // On a phone the Configuration tab row shows the version and the update offer. The session
-    // screen shows the status only while a save failed, so its notice and retry stay in reach
-    // after the person leaves Configuration.
+    // On a phone the Configuration tab row shows the version; row 2 shows it only on a failed save.
     const saveFailed = useAtomValue(agentAutoCommitStatusAtomFamily(entityId ?? "")) === "error"
     const sessionTitle = session.data?.name || t("agentLayout.header.untitledSession")
     const sharing = (
@@ -181,11 +179,10 @@ export const SessionHeader = ({
                             onRetry={sessionOrder.retry}
                         />
                     ) : null}
-                    {/* The version status stays mounted so the session follows new versions; it
-                        shows only while a save failed, with its notice and retry. It keeps its
-                        drawn size; the hit area of each of its buttons grows to 44 px, as for the
-                        share control. The retry is a span with the button role, so the rule
-                        matches that role. */}
+                    {/* Mounted even when hidden: it drives session follow. A save can fail after
+                        the person leaves Configuration, so the notice and retry show here. Hit
+                        areas grow to 44 px as for the share control; the retry is a span with the
+                        button role. */}
                     {revisionStatus ? (
                         <span
                             data-testid="session-header-save-status"
