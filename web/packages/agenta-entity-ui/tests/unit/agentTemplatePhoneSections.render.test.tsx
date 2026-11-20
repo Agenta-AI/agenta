@@ -88,6 +88,36 @@ describe("AgentTemplateSectionList on a phone", () => {
         expect(container.textContent).toBe("Addskill rows")
     })
 
+    it("draws the section's phone action at the bottom, in place of its add control", () => {
+        const add = vi.fn()
+        act(() =>
+            root.render(
+                createElement(
+                    PhoneSectionsContext.Provider,
+                    {value: {shownKey: "tools", show: vi.fn()}},
+                    createElement(AgentTemplateSectionList, {
+                        sections: [
+                            {
+                                key: "tools",
+                                title: "Integrations",
+                                extra: createElement("button", {type: "button"}, "Add"),
+                                phoneAction: {label: "Add integration", onClick: add},
+                                content: createElement("p", null, "integration rows"),
+                            },
+                        ],
+                    }),
+                ),
+            ),
+        )
+        expect(container.textContent).toBe("integration rowsAdd integration")
+        act(() =>
+            container
+                .querySelector<HTMLButtonElement>("[data-testid=phone-primary-action] button")!
+                .click(),
+        )
+        expect(add).toHaveBeenCalledOnce()
+    })
+
     it("keeps the accordion without the phone context", () => {
         renderList(null)
         expect(container.querySelector("[data-testid=phone-section-list]")).toBeNull()

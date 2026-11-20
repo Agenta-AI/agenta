@@ -20,6 +20,7 @@ import {
     sectionIndicatorColor,
     type SectionIndicatorTone,
 } from "@agenta/ui/components/presentational"
+import {PhonePrimaryAction} from "@agenta/ui/phone"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
@@ -36,6 +37,11 @@ export interface AgentTemplateSectionDescriptor {
     extra?: ReactNode
     indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode; pulse?: boolean}
     defaultOpen?: boolean
+    /**
+     * On a phone, the section screen's one primary action ("Add integration"): a full-width button
+     * at the bottom of the screen, in place of `extra`.
+     */
+    phoneAction?: {label: string; icon?: ReactNode; onClick: () => void}
     /** When set, the header opens a drawer instead of expanding inline. */
     onOpen?: () => void
     bodyClassName?: string
@@ -146,9 +152,23 @@ const PhoneSectionList = ({
     const shown = sections.find((s) => s.key === phoneSections.shownKey && !s.onOpen)
     if (shown) {
         return (
-            <div data-config-section={shown.key} className="flex flex-col gap-3 pb-6 pt-3">
-                {shown.extra ? <div className="flex justify-end">{shown.extra}</div> : null}
+            // The column fills the screen, so the primary action sits at its bottom.
+            <div data-config-section={shown.key} className="flex min-h-full flex-col gap-3 pt-3">
+                {shown.extra && !shown.phoneAction ? (
+                    <div className="flex justify-end">{shown.extra}</div>
+                ) : null}
                 {shown.content}
+                {shown.phoneAction ? (
+                    <PhonePrimaryAction
+                        className="-mx-4"
+                        icon={shown.phoneAction.icon}
+                        onClick={shown.phoneAction.onClick}
+                    >
+                        {shown.phoneAction.label}
+                    </PhonePrimaryAction>
+                ) : (
+                    <div className="pb-3" />
+                )}
             </div>
         )
     }
