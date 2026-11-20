@@ -1,3 +1,4 @@
+import {useIsPhone} from "@agenta/ui/phone"
 import {
     Select,
     SelectContent,
@@ -36,10 +37,12 @@ export function AccountSelect({
     disabled?: boolean
     "aria-label": string
 }) {
+    // A 44 px target on a phone (M09).
+    const phone = useIsPhone()
     const selected = options.find((option) => option.value === value)
     return (
         <Select value={selected ? value : ""} onValueChange={onChange} disabled={disabled}>
-            <SelectTrigger className="w-full" aria-label={ariaLabel}>
+            <SelectTrigger className={phone ? "!h-11 w-full" : "w-full"} aria-label={ariaLabel}>
                 <SelectValue placeholder={placeholder}>
                     {selected ? <OptionText option={selected} /> : null}
                 </SelectValue>

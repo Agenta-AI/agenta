@@ -2,7 +2,7 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
-import {Wrench} from "@phosphor-icons/react"
+import {Plus, Wrench} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
@@ -66,6 +66,15 @@ export const integrationsSection = ({
                     manualIcon={<Wrench size={16} />}
                 />
             ) : undefined,
+        // On a phone the one primary action at the bottom opens the catalog (M08).
+        phoneAction:
+            !disabled && openAddIntegration
+                ? {
+                      label: t("entityUi.agentTemplate.addIntegration"),
+                      icon: <Plus size={16} />,
+                      onClick: openAddIntegration,
+                  }
+                : undefined,
         defaultOpen: integrationCount > 0,
         content: (
             <ToolManagementList

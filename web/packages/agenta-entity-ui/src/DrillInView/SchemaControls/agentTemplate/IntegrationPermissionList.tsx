@@ -16,6 +16,7 @@ import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDr
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {useIsPhone} from "@agenta/ui/phone"
 import {Badge, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
@@ -258,6 +259,7 @@ const ToolRow = memo(function ToolRow({
     triggerTitle,
     readOnly,
     staleLabel,
+    phone,
 }: {
     tool: CatalogToolInfo
     permission: GatewayPermission
@@ -268,6 +270,8 @@ const ToolRow = memo(function ToolRow({
     triggerTitle?: string
     readOnly?: boolean
     staleLabel: string
+    /** On a phone the select takes its own line, so the name is never cut (M09). */
+    phone?: boolean
 }) {
     const t = useT(permissionDrawerCatalog)
     // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
@@ -275,17 +279,25 @@ const ToolRow = memo(function ToolRow({
 
     return (
         <div
-            className={`flex flex-col border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2.5 transition-colors first:border-t-0 ${
+            className={`flex flex-col border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-3 transition-colors first:border-t-0 ${phone ? "py-3" : "py-2.5"} ${
                 expanded
                     ? "bg-[var(--ag-colorFillQuaternary)]"
                     : "hover:bg-[var(--ag-colorFillQuaternary)]"
             }`}
         >
             {/* Centred while collapsed; open, the select stays on the name line as the row grows. */}
-            <div className={`flex gap-3 ${expanded ? "items-start" : "items-center"}`}>
+            <div
+                className={
+                    phone
+                        ? "flex flex-col gap-2"
+                        : `flex gap-3 ${expanded ? "items-start" : "items-center"}`
+                }
+            >
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[13px] font-medium leading-5">
+                        <span
+                            className={`${phone ? "break-words text-[15px]" : "truncate text-[13px]"} font-medium leading-5`}
+                        >
                             {tool.name || humanizeActionKey(tool.key)}
                         </span>
                         {tool.stale ? (
@@ -317,7 +329,12 @@ const ToolRow = memo(function ToolRow({
                         triggerTitle={triggerTitle}
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
                         // A compact 28px chip, so a long list reads as rows, not a column of fields.
-                        triggerClassName={`w-auto min-w-[96px] shrink-0 !h-7 !px-2 !text-[13px] sm:min-w-[116px] ${
+                        // On a phone a full-width 44px field on its own line.
+                        triggerClassName={`${
+                            phone
+                                ? "w-full !h-11 !text-[15px]"
+                                : "w-auto min-w-[96px] shrink-0 !h-7 !px-2 !text-[13px] sm:min-w-[116px]"
+                        } ${
                             permission === "deny"
                                 ? "border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
                                 : ""
@@ -325,7 +342,7 @@ const ToolRow = memo(function ToolRow({
                         // The panel is pinned to the trigger; a compact chip wraps every option label.
                         contentClassName="w-auto min-w-[220px] sm:min-w-[260px]"
                         // Wider than the chip, so it opens leftward with its right edge on the chip's.
-                        align="end"
+                        align={phone ? "start" : "end"}
                     />
                 )}
             </div>
@@ -352,6 +369,7 @@ function ToolGroup({
     rowValue,
     readOnly,
     staleLabel,
+    phone,
 }: {
     label: string
     groupKey: string
@@ -366,6 +384,7 @@ function ToolGroup({
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     readOnly?: boolean
     staleLabel: string
+    phone?: boolean
 }) {
     const t = useT(permissionDrawerCatalog)
     const [expanded, setExpanded] = useAtom(permissionGroupsExpandedAtom)
@@ -396,7 +415,7 @@ function ToolGroup({
                         setOpen()
                     }
                 }}
-                className="flex cursor-pointer items-center gap-2 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
+                className={`flex cursor-pointer items-center gap-2 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)] ${phone ? "min-h-11" : ""}`}
             >
                 {open ? (
                     <CaretDown size={11} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
@@ -443,6 +462,7 @@ function ToolGroup({
                                 triggerTitle={shownValue?.triggerTitle}
                                 readOnly={readOnly}
                                 staleLabel={staleLabel}
+                                phone={phone}
                             />
                         )
                     })}
@@ -450,7 +470,7 @@ function ToolGroup({
                         <button
                             type="button"
                             onClick={() => setShown((value) => value + GROUP_PAGE_SIZE)}
-                            className="cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-colorInfo"
+                            className={`cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-colorInfo ${phone ? "min-h-11" : ""}`}
                         >
                             {t("entityUi.permissionDrawer.showMore", {count: remaining})}
                         </button>
@@ -506,6 +526,8 @@ export function PermissionDrawerBody({
     "catalog" | "catalogKey" | "emptyLabel" | "title" | "footerStart"
 >) {
     const t = useT(permissionDrawerCatalog)
+    // The phone shape of the rows (M09); the drawer and the panel share this body.
+    const phone = useIsPhone()
     const stale = staleLabel ?? t("entityUi.permissionDrawer.notInCatalog")
     const [query, setQuery] = useState("")
 
@@ -615,6 +637,7 @@ export function PermissionDrawerBody({
                                 options={presetOptions}
                                 disabled={inert}
                                 aria-label={t("entityUi.permissionDrawer.defaultPermission")}
+                                triggerClassName={phone ? "w-full !h-11" : undefined}
                             />
                         )}
                         {agentPolicyNote ? (
@@ -636,6 +659,7 @@ export function PermissionDrawerBody({
                         value={query}
                         onValueChange={setQuery}
                         disabled={inert}
+                        className={phone ? "!h-11" : undefined}
                     />
                 ) : null}
 
@@ -679,6 +703,7 @@ export function PermissionDrawerBody({
                             rowValue={rowValue}
                             readOnly={readOnly}
                             staleLabel={stale}
+                            phone={phone}
                         />
                         <ToolGroup
                             label={writeLabel ?? t("entityUi.permissionDrawer.writeGroup")}
@@ -694,6 +719,7 @@ export function PermissionDrawerBody({
                             rowValue={rowValue}
                             readOnly={readOnly}
                             staleLabel={stale}
+                            phone={phone}
                         />
                     </div>
                 )}
