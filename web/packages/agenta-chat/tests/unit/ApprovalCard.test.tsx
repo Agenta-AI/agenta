@@ -386,6 +386,30 @@ describe("keyboard shortcuts", () => {
         offscreen.remove()
     })
 
+    // Two conversations on one screen (the session and the builder chat) can each show a card.
+    it("answers only when the host says the keys belong to this card", () => {
+        const responses: unknown[] = []
+        let owns = false
+        const cards: HTMLElement[] = []
+        const {cleanup} = mount({
+            onRespond: () => responses.push(1),
+            ownsShortcut: (card: HTMLElement) => {
+                cards.push(card)
+                return owns
+            },
+        })
+
+        press({key: "Enter", metaKey: true})
+        press({key: "Escape"})
+        expect(responses).toEqual([])
+        expect(cards[0]?.isConnected).toBe(true)
+
+        owns = true
+        press({key: "Enter", metaKey: true})
+        expect(responses).toEqual([1])
+        cleanup()
+    })
+
     // antd sets no data-state and leaves its popups mounted, so the guard matches them by class.
     it.each([".ant-dropdown", ".ant-select-dropdown", ".ant-popover", ".ant-modal-wrap"])(
         "answers nothing while %s is open",

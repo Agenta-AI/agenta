@@ -15,3 +15,7 @@ export const ownsConversationShortcut = (
     if (focused) return focused === root
     return root.getAttribute(CONVERSATION_ROLE_ATTR) === "page"
 }
+
+/** The same rule for an element inside a conversation, such as its scroller or an approval card. */
+export const ownsShortcutAt = (element: Element | null): boolean =>
+    ownsConversationShortcut(element?.closest(`[${CONVERSATION_ROLE_ATTR}]`) ?? null)

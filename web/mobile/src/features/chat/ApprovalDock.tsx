@@ -3,6 +3,7 @@ import type {PendingApproval} from "@agenta/chat/model"
 
 import {ContentRail} from "@/components/ContentRail"
 
+import {ownsShortcutAt} from "./conversationFocus"
 import {isSteerEnabled} from "./steer"
 import type {ApprovalActions} from "./useApprovalActions"
 
@@ -60,6 +61,8 @@ export const ApprovalDock = ({
                     touch
                     readOnly={locked}
                     readOnlyNote={readOnlyNote}
+                    // Two conversations can each show a card: a key answers the focused one only.
+                    ownsShortcut={ownsShortcutAt}
                     errorText={actions.phase === "error" ? actions.errorText : null}
                     onRespond={({approvalId, approved, message}) => {
                         if (!locked) actions.respond({approvalId, approved, message})

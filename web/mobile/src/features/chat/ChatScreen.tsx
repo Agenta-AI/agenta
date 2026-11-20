@@ -25,6 +25,7 @@ import {useLivenessPoll} from "../sessions/useLivenessPoll"
 import {ApprovalDock} from "./ApprovalDock"
 import {conversationKey} from "./conversationKey"
 import {ConversationRoleContext} from "./conversationRole"
+import {ConversationRoot} from "./ConversationRoot"
 import {LiveConversation} from "./LiveConversation"
 import {usePublishPageSessionId} from "./pageSessionId"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
@@ -412,11 +413,13 @@ const ReplayScreen = ({
         </ScreenScaffold>
     )
 
+    // The read-only replay is a conversation too: its approval card answers keys by the focus.
+    const rootedScaffold = <ConversationRoot>{scaffold}</ConversationRoot>
     return embedded ? (
-        scaffold
+        rootedScaffold
     ) : (
         <AppShell workspaceId={workspaceId} projectId={projectId}>
-            {scaffold}
+            {rootedScaffold}
         </AppShell>
     )
 }
