@@ -1,11 +1,10 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {RevealCollapse} from "@agenta/chat/components"
-import {providerConnectionsAtom, useVaultSecret} from "@agenta/entities/secret"
-import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
+import {providerAddView} from "@agenta/entity-ui/secretProvider"
 import {isBillingEnabled} from "@agenta/shared/api"
-import {useHasOpened} from "@agenta/ui/hooks"
-import {atom, useAtom, useAtomValue} from "jotai"
+import {ViewDrawerHost} from "@agenta/ui/view-stack"
+import {atom, useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -31,6 +30,9 @@ const RunErrorPlansDialog = dynamic(
     {ssr: false},
 )
 
+/** "Add a provider or subscription" in a drawer; a picked provider's form takes its place. */
+const ADD_PROVIDER_REQUEST = {view: providerAddView, params: {}, target: {kind: "project"}} as const
+
 /** In memory only, per project: a dismissed alert comes back on reload or when its kind changes. */
 const dismissedCreditAlertsAtom = atom<Record<string, CreditAlert["kind"]>>({})
 
@@ -41,6 +43,7 @@ export const CreditAlertStrip = ({
     hidden,
     dockOpen,
     onSwitchModel,
+    canSwitchModel = true,
 }: {
     projectId: string
     entityId: string
@@ -48,6 +51,8 @@ export const CreditAlertStrip = ({
     /** A dock above the composer (approval, question, connection, secret) asks the user first. */
     dockOpen: boolean
     onSwitchModel: () => void
+    /** False where the agent's model is not the person's to change: no "Switch model" part. */
+    canSwitchModel?: boolean
 }) => {
     // On its own key or subscription the agent's model spends no credits, so nothing shows or polls.
     const funding = useModelFunding(entityId)
@@ -70,9 +75,6 @@ export const CreditAlertStrip = ({
     const [open, setOpen] = useState<"providers" | "buy-credits" | "plans" | null>(null)
     // Mounted on first use, so the top-up offer is not fetched on every chat load.
     const [billingUsed, setBillingUsed] = useState(false)
-    const providersOpened = useHasOpened(open === "providers")
-    const connections = useAtomValue(providerConnectionsAtom)
-    const {mutate} = useVaultSecret()
 
     // The last alert stays rendered while the strip collapses away.
     const [shown, setShown] = useState<{alert: ShownAlert; funding: CreditFunding} | null>(null)
@@ -106,6 +108,7 @@ export const CreditAlertStrip = ({
                             alert={current.alert}
                             funding={current.funding}
                             canBuy={canBuy}
+                            canSwitchModel={canSwitchModel}
                             onAction={(action) => run[action]()}
                             onDismiss={() =>
                                 setDismissed({...dismissed, [projectId]: current.alert.kind})
@@ -114,14 +117,8 @@ export const CreditAlertStrip = ({
                     </div>
                 ) : null}
             </RevealCollapse>
-            {providersOpened ? (
-                <ProviderDrawer
-                    open={open === "providers"}
-                    onClose={() => setOpen(null)}
-                    context="playground"
-                    connections={connections}
-                    onSaved={mutate}
-                />
+            {open === "providers" ? (
+                <ViewDrawerHost request={ADD_PROVIDER_REQUEST} onClosed={() => setOpen(null)} />
             ) : null}
             {canBuy && billingUsed ? (
                 <>

@@ -1,7 +1,4 @@
 {
-    "emptyBody": "Conecte uma integração para que seus agentes possam usá-la.",
-    "emptyTitle": "Nenhuma integração conectada ainda",
-    "noMatch": "Nenhuma integração corresponde a “{{term}}”",
     "run": "Executar ação",
     "searchPlaceholder": "Pesquisar integrações"
 }

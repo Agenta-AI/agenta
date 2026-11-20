@@ -1,0 +1,18 @@
+{
+    "addManuallyHint": "Do seu registro, ou escreva uma",
+    "added": "Adicionada",
+    "addSkillAria": "Adicionar {{name}}",
+    "removeSkillAria": "Remover {{name}}",
+    "removeRegistryBody": "A habilidade continua no seu registro de habilidades.",
+    "removeAgentOnlyBody": "Esta habilidade existe só neste agente. Removê-la a exclui.",
+    "chooseLine": "A nova habilidade é adicionada ao seu registro de habilidades e a este agente.",
+    "stepTitle": "Nova habilidade › {{step}}",
+    "stepWrite": "Escrever",
+    "stepImport": "Importar",
+    "notSavedYet": "Ainda não salva",
+    "uploadLine": "Somente arquivos de texto. O upload abre no editor, e nada é salvo até \"Criar habilidade\".",
+    "or": "ou",
+    "scan": "Escanear",
+    "leaveDescription": "Criar a habilidade no seu registro de habilidades ou descartá-la?",
+    "notAddedToAgent": "Importada para o registro de habilidades, mas não adicionada a este agente: {{names}}."
+}

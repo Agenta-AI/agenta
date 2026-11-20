@@ -187,3 +187,27 @@ export const OldFormatRow: Story = {
         />
     ),
 }
+
+/**
+ * The same list as the Settings › Integrations page mounts it: the page scrolls, the search sticks
+ * to its top, categories are chips, rows sit in two columns, and a project row opens to Run.
+ */
+export const SettingsPage: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS, LINEAR_BROKEN]}),
+        },
+    },
+    render: () => (
+        <div className="w-[960px]">
+            <IntegrationCatalog
+                layout="page"
+                searchPlaceholder="Search integrations"
+                projectHeading="Default project"
+                run={{label: "Run action", onRun: noop}}
+                onConnect={noop}
+            />
+        </div>
+    ),
+}

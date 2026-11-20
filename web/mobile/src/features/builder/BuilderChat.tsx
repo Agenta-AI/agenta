@@ -205,6 +205,7 @@ export const BuilderChat = ({
                 beforeSend={beforeSend}
                 inputRef={inputRef}
                 hideSlashCommands
+                canSwitchModel={false}
                 composerPlaceholder={t("builder.panel.placeholder")}
                 composerHeaderExtra={<ContextChip projectId={projectId} agentName={agentName} />}
                 emptyState={<NewChatIntro agentName={agentName} />}

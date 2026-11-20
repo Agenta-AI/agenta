@@ -268,7 +268,13 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
-vi.mock("@/features/wallet/CreditAlertStrip", () => ({CreditAlertStrip: () => null}))
+const stripSeen = vi.hoisted(() => ({canSwitchModel: undefined as boolean | undefined}))
+vi.mock("@/features/wallet/CreditAlertStrip", () => ({
+    CreditAlertStrip: ({canSwitchModel}: {canSwitchModel?: boolean}) => {
+        stripSeen.canSwitchModel = canSwitchModel
+        return null
+    },
+}))
 vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi.fn()}))
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({
@@ -326,6 +332,7 @@ let root: Root
 
 beforeEach(() => {
     engine.isEmpty = true
+    stripSeen.canSwitchModel = undefined
     composerSeen.inputRef = undefined
     host = document.createElement("div")
     document.body.append(host)
@@ -370,6 +377,13 @@ describe("LiveConversation slots", () => {
         expect(composer.textContent).toBe("")
         expect(byId("accessory")!.textContent).toBe("none")
         expect(byId("below")).toBeNull()
+        // The session chat keeps "Switch model" on the credit strip.
+        expect(stripSeen.canSwitchModel).toBe(true)
+    })
+
+    it("tells the credit strip when the model is not the person's to change", async () => {
+        await render({canSwitchModel: false})
+        expect(stripSeen.canSwitchModel).toBe(false)
     })
 
     it("puts each slot in its place", async () => {

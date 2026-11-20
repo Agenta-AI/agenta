@@ -7,6 +7,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {AgentOperationsSections, type TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
+import {useIsPhone} from "@agenta/ui/phone"
 import {useViewStack} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -36,6 +37,8 @@ export const AutomationsTab = ({
 }) => {
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
     const stack = useViewStack()
+    // On a phone the list has phone rows and "Add automation" at the bottom (M10, M11).
+    const phone = useIsPhone()
     // The automation drawer hosts its own catalog; while it is open, the tab's copy stays out so
     // one catalog answers "Connect another app".
     const scheduleDrawer = useAtomValue(triggerScheduleDrawerAtom)
@@ -70,7 +73,9 @@ export const AutomationsTab = ({
         [revisionId, stack],
     )
     return (
-        <div className="ag-scroll-no-bar h-full min-h-0 overflow-y-auto">
+        <div
+            className={`ag-scroll-no-bar h-full min-h-0 overflow-y-auto ${phone ? "flex flex-col" : ""}`}
+        >
             <DrillInBridgeProvider projectId={projectId}>
                 <AgentOperationsSections
                     revisionId={revisionId}
@@ -101,6 +106,7 @@ export const AutomationsTab = ({
                     onOpenRunHistory={openRunHistory}
                     onOpenAutomation={openAutomation}
                     onAddAutomation={addAutomation}
+                    phone={phone}
                 />
                 {/* "Connect another app" in the automation forms opens the integration catalog
                     by atom; the tab root stays mounted under its views, so it hosts it. */}

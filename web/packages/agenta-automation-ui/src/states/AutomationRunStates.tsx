@@ -82,9 +82,12 @@ export const AutomationRunHistoryEmpty = ({
 export const AutomationRunHistoryError = ({
     message,
     onRetry,
+    phone = false,
 }: {
     message?: string
     onRetry?: () => void
+    /** Phone: "Try again" is 44 px high. */
+    phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog)
     return (
@@ -97,7 +100,7 @@ export const AutomationRunHistoryError = ({
                 <Button
                     variant="outline"
                     size="sm"
-                    className="text-xs font-normal"
+                    className={phone ? "h-11 text-sm font-normal" : "text-xs font-normal"}
                     onClick={onRetry}
                 >
                     <RefreshCw className="size-3" />

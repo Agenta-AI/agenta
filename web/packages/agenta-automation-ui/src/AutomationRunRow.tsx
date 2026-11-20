@@ -22,10 +22,13 @@ export const AutomationRunRow = ({
     delivery,
     selected,
     onSelect,
+    phone = false,
 }: {
     delivery: TriggerDelivery
     selected: boolean
     onSelect: () => void
+    /** Phone: the row is at least 44 px high. */
+    phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog, automationsModelCatalog)
     const label = runLabel(delivery)
@@ -46,6 +49,7 @@ export const AutomationRunRow = ({
             }
             className={cn(
                 "flex w-full items-center gap-[9px] rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left",
+                phone && "min-h-11",
                 "cursor-pointer transition-colors",
                 selected ? "bg-accent" : "hover:bg-accent/60 active:bg-accent/60",
                 FOCUS_RING,
