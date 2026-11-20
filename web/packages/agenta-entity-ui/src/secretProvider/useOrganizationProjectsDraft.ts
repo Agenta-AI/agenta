@@ -66,15 +66,13 @@ export const sameProjects = (
 
 /**
  * The "Projects that can use it" choice of a subscription view: a draft seeded from the saved
- * connection when the view opens, written by  only when it changed.
+ * connection when the view opens, written by `apply` only when it changed.
  */
 export const useOrganizationProjectsDraft = ({
-    open,
     connection,
     enabled,
     organizationName = "",
 }: {
-    open: boolean
     connection: ProviderConnection | null | undefined
     enabled: boolean
     /** For the refusal messages that name the organization. */
@@ -92,20 +90,16 @@ export const useOrganizationProjectsDraft = ({
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // Seeded when the dialog opens or names another connection, never on a refetch of the same
+    // Seeded when the view opens or names another connection, never on a refetch of the same
     // one: a sign-in that lands must not undo projects picked while it ran.
     const seededFor = useRef<string | null>(null)
     useEffect(() => {
-        if (!open) {
-            seededFor.current = null
-            return
-        }
         const identity = connection?.id ?? ""
         if (seededFor.current === identity) return
         seededFor.current = identity
         setDraft(saved)
         setError(null)
-    }, [open, connection?.id, saved])
+    }, [connection?.id, saved])
 
     /** Write the draft if it changed. Resolves false on a failure, which shows on its line. */
     const apply = useCallback(async (): Promise<boolean> => {

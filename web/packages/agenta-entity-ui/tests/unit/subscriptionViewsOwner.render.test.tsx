@@ -423,4 +423,20 @@ describe("an organization subscription", {timeout: 30_000}, () => {
         // The sign-in keeps waiting: the choice did not end it.
         expect(text()).toContain("ABCD-1234")
     })
+
+    it("sends a refused choice once, with no retry", async () => {
+        setProjects.mockRejectedValue(new Error("Status code: 500"))
+        const chatgpt = organizationConnection({
+            ...claudeConnection("pending_login"),
+            id: "chatgpt-1",
+            name: "ChatGPT",
+            subscription: {provider: "chatgpt", loginState: "pending_login"},
+        } as ProviderConnection)
+        await render("chatgpt", chatgpt, ACME)
+        await waitFor(() => expect(text()).toContain("ABCD-1234"))
+        await chooseSelectedProjects()
+        await waitFor(() => expect(setProjects).toHaveBeenCalledOnce())
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
+        expect(setProjects).toHaveBeenCalledOnce()
+    })
 })

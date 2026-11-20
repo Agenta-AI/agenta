@@ -28,7 +28,6 @@ const SubscriptionTokenViewBody = ({params}: ViewProps<SubscriptionViewParams>) 
     const {connection, organization} = useSubscriptionViewConnection(params)
     const editProjects = !!organization && !organization.readOnly
     const draft = useOrganizationProjectsDraft({
-        open: true,
         connection,
         enabled: editProjects,
         organizationName: organization?.name,

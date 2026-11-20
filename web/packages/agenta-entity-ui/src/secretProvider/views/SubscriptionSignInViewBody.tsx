@@ -41,7 +41,6 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
 
     const editProjects = !!organization && !organization.readOnly && !!connection
     const draft = useOrganizationProjectsDraft({
-        open: true,
         connection,
         enabled: editProjects,
         organizationName: organization?.name,
