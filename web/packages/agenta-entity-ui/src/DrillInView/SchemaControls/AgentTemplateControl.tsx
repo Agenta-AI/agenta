@@ -998,16 +998,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIndicator = (key: string) =>
         withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
 
-    // A tagged integration opens the drawer that picks or connects its account.
-    const openIntegrationRow = useCallback(
-        (row: IntegrationRow) => {
-            if (integrationRowIndices(row).some((i) => isNeedsSetupStatus(toolResolutionStatus(i))))
-                openAddIntegration()
-            else openIntegrationPermissions(row)
-        },
-        [openAddIntegration, openIntegrationPermissions, toolResolutionStatus],
-    )
-
     // "Add subagents" and a subagent row open views, as Integrations does.
     const openAddSubagents =
         workflowReference?.enabled && viewTarget
@@ -1074,7 +1064,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             integrationRows,
             toolStatusFor,
             gatewayToolsEnabled: Boolean(gatewayTools?.enabled),
-            openIntegrationRow,
+            openIntegrationRow: openIntegrationPermissions,
             askRemoveIntegration: setRemovingIntegration,
         }),
         subagentsSection({

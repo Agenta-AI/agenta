@@ -777,6 +777,10 @@
     "billing.useBillingPortal": {
         "openFailed": "619868b8cfe7"
     },
+    "builder.panel": {
+        "newChat": "db18382a249e",
+        "close": "fa9f6a2f9336"
+    },
     "channels.actions": {
         "addSpaceFailed": "42aeaad2e436",
         "agentHasNoId": "6ca730169112",
@@ -1265,6 +1269,11 @@
         "viewMore_one": "83acf6201743",
         "viewMore_many": "e14e337fa311",
         "viewMore_other": "e14e337fa311"
+    },
+    "chat.changeCard": {
+        "cannotApply": "14cc625575f7",
+        "proposedValues": "755530ab7e31",
+        "savedAs": "98950ea2b030"
     },
     "chat.chatComposer": {
         "attachComingSoon": "10da6cd6c1b1",
@@ -1952,6 +1961,25 @@
         "readChangelog": "c97da0c481bd",
         "play": "436e61016e26",
         "playFeature": "bc2e9f2d0190"
+    },
+    "entityUi.accountSwitch": {
+        "chooseWhose": "c88b63844b25",
+        "eachPersonsOwn": "b598db335859",
+        "eachPersonsOwnNote": "bc80f09bb07c",
+        "oneShared": "20dee4420874",
+        "oneSharedNote": "b38261e2f5cd",
+        "yourAccount": "dbb5f6371b6a",
+        "yourAccountNote": "a11c150818cf",
+        "sharedAccount": "8d29b60d1e2c",
+        "sharedAccountNote": "7fe52ada2820",
+        "useMyDefault": "429bc23a30df",
+        "connectAnotherShared": "55dc40aad696",
+        "noAccountYet": "ac706ae7d7a8",
+        "connectApp": "224b947e9fc5",
+        "noSharedAccountYet": "ded4b88e52f7",
+        "noPersonWarning": "743fb9ac94a4",
+        "onlyMeShort": "20a86f59c132",
+        "everyoneShort": "eab6cee5c03c"
     },
     "entityUi.accounts": {
         "label": "7e1b0d5641f2",

@@ -123,7 +123,12 @@ export const describeApproval = (
     const describer = resolveApprovalDescriber(name) ?? BUILTIN_APPROVAL_DESCRIBERS[name]
     if (describer) {
         try {
-            const preview = describer(approval.input, approval.manifest, appName)
+            const preview = describer(
+                approval.input,
+                approval.manifest,
+                appName,
+                approval.changePreview,
+            )
             if (preview) return preview
         } catch {
             // A describer that cannot read its own payload must not take the card down with it.

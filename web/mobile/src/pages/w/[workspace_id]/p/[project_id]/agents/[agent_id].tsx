@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {isConfigurationTab} from "@/features/agent-pages/configurationTabs"
 import {isAgentOverviewEnabled, OPEN_PLAYGROUND} from "@/features/agents/agentEntry"
 import {AgentOverviewScreen} from "@/features/agents/AgentOverviewScreen"
 import {AgentPlaygroundRedirect} from "@/features/agents/AgentPlaygroundRedirect"
@@ -16,6 +17,13 @@ const AgentChannelsPage = dynamic(
     () => import("@/features/agent-pages/AgentChannelsScreen").then((m) => m.AgentChannelsScreen),
     {loading: () => <SessionsPageSkeleton />},
 )
+const AgentConfigurationPage = dynamic(
+    () =>
+        import("@/features/agent-pages/AgentConfigurationScreen").then(
+            (m) => m.AgentConfigurationScreen,
+        ),
+    {loading: () => <SessionsPageSkeleton />},
+)
 const AgentAnalyticsPage = dynamic(
     () => import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),
     {loading: () => <SessionsPageSkeleton />},
@@ -29,6 +37,7 @@ export default function AgentOverviewPage() {
         agent_id: agentId,
         open,
         view,
+        tab,
     } = router.query
     if (
         typeof workspaceId !== "string" ||
@@ -39,6 +48,17 @@ export default function AgentOverviewPage() {
     }
     // The agent pages are views of this route (`?view=`). Keyed by agent: each agent's page has
     // its own filters.
+    if (view === "configuration")
+        return (
+            <AgentConfigurationPage
+                key={agentId}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                agentId={agentId}
+                // The Agent tab by default, and for an unknown tab.
+                tab={isConfigurationTab(tab) ? tab : "agent"}
+            />
+        )
     if (view === "sessions")
         return (
             <AgentSessionsPage

@@ -1,0 +1,145 @@
+{
+    "_note": "An edit_agent_config gate as the vercel stream delivers it: the server preview part (recorded from the change-set engine, base added as the API handler adds it) before the tool part. The failed preview is the engine's refusal of an anchor that does not occur.",
+    "message": {
+        "id": "m-asst",
+        "role": "assistant",
+        "parts": [
+            {
+                "type": "data-approval-preview",
+                "data": {
+                    "toolCallId": "call-1",
+                    "approvalId": "perm-1",
+                    "preview": {
+                        "applies": true,
+                        "operations": [
+                            {
+                                "index": 0,
+                                "applies": true
+                            },
+                            {
+                                "index": 1,
+                                "applies": true
+                            },
+                            {
+                                "index": 2,
+                                "applies": true
+                            }
+                        ],
+                        "changes": [
+                            {
+                                "path": ["parameters", "agent", "instructions", "agents_md"],
+                                "operation_indexes": [0],
+                                "kind": "changed",
+                                "old": "Answer invoice questions.\nBe kind.",
+                                "new": "Answer invoice questions.\nBe short and kind."
+                            },
+                            {
+                                "path": ["parameters", "agent", "llm", "model"],
+                                "operation_indexes": [1],
+                                "kind": "changed",
+                                "old": "claude-sonnet-5-5",
+                                "new": "claude-opus-5-5"
+                            },
+                            {
+                                "path": [
+                                    "parameters",
+                                    "agent",
+                                    {
+                                        "list": "skills",
+                                        "key": "refund-check"
+                                    }
+                                ],
+                                "operation_indexes": [2],
+                                "kind": "added",
+                                "new": {
+                                    "name": "refund-check",
+                                    "description": "Check refunds.",
+                                    "body": "Check."
+                                }
+                            }
+                        ],
+                        "base": {
+                            "id": "rev-4",
+                            "version": "4"
+                        }
+                    }
+                }
+            },
+            {
+                "type": "tool-edit_agent_config",
+                "toolCallId": "call-1",
+                "state": "approval-requested",
+                "input": {
+                    "agent": "support-triage",
+                    "base_revision_id": "rev-4",
+                    "operations": [
+                        {
+                            "operation": "edit_text",
+                            "target": ["parameters", "agent", "instructions", "agents_md"],
+                            "edits": [
+                                {
+                                    "old_text": "Be kind.",
+                                    "new_text": "Be short and kind."
+                                }
+                            ]
+                        },
+                        {
+                            "operation": "set",
+                            "target": ["parameters", "agent", "llm", "model"],
+                            "value": "claude-opus-5-5"
+                        },
+                        {
+                            "operation": "add_item",
+                            "target": ["parameters", "agent", "skills"],
+                            "value": {
+                                "name": "refund-check",
+                                "description": "Check refunds.",
+                                "body": "Check."
+                            }
+                        }
+                    ]
+                },
+                "approval": {
+                    "id": "perm-1"
+                }
+            }
+        ]
+    },
+    "failedPreview": {
+        "applies": false,
+        "operations": [
+            {
+                "index": 0,
+                "applies": false,
+                "error": {
+                    "code": "text_not_found",
+                    "message": "edits[0].old_text does not occur in the target string. details.nearest_lines holds the closest lines actually stored — copy one of them into old_text."
+                }
+            }
+        ],
+        "changes": []
+    },
+    "failedOperations": [
+        {
+            "operation": "edit_text",
+            "target": ["parameters", "agent", "instructions", "agents_md"],
+            "edits": [
+                {
+                    "old_text": "Not there",
+                    "new_text": "x"
+                }
+            ]
+        }
+    ],
+    "committedOutput": {
+        "status": "committed",
+        "agent": {
+            "id": "agent-1",
+            "name": "Support triage"
+        },
+        "revision": {
+            "id": "rev-5",
+            "version": "5"
+        }
+    }
+}
