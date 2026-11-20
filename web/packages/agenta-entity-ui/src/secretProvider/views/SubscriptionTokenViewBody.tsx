@@ -81,10 +81,22 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
     }
     const actions = (
         <div className="flex items-center gap-2">
-            <Button size="compact" disabled={!valid || saving} onClick={() => void connect()}>
+            {/* A phone keeps 44 px buttons (touch rule). */}
+            <Button
+                size="compact"
+                className="max-md:h-11"
+                disabled={!valid || saving}
+                onClick={() => void connect()}
+            >
                 {saving && typed ? t("entityUi.subscriptionSignIn.checking") : saveLabel}
             </Button>
-            <Button variant="outline" size="compact" disabled={saving} onClick={() => nav.cancel()}>
+            <Button
+                variant="outline"
+                size="compact"
+                className="max-md:h-11"
+                disabled={saving}
+                onClick={() => nav.cancel()}
+            >
                 {t("common.cancel")}
             </Button>
         </div>

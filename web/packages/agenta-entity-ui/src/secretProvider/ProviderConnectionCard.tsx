@@ -14,7 +14,7 @@
  *
  * Spec: openspec model-providers ("Automatic key check" and the per-provider forms).
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {organizationLabel} from "@agenta/entities/organization"
 import {
@@ -647,6 +647,8 @@ const ProviderConnectionCard = ({
     const checkAgain = () => runCheck(chosenCredential, true)
 
     // The line under the credential fields: the check that runs, or what it answered.
+    // The status line explains a rejected key; the rejected fields point to it.
+    const statusId = useId()
     const statusLine = ((): StatusLine | null => {
         if (checkState.phase === "idle") return null
         // Stopped: nothing to report, and "Check again" starts it again.
@@ -764,6 +766,7 @@ const ProviderConnectionCard = ({
             disabled: readOnly,
             placeholder,
             "aria-invalid": rejected || undefined,
+            "aria-describedby": rejected ? statusId : undefined,
             ...PASSWORD_MANAGER_OPT_OUT,
             onPaste: () => {
                 pastedInto.current = field.key
@@ -856,7 +859,9 @@ const ProviderConnectionCard = ({
                 ) : statusLine.tone === "success" ? (
                     <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
                 ) : null}
-                <span className="min-w-0 flex-1">{statusLine.text}</span>
+                <span id={statusId} className="min-w-0 flex-1">
+                    {statusLine.text}
+                </span>
                 {statusLine.checkAgain ? (
                     <Button
                         variant="link"
