@@ -86,7 +86,6 @@ import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
 import {removeSubagentByRef} from "./agentTemplate/subagentReference"
 import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
 import {AgentEditorContext, type AgentEditor} from "./agentTemplate/useAgentConfigWriter"
-import {useMarkedSections} from "./sectionMarks"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -105,6 +104,7 @@ import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {modelIdFromConfig} from "./connectionUtils"
 import {SkillFormSkeleton} from "./DrawerSkeletons"
 import {JsonObjectEditor} from "./JsonObjectEditor"
+import {useMarkedSections} from "./sectionMarks"
 import {
     integrationRowIndices,
     parseGatewayEntry,

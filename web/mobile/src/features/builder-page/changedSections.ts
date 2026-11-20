@@ -27,7 +27,8 @@ const headOf = (target: unknown[]): string | null => {
     const head = target[at]
     if (typeof head === "string") return head
     if (head && typeof head === "object") {
-        const list = (head as {list?: unknown; field?: unknown}).list ?? (head as {field?: unknown}).field
+        const list =
+            (head as {list?: unknown; field?: unknown}).list ?? (head as {field?: unknown}).field
         if (typeof list === "string") return list
     }
     return null

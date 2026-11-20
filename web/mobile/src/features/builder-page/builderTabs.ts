@@ -226,8 +226,7 @@ export const followBuilderResults = (
     for (const result of results) {
         if (next.followedToolCallIds.includes(result.toolCallId)) continue
         next = markFollowed(next, [result.toolCallId])
-        if (result.saved)
-            next = followBuilderResult(next, agentTab(result.agent, result.sections))
+        if (result.saved) next = followBuilderResult(next, agentTab(result.agent, result.sections))
     }
     return next
 }

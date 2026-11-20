@@ -105,9 +105,7 @@ export const useBuilderTabs = ({
 
     // The latest builder save of the active tab's agent in this visit (task 41.1): the pane
     // follows it. Saves already in the chat when it loads are history, not followed.
-    const [activeChange, setActiveChange] = useState<{key: string; toolCallId: string} | null>(
-        null,
-    )
+    const [activeChange, setActiveChange] = useState<{key: string; toolCallId: string} | null>(null)
 
     const onMessagesChanged = useCallback(
         (messages: UIMessage[]) => {
