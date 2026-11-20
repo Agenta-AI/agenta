@@ -6,6 +6,7 @@ export {ViewFormActions} from "./ViewFormActions"
 export {ViewDrawerHost, type ViewRequest} from "./ViewDrawerHost"
 export {ViewStackHost} from "./ViewStackHost"
 export {useViewOpener} from "./useViewOpener"
+export {OpenViewItemContext, type OpenViewItem} from "./openItem"
 export type {
     ConfigItemRef,
     ViewApply,
