@@ -5,6 +5,7 @@ import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Hammer} from "@phosphor-icons/react"
 
+import {useOpenAgentBuilder} from "../agent-layout/AgentPageBuilderHost"
 import {NavDrawer} from "../nav/NavDrawer"
 
 /**
@@ -17,7 +18,7 @@ export const AgentPagesHeader = ({
     workspaceId,
     projectId,
     actions,
-    onOpenBuilder,
+    onOpenBuilder: openBuilderProp,
 }: {
     title: ReactNode
     workspaceId: string
@@ -27,6 +28,9 @@ export const AgentPagesHeader = ({
     onOpenBuilder?: () => void
 }) => {
     const t = useT(agentLayoutHeaderCatalog)
+    // Without the prop, the agent page builder host around the page opens it.
+    const hostOpenBuilder = useOpenAgentBuilder()
+    const onOpenBuilder = openBuilderProp ?? hostOpenBuilder ?? undefined
     return (
         <header
             data-testid="agent-pages-header"
