@@ -831,8 +831,10 @@ async function runAndStreamWithApiBaseResolved(
   // first record arrives, so that close always lands mid-turn: reading it as a disconnect
   // destroyed the warm sandbox the answer had just resumed, and the next message started cold.
   // Its lifetime is the session's, like the turn it continues: a Stop still ends it, and the
-  // idle TTL still bounds the park. A detached run is closed the same way on purpose, so it keeps
-  // its warm sandbox too.
+  // idle TTL still bounds the park. A detached run (`detached: true`) keeps its warm sandbox for
+  // the same reason: a server caller closes its stream on purpose after the first record. The
+  // web chat also sends `detached` for a shared-response turn, so a closed tab now parks that
+  // sandbox for the idle TTL instead of deleting it.
 
   // The invoke stream's sole positive payload in shared mode: correlation/acceptance. Live text
   // and tools arrive through /sessions/{id}/events and are filtered from invoke client-side.

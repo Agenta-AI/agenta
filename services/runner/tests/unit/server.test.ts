@@ -1666,7 +1666,7 @@ describe("createAgentServer", () => {
     {
       name: "durable continuation",
       suffix: "c",
-      fields: { controlCommandId: "command-close", detached: true },
+      fields: { controlCommandId: "command-close" },
       clientGone: false,
     },
     { name: "detached session turn", suffix: "d", fields: { detached: true }, clientGone: false },
