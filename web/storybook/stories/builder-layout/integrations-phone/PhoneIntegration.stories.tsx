@@ -74,6 +74,8 @@ const meta = {
     title: "BuilderLayout/integrations-phone/Integration",
     component: PhoneFrame,
     parameters: {layout: "fullscreen"},
+    // useIsPhone reads the viewport, so the canvas must be phone width, not only the frame.
+    globals: {viewport: {value: "mobile2", isRotated: false}},
     args: {revisionId: ""},
 } satisfies Meta<typeof PhoneFrame>
 

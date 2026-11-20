@@ -296,7 +296,7 @@ const ToolRow = memo(function ToolRow({
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-center gap-1.5">
                         <span
-                            className={`${phone ? "break-words text-[15px]" : "truncate text-[13px]"} font-medium leading-5`}
+                            className={`${phone ? "min-w-0 break-words text-[15px]" : "truncate text-[13px]"} font-medium leading-5`}
                         >
                             {tool.name || humanizeActionKey(tool.key)}
                         </span>

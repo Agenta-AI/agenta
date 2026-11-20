@@ -7,12 +7,11 @@ import {
     type AgentTemplateSectionDescriptor,
     type PhoneSectionsApi,
 } from "@agenta/entity-ui/drill-in"
+import {buildIntegrationRows} from "@agenta/entity-ui/tool-utils"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {Plus, Wrench} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// Imported from source: the package barrel does not re-export the row builder.
-import {buildIntegrationRows} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils"
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {makeAgentConfigFixture} from "../../../fixtures/builderLayout"
 import {M08_TOOLS} from "../../../fixtures/builderLayout/integrations-phone"
