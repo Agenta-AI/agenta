@@ -1,7 +1,7 @@
 import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
 import {useT} from "@agenta/i18n"
 import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
-import {PHONE_HIT_AREA_CLASS} from "@agenta/ui/phone"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {Alert, Button} from "@agenta/ui/ui"
 import {Lock} from "@phosphor-icons/react"
 
@@ -31,7 +31,7 @@ export const ModelSetupBanner = ({
     const {blocked, canFix} = useAgentModelSetup(revisionId)
     const action =
         onSetUp && canFix ? (
-            <Button size="sm" className={`shrink-0 ${PHONE_HIT_AREA_CLASS}`} onClick={onSetUp}>
+            <Button size="sm" className={`shrink-0 ${PHONE_TOUCH_TARGET_CLASS}`} onClick={onSetUp}>
                 {t("chat.modelSetupBanner.setUp")}
             </Button>
         ) : null

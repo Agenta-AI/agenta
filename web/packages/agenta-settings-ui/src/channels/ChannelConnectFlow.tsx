@@ -4,7 +4,7 @@ import {richText, useT, createT} from "@agenta/i18n"
 import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
 import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {PHONE_HIT_AREA_CLASS} from "@agenta/ui/phone"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {
     Alert,
     Button,
@@ -250,7 +250,6 @@ const MethodCards = <T extends string>({
                             value={option.value}
                             disabled={option.disabled}
                             data-testid={`${testId}-${option.value}`}
-                            className={PHONE_HIT_AREA_CLASS}
                         />
                     </label>
                 )
@@ -968,7 +967,7 @@ export const ChannelConnectFlow = ({
                     disabled={authorizing}
                     onClick={() => void startSlackInstall()}
                     data-testid="channels-add-to-slack"
-                    className={PHONE_HIT_AREA_CLASS}
+                    className={PHONE_TOUCH_TARGET_CLASS}
                 >
                     {authorizing
                         ? t("channels.connect.waitingForSlack")
