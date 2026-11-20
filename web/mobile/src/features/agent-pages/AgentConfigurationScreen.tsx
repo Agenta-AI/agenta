@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, useRef} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
@@ -8,7 +8,7 @@ import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
-import {DrawerViewChrome, ViewStackHost} from "@agenta/ui/view-stack"
+import {DrawerViewChrome, ViewStackHost, type ViewStack} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -30,6 +30,7 @@ import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 import {ConfigurationAgentTab} from "./ConfigurationAgentTab"
 import {ConfigurationEditorProvider} from "./ConfigurationEditorProvider"
 import {CONFIGURATION_TABS, isConfigurationTab, type ConfigurationTab} from "./configurationTabs"
+import {PageViewStackGuard} from "./PageViewStackGuard"
 import {useConfigurationRevision} from "./useConfigurationRevision"
 
 /**
@@ -65,8 +66,18 @@ export const AgentConfigurationScreen = ({
     }, [agentId, prefill, projectId, workspaceId])
     // An automation's "Test run" starts a new session of this agent, as from the panel.
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
-    const openTab = (next: ConfigurationTab) =>
+    // The Automations tab's open views (an automation form may hold edits).
+    const automationsStack = useRef<ViewStack | null>(null)
+    const openTab = async (next: ConfigurationTab) => {
+        // Leaving the tab closes its views; an open form with edits asks first.
+        if (
+            next !== tab &&
+            automationsStack.current &&
+            !(await automationsStack.current.closeAll())
+        )
+            return
         void router.replace({query: {...router.query, tab: next}}, undefined, {shallow: true})
+    }
 
     const loading = (
         <div className="flex flex-col gap-3" aria-busy>
@@ -93,12 +104,14 @@ export const AgentConfigurationScreen = ({
             <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
         ) : (
             // The panel's Automations tab, without its Files part (this page has no session). Its
-            // automation views open in the page, under the crumb "Automations".
+            // automation views open in the page, under the crumb "Automations"; the drawer chrome
+            // shows no close button outside a drawer.
             <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-solid border-border bg-background">
                 <ViewStackHost
                     chrome={DrawerViewChrome}
                     rootTitle={t("agentLayout.panel.automations")}
                 >
+                    <PageViewStackGuard stackRef={automationsStack} />
                     <AutomationsTab
                         revisionId={revisionId}
                         workspaceId={workspaceId}
@@ -117,7 +130,7 @@ export const AgentConfigurationScreen = ({
                     className="contents"
                     value={tab}
                     onValueChange={(next) => {
-                        if (isConfigurationTab(next)) openTab(next)
+                        if (isConfigurationTab(next)) void openTab(next)
                     }}
                 >
                     <ScreenScaffold
