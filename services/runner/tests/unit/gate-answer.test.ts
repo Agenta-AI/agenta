@@ -2,8 +2,8 @@
  * The server's answer at the approval gate (`tools.agenta.resolve_gate`), against a fake API.
  *
  * Two parts. The fetcher: which calls it asks about, the request it sends, and that every fault
- * reads as `ask`. The responder: `allow` and `deny` replace the card, `ask` keeps it, and the
- * answer is kept for the next gate of the same call only (tool name, arguments and tool call id).
+ * reads as `ask`. The responder: `allow` and `deny` replace the card, `ask` keeps it, and a grant
+ * that an earlier gate of the call left answers first, with no server call.
  *
  * Run: pnpm exec vitest run tests/unit/gate-answer.test.ts
  */

@@ -45,7 +45,7 @@ export interface GateAnswer {
 }
 
 /**
- * Returns no promise for a call the runner does not ask about, so its gate does not wait a tick.
+ * Returns no promise for a call the runner does not ask about; the card then shows as before.
  * A returned promise never rejects: a failure resolves to `{permission: "ask"}`.
  */
 export type GateAnswerFetcher = (input: {

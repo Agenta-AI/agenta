@@ -60,7 +60,10 @@ it with no card, and `ask` shows the card. A fault, an unknown op or no answer w
 reads as `ask`, so the card shows as before. The runner logs each answer as
 `[HITL] resolve_gate toolName=... permission=... basis=... ms=...`. Other tools never ask the
 API. On Claude and Codex the harness gate asks the API, and an `allow` leaves an execution
-grant that the runner's tool seam spends, so the API is asked once per call.
+grant that the runner's tool seam spends, so the API is asked once per call. A `deny` at the
+harness gate replies `reject` to the harness, as a configured `deny` does today, so the model
+reads the harness's own refusal; the `agent_not_allowed` text reaches the model only when the
+runner's tool seam gets the `deny`.
 
 ## Output and ingest limits
 
