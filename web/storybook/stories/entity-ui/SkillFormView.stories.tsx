@@ -3,9 +3,8 @@ import {useState} from "react"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// SkillFormView — the folder-shaped inline-skill editor: a Files rail (SKILL.md pinned, the
-// bundled files, the SkillUploadZone) beside the skill-level fields, the selected file's
-// editor and the two behaviour toggles.
+// SkillFormView — the skill editor: a file button that opens the file menu (SKILL.md first,
+// the bundled files in folders), then the open file's fields and editor, and Advanced.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/SkillFormView",
     component: SkillFormView,

@@ -21,6 +21,7 @@ import {
 
 import type {EditorProps} from "../../Editor"
 import type {SharedEditorProps} from "../../SharedEditor"
+import type {ViewProps} from "../../view-stack/types"
 
 /**
  * Inline provider option/group types to avoid importing from @agenta/ui.
@@ -210,7 +211,13 @@ export interface WorkflowReferenceBridge {
     }
     /** One subagent's configuration for the detail panel, cached so the header and the body share it.
      *  Required, not optional: a hook that may be absent cannot be called without breaking hook order. */
-    useSubagentDetail: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
+    useSubagentDetail: (slug: string) => {
+        detail: SubagentDetail | null
+        loading: boolean
+        /** The read failed, so the caller can say so instead of showing an empty configuration. */
+        failed: boolean
+        retry: () => void
+    }
     /** A link to an agent's own page. Only the host knows its routes; without it the button hides. */
     agentHref?: (workflowId: string) => string | null
 }
@@ -225,6 +232,14 @@ export interface SkillsPickerHostProps {
     onAdd: (entries: Record<string, unknown>[]) => void
     /** Remove the embed entries whose referenced slug matches. */
     onRemove: (slugs: string[]) => void
+}
+
+/**
+ * The address of a registry skill: the workflow slug its `@ag.embed` reference stores (with its
+ * random suffix), never the skill name.
+ */
+export interface RegistrySkillParams {
+    slug: string
 }
 
 /**
@@ -246,10 +261,9 @@ export interface SkillsBridge {
     publishInlineSkill: (
         skill: Record<string, unknown>,
     ) => Promise<{entry: Record<string, unknown>} | {error: string}>
-    /** Registry detail drawer for one skill, addressed by its embed slug. The panel opens
-     * it for project-owned embed refs instead of the raw JSON editor; absent (or an
-     * unresolvable slug) falls back to the JSON round-trip. */
-    DetailHost?: ComponentType<{open: boolean; onClose: () => void; slug: string | null}>
+    /** The body of the skill view for a registry skill, addressed by its embed slug. The agent's
+     * skill view renders it for an `@ag.embed` entry; the Skills page mounts the same body. */
+    RegistrySkillBody?: ComponentType<ViewProps<RegistrySkillParams>>
 }
 
 /**

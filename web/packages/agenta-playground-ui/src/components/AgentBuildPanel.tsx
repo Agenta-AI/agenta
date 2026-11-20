@@ -20,9 +20,7 @@ const EMPTY_FIELDS_DETECTION = {}
 export interface AgentBuildPanelProps {
     /** The revision being configured. Everything else is read off the workflow molecule. */
     revisionId: string
-    /** The panel's own header — identity, and the Commit/Deploy actions. */
-    header?: ReactNode
-    /** Shown under the header, above the config sections (the needs-setup banner). */
+    /** Shown above the config sections (the needs-setup banner). */
     banner?: ReactNode
     /**
      * The Files region. `AgentOperationsSections` has always taken this as a slot, because the
@@ -68,11 +66,10 @@ export interface AgentBuildPanelProps {
 export const AgentBuildPanel = memo(
     ({
         revisionId,
-        header,
         banner,
         storage,
         storageHeader,
-        stickyHeaderTop = 48,
+        stickyHeaderTop,
         sticky = true,
         automationDrawer,
         onOpenRunHistory,
@@ -85,7 +82,6 @@ export const AgentBuildPanel = memo(
         return (
             <div className={className}>
                 <section className="flex flex-col">
-                    {header}
                     {banner}
                     {hasPendingHydration ? (
                         // The same px-4 pb-3 pt-1 inset the schema-loading gate and the real

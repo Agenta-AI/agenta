@@ -23,6 +23,7 @@ export const AutomationCreateBody = ({
     state,
     autoEditName = true,
     showAgentField = true,
+    fixedKind = false,
     footer,
 }: {
     state: AutomationCreateState
@@ -30,6 +31,8 @@ export const AutomationCreateBody = ({
     autoEditName?: boolean
     /** False where the host already bound the agent — the playground's own panel. */
     showAgentField?: boolean
+    /** The kind was chosen before the form opened ("Add automation"), so it offers no switch. */
+    fixedKind?: boolean
     footer?: ReactNode
 }) => {
     const t = useT(automationsEditorCatalog)
@@ -81,7 +84,7 @@ export const AutomationCreateBody = ({
                 <AutomationRunsWhenField
                     automation={preview}
                     onChangeCron={state.setCron}
-                    onChangeKind={state.setKind}
+                    onChangeKind={fixedKind ? undefined : state.setKind}
                     onSelectEvent={state.setEvent}
                     error={errors.runsWhen}
                 />

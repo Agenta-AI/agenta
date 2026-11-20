@@ -32,6 +32,7 @@ import {cn} from "@agenta/ui/styles"
 import {useAtom, useAtomValue, useStore, type ExtractAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
+import {ChatLoading} from "../chat/states/ChatStates"
 import {ConfigPaneLoading} from "../chat/states/ConfigPaneLoading"
 import {useDriveUrlSync} from "../chat/useDriveUrlSync"
 
@@ -48,13 +49,16 @@ import {
     type PanelContent,
 } from "./agentPanelState"
 import {useConfirmLeave} from "./leaveGuard"
-import {builderPanelSlotAtom} from "./panelSlots"
 
 // Each content loads on first use, so the session page does not carry it.
 const ConfigurationContent = dynamic(
     () => import("./ConfigurationContent").then((m) => m.ConfigurationContent),
     {ssr: false, loading: ConfigPaneLoading},
 )
+const BuilderPanel = dynamic(() => import("../builder/BuilderPanel").then((m) => m.BuilderPanel), {
+    ssr: false,
+    loading: ChatLoading,
+})
 
 export interface AgentLayoutProps {
     agentId: string | null
@@ -108,15 +112,14 @@ export const AgentLayoutBody = ({
     const [filesWidth, setFilesWidth] = useState(storedFilesWidth)
     useEffect(() => setFilesWidth(storedFilesWidth), [storedFilesWidth])
 
-    const builder = useAtomValue(builderPanelSlotAtom)
     const canConfigure = Boolean(revisionId && agentId) && !agentHidden
     const available = useMemo<Record<PanelContent, boolean>>(
         () => ({
             files: true,
             configuration: canConfigure,
-            builder: Boolean(builder && agentId) && !agentHidden,
+            builder: Boolean(agentId) && !agentHidden,
         }),
-        [canConfigure, builder, agentId, agentHidden],
+        [canConfigure, agentId, agentHidden],
     )
     // A content the screen cannot show (no configuration, no builder) stays closed.
     // Files keeps its production open state (deep links, a file card, a staged drop open it) and
@@ -335,9 +338,14 @@ export const AgentLayoutBody = ({
                     />
                 </div>
             ) : null}
-            {builder && agentId && (mounted.has("builder") || content === "builder") ? (
+            {available.builder && (mounted.has("builder") || content === "builder") ? (
                 <div className={content === "builder" ? "h-full min-h-0" : "hidden"}>
-                    {builder({agentId, sessionId, workspaceId, projectId})}
+                    {/* No page session id goes into the builder: it runs its own chat (design D6). */}
+                    <BuilderPanel
+                        agentId={agentId!}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                    />
                 </div>
             ) : null}
         </div>

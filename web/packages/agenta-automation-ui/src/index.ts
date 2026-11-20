@@ -21,7 +21,7 @@ export * from "./runListView"
 // Data: the entity hooks, already scoped to a project by the host's binding.
 export {useAutomation} from "./useAutomation"
 export {useAutomations} from "./useAutomations"
-export {useAutomationRuns} from "./useAutomationRuns"
+export {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
 export {useAutomationDraft} from "./useAutomationDraft"
 
 // One drawer for both kinds — what the playground mounts in place of its two forms.
@@ -43,7 +43,6 @@ export {AutomationSaveBar} from "./AutomationSaveBar"
 export {AutomationBackLink} from "./AutomationBackLink"
 export {AutomationLastRunCell} from "./AutomationLastRunCell"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
-export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
 export {AutomationRunHistoryDrawer} from "./AutomationRunHistoryDrawer"
 export {

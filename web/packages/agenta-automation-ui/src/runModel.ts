@@ -1,5 +1,9 @@
-import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {
+    RECENT_TRIGGER_DELIVERIES_LIMIT,
+    type TriggerDelivery,
+} from "@agenta/entities/gatewayTrigger"
 import {createT, formatLocale} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 import {deliveryOutcome, type Automation} from "./automationModel"
@@ -13,6 +17,7 @@ import {deliveryOutcome, type Automation} from "./automationModel"
  */
 
 const tNow = createT(automationsModelCatalog)
+const tEditor = createT(automationsEditorCatalog)
 
 /** The window the run-history caption counts over, and the only one this screen claims. */
 export const RUN_WINDOW_DAYS = 30
@@ -31,9 +36,14 @@ export function countRecentRuns(deliveries: TriggerDelivery[], now = Date.now())
     }).length
 }
 
-/** "12 runs in the last 30 days" — the caption under both the card and the heading. */
+/**
+ * "12 runs in 30 days": the caption under the card, the heading and the list row. Counted from
+ * the capped recent read, so above the cap it says "100+ runs in 30 days".
+ */
 export function runCountCaption(count: number): string {
-    return tNow("automations.model.runCount", {count, days: RUN_WINDOW_DAYS})
+    return count > RECENT_TRIGGER_DELIVERIES_LIMIT
+        ? tEditor("automations.editor.runsIn30DaysOver", {limit: RECENT_TRIGGER_DELIVERIES_LIMIT})
+        : tEditor("automations.editor.runsIn30Days", {count})
 }
 
 /** One run of rows under one heading — a day by default, whatever the view groups by otherwise. */

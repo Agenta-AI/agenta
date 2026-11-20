@@ -68,7 +68,10 @@ export function SubscriptionChildRow({
     })
 
     // The run action lives in the "⋯" menu; selecting it opens the event picker anchored below.
-    const composedMenu = (
+    // A read-only row (a viewer) has no run action.
+    const composedMenu = disabled ? (
+        menu
+    ) : (
         <>
             <DropdownMenuItem
                 disabled={runDisabled}

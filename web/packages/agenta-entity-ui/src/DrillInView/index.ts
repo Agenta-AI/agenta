@@ -379,6 +379,7 @@ export {
 export {
     TriggerManagementSection,
     AddTriggerDropdown,
+    AutomationDeleteDialog,
 } from "./SchemaControls/TriggerManagementSection"
 export type {
     TriggerManagementSectionProps,
@@ -438,11 +439,11 @@ export {
 } from "./SchemaControls/agentTemplate/ToolManagementList"
 export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
 export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
-export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export {AddSubagentList} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {
     SubagentOption,
     SubagentIntegration,
-} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
 export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
@@ -459,6 +460,13 @@ export {
     composeSkillMarkdown,
     downloadSkill,
 } from "./SchemaControls/skillDownload"
+export {firstBadFile, skillFilesOf} from "./SchemaControls/skillFiles"
+export {
+    SKILL_ACTION_ROW,
+    SkillViewHeader,
+    useSkillDownloadAction,
+} from "./SchemaControls/SkillViewHeader"
+export type {SkillAction, SkillViewHeaderProps} from "./SchemaControls/SkillViewHeader"
 export type {SkillDownload} from "./SchemaControls/skillDownload"
 
 // The agent a container shows now (revision, edit right); its open agent views follow it.
@@ -477,7 +485,10 @@ export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
 // Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.
 export {CreateWithAIAddMenu} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
-export type {CreateWithAIAddMenuProps} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
+export type {
+    CreateWithAIAddMenuProps,
+    CreateWithAIMenuItem,
+} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
 export type {
     SectionTitleBadgeProps,

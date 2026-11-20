@@ -90,18 +90,20 @@ describe("the Added label on the catalog drawers", () => {
         await mount(
             createElement(IntegrationCatalog, {
                 onConnect: vi.fn(),
-                integrationRows: [
-                    {
-                        provider: "composio",
-                        integration: "github",
-                        entry: null,
-                        entryIndices: [0],
-                        legacyIndices: [],
-                        legacyConnections: [],
-                    },
-                ],
-                onAddIntegration: vi.fn(),
-                onAddPersonalIntegration: vi.fn(),
+                adding: {
+                    integrationRows: [
+                        {
+                            provider: "composio",
+                            integration: "github",
+                            entry: null,
+                            entryIndices: [0],
+                            legacyIndices: [],
+                            legacyConnections: [],
+                        },
+                    ],
+                    onAddIntegration: vi.fn(),
+                    onAddPersonalIntegration: vi.fn(),
+                },
             }),
         )
 

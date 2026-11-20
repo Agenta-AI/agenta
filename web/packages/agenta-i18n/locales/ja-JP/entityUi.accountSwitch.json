@@ -1,0 +1,19 @@
+{
+    "chooseWhose": "エージェントが使う{{name}}アカウントを選択",
+    "eachPersonsOwn": "各ユーザー自身のアカウント",
+    "eachPersonsOwnNote": "全員が自分の{{name}}アカウントを使います。",
+    "oneShared": "1つの共有アカウント",
+    "oneSharedNote": "全員があなたが選んだアカウントを使います。",
+    "yourAccount": "あなたのアカウント",
+    "yourAccountNote": "あなた自身の実行で使う{{name}}アカウント",
+    "sharedAccount": "共有アカウント",
+    "sharedAccountNote": "誰が開始しても、すべての実行でこのアカウントを使います",
+    "useMyDefault": "デフォルトを使用",
+    "connectAnotherShared": "別の共有アカウントを接続",
+    "noAccountYet": "アカウントがまだありません",
+    "connectApp": "{{name}}を接続",
+    "noSharedAccountYet": "共有アカウントがまだありません",
+    "noPersonWarning": "チャネルからの実行や、APIキーで作成されたオートメーションからの実行には、ユーザーがいません。各ユーザー自身のアカウントを使えないため、これらの実行ではこの連携を利用できません。",
+    "onlyMeShort": "あなた自身の実行だけで使います。",
+    "everyoneShort": "このプロジェクトのエージェントが使えます。"
+}

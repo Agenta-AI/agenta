@@ -1,6 +1,5 @@
-import {useEffect, useMemo} from "react"
+import {useEffect} from "react"
 
-import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
@@ -28,6 +27,7 @@ import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 
 import {ConfigurationAgentTab} from "./ConfigurationAgentTab"
 import {ConfigurationAutomationsTab} from "./ConfigurationAutomationsTab"
+import {ConfigurationEditorProvider} from "./ConfigurationEditorProvider"
 import {CONFIGURATION_TABS, isConfigurationTab, type ConfigurationTab} from "./configurationTabs"
 import {useConfigurationRevision} from "./useConfigurationRevision"
 
@@ -56,10 +56,6 @@ export const AgentConfigurationScreen = ({
     // The API refuses a Viewer's edits; editing stays open while the check is in flight.
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
     const readOnly = !editAccess.pending && !editAccess.allowed
-    const editor = useMemo<AgentEditor | null>(
-        () => (revisionId ? {revisionId, readOnly} : null),
-        [readOnly, revisionId],
-    )
     // "Create with AI" asks a chat composer to start the sentence; this page has none, so it opens
     // a new session of the agent, whose composer takes the request.
     const prefill = useAtomValue(composerPrefillRequestAtom)
@@ -152,9 +148,14 @@ export const AgentConfigurationScreen = ({
                                 projectId={projectId}
                                 onWorkflowRevisionCommitted={pin}
                             >
-                                <AgentEditorContext.Provider value={editor}>
+                                <ConfigurationEditorProvider
+                                    agentId={agentId}
+                                    revisionId={revisionId}
+                                    readOnly={readOnly}
+                                    tab={tab}
+                                >
                                     {body}
-                                </AgentEditorContext.Provider>
+                                </ConfigurationEditorProvider>
                             </DrillInBridgeProvider>
                         </TabsContent>
                     </ScreenScaffold>
