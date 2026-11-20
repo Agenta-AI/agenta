@@ -1183,6 +1183,54 @@ const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
+ * True when an agent known to have chats has no row loaded yet.
+ *
+ * Under agent grouping each agent section shows a few rows, so a first page full of one busy
+ * agent's sessions draws a rail too short to scroll, and a scroll is the only other way to ask
+ * for the next page. Agents outside the agent filter do not count.
+ */
+export const hasUnloadedAgent = ({
+    agentsWithChats,
+    loadedRefs,
+    agentFilter,
+}: {
+    agentsWithChats: Iterable<string>
+    loadedRefs: readonly SessionSidebarRef[]
+    agentFilter: readonly string[]
+}): boolean => {
+    const loaded = new Set(loadedRefs.map((ref) => ref.agentId))
+    for (const agentId of agentsWithChats) {
+        if (agentFilter.length > 0 && !agentFilter.includes(agentId)) continue
+        if (!loaded.has(agentId)) return true
+    }
+    return false
+}
+
+/**
+ * Should the rail ask for the next page now, without a scroll? Only under agent grouping, and
+ * only while an agent with chats has no row yet. Paging stops on its own at the last page, at
+ * `MAX_SESSION_PAGES`, or on an error.
+ */
+export const sidebarSessionsNeedNextPageAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        // The counts are of chats, so they say nothing about the automation list.
+        if (filters.groupBy !== "agent" || filters.type === "automation") return false
+        const paging = get(sidebarSessionPagingAtomFamily(scopeId))
+        if (!paging.hasMore || paging.isLoadingMore || paging.isError) return false
+        const live = get(liveAgentIdsAtom)
+        const agentsWithChats = [...get(sidebarAgentCountsAtomFamily(scopeId)).keys()].filter(
+            (agentId) => live === null || live.has(agentId),
+        )
+        return hasUnloadedAgent({
+            agentsWithChats,
+            loadedRefs: get(sidebarSessionRefsAtomFamily(scopeId)),
+            agentFilter: filters.agentIds,
+        })
+    }),
+)
+
+/**
  * Agents the filter can narrow to, from the project's agent catalog.
  *
  * Gated on the FILTER MENU being open, not on the Sessions group. The group is `alwaysOpen`, so a

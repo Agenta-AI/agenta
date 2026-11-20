@@ -1,4 +1,4 @@
-import {createElement, useCallback, useMemo, type ReactNode} from "react"
+import {createElement, useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
@@ -17,6 +17,7 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
+    sidebarSessionsNeedNextPageAtomFamily,
     RELEASES,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
@@ -251,6 +252,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
     const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
+    // Each agent section shows 4 rows, so the rail can be too short to scroll while agents with
+    // older sessions are still on later pages: ask for the next page without a scroll.
+    const needNextPage = useAtomValue(sidebarSessionsNeedNextPageAtomFamily(MOBILE_NAV_SCOPE_ID))
+    useEffect(() => {
+        if (needNextPage) loadMoreSessions()
+    }, [needNextPage, loadMoreSessions])
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
     // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
     // call changes identity on every render — which busts the memo below, re-buckets every row,
