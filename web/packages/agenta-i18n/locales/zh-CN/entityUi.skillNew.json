@@ -1,0 +1,17 @@
+{
+    "addManuallyHint": "从你的注册表添加，或自己编写",
+    "added": "已添加",
+    "addSkillAria": "添加 {{name}}",
+    "removeSkillAria": "移除 {{name}}",
+    "removeRegistryBody": "该 Skill 仍保留在你的 Skill 注册表中。",
+    "removeAgentOnlyBody": "该 Skill 仅存在于这个 Agent 中，移除后将被删除。",
+    "chooseLine": "新 Skill 会添加到你的 Skill 注册表和这个 Agent 中。",
+    "stepTitle": "新建 Skill › {{step}}",
+    "stepWrite": "编写",
+    "stepImport": "导入",
+    "notSavedYet": "尚未保存",
+    "uploadLine": "仅限文本文件。上传内容会在编辑器中打开，点击“创建 Skill”之前不会保存任何内容。",
+    "or": "或",
+    "scan": "扫描",
+    "leaveDescription": "在你的 Skill 注册表中创建该 Skill，还是放弃？"
+}

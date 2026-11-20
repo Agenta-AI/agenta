@@ -1,0 +1,17 @@
+{
+    "addManuallyHint": "Desde tu registro, o escribe una",
+    "added": "Añadida",
+    "addSkillAria": "Añadir {{name}}",
+    "removeSkillAria": "Quitar {{name}}",
+    "removeRegistryBody": "La skill se queda en tu registro de skills.",
+    "removeAgentOnlyBody": "Esta skill solo existe en este agente. Al quitarla, se elimina.",
+    "chooseLine": "La nueva skill se añade a tu registro de skills y a este agente.",
+    "stepTitle": "Nueva skill › {{step}}",
+    "stepWrite": "Escribir",
+    "stepImport": "Importar",
+    "notSavedYet": "Aún no guardada",
+    "uploadLine": "Solo archivos de texto. La subida se abre en el editor y no se guarda nada hasta «Crear skill».",
+    "or": "o",
+    "scan": "Escanear",
+    "leaveDescription": "¿Crear la skill en tu registro de skills o descartarla?"
+}

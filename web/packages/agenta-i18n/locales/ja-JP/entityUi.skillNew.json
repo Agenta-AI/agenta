@@ -1,0 +1,17 @@
+{
+    "addManuallyHint": "レジストリから追加、または自分で作成",
+    "added": "追加済み",
+    "addSkillAria": "{{name}} を追加",
+    "removeSkillAria": "{{name}} を削除",
+    "removeRegistryBody": "スキルはスキルレジストリに残ります。",
+    "removeAgentOnlyBody": "このスキルはこのエージェントにのみ存在します。削除すると完全に削除されます。",
+    "chooseLine": "新しいスキルはスキルレジストリとこのエージェントに追加されます。",
+    "stepTitle": "新しいスキル › {{step}}",
+    "stepWrite": "作成",
+    "stepImport": "インポート",
+    "notSavedYet": "未保存",
+    "uploadLine": "テキストファイルのみ。アップロードはエディターで開き、「スキルを作成」を押すまで何も保存されません。",
+    "or": "または",
+    "scan": "スキャン",
+    "leaveDescription": "スキルレジストリにスキルを作成しますか、それとも破棄しますか？"
+}

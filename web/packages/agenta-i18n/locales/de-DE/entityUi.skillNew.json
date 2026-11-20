@@ -1,0 +1,17 @@
+{
+    "addManuallyHint": "Aus deiner Registry oder selbst schreiben",
+    "added": "Hinzugefügt",
+    "addSkillAria": "{{name}} hinzufügen",
+    "removeSkillAria": "{{name}} entfernen",
+    "removeRegistryBody": "Der Skill bleibt in deiner Skill-Registry.",
+    "removeAgentOnlyBody": "Diesen Skill gibt es nur in diesem Agent. Beim Entfernen wird er gelöscht.",
+    "chooseLine": "Der neue Skill wird deiner Skill-Registry und diesem Agent hinzugefügt.",
+    "stepTitle": "Neuer Skill › {{step}}",
+    "stepWrite": "Schreiben",
+    "stepImport": "Importieren",
+    "notSavedYet": "Noch nicht gespeichert",
+    "uploadLine": "Nur Textdateien. Der Upload öffnet sich im Editor, und nichts wird gespeichert, bis du auf „Skill erstellen“ klickst.",
+    "or": "oder",
+    "scan": "Scannen",
+    "leaveDescription": "Den Skill in deiner Skill-Registry erstellen oder verwerfen?"
+}

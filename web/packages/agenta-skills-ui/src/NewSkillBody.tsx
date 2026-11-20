@@ -1,0 +1,704 @@
+/**
+ * The body of the "New skill" view (F07 f12 to f15): choose how, then write, upload or import, as
+ * steps of one view. "Create skill" or "Import N skills" is the view's save. The skill goes to the
+ * skill registry; in an agent, `onCreated` also adds it to the agent.
+ */
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+
+import {
+    firstBadFile,
+    scanSkillFromDataTransfer,
+    scanSkillFromFileList,
+    skillFilesOf,
+    SkillFormView,
+    SkillViewHeader,
+    type SkillScanCandidate,
+    type SkillUploadScan,
+} from "@agenta/entity-ui/drill-in"
+import {richText, useT} from "@agenta/i18n"
+import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
+import skillTemplateCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import repoImportCatalog from "@agenta/i18n/catalogs/ui.repoImport"
+import {projectIdAtom} from "@agenta/shared/state"
+import {skillDisplayName} from "@agenta/shared/utils"
+import {
+    buildSkillEmbedEntry,
+    createSkillWorkflow,
+    importSkillSource,
+    querySkills,
+    scanSkillSource,
+    skillContentSchema,
+} from "@agenta/skills"
+import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {cn} from "@agenta/ui/styles"
+import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {useViewForm, useViewTitle} from "@agenta/ui/view-stack"
+import {GithubLogo, PencilSimple, UploadSimple, WarningCircle} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+
+type Skill = Record<string, unknown>
+
+/** Where the view opens: the choice, or straight on one way (the Skills page menu). */
+export type NewSkillStart =
+    | {step: "choose"}
+    | {step: "write"}
+    | {step: "import"}
+    | {step: "upload"; scan?: Promise<SkillUploadScan>}
+
+export interface NewSkillBodyProps {
+    start?: NewSkillStart
+    /** In an agent: each created or imported skill, as the embed entry the agent adds. */
+    onCreated?: (entries: Skill[]) => void
+}
+
+type Step = NewSkillStart["step"]
+
+const EMPTY_SKILL: Skill = {name: "", description: "", body: "", files: []}
+
+const toFormValue = (candidate: SkillScanCandidate): Skill => ({
+    name: candidate.skill.name ?? "",
+    description: candidate.skill.description ?? "",
+    body: candidate.skill.body,
+    files: candidate.skill.files,
+    ...(candidate.skill.disable_model_invocation ? {disable_model_invocation: true} : {}),
+})
+
+const embedEntry = (created: {
+    slug: string
+    workflowId?: string
+    name: string
+    description?: string
+}): Skill => buildSkillEmbedEntry({...created, mode: "latest"}) as unknown as Skill
+
+const errorText = (err: unknown): string | null =>
+    err instanceof Error && err.message ? err.message : null
+
+/** One repo scan row. */
+interface RepoCandidate {
+    path: string
+    name: string
+    description?: string | null
+    unavailable?: string | null
+    imported: boolean
+}
+
+const ROW = "box-border flex items-start gap-2.5 rounded-md border border-solid p-2.5"
+
+export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBodyProps) {
+    const t = useT(skillNewCatalog, skillsGalleryCatalog, skillTemplateCatalog, repoImportCatalog)
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+    const [step, setStep] = useState<Step>(start.step)
+    const [error, setError] = useState<string | null>(null)
+
+    // Write
+    const [value, setValue] = useState<Skill>(EMPTY_SKILL)
+    const [baseline, setBaseline] = useState<Skill>(EMPTY_SKILL)
+    const [parsedCount, setParsedCount] = useState<number | null>(null)
+    const [formKey, setFormKey] = useState(0)
+
+    // Upload
+    const [reading, setReading] = useState(false)
+    const [over, setOver] = useState(false)
+    const [picks, setPicks] = useState<{scan: SkillUploadScan; selected: Set<string>} | null>(null)
+    const fileInput = useRef<HTMLInputElement>(null)
+
+    // Import
+    const [repoUrl, setRepoUrl] = useState("")
+    const [scanning, setScanning] = useState(false)
+    const [found, setFound] = useState<RepoCandidate[] | null>(null)
+    const [selected, setSelected] = useState<Set<string>>(new Set())
+
+    // A late answer after the view left is dropped.
+    const live = useRef(true)
+    useEffect(() => {
+        live.current = true
+        return () => {
+            live.current = false
+        }
+    }, [])
+
+    const openWrite = useCallback((next: Skill, count: number | null) => {
+        setValue(next)
+        setBaseline(next)
+        setFormKey((key) => key + 1)
+        setParsedCount(count)
+        setError(null)
+        setStep("write")
+    }, [])
+
+    const takeScan = useCallback(
+        async (scan: Promise<SkillUploadScan>) => {
+            setReading(true)
+            setError(null)
+            setPicks(null)
+            try {
+                const result = await scan
+                if (!live.current) return
+                const [first] = result.candidates
+                if (!first) setError(t("skills.gallery.noSkillMdFound"))
+                else if (result.candidates.length === 1)
+                    openWrite(toFormValue(first), result.fileCount)
+                else
+                    setPicks({
+                        scan: result,
+                        selected: new Set(result.candidates.map((c) => c.dir)),
+                    })
+            } catch {
+                if (live.current) setError(t("skills.gallery.readUploadFailed"))
+            } finally {
+                if (live.current) setReading(false)
+            }
+        },
+        [openWrite, t],
+    )
+
+    const startScan = start.step === "upload" ? start.scan : undefined
+    // Read the upload the view opened with once.
+    const readStart = useRef(startScan)
+    useEffect(() => {
+        if (readStart.current) void takeScan(readStart.current)
+        readStart.current = undefined
+    }, [takeScan])
+
+    /** One skill into the registry; returns the embed entry. Throws on failure. */
+    const createOne = useCallback(
+        async (skill: Skill): Promise<Skill> => {
+            const parsed = skillContentSchema.parse(skill)
+            const created = await createSkillWorkflow({projectId, skill: parsed})
+            return embedEntry({
+                slug: created.slug,
+                workflowId: created.workflowId,
+                name: parsed.name,
+                description: parsed.description,
+            })
+        },
+        [projectId],
+    )
+
+    const create = useCallback(async () => {
+        setError(null)
+        try {
+            const entry = await createOne(value)
+            invalidateSkillsListCache()
+            onCreated?.([entry])
+            return true
+        } catch (err) {
+            const detail = errorText(err)
+            setError(
+                detail
+                    ? t("skills.gallery.createFailedDetail", {error: detail})
+                    : t("skills.gallery.createFailed"),
+            )
+            return false
+        }
+    }, [createOne, onCreated, t, value])
+
+    const chosenPicks = useMemo(
+        () => (picks ? picks.scan.candidates.filter((c) => picks.selected.has(c.dir)) : []),
+        [picks],
+    )
+
+    const importPicks = useCallback(async () => {
+        setError(null)
+        const entries: Skill[] = []
+        try {
+            for (const candidate of chosenPicks) {
+                entries.push(await createOne(toFormValue(candidate)))
+                // Off the list once it is in, so a retry skips it.
+                setPicks((current) => {
+                    if (!current) return current
+                    const next = new Set(current.selected)
+                    next.delete(candidate.dir)
+                    return {...current, selected: next}
+                })
+            }
+            return true
+        } catch (err) {
+            const detail = errorText(err)
+            setError(
+                detail
+                    ? t("skills.gallery.importFailedDetail", {error: detail})
+                    : t("skills.gallery.importFailed"),
+            )
+            return false
+        } finally {
+            if (entries.length) {
+                invalidateSkillsListCache()
+                onCreated?.(entries)
+            }
+        }
+    }, [chosenPicks, createOne, onCreated, t])
+
+    const scanRepo = useCallback(async () => {
+        const url = repoUrl.trim()
+        if (!url || scanning) return
+        setScanning(true)
+        setError(null)
+        setFound(null)
+        setSelected(new Set())
+        try {
+            const response = await scanSkillSource({projectId, repoUrl: url})
+            if (!live.current) return
+            const already = new Set(response?.already_imported_paths ?? [])
+            const rows: RepoCandidate[] = (response?.scan?.candidates ?? []).map((c) => {
+                const imported = already.has(c.path_in_repo)
+                return {
+                    path: c.path_in_repo,
+                    name: c.skill?.name ? skillDisplayName(c.skill.name) : c.path_in_repo,
+                    description: c.skill?.description,
+                    imported,
+                    unavailable: imported
+                        ? null
+                        : c.valid
+                          ? null
+                          : c.issues
+                                ?.map((i) => i.message)
+                                .filter(Boolean)
+                                .join(" ") || t("skills.gallery.invalidSkill"),
+                }
+            })
+            if (rows.length === 0) {
+                setError(t("skills.gallery.importNoneFound"))
+                return
+            }
+            setFound(rows)
+            setSelected(
+                new Set(rows.filter((r) => !r.imported && !r.unavailable).map((r) => r.path)),
+            )
+        } catch (err) {
+            if (live.current) setError(errorText(err) ?? t("ui.repoImport.scanFailed"))
+        } finally {
+            if (live.current) setScanning(false)
+        }
+    }, [projectId, repoUrl, scanning, t])
+
+    /** The registry entry of each imported skill, for the agent's references. */
+    const entriesOfImported = useCallback(
+        async (imported: {workflow_id?: string | null; name?: string | null}[]) => {
+            const entries: Skill[] = []
+            for (const item of imported) {
+                if (!item.workflow_id) continue
+                const listed = await querySkills({projectId, search: item.name ?? undefined})
+                const match = (listed.skills ?? []).find((s) => s.workflow_id === item.workflow_id)
+                if (!match?.workflow_slug) continue
+                entries.push(
+                    embedEntry({
+                        slug: match.workflow_slug,
+                        workflowId: item.workflow_id,
+                        name: match.skill_name ?? match.name ?? match.workflow_slug,
+                        description: match.description ?? match.skill_description ?? undefined,
+                    }),
+                )
+            }
+            return entries
+        },
+        [projectId],
+    )
+
+    const importRepo = useCallback(async () => {
+        setError(null)
+        let response
+        try {
+            response = await importSkillSource({
+                projectId,
+                repoUrl: repoUrl.trim(),
+                paths: Array.from(selected),
+            })
+            if (!response) throw new Error()
+        } catch (err) {
+            const detail = errorText(err)
+            setError(
+                detail
+                    ? t("skills.gallery.importFailedDetail", {error: detail})
+                    : t("skills.gallery.importFailed"),
+            )
+            return false
+        }
+        invalidateSkillsListCache()
+        const imported = response.imported ?? []
+        if (onCreated && imported.length) onCreated(await entriesOfImported(imported))
+        const skipped = response.skipped ?? []
+        if (skipped.length === 0) return true
+        // Some went in: keep the view open and say which were skipped.
+        setSelected(new Set())
+        setError(
+            [
+                t("skills.gallery.skippedCount", {count: skipped.length}),
+                ...skipped.map((s) => s.path_in_repo),
+            ].join(" "),
+        )
+        return "stay" as const
+    }, [entriesOfImported, onCreated, projectId, repoUrl, selected, t])
+
+    const writeDirty = JSON.stringify(value) !== JSON.stringify(EMPTY_SKILL)
+    const writeValid =
+        skillContentSchema.safeParse(value).success &&
+        firstBadFile(skillFilesOf(value)) === undefined
+    const form =
+        step === "write"
+            ? {
+                  dirty: writeDirty,
+                  valid: writeValid,
+                  label: t("skills.gallery.createSkill"),
+                  save: create,
+              }
+            : step === "upload" && picks
+              ? {
+                    dirty: true,
+                    valid: chosenPicks.length > 0,
+                    label: t("skills.gallery.importSkills", {count: chosenPicks.length}),
+                    save: importPicks,
+                }
+              : step === "import" && found
+                ? {
+                      dirty: selected.size > 0,
+                      valid: selected.size > 0,
+                      label: t("skills.gallery.importSkills", {count: selected.size}),
+                      save: importRepo,
+                  }
+                : {
+                      dirty: false,
+                      valid: false,
+                      label: t("skills.gallery.createSkill"),
+                      save: async () => false,
+                  }
+    useViewForm({
+        dirty: form.dirty,
+        valid: form.valid,
+        saveLabel: form.label,
+        leaveDescription: t("entityUi.skillNew.leaveDescription"),
+        save: form.save,
+    })
+
+    const stepLabel: Record<Step, string> = {
+        choose: "",
+        write: t("entityUi.skillNew.stepWrite"),
+        upload: t("skills.gallery.menuUploadTitle"),
+        import: t("entityUi.skillNew.stepImport"),
+    }
+    useViewTitle(
+        step === "choose"
+            ? t("skills.gallery.newSkill")
+            : t("entityUi.skillNew.stepTitle", {step: stepLabel[step]}),
+    )
+
+    const errorLine = error ? (
+        <span role="alert" className="flex items-start gap-1.5 text-xs text-colorError">
+            <WarningCircle size={14} className="mt-px shrink-0" />
+            <span className="min-w-0">{error}</span>
+        </span>
+    ) : null
+
+    if (step === "write") {
+        const name = typeof value.name === "string" ? value.name.trim() : ""
+        return (
+            <div className="flex min-h-0 flex-1 flex-col">
+                <SkillViewHeader
+                    name={name || t("skills.gallery.newSkill")}
+                    status={
+                        parsedCount != null
+                            ? t("skills.gallery.filesParsed", {count: parsedCount})
+                            : t("entityUi.skillNew.notSavedYet")
+                    }
+                    actions={[]}
+                    error={error}
+                />
+                <div className="min-h-0 flex-1">
+                    <SkillFormView
+                        key={formKey}
+                        value={value}
+                        onChange={setValue}
+                        baseline={baseline}
+                        autoFocusName={parsedCount == null}
+                        showMissing={writeDirty && !writeValid}
+                    />
+                </div>
+            </div>
+        )
+    }
+
+    if (step === "upload") {
+        return (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+                {picks ? (
+                    <UploadPicks
+                        picks={picks}
+                        onToggle={(dir) =>
+                            setPicks((current) => {
+                                if (!current) return current
+                                const next = new Set(current.selected)
+                                if (!next.delete(dir)) next.add(dir)
+                                return {...current, selected: next}
+                            })
+                        }
+                    />
+                ) : (
+                    <div
+                        onDragOver={(e) => {
+                            e.preventDefault()
+                            setOver(true)
+                        }}
+                        onDragLeave={() => setOver(false)}
+                        onDrop={(e) => {
+                            e.preventDefault()
+                            setOver(false)
+                            void takeScan(scanSkillFromDataTransfer(e.dataTransfer))
+                        }}
+                        className={cn(
+                            "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-colorBorderSecondary px-4 py-8 text-center transition-colors",
+                            over && "border-colorBorder bg-colorFillTertiary",
+                        )}
+                    >
+                        {reading ? (
+                            <Spinner size="small" />
+                        ) : (
+                            <UploadSimple size={20} className="text-colorTextSecondary" />
+                        )}
+                        <span className="text-xs text-colorTextSecondary">
+                            {richText(t("entityUi.skillTemplate.dragHint"), {
+                                mono: (text) => <span className="font-mono">{text}</span>,
+                            })}
+                        </span>
+                        <span className="text-xs text-colorTextTertiary">
+                            {t("entityUi.skillNew.or")}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={reading}
+                            onClick={() => fileInput.current?.click()}
+                        >
+                            {t("entityUi.skillTemplate.browseFiles")}
+                        </Button>
+                        <input
+                            ref={fileInput}
+                            type="file"
+                            multiple
+                            accept=".zip,.skill,.md,text/markdown,text/plain"
+                            className="hidden"
+                            aria-hidden
+                            tabIndex={-1}
+                            onChange={(event) => {
+                                const list = event.target.files
+                                if (list && list.length) void takeScan(scanSkillFromFileList(list))
+                                event.target.value = ""
+                            }}
+                        />
+                    </div>
+                )}
+                <span className="text-xs text-colorTextSecondary">
+                    {t("entityUi.skillNew.uploadLine")}
+                </span>
+                {errorLine}
+            </div>
+        )
+    }
+
+    if (step === "import") {
+        return (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+                <span className="text-xs text-colorTextSecondary">
+                    {t("skills.gallery.importDrawerHint")}
+                </span>
+                <div className="flex items-center gap-2">
+                    <Input
+                        autoFocus
+                        value={repoUrl}
+                        aria-label={t("ui.repoImport.repositoryUrl")}
+                        placeholder="https://github.com/owner/repo"
+                        onChange={(e) => {
+                            setRepoUrl(e.target.value)
+                            setFound(null)
+                            setSelected(new Set())
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") void scanRepo()
+                        }}
+                        disabled={scanning}
+                    />
+                    <Button
+                        variant="outline"
+                        className="shrink-0"
+                        onClick={() => void scanRepo()}
+                        disabled={scanning || !repoUrl.trim()}
+                    >
+                        {scanning ? <Spinner size="small" /> : null}
+                        {t("entityUi.skillNew.scan")}
+                    </Button>
+                </div>
+                {scanning ? <ScanSkeleton /> : null}
+                {found ? (
+                    <div className="flex flex-col gap-1.5 text-xs">
+                        <span className="font-medium">
+                            {t("skills.gallery.skillsFound", {count: found.length})}
+                        </span>
+                        {found.map((row) => {
+                            const locked = row.imported || Boolean(row.unavailable)
+                            return (
+                                <label
+                                    key={row.path}
+                                    className={cn(
+                                        ROW,
+                                        "border-colorBorderSecondary",
+                                        locked ? "opacity-60" : "cursor-pointer",
+                                    )}
+                                >
+                                    <Checkbox
+                                        className="mt-0.5"
+                                        checked={selected.has(row.path)}
+                                        disabled={locked}
+                                        onCheckedChange={() =>
+                                            setSelected((current) => {
+                                                const next = new Set(current)
+                                                if (!next.delete(row.path)) next.add(row.path)
+                                                return next
+                                            })
+                                        }
+                                        aria-label={t("skills.gallery.importAria", {
+                                            name: row.name,
+                                        })}
+                                    />
+                                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                        <span className="flex min-w-0 items-center gap-1.5">
+                                            <span className="min-w-0 truncate font-medium">
+                                                {row.name}
+                                            </span>
+                                            {row.imported ? (
+                                                <span className="shrink-0 rounded bg-colorFillTertiary px-1.5 py-px text-[10px] text-colorTextTertiary">
+                                                    {t("skills.gallery.alreadyImported")}
+                                                </span>
+                                            ) : null}
+                                        </span>
+                                        <span className="line-clamp-1 text-colorTextSecondary">
+                                            {row.unavailable ??
+                                                (row.description ||
+                                                    t("skills.gallery.noDescription"))}
+                                        </span>
+                                    </span>
+                                </label>
+                            )
+                        })}
+                    </div>
+                ) : null}
+                {errorLine}
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+            {onCreated ? (
+                <span className="text-xs text-colorTextSecondary">
+                    {t("entityUi.skillNew.chooseLine")}
+                </span>
+            ) : null}
+            <div className="flex flex-col gap-2">
+                <WayRow
+                    icon={<PencilSimple size={16} />}
+                    title={t("skills.gallery.menuWriteTitle")}
+                    hint={t("skills.gallery.menuWriteHint")}
+                    onSelect={() => openWrite(EMPTY_SKILL, null)}
+                />
+                <WayRow
+                    icon={<UploadSimple size={16} />}
+                    title={t("skills.gallery.menuUploadTitle")}
+                    hint={t("skills.gallery.menuUploadHint")}
+                    onSelect={() => setStep("upload")}
+                />
+                <WayRow
+                    icon={<GithubLogo size={16} />}
+                    title={t("skills.gallery.menuImportTitle")}
+                    hint={t("skills.gallery.menuImportHint")}
+                    onSelect={() => setStep("import")}
+                />
+            </div>
+        </div>
+    )
+}
+
+function WayRow({
+    icon,
+    title,
+    hint,
+    onSelect,
+}: {
+    icon: ReactNode
+    title: string
+    hint: string
+    onSelect: () => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onSelect}
+            className="box-border flex w-full cursor-pointer appearance-none items-start gap-3 rounded-lg border border-solid border-colorBorderSecondary bg-transparent p-3 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+        >
+            <span className="mt-0.5 shrink-0 text-colorTextSecondary">{icon}</span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-sm font-medium text-foreground">{title}</span>
+                <span className="text-xs text-muted-foreground">{hint}</span>
+            </span>
+        </button>
+    )
+}
+
+function UploadPicks({
+    picks,
+    onToggle,
+}: {
+    picks: {scan: SkillUploadScan; selected: Set<string>}
+    onToggle: (dir: string) => void
+}) {
+    const t = useT(skillsGalleryCatalog)
+    return (
+        <div className="flex flex-col gap-1.5 text-xs">
+            <span className="font-medium">
+                {t("skills.gallery.skillsFound", {count: picks.scan.candidates.length})}
+            </span>
+            {picks.scan.candidates.map((candidate) => (
+                <label
+                    key={candidate.dir}
+                    className={cn(ROW, "cursor-pointer border-colorBorderSecondary")}
+                >
+                    <Checkbox
+                        className="mt-0.5 rounded"
+                        checked={picks.selected.has(candidate.dir)}
+                        onCheckedChange={() => onToggle(candidate.dir)}
+                        aria-label={t("skills.gallery.importAria", {
+                            name: candidate.skill.name || candidate.dir,
+                        })}
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate font-mono">
+                            {candidate.skill.name || candidate.dir || t("skills.gallery.unnamed")}
+                        </span>
+                        <span className="line-clamp-1 text-colorTextSecondary">
+                            {candidate.skill.description ||
+                                candidate.dir ||
+                                t("skills.gallery.noDescription")}
+                        </span>
+                    </span>
+                </label>
+            ))}
+        </div>
+    )
+}
+
+function ScanSkeleton() {
+    return (
+        <div aria-hidden className="flex flex-col gap-1">
+            {[0, 1, 2].map((row) => (
+                <div key={row} className={cn(ROW, "border-colorBorderSecondary")}>
+                    <SkeletonBlock active className="mt-0.5 size-4 rounded" />
+                    <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        <SkeletonBlock active className="h-3.5 w-2/5 rounded" />
+                        <SkeletonBlock active className="h-3.5 w-4/5 rounded" />
+                    </span>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+export default NewSkillBody

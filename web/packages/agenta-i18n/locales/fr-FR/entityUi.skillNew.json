@@ -1,0 +1,17 @@
+{
+    "addManuallyHint": "Depuis votre registre, ou écrivez-en un",
+    "added": "Ajouté",
+    "addSkillAria": "Ajouter {{name}}",
+    "removeSkillAria": "Retirer {{name}}",
+    "removeRegistryBody": "Le skill reste dans votre registre de skills.",
+    "removeAgentOnlyBody": "Ce skill n’existe que dans cet agent. Le retirer le supprime.",
+    "chooseLine": "Le nouveau skill est ajouté à votre registre de skills et à cet agent.",
+    "stepTitle": "Nouveau skill › {{step}}",
+    "stepWrite": "Écrire",
+    "stepImport": "Importer",
+    "notSavedYet": "Pas encore enregistré",
+    "uploadLine": "Fichiers texte uniquement. L’import s’ouvre dans l’éditeur, et rien n’est enregistré avant « Créer le skill ».",
+    "or": "ou",
+    "scan": "Analyser",
+    "leaveDescription": "Créer le skill dans votre registre de skills, ou l’abandonner ?"
+}

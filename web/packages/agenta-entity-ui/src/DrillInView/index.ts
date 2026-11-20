@@ -116,7 +116,8 @@ export type {
     DrillInUIProviderProps,
     GatewayToolsBridge,
     SkillsBridge,
-    SkillsPickerHostProps,
+    SkillsAddBodyProps,
+    SkillsNewBodyProps,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
@@ -450,8 +451,6 @@ export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
 export {SkillFormView} from "./SchemaControls/SkillFormView"
 export {SkillFormSkeleton} from "./SchemaControls/DrawerSkeletons"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
-export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
-export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
 export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
 export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
 export {

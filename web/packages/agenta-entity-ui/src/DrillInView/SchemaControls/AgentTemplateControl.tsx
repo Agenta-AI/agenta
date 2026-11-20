@@ -97,6 +97,7 @@ import {instructionsView} from "./agentTemplate/views/instructionsView"
 import {integrationAddView} from "./agentTemplate/views/integrationAddView"
 import {integrationView} from "./agentTemplate/views/integrationView"
 import {modelView} from "./agentTemplate/views/modelView"
+import {skillAddView} from "./agentTemplate/views/skillAddView"
 import {skillItemRef, skillView} from "./agentTemplate/views/skillView"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {modelIdFromConfig} from "./connectionUtils"
@@ -544,9 +545,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
     )
-    // Registry-backed picker via the drill-in bridge (artboard 4b); the inline-skill
-    // editor stays the fallback on hosts that never wired the bridge.
-    const [skillPickerOpen, setSkillPickerOpen] = useState(false)
     // A skill row opens the skill view: an agent-only skill by its name, a registry skill by its
     // embed slug. A host with no registry body keeps the JSON round-trip for an embed.
     const openSkillItem = useCallback(
@@ -560,42 +558,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         [openEdit, openView, skillsBridge, viewTarget],
     )
+    // "Add manually" opens "Add skills"; a host with no skills bridge keeps the inline editor.
     const handleAddSkill = useCallback(() => {
-        if (skillsBridge?.enabled) setSkillPickerOpen(true)
+        if (skillsBridge?.enabled && viewTarget) void openView(skillAddView, {}, viewTarget)
         else openCreate("skill", ITEM_KINDS.skill.createSeed())
-    }, [openCreate, skillsBridge])
-    /** Embed slugs already on this agent, with their pin — what the picker marks "Added". */
-    const addedSkillRefs = useMemo(
-        () =>
-            skills
-                .filter((entry) => isEmbedRefSkill(entry))
-                .flatMap((entry): {slug: string; pinnedVersion?: string}[] => {
-                    const record = entry as Record<string, unknown>
-                    const slug = staticEmbedSlug(record)
-                    if (!slug) return []
-                    const pinnedVersion = embedRevisionVersion(record)
-                    return [pinnedVersion ? {slug, pinnedVersion} : {slug}]
-                }),
-        [skills],
-    )
-    const handleAddSkillEmbeds = useCallback(
-        (entries: Record<string, unknown>[]) => setAgentField("skills", [...skills, ...entries]),
-        [setAgentField, skills],
-    )
-    const handleRemoveSkillEmbeds = useCallback(
-        (slugs: string[]) => {
-            const drop = new Set(slugs)
-            setAgentField(
-                "skills",
-                skills.filter((entry) => {
-                    if (!isEmbedRefSkill(entry)) return true
-                    const slug = staticEmbedSlug(entry as Record<string, unknown>)
-                    return !slug || !drop.has(slug)
-                }),
-            )
-        },
-        [setAgentField, skills],
-    )
+    }, [openCreate, openView, skillsBridge, viewTarget])
 
     // Controlled open-state for the list sections so the accordion can react to the agent
     // populating a section. Seeded once from the initial counts; the edge hook below flips it.
@@ -1048,7 +1015,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             disabled,
             skills,
             handleAddSkill,
-            publishSkillError: null,
             openSkillItem,
             removeItem,
             closeEditor,
@@ -1205,16 +1171,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
-
-            {skillsBridge?.enabled ? (
-                <skillsBridge.PickerHost
-                    open={skillPickerOpen}
-                    onClose={() => setSkillPickerOpen(false)}
-                    added={addedSkillRefs}
-                    onAdd={handleAddSkillEmbeds}
-                    onRemove={handleRemoveSkillEmbeds}
-                />
-            ) : null}
 
             {workflowReference?.enabled && (
                 <SubagentDrawerContainer

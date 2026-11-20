@@ -16,11 +16,6 @@ export {
     type SkillGallerySectionsProps,
     type SkillGallerySection,
 } from "./SkillGallerySections"
-export {
-    SkillPickerDrawer,
-    type SkillPickerDrawerProps,
-    type SkillAddChoice,
-} from "./SkillPickerDrawer"
 export {buildRegistrySections, toSkillListItem, type RegistrySections} from "./registrySections"
 export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
 export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
@@ -31,7 +26,9 @@ export {
     type SkillDetailDrawerProps,
 } from "./SkillDetailDrawer"
 export {SkillAgentPicker} from "./SkillAgentPicker"
-export {SkillPickerHost} from "./SkillPickerHost"
+export {AddSkillsBody} from "./AddSkillsBody"
+export {NewSkillBody, type NewSkillBodyProps, type NewSkillStart} from "./NewSkillBody"
+export {registryNewSkillView, type RegistryNewSkillParams} from "./registryNewSkillView"
 export {registrySkillView, RegistrySkillBody} from "./registrySkillView"
 export {SourceRefreshButton} from "./SourceRefreshButton"
 export {useSkillsBridge} from "./bridge"

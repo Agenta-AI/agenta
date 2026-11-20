@@ -1,0 +1,17 @@
+{
+    "addManuallyHint": "From your registry, or write one",
+    "added": "Added",
+    "addSkillAria": "Add {{name}}",
+    "removeSkillAria": "Remove {{name}}",
+    "removeRegistryBody": "The skill stays in your skill registry.",
+    "removeAgentOnlyBody": "This skill is only in this agent. Removing it deletes it.",
+    "chooseLine": "The new skill is added to your skill registry and to this agent.",
+    "stepTitle": "New skill › {{step}}",
+    "stepWrite": "Write",
+    "stepImport": "Import",
+    "notSavedYet": "Not saved yet",
+    "uploadLine": "Text files only. The upload opens in the editor, and nothing is saved until \"Create skill\".",
+    "or": "or",
+    "scan": "Scan",
+    "leaveDescription": "Create the skill in your skill registry, or discard it?"
+}
