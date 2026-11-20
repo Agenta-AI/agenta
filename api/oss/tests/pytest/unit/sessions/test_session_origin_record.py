@@ -73,7 +73,7 @@ def _created(**fields) -> SessionStreamDBE:
 
 
 # One row per `RunOrigin` value: the origin a session reads after a run with that
-# origin creates it without an attribution.
+# origin creates it. `calling_session` comes with its record (see the round trip).
 _ROWS = {
     RunOrigin.WEB: SessionOrigin.manual,
     RunOrigin.EVALUATION: SessionOrigin.manual,
@@ -90,7 +90,9 @@ def test_every_run_origin_has_a_row():
     assert set(_ROWS) == set(RunOrigin)
 
 
-@pytest.mark.parametrize("run_origin", list(RunOrigin))
+@pytest.mark.parametrize(
+    "run_origin", [value for value in RunOrigin if value != RunOrigin.CALLING_SESSION]
+)
 def test_the_creating_run_origin_maps_to_the_session_origin(run_origin):
     envelope = make_envelope(origin=run_origin.value)
     tags = session_origin_tags(envelope)
@@ -189,6 +191,8 @@ def test_the_calling_session_record_round_trips():
         (RunOrigin.WEB, _trigger(SessionTriggerKind.schedule)),
         (RunOrigin.API, _calling_session()),
         (None, _calling_session()),
+        # No row reads `calling_session` without its record.
+        (RunOrigin.CALLING_SESSION, None),
     ],
 )
 def test_an_attribution_that_does_not_match_the_run_origin_is_refused(

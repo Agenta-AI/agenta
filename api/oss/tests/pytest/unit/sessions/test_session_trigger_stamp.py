@@ -106,6 +106,7 @@ async def test_claim_compiles_as_one_postgres_statement():
     delivery_id = uuid4()
 
     claimed = await dao.claim_trigger_delivery(
+        envelope=None,
         project_id=uuid4(),
         user_id=uuid4(),
         event_id="event-1",

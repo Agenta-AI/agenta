@@ -195,7 +195,7 @@ class TriggerSessionClaimsDAOInterface(ABC):
         session_id: str,
         attribution: SessionTriggerAttribution,
         access: AccessPolicy,
-        envelope: Optional[RunEnvelope] = None,
+        envelope: Optional[RunEnvelope],
     ) -> bool:
         """Atomically claim one trigger delivery and attribute its session.
 

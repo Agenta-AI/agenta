@@ -197,6 +197,7 @@ async def test_soft_delete_retains_subscription_and_delivery_until_explicit_purg
     blocked_delivery_id = uuid.uuid4()
     assert (
         await SessionStreamsDAO(engine=engine).claim_trigger_delivery(
+            envelope=None,
             project_id=project_id,
             user_id=user_id,
             event_id="blocked-subscription-event",
@@ -282,6 +283,7 @@ async def test_atomic_claim_rejects_disabled_or_deleted_schedule(
 
     delivery_id = uuid.uuid4()
     claimed = await streams_dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=user_id,
         event_id="blocked-event",

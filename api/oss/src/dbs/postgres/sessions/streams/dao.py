@@ -271,7 +271,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         session_id: str,
         attribution: SessionTriggerAttribution,
         access: AccessPolicy,
-        envelope: Optional[RunEnvelope] = None,
+        envelope: Optional[RunEnvelope],
     ) -> bool:
         by_schedule = attribution.kind == SessionTriggerKind.schedule
         claim_status = Status(code="102", message="claimed")
@@ -524,10 +524,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             if SessionOrigin.manual.value in origin_values:
                 # Nothing ever stamps "manual": every human session has a NULL
                 # origin (`session_origin_tags` writes no tag for one). Admit NULL
-                # when "manual" is requested, or
-                # `origins: ["manual"]` matches zero rows and
-                # `origins: ["manual", "trigger"]` silently drops every human
-                # session (P1-1).
+                # when "manual" is requested, or `origins: ["manual"]` matches zero
+                # rows and `origins: ["manual", "trigger"]` silently drops every
+                # human session (P1-1).
                 stmt = stmt.where(or_(origin.in_(origin_values), origin.is_(None)))
             else:
                 stmt = stmt.where(origin.in_(origin_values))
