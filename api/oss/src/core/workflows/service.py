@@ -4498,6 +4498,7 @@ class WorkflowsService:
         control_command_id: Optional[UUID] = None,
         strict_start: bool = False,
         admitted_agent_id: Optional[UUID] = None,
+        keep_session_warm: bool = False,
     ) -> WorkflowServiceDetachedResponse:
         """Fire-and-forget invoke: stream the service and return on the started handshake.
 
@@ -4507,8 +4508,14 @@ class WorkflowsService:
         watchdog + producer-driven transcript ingest). ``run_id``/``project_id`` ride the
         request ``meta`` so the deployed workflow service threads them onto the runner wire
         (Foundation B) and the runner can prove alive-lock ownership on heartbeat.
+
+        ``keep_session_warm`` sets ``flags.detached``. It tells the runner that this call closes
+        the stream on purpose after the first record, so the close does not count as a lost
+        client and the session's sandbox can park for the next message.
         """
         run_id = run_id or str(uuid4())
+        if keep_session_warm:
+            request.flags = {**(request.flags or {}), "detached": True}
 
         # Thread the coordination ids through `meta` so the workflow service forwards them onto
         # the runner wire (`runId`/`projectId`); merged, not overwritten.
