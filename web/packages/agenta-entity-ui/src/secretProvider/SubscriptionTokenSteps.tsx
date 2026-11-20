@@ -78,7 +78,7 @@ export const SubscriptionTokenSteps = ({
                                 href={CLAUDE_CODE_SETUP_URL}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-btn-link no-underline hover:text-btn-link-hover"
+                                className="text-colorText underline underline-offset-2"
                             >
                                 {text}
                             </a>
@@ -106,6 +106,7 @@ export const SubscriptionTokenSteps = ({
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="sk-ant-oat01-…"
+                    className="font-mono md:text-[12px]"
                     value={token.value}
                     disabled={token.checking}
                     aria-invalid={token.error ? true : undefined}

@@ -1,6 +1,6 @@
 import {createT, type CatalogKey} from "@agenta/i18n"
 import agentConfigCatalog from "@agenta/i18n/catalogs/entityUi.agentConfig"
-import {skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
+import {stripStaticSkillPrefix} from "@agenta/shared/utils"
 
 // Every helper here translates when called, so a re-rendering card reads the current language.
 const tNow = createT(agentConfigCatalog)
@@ -44,15 +44,15 @@ const str = (value: unknown): string | null =>
 
 const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0)
 
-/** A skill entry's readable title: the sibling `name` (embed refs carry it too), else the
- * referenced workflow slug, else null (an unparseable entry stays counted but unnamed). */
+/** A skill entry's one name (its slug, as written): the sibling `name` (embed refs carry it too),
+ * else the referenced workflow slug, else null (an unparseable entry stays counted but unnamed). */
 const skillName = (entry: unknown): string | null => {
     if (!isRecord(entry)) return null
     const name = str(entry.name)
-    if (name) return skillDisplayName(stripStaticSkillPrefix(name))
+    if (name) return stripStaticSkillPrefix(name)
     const refs = nested(nested(entry, "@ag.embed"), "@ag.references")
     const slug = str(nested(refs, "workflow")?.slug) ?? str(nested(refs, "workflow_revision")?.slug)
-    return slug ? skillDisplayName(stripStaticSkillPrefix(slug)) : null
+    return slug ? stripStaticSkillPrefix(slug) : null
 }
 
 /** A gateway-connection tool's integration key; null for a custom or builtin tool. */

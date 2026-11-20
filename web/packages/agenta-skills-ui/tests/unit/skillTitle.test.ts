@@ -4,7 +4,7 @@ import {toSkillListItem} from "../../src/registrySections"
 import {skillTitle} from "../../src/skillTitle"
 
 describe("skillTitle", () => {
-    it("titles a registry item from its SKILL.md name, not the suffixed workflow name", () => {
+    it("names a registry item by its SKILL.md name as written, not the suffixed workflow name", () => {
         const item = toSkillListItem(
             {
                 workflow_id: "wf-1",
@@ -14,13 +14,13 @@ describe("skillTitle", () => {
             },
             "project",
         )
-        expect(skillTitle(item)).toBe("Laptop Replacement Policy")
+        expect(skillTitle(item)).toBe("laptop-replacement-policy")
     })
 
-    it("titles a picker item whose slug is the suffixed workflow slug", () => {
+    it("names a picker item whose slug is the suffixed workflow slug", () => {
         // The shape `toPickerItem` builds: the slug is the embed identity, not a title.
         const item = {slug: "laptop-replacement-policy-3f2a", name: "laptop-replacement-policy"}
-        expect(skillTitle(item)).toBe("Laptop Replacement Policy")
+        expect(skillTitle(item)).toBe("laptop-replacement-policy")
     })
 
     it("never titles from a non-built-in slug", () => {
@@ -31,7 +31,7 @@ describe("skillTitle", () => {
     })
 
     it("drops the reserved prefix of a built-in known only by its storage slug", () => {
-        expect(skillTitle({slug: "__ag__web-search", name: ""})).toBe("Web Search")
-        expect(skillTitle({slug: "__ag__web-search", name: "__ag__web-search"})).toBe("Web Search")
+        expect(skillTitle({slug: "__ag__web-search", name: ""})).toBe("web-search")
+        expect(skillTitle({slug: "__ag__web-search", name: "__ag__web-search"})).toBe("web-search")
     })
 })

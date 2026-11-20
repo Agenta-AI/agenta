@@ -24,7 +24,7 @@
     "fileContent": "Contenido del archivo",
     "advanced": "Avanzado",
     "hideFromPrompt": "Ocultar del prompt",
-    "hideFromPromptHint": "El agente no elegirá este skill por su cuenta. Lo ejecutas tú con /skill:name.",
+    "hideFromPromptHint": "El agente no elegirá este skill por su cuenta. Lo ejecutas tú con /skill:{{name}}.",
     "allowExecutable": "Permitir archivos ejecutables",
     "allowExecutableHint": "Permite que los archivos de este skill se ejecuten como programas. La configuración de tu sandbox también debe permitirlo."
 }

@@ -1,5 +1,5 @@
 /** The fields of "Attach a secret" (F04 f4 to f7), in the attach view and in the dock's modal. */
-import {useRef} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {richText, useT} from "@agenta/i18n"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
@@ -13,6 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
+import {LockSimple, Plus} from "@phosphor-icons/react"
 
 import {ACCOUNT_COPY} from "../../accounts/copy"
 import {useProjectName} from "../../accounts/useProjectName"
@@ -26,11 +27,41 @@ import type {SecretAttachForm, SecretListEntry} from "./useSecretAttachForm"
 const SECRET_FIELD_ID = "agent-secret-attach-secret"
 const ENV_FIELD_ID = "agent-secret-attach-env"
 
+/** The canvas form label: 12 px, weight 500, secondary. */
+const LABEL_CLASS = "text-[12px] font-medium leading-4 text-colorTextSecondary"
+/** The help line under a field. */
+const HELP_CLASS = "text-[12px] leading-4"
+/**
+ * Fields on the canvas scale (13 px, radius 6) from md up; a phone keeps 16 px so iOS does not
+ * zoom. The mono line height leaves room for underscores, which a 20 px line clips on Linux.
+ */
+const FIELD_CLASS = "rounded-[6px] md:text-[13px]"
+
+/**
+ * Auto-save leaves the agent's draft dirty until the save lands. The notice shows only when the
+ * draft stays dirty for longer than a save takes, so a save in flight does not flash it.
+ */
+const DIRTY_NOTICE_DELAY_MS = 1500
+
+/** True once `value` has stayed true for `ms`; false at once when it turns false. */
+export const useHeldTrue = (value: boolean, ms: number): boolean => {
+    const [held, setHeld] = useState(false)
+    useEffect(() => {
+        if (!value) {
+            setHeld(false)
+            return
+        }
+        const timer = setTimeout(() => setHeld(true), ms)
+        return () => clearTimeout(timer)
+    }, [value, ms])
+    return value && held
+}
+
 /** Whose a secret is: "Everyone" or "Only me", at the right of its name. */
 export const SecretOwnerTag = ({owner}: {owner: SecretListEntry["owner"]}) => {
     const t = useT(secretViewsCatalog)
     return (
-        <span className="ml-auto shrink-0 rounded px-1.5 text-[11px] leading-[18px] text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary">
+        <span className="ml-auto inline-flex h-5 shrink-0 items-center rounded px-[7px] font-sans text-[12px] leading-4 text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary">
             {owner === "shared" ? t("entityUi.secretViews.everyone") : ACCOUNT_COPY.onlyMe}
         </span>
     )
@@ -56,12 +87,13 @@ export function SecretAttachFields({
     const valueRef = useRef<HTMLTextAreaElement>(null)
     const creating = form.choice.kind === "new"
     const projectName = useProjectName(Boolean(form.owners))
+    const showDirtyNotice = useHeldTrue(agentDirty, DIRTY_NOTICE_DELAY_MS)
     // A seeded name means the value is the only thing left to type.
     const focusNewSecretField = () =>
         (request?.name?.trim() ? valueRef.current : nameRef.current)?.focus()
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3.5">
             {request ? (
                 <p className="m-0 text-xs text-colorTextSecondary">
                     {richText(t("entityUi.secretAttachment.agentAskedFor", {name: request.name}), {
@@ -72,13 +104,14 @@ export function SecretAttachFields({
             ) : null}
 
             <div className="flex flex-col gap-1">
-                <label htmlFor={SECRET_FIELD_ID} className="font-medium text-colorText">
+                <label htmlFor={SECRET_FIELD_ID} className={LABEL_CLASS}>
                     {t("entityUi.secretAttachment.secret")}
                 </label>
                 <Select value={form.selected} onValueChange={form.select} disabled={form.loading}>
                     <SelectTrigger
                         id={SECRET_FIELD_ID}
-                        className="[&>span:first-child]:flex [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:items-center [&>span:first-child]:gap-2"
+                        // The "+" of "Create new secret" shows in the list only, not in the trigger.
+                        className="md:h-9 md:rounded-[6px] md:text-[13px] [&>span:first-child>svg]:hidden [&>span:first-child]:flex [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                     >
                         <SelectValue
                             placeholder={
@@ -104,23 +137,42 @@ export function SecretAttachFields({
                                 value={entry.value}
                                 className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                             >
-                                <span className="min-w-0 truncate">{entry.name}</span>
+                                <span className="min-w-0 truncate font-mono text-[13px]">
+                                    {entry.name}
+                                </span>
                                 <SecretOwnerTag owner={entry.owner} />
                             </SelectItem>
                         ))}
                         {form.canCreate ? (
                             <>
                                 {form.entries.length > 0 ? <SelectSeparator /> : null}
-                                <SelectItem value={NEW_SECRET}>
-                                    {ACCOUNT_COPY.createNewSecret}
+                                <SelectItem
+                                    value={NEW_SECRET}
+                                    className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
+                                >
+                                    <Plus
+                                        size={14}
+                                        aria-hidden
+                                        className="shrink-0 text-colorTextSecondary"
+                                    />
+                                    <span className="md:text-[13px]">
+                                        {ACCOUNT_COPY.createNewSecret}
+                                    </span>
                                 </SelectItem>
                             </>
                         ) : null}
                     </SelectContent>
                 </Select>
                 {form.choice.kind === "user" ? (
-                    <span className="text-xs text-colorTextSecondary">
-                        {t("entityUi.secretViews.onlyYouLine")}
+                    <span
+                        className={`mt-1 flex items-start gap-2 text-colorTextSecondary ${HELP_CLASS}`}
+                    >
+                        <LockSimple
+                            size={14}
+                            aria-hidden
+                            className="mt-px shrink-0 text-colorTextTertiary"
+                        />
+                        <span>{t("entityUi.secretViews.onlyYouLine")}</span>
                     </span>
                 ) : null}
             </div>
@@ -141,9 +193,7 @@ export function SecretAttachFields({
                     />
                     {form.owners ? (
                         <div className="flex flex-col gap-1">
-                            <span className="font-medium text-colorText">
-                                {ACCOUNT_COPY.whoCanUseIt}
-                            </span>
+                            <span className={LABEL_CLASS}>{ACCOUNT_COPY.whoCanUseIt}</span>
                             <OwnerRadioGroup<SecretOwner>
                                 value={form.owner}
                                 onChange={form.setOwner}
@@ -166,12 +216,12 @@ export function SecretAttachFields({
             ) : null}
 
             <div className="flex flex-col gap-1">
-                <label htmlFor={ENV_FIELD_ID} className="font-medium text-colorText">
+                <label htmlFor={ENV_FIELD_ID} className={LABEL_CLASS}>
                     {t("entityUi.secretAttachment.environmentVariable")}
                 </label>
                 <Input
                     id={ENV_FIELD_ID}
-                    className="font-mono"
+                    className={`h-[34px] py-0 font-mono leading-6 ${FIELD_CLASS}`}
                     value={form.envVar}
                     placeholder={t("entityUi.secretAttachment.envPlaceholder")}
                     onChange={(event) => form.setEnvVar(event.target.value)}
@@ -180,7 +230,7 @@ export function SecretAttachFields({
                     aria-invalid={form.envError ? true : undefined}
                 />
                 <span
-                    className={`text-xs ${form.envError ? "text-error" : "text-colorTextSecondary"}`}
+                    className={`${HELP_CLASS} ${form.envError ? "text-error" : "text-colorTextTertiary"}`}
                 >
                     {form.envError === "invalid"
                         ? t("entityUi.secretAttachment.envInvalid")
@@ -190,7 +240,7 @@ export function SecretAttachFields({
                 </span>
             </div>
 
-            {agentDirty ? (
+            {showDirtyNotice ? (
                 <div className="rounded-lg border border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] p-3 text-xs text-colorText">
                     {t("entityUi.secretAttachment.saveOrDiscard")}
                 </div>

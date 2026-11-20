@@ -64,5 +64,7 @@ const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
 export const modelView = defineView<ModelViewParams>({
     id: "agent.model",
     apply: "immediate",
+    // A pick applies at once; the canvas draws no Done (F01 f2).
+    actionRow: false,
     Component: ModelViewBody,
 })

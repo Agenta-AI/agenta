@@ -44,6 +44,8 @@ export const subscriptionSignInView = defineView<SubscriptionViewParams>({
 export const subscriptionTokenView = defineView<SubscriptionViewParams>({
     id: "project.modelProviders.subscriptionToken",
     apply: "on_save",
+    // Connect and Cancel are in the view's card (F11 f10), not in an action row.
+    actionRow: false,
     Component: lazyView(() => import("./SubscriptionTokenViewBody")),
 })
 

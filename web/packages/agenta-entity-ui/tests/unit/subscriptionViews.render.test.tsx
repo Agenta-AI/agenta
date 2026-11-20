@@ -130,7 +130,8 @@ const Chrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
             )}
         </nav>
         {children}
-        <ViewFormActions {...actions} />
+        {/* As the real chromes: no action row for a view that asks for none. */}
+        {actions.readOnly ? null : <ViewFormActions {...actions} />}
     </div>
 )
 
@@ -353,7 +354,17 @@ describe("Claude token view", {timeout: 30_000}, () => {
         expect(button("Connect")?.disabled).toBe(true)
         await change(field, "sk-ant-oat01-abc")
         await waitFor(() => expect(button("Connect")?.disabled).toBe(false))
-        // Enter stores nothing: Save of the stack is the one save path.
+        // Connect and Cancel are inside the card, Connect first; the stack draws no action row.
+        const card = button("Connect")?.closest("section")
+        expect(card?.textContent).toContain("Paste the token the command prints")
+        const inCard = [...(card?.querySelectorAll("button") ?? [])].map((b) => b.textContent)
+        expect(inCard.slice(-2)).toEqual(["Connect", "Cancel"])
+        expect(
+            [...document.querySelectorAll("button")].filter((b) => b.textContent === "Connect"),
+        ).toHaveLength(1)
+        expect(field.className).toContain("font-mono")
+        expect(byText("Claude Code", "a")?.className).toContain("underline")
+        // Enter stores nothing: Connect is the one save path.
         await keyDown(field, "Enter")
         expect(fx.tokens).toEqual([])
         await click(button("Connect"))

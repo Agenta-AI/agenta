@@ -322,6 +322,25 @@ describe("Attach a secret: the attach", () => {
         ])
     })
 
+    it("the variable follows the picked secret, also when it is the person's own", async () => {
+        fx.own = [{...mine, defaultEnvVar: "GITHUB_TOKEN"}]
+        await openIn(secretAttachView, {}, AGENT)
+        await findByText("here:Attach a secret")
+        await choose(secretSelect(), "billing-prod")
+        expect(envField().value).toBe("BILLING_API_KEY")
+        await choose(secretSelect(), "my-github-token")
+        expect(envField().value).toBe("GITHUB_TOKEN")
+    })
+
+    it("a variable the person typed stays when the secret changes", async () => {
+        await openIn(secretAttachView, {}, AGENT)
+        await findByText("here:Attach a secret")
+        await choose(secretSelect(), "billing-prod")
+        await change(envField(), "MY_KEY")
+        await choose(secretSelect(), "my-github-token")
+        expect(envField().value).toBe("MY_KEY")
+    })
+
     it("when the account choice cannot be stored, saves no version", async () => {
         fx.choiceOk = false
         await openIn(secretAttachView, {}, AGENT)
@@ -384,6 +403,16 @@ describe("Attach a secret: Save & attach", () => {
         await change(document.querySelector("#agent-secret-attach-name")!, "CRM_TOKEN")
         await change(document.querySelector("#agent-secret-attach-value")!, "crm-value")
     }
+
+    it("draws Value as a one-line field that says Paste the secret, and Name in mono", async () => {
+        await fillNew()
+        const value = document.querySelector<HTMLTextAreaElement>("#agent-secret-attach-value")!
+        expect(value.placeholder).toBe("Paste the secret")
+        expect(value.rows).toBe(1)
+        expect(document.querySelector("#agent-secret-attach-name")!.className).toContain(
+            "font-mono",
+        )
+    })
 
     it("a new secret for everyone goes to the vault, then the agent attaches it", async () => {
         await fillNew()
@@ -560,6 +589,10 @@ describe("Advanced", () => {
         expect(tools.textContent).toContain("Agenta tools")
         expect(tools.textContent).toContain("· 2 tools")
         expect(document.querySelector('[data-testid="advanced-part-build-kit"]')).toBeNull()
+        // One bordered card (F04 f9), each row with the triangle caret.
+        expect(execution.parentElement).toBe(tools.parentElement)
+        expect(execution.parentElement?.className).toContain("border-colorBorderSecondary")
+        expect(execution.querySelector('[data-slot="collapse-caret"]')).not.toBeNull()
     })
 
     it("the Configuration page's Advanced card shows the same rows as the view", async () => {

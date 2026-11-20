@@ -2,7 +2,7 @@
  * The provider key form: the automatic key check (paste, blur, no duplicate, Stop), the answers
  * it shows, the Name field, Bedrock's two ways to sign in, and the save state the form publishes.
  */
-import {act, createElement} from "react"
+import {act, createElement, StrictMode} from "react"
 
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -79,20 +79,25 @@ const render = async (
     {
         connection = null,
         connections = [],
-    }: {connection?: ProviderConnection | null; connections?: ProviderConnection[]} = {},
+        strict = false,
+    }: {
+        connection?: ProviderConnection | null
+        connections?: ProviderConnection[]
+        /** Under StrictMode, as the dev app renders: effects mount, unmount and mount again. */
+        strict?: boolean
+    } = {},
 ) => {
+    const card = createElement(ProviderConnectionCard, {
+        kind,
+        connection,
+        connections,
+        onSaved: vi.fn(),
+        onSaveStateChange: (state: ProviderCardSaveState) => {
+            saveState = state
+        },
+    })
     await act(async () => {
-        root.render(
-            createElement(ProviderConnectionCard, {
-                kind,
-                connection,
-                connections,
-                onSaved: vi.fn(),
-                onSaveStateChange: (state: ProviderCardSaveState) => {
-                    saveState = state
-                },
-            }),
-        )
+        root.render(strict ? createElement(StrictMode, null, card) : card)
     })
 }
 
@@ -203,6 +208,28 @@ describe("the key check", () => {
         expect(probeMutation.mutateAsync).toHaveBeenCalledTimes(1)
     })
 
+    it("starts a moment after the last keystroke while the focus stays in the field", async () => {
+        vi.useFakeTimers()
+        try {
+            await render("openai")
+            const key = field("Paste your OpenAI API key")
+            await type(key, "sk-typ")
+            await act(async () => vi.advanceTimersByTime(500))
+            await type(key, "sk-typed")
+            await act(async () => vi.advanceTimersByTime(500))
+            // Each keystroke starts the wait again.
+            expect(probeMutation.mutateAsync).not.toHaveBeenCalled()
+
+            await act(async () => vi.advanceTimersByTime(400))
+            expect(probeMutation.mutateAsync).toHaveBeenCalledTimes(1)
+            expect(probeMutation.mutateAsync).toHaveBeenCalledWith(
+                expect.objectContaining({provider: {key: "sk-typed"}}),
+            )
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it("Stop aborts the request, drops its answer and keeps the key", async () => {
         await render("openai")
         const probe = deferredProbe()
@@ -250,6 +277,13 @@ describe("the answers", () => {
         await render("openai")
         await paste(field("Paste your OpenAI API key"), "sk-bad")
 
+        // The key field is marked: a red border and aria-invalid.
+        const key = field("Paste your OpenAI API key")
+        expect(key.getAttribute("aria-invalid")).toBe("true")
+        expect(key.closest("[data-slot=input-affix]")?.className).toContain(
+            "border-colorErrorBorder",
+        )
+
         expect(text()).toContain(
             "OpenAI did not accept this key. Check that you copied all of it, then paste it again.",
         )
@@ -296,6 +330,13 @@ describe("a saved connection", () => {
         expect(saveState?.dirty).toBe(false)
     })
 
+    it("finishes the list update under StrictMode, which mounts the card twice", async () => {
+        await render("openai", {connection: openaiConnection(), strict: true})
+
+        expect(text()).not.toContain("Updating the list…")
+        expect(text()).toContain("List updated just now ·")
+    })
+
     it("says the provider could not be reached and keeps Save enabled", async () => {
         probeMutation.mutateAsync.mockRejectedValueOnce(new Error("network"))
         await render("openai", {connection: openaiConnection()})
@@ -318,14 +359,18 @@ describe("AWS Bedrock", () => {
         await type(field("Enter AWS region"), "us-east-1")
         await type(field("Enter Bedrock API key"), "bedrock-key")
 
-        await click(host.querySelector('[role="radio"][value="accessKeys"]') ?? undefined)
+        const way = (label: string) =>
+            [...host.querySelectorAll('[role="radio"]')].find((radio) =>
+                radio.textContent?.startsWith(label),
+            )
+        await click(way("Access keys"))
         expect(inputs().some((input) => input.placeholder === "Enter Bedrock API key")).toBe(false)
         await type(field("Enter access key ID"), "AKIA123")
         await paste(field("Enter secret access key"), "secret-123")
 
-        await click(host.querySelector('[role="radio"][value="apiKey"]') ?? undefined)
+        await click(way("API key"))
         expect(field("Enter Bedrock API key").value).toBe("bedrock-key")
-        await click(host.querySelector('[role="radio"][value="accessKeys"]') ?? undefined)
+        await click(way("Access keys"))
         await blur(field("Enter secret access key"))
 
         expect(saveState?.canSave).toBe(true)
@@ -359,6 +404,16 @@ describe("submit", () => {
         })
         expect(stored).toBe(false)
         expect(saveState?.error).toBe("Agenta could not save this OpenAI connection. Try again.")
+    })
+})
+
+describe("the Harnesses summary", () => {
+    it("does not say any harness when no harness can reach the provider", async () => {
+        // The capabilities above declare no Azure deployment, so every harness is incompatible.
+        await render("azure")
+        expect(text()).toContain("Incompatible with this provider")
+        expect(text()).not.toContain("any harness Agenta supports")
+        expect(text()).toContain("no harness selected")
     })
 })
 

@@ -78,6 +78,11 @@ export interface ViewNav {
     back: () => Promise<boolean>
     /** Cancel: discards the local form without asking, then goes back. */
     cancel: () => void
+    /**
+     * The action row's Save, for a view that draws its own Save inside the body
+     * (`actionRow: false`): the same guarded save, and the view leaves when it lands.
+     */
+    save: () => Promise<void>
 }
 
 /**
@@ -106,6 +111,16 @@ export interface ViewForm {
     saveLabel?: string
     /** The Save button's label while the save runs (for example "Checking…"). */
     savingLabel?: string
+    /**
+     * `false`: no action row for now, for a step whose own controls go on (a choice of cards).
+     * Leave it out to keep the view's row.
+     */
+    actionRow?: false
+    /**
+     * What the row's Cancel does for now, in place of leaving the view: a step inside the view
+     * that Cancel closes (an upload step goes back to the file).
+     */
+    cancel?: () => void
 }
 
 /** For the container's root and for the container itself. */
