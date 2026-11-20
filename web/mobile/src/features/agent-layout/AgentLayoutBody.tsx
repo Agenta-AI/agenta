@@ -56,6 +56,9 @@ const BuilderPanel = dynamic(() => import("../builder/BuilderPanel").then((m) =>
     loading: ChatLoading,
 })
 
+/** The session column a pushed panel leaves at least (the header's name, session and icons). */
+const SESSION_COLUMN_MIN = 480
+
 export interface AgentLayoutProps {
     agentId: string | null
     sessionId: string
@@ -396,6 +399,14 @@ export const AgentLayoutBody = ({
             <div className="relative flex h-full min-h-0 overflow-x-clip">
                 <div
                     className="ag-canvas flex h-full min-h-0 min-w-0 flex-1 flex-col"
+                    // A pushed panel stops short of this column (a wide panel at 1100 px), so the
+                    // session header keeps the agent name, the session and its icons. Never more
+                    // than the room the panel's own minimum leaves, so nothing is clipped.
+                    style={
+                        mode === "push" && open
+                            ? {minWidth: `min(${SESSION_COLUMN_MIN}px, calc(100% - ${min}px))`}
+                            : undefined
+                    }
                     inert={mode === "full" && open}
                 >
                     {header}

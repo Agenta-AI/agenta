@@ -2281,7 +2281,6 @@
         "removeAsSubagent": "82496ab307a7",
         "addAsSubagent": "c024c9e28f22",
         "noDescription": "bcd8cc53f40e",
-        "appsConnectedTo": "cb514615b461",
         "add": "9fd728c66c9a",
         "addSubagents": "5b80e1084783",
         "pickAgents": "a04935d9c035",
@@ -3228,7 +3227,6 @@
         "collapseDrawer": "266be0690947",
         "expandDrawer": "f27af4e1ebe9",
         "close": "7d9eb7acb13e",
-        "closeFilesPane": "23794d8daa1d",
         "back": "76900f1bfd16",
         "backShortcut": "af9d42ae3fba",
         "forward": "f1c65e14817e",
@@ -5183,7 +5181,9 @@
         "settings.tools": "ea93d6a262ec",
         "settings.watchWalkthrough": "bfdf6444aeac",
         "settings.webhooks": "45808d75bf89",
-        "settings.workspace": "1044a4c056d0"
+        "settings.workspace": "1044a4c056d0",
+        "chrome.collapseSidebar": "044eaf90532d",
+        "chrome.expandSidebar": "dc915b213c74"
     },
     "observability.addToTestset": {
         "sheetTitle": "12880f2e402e",

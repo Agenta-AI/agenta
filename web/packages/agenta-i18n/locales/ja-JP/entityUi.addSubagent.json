@@ -2,7 +2,6 @@
     "removeAsSubagent": "{{name}} をサブエージェントから外す",
     "addAsSubagent": "{{name}} をサブエージェントとして追加",
     "noDescription": "説明なし",
-    "appsConnectedTo": "{{name}} に接続されたアプリ",
     "add": "追加",
     "addSubagents": "サブエージェントを追加",
     "pickAgents": "· このエージェントが呼び出せるエージェントを選択します。",

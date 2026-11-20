@@ -201,6 +201,11 @@ export interface PermissionDrawerSource {
      * text, with no select and no footer. The search stays. Off, nothing changes.
      */
     valuesAsText?: boolean
+    /**
+     * A tool set to "deny" draws as every other value. For a source where "deny" means the tool
+     * is off ("Deactivate", the Agenta tools), not a refusal. Off, "deny" is red.
+     */
+    plainDeny?: boolean
 }
 
 /** What the Composio list of one integration needs. */
@@ -265,6 +270,7 @@ const ToolRow = memo(function ToolRow({
     valuesAsText,
     staleLabel,
     phone,
+    plainDeny,
 }: {
     tool: CatalogToolInfo
     permission: GatewayPermission
@@ -278,6 +284,7 @@ const ToolRow = memo(function ToolRow({
     staleLabel: string
     /** On a phone the select takes its own line, so the name is never cut (M09). */
     phone?: boolean
+    plainDeny?: boolean
 }) {
     const t = useT(permissionDrawerCatalog)
     // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
@@ -353,7 +360,7 @@ const ToolRow = memo(function ToolRow({
                                 ? "w-full !h-11 !rounded-[8px] !text-[15px]"
                                 : "w-auto min-w-[96px] shrink-0 gap-2 !h-7 !rounded-[6px] !px-2 !text-[13px] sm:min-w-[116px]"
                         } ${
-                            permission === "deny"
+                            permission === "deny" && !plainDeny
                                 ? "border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
                                 : ""
                         }`}
@@ -389,6 +396,7 @@ function ToolGroup({
     valuesAsText,
     staleLabel,
     phone,
+    plainDeny,
 }: {
     label: string
     groupKey: string
@@ -405,6 +413,7 @@ function ToolGroup({
     valuesAsText?: boolean
     staleLabel: string
     phone?: boolean
+    plainDeny?: boolean
 }) {
     const t = useT(permissionDrawerCatalog)
     const [expanded, setExpanded] = useAtom(permissionGroupsExpandedAtom)
@@ -480,6 +489,7 @@ function ToolGroup({
                                 valuesAsText={valuesAsText}
                                 staleLabel={staleLabel}
                                 phone={phone}
+                                plainDeny={plainDeny}
                             />
                         )
                     })}
@@ -524,6 +534,7 @@ export function PermissionDrawerBody({
     footNote,
     readOnly,
     valuesAsText,
+    plainDeny,
     account,
     flush = false,
 }: {
@@ -747,6 +758,7 @@ export function PermissionDrawerBody({
                             valuesAsText={valuesAsText}
                             staleLabel={stale}
                             phone={phone}
+                            plainDeny={plainDeny}
                         />
                         <ToolGroup
                             label={writeLabel ?? t("entityUi.permissionDrawer.writeGroup")}
@@ -764,6 +776,7 @@ export function PermissionDrawerBody({
                             valuesAsText={valuesAsText}
                             staleLabel={stale}
                             phone={phone}
+                            plainDeny={plainDeny}
                         />
                     </div>
                 )}

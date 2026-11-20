@@ -192,14 +192,13 @@ describe("D1 — the drawer at its default", () => {
         expect(text()).toContain("Connected")
     })
 
-    it("leads the header with the generic server tile, since an MCP endpoint has no branding", async () => {
-        // One server glyph on the neutral tile for every server (decision 3). A per-server logo would
-        // have to be guessed from a URL, and a header with nothing in that slot reads as a row
-        // that failed to load an icon.
+    it("leads the header with the server tile, colored by the connection name", async () => {
+        // One server glyph for every server (decision 3); the canvas colors the tile (F03), and
+        // the name picks the color, so a server keeps it across the app.
         await render()
 
         const tile = document.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-tone")).toBe("neutral")
+        expect(tile?.getAttribute("data-tone")).toBe("solid")
         expect(tile?.getAttribute("data-size")).toBe("24")
         expect(tile?.querySelector("svg")).not.toBeNull()
     })

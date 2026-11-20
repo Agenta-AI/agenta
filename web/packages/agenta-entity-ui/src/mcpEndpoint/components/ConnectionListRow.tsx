@@ -75,7 +75,7 @@ export function ConnectionListRow({
                 added && "opacity-70",
             )}
         >
-            <McpServerMark size={28} />
+            <McpServerMark size={28} name={name} />
 
             <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-colorText">{name}</div>

@@ -123,7 +123,7 @@ export const VersionList = ({
                                 </span>
                                 {/* One tag, one meaning: the newest revision. */}
                                 {row.isLatest ? (
-                                    <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-colorInfo)]">
+                                    <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-tag-latest-text)]">
                                         {t("playground.versionHistory.latest")}
                                     </span>
                                 ) : null}

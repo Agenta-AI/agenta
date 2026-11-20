@@ -181,7 +181,7 @@ export const SessionMenu = ({
                 <Button
                     variant="outline"
                     size="compact"
-                    className="min-w-0 max-w-[240px] shrink gap-2 pl-2.5 pr-2 font-medium max-md:h-11"
+                    className="min-w-[88px] max-w-[240px] shrink gap-2 pl-2.5 pr-2 font-medium max-md:h-11"
                     title={title}
                 >
                     {statusDot}

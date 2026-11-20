@@ -146,6 +146,8 @@ export function AgentaToolsSection({
             <PermissionDrawerBody
                 flush
                 catalogKey="agenta-tools"
+                // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
+                plainDeny
                 catalog={{status: "ready", complete: true, tools: rows}}
                 emptyLabel={t("entityUi.buildKit.noAgentaTools")}
                 permissions={{

@@ -280,6 +280,9 @@
     --ag-status-warning-text: #8a6400;
     --ag-surface-error-well: #fcf1f1;
     --ag-surface-error-well-border: #edc9c8;
+    --ag-tile-schedule: #5b5bd6;
+    --ag-tag-latest-text: #1c6fa8;
+    --ag-danger-text: #a01e1e;
     --ag-strip-input-border: #d7d7d7;
     --ag-strip-selected-bg: #f6f5f3;
     --ag-strip-card-bg: #ffffff;
@@ -666,6 +669,8 @@
     --ag-status-warning-text: #ebc96a;
     --ag-surface-error-well: #1e1416;
     --ag-surface-error-well-border: #4a2226;
+    --ag-tag-latest-text: #8ccfff;
+    --ag-danger-text: #ff8e8c;
     --ag-drawer-scrim: rgba(6, 6, 8, 0.6);
     --ag-drawer-sheet: #1e1f22;
     --ag-drawer-divider: #2a2c30;

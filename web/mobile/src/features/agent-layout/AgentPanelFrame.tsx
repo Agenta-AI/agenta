@@ -1,8 +1,11 @@
-import type {
-    KeyboardEvent as ReactKeyboardEvent,
-    PointerEvent as ReactPointerEvent,
-    ReactNode,
-    RefObject,
+import {
+    useEffect,
+    useRef,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type PointerEvent as ReactPointerEvent,
+    type ReactNode,
+    type RefObject,
 } from "react"
 
 import {useT} from "@agenta/i18n"
@@ -55,11 +58,40 @@ export const AgentPanelFrame = ({
     const tControls = useT(uiControlsCatalog)
     const clamp = (value: number) =>
         resize ? Math.min(resize.max, Math.max(resize.min, value)) : value
+    // Beside the page the panel may draw narrower than `width` (the page keeps its column). A
+    // drag and the arrow keys start from the drawn width, so the edge moves with the pointer; the
+    // width the person lets go at is the one stored.
+    const frameRef = useRef<HTMLDivElement>(null)
+    const [drawn, setDrawn] = useState<number | null>(null)
+    useEffect(() => {
+        const frame = frameRef.current
+        if (!frame || mode !== "push" || typeof ResizeObserver === "undefined") {
+            setDrawn(null)
+            return undefined
+        }
+        const observer = new ResizeObserver(() => setDrawn(Math.round(frame.offsetWidth)))
+        observer.observe(frame)
+        return () => observer.disconnect()
+    }, [mode])
+    const shownWidth = drawn !== null && drawn > 0 ? Math.min(width, drawn) : width
+    // What a resize stores: the width the panel draws once the page has taken its column, so a
+    // drag past the room there is does not store a width the panel never showed.
+    const commitDrawn = (value: number) => {
+        if (!resize) return
+        requestAnimationFrame(() => {
+            const frame = frameRef.current
+            const room = mode === "push" && frame ? Math.round(frame.offsetWidth) : value
+            const stored = clamp(Math.min(value, room))
+            // The live width too: when the stored one does not change, nothing else resets it.
+            resize.onLive(stored)
+            resize.onCommit(stored)
+        })
+    }
     const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
         if (!resize) return
         const pointerId = event.pointerId
         const startX = event.clientX
-        const startWidth = width
+        const startWidth = shownWidth
         const widthAt = (x: number) => clamp(startWidth + startX - x)
         const move = (e: PointerEvent) => {
             if (e.pointerId === pointerId) resize.onLive(widthAt(e.clientX))
@@ -73,13 +105,13 @@ export const AgentPanelFrame = ({
             if (e.pointerId !== pointerId) return
             stop()
             // Stored at pointer-up, not on every move.
-            resize.onCommit(widthAt(e.clientX))
+            commitDrawn(widthAt(e.clientX))
         }
         // A cancelled drag (a touch the browser took over) goes back to the stored width.
         const cancel = (e: PointerEvent) => {
             if (e.pointerId !== pointerId) return
             stop()
-            resize.onLive(startWidth)
+            resize.onLive(width)
         }
         window.addEventListener("pointermove", move)
         window.addEventListener("pointerup", up)
@@ -92,23 +124,34 @@ export const AgentPanelFrame = ({
         const step = event.key === "ArrowLeft" ? 16 : event.key === "ArrowRight" ? -16 : 0
         if (!step) return
         event.preventDefault()
-        const next = clamp(width + step)
+        const next = clamp(shownWidth + step)
         resize.onLive(next)
-        resize.onCommit(next)
+        commitDrawn(next)
     }
 
     return (
         <div
+            ref={frameRef}
             className={cn(
-                "min-h-0 shrink-0",
+                "min-h-0",
                 !open && "hidden",
-                mode === "push" && "relative h-full",
+                // Beside the page it gives way to the page's minimum column, down to its own
+                // minimum width; over the page it keeps its width.
+                mode === "push" ? "relative h-full shrink" : "shrink-0",
                 mode === "overlay" &&
                     cn("absolute bottom-0 right-0 z-20 shadow-overlay", overlayTop ?? "top-0"),
                 mode === "full" && "absolute inset-0 z-30",
                 mode !== "full" && "border-0 border-l border-solid border-colorBorderSecondary",
             )}
-            style={mode === "full" ? undefined : {width}}
+            style={
+                mode === "full"
+                    ? undefined
+                    : {
+                          width,
+                          minWidth:
+                              mode === "push" ? Math.min(width, resize?.min ?? width) : undefined,
+                      }
+            }
             onKeyDown={(event) => {
                 // A view goes back first (the view stack handles it); a menu or dialog closes itself.
                 // What is left closes the panel, also from the resize edge.
@@ -127,7 +170,7 @@ export const AgentPanelFrame = ({
                     aria-orientation="vertical"
                     aria-valuemin={resize.min}
                     aria-valuemax={resize.max}
-                    aria-valuenow={width}
+                    aria-valuenow={shownWidth}
                     aria-label={tControls("ui.controls.resizePanes")}
                     tabIndex={0}
                     className="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none"

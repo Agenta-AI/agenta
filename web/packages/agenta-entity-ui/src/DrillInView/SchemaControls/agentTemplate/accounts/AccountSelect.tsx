@@ -48,12 +48,19 @@ export function AccountSelect({
     return (
         <Select value={selected ? value : ""} onValueChange={onChange} disabled={disabled}>
             {/* Canvas F02 f6: 36 px, radius 6, 13 px, an up-down icon in place of the shared
-                chevron (hidden here); 44 px, radius 8 on a phone (M09). */}
+                chevron; 44 px, radius 8 on a phone (M09). */}
             <SelectTrigger
-                className={`w-full gap-2 [&>svg:last-child]:hidden ${
+                className={`w-full gap-2 ${
                     phone ? "!h-11 !rounded-[8px]" : "!h-9 !rounded-[6px] !px-[11px] !text-[13px]"
                 }`}
                 aria-label={ariaLabel}
+                icon={
+                    <CaretUpDown
+                        aria-hidden
+                        size={14}
+                        className="shrink-0 text-colorTextTertiary"
+                    />
+                }
             >
                 {icon ? (
                     <span className="flex shrink-0 text-colorTextSecondary">{icon}</span>
@@ -61,7 +68,6 @@ export function AccountSelect({
                 <SelectValue placeholder={placeholder}>
                     {selected ? <OptionText option={selected} /> : null}
                 </SelectValue>
-                <CaretUpDown aria-hidden size={14} className="shrink-0 text-colorTextTertiary" />
             </SelectTrigger>
             <SelectContent>
                 {options.map((option) => (

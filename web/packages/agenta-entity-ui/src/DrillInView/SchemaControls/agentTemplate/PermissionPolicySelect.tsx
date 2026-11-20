@@ -66,9 +66,6 @@ export interface PermissionPolicySelectProps {
     canvas?: "field" | "chip"
 }
 
-/** The shared trigger's own chevron, hidden where the canvas draws an up-down icon instead. */
-const HIDE_TRIGGER_CHEVRON = "[&>svg:last-child]:hidden"
-
 export function PermissionPolicySelect({
     value,
     onChange,
@@ -96,10 +93,17 @@ export function PermissionPolicySelect({
             onOpenChange={onOpenChange}
         >
             <SelectTrigger
-                className={
-                    canvas ? `${HIDE_TRIGGER_CHEVRON} ${triggerClassName}` : triggerClassName
-                }
+                className={triggerClassName}
                 size={size}
+                icon={
+                    canvas ? (
+                        <CaretUpDown
+                            aria-hidden
+                            size={canvas === "field" ? 14 : 12}
+                            className="ml-auto shrink-0 text-colorTextTertiary"
+                        />
+                    ) : undefined
+                }
                 aria-label={ariaLabel ?? t("entityUi.permissionDrawer.permissionPolicy")}
             >
                 <SelectValue>
@@ -121,13 +125,6 @@ export function PermissionPolicySelect({
                         </span>
                     )}
                 </SelectValue>
-                {canvas ? (
-                    <CaretUpDown
-                        aria-hidden
-                        size={canvas === "field" ? 14 : 12}
-                        className="ml-auto shrink-0 text-colorTextTertiary"
-                    />
-                ) : null}
             </SelectTrigger>
             <SelectContent container={container} className={contentClassName} align={align}>
                 {options.map((option) => (

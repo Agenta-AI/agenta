@@ -82,6 +82,8 @@ export interface ComboboxProps extends Pick<SelectTriggerProps, "size" | "varian
     defaultOpen?: boolean
     /** Portal target for the dropdown; defaults to document.body. */
     container?: HTMLElement | null
+    /** The trailing icon in place of the chevron (the canvas up-down icon, for one). */
+    icon?: React.ReactElement | null
 }
 
 type RenderRow =
@@ -104,6 +106,7 @@ export function Combobox({
     contentClassName,
     defaultOpen = false,
     container,
+    icon,
     id,
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
@@ -304,7 +307,7 @@ export function Combobox({
                     ) : (
                         <span className="relative flex shrink-0 items-center">
                             {/* antd Select's closed arrow is a single down chevron (not an up/down caret). */}
-                            <ChevronDown className={cn("size-3", adornmentColor)} />
+                            {icon ?? <ChevronDown className={cn("size-3", adornmentColor)} />}
                             {showClear ? (
                                 <button
                                     type="button"

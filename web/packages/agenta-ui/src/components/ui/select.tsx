@@ -86,9 +86,13 @@ function SelectValue(props: React.ComponentProps<typeof SelectPrimitive.Value>) 
 export interface SelectTriggerProps
     extends
         Omit<React.ComponentProps<typeof SelectPrimitive.Trigger>, "size">,
-        VariantProps<typeof selectTriggerVariants> {}
+        VariantProps<typeof selectTriggerVariants> {
+    /** The trailing icon in place of the chevron (the canvas up-down icon, for one). One element:
+     *  Radix renders it through `asChild`. */
+    icon?: React.ReactElement | null
+}
 
-function SelectTrigger({className, variant, size, children, ...props}: SelectTriggerProps) {
+function SelectTrigger({className, variant, size, icon, children, ...props}: SelectTriggerProps) {
     return (
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
@@ -97,7 +101,7 @@ function SelectTrigger({className, variant, size, children, ...props}: SelectTri
         >
             {children}
             <SelectPrimitive.Icon asChild>
-                <ChevronDown className="size-3 text-placeholder" />
+                {icon ?? <ChevronDown className="size-3 text-placeholder" />}
             </SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
     )

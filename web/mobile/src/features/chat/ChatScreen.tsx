@@ -14,6 +14,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
+import {ContentRailCapContext} from "@/components/contentRailCap"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {StatusTag} from "@/components/StatusTag"
 
@@ -416,7 +417,12 @@ const ReplayScreen = ({
     )
 
     // The read-only replay is a conversation too: its approval card answers keys by the focus.
-    const rootedScaffold = <ConversationRoot>{scaffold}</ConversationRoot>
+    // Its rails take the session column, as the live conversation's do.
+    const rootedScaffold = (
+        <ContentRailCapContext.Provider value="max-w-[720px]">
+            <ConversationRoot>{scaffold}</ConversationRoot>
+        </ContentRailCapContext.Provider>
+    )
     return embedded ? (
         rootedScaffold
     ) : (

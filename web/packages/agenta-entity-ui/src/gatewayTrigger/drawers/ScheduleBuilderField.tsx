@@ -461,31 +461,40 @@ function Chip({
     onClick: () => void
     children: ReactNode
 }) {
-    // A chip is a Button widened to share the row — no bespoke geometry. Only the type size is
-    // pinned, to the 13px the rest of the popover uses.
+    // The canvas pill (F05): 26 px, 12 px text, ink when on. 44 px on a phone.
     return (
-        <Button
-            variant={active ? "default" : "outline"}
+        <button
+            type="button"
             aria-pressed={active}
             onClick={onClick}
-            className="flex-1 px-2 text-xs"
+            className={cn(
+                "flex h-[26px] cursor-pointer items-center justify-center rounded-full border border-solid px-2.5 py-0 font-[inherit] text-[12px] leading-4 outline-none transition-colors max-md:h-11 max-md:min-w-11",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                active
+                    ? "border-colorText bg-colorText text-colorBgContainer"
+                    : "border-colorBorderSecondary bg-colorBgContainer text-colorText hover:bg-colorFillQuaternary",
+            )}
         >
             {children}
-        </Button>
+        </button>
     )
 }
 
 function ChipRow({label, children}: {label: string; children: ReactNode}) {
     return (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
             <FieldLabel>{label}</FieldLabel>
-            <div className="flex gap-1">{children}</div>
+            <div className="flex flex-wrap gap-1">{children}</div>
         </div>
     )
 }
 
 function FieldLabel({children}: {children: ReactNode}) {
-    return <span className="text-xs text-[var(--ag-colorTextDescription)]">{children}</span>
+    return (
+        <span className="text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]">
+            {children}
+        </span>
+    )
 }
 
 // The chip set, widened to include a stored value the presets don't cover (e.g. a 5-hour step).

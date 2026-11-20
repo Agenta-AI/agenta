@@ -1,7 +1,9 @@
 {
     "chrome.closeNavigation": "Cerrar navegación",
     "chrome.collapseGroup": "Contraer {{title}}",
+    "chrome.collapseSidebar": "Contraer la barra lateral",
     "chrome.expandGroup": "Expandir {{title}}",
+    "chrome.expandSidebar": "Expandir la barra lateral",
     "chrome.itemFallback": "Elemento",
     "chrome.itemMoved": "{{item}} movido a la posición {{position}} de {{total}}",
     "chrome.navigationTitle": "Navegación",

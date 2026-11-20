@@ -82,7 +82,7 @@ const ServerTitle = ({
     return (
         // Canvas F03 f7: the name 13/20/600 with the host under it, 12/16 mono; 15/20 on a phone.
         <div className="flex min-w-0 items-center gap-3 px-4 pb-1 pt-3.5">
-            <McpServerMark size={24} />
+            <McpServerMark size={24} name={name} />
             <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[13px] font-semibold leading-5 max-md:text-[15px]">
                     {name}

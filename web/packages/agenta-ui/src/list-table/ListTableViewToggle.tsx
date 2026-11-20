@@ -13,7 +13,7 @@ import type {ListTableView} from "./types"
  * The switch between a {@link ListTable}'s two views. Icon-only: the rows beside it are already
  * the subject, and "List" / "Cards" in words would be a second label in a toolbar that has one.
  *
- * At the toolbar's 32px — the same rung as the filter trigger it sits beside.
+ * On the canvas scale (A03): one 28px track with two 24px options.
  */
 export const ListTableViewToggle = ({
     value,
@@ -35,6 +35,7 @@ export const ListTableViewToggle = ({
     return (
         <Segmented
             aria-label={t("common.view")}
+            size="compact"
             options={options}
             value={value}
             onChange={(next) => onChange(next as ListTableView)}

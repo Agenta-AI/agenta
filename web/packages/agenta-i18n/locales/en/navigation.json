@@ -1,7 +1,9 @@
 {
     "chrome.closeNavigation": "Close navigation",
     "chrome.collapseGroup": "Collapse {{title}}",
+    "chrome.collapseSidebar": "Collapse the sidebar",
     "chrome.expandGroup": "Expand {{title}}",
+    "chrome.expandSidebar": "Expand the sidebar",
     "chrome.itemFallback": "Item",
     "chrome.itemMoved": "{{item}} moved to position {{position}} of {{total}}",
     "chrome.navigationTitle": "Navigation",
