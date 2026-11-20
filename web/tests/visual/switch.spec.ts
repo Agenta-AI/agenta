@@ -137,9 +137,12 @@ const probe = async ({id: target, marker}: Target) => {
     if (!link) return {error: `no visible sidebar link for ${target}`}
     const norm = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim()
     const targetTurnText = () => {
+        // A kept conversation that is hidden is still in the page: read the visible turns only.
         const roots = document.querySelectorAll('[data-conversation-role="page"]')
         for (const root of roots) {
-            const turns = root.querySelectorAll(".ag-turn")
+            const turns = [...root.querySelectorAll<HTMLElement>(".ag-turn")].filter(
+                (turn) => turn.offsetParent !== null,
+            )
             if (turns.length) return norm(turns[turns.length - 1].textContent)
         }
         return ""
