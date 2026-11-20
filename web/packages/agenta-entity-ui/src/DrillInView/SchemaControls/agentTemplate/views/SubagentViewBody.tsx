@@ -1,43 +1,26 @@
-import {useState, type ReactNode} from "react"
+import {useState} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
-import {useDrillInUI, type WorkflowReferenceBridge} from "@agenta/ui/drill-in"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {useAtomValue} from "jotai"
 
 import {ReferenceToolFormView} from "../../ReferenceToolFormView"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {SubagentRemoveDialog} from "../sections/SubagentsSection"
-import {SubagentOpenAgentButton} from "../SubagentHeader"
-import {findSubagentIndex, removeSubagentByRef, setSubagentDescription} from "../subagentReference"
+import {SubagentCurrentName, SubagentOpenAgentButton} from "../SubagentAgent"
+import {
+    findSubagentIndex,
+    removeSubagentByRef,
+    setSubagentDescription,
+    toolsOf,
+} from "../subagentReference"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
 import type {SubagentViewParams} from "./subagentView"
-
-const toolsOf = (agent: Record<string, unknown>): unknown[] =>
-    Array.isArray(agent.tools) ? (agent.tools as unknown[]) : []
-
-/** The agent's CURRENT name, off its artifact, as the row shows it. */
-const CurrentName = ({
-    bridge,
-    slug,
-    fallback,
-    children,
-}: {
-    bridge: WorkflowReferenceBridge
-    slug: string
-    fallback: string
-    children: (name: string) => ReactNode
-}) => {
-    const {detail} = bridge.useSubagentDetail(slug)
-    const name = useAtomValue(workflowMolecule.selectors.artifactName(detail?.workflowId ?? ""))
-    return <>{children(name || fallback)}</>
-}
 
 const ViewTitle = ({title}: {title: string}) => {
     useViewTitle(title)
@@ -140,9 +123,9 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
         </div>
     )
     return workflowReference ? (
-        <CurrentName bridge={workflowReference} slug={slug} fallback={fallbackTitle}>
+        <SubagentCurrentName bridge={workflowReference} slug={slug} fallback={fallbackTitle}>
             {content}
-        </CurrentName>
+        </SubagentCurrentName>
     ) : (
         content(fallbackTitle)
     )

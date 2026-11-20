@@ -1,4 +1,7 @@
+import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
+
+import {toolReferenceSlug} from "./itemDescriptors"
 
 /** The one shape a saved subagent may take. A subagent always runs the target agent's latest
  *  revision, so a legacy pin (`version`, `environment`) or a forbidden `variant_id` is dropped
@@ -64,3 +67,44 @@ export function setSubagentDescription(
     })
     return next
 }
+
+/** The agent's `tools`, or an empty list. */
+export const toolsOf = (agent: Record<string, unknown>): unknown[] =>
+    Array.isArray(agent.tools) ? (agent.tools as unknown[]) : []
+
+/**
+ * A new subagent entry for the agent `slug` names, with the model-facing input schema of its
+ * latest revision. No `name`: that copy went stale on a rename (#6444). The description is
+ * authored on the calling agent, seeded from the target's own description.
+ */
+export async function buildSubagentReference(
+    bridge: WorkflowReferenceBridge,
+    slug: string,
+): Promise<Record<string, unknown>> {
+    const workflow = bridge.workflows.find((w) => w.slug === slug)
+    let inputSchema: Record<string, unknown> | null = null
+    try {
+        inputSchema = workflow ? ((await bridge.resolveInputSchema(workflow)) ?? null) : null
+    } catch {
+        inputSchema = null
+    }
+    return normalizeSubagentReference({
+        slug,
+        description: workflow?.description ?? "",
+        input_schema: inputSchema ?? {type: "object", properties: {}},
+    })
+}
+
+/** The tools with `reference` appended, unless an entry for its agent is there already. */
+export const addSubagentReference = (
+    tools: unknown[],
+    reference: Record<string, unknown>,
+): unknown[] =>
+    tools.some((tool) => toolReferenceSlug(tool) === reference.slug) ? tools : [...tools, reference]
+
+/**
+ * The tools without any entry for the agent `slug` names. The picker removes by slug, not by
+ * item key: an older entry that stores a `name` is still the same agent to the person.
+ */
+export const removeSubagentSlug = (tools: unknown[], slug: string): unknown[] =>
+    tools.filter((tool) => toolReferenceSlug(tool) !== slug)

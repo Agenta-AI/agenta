@@ -7,9 +7,10 @@ import {Robot} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
 import {ConnectedSubagentList} from "../ConnectedSubagents"
-import {describeSubagent} from "../itemDescriptors"
+import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
+import {SubagentCurrentName} from "../SubagentAgent"
 import {subagentItemRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
 
@@ -96,7 +97,11 @@ const SubagentSectionBody = ({
     openSubagent: (item: ConfigItemRef) => void
     removeSubagent: (item: ConfigItemRef) => void
 }) => {
-    const [removing, setRemoving] = useState<{item: ConfigItemRef; name: string} | null>(null)
+    const [removing, setRemoving] = useState<{
+        item: ConfigItemRef
+        slug: string
+        name: string
+    } | null>(null)
     const listProps: SubagentListProps = {
         entries,
         disabled,
@@ -109,8 +114,17 @@ const SubagentSectionBody = ({
         removeItem: (_kind, index) => {
             const tool = entries.find((entry) => entry.index === index)?.item
             const item = subagentItemRef(tool)
-            if (item) setRemoving({item, name: describeSubagent(tool).name})
+            if (item)
+                setRemoving({
+                    item,
+                    slug: toolReferenceSlug(tool) ?? "",
+                    name: describeSubagent(tool).name,
+                })
         },
+    }
+    const confirmRemove = () => {
+        if (removing) removeSubagent(removing.item)
+        setRemoving(null)
     }
     return (
         <>
@@ -121,14 +135,28 @@ const SubagentSectionBody = ({
                 <SubagentList {...listProps} />
             )}
             {removing ? (
-                <SubagentRemoveDialog
-                    name={removing.name}
-                    onRemove={() => {
-                        removeSubagent(removing.item)
-                        setRemoving(null)
-                    }}
-                    onClose={() => setRemoving(null)}
-                />
+                // The name the row shows: the agent's current name once it resolves.
+                workflowReference ? (
+                    <SubagentCurrentName
+                        bridge={workflowReference}
+                        slug={removing.slug}
+                        fallback={removing.name}
+                    >
+                        {(name) => (
+                            <SubagentRemoveDialog
+                                name={name}
+                                onRemove={confirmRemove}
+                                onClose={() => setRemoving(null)}
+                            />
+                        )}
+                    </SubagentCurrentName>
+                ) : (
+                    <SubagentRemoveDialog
+                        name={removing.name}
+                        onRemove={confirmRemove}
+                        onClose={() => setRemoving(null)}
+                    />
+                )
             ) : null}
         </>
     )

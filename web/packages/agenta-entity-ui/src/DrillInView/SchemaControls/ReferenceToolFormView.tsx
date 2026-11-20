@@ -3,6 +3,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import {formatNumber, useT} from "@agenta/i18n"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
@@ -123,7 +124,7 @@ function SubagentDetailPanel({
     failed,
     retry,
 }: ReferenceToolFormViewProps & DetailState) {
-    const t = useT(toolFormCatalog, subagentViewsCatalog)
+    const t = useT(toolFormCatalog, subagentViewsCatalog, integrationViewsCatalog)
     const tool = value ?? {}
 
     // The bridge knows WHICH apps connect; their logos come from the catalog, which needs a component.
@@ -182,7 +183,7 @@ function SubagentDetailPanel({
                             </span>
                             {retry ? (
                                 <Button variant="outline" size="sm" onClick={retry}>
-                                    {t("entityUi.subagentViews.tryAgain")}
+                                    {t("entityUi.integrationViews.tryAgain")}
                                 </Button>
                             ) : null}
                         </div>

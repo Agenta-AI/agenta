@@ -498,7 +498,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         onChange,
         configRef,
         openCreate,
-        workflowReference,
     })
 
     /**

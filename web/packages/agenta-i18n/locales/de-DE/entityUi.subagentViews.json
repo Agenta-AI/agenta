@@ -1,7 +1,6 @@
 {
     "added": "Hinzugefügt",
     "configLoadError": "Die Konfiguration dieses Agenten konnte nicht geladen werden.",
-    "tryAgain": "Erneut versuchen",
     "removedState": "Dieser Subagent ist nicht mehr im Agenten.",
     "agentStays": "Der Agent bleibt im Projekt."
 }

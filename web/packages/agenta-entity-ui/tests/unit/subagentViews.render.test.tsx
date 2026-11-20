@@ -19,6 +19,7 @@ import {atom, createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {subagentsSection} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SubagentsSection"
 import {
     removeSubagentByRef,
     subagentItemRef,
@@ -58,11 +59,12 @@ vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter
 
 // Names and icons come from the workflow artifacts; none resolve here, so rows use their slug.
 const empty = atom("")
+const currentName = atom("Email writer")
 const noIcon = atom(null)
 vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
     agentIconAtomFamily: () => noIcon,
-    workflowMolecule: {selectors: {artifactName: () => empty, workflowId: () => empty}},
+    workflowMolecule: {selectors: {artifactName: () => currentName, workflowId: () => empty}},
 }))
 
 const AGENT: ViewTarget = {kind: "agent_draft", revisionId: "rev-1"}
@@ -269,6 +271,40 @@ describe("Subagent view", () => {
         expect(document.querySelector("textarea")?.hasAttribute("disabled")).toBe(false)
         await click(byText("Try again"))
         expect(retries.detail).toBe(1)
+    })
+})
+
+describe("Subagents section", () => {
+    it("the row bin asks with the name the row shows, then removes by key", async () => {
+        const removed: unknown[] = []
+        const tool = reference("email-writer")
+        const section = subagentsSection({
+            t: ((key: string) => key) as never,
+            hasTools: true,
+            sectionIndicator: () => undefined,
+            openAddSubagents: undefined,
+            subagentCount: 1,
+            workflowReference: bridge(),
+            subagentTools: [{item: tool, index: 0}],
+            openSubagent: () => undefined,
+            removeSubagent: (item) => removed.push(item),
+            toolStatusFor: () => undefined,
+        })
+        if (!section) throw new Error("no section")
+        await act(async () =>
+            root.render(
+                <QueryClientProvider client={new QueryClient()}>
+                    <Provider store={createStore()}>{section.content}</Provider>
+                </QueryClientProvider>,
+            ),
+        )
+        const bin = await findByText("", 'button[aria-label^="Remove"]')
+        await click(bin)
+        const dialog = await findByText("", '[data-testid="remove-from-agent-dialog"]')
+        expect(dialog.textContent).toContain("Remove Email writer from this agent?")
+        expect(removed).toEqual([])
+        await click(byText("Remove"))
+        expect(removed).toEqual([{list: "tools", key: "email-writer"}])
     })
 })
 

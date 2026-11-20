@@ -204,7 +204,7 @@ export function AddSubagentList({
                             <RowSkeleton key={index} widths={widths} />
                         ))}
                     </div>
-                ) : visible.length === 0 && failedCount === 0 ? (
+                ) : visible.length === 0 && (failedCount === 0 || search.trim()) ? (
                     <EmptyState
                         title={
                             search.trim()

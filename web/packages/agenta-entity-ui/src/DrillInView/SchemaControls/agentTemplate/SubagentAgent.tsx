@@ -1,9 +1,31 @@
-/** The subagent view's link to the agent it calls. It takes the bridge as a required prop and
- *  mounts only when the host supplies one, so it never calls a hook conditionally. */
+/** The agent a subagent calls: its current name and its "Open agent" link. Each part takes the
+ *  bridge as a required prop and mounts only when the host supplies one, so none of them calls a
+ *  hook conditionally. */
+import type {ReactNode} from "react"
+
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
+
+/** The agent's CURRENT name, off its artifact, as the row shows it; `fallback` until it resolves. */
+export function SubagentCurrentName({
+    bridge,
+    slug,
+    fallback,
+    children,
+}: {
+    bridge: WorkflowReferenceBridge
+    slug: string
+    fallback: string
+    children: (name: string) => ReactNode
+}) {
+    const {detail} = bridge.useSubagentDetail(slug)
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(detail?.workflowId ?? ""))
+    return <>{children(name || fallback)}</>
+}
 
 /** "Open agent": the subagent's own agent screen, in a new tab as in production. */
 export function SubagentOpenAgentButton({
