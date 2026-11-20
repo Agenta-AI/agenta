@@ -46,20 +46,22 @@ subscription logins. Because `run.sh` assembles the same set every time, a routi
 - `--compose-file <name>` appends an extra file (repeatable; bare name resolves in the edition
   dir like `-e`, or pass a path). Appended after the auto-included ones.
 
-### The mobile web app (`/m`) — always on
+### The web app (`web-mobile`, served at `/m`)
 
-`/m` ships with every deployment, and there is no switch to leave it out. Every stack starts
-the `web-mobile` service; the compose files carry no profile for it and no env key is needed.
-Traefik routes ``Path(`/m`) || PathPrefix(`/m/`)`` to it; the nginx proxy has the same two
-`location` blocks. The only run without it is a backend-only one (`--no-web` /
-`--web-mode none`), which starts neither web app.
+`web-mobile` is the only frontend service. Every stack starts it; the compose files carry no
+profile for it and no env key is needed. It owns the catch-all: Traefik routes
+``PathPrefix(`/`)`` to it with `priority=1`, below the api and services routers, and nginx sends
+`location /` to it through a variable upstream, so nginx still starts when it is left out. The
+app answers `/m` itself and redirects legacy root paths into `/m`. A backend-only run
+(`--no-web` / `--web-mode none`) leaves it out; `--web-local` leaves it out and runs
+`web/mobile` from the checkout instead. The dev image builds from
+`web/mobile/docker/Dockerfile.dev`.
 
 The gate has no switch either. A phone on a desktop route goes to `/m`, a user with Classic mode
 off goes to `/m` for the pages it has, a user with Classic mode on who opens `/m` goes back to
 `/w`, and a desktop browser may open `/m`. `AGENTA_MOBILE_GATE`, `AGENTA_MOBILE_REVERSE_GATE`
 and `AGENTA_MOBILE_ENABLED` are gone, and so is `run.sh --no-mobile`; a stale value in an env
-file changes nothing. The dev stack pays a second Next dev server for `web-mobile` (about
-0.5-1GB RAM).
+file changes nothing.
 
 ### Restart one service (surgical)
 
@@ -68,11 +70,11 @@ single-service restarts. They run `up -d --no-deps --force-recreate <service>` (
 then recreate) with the **full assembled `-f` set** and the same env handling as a full run,
 so a targeted restart never drops a local override. Both are repeatable and reject unknown
 services. `--rebuild` honors `--no-cache`; a service with no build config of its own (e.g. the
-dev `web`/`runner`) is built via its `.<name>` anchor automatically.
+dev `api`/`runner`) is built via its `.<name>` anchor automatically.
 
 ```bash
 run.sh --ee --dev --env-file .env.ee.dev.local --recreate runner   # recreate with all overrides
-run.sh --ee --dev --env-file .env.ee.dev.local --rebuild web        # rebuilds the .web anchor, recreates web
+run.sh --ee --dev --env-file .env.ee.dev.local --rebuild web-mobile # rebuilds and recreates web-mobile
 ```
 
 ### Key difference
@@ -84,22 +86,12 @@ run.sh --ee --dev --env-file .env.ee.dev.local --rebuild web        # rebuilds t
 This separation prevents Docker Compose conflicts between the main-branch and worktree
 instances.
 
-### Recreating only `web` — always pass the env file (F-037)
+### Recreate a dev service with `run.sh`, never by hand (F-037)
 
-`web` runs `next dev` and reads its env at container-create time, so an env or config change
-needs a **recreate**, not a `restart`. The footgun: recreating it by hand with a raw
-`docker compose ... up -d --no-deps web` and forgetting the env file. Compose then falls back to
-the committed default `${ENV_FILE:-./.env.<license>.dev}`, which has **port-80 / no-port URLs**,
-so the recreated web container 404s every `/api` call with no obvious cause (same class as F-020).
-
-Use the helper, which always passes the env file on both planes (the shell `ENV_FILE` var and the
-`--env-file` CLI flag) so the trap cannot recur:
-
-```bash
-hosting/docker-compose/recreate-web.sh                              # ee / dev / .env.ee.dev.local
-PROJECT=agenta-ee-dev-wp-b2-rendering hosting/docker-compose/recreate-web.sh
-```
-
-If you must run `docker compose` directly, pass `ENV_FILE=<file>` **and**
-`--env-file <path>` — both, every time. `run.sh` now also fails loud when its resolved env file
-is missing instead of silently using the port-80 default.
+The dev `web-mobile` runs `next dev` and reads its env at container-create time, so an env or
+config change needs a **recreate**, not a `restart`. A raw `docker compose ... up -d --no-deps
+web-mobile` without the env file falls back to the committed default
+`${ENV_FILE:-./.env.<license>.dev}`, which has **port-80 / no-port URLs**, so every `/api` call
+404s with no obvious cause (same class as F-020). Use `run.sh --recreate web-mobile`, which
+passes the env file on both planes (the shell `ENV_FILE` var and the `--env-file` CLI flag).
+`run.sh` also fails loud when its resolved env file is missing.

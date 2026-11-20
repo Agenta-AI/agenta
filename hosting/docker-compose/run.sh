@@ -46,7 +46,7 @@ show_usage() {
     echo "  --no-cache              Build with --no-cache (requires --build)"
     echo ""
     echo "Web:"
-    echo "  --no-web                Alias for --web-mode none; disables desktop and mobile web"
+    echo "  --no-web                Alias for --web-mode none; starts no web app"
     echo "  --web-local             Alias for --web-mode local"
     echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
@@ -429,28 +429,21 @@ export ENV_FILE="$ENV_FILE"
 # Always append --env-file flag to COMPOSE_CMD
 COMPOSE_CMD+=" --env-file $ENV_FILE_PATH"
 
-if [[ "$WEB_MODE" == "docker" ]]; then
-    COMPOSE_CMD+=" --profile with-web"
-fi
-
-# The dev web container runs as uid 10001 and writes generated files into the public/ directories
-# that compose bind-mounts from this checkout: entrypoint.sh writes __env.js, and the OSS and EE
-# dev scripts write the pdfjs worker. A fresh clone leaves those directories mode 755 owned by the
-# host user, so uid 10001 cannot write and the container crash-loops in the entrypoint before
-# Next.js ever starts. Widen them here instead of making every contributor rediscover that. They
+# The dev web-mobile container runs as uid 10001 and entrypoint.sh writes __env.js into the
+# mobile/public directory that compose bind-mounts from this checkout. A fresh clone leaves it
+# mode 755 owned by the host user, so uid 10001 cannot write and the container crash-loops in
+# the entrypoint before Next.js ever starts. Widen them here instead of making every contributor rediscover that. They
 # hold public static assets only, and the gh images bind-mount no source, so this is dev-only.
 if [[ "$IMAGE_MODE" == "dev" && "$WEB_MODE" == "docker" ]]; then
-    for _public_dir in ./web/oss/public ./web/ee/public ./web/mobile/public; do
+    for _public_dir in ./web/mobile/public; do
         [[ -d "$_public_dir" ]] || continue
         chmod o+rwx "$_public_dir" 2>/dev/null ||
             echo "Warning: could not make $_public_dir writable by the web container (uid 10001)." >&2
-        # An __env.js or worker left behind by a host-side `pnpm dev` is owned by the host user,
-        # and the container overwrites the file in place, so widen those two as well.
-        for _generated in "$_public_dir/__env.js" "$_public_dir/pdf.worker.min.mjs"; do
-            if [[ -f "$_generated" ]]; then
-                chmod o+rw "$_generated" 2>/dev/null || true
-            fi
-        done
+        # An __env.js left behind by a host-side `pnpm dev` is owned by the host user, and the
+        # container overwrites it in place, so widen it as well.
+        if [[ -f "$_public_dir/__env.js" ]]; then
+            chmod o+rw "$_public_dir/__env.js" 2>/dev/null || true
+        fi
     done
 fi
 
@@ -464,13 +457,12 @@ if $WITH_TUNNEL; then
     COMPOSE_CMD+=" --profile with-tunnel"
 fi
 
-# A backend-only run (--no-web / --web-mode none) starts neither web app. The `with-web`
-# profile already holds back the desktop app, but web-mobile has no profile: it is part of
-# every stack. Scaling it to 0 is not enough, because `pull` and `up` still fetch its image
-# (in dev that is the web dev image, which a backend-only run never builds). So name every
-# other service explicitly for `pull` and `up`. `build` and `down` keep the full model.
+# A backend-only run (--web-mode none) starts no web app, and a local run (--web-mode local)
+# serves web/mobile from this checkout instead. web-mobile has no profile, and scaling it to 0
+# is not enough, because `pull` and `up` still fetch its image. So name every other service
+# explicitly for `build`, `pull` and `up`. `down` keeps the full model.
 declare -a STACK_SERVICES=()
-if [[ "$WEB_MODE" == "none" ]]; then
+if [[ "$WEB_MODE" != "docker" ]]; then
     _all_services="$($COMPOSE_CMD config --services)" \
         || error_exit "Failed to read compose services for the assembled file set."
     while IFS= read -r _svc; do
@@ -478,7 +470,7 @@ if [[ "$WEB_MODE" == "none" ]]; then
             STACK_SERVICES+=("$_svc")
         fi
     done <<< "$_all_services"
-    echo "Backend-only run: leaving out web and web-mobile."
+    echo "Web mode $WEB_MODE: leaving out web-mobile."
 fi
 
 # --------------------------------------------------------------------------------------------
@@ -513,7 +505,7 @@ if [[ ${#RECREATE_SERVICES[@]} -gt 0 || ${#REBUILD_SERVICES[@]} -gt 0 ]]; then
     }
 
     # --rebuild: build (optionally --no-cache) then recreate. A service with no build config of
-    # its own uses its `.<name>` build anchor when one exists (dev images build via `.web`,
+    # its own uses its `.<name>` build anchor when one exists (dev images build via `.api`,
     # `.runner`, etc. behind profiles; the runtime service only references the built image).
     for _svc in ${REBUILD_SERVICES[@]+"${REBUILD_SERVICES[@]}"}; do
         validate_service "$_svc"
@@ -552,10 +544,10 @@ fi
 
 if $NO_CACHE; then
     echo "Building containers with no cache..."
-    $COMPOSE_CMD build --parallel --no-cache || error_exit "Build failed"
+    $COMPOSE_CMD build --parallel --no-cache ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Build failed"
 elif $BUILD; then
     echo "Building containers..."
-    $COMPOSE_CMD build --parallel || error_exit "Build failed"
+    $COMPOSE_CMD build --parallel ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Build failed"
 elif $PULL_ENABLED; then
     # Pull non-built images for all stages unless disabled
     echo "Pulling latest images..."
@@ -566,7 +558,7 @@ fi
 echo "Stopping existing Docker containers..."
 
 # Include all profiles to ensure clean shutdown
-SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
+SHUTDOWN_CMD="$COMPOSE_CMD --profile with-nginx --profile with-traefik --profile with-tunnel down"
 
 if $NUKE; then
     SHUTDOWN_CMD+=" --volumes"
@@ -601,15 +593,11 @@ if [[ "$WEB_MODE" == "local" ]]; then
     cd web
     pnpm install || error_exit "Failed to install dependencies in web."
 
-    if [[ ! -d "$LICENSE" ]]; then
-        error_exit "$LICENSE directory not found inside web!"
-    fi
-
-    echo "Starting development server for $LICENSE..."
+    echo "Starting the web-mobile development server ($LICENSE)..."
 
     export AGENTA_WEB_URL
     sh -c "AGENTA_LICENSE=${LICENSE} ENTRYPOINT_DIR=. sh ./entrypoint.sh"
 
-    cd $LICENSE
+    cd mobile
     pnpm dev || error_exit "Failed to start development server."
 fi
