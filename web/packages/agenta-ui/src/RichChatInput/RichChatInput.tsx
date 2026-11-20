@@ -177,9 +177,22 @@ const chatInputExtension = defineExtension({
 /** The composer box's look; see `RichChatInputProps.surface`. */
 export type ComposerSurface = "default" | "canvas"
 
-export function ShortcutHint({keys, label}: {keys: string; label: string}) {
+export function ShortcutHint({
+    keys,
+    label,
+    className,
+}: {
+    keys: string
+    label: string
+    className?: string
+}) {
     return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
+        <span
+            className={clsx(
+                "flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]",
+                className,
+            )}
+        >
             <KbdGroup>
                 {keys.split(" ").map((key) => (
                     <Kbd key={key} size="md">
@@ -399,6 +412,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     // editor is one line of a 94 px card on a phone.
                     onClick={(e) => {
                         if (!canvas || disabled) return
+                        // React bubbles clicks from portals (the mic's mode menu) through here.
+                        if (!e.currentTarget.contains(e.target as Node)) return
                         const target = e.target as HTMLElement
                         if (target.closest("button, a, input, [contenteditable], [role=button]"))
                             return
@@ -496,19 +511,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     <span aria-hidden className="h-4 w-px bg-border/60" />
                                 ) : null}
                                 <ShortcutHint keys="↵" label={t("ui.chatInput.send")} />
-                                {/* One row in a narrow box (P1b): the model name keeps
-                                    its room and only the Send hint stays. */}
-                                <span
-                                    className={clsx(
-                                        "contents",
-                                        canvas && "@max-[520px]/composer:hidden",
-                                    )}
-                                >
-                                    <ShortcutHint
-                                        keys={`${modKey} ↵`}
-                                        label={t("ui.chatInput.newline")}
-                                    />
-                                </span>
+                                {/* One row in a narrow box (P1b): the model name keeps its room
+                                    and only the Send hint stays. */}
+                                <ShortcutHint
+                                    keys={`${modKey} ↵`}
+                                    label={t("ui.chatInput.newline")}
+                                    className={canvas ? "@max-[520px]/composer:hidden" : undefined}
+                                />
                             </div>
                         )}
                         <div className="ml-auto flex min-w-0 items-center gap-2">

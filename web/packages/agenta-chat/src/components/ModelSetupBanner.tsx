@@ -1,5 +1,3 @@
-import {useEffect, useState} from "react"
-
 import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
 import {useT} from "@agenta/i18n"
 import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
@@ -9,9 +7,6 @@ import {Lock} from "@phosphor-icons/react"
 import {useAgentModelSetup} from "../hooks/useAgentModelSetup"
 
 import RevealCollapse from "./RevealCollapse"
-
-/** RevealCollapse's leave time: the banner stays mounted this long after it closes. */
-const LEAVE_MS = 240
 
 export interface ModelSetupBannerProps {
     /** The saved agent revision the server checked. */
@@ -33,18 +28,6 @@ export const ModelSetupBanner = ({
 }: ModelSetupBannerProps) => {
     const t = useT(chatModelSetupBannerCatalog)
     const {blocked, canFix} = useAgentModelSetup(revisionId)
-    // Mounted only while it shows (and for its leave): a closed banner left no box in the page.
-    // It mounts closed and opens on the next render, so it still slides in.
-    const [mounted, setMounted] = useState(false)
-    useEffect(() => {
-        if (blocked) {
-            setMounted(true)
-            return
-        }
-        const timer = setTimeout(() => setMounted(false), LEAVE_MS)
-        return () => clearTimeout(timer)
-    }, [blocked])
-    const open = blocked && mounted
     const action =
         onSetUp && canFix ? (
             <Button size="sm" className={`shrink-0 ${PHONE_TOUCH_TARGET_CLASS}`} onClick={onSetUp}>
@@ -52,11 +35,9 @@ export const ModelSetupBanner = ({
             </Button>
         ) : null
 
-    if (!blocked && !mounted) return null
-
     if (layout === "alert") {
         return (
-            <RevealCollapse open={open}>
+            <RevealCollapse open={blocked}>
                 <Alert
                     className="mb-3"
                     type="warning"
@@ -71,7 +52,7 @@ export const ModelSetupBanner = ({
 
     // Same strip as the connect-model gate above the composer, so the two read as one family.
     return (
-        <RevealCollapse open={open}>
+        <RevealCollapse open={blocked}>
             <div
                 role="status"
                 className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-colorWarning/30 bg-colorWarningBg px-3 py-2"

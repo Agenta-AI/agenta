@@ -377,19 +377,15 @@ export const ChatComposer = ({
                 }
                 header={
                     <>
-                        {headerExtra ? (
+                        {headerExtra && surface === "canvas" ? (
                             // Inside the box padding, as the editor (S07, M04): 14 px in, 12 px
                             // down, and the editor's own 12 px top under it (6 px on a phone).
-                            <div
-                                className={
-                                    surface === "canvas"
-                                        ? "flex flex-col pl-3.5 pr-3 pt-3 max-md:-mb-1.5 max-md:pr-2"
-                                        : "flex flex-col px-3 pt-2.5"
-                                }
-                            >
+                            <div className="flex flex-col pl-3.5 pr-3 pt-3 max-md:-mb-1.5 max-md:pr-2">
                                 {headerExtra}
                             </div>
-                        ) : null}
+                        ) : (
+                            headerExtra
+                        )}
                         <HeightCollapse open={quotes.length > 0 || files.length > 0}>
                             <ComposerAttachments
                                 files={files}
