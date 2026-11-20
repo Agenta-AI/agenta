@@ -1,0 +1,15 @@
+{
+    "chooseWhose": "Escolha de quem é o login do {{name}} que o agente usa",
+    "eachPersonsOwnNote": "Cada pessoa usa o próprio login do {{name}}.",
+    "oneShared": "Um login compartilhado",
+    "oneSharedNote": "Todos usam o login do projeto.",
+    "sharedSignIn": "Login compartilhado",
+    "sharedSignInNote": "Toda execução usa este login, não importa quem a inicie",
+    "yourSignIn": "Seu login",
+    "yourSignInNote": "O login do {{name}} que suas próprias execuções usam",
+    "notSignedInYet": "Ainda não conectado",
+    "signInTo": "Entrar no {{name}}",
+    "signedInAs": "Seu login: {{name}}",
+    "signedIn": "Conectado",
+    "noPersonWarning": "Execuções de um canal ou de uma automação criada com uma chave de API não têm pessoa. Elas não podem usar o login de cada pessoa, então este servidor não está disponível para elas."
+}

@@ -1,0 +1,15 @@
+{
+    "chooseWhose": "Wähle, wessen {{name}}-Anmeldung der Agent verwendet",
+    "eachPersonsOwnNote": "Alle verwenden ihre eigene {{name}}-Anmeldung.",
+    "oneShared": "Eine gemeinsame Anmeldung",
+    "oneSharedNote": "Alle verwenden die Anmeldung des Projekts.",
+    "sharedSignIn": "Gemeinsame Anmeldung",
+    "sharedSignInNote": "Jede Ausführung verwendet diese Anmeldung, egal wer sie startet",
+    "yourSignIn": "Deine Anmeldung",
+    "yourSignInNote": "Die {{name}}-Anmeldung, die deine eigenen Ausführungen verwenden",
+    "notSignedInYet": "Noch nicht angemeldet",
+    "signInTo": "Bei {{name}} anmelden",
+    "signedInAs": "Deine Anmeldung: {{name}}",
+    "signedIn": "Angemeldet",
+    "noPersonWarning": "Ausführungen aus einem Kanal oder aus einer mit einem API-Schlüssel erstellten Automatisierung haben keine Person. Sie können die eigene Anmeldung einer Person nicht verwenden, daher steht ihnen dieser Server nicht zur Verfügung."
+}

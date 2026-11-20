@@ -1,0 +1,15 @@
+{
+    "chooseWhose": "Elige qué inicio de sesión de {{name}} usa el agente",
+    "eachPersonsOwnNote": "Cada persona usa su propio inicio de sesión de {{name}}.",
+    "oneShared": "Un inicio de sesión compartido",
+    "oneSharedNote": "Todos usan el inicio de sesión del proyecto.",
+    "sharedSignIn": "Inicio de sesión compartido",
+    "sharedSignInNote": "Todas las ejecuciones usan este inicio de sesión, sin importar quién las inicie",
+    "yourSignIn": "Tu inicio de sesión",
+    "yourSignInNote": "El inicio de sesión de {{name}} que usan tus propias ejecuciones",
+    "notSignedInYet": "Aún no has iniciado sesión",
+    "signInTo": "Iniciar sesión en {{name}}",
+    "signedInAs": "Tu inicio de sesión: {{name}}",
+    "signedIn": "Sesión iniciada",
+    "noPersonWarning": "Las ejecuciones desde un canal o desde una automatización creada con una clave de API no tienen persona. No pueden usar el inicio de sesión propio de cada persona, así que este servidor no está disponible para ellas."
+}

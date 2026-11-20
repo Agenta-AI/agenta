@@ -8,6 +8,7 @@ import {useCallback, useMemo, useState} from "react"
 import {usePersonalMcpSignIn, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {useT, createT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import mcpAccountCatalog from "@agenta/i18n/catalogs/entityUi.mcpAccount"
 import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
@@ -62,6 +63,7 @@ export const McpYoursTable = ({
     const {pendingId, error, signIn, signInWithToken, signOut} = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
     const t = useT(commonCatalog, settingsMcpCatalog)
+    const tAccount = useT(mcpAccountCatalog)
     const translatedColumns = useMemo(
         () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
         [t],
@@ -151,7 +153,15 @@ export const McpYoursTable = ({
                                             tone={signedIn ? "success" : "default"}
                                             label={
                                                 signedIn
-                                                    ? t("settings.mcp.signedInAsYou")
+                                                    ? record.user_sign_in?.account_name
+                                                        ? tAccount(
+                                                              "entityUi.mcpAccount.signedInAs",
+                                                              {
+                                                                  name: record.user_sign_in
+                                                                      .account_name,
+                                                              },
+                                                          )
+                                                        : t("settings.mcp.signedInAsYou")
                                                     : t("settings.mcp.notSignedIn")
                                             }
                                             className="min-w-0 text-[13px]"

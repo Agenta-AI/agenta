@@ -133,6 +133,10 @@ const AgentServer = ({
         [writer, item],
     )
     const onReconnect = useReconnect(endpoint, nav)
+    const accountContext = useMemo(
+        () => ({revisionId: writer.revisionId, agent: writer.agent}),
+        [writer.revisionId, writer.agent],
+    )
     const mcp = useMcpPermissionSource({
         slug,
         connectionName: endpoint?.name || undefined,
@@ -188,6 +192,7 @@ const AgentServer = ({
                             onChange={(source) =>
                                 update((current) => withMcpAccountSource(current, source))
                             }
+                            context={accountContext}
                             disabled={writer.readOnly}
                         />
                     }
