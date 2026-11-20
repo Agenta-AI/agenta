@@ -234,18 +234,23 @@ const ModelPickerControl = ({
         />
     )
 
+    // The Model view gives the list its full width; the states that are not the list keep the
+    // view's 16px gutter.
+    const gutter = (node: ReactNode) =>
+        layout === "list" ? <div className="px-4">{node}</div> : node
+
     if (!allSourcesResolved) {
-        return (
+        return gutter(
             <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-colorTextTertiary">
                 {t("entityUi.configItems.loadingModels")}
-            </div>
+            </div>,
         )
     }
 
     // Nothing connected: the menu would be empty, so the pill IS the call to action. A project
     // already running on a subscription keeps its menu — it has models without a stored key.
     if (allSourcesResolved && rows.every((row) => row.models.length === 0)) {
-        return (
+        return gutter(
             <>
                 <button
                     type="button"
@@ -257,11 +262,11 @@ const ModelPickerControl = ({
                     {t("entityUi.configItems.setUpProviders")}
                 </button>
                 {drawer}
-            </>
+            </>,
         )
     }
 
-    if (!groups.length) return <>{fallback}</>
+    if (!groups.length) return gutter(<>{fallback}</>)
 
     const onPick = (value: string, metadata: Record<string, unknown> | undefined) =>
         onSelect(pickerSelectionFrom(value, metadata))

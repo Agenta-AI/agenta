@@ -24,7 +24,8 @@ import {getProviderIcon, optionMatchesSearch} from "./utils"
 
 /**
  * "panel": the Model view (F01 f2). Each group head is the name and its tag, with "via <harness>"
- * on its own line, and "Manage model providers" sits on a band across the view's full width.
+ * on its own line, and "Manage model providers" sits on a band across the view's full width. The
+ * list sets its own 16px side gutter, so the view gives it the full width.
  * "popover": the composer's list (P1a). Each group head is one line, logo, name and tag, with
  * "via <harness>" at the right.
  */
@@ -247,7 +248,7 @@ const ModelPickerList = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className={clsx("shrink-0", popover ? "mx-0.5 mb-1 mt-0.5" : "pb-1.5")}>
+            <div className={clsx("shrink-0", popover ? "mx-0.5 mb-1 mt-0.5" : "px-4 pb-1.5")}>
                 <SearchInput
                     size="compact-search"
                     // The canvas field (`.find`): a quiet border and no focus ring, even with the
@@ -271,7 +272,7 @@ const ModelPickerList = ({
                 ref={listRef}
                 className={clsx(
                     "min-h-0 flex-1 overflow-y-auto",
-                    !popover && "flex flex-col gap-1.5",
+                    !popover && "flex flex-col gap-1.5 px-4",
                 )}
             >
                 {groups.length ? (
@@ -288,8 +289,7 @@ const ModelPickerList = ({
                         "shrink-0 border-0 border-t border-solid",
                         popover
                             ? "mt-1.5 border-colorSplit px-0.5 pb-0.5 pt-2"
-                            : // The band spans the Model view's 16px gutter (`modelView`).
-                              "-mx-4 mt-1.5 border-colorBorderSecondary p-3",
+                            : "mt-1.5 border-colorBorderSecondary p-3",
                     )}
                 >
                     <Button
