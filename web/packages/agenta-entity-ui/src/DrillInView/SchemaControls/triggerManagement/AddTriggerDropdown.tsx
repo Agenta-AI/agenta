@@ -59,7 +59,7 @@ export function AddTriggerDropdown({
                     hint: t("entityUi.triggers.appTriggerSubtitle"),
                     onSelect: () =>
                         onAdd
-                            ? onAdd("subscription", defaultReferences ?? {})
+                            ? onAdd("subscription", defaultReferences)
                             : openSubscriptionDrawer(draft),
                 },
                 {
@@ -68,9 +68,7 @@ export function AddTriggerDropdown({
                     title: t("entityUi.triggers.scheduledTrigger"),
                     hint: t("entityUi.triggers.scheduledTriggerSubtitle"),
                     onSelect: () =>
-                        onAdd
-                            ? onAdd("schedule", defaultReferences ?? {})
-                            : openScheduleDrawer(draft),
+                        onAdd ? onAdd("schedule", defaultReferences) : openScheduleDrawer(draft),
                 },
             ]}
         />

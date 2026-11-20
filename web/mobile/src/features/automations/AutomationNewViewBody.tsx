@@ -34,7 +34,12 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
     })
     return (
         <div className="ag-scroll-no-bar h-full min-h-0 overflow-y-auto px-4 pb-6 pt-2">
-            <AutomationCreateBody state={state} showAgentField={false} fixedKind />
+            <AutomationCreateBody
+                state={state}
+                // The panel binds the agent; the field shows only when its id did not resolve.
+                showAgentField={!params.references.application?.id}
+                fixedKind
+            />
         </div>
     )
 }

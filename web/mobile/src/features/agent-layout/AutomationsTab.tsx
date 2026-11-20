@@ -1,9 +1,14 @@
 import {useCallback} from "react"
 
 import {AutomationTriggerDrawers} from "@agenta/automation-ui"
+import {
+    triggerScheduleDrawerAtom,
+    triggerSubscriptionDrawerAtom,
+} from "@agenta/entities/gatewayTrigger"
 import {AgentOperationsSections, type TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {useViewStack} from "@agenta/ui/view-stack"
+import {useAtomValue} from "jotai"
 
 import {automationRunHistoryView} from "../automations/automationRunHistoryView"
 import {automationNewView, automationView} from "../automations/automationView"
@@ -30,6 +35,11 @@ export const AutomationsTab = ({
 }) => {
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
     const stack = useViewStack()
+    // The automation drawer hosts its own catalog; while it is open, the tab's copy stays out so
+    // one catalog answers "Connect another app".
+    const scheduleDrawer = useAtomValue(triggerScheduleDrawerAtom)
+    const subscriptionDrawer = useAtomValue(triggerSubscriptionDrawerAtom)
+    const drawerOpen = Boolean(scheduleDrawer ?? subscriptionDrawer)
     // The run history, the automation and the new forms open in the panel as views.
     const openRunHistory = useCallback(
         ({id, kind}: TriggerOwnerRef) =>
@@ -88,7 +98,7 @@ export const AutomationsTab = ({
                 />
                 {/* "Connect another app" in the automation forms opens the integration catalog
                     by atom; the tab root stays mounted under its views, so it hosts it. */}
-                <AutomationTriggerDrawers />
+                {drawerOpen ? null : <AutomationTriggerDrawers />}
             </DrillInBridgeProvider>
         </div>
     )

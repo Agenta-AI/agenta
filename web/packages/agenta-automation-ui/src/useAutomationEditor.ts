@@ -51,8 +51,7 @@ export const useAutomationEditor = (automationId: string | undefined) => {
 
     const draft = useAutomationDraft(automation, edit)
 
-    // The runs answer two questions a host asks: how many there have been, and whether the last
-    // one failed. Same hook and same cache the run history reads.
+    // Whether the last run failed, for the drawer's banner. Same cached read as the run count.
     const {failureReason} = useRecentAutomationRuns(automation)
 
     // The label is text, so it is built again when the language changes.
