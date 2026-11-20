@@ -140,30 +140,24 @@ describe("beta developer mode switch", () => {
         expect(switchFor(BETA)).toBeNull()
     })
 
-    it("sits right under Developer Mode, before the preview switches", () => {
+    it("sits right under Developer Mode", () => {
         const {switchFor} = renderPreferences({developerMode: true, beta: false})
         expect(switchFor(BETA)).not.toBeNull()
         const rows = Array.from(
             host!.querySelectorAll('[data-section="feature-flags"] [role=switch]'),
         ).map((row) => row.getAttribute("aria-label"))
-        expect(rows).toEqual(["Developer Mode", BETA, "Lab preview", "Lab gate"])
+        expect(rows.slice(0, 2)).toEqual(["Developer Mode", BETA])
     })
 })
 
 describe("with Developer Mode and beta developer mode on", () => {
-    it("turns on every developer view, whatever its stage, and lists each in the nav", () => {
+    it("turns on every developer view and lists each page in the nav", () => {
         const {store, switchFor} = renderPreferences({developerMode: true, beta: true})
         expect(switchFor(BETA)!.getAttribute("aria-checked")).toBe("true")
         expect(store.get(enabledDeveloperViewsAtom)).toEqual(TEST_DEVELOPER_VIEWS)
 
         const [section] = developerNavItems("/p", store.get(enabledDeveloperViewsAtom)!)
-        expect(section.submenu?.map((item) => item.link)).toEqual([
-            "/p/lab-hidden",
-            "/p/lab-preview",
-            "/p/lab-on",
-        ])
-        // Every view is already on: a preview switch would change nothing.
-        expect(switchFor("Lab preview")).toBeNull()
+        expect(section.submenu?.map((item) => item.link)).toEqual(["/p/lab-one", "/p/lab-two"])
     })
 
     it("stays in /m: the gate cookie says 0, so the next load of /m is not sent to /w", () => {
@@ -206,7 +200,7 @@ describe("with beta developer mode off", () => {
         expect(assign).toHaveBeenCalledWith("/w")
         expect(readGateCookie()).toBe("1")
         expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
-        expect(store.get(enabledDeveloperViewsAtom)?.map((view) => view.id)).toEqual(["lab-on"])
+        expect(store.get(enabledDeveloperViewsAtom)).toEqual([])
     })
 })
 
@@ -228,8 +222,8 @@ describe("when the deployment does not offer beta developer mode", () => {
         expect(assign).toHaveBeenCalledWith("/w")
         expect(readGateCookie()).toBe("1")
         expect(nextLoadOfM()).toEqual({kind: "redirect", location: "/w"})
-        // The views follow their stage again, not "every view".
-        expect(store.get(enabledDeveloperViewsAtom)?.map((view) => view.id)).toEqual(["lab-on"])
+        // No view is on without beta developer mode.
+        expect(store.get(enabledDeveloperViewsAtom)).toEqual([])
         expect(switchFor(BETA)).toBeNull()
     })
 

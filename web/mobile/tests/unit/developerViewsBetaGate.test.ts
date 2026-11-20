@@ -7,10 +7,7 @@ import {
 import {createStore} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {
-    developerViewPreviewSwitchesAtom,
-    enabledDeveloperViewsAtom,
-} from "@/features/developer/developerViewAccess"
+import {enabledDeveloperViewsAtom} from "@/features/developer/developerViewAccess"
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 
 // The real registry on purpose: beta developer mode must turn on every view that ships.
@@ -52,17 +49,7 @@ describe("beta developer mode is the one gate", () => {
             expect(ids).toContain(id)
     })
 
-    it("shows no Preferences switches", () => {
-        expect(store(true).get(developerViewPreviewSwitchesAtom)).toEqual([])
-    })
-
-    it("with beta off keeps the stages and one switch per preview view", () => {
-        const s = store(false)
-        const ids = s.get(enabledDeveloperViewsAtom)?.map((view) => view.id)
-        expect(ids).toEqual(DEVELOPER_VIEWS.filter((v) => v.stage === "on").map((v) => v.id))
-        expect(ids).not.toContain("app-overview")
-        expect(s.get(developerViewPreviewSwitchesAtom).map(({view}) => view.id)).toEqual(
-            DEVELOPER_VIEWS.filter((v) => v.stage === "preview").map((v) => v.id),
-        )
+    it("with beta off turns on no view", () => {
+        expect(store(false).get(enabledDeveloperViewsAtom)).toEqual([])
     })
 })

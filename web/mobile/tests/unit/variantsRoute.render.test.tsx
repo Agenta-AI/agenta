@@ -41,7 +41,7 @@ describe("variants route", () => {
         localStorage.clear()
     })
 
-    it("Variants route shows not found while the view is hidden", () => {
+    it("Variants route shows not found without beta developer mode", () => {
         render(
             <DeveloperViewGate viewId="variants">
                 <p data-testid="view">view</p>
@@ -51,10 +51,9 @@ describe("variants route", () => {
         expect(document.querySelector("[data-testid=view]")).toBeNull()
     })
 
-    it("The Variants entry is in preview and has the registry fields", () => {
+    it("The Variants entry has the registry fields", () => {
         const entry = DEVELOPER_VIEWS.find((view) => view.id === "variants")
         expect(entry).toBeDefined()
-        expect(entry?.stage).toBe("preview")
         expect(entry?.routes).toEqual(["/variants"])
     })
 })

@@ -64,7 +64,6 @@ vi.mock("@/features/testsets/list/useTestsetRowActions", () => ({
     }),
 }))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import {TestsetsListScreen} from "@/features/testsets/list/TestsetsListScreen"
 import TestsetsPage from "@/pages/w/[workspace_id]/p/[project_id]/testsets/index"
 
@@ -98,8 +97,7 @@ describe("Testsets list screen", () => {
         vi.useRealTimers()
     })
 
-    it("Testsets route shows not found while the view is hidden", async () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "testsets")?.stage).toBe("hidden")
+    it("Testsets route shows not found without beta developer mode", async () => {
         await mount(<TestsetsPage />)
         expect(host.querySelector('[data-testid="not-found"]')).not.toBeNull()
         expect(host.textContent).not.toContain("Testsets")

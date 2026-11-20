@@ -40,7 +40,7 @@ export interface PreferenceSection {
 
 /**
  * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host decides
- * how each row is bound, and may add rows of its own through `hostItems`.
+ * how each row is bound.
  */
 export const PREFERENCE_SECTIONS: PreferenceSection[] = [
     {
@@ -138,24 +138,10 @@ export const usePreferenceBindings = (): Record<
     }
 }
 
-/**
- * A row only one host shows, placed after the shared rows of a {@link PREFERENCE_SECTIONS}
- * section. `/m` lists its developer views in preview this way; `/w` passes none.
- */
-export interface HostPreferenceItem {
-    /** The `key` of the section it joins. */
-    section: string
-    key: string
-    title: string
-    description: string
-    binding: PreferenceBinding
-}
-
 export interface PreferencesPageProps {
     theme: ThemePickerProps
     /** Rows without a binding are not rendered; a section left empty is dropped. */
     bindings?: PreferenceBindings
-    hostItems?: readonly HostPreferenceItem[]
     /** Only a host that loads the translations (/m) shows the language choice. */
     showLanguage?: boolean
 }
@@ -169,7 +155,6 @@ export interface PreferencesPageProps {
 export const PreferencesPage = ({
     theme,
     bindings = {},
-    hostItems = [],
     showLanguage = false,
 }: PreferencesPageProps) => {
     const t = useT(settingsPreferencesCatalog)
@@ -182,27 +167,21 @@ export const PreferencesPage = ({
             {showLanguage ? <LanguagePicker /> : null}
 
             {PREFERENCE_SECTIONS.map((section) => {
-                const rows = [
-                    ...section.items.flatMap((item) => {
-                        const binding = bindings[item.key]
-                        return binding
-                            ? [
-                                  {
-                                      item: {
-                                          key: item.key,
-                                          title: t(item.title),
-                                          description: t(item.description),
-                                      },
-                                      binding,
+                const rows = section.items.flatMap((item) => {
+                    const binding = bindings[item.key]
+                    return binding
+                        ? [
+                              {
+                                  item: {
+                                      key: item.key,
+                                      title: t(item.title),
+                                      description: t(item.description),
                                   },
-                              ]
-                            : []
-                    }),
-                    // Host rows arrive with their own text.
-                    ...hostItems
-                        .filter((item) => item.section === section.key)
-                        .map((item) => ({item, binding: item.binding})),
-                ]
+                                  binding,
+                              },
+                          ]
+                        : []
+                })
                 if (rows.length === 0) return null
                 return (
                     <SettingsSection
