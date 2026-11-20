@@ -22,6 +22,7 @@
     "items.keyboardShortcuts": "键盘快捷键",
     "items.newAgentOrOpen": "新建或打开 Agent",
     "items.newSessionWith": "与 {{agent}} 开始新会话",
+    "items.noChatsFound": "未找到对话",
     "items.observability": "可观测性",
     "items.overview": "概览",
     "items.playground": "调试台",

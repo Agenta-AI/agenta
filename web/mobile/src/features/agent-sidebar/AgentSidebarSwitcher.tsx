@@ -3,15 +3,18 @@ import {useContext, useMemo, useState} from "react"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
+import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {SidebarLayoutContext} from "@agenta/navigation-ui"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {CaretUpDownIcon} from "@phosphor-icons/react"
+import {CaretUpDownIcon, CheckIcon} from "@phosphor-icons/react"
 
 import {SwitcherTile} from "./SwitcherTile"
 
@@ -26,25 +29,41 @@ export interface SwitcherAgent {
 
 const agentName = (agent: SwitcherAgent | undefined) => agent?.name || agent?.slug || ""
 
+/** What the switcher shows: one agent (the agent sidebar) or the builder (the builder sidebar). */
+export type SwitcherCurrent = {kind: "agent"; agentId: string} | {kind: "builder"}
+
+/** The builder's tile in the switcher: the agent tile's size, on the neutral fill. */
+const BuilderTile = () => (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorSplit text-colorText">
+        <BuilderIcon size={18} />
+    </span>
+)
+
 /**
- * The agent sidebar's switcher: the sidebar's agent, and a menu with every agent the person can
- * see. What a pick opens is the host's (`onPick`).
+ * The sidebar switcher: the sidebar's agent (or the builder), and a menu with every agent the
+ * person can see. In the builder sidebar the menu starts with "Builder", checked, and has no
+ * search field. What a pick opens is the host's (`onPick`).
  */
 export const AgentSidebarSwitcher = ({
     agents,
-    agentId,
+    current,
     collapsed,
     onPick,
 }: {
     agents: SwitcherAgent[]
-    agentId: string
+    current: SwitcherCurrent
     collapsed: boolean
     onPick: (agentId: string) => void
 }) => {
     const t = useT(agentSidebarCatalog)
+    const tBuilder = useT(builderPageCatalog)
     const phone = useContext(SidebarLayoutContext) === "phone"
     const [search, setSearch] = useState("")
-    const name = agentName(agents.find((agent) => agent.id === agentId))
+    const builder = current.kind === "builder"
+    const agentId = current.kind === "agent" ? current.agentId : null
+    const name = builder
+        ? tBuilder("builder.page.builder")
+        : agentName(agents.find((agent) => agent.id === agentId))
 
     const shown = useMemo(() => {
         const needle = search.trim().toLowerCase()
@@ -65,20 +84,22 @@ export const AgentSidebarSwitcher = ({
                             : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent text-left text-colorText [font-family:inherit] hover:bg-colorFillTertiary ${phone ? "h-[52px] px-2" : "h-[38px] px-1.5"}`
                     }
                 >
-                    <SwitcherTile agentId={agentId} />
+                    {agentId ? <SwitcherTile agentId={agentId} /> : <BuilderTile />}
                     {collapsed ? null : (
                         <>
                             <span className="flex min-w-0 flex-1 flex-col">
                                 <span
-                                    className={`truncate ${phone ? "text-[15px] font-medium leading-5" : "text-[14px]"}`}
+                                    className={`truncate ${phone ? "text-[15px] font-medium leading-5" : builder ? "text-[14px] font-medium" : "text-[14px]"}`}
                                 >
                                     {name}
                                 </span>
-                                <span
-                                    className={`text-[12px] text-colorTextSecondary ${phone ? "leading-4" : "leading-3"}`}
-                                >
-                                    {t("agentSidebar.agent")}
-                                </span>
+                                {builder ? null : (
+                                    <span
+                                        className={`text-[12px] text-colorTextSecondary ${phone ? "leading-4" : "leading-3"}`}
+                                    >
+                                        {t("agentSidebar.agent")}
+                                    </span>
+                                )}
                             </span>
                             <CaretUpDownIcon
                                 size={14}
@@ -89,8 +110,22 @@ export const AgentSidebarSwitcher = ({
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-[420px] w-[260px] overflow-y-auto">
+                {builder ? (
+                    <>
+                        <DropdownMenuItem data-testid="agent-sidebar-switcher-builder">
+                            <BuilderIcon size={16} />
+                            <span className="truncate">{name}</span>
+                            <CheckIcon
+                                aria-hidden
+                                size={14}
+                                className="ml-auto shrink-0 text-colorTextSecondary"
+                            />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                    </>
+                ) : null}
                 <DropdownMenuLabel>{t("agentSidebar.agents")}</DropdownMenuLabel>
-                {agents.length > SEARCH_FROM ? (
+                {!builder && agents.length > SEARCH_FROM ? (
                     <input
                         // Typing must reach the field, not the menu's type-ahead. ArrowDown moves
                         // into the results; Escape still closes the menu.

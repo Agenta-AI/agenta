@@ -1,7 +1,5 @@
 import {useCallback, useContext, useMemo} from "react"
 
-import {sessionListQueryOptions} from "@agenta/entities/session"
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import {livePollInterval} from "@agenta/navigation"
@@ -14,9 +12,8 @@ import type {
 import {SidebarBackButton, SidebarLayoutContext, SidebarToggleButton} from "@agenta/navigation-ui"
 import {sessionRowVm} from "@agenta/sessions/row"
 import {pendingBySessionId, useActionableInteractions} from "@agenta/sessions/state"
-import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
-import Router, {useRouter} from "next/router"
+import {useQuery} from "@tanstack/react-query"
+import {useRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
 import {startBlankSession} from "../chat/useStartBlankSession"
@@ -30,34 +27,12 @@ import {
     agentSidebarSelectedKey,
     type AgentSidebarSession,
 } from "./agentSidebarItems"
-import {AgentSidebarSwitcher} from "./AgentSidebarSwitcher"
-import {
-    currentSidebar,
-    openAgentSidebar,
-    openMainSidebar,
-    useSelectedSidebar,
-} from "./selectedSidebar"
+import {agentSessionsQuery, ConnectedAgentSwitcher} from "./ConnectedAgentSwitcher"
+import {openMainSidebar, useSelectedSidebar} from "./selectedSidebar"
 import {SidebarNewButton} from "./SidebarNewButton"
-import {switchTarget} from "./switchAgent"
 
 /** How many latest sessions the agent sidebar lists; "Show N older sessions" opens the rest. */
 export const AGENT_SIDEBAR_SESSION_LIMIT = 10
-
-/** The first page of one agent's session list, with the total. Under the list's own key prefix,
- * so renames, archives and new turns refresh it too. */
-const agentSessionsQuery = (projectId: string, agentId: string, limit: number) => {
-    const options = sessionListQueryOptions({projectId, agentId, includeTotal: true, limit})
-    return {
-        queryKey: [...options.queryKey, "first-page"],
-        queryFn: async ({signal}: {signal?: AbortSignal}) => {
-            const page = await options.queryFn({pageParam: null, signal})
-            // An error, not an empty list: a failed refresh keeps the rows it had.
-            if (!page) throw new Error("The session list did not load")
-            return page
-        },
-        staleTime: 30_000,
-    }
-}
 
 /** The agent's latest sessions and the count of all its sessions, in one request. */
 const useAgentSessions = (projectId: string, agentId: string) => {
@@ -95,68 +70,6 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     const {refetch} = query
     const retry = useCallback(() => void refetch(), [refetch])
     return {sessions, total: query.data?.total ?? null, status, retry} as const
-}
-
-/**
- * The switcher, connected: the agents the person can see, and a pick that keeps the same kind
- * of page (see `switchTarget`) and shows the picked agent's sidebar.
- */
-const ConnectedSwitcher = ({
-    projectURL,
-    projectId,
-    agentId,
-    collapsed,
-}: {
-    projectURL: string
-    projectId: string
-    agentId: string
-    collapsed: boolean
-}) => {
-    const router = useRouter()
-    const queryClient = useQueryClient()
-    const selected = useSelectedSidebar()
-    const agents = useAtomValue(agentWorkflowsListQueryStateAtom).data
-    const onPick = useCallback(
-        async (pickedAgentId: string) => {
-            const fromPath = router.asPath
-            const choice = openAgentSidebar(
-                pickedAgentId,
-                selected.kind === "agent" ? selected.from : "main",
-            )
-            let href: string | null
-            try {
-                href = await switchTarget({
-                    projectURL,
-                    pathname: router.pathname,
-                    query: router.query,
-                    pickedAgentId,
-                    latestSessionId: async (id) => {
-                        const page = await queryClient.fetchQuery(
-                            agentSessionsQuery(projectId, id, 1),
-                        )
-                        return page.sessions[0]?.session_id ?? null
-                    },
-                })
-            } catch {
-                // The lookup failed: the agent sidebar shows, and the page stays.
-                return
-            }
-            // Any later sidebar choice (a pick, Fold, Back, an open button) or a move to another
-            // page replaced this one.
-            if (currentSidebar() !== choice || Router.asPath !== fromPath) return
-            if (href) void router.push(href)
-            else startBlankSession(projectURL, pickedAgentId)
-        },
-        [projectId, projectURL, queryClient, router, selected],
-    )
-    return (
-        <AgentSidebarSwitcher
-            agents={agents}
-            agentId={agentId}
-            collapsed={collapsed}
-            onPick={(id) => void onPick(id)}
-        />
-    )
 }
 
 /**
@@ -232,10 +145,10 @@ export const createAgentSidebarScope = (
                 }
                 toggle={<SidebarToggleButton onDismiss={onDismiss} />}
                 switcher={
-                    <ConnectedSwitcher
+                    <ConnectedAgentSwitcher
                         projectURL={projectURL}
                         projectId={projectId}
-                        agentId={agentId}
+                        current={{kind: "agent", agentId}}
                         collapsed={collapsed}
                     />
                 }

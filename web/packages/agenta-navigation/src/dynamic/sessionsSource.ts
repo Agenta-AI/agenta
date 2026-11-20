@@ -1202,7 +1202,7 @@ export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<
 }
 
 /** Chat-session counts alone — the DEFAULT order, before anyone has arranged anything. */
-const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
+export const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
 )
 

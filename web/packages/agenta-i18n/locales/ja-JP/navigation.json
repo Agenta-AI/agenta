@@ -22,6 +22,7 @@
     "items.keyboardShortcuts": "キーボードショートカット",
     "items.newAgentOrOpen": "新しいエージェントを作成、または開く",
     "items.newSessionWith": "{{agent}} との新しいセッション",
+    "items.noChatsFound": "チャットが見つかりません",
     "items.observability": "オブザーバビリティ",
     "items.overview": "概要",
     "items.playground": "プレイグラウンド",

@@ -1,7 +1,8 @@
-import {createElement, useMemo} from "react"
+import {createElement, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {
     SidebarScope,
     SidebarSection,
@@ -9,30 +10,29 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {Spinner} from "@agenta/ui/ui"
 import {ArrowClockwiseIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
+import {AgentSidebarHeader} from "../agent-sidebar/AgentSidebarHeader"
 import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
+import {ConnectedAgentSwitcher} from "../agent-sidebar/ConnectedAgentSwitcher"
 import {SidebarNewButton} from "../agent-sidebar/SidebarNewButton"
-import {SidebarTopRow} from "../agent-sidebar/SidebarTopRow"
 import {builderChatHref} from "../builder/builderChatHref"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 
+import {BuilderChatSearchButton, BuilderChatSearchField} from "./BuilderChatSearch"
 import {chatDayLabel} from "./chatDayLabel"
 import {useBuilderChats} from "./useBuilderChats"
-
-const ROW =
-    "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
 
 export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionId}`
 
 /**
- * The builder sidebar (B01): Back, "Builder", "New chat" and "Chats", the person's builder chats
- * newest first with the day of their last message. "Back" shows the main sidebar and leaves the
- * page as it is.
+ * The builder sidebar (B01): Back, the switcher on "Builder", "New chat" and "Chats", the
+ * person's builder chats newest first with the day of their last message. "Back" shows the main
+ * sidebar and leaves the page as it is. The search button turns the "Chats" heading into a
+ * search field that narrows the chats by title.
  */
 export const createBuilderSidebarScope = (
     workspaceId: string,
@@ -52,9 +52,16 @@ export const createBuilderSidebarScope = (
 
     const useSections = (): SidebarSection[] => {
         const t = useT(builderPageCatalog)
+        const tNav = useT(navigationCatalog)
         const bottomItems = useMobileBottomNavItems(projectURL)
-        const chats = useBuilderChats()
+        const [searchOpen, setSearchOpen] = useState(false)
+        const [term, setTerm] = useState("")
+        const chats = useBuilderChats(searchOpen ? term : "")
         return useMemo(() => {
+            const closeSearch = () => {
+                setSearchOpen(false)
+                setTerm("")
+            }
             const now = new Date()
             const words = {today: t("builder.page.today"), yesterday: t("builder.page.yesterday")}
             const rows = chats.rows.map((row) => {
@@ -102,7 +109,16 @@ export const createBuilderSidebarScope = (
                                   isLoading: true,
                               },
                           ]
-                        : []
+                        : term.trim()
+                          ? [
+                                {
+                                    key: "builder-chats-none-found",
+                                    title: tNav("navigation.items.noChatsFound"),
+                                    disabled: true,
+                                    isPlaceholder: true,
+                                },
+                            ]
+                          : []
             return [
                 {
                     key: "builder",
@@ -116,42 +132,48 @@ export const createBuilderSidebarScope = (
                             scrollChildren: true,
                             hideChildrenWhenCollapsed: true,
                             onReachEnd: chats.loadMore,
+                            groupAction: createElement(BuilderChatSearchButton, {
+                                onOpen: () => setSearchOpen(true),
+                            }),
+                            headingContent: searchOpen
+                                ? createElement(BuilderChatSearchField, {
+                                      term,
+                                      onTermChange: setTerm,
+                                      onClose: closeSearch,
+                                  })
+                                : undefined,
                             submenu: [...rows, ...states],
                         },
                     ],
                 },
                 {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
             ]
-        }, [bottomItems, chats, t])
+        }, [bottomItems, chats, searchOpen, t, tNav, term])
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
         const t = useT(builderPageCatalog)
-        const back = <SidebarBackButton collapsed={collapsed} onBack={onBack} />
-        const toggle = <SidebarToggleButton onDismiss={onDismiss} />
         return (
-            <>
-                <SidebarTopRow collapsed={collapsed} back={back} toggle={toggle} />
-                <div className={`${ROW} h-12 ${collapsed ? "justify-center" : "px-3"}`}>
-                    <span
-                        className={`flex min-w-0 items-center gap-2 ${collapsed ? "" : "h-[38px] flex-1"}`}
-                    >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorSplit text-colorText">
-                            <BuilderIcon size={18} />
-                        </span>
-                        {collapsed ? null : (
-                            <span className="truncate text-sm font-medium text-colorText">
-                                {t("builder.page.builder")}
-                            </span>
-                        )}
-                    </span>
-                </div>
-                <SidebarNewButton
-                    label={t("builder.page.newChat")}
-                    href={`${projectURL}/builder`}
-                    collapsed={collapsed}
-                />
-            </>
+            <AgentSidebarHeader
+                collapsed={collapsed}
+                back={<SidebarBackButton collapsed={collapsed} onBack={onBack} />}
+                toggle={<SidebarToggleButton onDismiss={onDismiss} />}
+                switcher={
+                    <ConnectedAgentSwitcher
+                        projectURL={projectURL}
+                        projectId={projectId}
+                        current={{kind: "builder"}}
+                        collapsed={collapsed}
+                    />
+                }
+                newSession={
+                    <SidebarNewButton
+                        label={t("builder.page.newChat")}
+                        href={`${projectURL}/builder`}
+                        collapsed={collapsed}
+                    />
+                }
+            />
         )
     }
 

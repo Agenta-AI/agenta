@@ -47,6 +47,9 @@ export type AgentSidebarText = (
 ) => string
 
 export const AGENT_SIDEBAR_SESSIONS_KEY = "agent-sidebar-sessions"
+
+/** The Sessions page query that opens its filter menu on arrival (the page reads it). */
+export const SESSIONS_FILTERS_OPEN = "filters=open"
 export const agentSidebarSessionKey = (sessionId: string) => `agent-sidebar-session-${sessionId}`
 
 /** The row that marks an agent page as the current one. */
@@ -216,11 +219,12 @@ export const agentSidebarItems = ({
             scrollChildren: true,
             // No number until the count loads; the phone sheet draws none.
             suffix: total !== null && !phone ? formatNumber(total) : undefined,
-            // The filters live on the Sessions page of this agent.
+            // The filters live on the Sessions page of this agent: Filter opens it with the
+            // filter menu open.
             groupAction: createElement(
                 Link,
                 {
-                    href: sessionsHref,
+                    href: `${sessionsHref}&${SESSIONS_FILTERS_OPEN}`,
                     prefetch: false,
                     "aria-label": t("agentSidebar.filter"),
                     title: t("agentSidebar.filter"),

@@ -22,6 +22,7 @@
     "items.keyboardShortcuts": "Tastenkürzel",
     "items.newAgentOrOpen": "Neuen Agent erstellen oder einen Agent öffnen",
     "items.newSessionWith": "Neue Sitzung mit {{agent}}",
+    "items.noChatsFound": "Keine Chats gefunden",
     "items.observability": "Observability",
     "items.overview": "Übersicht",
     "items.playground": "Playground",

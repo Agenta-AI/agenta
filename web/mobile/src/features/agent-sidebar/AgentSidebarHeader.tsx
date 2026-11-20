@@ -29,8 +29,8 @@ export const AgentSidebarHeader = ({
     toggle: ReactNode
     switcher: ReactNode
     newSession: ReactNode
-    /** Back to the main sidebar; the page stays. */
-    onFold: () => void
+    /** Back to the main sidebar; the page stays. Unset: no fold button. */
+    onFold?: () => void
 }) => {
     const t = useT(agentSidebarCatalog)
     const phone = useContext(SidebarLayoutContext) === "phone"
@@ -42,7 +42,7 @@ export const AgentSidebarHeader = ({
             ) : (
                 <div className={`${ROW} h-12 gap-1 ${collapsed ? "justify-center" : "px-1.5"}`}>
                     {switcher}
-                    {collapsed ? null : (
+                    {collapsed || !onFold ? null : (
                         <button
                             type="button"
                             aria-label={t("agentSidebar.backToMainSidebar")}

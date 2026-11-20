@@ -64,6 +64,9 @@ export interface SidebarConfig {
     /** Rendered beside a group's expand caret — a filter control, say. Interactive, so it sits
      * outside the row's stretched link anchor. Groups only; hidden when the rail is collapsed. */
     groupAction?: ReactNode
+    /** Section headings only (an always-open group with no icon): drawn in place of the heading's
+     * label and controls, so the whole row becomes this (a search field, say). */
+    headingContent?: ReactNode
     /** A leaf row's trailing control, revealed on hover or focus. Hidden when the rail is collapsed. */
     rowAction?: ReactNode
     /** Collapsed rail: a leaf's hover flyout in place of its tooltip. The icon still navigates.

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {afterEach, describe, expect, it, vi} from "vitest"
 
+import {orderAgentsLikeMainSidebar} from "../../src/features/agent-sidebar/agentOrder"
 import {agentSidebarItems} from "../../src/features/agent-sidebar/agentSidebarItems"
 import {sidebarAfterRoute} from "../../src/features/agent-sidebar/agentSidebarRoute"
 import {groupByDay} from "../../src/features/agent-sidebar/dayGroups"
@@ -167,6 +168,13 @@ describe("the agent sidebar's session rows", () => {
         expect(group.groupAction).toBeDefined()
     })
 
+    it("opens the Sessions page with the filter menu from Filter, and without it from Sessions", () => {
+        const group = sessionsGroup(agentSidebarItems(base))
+        expect(group.link).toBe("/w/w1/p/p1/agents/a1?view=sessions")
+        const filter = group.groupAction as {props: {href: string}}
+        expect(filter.props.href).toBe("/w/w1/p/p1/agents/a1?view=sessions&filters=open")
+    })
+
     it("shows Sessions without a number until the count loads, then the older sessions row", () => {
         expect(sessionsGroup(agentSidebarItems(base)).suffix).toBeUndefined()
         const session = {
@@ -187,5 +195,37 @@ describe("the agent sidebar's session rows", () => {
             agentSidebarItems({...base, sessions: [session], total: 42, phone: true}),
         )
         expect(phone.submenu!.at(-1)!.title).toBe("agentSidebar.showOlderSessionsShort")
+    })
+})
+
+describe("the switcher's agent order", () => {
+    const agents = [
+        {id: "a", name: "Alpha"},
+        {id: "b", name: "Beta"},
+        {id: "c", name: "Gamma"},
+        {id: "d", name: "Delta"},
+    ]
+
+    it("puts agents with chats first, most chats first and by name on a tie, then the rest in catalog order", () => {
+        const counts = new Map([
+            ["c", 5],
+            ["d", 2],
+            ["b", 2],
+        ])
+        expect(orderAgentsLikeMainSidebar(agents, counts).map((agent) => agent.id)).toEqual([
+            "c",
+            "b",
+            "d",
+            "a",
+        ])
+    })
+
+    it("keeps catalog order until the main sidebar loads the counts", () => {
+        expect(orderAgentsLikeMainSidebar(agents, new Map()).map((agent) => agent.id)).toEqual([
+            "a",
+            "b",
+            "c",
+            "d",
+        ])
     })
 })

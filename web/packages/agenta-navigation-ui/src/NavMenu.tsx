@@ -382,6 +382,17 @@ const SectionHeading = ({
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) => {
+    if (item.headingContent != null)
+        return (
+            <div
+                className={cn(
+                    "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center pb-1 pt-3.5",
+                    item.rowClassName,
+                )}
+            >
+                {item.headingContent}
+            </div>
+        )
     const label = (
         <>
             {item.title}

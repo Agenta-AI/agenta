@@ -10,15 +10,17 @@ const NO_EXPANSIONS = [] as const
 
 /**
  * The person's builder chats, newest activity first: the sessions of the builder agent
- * (`__ag__builder`), from the existing session query.
+ * (`__ag__builder`), from the existing session query. `search` narrows them by title on the
+ * server, so it searches every chat, not only the loaded pages.
  */
-export const useBuilderChats = () => {
+export const useBuilderChats = (search = "") => {
     const builder = useAtomValue(builderAgentRevisionIdQueryAtom)
     const builderWorkflowId =
         useAtomValue(workflowMolecule.selectors.workflowId(builder.data ?? "")) || null
     const list = useSessionList({
         agentId: builderWorkflowId,
         originPolicy: "all",
+        search,
         expansions: NO_EXPANSIONS,
         enabled: Boolean(builderWorkflowId),
     })
