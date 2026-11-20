@@ -145,6 +145,7 @@ export const AutomationDetailBody = ({
                         compact
                     />
                 </div>
+                {titleRun}
                 {actions}
                 <span aria-hidden className="text-[12px] text-muted-foreground">
                     {automation.isActive

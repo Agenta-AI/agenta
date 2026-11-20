@@ -125,7 +125,7 @@ export function SubscriptionChildRow({
                             <ProviderLogo logo={logo} size={16} />
                         </RowTile>
                     ) : (
-                        <RowTile className="bg-[var(--ag-colorText)]">
+                        <RowTile className="bg-[var(--ag-colorBgSpotlight)]">
                             <Lightning />
                         </RowTile>
                     )}

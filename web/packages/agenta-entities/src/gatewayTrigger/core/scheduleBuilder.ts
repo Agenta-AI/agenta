@@ -99,7 +99,8 @@ export function cronToBuilder(cron: string): {
     // Hourly: hour is "*" or "*/n", a single run minute, no day restriction.
     if (dom === "*" && dow === "*" && minutes?.length === 1) {
         const step = hour === "*" ? 1 : stepOfStar(hour)
-        if (step !== null) {
+        // The builder offers steps up to 23 hours; a larger one keeps the cron's own words.
+        if (step !== null && step <= 23) {
             return {
                 state: {
                     ...defaultBuilderState("hourly"),
