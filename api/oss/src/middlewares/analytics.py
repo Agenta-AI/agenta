@@ -5,7 +5,7 @@ from typing import Callable, Optional
 from uuid import UUID
 
 from fastapi import Request
-from oss.src.core.telemetry.service import distinct_id_for
+from oss.src.core.telemetry.service import distinct_id_for, instance_groups
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -220,6 +220,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 if posthog is not None:
                     if env.stripe.enabled:
                         properties["$set"] = {"email": distinct_id}
+                    else:
+                        properties["$groups"] = await instance_groups()
 
                     posthog.capture(
                         distinct_id=distinct_id,

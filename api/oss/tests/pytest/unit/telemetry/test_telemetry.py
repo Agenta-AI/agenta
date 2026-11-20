@@ -4,6 +4,7 @@ PostHog is never reached: the queued client (`_load_posthog`) and the synchronou
 client (`_sync_client`) are replaced by recorders.
 """
 
+import sys
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -40,6 +41,7 @@ class _Recorder:
 @pytest.fixture
 def self_hosted(monkeypatch):
     monkeypatch.setattr(env.stripe, "api_key", None)
+    monkeypatch.setattr(env.agenta, "license", "oss")
     monkeypatch.setattr(env.telemetry, "enabled", True)
     monkeypatch.setattr(env.telemetry, "enabled_set", False)
     monkeypatch.setattr(
@@ -441,6 +443,102 @@ async def test_startup_log_names_the_reason_and_the_docs(
     [message] = info.call_args.args
     assert message.startswith(expected)
     assert telemetry_service.TELEMETRY_DOCS_URL in message
+
+
+# --- a paid license key keeps telemetry on ----------------------------------
+
+LICENSE_SERVICE = "ee.src.core.licenses.service"
+
+
+def _license(plan, telemetry="required"):
+    return SimpleNamespace(plan=plan, telemetry=telemetry)
+
+
+@pytest.fixture
+def switch_off_on_ee(monkeypatch, self_hosted):
+    monkeypatch.setattr(env.agenta, "license", "ee")
+    monkeypatch.setattr(env.telemetry, "enabled", False)
+    monkeypatch.setattr(env.telemetry, "enabled_set", True)
+
+
+def _install_license(monkeypatch, license_key):
+    monkeypatch.setitem(
+        sys.modules,
+        LICENSE_SERVICE,
+        SimpleNamespace(active_license=AsyncMock(return_value=license_key)),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "license_key, enabled, reason",
+    [
+        (_license("self_hosted_enterprise"), True, "license"),
+        (_license("self_hosted_enterprise", telemetry="exempt"), False, "switch"),
+        (_license("self_hosted_registered"), False, "switch"),
+        (None, False, "switch"),
+    ],
+    ids=["paid", "paid_exempt", "free_registered", "no_key"],
+)
+async def test_license_and_switch_off(
+    monkeypatch, switch_off_on_ee, license_key, enabled, reason
+):
+    _install_license(monkeypatch, license_key)
+
+    status = await telemetry_service.telemetry_status()
+
+    assert (status.enabled, status.reason) == (enabled, reason)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("switch", [True, False])
+async def test_no_license_module_gives_the_switch(monkeypatch, self_hosted, switch):
+    monkeypatch.setattr(env.agenta, "license", "ee")
+    monkeypatch.setattr(env.telemetry, "enabled", switch)
+    monkeypatch.setattr(env.telemetry, "enabled_set", True)
+    # None in sys.modules makes the import raise ImportError, as a missing module does.
+    monkeypatch.setitem(sys.modules, LICENSE_SERVICE, None)
+
+    assert await telemetry_service.telemetry_enabled() is switch
+
+
+@pytest.mark.asyncio
+async def test_oss_never_reads_a_license(monkeypatch, self_hosted):
+    monkeypatch.setattr(env.agenta, "license", "oss")
+    monkeypatch.setattr(env.telemetry, "enabled", False)
+    active_license = AsyncMock(return_value=_license("self_hosted_enterprise"))
+    monkeypatch.setitem(
+        sys.modules, LICENSE_SERVICE, SimpleNamespace(active_license=active_license)
+    )
+
+    assert await telemetry_service.telemetry_enabled() is False
+    active_license.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_paid_license_opens_the_browser_and_the_queued_client(
+    monkeypatch, switch_off_on_ee, queued
+):
+    _install_license(monkeypatch, _license("self_hosted_enterprise"))
+
+    answer = await telemetry_service.instance_telemetry_for(USER_ID, EMAIL)
+
+    assert answer.enabled is True
+    assert answer.distinct_id == f"{INSTANCE_ID}:{USER_ID}"
+    assert answer.groups == {"instance": str(INSTANCE_ID)}
+    assert await lazy._load_posthog() is not None
+
+
+@pytest.mark.asyncio
+async def test_startup_log_names_the_license(monkeypatch, switch_off_on_ee):
+    _install_license(monkeypatch, _license("self_hosted_enterprise"))
+    info = MagicMock()
+    monkeypatch.setattr(telemetry_service.log, "info", info)
+
+    await telemetry_service.log_telemetry_status()
+
+    [message] = info.call_args.args
+    assert message.startswith("Telemetry is on (required by the license key)")
 
 
 # --- the docs page lists every field the API sends -------------------------
