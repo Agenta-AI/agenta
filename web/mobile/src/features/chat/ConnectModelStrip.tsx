@@ -5,7 +5,7 @@ import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
 import {providerAddView} from "@agenta/entity-ui/secretProvider"
 import {useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
-import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {Lock} from "lucide-react"
 
@@ -46,7 +46,9 @@ export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateA
                     </span>
                     <Button
                         size="sm"
-                        className={`shrink-0 ${PHONE_TOUCH_TARGET_CLASS}`}
+                        // A phone: 44 px high itself, into the strip's padding. Not an after area:
+                        // the reveal around the strip clips its overflow.
+                        className="shrink-0 max-md:-my-2 max-md:min-h-11"
                         onClick={() => setOpen(true)}
                     >
                         {t("chat.mobileComposer.setUpProviders")}
