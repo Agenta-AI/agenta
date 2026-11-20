@@ -15,7 +15,7 @@ export const PanelCloseButton = () => {
                 variant="ghost"
                 size="icon-sm"
                 aria-label={t("agentLayout.panel.close")}
-                className="rounded-md text-colorTextSecondary"
+                className="rounded-[6px] text-colorTextSecondary"
                 onClick={() => void panel.close()}
             >
                 <X size={16} />

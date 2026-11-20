@@ -459,7 +459,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         tools: integrationCount > 0,
         subagents: subagentCount > 0,
         mcp: mcpServers.length > 0,
-        skills: skills.length > 0,
+        // Skills start closed (canvas S02 opens Instructions and Integrations only).
+        skills: false,
         triggers: triggerCount > 0,
     }))
     const setSectionOpenByKey = useCallback(

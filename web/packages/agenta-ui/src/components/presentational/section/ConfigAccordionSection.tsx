@@ -218,7 +218,8 @@ export function ConfigAccordionSection({
     children,
 }: ConfigAccordionSectionProps) {
     const divider = canvas ? "border-[var(--ag-colorSplit)]" : "border-[var(--ag-c-EAEFF5)]"
-    const titleSize = size === "compact" ? "text-xs" : canvas ? "text-[13px]" : "text-sm"
+    const titleSize =
+        size === "compact" ? "text-xs" : canvas ? "text-[13px] leading-[18px]" : "text-sm"
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
     // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
     // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.

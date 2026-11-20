@@ -79,7 +79,7 @@ export const PanelViewChrome = ({
                             size="icon-sm"
                             aria-label={t("agentLayout.panel.widen")}
                             aria-pressed={panel.wide}
-                            className="rounded-md text-colorTextSecondary"
+                            className="rounded-[6px] text-colorTextSecondary"
                             onClick={() => setWide(!panel.wide)}
                         >
                             <ArrowsOutSimple size={16} />
