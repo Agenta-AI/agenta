@@ -6,7 +6,7 @@
 import {act} from "react"
 
 import {configPaneRevealRequestAtom} from "@agenta/chat/state"
-import {driveQuickLookAtomFamily} from "@agenta/entity-ui/drive"
+import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -243,7 +243,7 @@ describe("the session screen on the agent layout", () => {
         expect(panel.className).toContain("hidden")
     })
 
-    it("hides Files on a swap without closing it, so a staged drop survives", async () => {
+    it("puts files staged by a drop aside on a swap and gives them back when Files opens", async () => {
         files.close.mockClear()
         files.open = true
         localStorage.setItem(
@@ -251,21 +251,20 @@ describe("the session screen on the agent layout", () => {
             JSON.stringify({content: "files", width: 440, configTab: "agent"}),
         )
         const store = createStore()
+        const staged = [{file: new File(["x"], "a.txt")}] as never[]
+        store.set(filesDrawerStagedAtomFamily("session-1"), staged)
         await render(store)
-        expect(q("files")).toHaveLength(1)
-        // Configuration through the reveal path: a swap, not a close.
         await act(async () => {
             store.set(configPaneRevealRequestAtom, Date.now())
         })
-        expect(q("configuration")).toHaveLength(1)
-        expect(files.close).not.toHaveBeenCalled()
-        // A file opened from elsewhere while Files is hidden brings Files back.
-        await act(async () => {
-            store.set(driveQuickLookAtomFamily("session-1"), {path: "notes.md"} as never)
-        })
-        expect(
-            JSON.parse(localStorage.getItem(panelStateKey("anonymous", "proj-1"))!).content,
-        ).toBe("files")
+        expect(files.close).toHaveBeenCalledTimes(1)
+        // The real close clears what Files held; Files then opens again.
+        store.set(filesDrawerStagedAtomFamily("session-1"), [])
+        files.open = false
+        await render(store)
+        files.open = true
+        await render(store)
+        expect(store.get(filesDrawerStagedAtomFamily("session-1"))).toEqual(staged)
         files.open = false
     })
 })

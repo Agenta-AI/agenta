@@ -4,8 +4,8 @@ import {
     renderedSessionTabsAtomFamily,
     sessionTabScope,
 } from "@agenta/sessions/state"
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {act, renderHook} from "@testing-library/react"
+import {QueryClient, QueryClientProvider, useQuery} from "@tanstack/react-query"
+import {renderHook, waitFor} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
 import {describe, expect, it, vi} from "vitest"
 
@@ -42,28 +42,38 @@ describe("the agent's session order", () => {
         expect(nearestSurvivingTab(order, new Set(["s-1"]), "s-1")).toBe("s-3")
     })
 
-    it("reports a failed session-list request of this agent, and only of this agent", async () => {
+    it("reports a failed session-list request of this agent that a list reads now", async () => {
         const {client, hook} = setup()
         expect(hook.result.current.failed).toBe(false)
-        await act(async () => {
-            await client
-                .fetchQuery({
+        // Another agent's failure does not count.
+        renderHook(
+            () =>
+                useQuery({
                     queryKey: ["session-list", "proj", "", "agent-2"],
                     queryFn: () => Promise.reject(new Error("down")),
                     retry: false,
-                })
-                .catch(() => undefined)
-        })
+                }),
+            {
+                wrapper: ({children}) => (
+                    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+                ),
+            },
+        )
+        await new Promise((r) => setTimeout(r, 20))
         expect(hook.result.current.failed).toBe(false)
-        await act(async () => {
-            await client
-                .fetchQuery({
+        renderHook(
+            () =>
+                useQuery({
                     queryKey: ["session-list", "proj", "", "agent-1"],
                     queryFn: () => Promise.reject(new Error("down")),
                     retry: false,
-                })
-                .catch(() => undefined)
-        })
-        expect(hook.result.current.failed).toBe(true)
+                }),
+            {
+                wrapper: ({children}) => (
+                    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+                ),
+            },
+        )
+        await waitFor(() => expect(hook.result.current.failed).toBe(true))
     })
 })

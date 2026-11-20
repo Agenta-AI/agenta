@@ -16,10 +16,11 @@ export const sessionMenuListArgs = (agentId: string | null): UseSessionCardListA
     withPinned: true,
 })
 
-/** A failed session-list request of this agent (the recent, pinned or waiting part). */
+/** A failed session-list request of this agent that a mounted list reads now. */
 const failedListOf = (agentId: string | null) => (query: Query) =>
     query.queryKey[0] === "session-list" &&
     query.queryKey.includes(agentId ?? undefined) &&
+    query.getObserversCount() > 0 &&
     query.state.status === "error"
 
 /**
@@ -29,7 +30,9 @@ const failedListOf = (agentId: string | null) => (query: Query) =>
  */
 export const useAgentSessionOrder = (agentId: string | null) => {
     const queryClient = useQueryClient()
-    const list = useSessionCardList(sessionMenuListArgs(agentId))
+    // Every loaded row, also those the menu revealed with "Show more": the requests are shared,
+    // so a high limit here only lifts the cut, it loads nothing more.
+    const list = useSessionCardList({...sessionMenuListArgs(agentId), limit: 1000})
     const ids = useMemo(
         () => list.groups.flatMap((group) => group.rows.map((row) => row.id)),
         [list.groups],
