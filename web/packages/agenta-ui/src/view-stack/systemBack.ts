@@ -60,6 +60,12 @@ const pageOf = (state: unknown) => (state as Stamp | null)?.key ?? null
 const pushBarrier = (run: string) =>
     window.history.pushState({...window.history.state, agSystemBackRun: run}, "")
 
+/** Without a barrier no level's back can still be running: a question it left open lost its page. */
+const dropBarrier = () => {
+    barrier = null
+    pending = false
+}
+
 const anyOpen = () => [...owners.values()].some((owner) => owner.levels() > 0)
 
 /** Match the barrier to the open levels, once per task (a panel and its view close together). */
@@ -73,7 +79,7 @@ const apply = () => {
         // A barrier of a page the person navigated away from stays: going back over it would
         // undo the navigation.
         const onPage = barrier.page === pageOf(window.history.state)
-        barrier = null
+        dropBarrier()
         if (onPage) {
             ownPops += 1
             window.history.back()
@@ -132,7 +138,7 @@ const onPopState = (event: PopStateEvent) => {
     }
     // A jump to another page's entry (the history menu): the router takes it.
     if (pageOf(event.state) !== barrier.page) {
-        barrier = null
+        dropBarrier()
         return
     }
     // A back onto the page under the levels: undo it, then close the top level its own way.
@@ -163,13 +169,15 @@ const install = () => {
 export const restartSystemBack = () => {
     // Still on the barrier's page (a move the leave guard stopped): it is still right.
     if (barrier && barrier.page === pageOf(window.history.state)) return
-    barrier = null
+    dropBarrier()
     update()
 }
 
 /**
- * Give `levels` open levels to the browser back. Pass 0 on a desktop. `onBack` closes the top
- * level the way its back arrow does; when it asks and the person stays, `levels` does not drop.
+ * Give open levels to the browser back. `levels` is how many this owner has open: any number
+ * above 0 keeps the one barrier entry, and a rise marks this owner as the latest opened (it closes
+ * first among equal ranks). Pass 0 on a desktop. `onBack` closes the top level the way its back
+ * arrow does; when it asks and the person stays, `levels` does not drop.
  */
 export const useSystemBack = (levels: number, rank: SystemBackRank, onBack: () => unknown) => {
     const id = useId()

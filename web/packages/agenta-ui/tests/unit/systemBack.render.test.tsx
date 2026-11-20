@@ -184,6 +184,22 @@ describe("useSystemBack", () => {
         expect(back).toHaveBeenCalledTimes(2)
     })
 
+    it("lets a back run again after a jump away while a question was open", async () => {
+        const onBack = vi.fn()
+        render(<Level onBack={onBack} ask={() => new Promise<boolean>(() => undefined)} />)
+        await settle()
+        pop()
+        await settle()
+        expect(onBack).toHaveBeenCalledTimes(1)
+        // A jump to another page's entry from the history menu: the question loses its page.
+        pop({key: "earlier-page"})
+        restartSystemBack()
+        await settle()
+        pop()
+        await settle()
+        expect(onBack).toHaveBeenCalledTimes(2)
+    })
+
     it("lets the router take a jump to another page's entry", async () => {
         const onBack = vi.fn()
         render(<Level onBack={onBack} />)
