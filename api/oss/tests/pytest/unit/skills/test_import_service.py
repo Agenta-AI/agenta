@@ -247,6 +247,12 @@ async def test_import_creates_workflows_with_provenance_meta(fixture_tree):
     assert {s.path_in_repo for s in result.skipped} == {"skills/broken"}
 
     alpha = _workflow_named(simple, "alpha")
+    imported_alpha = next(i for i in result.imported if i.name == "alpha")
+    # The caller adds the skill to an agent by its slug, with no registry lookup after.
+    assert imported_alpha.workflow_id == str(alpha.id)
+    assert imported_alpha.workflow_slug == alpha.slug
+    assert imported_alpha.workflow_slug.startswith("alpha-")
+    assert imported_alpha.description == "A test skill named alpha."
     origin = read_origin(alpha.meta)
     assert origin["kind"] == "catalog"
     assert origin["provider"] == "github"

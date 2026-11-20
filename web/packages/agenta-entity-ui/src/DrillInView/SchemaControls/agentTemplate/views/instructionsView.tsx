@@ -14,6 +14,7 @@ export const instructionsView = defineView<InstructionsViewParams>({
     id: "agent.instructions",
     apply: "on_save",
     wide: true,
+    readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./InstructionsViewBody"),
         <div className="p-4">

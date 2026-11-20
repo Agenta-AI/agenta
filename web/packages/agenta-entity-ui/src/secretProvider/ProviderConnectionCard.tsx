@@ -41,6 +41,7 @@ import {
     secretKindForProviderKind,
     SecretKind,
     storedCredentialFields,
+    storesAwsAccessKeys,
     type CredentialValues,
     type LlmEndpointProtocol,
     type OrganizationSecretProjects,
@@ -114,7 +115,7 @@ const BEDROCK_FIELDS = [...BEDROCK_WAY_FIELDS.apiKey, ...BEDROCK_WAY_FIELDS.acce
 
 /** A saved Bedrock connection opens on the way it was saved with; a new one on the API key. */
 const initialBedrockWay = (connection: ProviderConnection | null | undefined): BedrockWay =>
-    connection?.source.accessKeyId ? "accessKeys" : "apiKey"
+    storesAwsAccessKeys(connection) ? "accessKeys" : "apiKey"
 
 /** A field whose value is a secret: the vault never returns it, and it is never shown. */
 const isSecretField = (field: ProviderFieldConfig): boolean =>

@@ -5,6 +5,7 @@ import {usePersonalToolConnections, useToolIntegrationDetail} from "@agenta/enti
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import {useIsPhone} from "@agenta/ui/phone"
 import {Button} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
@@ -34,6 +35,7 @@ const noCreate = () => undefined
 
 const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewParams>) => {
     const t = useT(integrationViewsCatalog)
+    const phone = useIsPhone()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const onChange = useCallback(
         (next: Record<string, unknown>) => writer.update(() => next),
@@ -170,7 +172,8 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="text-colorError"
+                        // A 44 px target on a phone (M09).
+                        className={phone ? "!h-11 text-colorError" : "text-colorError"}
                         onClick={() => setConfirming(true)}
                     >
                         {t("entityUi.integrationViews.removeFromAgent")}

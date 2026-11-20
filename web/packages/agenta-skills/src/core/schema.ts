@@ -197,7 +197,9 @@ export const skillSourceImportResponseSchema = z
                     .object({
                         path_in_repo: z.string(),
                         workflow_id: z.string().optional().nullable(),
+                        workflow_slug: z.string().optional().nullable(),
                         name: z.string().optional().nullable(),
+                        description: z.string().optional().nullable(),
                     })
                     .passthrough(),
             )

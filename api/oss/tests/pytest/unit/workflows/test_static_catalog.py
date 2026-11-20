@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import jsonschema
 import pytest
 
 from oss.src.core.sharing.dtos import AgentReadScope
@@ -958,8 +959,26 @@ def test_request_input_catalog_entry_shape():
     assert set(schema["properties"]) == {"message", "requestedSchema"}
     assert schema["required"] == ["message", "requestedSchema"]
     assert schema["additionalProperties"] is False
+    # Some models send requestedSchema as a JSON string; the harness must let it through to
+    # the chat, which parses it.
+    assert schema["properties"]["requestedSchema"]["type"] == ["object", "string"]
     # A form about a secret is refused by the chat, so the agent is sent to the secret flow.
     assert "for a custom secret use request_secret" in tool["description"]
+
+
+def test_request_input_admits_a_requested_schema_sent_as_a_json_string():
+    """Some models send requestedSchema as a JSON string; the harness must not refuse it."""
+    input_schema = _request_input_tool()["input_schema"]
+    golden = json.loads((_GOLDEN_DIR / "elicitation_request.json").read_text())
+    call = {"message": golden["message"], "requestedSchema": golden["requestedSchema"]}
+
+    jsonschema.validate(call, input_schema)
+    jsonschema.validate(
+        {**call, "requestedSchema": json.dumps(golden["requestedSchema"])}, input_schema
+    )
+    for refused in (42, ["a"], None, True):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({**call, "requestedSchema": refused}, input_schema)
 
 
 def test_request_input_matches_golden_request_fixture():

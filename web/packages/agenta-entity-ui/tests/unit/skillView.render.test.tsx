@@ -36,9 +36,13 @@ const {writer} = vi.hoisted(() => ({
     },
 }))
 
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", () => ({
-    useAgentConfigWriter: () => writer,
-}))
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (original) => ({
+        ...(await original<object>()),
+        useAgentConfigWriter: () => writer,
+    }),
+)
 vi.mock("../../src/DrillInView/SchemaControls/MarkdownEditor", () => ({
     MarkdownEditor: () => createElement("div"),
 }))

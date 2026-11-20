@@ -521,6 +521,155 @@ async def test_explicit_empty_custom_provider_credential_extra_is_rejected(servi
         )
 
 
+def _bedrock(extras):
+    return {
+        "kind": "custom_provider",
+        "data": {
+            "kind": "bedrock",
+            "provider": {"extras": extras},
+            "models": [{"slug": "claude"}],
+        },
+    }
+
+
+_ACCESS_KEYS = {
+    "aws_access_key_id": "AKIA123",
+    "aws_secret_access_key": "stored-secret",
+    "aws_session_token": "stored-session",
+    "aws_region_name": "eu-west-1",
+}
+
+
+@pytest.mark.asyncio
+async def test_bedrock_switch_to_api_key_drops_the_stored_access_keys(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Bedrock"}, secret=_bedrock(dict(_ACCESS_KEYS))
+        ),
+    )
+
+    updated = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret=_bedrock(
+                {
+                    "aws_bearer_token_bedrock": "new-bearer",
+                    "aws_region_name": "eu-west-1",
+                }
+            )
+        ),
+    )
+
+    assert updated.data.provider.extras == {
+        "aws_bearer_token_bedrock": "new-bearer",
+        "aws_region_name": "eu-west-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_bedrock_switch_to_api_key_drops_a_session_token_sent_back(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Bedrock"}, secret=_bedrock(dict(_ACCESS_KEYS))
+        ),
+    )
+
+    updated = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret=_bedrock(
+                {
+                    "aws_bearer_token_bedrock": "new-bearer",
+                    "aws_session_token": "stored-session",
+                    "aws_region_name": "eu-west-1",
+                }
+            )
+        ),
+    )
+
+    assert updated.data.provider.extras == {
+        "aws_bearer_token_bedrock": "new-bearer",
+        "aws_region_name": "eu-west-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_bedrock_switch_to_access_keys_drops_the_stored_api_key(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Bedrock"},
+            secret=_bedrock(
+                {
+                    "AWS_BEARER_TOKEN_BEDROCK": "stored-bearer",
+                    "aws_region_name": "eu-west-1",
+                }
+            ),
+        ),
+    )
+
+    updated = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret=_bedrock(
+                {
+                    "aws_access_key_id": "AKIA456",
+                    "aws_secret_access_key": "new-secret",
+                    "aws_region_name": "eu-west-1",
+                }
+            )
+        ),
+    )
+
+    assert updated.data.provider.extras == {
+        "aws_access_key_id": "AKIA456",
+        "aws_secret_access_key": "new-secret",
+        "aws_region_name": "eu-west-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_bedrock_update_within_one_way_keeps_its_omitted_keys(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Bedrock"}, secret=_bedrock(dict(_ACCESS_KEYS))
+        ),
+    )
+
+    region_only = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret=_bedrock({"aws_region_name": "us-east-1"})
+        ),
+    )
+    assert region_only.data.provider.extras == {
+        **_ACCESS_KEYS,
+        "aws_region_name": "us-east-1",
+    }
+
+    new_key_id = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret=_bedrock(
+                {"aws_access_key_id": "AKIA789", "aws_region_name": "us-east-1"}
+            )
+        ),
+    )
+    assert new_key_id.data.provider.extras == {
+        **_ACCESS_KEYS,
+        "aws_access_key_id": "AKIA789",
+        "aws_region_name": "us-east-1",
+    }
+
+
 @pytest.mark.asyncio
 async def test_update_without_custom_secret_content_keeps_the_stored_one(service):
     created = await service.create_secret(
@@ -935,6 +1084,28 @@ def test_aws_only_secret_reports_configured_true():
     assert redacted.value_status.configured is True
     assert "aws_secret_access_key" not in redacted.data.provider.extras
     assert redacted.data.provider.extras["aws_region_name"] == "eu-west-1"
+
+
+def test_value_status_names_the_configured_credential_keys_only():
+    secret = _response("custom_provider", _bedrock(dict(_ACCESS_KEYS))["data"])
+
+    redacted = redact_secret_response(secret)
+
+    assert redacted.value_status.configured_keys == [
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "aws_session_token",
+    ]
+    assert "AKIA123" not in redacted.model_dump_json()
+
+
+def test_value_status_has_no_configured_keys_without_credential_extras():
+    secret = _response(
+        "provider_key",
+        {"kind": "openai", "provider": {"key": "sk-test-openai-key-bc"}},
+    )
+
+    assert redact_secret_response(secret).value_status.configured_keys is None
 
 
 def test_redacts_sso_client_secret():

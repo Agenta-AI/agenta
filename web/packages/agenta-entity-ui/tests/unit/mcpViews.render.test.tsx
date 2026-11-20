@@ -49,14 +49,14 @@ const {writer, listeners, endpoints, access, toolReads} = vi.hoisted(() => ({
 // A writer that renders again on each write, as the real draft atom does.
 vi.mock(
     "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
-    async (importOriginal) => {
+    async (original) => {
         const {useSyncExternalStore} = await import("react")
         const subscribe = (listener: () => void) => {
             listeners.add(listener)
             return () => void listeners.delete(listener)
         }
         return {
-            ...(await importOriginal<object>()),
+            ...(await original<object>()),
             useAgentConfigWriter: () => {
                 useSyncExternalStore(subscribe, () => writer.agent)
                 return writer

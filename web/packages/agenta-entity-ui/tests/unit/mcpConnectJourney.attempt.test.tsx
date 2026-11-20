@@ -1652,6 +1652,60 @@ describe("whose sign-in the first consent stores", () => {
         expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({owner: "project"}))
     })
 
+    it("keeps the server when the person's own sign-in finished before the cancel", async () => {
+        const listeners = vi.spyOn(window, "addEventListener")
+        await mountJourney({owner: "user"})
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        // The callback stored the grant; the browser has not heard yet.
+        fetchMcpConnectAttempt.mockResolvedValue({
+            count: 1,
+            attempt: {id: "attempt-1", status: "connected"},
+        })
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(fetchMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+        expect(deleteMcpEndpoint).not.toHaveBeenCalled()
+        listeners.mockRestore()
+    })
+
+    it("still drops the pending server when the person's own sign-in did not finish", async () => {
+        await mountJourney({owner: "user"})
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        fetchMcpConnectAttempt.mockResolvedValue({
+            count: 1,
+            attempt: {id: "attempt-1", status: "cancelled"},
+        })
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
+    })
+
     it("stores the project's grant when nobody asked", async () => {
         const onConnected = await connectAs()
 

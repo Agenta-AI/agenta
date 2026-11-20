@@ -1195,12 +1195,28 @@ export function useMcpConnectJourney({
      * first, so it does not count as one in flight.
      */
     const cancel = useCallback(async () => {
+        // A person's own consent leaves the row with no credential, so the API's pending check
+        // cannot see that it finished. Asked after the cancel, which leaves a finished attempt be.
+        const personalAttempt =
+            consentOwnerRef.current === "user" ? consentAttemptRef.current : null
         const cancelled = abandonAttempt()
         const endpoint = endpointRef.current
         if (cancelDeletesEndpoint(state) && endpoint) {
             endpointRef.current = null
             try {
                 await cancelled
+                if (personalAttempt) {
+                    const {attempt} = await fetchMcpConnectAttempt(
+                        personalAttempt.endpointId,
+                        personalAttempt.attemptId,
+                        projectId,
+                    )
+                    // The sign-in finished: the row is the server the person signed in to.
+                    if (attempt?.status === "connected") {
+                        await refreshEndpoints()
+                        return
+                    }
+                }
                 await deleteMcpEndpoint(endpoint.id, projectId, state.authMode)
             } catch {
                 // A row another tab took over is kept on purpose, and an abandoned pending

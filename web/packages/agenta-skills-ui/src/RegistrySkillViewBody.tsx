@@ -129,7 +129,7 @@ const useHoverOpen = () => {
     return {open, setOpen, show, scheduleHide}
 }
 
-const RegistrySkillViewBody = ({params, target, nav}: ViewProps<RegistrySkillParams>) => {
+const RegistrySkillViewBody = ({params, target, nav, readOnly}: ViewProps<RegistrySkillParams>) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const {item, query} = useRegistrySkill(params.slug)
     useViewTitle(item ? skillTitle(item) : params.slug)
@@ -150,6 +150,7 @@ const RegistrySkillViewBody = ({params, target, nav}: ViewProps<RegistrySkillPar
             projectId={projectId}
             inAgent={target.kind === "agent_draft"}
             nav={nav}
+            viewReadOnly={Boolean(readOnly)}
         />
     )
 }
@@ -172,11 +173,14 @@ const RegistrySkillEditor = ({
     projectId,
     inAgent,
     nav,
+    viewReadOnly,
 }: {
     skill: SkillListItem
     projectId: string
     inAgent: boolean
     nav: ViewProps<RegistrySkillParams>["nav"]
+    /** The host shows the view read only (a phone): no edit, no archive, no restore. */
+    viewReadOnly: boolean
 }) => {
     const t = useT(skillsGalleryCatalog, skillViewCatalog)
     // Leave without a question: after an archive or a restore there is nothing left to save.
@@ -185,7 +189,7 @@ const RegistrySkillEditor = ({
     // The list item's id IS the workflow id.
     const workflowId = skill.id
     const isBuiltin = skill.origin === "builtin"
-    const readOnly = isBuiltin || Boolean(skill.archived)
+    const readOnly = viewReadOnly || isBuiltin || Boolean(skill.archived)
 
     const revisionsQuery = useQuery({
         queryKey: skillRevisionsQueryKey(projectId, workflowId),
@@ -220,8 +224,9 @@ const RegistrySkillEditor = ({
         setEditBaseId(head.id)
     }
     const headValue = useMemo(() => toFormValue(head?.skill), [head])
-    const value = draft ?? headValue
-    const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(headValue)
+    // Read only shows the saved skill, never a draft typed before the view turned read only.
+    const value = readOnly ? headValue : (draft ?? headValue)
+    const dirty = !readOnly && draft !== null && JSON.stringify(draft) !== JSON.stringify(headValue)
     const valid =
         !readOnly &&
         skillContentSchema.safeParse(value).success &&
@@ -339,20 +344,22 @@ const RegistrySkillEditor = ({
     const download = useSkillDownloadAction(value)
     const actions: SkillAction[] = isBuiltin
         ? []
-        : [
-              ...download,
-              ...(!skill.archived
-                  ? [
-                        {
-                            key: "archive",
-                            label: t("skills.gallery.archive"),
-                            icon: <Archive size={14} />,
-                            danger: true,
-                            onSelect: () => setArchiveOpen(true),
-                        },
-                    ]
-                  : []),
-          ]
+        : viewReadOnly
+          ? download
+          : [
+                ...download,
+                ...(!skill.archived
+                    ? [
+                          {
+                              key: "archive",
+                              label: t("skills.gallery.archive"),
+                              icon: <Archive size={14} />,
+                              danger: true,
+                              onSelect: () => setArchiveOpen(true),
+                          },
+                      ]
+                    : []),
+            ]
 
     const registryLink = skill.workflowSlug ? skillsPageHref(skill.workflowSlug) : null
     const status = isBuiltin ? (
@@ -445,7 +452,7 @@ const RegistrySkillEditor = ({
                 busy={archiveBusy}
                 error={error ?? (archiveOpen ? null : archiveError)}
             />
-            {skill.archived && !isBuiltin ? (
+            {skill.archived && !isBuiltin && !viewReadOnly ? (
                 <div className="flex shrink-0 items-center gap-2 px-4 pb-3">
                     <Button
                         variant="outline"

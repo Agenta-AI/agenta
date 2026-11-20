@@ -22,7 +22,9 @@ export const ConfigPane = ({entityId}: {entityId: string}) => {
     const readOnly = useContext(AgentEditorContext)?.readOnly ?? false
 
     return (
-        <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
+        // On a phone the size container lets a section screen fill the pane (its primary action at
+        // the bottom).
+        <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]">
             <AgentBuildPanel
                 revisionId={entityId}
                 disabled={readOnly}
