@@ -1,4 +1,4 @@
-export {useViewStack} from "./context"
+export {useOptionalViewStack, useViewStack} from "./context"
 export {defineView, useViewForm, useViewTitle} from "./hooks"
 export {UnsavedChangesDialog, type LeaveAnswer} from "./UnsavedChangesDialog"
 export {ViewFormActions} from "./ViewFormActions"
