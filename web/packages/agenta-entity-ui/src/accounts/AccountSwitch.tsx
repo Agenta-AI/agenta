@@ -56,7 +56,11 @@ export function AccountSwitch<Value extends string>({
             aria-label={ariaLabel}
             aria-disabled={disabled || undefined}
             onKeyDown={onKeyDown}
-            className={cn("flex gap-0.5 rounded-[10px] bg-colorFillTertiary p-[3px]", className)}
+            // The canvas track (F02 f6, M09): the split color, a solid gray in both themes.
+            className={cn(
+                "flex gap-0.5 rounded-[10px] bg-[var(--ag-colorSplit)] p-[3px]",
+                className,
+            )}
         >
             {choices.map((choice, index) => {
                 const selected = index === selectedIndex
@@ -75,7 +79,7 @@ export function AccountSwitch<Value extends string>({
                             if (!selected) onChange(choice.value)
                         }}
                         className={cn(
-                            "flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 rounded-lg border border-solid px-2.5 py-2 text-left font-[inherit] outline-none transition-colors",
+                            "flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 rounded-[8px] border border-solid px-2.5 py-2 text-left font-[inherit] outline-none transition-colors",
                             "focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-solid focus-visible:outline-ring",
                             "disabled:cursor-not-allowed disabled:opacity-60",
                             selected
@@ -85,7 +89,8 @@ export function AccountSwitch<Value extends string>({
                     >
                         <span
                             className={cn(
-                                "text-[13px] font-medium leading-5",
+                                // 13/20 on the desktop, 14/20 on a phone (M09).
+                                "text-[13px] font-medium leading-5 max-md:text-[14px]",
                                 selected ? "text-colorText" : "text-colorTextSecondary",
                             )}
                         >
@@ -94,7 +99,8 @@ export function AccountSwitch<Value extends string>({
                         {choice.note ? (
                             <span
                                 className={cn(
-                                    "text-xs leading-4",
+                                    // 12/16: `text-xs` is 13 px in /m.
+                                    "text-[12px] leading-4",
                                     selected ? "text-colorTextSecondary" : "text-colorTextTertiary",
                                 )}
                             >

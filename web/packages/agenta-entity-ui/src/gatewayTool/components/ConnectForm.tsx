@@ -26,7 +26,11 @@ import {
 } from "@agenta/ui/ui"
 import Image from "next/image"
 
-import {ConnectOwnerField, type ConnectionOwner} from "../../accounts/ConnectOwnerField"
+import {
+    CANVAS_FIELD_LABEL,
+    ConnectOwnerField,
+    type ConnectionOwner,
+} from "../../accounts/ConnectOwnerField"
 import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
@@ -192,17 +196,17 @@ export function useConnectForm({
 
 export type ConnectFormState = ReturnType<typeof useConnectForm>
 
-/** The app mark: its logo in a bordered tile, or its first letter. */
+/** The app mark (canvas F02 f5): its logo at 32 px with no tile, or its first letter. */
 export function ConnectAppMark({name, logo}: {name: string; logo?: string | null}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs">
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden">
             {logo ? (
                 <Image
                     src={logo}
                     alt={name}
-                    width={18}
-                    height={18}
-                    className="size-[18px] object-contain"
+                    width={32}
+                    height={32}
+                    className="size-8 object-contain"
                     unoptimized
                 />
             ) : (
@@ -213,6 +217,9 @@ export function ConnectAppMark({name, logo}: {name: string; logo?: string | null
         </span>
     )
 }
+
+/** Canvas F02 f5 inputs and selects: 34 px high, radius 6, 13 px; 44 px and 16 px on a phone. */
+const CANVAS_CONTROL = "h-[34px] rounded-[6px] max-md:h-11 md:text-[13px]"
 
 /** "Connect {name}", the description, and the fields: Name, Who can use it, Auth Method. */
 export function ConnectFormFields({
@@ -232,22 +239,27 @@ export function ConnectFormFields({
     return (
         <>
             <div className="flex flex-col gap-1">
-                <span className="text-base font-medium leading-snug text-foreground">
+                <span className="text-base font-medium leading-5 text-foreground">
                     {t("entityUi.connectForm.connectName", {name: integrationName})}
                 </span>
                 {integrationDescription && (
-                    <span className="text-sm text-colorTextDescription line-clamp-2">
+                    <span
+                        className="truncate text-[13px] leading-5 text-colorTextSecondary"
+                        title={integrationDescription}
+                    >
                         {integrationDescription}
                     </span>
                 )}
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
                 <Field
+                    className={CANVAS_FIELD_LABEL}
                     label={t("entityUi.connectForm.name")}
                     error={form.nameMissing ? t("entityUi.connectForm.required") : null}
                 >
                     <Input
+                        className={CANVAS_CONTROL}
                         autoFocus
                         placeholder={t("entityUi.connectForm.namePlaceholder", {
                             name: integrationName,
@@ -269,12 +281,15 @@ export function ConnectFormFields({
                 ) : null}
 
                 {form.availableModes.length > 1 && (
-                    <Field label={t("entityUi.connectForm.authMethod")}>
+                    <Field
+                        className={CANVAS_FIELD_LABEL}
+                        label={t("entityUi.connectForm.authMethod")}
+                    >
                         <Select
                             value={form.selectedMode}
                             onValueChange={(v) => form.setSelectedMode(v as AuthMode)}
                         >
-                            <SelectTrigger>
+                            <SelectTrigger className={`w-full ${CANVAS_CONTROL}`}>
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>

@@ -333,6 +333,9 @@ export function useMcpConnectJourney({
             // next connect continue from it; deleting it is what `cancel` already does for a
             // pending row this journey created, and for the same reason (round 4, D111).
             if (url.trim() !== state.url.trim()) {
+                // A check still running answers for the address being left: a new attempt
+                // drops that answer, so the field can take typing while a check runs.
+                attemptRef.current += 1
                 const abandoned = endpointRef.current
                 if (cancelDeletesEndpoint(state) && abandoned) {
                     endpointRef.current = null

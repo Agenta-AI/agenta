@@ -9,6 +9,7 @@ import {
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpConnectOwnerCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnectOwner"
+import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
@@ -28,7 +29,7 @@ const hasUserActivation = (): boolean => {
 }
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
-    const t = useT(mcpViewsCatalog, mcpConnectOwnerCatalog)
+    const t = useT(mcpViewsCatalog, mcpConnectOwnerCatalog, mcpJourneyCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
     const existingNames = useMemo(
         () => (endpoints ?? []).map((endpoint) => endpoint.name),
@@ -57,6 +58,7 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
         existingNames,
         reconnect,
         onClose: nav.cancel,
+        canvas: true,
         ownerField: owners ? (
             <ConnectOwnerField
                 value={owner}
@@ -69,7 +71,9 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
             />
         ) : null,
     })
-    useViewTitle(screens.title)
+    // The crumb names the step, "Connect", under "Add MCP server" (canvas F03 f5). A reconnect
+    // keeps its own title.
+    useViewTitle(reconnect ? screens.title : t("entityUi.mcpJourney.connect"))
 
     const done = connected !== null || journey.state.status === "connected"
     useViewForm({

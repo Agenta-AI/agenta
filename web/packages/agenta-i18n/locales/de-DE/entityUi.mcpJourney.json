@@ -24,10 +24,6 @@
     "urlHelp": "Der HTTP-Endpunkt des Servers. Agenta prüft ihn und erkennt, ob er OAuth, einen API-Schlüssel oder nichts benötigt.",
     "legacyTransportWarning": "Diese Adresse verwendet möglicherweise den älteren SSE-Transport, den Agenta nicht unterstützt. Viele Anbieter stellen den neueren Transport unter einer Adresse bereit, die auf /mcp endet. Prüfen Sie die Dokumentation des Anbieters.",
     "name": "Name",
-    "nameHelp": "Was das Modell bei den Werkzeugen dieses Servers sieht. Wird bei der Auswahl der Verbindung festgelegt, daher benennt das Umbenennen der Verbindung die Werkzeuge hier nicht um.",
-    "namePrefixHint": "Im gesamten Projekt sichtbar. Werkzeuge erhalten das Präfix <code>{{prefix}}_</code>",
-    "oauthNotice": "„Verbinden“ öffnet die Autorisierungsseite von {{name}} in einem neuen Fenster; {{name}} fragt, welche Berechtigungen erteilt werden sollen (meist Lesen und Schreiben). Die Anmeldung wird nur für dieses Projekt gespeichert.",
-    "theServer": "der Server",
     "clientSecret": "Client-Secret",
     "projectSecret": "Projekt-Secret",
     "noKeyRefusedAdvice": "Wählen Sie oben eine andere Authentifizierungsart.",
@@ -37,11 +33,11 @@
     "openWindowAgain": "Fenster erneut öffnen",
     "savedOauthUnreadable": "Die gespeicherten OAuth-Einstellungen konnten nicht gelesen werden. Versuchen Sie es erneut.",
     "consentCancelled": "{{name}} hat Agenta nicht autorisiert. Die Anmeldung wurde abgebrochen oder abgelehnt. Es wurde nichts gespeichert.",
-    "continue": "Weiter",
     "tryAgain": "Erneut versuchen",
     "connect": "Verbinden",
     "selectProjectSecret": "Projekt-Secret auswählen",
     "noProjectSecrets": "Keine Projekt-Secrets gefunden",
     "unnamedSecret": "Unbenanntes Secret",
-    "createSecret": "Secret erstellen"
+    "createSecret": "Secret erstellen",
+    "advancedSummary": "Callback-URL, Client-ID, Bereiche"
 }

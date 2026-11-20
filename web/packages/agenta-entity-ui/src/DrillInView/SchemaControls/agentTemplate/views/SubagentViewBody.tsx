@@ -21,6 +21,7 @@ import {
 } from "../subagentReference"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
+import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 import type {SubagentViewParams} from "./subagentView"
 
 const ViewTitle = ({title}: {title: string}) => {
@@ -111,18 +112,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
                     }
                 />
             </div>
-            {writer.readOnly ? null : (
-                <div className="shrink-0 px-4 py-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-colorError"
-                        onClick={() => setConfirming(true)}
-                    >
-                        {t("entityUi.integrationViews.removeFromAgent")}
-                    </Button>
-                </div>
-            )}
+            {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
             {confirming ? (
                 <SubagentRemoveDialog
                     name={name}

@@ -24,10 +24,6 @@
     "urlHelp": "服务器的 HTTP 端点。Agenta 会检查它，并检测它需要 OAuth、API 密钥，还是什么都不需要。",
     "legacyTransportWarning": "此地址可能使用较旧的 SSE 传输方式，Agenta 不支持该方式。许多供应商在以 /mcp 结尾的地址上提供较新的传输方式。请查看供应商的文档。",
     "name": "名称",
-    "nameHelp": "模型在此服务器的工具上看到的名称。在选择连接时即已固定，因此重命名连接不会重命名这里的工具。",
-    "namePrefixHint": "在整个项目中显示。工具前缀为 <code>{{prefix}}_</code>",
-    "oauthNotice": "点击“连接”会在新窗口中打开 {{name}} 的授权页面；{{name}} 会询问要授予哪些权限（通常是读取和写入）。登录信息仅为此项目存储。",
-    "theServer": "该服务器",
     "clientSecret": "客户端密钥",
     "projectSecret": "项目密钥",
     "noKeyRefusedAdvice": "请在上方选择其他认证方式。",
@@ -37,11 +33,11 @@
     "openWindowAgain": "重新打开窗口",
     "savedOauthUnreadable": "无法读取已保存的 OAuth 设置。请重试。",
     "consentCancelled": "{{name}} 未授权 Agenta。登录已被取消或拒绝。未保存任何内容。",
-    "continue": "继续",
     "tryAgain": "重试",
     "connect": "连接",
     "selectProjectSecret": "选择项目密钥",
     "noProjectSecrets": "未找到项目密钥",
     "unnamedSecret": "未命名密钥",
-    "createSecret": "创建密钥"
+    "createSecret": "创建密钥",
+    "advancedSummary": "回调 URL、客户端 ID、权限范围"
 }

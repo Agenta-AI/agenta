@@ -14,6 +14,7 @@ import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import mcpAccountCatalog from "@agenta/i18n/catalogs/entityUi.mcpAccount"
+import {Button} from "@agenta/ui/ui"
 import {Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -23,6 +24,8 @@ import {McpSignIn} from "../../../../accounts/McpSignIn"
 import {useItemWorkflowId, type ItemAccountContext} from "../../../../accounts/useItemAccount"
 
 import {mcpAccountOptions} from "./accountOptions"
+import {EmptyAccountBox} from "./EmptyAccountBox"
+import {FieldHeading} from "./FieldHeading"
 import {useRunsWithoutPerson} from "./useRunsWithoutPerson"
 
 export interface McpAccountBlockProps {
@@ -151,7 +154,8 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                 submitLabel={t("entityUi.accounts.saveToken")}
             >
                 {(start, pending) => (
-                    <AccountLine
+                    // Canvas F03 f7: a dashed box with the dark sign-in button.
+                    <EmptyAccountBox
                         text={
                             own
                                 ? t("entityUi.accounts.signInExpired")
@@ -159,11 +163,16 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                         }
                     >
                         {start ? (
-                            <AccountLineAction disabled={pending} onClick={start}>
+                            <Button
+                                size="compact"
+                                className="max-md:h-11"
+                                disabled={pending}
+                                onClick={start}
+                            >
                                 {t("entityUi.mcpAccount.signInTo", {name})}
-                            </AccountLineAction>
+                            </Button>
                         ) : null}
-                    </AccountLine>
+                    </EmptyAccountBox>
                 )}
             </McpSignIn>
         </div>
@@ -178,15 +187,6 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
         <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
             <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
             <span>{t("entityUi.mcpAccount.noPersonWarning")}</span>
-        </div>
-    )
-}
-
-function FieldHeading({label, note}: {label: string; note: string}) {
-    return (
-        <div className="flex flex-col gap-px">
-            <span className="text-[13px] font-semibold text-colorText">{label}</span>
-            <span className="text-xs text-colorTextSecondary">{note}</span>
         </div>
     )
 }

@@ -13,7 +13,14 @@
 import {forwardRef, type ButtonHTMLAttributes, type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    PHONE_TOUCH_TARGET_CLASS,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
 export interface SectionAddButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -37,8 +44,9 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 aria-label={label}
                 disabled={disabled}
                 // Quieter than the row title at rest; full strength on hover or while open.
-                // A bare 14 px plus in a 24 px box (canvas S02).
+                // A bare 14 px plus in a 24 px box (canvas S02); a 44 px tap area on a phone.
                 className={cn(
+                    PHONE_TOUCH_TARGET_CLASS,
                     "size-6 rounded-[6px] !text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
                     className,
                 )}

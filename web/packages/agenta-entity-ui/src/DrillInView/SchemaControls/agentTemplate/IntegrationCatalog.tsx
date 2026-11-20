@@ -49,7 +49,7 @@ import {
     SearchInput,
     cn,
 } from "@agenta/ui/ui"
-import {Check, MagnifyingGlass, Play, Plus, Star} from "@phosphor-icons/react"
+import {CaretRight, Check, MagnifyingGlass, Play, Plus, Star} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -263,7 +263,10 @@ function ConnectedRow({
     onAdd,
     handlers,
     verbs = {},
+    canvas = false,
 }: {
+    /** The agent panel's row (canvas F02 f4); off, the Settings page row. */
+    canvas?: boolean
     group: ConnectedGroup
     /** The agent's row for this integration, in EITHER format, or undefined when it holds none. */
     row: IntegrationRow | undefined
@@ -291,11 +294,13 @@ function ConnectedRow({
     const added = Boolean(row)
     const swappable = Boolean(row?.entry)
     const single = group.connections[0]
+    const singleLabel = connectionLabel(single, integration?.name)
 
     const logo = integration?.logo ?? null
     // One connection reads as Settings reads it: the connection's own name, then "App · Auth".
     const attention = multiple ? null : attentionOf(single)
-    const title = multiple ? name : connectionLabel(single, integration?.name)
+    // The panel names the app and puts the account under it (canvas F02 f4).
+    const title = multiple || canvas ? name : singleLabel
 
     const subtitle =
         choosing && onAdd
@@ -304,9 +309,11 @@ function ConnectedRow({
               ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
               : multiple
                 ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
-                : // What the app does says more than repeating its name; the old line is the fallback.
-                  integration?.description?.trim() ||
-                  [name, authLabel(single)].filter(Boolean).join(" · ")
+                : canvas
+                  ? singleLabel
+                  : // What the app does says more than repeating its name; the old line is the fallback.
+                    integration?.description?.trim() ||
+                    [name, authLabel(single)].filter(Boolean).join(" · ")
 
     // An added integration offers Change only when it has an entry to edit; adding a second
     // surface to one still on the legacy format is never the intent.
@@ -317,7 +324,12 @@ function ConnectedRow({
     // Adding is the row's own click; only switching connections needs a visible button.
     const rowAction =
         chooserButton && (choosing || added) ? (
-            <Button variant="ghost" size="sm" onClick={() => setChoosing((v) => !v)}>
+            <Button
+                variant={canvas ? "outline" : "ghost"}
+                size={canvas ? "compact" : "sm"}
+                className={canvas ? "font-normal" : undefined}
+                onClick={() => setChoosing((v) => !v)}
+            >
                 {choosing
                     ? t("entityUi.integrationDrawer.cancel")
                     : t("entityUi.integrationDrawer.change")}
@@ -343,10 +355,21 @@ function ConnectedRow({
                             ? () => verbs.run?.onRun(single)
                             : undefined
             }
-            leading={<LogoTile logo={logo} />}
+            variant={canvas ? "canvas" : "default"}
+            leading={canvas ? <ProviderLogo logo={logo} size={20} /> : <LogoTile logo={logo} />}
             title={title}
             titleSuffix={
-                added && !choosing ? (
+                canvas ? (
+                    attention ? (
+                        <span className="inline-flex h-5 shrink-0 items-center rounded px-[7px] text-[12px] font-medium leading-4 text-colorWarningText bg-colorWarningBg">
+                            {attention === "inactive"
+                                ? t("entityUi.integrationDrawer.inactive")
+                                : t("entityUi.integrationDrawer.pending")}
+                        </span>
+                    ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
+                        <DefaultMark label={verbs.makeDefault.defaultLabel} />
+                    ) : null
+                ) : added && !choosing ? (
                     <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-colorSuccess">
                         <Check size={11} weight="bold" />
                         {t("entityUi.integrationDrawer.added")}
@@ -364,16 +387,36 @@ function ConnectedRow({
                 ) : null
             }
             action={
-                <span className="flex items-center gap-0.5">
+                <span className={`flex items-center ${canvas ? "gap-2" : "gap-0.5"}`}>
+                    {canvas && added && !choosing ? (
+                        <span className="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
+                            <Check size={14} />
+                            {t("entityUi.integrationDrawer.added")}
+                        </span>
+                    ) : null}
                     {rowAction}
-                    {/* Per-connection verbs need one connection to act on. */}
+                    {canvas && attention === "pending" ? (
+                        <CaretRight size={12} className="shrink-0 text-colorTextTertiary" />
+                    ) : null}
+                    {/* Per-connection verbs need one connection to act on. In the panel they take
+                        no room until the row is hovered or focused; touch shows them always. */}
                     {multiple ? null : (
-                        <ConnectionRowMenu
-                            items={menuItems(single, verbs)}
-                            onRefresh={() => handlers.onRefresh(single)}
-                            onRevoke={() => handlers.onConfirm("revoke", single, title)}
-                            onDelete={() => handlers.onConfirm("delete", single, title)}
-                        />
+                        <span
+                            className={
+                                canvas
+                                    ? // Zero width, not hidden, so Tab still reaches the menu button;
+                                      // -ml-2 takes back the row's gap while it is closed.
+                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none"
+                                    : "contents"
+                            }
+                        >
+                            <ConnectionRowMenu
+                                items={menuItems(single, verbs)}
+                                onRefresh={() => handlers.onRefresh(single)}
+                                onRevoke={() => handlers.onConfirm("revoke", single, singleLabel)}
+                                onDelete={() => handlers.onConfirm("delete", single, singleLabel)}
+                            />
+                        </span>
                     )}
                 </span>
             }
@@ -466,7 +509,14 @@ function ConnectedRow({
                 ) : null
             }
         >
-            <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]" title={subtitle}>
+            <span
+                className={
+                    canvas
+                        ? "truncate text-[12px] leading-4 text-colorTextSecondary"
+                        : "truncate text-xs text-[var(--ag-colorTextTertiary)]"
+                }
+                title={subtitle}
+            >
                 {subtitle}
             </span>
         </CatalogListRow>
@@ -477,41 +527,64 @@ function ConnectedRow({
 function CatalogRow({
     integration,
     onConnect,
+    canvas = false,
 }: {
     integration: CatalogIntegration
     onConnect: () => void
+    /** The agent panel's row (canvas F02 f4). */
+    canvas?: boolean
 }) {
     const t = useT(integrationDrawerCatalog)
     return (
         <CatalogListRow
             onClick={onConnect}
-            leading={<LogoTile logo={integration.logo ?? null} />}
+            variant={canvas ? "canvas" : "default"}
+            leading={
+                canvas ? (
+                    <ProviderLogo logo={integration.logo ?? null} size={20} />
+                ) : (
+                    <LogoTile logo={integration.logo ?? null} />
+                )
+            }
             title={integration.name}
             actionLabel={t("entityUi.integrationDrawer.connectName", {name: integration.name})}
             action={
                 <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size={canvas ? "icon-compact" : "icon-sm"}
                     aria-label={t("entityUi.integrationDrawer.connectName", {
                         name: integration.name,
                     })}
                     title={t("entityUi.integrationDrawer.connect")}
                     onClick={onConnect}
                 >
-                    <Plus size={16} />
+                    {canvas ? <Plus className="size-3.5 max-md:size-5" /> : <Plus size={16} />}
                 </Button>
             }
         >
             {integration.description ? (
                 // One line; the full text stays available on hover.
                 <span
-                    className="truncate text-xs text-[var(--ag-colorTextTertiary)]"
+                    className={
+                        canvas
+                            ? "truncate text-[12px] leading-4 text-colorTextSecondary"
+                            : "truncate text-xs text-[var(--ag-colorTextTertiary)]"
+                    }
                     title={integration.description}
                 >
                     {integration.description}
                 </span>
             ) : null}
         </CatalogListRow>
+    )
+}
+
+/** The agent panel's group header (canvas F02 f4): 13/600, a divider above, no count, no fold. */
+function CanvasGroupHeader({label}: {label: ReactNode}) {
+    return (
+        <div className="mt-0.5 flex items-center border-0 border-t border-solid border-[var(--ag-colorSplit)] pb-0.5 pt-2 text-[13px] font-semibold leading-5 text-colorText">
+            {label}
+        </div>
     )
 }
 
@@ -525,6 +598,7 @@ function RowGroup({
     footer,
     children,
 }: {
+    /** In the agent panel (not `page`) the header is the canvas one and the group never folds. */
     label: ReactNode
     count: number
     collapsed?: boolean
@@ -536,23 +610,27 @@ function RowGroup({
     return (
         // No gap: the spacing rides inside the collapse, so a folded list leaves none.
         <div className="flex flex-col">
-            <SubSectionHeader
-                label={label}
-                count={count}
-                collapsed={collapsed}
-                onToggle={onToggle}
-            />
+            {page ? (
+                <SubSectionHeader
+                    label={label}
+                    count={count}
+                    collapsed={collapsed}
+                    onToggle={onToggle}
+                />
+            ) : (
+                <CanvasGroupHeader label={label} />
+            )}
             {/* -mx/px: the rows' hover fill and focus ring bleed 8px past the column, and the
             collapse clips its overflow. */}
             <HeightCollapse
-                open={!collapsed}
+                open={!page || !collapsed}
                 fade
                 className="-mx-2"
-                contentClassName={cn(page ? PAGE_ROWS : "flex flex-col", "px-2 pt-2")}
+                contentClassName={cn(page ? PAGE_ROWS : "flex flex-col gap-2", "px-2 pt-2")}
             >
                 {children}
             </HeightCollapse>
-            {collapsed ? null : footer}
+            {page && collapsed ? null : footer}
         </div>
     )
 }
@@ -786,7 +864,12 @@ export function IntegrationCatalog({
 
     const search = (
         <SearchInput
-            className="min-w-0 flex-1"
+            className={cn(
+                "min-w-0 flex-1",
+                // Canvas F02 f4: 30 px, radius 6, 13 px; 44 px on a phone.
+                !page &&
+                    "h-[30px] rounded-[6px] border-colorBorderSecondary max-md:h-11 md:[&_input]:text-[13px]",
+            )}
             placeholder={searchPlaceholder ?? t("entityUi.integrationDrawer.searchApps")}
             value={query}
             onValueChange={setQuery}
@@ -811,6 +894,7 @@ export function IntegrationCatalog({
                 }
                 handlers={rowHandlers}
                 verbs={verbs}
+                canvas={!page}
             />
         ))
 
@@ -830,13 +914,15 @@ export function IntegrationCatalog({
                     </div>
                 ) : (
                     // Fixed above the scroll. pt-1 keeps the focus ring inside the body's clip.
-                    <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-1">
+                    <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-1">
                         {search}
-                        <CategorySelect
-                            value={category}
-                            container={container}
-                            onChange={selectCategory}
-                        />
+                        <div className="shrink-0">
+                            <CategorySelect
+                                value={category}
+                                container={container}
+                                onChange={selectCategory}
+                            />
+                        </div>
                     </div>
                 )}
 
@@ -845,7 +931,7 @@ export function IntegrationCatalog({
                     className={
                         page
                             ? "flex flex-col gap-8 pt-2"
-                            : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4"
+                            : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4"
                     }
                 >
                     {yours && (yoursGroups.length > 0 || yoursFooter) ? (
@@ -904,22 +990,29 @@ export function IntegrationCatalog({
                     {/* Hidden when empty: the Connected matches, or the empty state, say it all. */}
                     {catalogLoading || catalogRows.length > 0 || hasNextPage ? (
                         <div className="flex flex-col gap-2">
-                            <SubSectionHeader
-                                label={t("entityUi.integrationDrawer.allApps")}
-                                // A local narrowing shows fewer rows than the server total.
-                                count={
-                                    catalogLoading || narrowedLocally
-                                        ? undefined
-                                        : (total ?? catalogRows.length)
-                                }
-                            />
+                            {page ? (
+                                <SubSectionHeader
+                                    label={t("entityUi.integrationDrawer.allApps")}
+                                    // A local narrowing shows fewer rows than the server total.
+                                    count={
+                                        catalogLoading || narrowedLocally
+                                            ? undefined
+                                            : (total ?? catalogRows.length)
+                                    }
+                                />
+                            ) : (
+                                <CanvasGroupHeader
+                                    label={t("entityUi.integrationDrawer.allApps")}
+                                />
+                            )}
                             {catalogLoading ? (
                                 <CatalogRowSkeleton />
                             ) : (
-                                <div className={page ? PAGE_ROWS : "flex flex-col"}>
+                                <div className={page ? PAGE_ROWS : "flex flex-col gap-2"}>
                                     {catalogRows.map((integration) => (
                                         <CatalogRow
                                             key={integration.key}
+                                            canvas={!page}
                                             integration={integration}
                                             onConnect={() => startConnect(integration.key)}
                                         />

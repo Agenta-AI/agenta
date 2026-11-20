@@ -11,6 +11,7 @@ import {Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {
     CollapseCaret,
+    PHONE_TOUCH_TARGET_CLASS,
     Tooltip,
     TooltipContent,
     TooltipProvider,
@@ -242,7 +243,8 @@ export function ItemRow({
                             onRemove()
                         }}
                         // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
-                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100"
+                        // 44 px tap area on a phone, the same 24 px box (PHONE_TOUCH_TARGET_CLASS).
+                        className={`${PHONE_TOUCH_TARGET_CLASS} flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100`}
                     >
                         <Trash size={14} />
                     </button>
@@ -320,7 +322,7 @@ export function ItemChildRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
+                        className={`${PHONE_TOUCH_TARGET_CLASS} flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100`}
                     >
                         <Trash size={14} />
                     </button>

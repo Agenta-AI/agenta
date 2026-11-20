@@ -1,6 +1,6 @@
 /**
- * One Connect journey for an MCP server: the address, then a name, then whatever
- * authorization the server turned out to want.
+ * One Connect journey for an MCP server, as one form: the address checks itself once typing
+ * pauses, and the authorization the server turned out to want and the name then show under it.
  *
  * It replaces a register-then-connect sequence that took seven actions across two dialogs
  * and a row menu, and that asked a person for a slug and an authentication mode before
@@ -29,7 +29,7 @@
  * The scopes are a checklist under Advanced on the OAuth screen, all checked, filled from what
  * the probe found. There is no separate scope step: Connect asks for whatever is checked.
  */
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {
     connectionNameProblem,
@@ -47,7 +47,6 @@ import {
     urlMatchesCredentialBinding,
     urlSecretProblem,
     readMcpProbeResponse,
-    toolPrefixFromName,
     useMcpConnectJourney,
     type MCPAuthMode,
     type MCPCredentialBinding,
@@ -86,7 +85,6 @@ import {
     CredentialBindingFields,
     headerSchemeHint,
     HintedField,
-    NoticeBox,
     OAuthAdvancedFields,
     ProbeResultCard,
     ShowResponsePanel,
@@ -108,6 +106,9 @@ export interface McpConnectJourneyProps {
 // The helpers below run during render; they read the language when called.
 const tNow = createT(mcpJourneyCatalog)
 type JourneyKey = CatalogKey<typeof mcpJourneyCatalog>
+
+/** How long the address field waits after the last keystroke before it checks the address. */
+const URL_CHECK_DELAY_MS = 700
 
 /** The box the address field is described by once the check has failed. */
 const URL_PROBLEM_ID = "mcp-url-problem"
@@ -381,7 +382,7 @@ export interface McpConnectScreens {
     busy: boolean
     /** The credential is stored and only the refresh is left: leaving would lose it. */
     sealed: boolean
-    /** The screen's action ("Continue", "Connect", "Try again"), opened inside the press. */
+    /** The screen's action ("Connect", "Try again"), opened inside the press. */
     confirm: () => void
     canConfirm: boolean
     confirmLabel: string
@@ -404,6 +405,11 @@ export interface McpConnectScreensInput {
     reconnect?: McpConnectJourneyProps["reconnect"]
     /** The "Who can use it" field, which the OAuth screen shows under the name. */
     ownerField?: ReactNode
+    /**
+     * Draw the fields at the canvas scale (12 px labels, 34 px fields, radius 6) from the
+     * desktop width up: the panel's connect step. The dialog keeps the app scale.
+     */
+    canvas?: boolean
 }
 
 /**
@@ -416,6 +422,7 @@ export function useMcpConnectScreens({
     existingNames = [],
     reconnect = null,
     ownerField,
+    canvas = false,
 }: McpConnectScreensInput): McpConnectScreens {
     const t = useT(mcpJourneyCatalog)
     const {state} = journey
@@ -594,6 +601,22 @@ export function useMcpConnectScreens({
         onClose()
     }, [onClose, state.status])
 
+    // One form (canvas F03 f5): the address checks itself once typing pauses, so there is no
+    // step to press through before the fields that depend on the answer. Enter and leaving
+    // the field check at once. A reconnect never edits its address.
+    const submitUrlRef = useRef(journey.submitUrl)
+    submitUrlRef.current = journey.submitUrl
+    const urlReady = !reconnect && state.status === "url_entry" && isProbeableUrl(state.url)
+    const checkUrlNow = useCallback(() => {
+        if (urlReady) void submitUrlRef.current(state.url.trim())
+    }, [state.url, urlReady])
+    useEffect(() => {
+        if (!urlReady) return
+        const timer = window.setTimeout(checkUrlNow, URL_CHECK_DELAY_MS)
+        return () => window.clearTimeout(timer)
+    }, [checkUrlNow, urlReady])
+    const urlInputRef = useRef<HTMLInputElement>(null)
+
     // A window opened for an attempt that is no longer going to the provider is a blank
     // popup nobody closes. The statuses that still want it are the ones between the press
     // and the callback.
@@ -749,7 +772,6 @@ export function useMcpConnectScreens({
         submitCredential,
     ])
 
-    const prefix = useMemo(() => toolPrefixFromName(state.name), [state.name])
     // Only the key screen has a secret to have chosen, and only it should be reading the
     // project's vault: every other screen would be asking a question it has no field for.
     const secretChosen = screen === "api_key" && !!selectedSecretId()
@@ -802,22 +824,44 @@ export function useMcpConnectScreens({
             credentialBindingComplete(binding) && urlMatchesCredentialBinding(state.url, binding),
         busy,
     })
+    // The key screen draws its own address field where the key goes into the address.
+    const keyScreenUrl =
+        screen === "api_key" && (binding.kind === "url" || hasUrlSecretPlaceholder(state.url))
+    const showUrlField = screen !== "waiting" && !keyScreenUrl
+    // The canvas field: 34 px, radius 6, 13 px text, from the desktop width up.
+    const fieldClass = canvas ? "md:h-[34px] md:rounded-[6px] md:text-[13px]" : undefined
+
     const body = (
-        <div className="flex flex-col gap-4" data-testid="mcp-connect-journey">
-            {screen === "url" || screen === "url_failed" ? (
+        <div
+            className={cn(
+                "flex flex-col gap-4",
+                // The canvas labels at every width, as in ConnectOwnerField: 12/16, weight 500,
+                // secondary text. 12 px between fields on the desktop.
+                canvas &&
+                    "md:gap-3 [&_[data-slot=field-label]]:text-[12px] [&_[data-slot=field-label]]:leading-4 [&_[data-slot=field-label]]:text-colorTextSecondary",
+            )}
+            data-testid="mcp-connect-journey"
+        >
+            {showUrlField ? (
                 <HintedField
                     label={t("entityUi.mcpJourney.serverUrl")}
-                    // Dropped once the check has failed: the box below says what is
-                    // wrong with this address, and the line explaining what the
-                    // field is for is no longer the thing to read.
+                    // Only before the first check: once the server has answered, the box below
+                    // says what it found, and once the check has failed, the box below says
+                    // what is wrong with this address.
                     hint={screen === "url" ? t("entityUi.mcpJourney.urlHelp") : null}
                 >
                     <Input
-                        autoFocus
-                        className="font-mono text-[13px]"
+                        ref={urlInputRef}
+                        autoFocus={!reconnect}
+                        className={cn("font-mono text-[13px]", fieldClass)}
                         placeholder="https://mcp.example.com/mcp"
-                        value={state.url}
-                        disabled={busy}
+                        value={reconnect?.url ?? state.url}
+                        // A reconnect repairs one address and never points a saved connection
+                        // somewhere else. While a connect runs, the field keeps the cursor but
+                        // takes no typing. A check does not lock it: typing drops that check's
+                        // answer and the next pause checks the new address.
+                        disabled={!!reconnect}
+                        readOnly={busy && state.status !== "checking_url"}
                         aria-label={t("entityUi.mcpJourney.serverUrl")}
                         // The failure box, when the check has failed. The help line
                         // is `HintedField`'s to name, and it names it only while it
@@ -825,14 +869,17 @@ export function useMcpConnectScreens({
                         // replaced it rather than a line that is gone (round 4, P2).
                         aria-describedby={screen === "url_failed" ? URL_PROBLEM_ID : undefined}
                         aria-invalid={screen === "url_failed" || undefined}
+                        // A new address drops what the last check said; the check runs again
+                        // once typing pauses.
                         onChange={(event) => journey.setUrl(event.target.value)}
-                        // Enter runs the same check as the button, and only while the
-                        // button would be enabled. A key press that composes text in an
-                        // input method is not a submit.
+                        onBlur={checkUrlNow}
+                        // Enter checks at once. A key press that composes text in an input
+                        // method is not a submit.
                         onKeyDown={(event) => {
                             if (event.key !== "Enter" || event.nativeEvent.isComposing) return
                             event.preventDefault()
-                            if (!busy && isProbeableUrl(state.url)) confirm()
+                            if (screen === "url_failed") confirm()
+                            else checkUrlNow()
                         }}
                     />
                 </HintedField>
@@ -859,11 +906,17 @@ export function useMcpConnectScreens({
                                 address is on the key screen instead. */}
                     {state.probe || reconnect ? (
                         <ProbeResultCard
-                            url={reconnect?.url ?? state.url}
                             mode={detected ?? reconnect?.authMode ?? path}
                             // A reconnect is repairing one address. Offering to change it
                             // would offer to point a saved connection somewhere else.
-                            onChange={reconnect ? undefined : () => journey.setUrl(state.url)}
+                            onChange={
+                                reconnect || !showUrlField
+                                    ? undefined
+                                    : () => {
+                                          urlInputRef.current?.focus()
+                                          urlInputRef.current?.select()
+                                      }
+                            }
                         />
                     ) : null}
                     <AuthModeSelector
@@ -892,20 +945,9 @@ export function useMcpConnectScreens({
             ) : null}
 
             {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
-                <HintedField
-                    label={t("entityUi.mcpJourney.name")}
-                    tooltip={screen === "oauth" ? t("entityUi.mcpJourney.nameHelp") : undefined}
-                    error={nameError ?? undefined}
-                    hint={
-                        screen === "oauth" && prefix
-                            ? richText(t("entityUi.mcpJourney.namePrefixHint", {prefix}), {
-                                  code: (text) => <span className="font-mono">{text}</span>,
-                              })
-                            : null
-                    }
-                >
+                <HintedField label={t("entityUi.mcpJourney.name")} error={nameError ?? undefined}>
                     <Input
-                        autoFocus={!reconnect}
+                        className={fieldClass}
                         value={state.name}
                         // A reconnect repairs a credential. The label is what agents
                         // and people already call this connection.
@@ -920,14 +962,6 @@ export function useMcpConnectScreens({
 
             {(screen === "oauth" || screen === "no_auth") && urlProblem ? (
                 <InlineError headline={null}>{urlProblem}</InlineError>
-            ) : null}
-
-            {screen === "oauth" ? (
-                <NoticeBox>
-                    {t("entityUi.mcpJourney.oauthNotice", {
-                        name: state.name || t("entityUi.mcpJourney.theServer"),
-                    })}
-                </NoticeBox>
             ) : null}
 
             {screen === "oauth" ? (
@@ -962,6 +996,7 @@ export function useMcpConnectScreens({
                     scopesSelected={state.scopesSelected}
                     onToggleScope={journey.toggleScope}
                     needsOwnApp={needsOwnApp}
+                    summary={t("entityUi.mcpJourney.advancedSummary")}
                     // Until the saved settings arrive, what is typed would be
                     // replaced by them.
                     disabled={busy || state.savedOauthConfig === "loading"}
@@ -1153,7 +1188,8 @@ const isConsentRefusal = (status: McpJourneyState["status"]) =>
 
 /** What the trailing button says, by screen and by whether it is a second attempt. */
 const confirmLabel = (screen: Screen, state: McpJourneyState): JourneyKey => {
-    if (screen === "url") return "entityUi.mcpJourney.continue"
+    // The address checks itself; the action is Connect from the start (canvas F03 f5).
+    if (screen === "url") return "entityUi.mcpJourney.connect"
     if (screen === "oauth" && state.savedOauthConfig === "failed")
         return "entityUi.mcpJourney.tryAgain"
     if (screen === "url_failed") return "entityUi.mcpJourney.tryAgain"
@@ -1183,7 +1219,9 @@ const canConfirm = ({
     busy: boolean
 }): boolean => {
     if (busy && screen !== "waiting") return false
-    if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
+    // Nothing to connect until the check has answered; it runs by itself.
+    if (screen === "url") return false
+    if (screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
     if (screen === "api_key") return !!state.name.trim() && secretChosen && bindingReady
     if (!oauthClientReady) return false

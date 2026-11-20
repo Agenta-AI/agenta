@@ -137,7 +137,7 @@ const Chrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
             ))}
         </nav>
         {children}
-        <ViewFormActions {...actions} />
+        <ViewFormActions {...actions} startRef={actions.footerStartRef} />
     </div>
 )
 

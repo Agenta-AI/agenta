@@ -24,10 +24,6 @@
     "urlHelp": "O endpoint HTTP do servidor. A Agenta o verifica e detecta se ele precisa de OAuth, de uma chave de API ou de nada.",
     "legacyTransportWarning": "Este endereço pode usar o transporte SSE antigo, que a Agenta não suporta. Muitos provedores oferecem o transporte novo em um endereço que termina em /mcp. Consulte a documentação do provedor.",
     "name": "Nome",
-    "nameHelp": "O que o modelo vê nas ferramentas deste servidor. Fica fixo quando a conexão é escolhida, então renomear a conexão não renomeia as ferramentas aqui.",
-    "namePrefixHint": "Exibido em todo o projeto. As ferramentas recebem o prefixo <code>{{prefix}}_</code>",
-    "oauthNotice": "Conectar abre a página de autorização de {{name}} em uma nova janela; {{name}} pergunta quais permissões conceder (geralmente leitura e gravação). O login fica armazenado apenas para este projeto.",
-    "theServer": "o servidor",
     "clientSecret": "Segredo do cliente",
     "projectSecret": "Segredo do projeto",
     "noKeyRefusedAdvice": "Escolha outro modo de autenticação acima.",
@@ -37,11 +33,11 @@
     "openWindowAgain": "Abrir a janela novamente",
     "savedOauthUnreadable": "Não foi possível ler as configurações de OAuth salvas. Tente novamente.",
     "consentCancelled": "{{name}} não autorizou a Agenta. O login foi cancelado ou negado. Nada foi salvo.",
-    "continue": "Continuar",
     "tryAgain": "Tentar novamente",
     "connect": "Conectar",
     "selectProjectSecret": "Selecione um segredo do projeto",
     "noProjectSecrets": "Nenhum segredo do projeto encontrado",
     "unnamedSecret": "Segredo sem nome",
-    "createSecret": "Criar segredo"
+    "createSecret": "Criar segredo",
+    "advancedSummary": "URL de callback, ID do cliente, escopos"
 }

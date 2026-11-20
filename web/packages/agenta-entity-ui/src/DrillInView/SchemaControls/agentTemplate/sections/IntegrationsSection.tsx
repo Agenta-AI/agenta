@@ -4,7 +4,7 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
-import {Plus, Wrench} from "@phosphor-icons/react"
+import {AppWindow, Plus, Wrench} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
@@ -72,7 +72,7 @@ export const integrationsSection = ({
                     onManual={openAddIntegration}
                     manualTitle={t("entityUi.agentTemplate.browseIntegrations")}
                     manualHint={t("entityUi.agentTemplate.browseIntegrationsHint")}
-                    manualIcon={<Wrench size={16} />}
+                    manualIcon={<AppWindow size={14} />}
                 />
             ) : undefined,
         pageAction:

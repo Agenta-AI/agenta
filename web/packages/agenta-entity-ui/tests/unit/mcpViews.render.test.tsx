@@ -166,7 +166,7 @@ const Chrome = ({crumbs, children, ...actions}: ViewChromeProps) => (
             ))}
         </nav>
         {children}
-        <ViewFormActions {...actions} />
+        <ViewFormActions {...actions} startRef={actions.footerStartRef} />
     </div>
 )
 
@@ -309,6 +309,34 @@ describe("MCP server view", () => {
         expect(dialog.textContent).toContain("The connection stays in the project.")
         await click(byText("Remove"))
         expect(mcps().map((item) => item.name)).toEqual(["docs_search"])
+    })
+
+    it("puts Remove from agent in the action row, left of Done (F03 f7)", async () => {
+        await openIn(mcpServerView, {item: mcpItemRef(linear, [linear])!})
+        await findByText("crumb:linear")
+        const remove = byText("Remove from agent")!.closest("button")!
+        const row = byText("Done")!.closest("button")!.parentElement!
+        expect(row.contains(remove)).toBe(true)
+        expect(remove.querySelector("svg"), "the trash icon").not.toBeNull()
+    })
+
+    it("shows a lapsed sign-in as a dashed box with the dark sign-in button", async () => {
+        // `user_sign_in` with no ready flag: the viewer signed in once and it lapsed.
+        endpoints.rows = [
+            {
+                ...endpoint("linear", "healthy"),
+                auth_mode: "oauth",
+                secret_id: null,
+                user_sign_in: {},
+            },
+        ]
+        const own = withMcpAccountSource(linear, "user")
+        writer.agent = {mcps: [own]}
+        await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
+        await findByText("Each person's own")
+        const box = document.querySelector<HTMLElement>("[data-testid=empty-account-box]")
+        expect(box, "the dashed box").not.toBeNull()
+        expect(box!.className).toContain("border-dashed")
     })
 
     it("says nothing about the project's sign-in on each person's own entry", async () => {

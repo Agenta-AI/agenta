@@ -69,8 +69,9 @@ function rollupRowStatus(
 }
 
 /**
- * An integration row on a phone (M08): logo, name, whose account it uses, and a chevron, 56 px
- * high, edge to edge. No bin: "Remove from agent" is in the integration view.
+ * An integration row on a phone (M08): the logo in a 32 px tile, the name, whose account it uses,
+ * and a chevron, 56 px high, edge to edge. A row that needs setup keeps its tag and adds the
+ * reason after the account line. No bin: "Remove from agent" is in the integration view.
  */
 function PhoneIntegrationRow({
     row,
@@ -88,34 +89,40 @@ function PhoneIntegrationRow({
     disabled?: boolean
 }) {
     const t = useT(integrationsPhoneCatalog, accountSwitchCatalog)
-    const line =
-        status?.reason ??
-        (row.entry?.accountSource === USER_ACCOUNT_SOURCE
+    const source =
+        row.entry?.accountSource === USER_ACCOUNT_SOURCE
             ? t("entityUi.integrationsPhone.eachPersonsOwnAccount")
-            : t("entityUi.accountSwitch.oneShared"))
+            : t("entityUi.accountSwitch.oneShared")
     return (
         <button
             type="button"
             onClick={onOpen}
             disabled={disabled}
-            className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-4 py-2 text-left disabled:cursor-default"
+            className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent py-1.5 pl-4 pr-2 text-left font-[inherit] disabled:cursor-default"
         >
-            <ProviderLogo logo={logo} size={28} />
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--ag-colorBgLayout)]">
+                <ProviderLogo logo={logo} size={22} />
+            </span>
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] text-[var(--ag-colorText)]">{name}</span>
-                <span
-                    className={`truncate text-xs ${
-                        status?.reason
-                            ? "text-[var(--ag-colorWarningText)]"
-                            : "text-[var(--ag-colorTextTertiary)]"
-                    }`}
-                >
-                    {line}
+                <span className="truncate text-[15px] leading-5 text-[var(--ag-colorText)]">
+                    {name}
+                </span>
+                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                    {source}
+                    {status?.reason ? (
+                        <span className="text-[var(--ag-colorWarningText)]">
+                            {" · "}
+                            {status.reason}
+                        </span>
+                    ) : null}
                 </span>
             </span>
             {status ? <StatusTag status={status} /> : null}
             {disabled ? null : (
-                <CaretRight size={14} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                <CaretRight
+                    size={14}
+                    className="mr-2 shrink-0 text-[var(--ag-colorTextTertiary)]"
+                />
             )}
         </button>
     )
@@ -201,7 +208,7 @@ export interface ToolManagementListProps {
 
 /** Shared empty-state line: one quiet line, the section header's "+" is the way to add. */
 function EmptyLine({label}: {label: string}) {
-    return <span className="text-xs text-colorTextTertiary">{label}</span>
+    return <span className="text-[12px] leading-4 text-colorTextTertiary">{label}</span>
 }
 
 /** The Integrations section body: one row per connected app, no sub-header. */
@@ -215,7 +222,7 @@ export function ToolManagementList({
 }: ToolManagementListProps) {
     const t = useT(configItemsCatalog, itemDescriptorsCatalog)
     // On a phone the section is its own screen: rows edge to edge, "Add integration" at the bottom.
-    // The phone section context, not the viewport: -mx-4 -mt-3 undo the px-4 and pt-3 of that screen.
+    // The phone section context, not the viewport: -mx-4 undoes the px-4 of that screen.
     const phone = usePhoneSections() !== null
     if (integrationRows.length === 0) {
         if (disabled) return null
@@ -226,7 +233,8 @@ export function ToolManagementList({
         <div
             className={
                 phone
-                    ? "-mx-4 -mt-3 flex flex-col border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]"
+                    ? // 8 px under the header (M08): -mt-1 leaves 8 of the screen's 12 px top padding.
+                      "-mx-4 -mt-1 flex flex-col"
                     : "flex flex-col gap-2"
             }
         >
