@@ -61,6 +61,8 @@ const yours = (overrides = {}) => ({
 
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    // jsdom has no scrolling; the chip row keeps its selected chip in view.
+    Element.prototype.scrollIntoView = vi.fn()
     state.connections = []
     state.personal = []
     host = document.createElement("div")
