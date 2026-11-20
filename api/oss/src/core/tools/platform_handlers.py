@@ -1369,6 +1369,16 @@ async def _attribution(
     """
     from oss.src.core.workflows.commit_support import agent_attribution
 
+    # A static agent (the builder) has no row, and every project sees it.
+    static = workflows_service.static_catalog
+    if static is not None and static.is_static_id(caller_id):
+        revision = static.retrieve_revision(id=caller_id)
+        return agent_attribution(
+            agent_id=str(caller_id),
+            agent_name=revision.name if revision else None,
+            session_id=session_id,
+        )
+
     caller = await workflows_service.fetch_workflow(
         project_id=project_id,
         workflow_ref=Reference(id=caller_id),
