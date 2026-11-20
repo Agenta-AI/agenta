@@ -106,24 +106,27 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                             {connected.map(({platform, summary}) => {
                                 const mine = agentConnectionsOf(connections, platform)
                                 // Any of the agent's connections can need attention, not only
-                                // the one the platform summary is about.
-                                const broken =
-                                    [
-                                        summary,
-                                        ...mine.map((c) =>
-                                            summarizeConnection(platform, c, agentId),
-                                        ),
-                                    ].find((s) => s.needsAttention) ?? null
+                                // the one the platform summary is about. With several, the line
+                                // names the one that does.
+                                const brokenConnection = mine.find(
+                                    (c) => summarizeConnection(platform, c, agentId).needsAttention,
+                                )
+                                const broken = brokenConnection
+                                    ? summarizeConnection(platform, brokenConnection, agentId)
+                                    : null
                                 // "Reconnect" only when a connection lost its access; other
                                 // problems are fixed in the manage view.
-                                const revoked = [connections[platform], ...mine].some(
-                                    (c) => c?.status === "revoked",
-                                )
-                                const sub = broken
-                                    ? broken.sub
-                                    : mine.length > 1
-                                      ? mine.map((c) => connectionLabel(c, hostedHandle)).join(", ")
-                                      : summary.sub
+                                const revoked = mine.some((c) => c.status === "revoked")
+                                const sub =
+                                    broken && brokenConnection
+                                        ? mine.length > 1
+                                            ? `${connectionLabel(brokenConnection, hostedHandle)} · ${broken.sub}`
+                                            : broken.sub
+                                        : mine.length > 1
+                                          ? mine
+                                                .map((c) => connectionLabel(c, hostedHandle))
+                                                .join(", ")
+                                          : summary.sub
                                 return (
                                     <ChannelRow
                                         key={platform}

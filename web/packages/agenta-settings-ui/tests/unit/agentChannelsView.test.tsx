@@ -70,6 +70,13 @@ describe("AgentChannelsView", () => {
         expect(row("telegram").textContent).toContain("Connect")
     })
 
+    it("says your agent while the agent name is not known", async () => {
+        await render(EMPTY_CONNECTIONS, {agentName: undefined})
+        expect(container.textContent).toContain(
+            "A channel lets people talk to your agent in the chat app they already use.",
+        )
+    })
+
     it("shows only Add a channel when nothing is connected", async () => {
         await render(EMPTY_CONNECTIONS)
         expect(groups()).toEqual(["Add a channel"])
