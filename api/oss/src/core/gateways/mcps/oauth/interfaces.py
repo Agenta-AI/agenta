@@ -71,10 +71,10 @@ class MCPOAuthRefresherInterface(ABC):
 
     @abstractmethod
     async def has_personal_sign_ins(
-        self, *, project_id: UUID, endpoint_id: UUID
+        self, *, organization_id: UUID, slugs: List[str]
     ) -> bool:
-        """Whether a person finished their own OAuth sign-in on a connection. The caller
-        holds the connection's OAuth lock."""
+        """Whether a person in the organization holds their own sign-in at these slugs.
+        The caller holds the connection's OAuth lock."""
         raise NotImplementedError
 
     @abstractmethod
@@ -182,16 +182,6 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         endpoint_id: UUID,
     ) -> bool:
         """Whether any attempt of a connection is pending or claimed."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def has_connected_personal_attempts(
-        self,
-        *,
-        project_id: UUID,
-        endpoint_id: UUID,
-    ) -> bool:
-        """Whether a person's own attempt on a connection ended connected."""
         raise NotImplementedError
 
     @abstractmethod

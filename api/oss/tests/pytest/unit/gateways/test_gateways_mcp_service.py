@@ -2960,7 +2960,7 @@ class _SigningInRefresher(_ReleasingRefresher):
     async def has_active_attempts(self, *, project_id, endpoint_id) -> bool:
         return bool(self.active)
 
-    async def has_personal_sign_ins(self, *, project_id, endpoint_id) -> bool:
+    async def has_personal_sign_ins(self, *, organization_id, slugs) -> bool:
         return self.personal_sign_in
 
 

@@ -20,7 +20,6 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttemptStatus,
 )
 from oss.src.core.gateways.mcps.oauth.state import new_state
-from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
@@ -450,43 +449,5 @@ async def test_an_expired_attempt_does_not_count_as_active(seeded_project):
         assert not await dao.has_active_attempts(
             project_id=seeded_project["project_id"], endpoint_id=endpoint_id
         )
-    finally:
-        await _cleanup(seeded_project["project_id"])
-
-
-@pytest.mark.asyncio
-async def test_only_a_connected_personal_attempt_counts_as_a_personal_sign_in(
-    seeded_project,
-):
-    """An "Only me" sign-in binds no credential to the pending row, so a sheet that
-    leaves before it hears the result must not delete the row. The query sees a
-    person's attempt that ended connected, and not a project's or an unfinished one."""
-    dao = MCPOAuthAttemptsDAO()
-    endpoint_id = uuid4()
-
-    async def signed_in():
-        return await dao.has_connected_personal_attempts(
-            project_id=seeded_project["project_id"], endpoint_id=endpoint_id
-        )
-
-    def attempt(owner_kind):
-        return _attempt(
-            project_id=seeded_project["project_id"],
-            user_id=seeded_project["user_id"],
-            endpoint_id=endpoint_id,
-        ).model_copy(update={"owner_kind": owner_kind})
-
-    try:
-        project = await dao.create_attempt(attempt=attempt(SecretOwnerKind.PROJECT))
-        await dao.settle_attempt(
-            attempt_id=project.id, status=MCPOAuthAttemptStatus.CONNECTED
-        )
-        personal = await dao.create_attempt(attempt=attempt(SecretOwnerKind.USER))
-        assert not await signed_in()
-
-        await dao.settle_attempt(
-            attempt_id=personal.id, status=MCPOAuthAttemptStatus.CONNECTED
-        )
-        assert await signed_in()
     finally:
         await _cleanup(seeded_project["project_id"])

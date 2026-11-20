@@ -256,27 +256,6 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
 
             return result.first() is not None
 
-    async def has_connected_personal_attempts(
-        self,
-        *,
-        project_id: UUID,
-        endpoint_id: UUID,
-    ) -> bool:
-        async with self.engine.session() as session:
-            result = await session.execute(
-                select(self.MCPOAuthAttemptDBE.id)
-                .where(self.MCPOAuthAttemptDBE.project_id == project_id)
-                .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
-                .where(self.MCPOAuthAttemptDBE.owner_kind == SecretOwnerKind.USER.value)
-                .where(
-                    self.MCPOAuthAttemptDBE.status
-                    == MCPOAuthAttemptStatus.CONNECTED.value
-                )
-                .limit(1)
-            )
-
-            return result.first() is not None
-
     async def sweep_expired_attempts(
         self,
         *,

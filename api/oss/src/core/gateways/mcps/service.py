@@ -550,7 +550,11 @@ class MCPGatewayService:
                                 project_id=project_id, endpoint_id=endpoint_id
                             )
                             or await self.oauth_refresher.has_personal_sign_ins(
-                                project_id=project_id, endpoint_id=endpoint_id
+                                organization_id=organization_id,
+                                slugs=[
+                                    grant_slug(endpoint_id),
+                                    token_slug(endpoint_id),
+                                ],
                             )
                         )
                     )

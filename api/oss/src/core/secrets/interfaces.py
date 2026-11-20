@@ -147,6 +147,12 @@ class SecretsDAOInterface:
         the organization, in one statement. Returns the count."""
         raise NotImplementedError
 
+    async def has_personal_sign_ins(
+        self, *, organization_id: UUID, slugs: Sequence[str]
+    ) -> bool:
+        """Whether any person in the organization holds an MCP sign-in at these slugs."""
+        raise NotImplementedError
+
     async def load_effective(self, *, project_id: UUID) -> CachedEffectiveSecrets:
         """ONE statement: the project row's organization, the project's rows, and the
         shareable organization rows available to the project. An unknown project

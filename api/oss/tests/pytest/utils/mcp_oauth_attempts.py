@@ -115,15 +115,6 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             for record in self.attempts.values()
         )
 
-    async def has_connected_personal_attempts(self, *, project_id, endpoint_id) -> bool:
-        return any(
-            record.project_id == project_id
-            and record.endpoint_id == endpoint_id
-            and record.owner_kind == SecretOwnerKind.USER
-            and record.status == MCPOAuthAttemptStatus.CONNECTED
-            for record in self.attempts.values()
-        )
-
     async def sweep_expired_attempts(
         self,
         *,

@@ -439,10 +439,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
 
     async def has_personal_sign_ins(
-        self, *, project_id: UUID, endpoint_id: UUID
+        self, *, organization_id: UUID, slugs: List[str]
     ) -> bool:
-        return await self.attempts_dao.has_connected_personal_attempts(
-            project_id=project_id, endpoint_id=endpoint_id
+        return await self.vault_service.has_personal_sign_ins(
+            organization_id=organization_id, slugs=slugs
         )
 
     async def fetch_attempt(
