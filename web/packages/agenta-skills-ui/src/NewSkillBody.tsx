@@ -22,10 +22,9 @@ import {
     buildSkillEmbedEntry,
     createSkillWorkflow,
     importSkillSource,
-    querySkills,
     scanSkillSource,
     skillContentSchema,
-    type SkillRegistryItem,
+    type SkillSourceImportResponse,
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/drill-in"
@@ -285,46 +284,26 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         }
     }, [importing, projectId, repoUrl, scanning])
 
-    /** The embed entry of each imported skill; the import answer has no slug, the registry has. */
-    const entriesOfImported = useCallback(
-        async (
-            imported: {path_in_repo: string; workflow_id?: string | null; name?: string | null}[],
-        ) => {
-            const byId = new Map<string, SkillRegistryItem>()
-            try {
-                const listed = await querySkills({projectId})
-                for (const s of listed.skills ?? []) if (s.workflow_id) byId.set(s.workflow_id, s)
-            } catch {
-                // Each skill still gets its own search below.
+    /** The embed entry of each imported skill, from the slug the import answer names. */
+    const entriesOfImported = (imported: NonNullable<SkillSourceImportResponse["imported"]>) => {
+        const entries: Skill[] = []
+        const missed: string[] = []
+        for (const item of imported) {
+            if (!item.workflow_slug) {
+                missed.push(item.name ? skillDisplayName(item.name) : item.path_in_repo)
+                continue
             }
-            const entries: Skill[] = []
-            const missed: string[] = []
-            for (const item of imported) {
-                let match = item.workflow_id ? byId.get(item.workflow_id) : undefined
-                // A large registry may not list it on the first page.
-                if (!match && item.workflow_id && item.name) {
-                    const found = await querySkills({projectId, search: item.name}).catch(
-                        () => null,
-                    )
-                    match = (found?.skills ?? []).find((s) => s.workflow_id === item.workflow_id)
-                }
-                if (!match?.workflow_slug) {
-                    missed.push(item.name ? skillDisplayName(item.name) : item.path_in_repo)
-                    continue
-                }
-                entries.push(
-                    embedEntry({
-                        slug: match.workflow_slug,
-                        workflowId: match.workflow_id ?? undefined,
-                        name: match.skill_name ?? match.name ?? match.workflow_slug,
-                        description: match.description ?? match.skill_description ?? undefined,
-                    }),
-                )
-            }
-            return {entries, missed}
-        },
-        [projectId],
-    )
+            entries.push(
+                embedEntry({
+                    slug: item.workflow_slug,
+                    workflowId: item.workflow_id ?? undefined,
+                    name: item.name ?? item.workflow_slug,
+                    description: item.description ?? undefined,
+                }),
+            )
+        }
+        return {entries, missed}
+    }
 
     const runImport = useCallback(async () => {
         setError(null)
@@ -349,7 +328,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         const imported = response.imported ?? []
         const notes: string[] = []
         if (onCreated && imported.length) {
-            const {entries, missed} = await entriesOfImported(imported)
+            const {entries, missed} = entriesOfImported(imported)
             if (entries.length) onCreated(entries)
             if (missed.length)
                 notes.push(tNow("entityUi.skillNew.notAddedToAgent", {names: missed.join(", ")}))
@@ -371,7 +350,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         setSelected(new Set())
         setError(notes.join(" "))
         return "stay" as const
-    }, [entriesOfImported, onCreated, projectId, repoUrl, selected])
+    }, [onCreated, projectId, repoUrl, selected])
     const importRepo = useCallback(async () => {
         setImporting(true)
         try {
