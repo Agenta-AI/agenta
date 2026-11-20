@@ -84,6 +84,9 @@ export const ViewStackHost = ({
     const savingRef = useRef<Promise<ViewSaveResult> | null>(null)
     // One guarded navigation at a time, from its first wait to its stack update.
     const navigatingRef = useRef(false)
+    // A view that left by itself (`nav.cancel()`) while a save ran or the dialog asked: it leaves
+    // once that ends, if it is still on top.
+    const deferredCancelRef = useRef<number | null>(null)
     const hostRef = useRef<HTMLDivElement>(null)
 
     /** Navigation waits for a save in flight to resolve. */
@@ -179,6 +182,14 @@ export const ViewStackHost = ({
         setFailedKey(null)
     }, [])
 
+    /** Run a cancel that arrived while a save ran or the dialog asked, if its view is still on top. */
+    const flushDeferredCancel = useCallback(() => {
+        const key = deferredCancelRef.current
+        deferredCancelRef.current = null
+        const current = entriesRef.current
+        if (key !== null && current.at(-1)?.key === key) setStack(current.slice(0, -1))
+    }, [setStack])
+
     /**
      * Runs one guarded navigation. Another one asked for meanwhile (a second click while the
      * dialog asks or a save runs) is dropped and resolves false.
@@ -192,9 +203,10 @@ export const ViewStackHost = ({
                 return await action()
             } finally {
                 navigatingRef.current = false
+                flushDeferredCancel()
             }
         },
-        [waitForSave],
+        [waitForSave, flushDeferredCancel],
     )
 
     const open = useCallback(
@@ -235,7 +247,10 @@ export const ViewStackHost = ({
     }, [exclusive, settle, setStack])
 
     const cancel = useCallback(() => {
-        if (savingRef.current || navigatingRef.current) return
+        if (savingRef.current || navigatingRef.current) {
+            deferredCancelRef.current = entriesRef.current.at(-1)?.key ?? null
+            return
+        }
         setStack(entriesRef.current.slice(0, -1))
     }, [setStack])
 
@@ -264,9 +279,12 @@ export const ViewStackHost = ({
         const top = entriesRef.current.at(-1)
         if (!top || navigatingRef.current) return
         if ((await runSave(top.key, true)) === true) {
+            deferredCancelRef.current = null
             setStack(entriesRef.current.filter((entry) => entry.key !== top.key))
+            return
         }
-    }, [runSave, setStack])
+        flushDeferredCancel()
+    }, [runSave, setStack, flushDeferredCancel])
 
     const dirty = saving || Object.values(forms).some((form) => form.dirty)
     const depth = entries.length as 0 | 1 | 2
