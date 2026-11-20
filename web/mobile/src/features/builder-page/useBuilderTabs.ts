@@ -17,7 +17,6 @@ import {
     closeBuilderTab,
     followBuilderResult,
     followBuilderResults,
-    isUntouched,
     openBuilderTab,
     parseTabParam,
     builderTabsAtomFamily,
@@ -101,6 +100,8 @@ export const useBuilderTabs = ({
         toolCallId: string
         revisionId: string | null
     } | null>(null)
+    // The tool calls in the first messages of this chat in this visit: history, never followed.
+    const history = useRef<{sessionId: string; ids: Set<string>} | null>(null)
 
     const onMessagesChanged = useCallback(
         (messages: UIMessage[]) => {
@@ -116,17 +117,26 @@ export const useBuilderTabs = ({
                         (linkedAgentId ? {id: linkedAgentId, name: ""} : null),
                 ),
             )
-            if (isUntouched(before) || !next.active) return
+            if (history.current?.sessionId !== sessionId) {
+                history.current = {
+                    sessionId,
+                    ids: new Set(results.map((result) => result.toolCallId)),
+                }
+                return
+            }
+            if (!next.active) return
+            const seen = history.current.ids
             const saved = results.filter(
                 (result) =>
                     result.saved &&
+                    !seen.has(result.toolCallId) &&
                     !before.followedToolCallIds.includes(result.toolCallId) &&
                     builderTabKey(agentTab(result.agent)) === next.active,
             )
             const last = saved.at(-1)
             if (last) setActiveSave({toolCallId: last.toolCallId, revisionId: last.revisionId})
         },
-        [commit, linkedAgentId],
+        [commit, linkedAgentId, sessionId],
     )
 
     /** The first message of a new chat: its chip's agent opens a tab; the address names the chat. */

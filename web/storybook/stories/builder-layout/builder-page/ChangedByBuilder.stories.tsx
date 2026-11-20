@@ -56,6 +56,8 @@ const ChangedSections = ({
                             filesScope="session"
                             workspaceId="workspace"
                             projectId={projectId}
+                            phoneSection={null}
+                            onCloseSection={() => undefined}
                         />
                     </ViewStackHost>
                 </div>

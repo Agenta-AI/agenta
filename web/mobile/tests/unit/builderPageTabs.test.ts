@@ -390,6 +390,12 @@ describe("Changed by the builder (task 41.2)", () => {
         expect(sectionsOfOperations([{target: [...T, "harness", "permissions"]}])).toEqual([
             "advanced",
         ])
+        // A whole runner or sandbox spans two sections.
+        expect(sectionsOfOperations([{target: [...T, "runner"]}])).toEqual([
+            "permissions",
+            "advanced",
+        ])
+        expect(sectionsOfOperations([{target: [...T, "sandbox"]}])).toEqual(["secrets", "advanced"])
         expect(sectionsOfOperations(undefined)).toEqual([])
     })
 

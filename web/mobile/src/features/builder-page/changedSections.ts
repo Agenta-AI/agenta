@@ -18,16 +18,25 @@ const segmentName = (segment: unknown): string | null => {
     return typeof list === "string" ? list : null
 }
 
-const sectionOfTarget = (target: unknown[]): MarkableSectionKey | null => {
+/** The sections one target can change; a whole runner, sandbox or harness spans two. */
+const sectionsOfTarget = (target: unknown[]): MarkableSectionKey[] => {
     let at = 0
     while (at < target.length && SCAFFOLDING.has(target[at] as string)) at++
     const head = segmentName(target[at])
-    if (!head) return null
+    if (!head) return []
+    const whole = at + 1 >= target.length
     const next = segmentName(target[at + 1])
-    if (head === "harness") return next === "kind" || next === null ? "model-harness" : "advanced"
-    if (head === "runner") return next === "permissions" ? "permissions" : "advanced"
-    if (head === "sandbox") return next === "credentials" ? "secrets" : "advanced"
-    return SECTION_OF_HEAD[head] ?? "advanced"
+    if (head === "harness")
+        return whole
+            ? ["model-harness", "advanced"]
+            : [next === "kind" ? "model-harness" : "advanced"]
+    if (head === "runner")
+        return whole
+            ? ["permissions", "advanced"]
+            : [next === "permissions" ? "permissions" : "advanced"]
+    if (head === "sandbox")
+        return whole ? ["secrets", "advanced"] : [next === "credentials" ? "secrets" : "advanced"]
+    return [SECTION_OF_HEAD[head] ?? "advanced"]
 }
 
 /**
@@ -35,7 +44,8 @@ const sectionOfTarget = (target: unknown[]): MarkableSectionKey | null => {
  * segment of each operation target after `parameters` and `agent`. Nested fields follow the
  * panel's grouping (`commitDiff/classify.ts`, mapped in `sectionChanges.ts`): `harness.kind` is in
  * Model, `runner.permissions` in Permissions, `sandbox.credentials` in Secrets, the other runner,
- * sandbox and harness fields in Advanced. A target with no segment after the scaffolding (the
+ * sandbox and harness fields in Advanced; a whole runner, sandbox or harness marks both of its
+ * sections. A target with no segment after the scaffolding (the
  * whole agent) marks nothing: there is no one row to point at.
  */
 export const sectionsOfOperations = (operations: unknown): MarkableSectionKey[] => {
@@ -44,8 +54,7 @@ export const sectionsOfOperations = (operations: unknown): MarkableSectionKey[] 
     for (const operation of operations) {
         const target = (operation as {target?: unknown} | null)?.target
         if (!Array.isArray(target)) continue
-        const section = sectionOfTarget(target)
-        if (section) keys.add(section)
+        for (const section of sectionsOfTarget(target)) keys.add(section)
     }
     return [...keys]
 }

@@ -3,7 +3,7 @@
  * builder page's "Changed by the builder" (task 41.2). "Mark" here is a container's note after a
  * section title; the panel's own section indicators (draft and agent changes) are separate. The
  * container provides the marked section keys, the mark's text and a callback for when the person
- * opens or uses a marked section (a click or Enter in it); the panel draws the mark after the
+ * opens or uses a marked section (a completed click or Enter in it); the panel draws the mark after the
  * section title. A section that opens by itself (the first reveal, a list that fills) does not
  * count. Without a provider nothing is marked.
  */
@@ -36,7 +36,7 @@ const Mark = ({label}: {label: string}) => (
 
 /**
  * The sections with the container's marks applied, and the handlers for the panel's root: a
- * pointer down or Enter / Space inside a marked section reports it (each section carries its
+ * completed click or Enter / Space inside a marked section reports it (each section carries its
  * key in `data-config-section`).
  */
 export const useSectionMarks = (sections: AgentTemplateSectionDescriptor[]) => {
@@ -48,7 +48,7 @@ export const useSectionMarks = (sections: AgentTemplateSectionDescriptor[]) => {
             marks.onOpened(key as MarkableSectionKey)
     }
     const handlers = {
-        onPointerDownCapture: (event: {target: EventTarget | null}) => report(event.target),
+        onClickCapture: (event: {target: EventTarget | null}) => report(event.target),
         onKeyDownCapture: (event: {key: string; target: EventTarget | null}) => {
             if (event.key === "Enter" || event.key === " ") report(event.target)
         },

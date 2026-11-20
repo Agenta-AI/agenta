@@ -78,11 +78,11 @@ describe("section marks", () => {
         expect(onOpened).not.toHaveBeenCalled()
         const header = section("model-harness")?.querySelector<HTMLElement>("[role=button]")
         act(() => {
-            header?.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true}))
+            header?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
         })
         expect(onOpened).toHaveBeenCalledWith("model-harness")
         act(() => {
-            section("skills")?.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true}))
+            section("skills")?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
         })
         expect(onOpened).toHaveBeenCalledTimes(1)
     })
