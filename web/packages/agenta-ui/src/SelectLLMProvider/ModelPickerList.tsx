@@ -249,6 +249,10 @@ const ModelPickerList = ({
         <div className="flex min-h-0 flex-1 flex-col">
             <div className={clsx("shrink-0", popover ? "mx-0.5 mb-1 mt-0.5" : "pb-1.5")}>
                 <SearchInput
+                    size="compact-search"
+                    // The canvas field (`.find`): a quiet border and no focus ring, even with the
+                    // caret in it on open. A phone keeps the 32px field it had.
+                    className="border-colorBorderSecondary focus-within:border-colorBorderSecondary focus-within:ring-0 max-md:h-8"
                     placeholder={searchPlaceholder}
                     value={search}
                     allowClear
