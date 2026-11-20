@@ -538,7 +538,8 @@ export const ApprovalCard = ({
                                 size={buttonSize}
                                 disabled={responding}
                                 loading={responding && firedAction === "deny"}
-                                className={`${changeCard ? "text-colorTextSecondary" : ""} ${actionCls}`}
+                                // C01: a white ground on the footer band (none on a phone, M05).
+                                className={`${changeCard ? `text-colorTextSecondary ${phone ? "" : "bg-colorBgContainer"}` : ""} ${actionCls}`}
                                 onClick={deny}
                                 aria-keyshortcuts={shortcutAria("approval.deny")}
                             >

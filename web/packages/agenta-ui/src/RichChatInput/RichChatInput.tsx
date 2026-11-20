@@ -387,13 +387,23 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // page in dark and settles into it in light, where "elevated" is the page colour.
                         "relative flex flex-col overflow-hidden border border-solid border-[var(--ag-composer-border)] transition-colors",
                         canvas
-                            ? // A white card; focus darkens the edge, no halo.
-                              "rounded-[12px] bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-card-shadow)] focus-within:border-[var(--ag-composer-focus)]"
+                            ? // A white card; focus darkens the edge, no halo. A size container:
+                              // the key hints give way in a narrow box (the builder panel).
+                              "@container/composer rounded-[12px] bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-card-shadow)] focus-within:border-[var(--ag-composer-focus)]"
                             : // Focus is the kit's control ring: a softer edge plus a 3px halo.
                               "rounded-lg bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)]",
                         disabled && "opacity-60",
                         className,
                     )}
+                    // A tap anywhere on the card that is not a control types into it (M01): the
+                    // editor is one line of a 94 px card on a phone.
+                    onClick={(e) => {
+                        if (!canvas || disabled) return
+                        const target = e.target as HTMLElement
+                        if (target.closest("button, a, input, [contenteditable], [role=button]"))
+                            return
+                        editorRef.current?.focus()
+                    }}
                     onPaste={(e) => {
                         const files = e.clipboardData?.files
                         // Take over the paste when it carries files so the editor doesn't also
@@ -451,7 +461,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 ? "px-4 pb-3 pt-1.5"
                                 : canvas
                                   ? // A phone row is 44 px: the 36 px buttons and their 4 px reach.
-                                    "pb-2.5 pl-2.5 pr-3 pt-3 max-md:min-h-14 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-1 max-md:pt-1.5"
+                                    "pb-2.5 pl-2.5 pr-3 pt-3 max-md:min-h-14 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-3 max-md:pt-1.5"
                                   : "px-2 py-1.5",
                         )}
                     >
@@ -472,7 +482,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             <div
                                 className={clsx(
                                     // Below md: phones have no Enter/Cmd chords worth advertising.
-                                    "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
+                                    "flex shrink-0 items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
                                     hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",
@@ -486,10 +496,19 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     <span aria-hidden className="h-4 w-px bg-border/60" />
                                 ) : null}
                                 <ShortcutHint keys="↵" label={t("ui.chatInput.send")} />
-                                <ShortcutHint
-                                    keys={`${modKey} ↵`}
-                                    label={t("ui.chatInput.newline")}
-                                />
+                                {/* One row in a narrow box (P1b): the model name keeps
+                                    its room and only the Send hint stays. */}
+                                <span
+                                    className={clsx(
+                                        "contents",
+                                        canvas && "@max-[520px]/composer:hidden",
+                                    )}
+                                >
+                                    <ShortcutHint
+                                        keys={`${modKey} ↵`}
+                                        label={t("ui.chatInput.newline")}
+                                    />
+                                </span>
                             </div>
                         )}
                         <div className="ml-auto flex min-w-0 items-center gap-2">

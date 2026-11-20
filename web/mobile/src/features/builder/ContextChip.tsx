@@ -33,7 +33,7 @@ export const ContextChip = ({
                 onClick={part.restore}
                 className={cn(
                     chipClass,
-                    "cursor-pointer border-0 hover:text-colorText",
+                    "cursor-pointer self-start border-0 hover:text-colorText",
                     phone &&
                         "relative h-[30px] text-[13px] after:absolute after:-inset-y-[7px] after:inset-x-0 after:content-['']",
                 )}
