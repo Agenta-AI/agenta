@@ -88,10 +88,10 @@ interface RepoCandidate {
     imported: boolean
 }
 
-/** A found skill (canvas F07 f15): a plain 55 px row under a divider, the checkbox on the column
+/** A found skill (canvas F07 f15): a plain 55 px row (1 + 9 + 36 + 9) under a divider, the checkbox on the column
  *  edge. */
 const ROW =
-    "box-border flex items-center gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] py-2.5"
+    "box-border flex items-center gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] py-[9px]"
 /** "Skills found · N" over the rows: 13/600. */
 const FOUND_HEADING = "mb-2.5 text-[13px] font-semibold leading-5 text-colorText"
 

@@ -6,7 +6,7 @@
     "addAFile": "Datei hinzufügen",
     "untitled": "unbenannt",
     "name": "Name",
-    "nameTooltip": "Ein kurzer Name wie weather-report. Nur Kleinbuchstaben, Ziffern und Bindestriche.",
+    "nameTooltip": "Nur Kleinbuchstaben, Ziffern und Bindestriche.",
     "useSuggestion": "„{{name}}“ verwenden",
     "description": "Beschreibung",
     "descriptionTooltip": "Teilt dem Agent mit, wann dieser Skill verwendet wird.",

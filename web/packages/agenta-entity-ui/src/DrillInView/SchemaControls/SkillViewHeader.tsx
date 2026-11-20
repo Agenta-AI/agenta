@@ -9,15 +9,18 @@ import {useT} from "@agenta/i18n"
 import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {SkillMark} from "@agenta/ui/agent-icon"
-import {cn} from "@agenta/ui/styles"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {DotsThree, DownloadSimple} from "@phosphor-icons/react"
 
 import {downloadSkill, skillDownloadKind} from "./skillDownload"
 
 /** A row of the actions menu: icon, label, full width. */
-export const SKILL_ACTION_ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-colorText outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-default disabled:opacity-50 max-md:min-h-11"
+const SKILL_ACTION_ROW_SHAPE =
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-default disabled:opacity-50 max-md:min-h-11"
+export const SKILL_ACTION_ROW = `${SKILL_ACTION_ROW_SHAPE} text-colorText`
+/** A danger row (F07 f10: Archive in red). Its own color, not an override: two color classes on
+ *  one element resolve by stylesheet order. */
+const SKILL_DANGER_ROW = `${SKILL_ACTION_ROW_SHAPE} text-[var(--ag-danger-text)]`
 
 export interface SkillAction {
     key: string
@@ -138,12 +141,9 @@ export function SkillViewHeader({
                                             setOpen(false)
                                             action.onSelect()
                                         }}
-                                        className={cn(
-                                            SKILL_ACTION_ROW,
-                                            // `color:` so the merge keeps it over the row's
-                                            // own text color (F07 f10: Archive in red).
-                                            action.danger && "text-[color:var(--ag-danger-text)]",
-                                        )}
+                                        className={
+                                            action.danger ? SKILL_DANGER_ROW : SKILL_ACTION_ROW
+                                        }
                                     >
                                         {action.icon}
                                         <span className="flex-1">{action.label}</span>

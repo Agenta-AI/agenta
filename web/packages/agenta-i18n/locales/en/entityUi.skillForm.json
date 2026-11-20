@@ -6,7 +6,7 @@
     "addAFile": "Add a file",
     "untitled": "untitled",
     "name": "Name",
-    "nameTooltip": "A short name like weather-report. Lowercase letters, numbers and hyphens only.",
+    "nameTooltip": "Lowercase letters, numbers and hyphens only.",
     "useSuggestion": "Use \"{{name}}\"",
     "description": "Description",
     "descriptionTooltip": "Tells the agent when to use this skill.",

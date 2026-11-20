@@ -6,7 +6,7 @@
     "addAFile": "添加一个文件",
     "untitled": "未命名",
     "name": "名称",
-    "nameTooltip": "简短的名称，例如 weather-report。只能使用小写字母、数字和连字符。",
+    "nameTooltip": "只能使用小写字母、数字和连字符。",
     "useSuggestion": "使用“{{name}}”",
     "description": "描述",
     "descriptionTooltip": "告诉 Agent 何时使用此技能。",

@@ -114,7 +114,7 @@ export function McpAddServerList({
                 />
                 {/* Secondary: adding a connected server is this list's main job. */}
                 <Button variant="outline" size="compact" onClick={onConnectServer}>
-                    <Plus size={14} />
+                    <Plus className="size-3.5" />
                     {t("entityUi.mcpConnect.connectServer")}
                 </Button>
             </div>

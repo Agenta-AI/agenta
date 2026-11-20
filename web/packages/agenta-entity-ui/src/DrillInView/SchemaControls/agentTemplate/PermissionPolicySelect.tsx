@@ -136,7 +136,7 @@ export function PermissionPolicySelect({
                             // Neutral rows: hover and the picked row share the accent wash, and the
                             // check alone marks the value. The check (14 px) sits on the title line;
                             // the title is 13/400, the help 12/16 (canvas F04 f8).
-                            className="items-start px-2 py-1.5 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-[3px] [&>svg]:size-3.5 [&>svg]:text-foreground"
+                            className="items-start px-2 py-2 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-[3px] [&>svg]:size-3.5 [&>svg]:text-foreground"
                         >
                             <span className="flex items-start gap-2.5">
                                 {option.icon ? (
@@ -144,7 +144,7 @@ export function PermissionPolicySelect({
                                         {option.icon}
                                     </span>
                                 ) : null}
-                                <span className="flex min-w-0 flex-col gap-0.5">
+                                <span className="flex min-w-0 flex-col">
                                     <span className="whitespace-nowrap text-[13px] leading-5 max-sm:text-xs">
                                         {option.title}
                                     </span>

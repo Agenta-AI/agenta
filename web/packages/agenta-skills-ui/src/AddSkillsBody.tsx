@@ -39,7 +39,7 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
             className={ROW}
         >
             <SkillMark size={28} />
-            <span className="flex min-w-0 flex-1 flex-col gap-px">
+            <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[13px] font-medium leading-5 text-colorText">
                     {title}
                 </span>
