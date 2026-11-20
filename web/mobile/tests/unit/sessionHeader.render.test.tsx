@@ -168,10 +168,12 @@ describe("the session header on a phone", () => {
         const header = screen.getByTestId("session-header")
         const [agentRow, sessionRow] = [...rows()].filter((row) => row.tagName === "DIV")
         expect(agentRow.textContent).toContain("Agent")
-        expect(agentRow.querySelector("#agent-panel-icon-configuration")).toBeTruthy()
-        expect(agentRow.querySelector("#agent-panel-icon-builder")).toBeTruthy()
+        expect(
+            within(agentRow as HTMLElement).getByRole("button", {name: "Configuration"}),
+        ).toBeTruthy()
+        expect(within(agentRow as HTMLElement).getByRole("button", {name: "Builder"})).toBeTruthy()
         expect(sessionRow.textContent).toContain("Charged twice for March")
-        expect(sessionRow.querySelector("#agent-panel-icon-files")).toBeTruthy()
+        expect(within(sessionRow as HTMLElement).getByRole("button", {name: "Files"})).toBeTruthy()
         // The icons have a 44 px hit area on a phone.
         expect(header.querySelector("#agent-panel-icon-files")?.className).toContain(
             "max-md:size-11",
