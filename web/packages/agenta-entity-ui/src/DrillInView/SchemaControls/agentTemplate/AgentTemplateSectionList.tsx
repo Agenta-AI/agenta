@@ -277,9 +277,12 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                             onClick={s.onOpen}
                         />
                     ) : (
-                        // Flat rows (they draw a line above themselves; -mt-px tucks the first one
-                        // under the card's edge), and no gap between rows inside the lists.
-                        <div className="-mt-px flex flex-col [&_*]:gap-y-0">{s.content}</div>
+                        // Flat rows draw a line above themselves: -mt-px tucks the first one under
+                        // the card's edge, and a list of rows keeps no gap. Content with no rows
+                        // (an empty line, a notice) gets the card's padding instead.
+                        <div className="-mt-px flex flex-col [&:not(:has([data-page-row]))]:mt-0 [&:not(:has([data-page-row]))]:px-3.5 [&:not(:has([data-page-row]))]:py-3 [&_:has(>[data-page-row])]:gap-0">
+                            {s.content}
+                        </div>
                     )}
                 </div>
             </section>

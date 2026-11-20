@@ -169,6 +169,7 @@ export function ItemRow({
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
+            data-page-row={page || undefined}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
@@ -347,14 +348,11 @@ export function InstructionsFileRow({
 }) {
     const t = useT(configItemsCatalog)
     const page = useSectionListLayout() === "page"
-    const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
     const meta =
         wordCount > 0
             ? t("entityUi.configItems.wordCount", {count: wordCount})
             : t("entityUi.configItems.empty")
-    // An empty file has no preview: `descriptor.description` already says "Empty file".
-    const line = wordCount > 0 ? `${meta} · ${descriptor.description}` : meta
     if (page) {
         return (
             <InstructionsPagePreview
@@ -366,6 +364,9 @@ export function InstructionsFileRow({
             />
         )
     }
+    const descriptor = describeInstruction(filename, content)
+    // An empty file has no preview: `descriptor.description` already says "Empty file".
+    const line = wordCount > 0 ? `${meta} · ${descriptor.description}` : meta
     return (
         <div
             role="button"
@@ -401,7 +402,7 @@ export function InstructionsFileRow({
     )
 }
 
-/** How many lines of the file the page shows before it cuts. */
+/** How many lines of the file the page shows; `max-h-44` cuts one long paragraph. */
 const PREVIEW_LINES = 8
 
 /**
@@ -438,6 +439,7 @@ function InstructionsPagePreview({
                     onOpen()
                 }
             }}
+            data-page-row
             className="flex cursor-pointer flex-col hover:bg-colorFillQuaternary"
         >
             <div className="flex items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3.5 py-3">
@@ -447,7 +449,7 @@ function InstructionsPagePreview({
                     {meta}
                 </span>
             </div>
-            <div className="flex flex-col gap-1 px-3.5 py-3 text-sm text-colorText">
+            <div className="flex max-h-44 flex-col gap-1 overflow-hidden px-3.5 py-3 text-sm text-colorText">
                 {lines.map((line, index) =>
                     line.startsWith("#") ? (
                         <span key={index} className="mt-1 font-semibold first:mt-0">
