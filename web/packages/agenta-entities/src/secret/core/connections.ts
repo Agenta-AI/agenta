@@ -259,6 +259,17 @@ export const storedCredentialFields = (
     return keys.filter((key) => (SECRET_VALUE_FIELDS as readonly string[]).includes(key))
 }
 
+/**
+ * Whether a saved AWS connection signs in with access keys rather than a Bedrock API key.
+ *
+ * A write-only record returns no values, so the key names the vault reports are what tell.
+ */
+export const storesAwsAccessKeys = (connection: ProviderConnection | null | undefined): boolean =>
+    !!connection?.source.accessKeyId ||
+    !!connection?.source.storedCredentialKeys?.some(
+        (key) => key.toLowerCase() === "aws_access_key_id",
+    )
+
 /** The probe request body: a credential to spend, or the vault row to spend one from. */
 export interface ProbeRequestBody {
     /** Omitted alongside `secret_id`: the stored row names its own kind. */

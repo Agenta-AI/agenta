@@ -37,6 +37,7 @@ from oss.src.core.secrets.interfaces import (
 )
 from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.redaction import (
+    AWS_SIGN_IN_WAYS,
     CREDENTIAL_EXTRAS_KEYS,
     PRIMARY_CREDENTIAL_FIELDS,
     SECONDARY_CREDENTIAL_FIELDS,
@@ -345,11 +346,25 @@ def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
         update_container.extras = dict(stored_extras)
         return
 
+    # Bringing one way to sign in replaces the other: a switch from access keys to an API
+    # key must not leave the old access keys stored beside the new key.
+    brought_ways = [
+        way
+        for way in AWS_SIGN_IN_WAYS
+        if any(update_extras.get(extras_key) not in (None, "") for extras_key in way)
+    ]
+    replaced_keys = frozenset().union(
+        *(way for way in AWS_SIGN_IN_WAYS if brought_ways and way not in brought_ways)
+    )
+
     for extras_key in CREDENTIAL_EXTRAS_KEYS:
         stored_value = stored_extras.get(extras_key)
         requested_value = update_extras.get(extras_key)
         if requested_value == "":
             raise SecretValueRequiredError(message=_BLANK_CREDENTIAL_VALUE_MESSAGE)
+        if extras_key in replaced_keys:
+            update_extras.pop(extras_key, None)
+            continue
         if stored_value is not None and (
             extras_key not in update_extras or requested_value is None
         ):

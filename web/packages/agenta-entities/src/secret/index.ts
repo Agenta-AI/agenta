@@ -175,6 +175,7 @@ export {
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
+    storesAwsAccessKeys,
     maskSecret,
     nextConnectionName,
     providerModelCatalog,
