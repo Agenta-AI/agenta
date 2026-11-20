@@ -65,12 +65,23 @@ class CurrentSessionResponse(BaseModel):
     ) = None
 
 
+class SessionCallingSessionRequest(BaseModel):
+    """Sessions that a calling session created. `ids` are the calling sessions' ids;
+    `agent_ids` are the calling agents' ids. Both set: a session must match both."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    agent_ids: Optional[List[UUID]] = Field(default=None, max_length=500)
+
+
 class SessionPredicatesRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     search: Optional[str] = None
     liveness: Optional[SessionStreamQueryFlags] = None
     origins: Optional[List[SessionOrigin]] = None
+    calling_session: Optional[SessionCallingSessionRequest] = None
 
 
 class SessionExcludeRequest(BaseModel):

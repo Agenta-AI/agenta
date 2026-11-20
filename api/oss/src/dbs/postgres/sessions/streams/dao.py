@@ -21,6 +21,7 @@ from sqlalchemy import column as sa_column, table as sa_table
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID, insert
 from sqlalchemy.exc import IntegrityError
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.dtos import (
     SessionOrigin,
     SessionReference,
@@ -63,10 +64,12 @@ from oss.src.dbs.postgres.sessions.references import (
 from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
+    SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY,
+    SESSION_CALLING_SESSION_ID_TAG_KEY,
     SESSION_ORIGIN_TAG_KEY,
     SESSION_TRIGGER_ID_TAG_KEY,
     SESSION_TRIGGER_KIND_TAG_KEY,
-    trigger_attribution_tags,
+    session_origin_tags,
     map_stream_dbe_to_dto,
     map_stream_query_result,
     map_stream_dto_to_dbe_create,
@@ -268,6 +271,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         session_id: str,
         attribution: SessionTriggerAttribution,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope] = None,
     ) -> bool:
         by_schedule = attribution.kind == SessionTriggerKind.schedule
         claim_status = Status(code="102", message="claimed")
@@ -342,7 +346,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             .cte("claimed_trigger_delivery")
         )
 
-        tags = trigger_attribution_tags(attribution)
+        tags = session_origin_tags(envelope, attribution)
         stream_insert = insert(SessionStreamDBE).from_select(
             [
                 "id",
@@ -518,9 +522,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         if filter.origins is not None:
             origin_values = [value.value for value in filter.origins]
             if SessionOrigin.manual.value in origin_values:
-                # Nothing has ever stamped "manual" — every human session has a NULL
-                # origin (only `trigger_attribution_tags` writes the tag, and only
-                # ever "trigger"). Admit NULL when "manual" is requested, or
+                # Nothing ever stamps "manual": every human session has a NULL
+                # origin (`session_origin_tags` writes no tag for one). Admit NULL
+                # when "manual" is requested, or
                 # `origins: ["manual"]` matches zero rows and
                 # `origins: ["manual", "trigger"]` silently drops every human
                 # session (P1-1).
@@ -533,6 +537,19 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                     origin.is_(None),
                     origin.not_in([value.value for value in filter.exclude_origins]),
                 )
+            )
+        calling_session = filter.calling_session
+        if calling_session is not None and calling_session.ids is not None:
+            stmt = stmt.where(
+                SessionStreamDBE.tags[SESSION_CALLING_SESSION_ID_TAG_KEY].astext.in_(
+                    calling_session.ids
+                )
+            )
+        if calling_session is not None and calling_session.agent_ids is not None:
+            stmt = stmt.where(
+                SessionStreamDBE.tags[
+                    SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY
+                ].astext.in_([str(agent_id) for agent_id in calling_session.agent_ids])
             )
         term = filter.search.strip() if filter.search else ""
         if term:

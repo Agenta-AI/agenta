@@ -116,14 +116,16 @@ class RunOrigin(str, Enum):
     SCHEDULE = "schedule"
     SUBSCRIPTION = "subscription"
     EVALUATION = "evaluation"
-    CHILD = "child"
+    CHILD = "child"                          # a blocking workflow call
+    CALLING_SESSION = "calling_session"      # a turn that a calling session sent into a child session
 
 class RunContext(BaseModel):
     run_id: Optional[str] = None             # runner turn id (meta.run_id); None for web, direct-API and batch runs
     parent_run_id: Optional[str] = None
     origin: RunOrigin
     origin_id: Optional[str] = None          # api: key id; installation: binding id; schedule/subscription: trigger id;
-                                             # evaluation: evaluation run id; web, child: None
+                                             # evaluation: evaluation run id; calling_session: the calling session id;
+                                             # web, child: None
 
 class RunSender(BaseModel):
     user_id: Optional[UUID] = None

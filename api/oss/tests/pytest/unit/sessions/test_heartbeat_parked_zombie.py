@@ -434,6 +434,7 @@ async def test_cancel_tombstones_the_cancelled_turn(lock_engine):
     )
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -470,6 +471,7 @@ async def test_steer_tombstones_the_displaced_turn_and_frees_the_new_one(lock_en
     )
 
     steered = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(

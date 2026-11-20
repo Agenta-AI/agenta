@@ -250,6 +250,7 @@ async def test_rename_survives_a_heartbeat_flag_mirror(lock_engine):
 
     # Rename first (the header edit).
     await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -299,6 +300,7 @@ async def test_detach_flag_mirror_does_not_touch_header(lock_engine):
     svc = _service(lock_engine, dao)
 
     await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -327,6 +329,7 @@ async def test_kill_flag_mirror_does_not_touch_header(lock_engine):
     svc = _service(lock_engine, dao)
 
     await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -357,6 +360,7 @@ async def test_set_header_never_calls_the_flags_update_path(lock_engine):
     svc = _service(lock_engine, dao)
 
     await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -378,6 +382,7 @@ async def test_rename_before_any_turn_creates_the_row(lock_engine):
     svc = _service(lock_engine, dao)
 
     stream = await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -414,6 +419,7 @@ async def test_rename_race_falls_back_to_header_update_on_concurrent_create(
     svc = _service(lock_engine, dao)
 
     stream = await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,

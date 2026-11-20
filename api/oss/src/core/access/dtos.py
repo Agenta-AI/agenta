@@ -112,6 +112,7 @@ class RunOrigin(str, Enum):
     SUBSCRIPTION = "subscription"
     EVALUATION = "evaluation"
     CHILD = "child"
+    CALLING_SESSION = "calling_session"
 
 
 class RunContext(BaseModel):
@@ -121,7 +122,8 @@ class RunContext(BaseModel):
     parent_run_id: Optional[str] = None
     origin: RunOrigin
     # api: key id; installation: binding id; schedule/subscription: trigger id;
-    # evaluation: evaluation run id; web, child: None
+    # evaluation: evaluation run id; calling_session: the calling session id;
+    # web, child (a blocking workflow call): None
     origin_id: Optional[str] = None
 
 
