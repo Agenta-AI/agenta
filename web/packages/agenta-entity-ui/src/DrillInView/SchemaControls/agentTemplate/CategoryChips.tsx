@@ -1,13 +1,14 @@
+/** The catalog's category filter on a page: All, then every category in one scrolling row. */
 import {useEffect, useRef, type ReactNode} from "react"
 
 import {useToolCatalogCategories} from "@agenta/entities/gatewayTool"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
+import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/ui"
 
-import {categoryLabel} from "./categoryLabel"
+import {categoryLabel, type CategorySelection} from "./integrationCatalogFilters"
 
 const CHIP =
     "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -27,15 +28,15 @@ const Chip = ({on, onClick, children}: {on: boolean; onClick: () => void; childr
     </button>
 )
 
-/** All, then every category in one scrolling row; `null` is All. Nothing when categories fail. */
-export const CategoryChips = ({
-    selected,
-    onSelect,
+/** `null` is All. Nothing when the categories fail to load. */
+export function CategoryChips({
+    value,
+    onChange,
 }: {
-    selected: string | null
-    onSelect: (category: string | null) => void
-}) => {
-    const t = useT(commonCatalog, settingsToolsCatalog)
+    value: CategorySelection | null
+    onChange: (next: CategorySelection | null) => void
+}) {
+    const t = useT(commonCatalog, integrationDrawerCatalog)
     const {categories, error} = useToolCatalogCategories()
     const rowRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(rowRef, {axis: "x", enabled: categories.length > 0})
@@ -44,7 +45,7 @@ export const CategoryChips = ({
         rowRef.current
             ?.querySelector("[aria-pressed=true]")
             ?.scrollIntoView({block: "nearest", inline: "nearest"})
-    }, [selected])
+    }, [value])
     // The row hides its scrollbar, so a mouse wheel scrolls it sideways; at an end, the page scrolls.
     useEffect(() => {
         const row = rowRef.current
@@ -66,18 +67,18 @@ export const CategoryChips = ({
         <div
             ref={rowRef}
             role="toolbar"
-            aria-label={t("settings.tools.categories")}
+            aria-label={t("entityUi.integrationDrawer.category")}
             // Flush with the content edge; the row clips, so chips draw their focus ring inside.
             className="ag-scroll-fade-x flex gap-1.5 overflow-x-auto pt-2 [scrollbar-width:none]"
         >
-            <Chip on={selected === null} onClick={() => onSelect(null)}>
+            <Chip on={value === null} onClick={() => onChange(null)}>
                 {t("common.all")}
             </Chip>
             {categories.map((category) => (
                 <Chip
                     key={category.id}
-                    on={category.id === selected}
-                    onClick={() => onSelect(category.id)}
+                    on={category.id === value?.id}
+                    onClick={() => onChange({id: category.id, name: category.name})}
                 >
                     {categoryLabel(category.name)}
                 </Chip>

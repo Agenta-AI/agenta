@@ -91,6 +91,20 @@ describe("runs without a person", () => {
             hasAutomationWithoutPerson([{artifact_id: agent, principal: {kind: "human"}}], agent),
         ).toBe(false)
     })
+    it("finds an automation bound through an environment by the agent its references name", () => {
+        expect(
+            hasAutomationWithoutPerson(
+                [
+                    {
+                        artifact_id: null,
+                        data: {references: {environment: {id: "env-1"}, application: {id: agent}}},
+                        principal: {kind: "api_key"},
+                    },
+                ],
+                agent,
+            ),
+        ).toBe(true)
+    })
     it("ignores automations of other agents and ones with no principal", () => {
         expect(
             hasAutomationWithoutPerson(

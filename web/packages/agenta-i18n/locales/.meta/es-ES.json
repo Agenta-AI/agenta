@@ -6699,9 +6699,6 @@
         "value": "948df98a46b0"
     },
     "settings.integrations": {
-        "emptyBody": "6e803f902bb7",
-        "emptyTitle": "c3b2708234eb",
-        "noMatch": "213eb1325508",
         "run": "6df427955ff8",
         "searchPlaceholder": "a0adfe9abe76"
     },
@@ -7000,32 +6997,20 @@
         "noAccessSettings": "3669022b476f"
     },
     "settings.tools": {
-        "apiKey": "23189d55f697",
-        "available": "e674447337e8",
-        "categories": "b8b1d894c683",
-        "connectIntegration": "224b947e9fc5",
         "connectionDeleted": "d0294a63a52c",
         "connectionRevoked": "8f92cdf70a09",
         "default": "21b111cbfe6e",
         "deleteConnectionFailed": "888e565a1726",
         "deleteConnectionMessage": "140696f71c11",
         "deleteConnectionTitle": "b8d070f14e6a",
-        "emptyBody": "c7b8fec2856a",
-        "emptyTitle": "a04629ad78ad",
-        "inactive": "ac7c949f1211",
         "loadConnectionsFailed": "c4316721aab2",
         "makeDefault": "f43b94251094",
         "makeDefaultFailed": "0fb347b96e19",
-        "noIntegrationsInCategory": "72194e55bedf",
-        "noMatch": "a9f57f357aac",
-        "results": "219c4a6c86a7",
         "revokeConnectionFailed": "62767ed8d65d",
         "revokeConnectionMessage": "48de01f4c32c",
         "revokeConnectionTitle": "a7c2ac72533d",
         "runTool": "2445ca0ac266",
-        "searchCategory": "95cecc1fd22d",
-        "searchTools": "fbd165231fa1",
-        "showAll": "8b5e93d49d93"
+        "searchTools": "fbd165231fa1"
     },
     "settings.webhookFormSheet": {
         "alsoSubscribed_one": "d9956a130e62",
