@@ -4,7 +4,13 @@ import {useEffect, useState} from "react"
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {BottomSheetMenu, PhonePrimaryAction, PhoneScreenHeader, SidebarSheet} from "../../src/phone"
+import {
+    BottomSheetMenu,
+    PhonePrimaryAction,
+    PhoneScreenHeader,
+    SidebarSheet,
+    useIsPhone,
+} from "../../src/phone"
 import {
     defineView,
     PhoneViewChrome,
@@ -234,5 +240,24 @@ describe("SidebarSheet", () => {
         expect(close.className).toContain("size-11")
         fireEvent.click(close)
         expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
+})
+
+describe("useIsPhone", () => {
+    it("reads the window width on the first render of a component that mounts later", () => {
+        const original = window.matchMedia
+        window.matchMedia = ((query: string) => ({
+            matches: query === "(max-width: 767.98px)",
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+        })) as unknown as typeof window.matchMedia
+        const renders: boolean[] = []
+        const Probe = () => {
+            renders.push(useIsPhone())
+            return null
+        }
+        render(<Probe />)
+        window.matchMedia = original
+        expect(renders[0]).toBe(true)
     })
 })

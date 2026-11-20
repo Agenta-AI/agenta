@@ -34,6 +34,12 @@ const Body = () => {
     return <input aria-label="text" value={text} onChange={(e) => setText(e.target.value)} />
 }
 const view = defineView<object>({id: "test.wide", apply: "immediate", wide: true, Component: Body})
+const readOnlyView = defineView<object>({
+    id: "test.readOnly",
+    apply: "on_save",
+    readOnlyOnPhone: true,
+    Component: Body,
+})
 
 const OpenOnMount = ({def}: {def: ViewDef<object>}) => {
     const stack = useViewStack()
@@ -44,14 +50,14 @@ const OpenOnMount = ({def}: {def: ViewDef<object>}) => {
     return null
 }
 
-const tree = (phone: boolean) => (
+const tree = (phone: boolean, def: ViewDef<object> = view) => (
     <AgentPanelContext.Provider value={panel(phone)}>
         <ViewStackHost
             chrome={PanelViewChrome}
             rootTitle={phone ? "Configuration" : "Agent"}
             phone={phone}
         >
-            <OpenOnMount def={view} />
+            <OpenOnMount def={def} />
         </ViewStackHost>
     </AgentPanelContext.Provider>
 )
@@ -83,5 +89,12 @@ describe("PanelViewChrome", () => {
         rerender(tree(true))
         expect(screen.getByTestId("phone-screen-header")).toBeTruthy()
         expect((screen.getByRole("textbox", {name: "text"}) as HTMLInputElement).value).toBe("kept")
+    })
+
+    it("on a phone a view marked readOnlyOnPhone gets no action row", async () => {
+        render(tree(true, readOnlyView))
+        expect(await screen.findByRole("button", {name: "Back to Configuration"})).toBeTruthy()
+        expect(screen.queryByRole("button", {name: "Save"})).toBeNull()
+        expect(screen.queryByRole("button", {name: "Cancel"})).toBeNull()
     })
 })
