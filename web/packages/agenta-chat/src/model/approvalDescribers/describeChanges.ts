@@ -463,9 +463,13 @@ const risksOf = (
     const known = new Set(Array.isArray(oldValue) ? oldValue.map(serverName) : [])
     const newInList =
         location.section === "mcps" &&
-        !location.wholeItem &&
+        // The bare `mcps` list itself, not a list inside one server.
+        location.itemKey === undefined &&
+        location.leaf === undefined &&
         Array.isArray(newValue) &&
-        newValue.some((server) => outside(server) && !known.has(serverName(server)))
+        newValue.some(
+            (server) => isRecord(server) && outside(server) && !known.has(serverName(server)),
+        )
     const newUrl =
         location.section === "mcps" &&
         location.leaf === "url" &&

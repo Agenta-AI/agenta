@@ -496,6 +496,16 @@ describe("warning lines from the operation (task 25.2)", () => {
             describeConfigChanges([{operation: "set", target: url, value: "https://x.dev/mcp"}])
                 .changes[0].risks[0].kind,
         ).toBe("data_egress")
+        // A tool filter inside one server adds no server.
+        expect(
+            describeConfigChanges([
+                {
+                    operation: "set",
+                    target: [...T, {list: "mcps", key: "linear"}, "policy", "tools", "names"],
+                    value: ["create_issue"],
+                },
+            ]).changes[0].risks,
+        ).toEqual([])
         // A description that starts with a URL changes no server.
         expect(
             describeConfigChanges([
