@@ -1,4 +1,6 @@
 /** The Automations region's "Add automation" menu (F05 f2). */
+import {useMemo} from "react"
+
 import {
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
@@ -39,38 +41,50 @@ export function AddTriggerDropdown({
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
 
-    const draft = {
-        defaultReferences,
+    const manualItems = useMemo(() => {
+        const draft = {
+            defaultReferences,
+            defaultBoundLabel,
+            playgroundEntityId: entityId ?? undefined,
+            fixedKind: true,
+        }
+        return [
+            {
+                key: "app",
+                icon: <Lightning size={16} />,
+                title: t("entityUi.triggers.appTrigger"),
+                hint: t("entityUi.triggers.appTriggerSubtitle"),
+                onSelect: () =>
+                    onAdd
+                        ? onAdd("subscription", defaultReferences)
+                        : openSubscriptionDrawer(draft),
+            },
+            {
+                key: "schedule",
+                icon: <Clock size={16} />,
+                title: t("entityUi.triggers.scheduledTrigger"),
+                hint: t("entityUi.triggers.scheduledTriggerSubtitle"),
+                onSelect: () =>
+                    onAdd ? onAdd("schedule", defaultReferences) : openScheduleDrawer(draft),
+            },
+        ]
+    }, [
         defaultBoundLabel,
-        playgroundEntityId: entityId ?? undefined,
-        fixedKind: true,
-    }
+        defaultReferences,
+        entityId,
+        onAdd,
+        openScheduleDrawer,
+        openSubscriptionDrawer,
+        t,
+    ])
+
     return (
         <CreateWithAIAddMenu
             label={t("entityUi.agentOperations.addAutomation")}
             starterPrompt={t("entityUi.agentOperations.automationStarter")}
             aiHint={t("entityUi.triggers.createWithAiSubtitle")}
             aiLast
-            manualItems={[
-                {
-                    key: "app",
-                    icon: <Lightning size={16} />,
-                    title: t("entityUi.triggers.appTrigger"),
-                    hint: t("entityUi.triggers.appTriggerSubtitle"),
-                    onSelect: () =>
-                        onAdd
-                            ? onAdd("subscription", defaultReferences)
-                            : openSubscriptionDrawer(draft),
-                },
-                {
-                    key: "schedule",
-                    icon: <Clock size={16} />,
-                    title: t("entityUi.triggers.scheduledTrigger"),
-                    hint: t("entityUi.triggers.scheduledTriggerSubtitle"),
-                    onSelect: () =>
-                        onAdd ? onAdd("schedule", defaultReferences) : openScheduleDrawer(draft),
-                },
-            ]}
+            manualItems={manualItems}
         />
     )
 }

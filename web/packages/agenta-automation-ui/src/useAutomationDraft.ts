@@ -167,7 +167,8 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
             }
             // The edit is the new baseline immediately: waiting for the refetch would leave the
             // footer standing over changes that are already saved.
-            setState((current) => ({baseline: current.draft, draft: current.draft}))
+            // The baseline is what was sent: an edit typed while the request ran stays unsaved.
+            setState((current) => ({baseline: draft, draft: current.draft}))
             message.success(tNow("automations.editor.changesSaved"))
             return true
         } catch {

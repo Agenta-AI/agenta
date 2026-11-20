@@ -29,8 +29,9 @@ export const AutomationsTab = ({
 }: {
     revisionId: string
     workspaceId: string
-    sessionId: string
-    filesScope: string
+    /** The session whose recent files show under the automations; absent, no files part. */
+    sessionId?: string
+    filesScope?: string
     projectId: string
 }) => {
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
@@ -75,19 +76,24 @@ export const AutomationsTab = ({
                     revisionId={revisionId}
                     disabled={!editAccess.pending && !editAccess.allowed}
                     sticky={false}
+                    showFiles={Boolean(sessionId && filesScope)}
                     storage={
-                        <StorageSection
-                            revisionId={revisionId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
+                        sessionId && filesScope ? (
+                            <StorageSection
+                                revisionId={revisionId}
+                                sessionId={sessionId}
+                                scope={filesScope}
+                            />
+                        ) : null
                     }
                     storageHeader={
-                        <StorageFilesHeader
-                            revisionId={revisionId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
+                        sessionId && filesScope ? (
+                            <StorageFilesHeader
+                                revisionId={revisionId}
+                                sessionId={sessionId}
+                                scope={filesScope}
+                            />
+                        ) : null
                     }
                     // The automations open as views; the session workspace still mounts the
                     // automation drawers for its other openers.

@@ -108,6 +108,7 @@ export function AgentOperationsSections({
     onOpenRunHistory,
     onOpenAutomation,
     onAddAutomation,
+    showFiles = true,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -127,6 +128,8 @@ export function AgentOperationsSections({
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
     /** A row's destination; see {@link TriggerManagementSection}. */
     onOpenAutomation?: (owner: TriggerOwnerRef) => void
+    /** False drops the Files region (a host with no session, such as the Configuration page). */
+    showFiles?: boolean
     /** Where "Add automation" opens the chosen form; absent, the automation drawer. */
     onAddAutomation?: (
         kind: TriggerOwnerRef["kind"],
@@ -168,23 +171,25 @@ export function AgentOperationsSections({
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            <section className="flex grow flex-col">
-                <AgentRegionHeaderBar
-                    title={t("entityUi.agentOperations.recentFiles")}
-                    sticky={sticky}
-                >
-                    {storageHeader}
-                </AgentRegionHeaderBar>
-                {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
-                <div className={`flex grow flex-col ${bodyClass}`}>
-                    {storage ?? (
-                        // Static fallback for surfaces that don't slot the live Files body.
-                        <span className="text-xs text-colorTextDescription">
-                            {t("entityUi.agentOperations.workingFilesHint")}
-                        </span>
-                    )}
-                </div>
-            </section>
+            {showFiles ? (
+                <section className="flex grow flex-col">
+                    <AgentRegionHeaderBar
+                        title={t("entityUi.agentOperations.recentFiles")}
+                        sticky={sticky}
+                    >
+                        {storageHeader}
+                    </AgentRegionHeaderBar>
+                    {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
+                    <div className={`flex grow flex-col ${bodyClass}`}>
+                        {storage ?? (
+                            // Static fallback for surfaces that don't slot the live Files body.
+                            <span className="text-xs text-colorTextDescription">
+                                {t("entityUi.agentOperations.workingFilesHint")}
+                            </span>
+                        )}
+                    </div>
+                </section>
+            ) : null}
         </>
     )
 }

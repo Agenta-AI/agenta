@@ -7,7 +7,7 @@ import {
     useAutomationEditor,
 } from "@agenta/automation-ui"
 import {AutomationDeleteDialog} from "@agenta/entity-ui/drill-in"
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
@@ -17,6 +17,8 @@ import {Trash} from "@phosphor-icons/react"
 import {automationRunHistoryView} from "./automationRunHistoryView"
 import {AutomationRunNowButton} from "./AutomationRunNowButton"
 import type {AutomationViewParams} from "./automationView"
+
+const tNow = createT(automationsScreensCatalog)
 
 /** The body of the automation view: the shared body in a panel column, with this app's Run now. */
 const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParams>) => {
@@ -57,9 +59,9 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
     // Deleted: nothing is left to save, so the view leaves without asking.
     const onDelete = useCallback(async () => {
         await remove(params.automationId)
-        message.success(t("automations.screens.deleted"))
+        message.success(tNow("automations.screens.deleted"))
         nav.cancel()
-    }, [nav, params.automationId, remove, t])
+    }, [nav, params.automationId, remove])
 
     if (editor.loading) return <AutomationDetailSkeleton />
     if (!editor.automation || !editor.preview)

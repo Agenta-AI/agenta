@@ -65,7 +65,8 @@ export const AutomationRunsSection = ({
             automation.kind === "schedule" && automation.isActive && automation.cron
                 ? formatNextRun(automation.cron, scheduleTextNow())
                 : "",
-        [automation.cron, automation.isActive, automation.kind, tick],
+        // `t` changes with the language, so the line is built again in the new one.
+        [automation.cron, automation.isActive, automation.kind, tick, t],
     )
     const lastRunFailed = newest ? deliveryOutcome(newest) === "bad" : false
 
