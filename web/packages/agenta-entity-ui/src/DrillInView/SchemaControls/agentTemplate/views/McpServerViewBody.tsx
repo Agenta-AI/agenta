@@ -144,6 +144,7 @@ const AgentServer = ({
     const personal = readMcpAccountSource(entry) === USER_ACCOUNT_SOURCE
     const projectSignedIn = projectStatus === "connected"
     const ownSignIn = endpoint?.user_sign_in?.is_ready === true
+    const readsOwnSignIn = personal && !projectSignedIn
     const accountContext = useMemo(
         () => ({revisionId: writer.revisionId, agent: writer.agent}),
         [writer.revisionId, writer.agent],
@@ -156,12 +157,13 @@ const AgentServer = ({
         cachedToolCount: endpoint ? readMcpToolCount(endpoint) : null,
         policy: readMcpPolicy(entry),
         onChange: (policy: McpServerPolicy) => update((current) => ({...current, policy})),
-        onReconnect,
+        // A refused personal sign-in is repaired in "Your sign-in", never by the project's consent.
+        onReconnect: readsOwnSignIn ? undefined : onReconnect,
         disabled: writer.readOnly,
         // The title line says it, with "Reconnect".
         banner: false,
         listTools: !personal || projectSignedIn || ownSignIn,
-        accountSource: personal && !projectSignedIn ? USER_ACCOUNT_SOURCE : "agent",
+        accountSource: readsOwnSignIn ? USER_ACCOUNT_SOURCE : "agent",
     })
 
     if (!entry) {
