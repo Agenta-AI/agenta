@@ -189,12 +189,12 @@ class TestOneTimePass:
         assert before <= due_by <= after
 
     async def test_the_limit_per_tick_comes_from_env(self, monkeypatch):
-        monkeypatch.setattr(env.triggers, "one_time_schedules_max_per_tick", 2000)
+        monkeypatch.setattr(env.triggers, "one_time_schedules_max_per_tick", 7)
         service, dao = _service()
 
         await service.refresh_schedules(timestamp=_RUN_AT, interval=1)
 
-        assert dao.fetch_due_one_time_schedules.await_args.kwargs["limit"] == 2000
+        assert dao.fetch_due_one_time_schedules.await_args.kwargs["limit"] == 7
 
     async def test_two_refresh_calls_queue_the_same_event_id(self):
         # The dispatcher's delivery claim on (project, schedule, event id) lets one
