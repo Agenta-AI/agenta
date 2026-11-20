@@ -64,6 +64,34 @@ export const agentOfToolPart = (part: UIMessage["parts"][number]): AgentRef | nu
     return {id, name}
 }
 
+/** One settled `create_agent` or `edit_agent_config` call that names an agent. */
+export interface AgentResult {
+    toolCallId: string
+    agent: AgentRef
+    /** True when the call saved a new version or created the agent ("committed", "created"). */
+    saved: boolean
+}
+
+/** Every settled `create_agent` and `edit_agent_config` call that names an agent, in order. */
+export const agentResults = (messages: readonly UIMessage[]): AgentResult[] => {
+    const results: AgentResult[] = []
+    for (const message of messages) {
+        if (message.role !== "assistant") continue
+        for (const part of message.parts) {
+            const agent = agentOfToolPart(part)
+            if (!agent) continue
+            const tool = part as ToolUIPart
+            const status = parseResult(tool.output)?.status
+            results.push({
+                toolCallId: tool.toolCallId,
+                agent,
+                saved: status === "committed" || status === "created",
+            })
+        }
+    }
+    return results
+}
+
 /** The agent of the latest settled `create_agent` or `edit_agent_config` result, or null. */
 export const latestResultAgent = (messages: readonly UIMessage[]): AgentRef | null => {
     for (let m = messages.length - 1; m >= 0; m--) {

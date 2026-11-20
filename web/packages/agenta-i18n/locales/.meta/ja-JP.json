@@ -866,7 +866,16 @@
         "drives": "729fe0e7b138",
         "sessions": "6fa3cbf451b2",
         "noSessions": "ffb21e973cae",
-        "sessionsFailed": "b5cb54028168"
+        "sessionsFailed": "b5cb54028168",
+        "openItem": "5e55feb0d9cc",
+        "closeTab": "07f8ffa2e068",
+        "moreTabs": "e3d6d4345ad8",
+        "kindAgent": "11b39c93777e",
+        "kindAutomation": "d909750b1bbb",
+        "kindTool": "2e53bdcd0740",
+        "kindApp": "0d04bfeb7d64",
+        "itemNotShown": "a6382de19987",
+        "changedByBuilder": "00cdc1e80250"
     },
     "builder.panel": {
         "newChat": "db18382a249e",

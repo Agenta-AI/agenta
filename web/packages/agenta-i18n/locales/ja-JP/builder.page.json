@@ -78,5 +78,14 @@
     "drives": "ドライブ",
     "sessions": "セッション",
     "noSessions": "このエージェントにはまだセッションがありません。",
-    "sessionsFailed": "セッションを読み込めませんでした。"
+    "sessionsFailed": "セッションを読み込めませんでした。",
+    "openItem": "項目を開く",
+    "closeTab": "{{name}} を閉じる",
+    "moreTabs": "他 {{count}} 件",
+    "kindAgent": "エージェント",
+    "kindAutomation": "自動化",
+    "kindTool": "ツール",
+    "kindApp": "アプリ",
+    "itemNotShown": "この項目はまだここに表示できません。",
+    "changedByBuilder": "ビルダーが変更"
 }

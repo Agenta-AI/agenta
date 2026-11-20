@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
-import {agentSharingQueryAtomFamily} from "@agenta/entities/sharing"
 import {
     agentWorkflowsListQueryStateAtom,
     builderAgentRevisionIdQueryAtom,
@@ -11,22 +10,12 @@ import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {userAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {Button, SimpleTooltip, SplitPane} from "@agenta/ui/ui"
-import {
-    ArrowsInSimple,
-    ArrowsOutSimple,
-    LockSimple,
-    Robot,
-    SidebarSimple,
-} from "@phosphor-icons/react"
-import type {UIMessage} from "ai"
+import {ArrowsInSimple, ArrowsOutSimple, SidebarSimple} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 
-import {useAgentRow} from "../agent-layout/useAgentRow"
 import {openMainSidebar} from "../agent-sidebar/selectedSidebar"
-import {builderChatHref} from "../builder/builderChatHref"
 import {linkedAgentIdOf} from "../builder/builderChatLink"
 import {newBuilderSessionId} from "../builder/newBuilderSession"
 import {SessionWorkspaceDrawers} from "../chat/SessionWorkspaceDrawers"
@@ -37,7 +26,6 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {AgentPane} from "./AgentPane"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
@@ -47,29 +35,18 @@ import {
 } from "./builderLayout"
 import {BuilderPageChat} from "./BuilderPageChat"
 import {createBuilderSidebarScope} from "./builderSidebarScope"
-import {
-    latestContextAgent,
-    latestResultAgent,
-    paneAgentId,
-    parseTabParam,
-    type AgentRef,
-} from "./paneAgent"
+import {BuilderTabContent} from "./BuilderTabContent"
+import {builderTabKey, type BuilderTab} from "./builderTabs"
+import {BuilderTabStrip} from "./BuilderTabStrip"
+import type {AgentRef} from "./paneAgent"
+import {useBuilderTabs} from "./useBuilderTabs"
 
 /** The chat keeps at least this width beside the pane, in px. */
 const CHAT_MIN_WIDTH = 320
 
-/** The agents one chat's messages name. */
-interface ChatFacts {
-    sessionId: string
-    result: AgentRef | null
-    context: AgentRef | null
-}
-
-const sameAgent = (a: AgentRef | null, b: AgentRef | null) => a?.id === b?.id && a?.name === b?.name
-
 /**
- * The builder page: the builder sidebar, the chat, and the pane with the agent tab of the agent
- * the chat is about. `/builder` is a new chat; its first message moves the address to
+ * The builder page: the builder sidebar, the chat, and the pane with the builder tabs of the
+ * chat (one per agent, automation, tool or app it touched). `/builder` is a new chat; its first message moves the address to
  * `/builder/{chatId}` with a replace, on the same page file, so nothing remounts.
  */
 export const BuilderPage = ({
@@ -88,7 +65,6 @@ export const BuilderPage = ({
     useBindProjectContext(projectId)
     // An unsaved file edit in the Drives pane tab warns before a tab close, as on the session page.
     useDriveDirtyGuard()
-    const router = useRouter()
     const userId = useAtomValue(userAtom)?.id ?? null
     const builder = useAtomValue(builderAgentRevisionIdQueryAtom)
     const builderRevisionId = builder.data ?? null
@@ -107,71 +83,49 @@ export const BuilderPage = ({
         }
     }, [routeChatId])
 
-    // What the pane reads of the chat, per chat: set only when it changes, so a streamed chunk
-    // renders nothing here.
-    const [facts, setFacts] = useState<ChatFacts | null>(null)
-    const onMessagesChanged = useCallback(
-        (messages: UIMessage[]) => {
-            const result = latestResultAgent(messages)
-            const context = latestContextAgent(messages)
-            setFacts((held) =>
-                held?.sessionId === sessionId &&
-                sameAgent(held.result, result) &&
-                sameAgent(held.context, context)
-                    ? held
-                    : {sessionId, result, context},
-            )
-        },
-        [sessionId],
-    )
-    const resultAgent = facts?.sessionId === sessionId ? facts.result : null
-    const contextAgent = facts?.sessionId === sessionId ? facts.context : null
     const linkedAgentId = useMemo(
         () => (userId ? linkedAgentIdOf(userId, projectId, sessionId) : null),
         [projectId, sessionId, userId],
     )
-    const tabRef = parseTabParam(tab)
-    const agentId = paneAgentId({tab: tabRef, resultAgent, contextAgent, linkedAgentId})
-
-    // The address holds the active tab, written with a replace (no history entry). One writer
-    // per moment: before the address names this chat, the first send writes chat and tab at once.
-    useEffect(() => {
-        if (!agentId || routeChatId !== sessionId) return
-        if (tabRef?.kind === "agent" && tabRef.id === agentId) return
-        void router.replace(
-            builderChatHref({workspaceId, projectId, sessionId, agentId}),
-            undefined,
-            {shallow: true},
-        )
-    }, [agentId, projectId, routeChatId, router, sessionId, tabRef?.id, tabRef?.kind, workspaceId])
-
+    const tabs = useBuilderTabs({
+        sessionId,
+        routeChatId,
+        tab,
+        linkedAgentId,
+        workspaceId,
+        projectId,
+    })
+    const activeTab =
+        tabs.state.tabs.find((held) => builderTabKey(held) === tabs.state.active) ?? null
     const onFirstSend = useCallback(
         (agent: AgentRef | null) => {
             if (routeChatId === sessionId) return
             routed.current = true
-            void router.replace(
-                builderChatHref({workspaceId, projectId, sessionId, agentId: agent?.id ?? agentId}),
-                undefined,
-                {shallow: true},
-            )
+            tabs.onFirstSend(agent)
         },
-        [agentId, projectId, routeChatId, router, sessionId, workspaceId],
+        [routeChatId, sessionId, tabs],
     )
 
-    const {row} = useAgentRow(agentId ?? "")
-    // Deleted or no longer visible: the agent list does not hold it and its access read fails.
+    // A tab shows its own name, else the agent list's name, else its kind.
     const agents = useAtomValue(agentWorkflowsListQueryStateAtom)
-    const sharing = useAtomValue(agentSharingQueryAtomFamily(agentId ?? ""))
-    const noAccess = Boolean(agentId) && !agents.isPending && !row && sharing.isError
-    const agentName =
-        row?.name ||
-        row?.slug ||
-        (resultAgent?.id === agentId ? resultAgent?.name : "") ||
-        (contextAgent?.id === agentId ? contextAgent?.name : "") ||
-        ""
+    const agentNames = useMemo(
+        () =>
+            new Map((agents.data ?? []).map((agent) => [agent.id, agent.name || agent.slug || ""])),
+        [agents.data],
+    )
+    const kindLabels: Record<BuilderTab["kind"], string> = {
+        agent: t("builder.page.kindAgent"),
+        automation: t("builder.page.kindAutomation"),
+        tool: t("builder.page.kindTool"),
+        app: t("builder.page.kindApp"),
+    }
+    const label = (held: BuilderTab) =>
+        (held.kind === "agent" ? agentNames.get(held.id) : "") || held.name || kindLabels[held.kind]
+    // The chip of the next message: the agent of the active tab (design D13, builder page).
+    const activeAgentName = activeTab?.kind === "agent" ? label(activeTab) : ""
     const paneAgent = useMemo(
-        () => (agentId ? {id: agentId, name: agentName} : null),
-        [agentId, agentName],
+        () => (activeTab?.kind === "agent" ? {id: activeTab.id, name: activeAgentName} : null),
+        [activeTab?.kind, activeTab?.id, activeAgentName],
     )
 
     const [layout, setLayoutState] = useState<BuilderPaneLayout>(readBuilderPaneLayout)
@@ -214,7 +168,7 @@ export const BuilderPage = ({
                 projectId={projectId}
                 paneAgent={paneAgent}
                 onFirstSend={onFirstSend}
-                onMessagesChanged={onMessagesChanged}
+                onMessagesChanged={tabs.onMessagesChanged}
             />
         )
 
@@ -222,7 +176,7 @@ export const BuilderPage = ({
     // when the person opens it, and this choice is not stored (a wider window keeps its layout).
     const phone = useMediaQuery("(max-width: 767.98px)")
     const [phonePane, setPhonePane] = useState(false)
-    const paneOpen = Boolean(agentId) && (phone ? phonePane : !layout.hidden)
+    const paneOpen = Boolean(activeTab) && (phone ? phonePane : !layout.hidden)
     const paneFull = paneOpen && (phone || layout.fullScreen)
     // Live width while the divider moves; stored when the drag ends.
     const [dragWidth, setDragWidth] = useState<number | null>(null)
@@ -237,7 +191,7 @@ export const BuilderPage = ({
                 <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-colorText">
                     {title}
                 </span>
-                {agentId && !paneOpen ? (
+                {activeTab && !paneOpen ? (
                     <SimpleTooltip title={t("builder.page.openItems")}>
                         <Button
                             variant="ghost"
@@ -258,34 +212,63 @@ export const BuilderPage = ({
 
     // The pane stays mounted while it is hidden or the chat is full screen, so neither an open
     // form in the pane nor a running answer in the chat is lost by a layout change.
-    const pane = agentId ? (
+    const pane = activeTab ? (
         <section
             aria-label={t("builder.page.openItems")}
             className="flex h-full min-h-0 min-w-0 flex-col border-0 border-l border-solid border-colorBorderSecondary bg-colorBgContainer"
         >
-            <PaneHeader
-                agentId={agentId}
-                name={agentName}
-                fullScreen={layout.fullScreen}
-                onFullScreen={phone ? null : () => setLayout({fullScreen: !layout.fullScreen})}
-                onHide={() =>
-                    phone ? setPhonePane(false) : setLayout({hidden: true, fullScreen: false})
-                }
-            />
-            <div className="min-h-0 flex-1">
-                {noAccess ? (
-                    <p className="m-0 p-4 text-[13px] text-colorTextSecondary">
-                        {t("builder.page.noAccess")}
-                    </p>
-                ) : (
-                    <AgentPane
-                        key={agentId}
-                        agentId={agentId}
-                        builderSessionId={sessionId}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                    />
+            <div className="flex h-11 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2">
+                <BuilderTabStrip
+                    tabs={tabs.state.tabs}
+                    active={tabs.state.active}
+                    label={label}
+                    onActivate={tabs.activate}
+                    onClose={tabs.close}
+                    onOpenAgent={(agent) =>
+                        tabs.open({kind: "agent", id: agent.id, name: agent.name})
+                    }
+                />
+                {phone ? null : (
+                    <SimpleTooltip title={t("builder.page.fullScreen")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("builder.page.fullScreen")}
+                            aria-pressed={layout.fullScreen}
+                            onClick={() => setLayout({fullScreen: !layout.fullScreen})}
+                        >
+                            {layout.fullScreen ? (
+                                <ArrowsInSimple size={16} />
+                            ) : (
+                                <ArrowsOutSimple size={16} />
+                            )}
+                        </Button>
+                    </SimpleTooltip>
                 )}
+                <SimpleTooltip title={t("builder.page.hideOpenItems")}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("builder.page.hideOpenItems")}
+                        onClick={() =>
+                            phone
+                                ? setPhonePane(false)
+                                : setLayout({hidden: true, fullScreen: false})
+                        }
+                    >
+                        <SidebarSimple size={16} className="-scale-x-100" />
+                    </Button>
+                </SimpleTooltip>
+            </div>
+            <div className="min-h-0 flex-1">
+                {/* Only the active tab is mounted. */}
+                <BuilderTabContent
+                    key={builderTabKey(activeTab)}
+                    tab={activeTab}
+                    builderSessionId={sessionId}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                />
             </div>
         </section>
     ) : null
@@ -327,77 +310,3 @@ export const BuilderPage = ({
         </>
     )
 }
-
-/** The top of the pane: the agent tab, "Full screen" and "Hide open items". */
-const PaneHeader = ({
-    agentId,
-    name,
-    fullScreen,
-    onFullScreen,
-    onHide,
-}: {
-    agentId: string
-    name: string
-    fullScreen: boolean
-    /** Null on a phone, where the pane is always full screen. */
-    onFullScreen: (() => void) | null
-    onHide: () => void
-}) => {
-    const t = useT(builderPageCatalog)
-    const isPrivate = useAgentIsPrivate(agentId)
-    return (
-        <div className="flex h-11 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2">
-            <div
-                role="tablist"
-                className="flex min-w-0 flex-1 items-center"
-                aria-label={t("builder.page.openItems")}
-            >
-                <span
-                    role="tab"
-                    aria-selected
-                    title={name}
-                    className="flex h-8 min-w-0 max-w-[240px] items-center gap-1.5 rounded-md bg-colorFillSecondary px-2 text-[13px] font-medium text-colorText"
-                >
-                    <Robot aria-hidden size={14} className="shrink-0" />
-                    <span className="truncate">{name}</span>
-                    {isPrivate ? (
-                        <span title={t("builder.page.privateAgent")} className="flex shrink-0">
-                            <LockSimple
-                                size={12}
-                                className="text-colorTextTertiary"
-                                aria-label={t("builder.page.privateAgent")}
-                            />
-                        </span>
-                    ) : null}
-                </span>
-            </div>
-            {onFullScreen ? (
-                <SimpleTooltip title={t("builder.page.fullScreen")}>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("builder.page.fullScreen")}
-                        aria-pressed={fullScreen}
-                        onClick={onFullScreen}
-                    >
-                        {fullScreen ? <ArrowsInSimple size={16} /> : <ArrowsOutSimple size={16} />}
-                    </Button>
-                </SimpleTooltip>
-            ) : null}
-            <SimpleTooltip title={t("builder.page.hideOpenItems")}>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("builder.page.hideOpenItems")}
-                    onClick={onHide}
-                >
-                    <SidebarSimple size={16} className="-scale-x-100" />
-                </Button>
-            </SimpleTooltip>
-        </div>
-    )
-}
-
-/** True when the agent is private: only its owner can see and use it. */
-const useAgentIsPrivate = (agentId: string) =>
-    useAtomValue(agentSharingQueryAtomFamily(agentId)).data?.sharing.policy.visibility === "private"

@@ -78,5 +78,14 @@
     "drives": "云盘",
     "sessions": "会话",
     "noSessions": "这个 Agent 还没有会话。",
-    "sessionsFailed": "无法加载会话。"
+    "sessionsFailed": "无法加载会话。",
+    "openItem": "打开项目",
+    "closeTab": "关闭 {{name}}",
+    "moreTabs": "还有 {{count}} 个",
+    "kindAgent": "Agent",
+    "kindAutomation": "自动化",
+    "kindTool": "工具",
+    "kindApp": "应用",
+    "itemNotShown": "此项目暂时无法在这里显示。",
+    "changedByBuilder": "由构建器更改"
 }
