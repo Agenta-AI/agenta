@@ -1,6 +1,12 @@
 {
-    "cannotApply": "Diese Änderung lässt sich nicht auf die aktuelle Version des Agents anwenden.",
+    "activityCreateAgentDone": "Hat einen Agent erstellt",
+    "activityCreateAgentRunning": "Erstellt einen Agent",
+    "activityEditAgentDone": "Hat Änderungen an einem anderen Agent gespeichert",
+    "activityEditAgentRunning": "Speichert Änderungen an einem anderen Agent",
+    "activityReadAgentDone": "Hat die Einrichtung eines anderen Agents gelesen",
+    "activityReadAgentRunning": "Liest die Einrichtung eines anderen Agents",
     "canRun": "kann als Programm laufen",
+    "cannotApply": "Diese Änderung lässt sich nicht auf die aktuelle Version des Agents anwenden.",
     "changesTo_one": "{{count}} Änderung an {{agent}}",
     "changesTo_other": "{{count}} Änderungen an {{agent}}",
     "conflict": "Jemand hat v{{latest}} gespeichert, nachdem der Builder v{{base}} gelesen hat. Diese Änderung kann nicht gespeichert werden.",
@@ -47,6 +53,12 @@
     "titleRemoveMcp": "MCP-Server entfernen",
     "titleRemoveSkill": "Skill entfernen",
     "titleRemoveTool": "Werkzeug entfernen",
+    "verbCreated": "Hat erstellt",
+    "verbCreating": "Erstellt",
+    "verbRead": "Hat gelesen",
+    "verbReading": "Liest",
+    "verbSaved": "Hat gespeichert",
+    "verbSaving": "Speichert",
     "viewFullDiff_one": "Ganzen Diff anzeigen · {{count}} Zeile",
     "viewFullDiff_other": "Ganzen Diff anzeigen · {{count}} Zeilen"
 }

@@ -1,6 +1,12 @@
 {
-    "cannotApply": "This change cannot be applied to the current version of the agent.",
+    "activityCreateAgentDone": "Created an agent",
+    "activityCreateAgentRunning": "Creating an agent",
+    "activityEditAgentDone": "Saved changes to another agent",
+    "activityEditAgentRunning": "Saving changes to another agent",
+    "activityReadAgentDone": "Read another agent's setup",
+    "activityReadAgentRunning": "Reading another agent's setup",
     "canRun": "can run as a program",
+    "cannotApply": "This change cannot be applied to the current version of the agent.",
     "changesTo_one": "{{count}} change to {{agent}}",
     "changesTo_other": "{{count}} changes to {{agent}}",
     "conflict": "Someone saved v{{latest}} after the builder read v{{base}}. This change cannot be saved.",
@@ -47,6 +53,12 @@
     "titleRemoveMcp": "Remove an MCP server",
     "titleRemoveSkill": "Remove a skill",
     "titleRemoveTool": "Remove a tool",
+    "verbCreated": "Created",
+    "verbCreating": "Creating",
+    "verbRead": "Read",
+    "verbReading": "Reading",
+    "verbSaved": "Saved",
+    "verbSaving": "Saving",
     "viewFullDiff_one": "View full diff · {{count}} line",
     "viewFullDiff_other": "View full diff · {{count}} lines"
 }

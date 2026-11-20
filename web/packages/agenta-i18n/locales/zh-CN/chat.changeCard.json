@@ -1,6 +1,12 @@
 {
-    "cannotApply": "此更改无法应用到 Agent 的当前版本。",
+    "activityCreateAgentDone": "已创建 Agent",
+    "activityCreateAgentRunning": "正在创建 Agent",
+    "activityEditAgentDone": "已保存对另一个 Agent 的更改",
+    "activityEditAgentRunning": "正在保存对另一个 Agent 的更改",
+    "activityReadAgentDone": "已读取另一个 Agent 的设置",
+    "activityReadAgentRunning": "正在读取另一个 Agent 的设置",
     "canRun": "可以作为程序运行",
+    "cannotApply": "此更改无法应用到 Agent 的当前版本。",
     "changesTo_other": "对 {{agent}} 的 {{count}} 项更改",
     "conflict": "Builder 读取 v{{base}} 之后，有人保存了 v{{latest}}。此更改无法保存。",
     "fieldAllTools": "所有工具",
@@ -46,5 +52,11 @@
     "titleRemoveMcp": "移除 MCP 服务器",
     "titleRemoveSkill": "移除 Skill",
     "titleRemoveTool": "移除工具",
+    "verbCreated": "已创建",
+    "verbCreating": "正在创建",
+    "verbRead": "已读取",
+    "verbReading": "正在读取",
+    "verbSaved": "已保存",
+    "verbSaving": "正在保存",
     "viewFullDiff_other": "查看完整差异 · {{count}} 行"
 }

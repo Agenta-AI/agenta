@@ -1271,8 +1271,14 @@
         "viewMore_other": "e14e337fa311"
     },
     "chat.changeCard": {
-        "cannotApply": "14cc625575f7",
+        "activityCreateAgentDone": "5789326eeefe",
+        "activityCreateAgentRunning": "f64f54ccb67e",
+        "activityEditAgentDone": "0cc3f19028b9",
+        "activityEditAgentRunning": "bce90a0000a3",
+        "activityReadAgentDone": "51fe787c5707",
+        "activityReadAgentRunning": "7cba6b322955",
         "canRun": "052d81f9d375",
+        "cannotApply": "14cc625575f7",
         "changesTo_one": "35383c493de2",
         "changesTo_many": "0ecb18d4aaec",
         "changesTo_other": "0ecb18d4aaec",
@@ -1320,6 +1326,12 @@
         "titleRemoveMcp": "0aad65fbc78c",
         "titleRemoveSkill": "eec6b682b888",
         "titleRemoveTool": "4a2eec8fe1ff",
+        "verbCreated": "d70b9e24bca2",
+        "verbCreating": "3b951ebd7c96",
+        "verbRead": "9b9a8d05a7ec",
+        "verbReading": "463816d07097",
+        "verbSaved": "b5c120b316c2",
+        "verbSaving": "096b73624b09",
         "viewFullDiff_one": "afb709a1a763",
         "viewFullDiff_many": "cba3c1438b08",
         "viewFullDiff_other": "cba3c1438b08"

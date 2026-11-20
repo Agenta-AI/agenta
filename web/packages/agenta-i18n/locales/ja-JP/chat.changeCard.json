@@ -1,6 +1,12 @@
 {
-    "cannotApply": "この変更はエージェントの現在のバージョンに適用できません。",
+    "activityCreateAgentDone": "エージェントを作成しました",
+    "activityCreateAgentRunning": "エージェントを作成しています",
+    "activityEditAgentDone": "別のエージェントへの変更を保存しました",
+    "activityEditAgentRunning": "別のエージェントへの変更を保存しています",
+    "activityReadAgentDone": "別のエージェントの設定を読みました",
+    "activityReadAgentRunning": "別のエージェントの設定を読んでいます",
     "canRun": "プログラムとして実行できます",
+    "cannotApply": "この変更はエージェントの現在のバージョンに適用できません。",
     "changesTo_other": "{{agent}} への {{count}} 件の変更",
     "conflict": "Builder が v{{base}} を読んだ後に、誰かが v{{latest}} を保存しました。この変更は保存できません。",
     "fieldAllTools": "すべてのツール",
@@ -46,5 +52,11 @@
     "titleRemoveMcp": "MCP サーバーを削除",
     "titleRemoveSkill": "スキルを削除",
     "titleRemoveTool": "ツールを削除",
+    "verbCreated": "作成しました",
+    "verbCreating": "作成しています",
+    "verbRead": "読みました",
+    "verbReading": "読んでいます",
+    "verbSaved": "保存しました",
+    "verbSaving": "保存しています",
     "viewFullDiff_other": "差分をすべて表示 · {{count}} 行"
 }
