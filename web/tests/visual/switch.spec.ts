@@ -1,4 +1,4 @@
-import {mkdirSync, readFileSync, writeFileSync} from "node:fs"
+import {mkdirSync, readFileSync, rmSync, writeFileSync} from "node:fs"
 
 import {test, type Page} from "@playwright/test"
 
@@ -19,6 +19,8 @@ import {requireEnv} from "./recipe"
  * configuration, files) opens that right panel content first, so two conversations can be on screen.
  *
  * One run writes OUT/switch-<time>.json with the cases warm_same_agent, warm_other_agent and cold_same_agent.
+ * The file keeps request paths, project ids and the start of each request body (chat text of the
+ * test account included): keep it with the test evidence, do not share it outside the team.
  *
  * Click to done: the later of (a) one frame after the target turn shows the marker and (b) the end of
  * the last long task. The 300 ms with no long task that confirms the end is not counted.
@@ -271,11 +273,10 @@ const probe = async ({id: target, marker}: Target) => {
     }
 }
 
-type ProbeResult = Awaited<ReturnType<typeof probe>>
+type ProbeResult = Exclude<Awaited<ReturnType<typeof probe>>, {error: string}>
 
 /** Duplicates: the same method, path, query, project and body sent more than once in one switch. */
 function duplicates(result: ProbeResult) {
-    if (!("requests" in result)) return []
     const groups = new Map<string, number>()
     for (const q of result.requests) {
         if (!q.path.includes("/api/") && !q.path.includes("/services/")) continue
@@ -287,7 +288,7 @@ function duplicates(result: ProbeResult) {
         .map(([k, n]) => ({count: n, request: k.slice(0, 300)}))
 }
 
-async function measure(page: Page, target: Target) {
+async function measure(page: Page, target: Target): Promise<ProbeResult> {
     // The sidebar row must be on screen before the clock starts (the sidebar loads on its own).
     await page
         .locator(`a[href*="/sessions/${target.id}"]`)
@@ -304,7 +305,7 @@ async function measure(page: Page, target: Target) {
 function summarize(runs: ProbeResult[]) {
     const pick = (k: "done_ms" | "url_ms" | "marker_ms" | "longtask_total") =>
         runs
-            .map((x) => ("error" in x ? null : (x[k] as number | null)))
+            .map((x) => x[k] as number | null)
             .filter((v): v is number => v !== null)
             .sort((a, b) => a - b)
     const stats = (v: number[]) => {
@@ -313,11 +314,10 @@ function summarize(runs: ProbeResult[]) {
             v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2
         return {median: med, min: v[0], max: v[v.length - 1], n: v.length}
     }
-    const apiCounts = runs.map((x) =>
-        "requests" in x
-            ? x.requests.filter((q) => q.path.includes("/api/") || q.path.includes("/services/"))
-                  .length
-            : 0,
+    const apiCounts = runs.map(
+        (x) =>
+            x.requests.filter((q) => q.path.includes("/api/") || q.path.includes("/services/"))
+                .length,
     )
     return {
         done_ms: stats(pick("done_ms")),
@@ -397,9 +397,9 @@ async function clearSessionCaches(page: Page) {
     })
 }
 
-test.describe.configure({mode: "serial"})
-
 test("session switch timing", async ({browser}) => {
+    // A measurement on demand: a run of the visual config without SWITCH_CASES skips it.
+    test.skip(!process.env.SWITCH_CASES, "SWITCH_CASES is not set")
     test.setTimeout(30 * 60_000)
     mkdirSync(requireEnv("OUT"), {recursive: true})
     const cases = JSON.parse(readFileSync(requireEnv("SWITCH_CASES"), "utf8")) as Cases
@@ -469,6 +469,7 @@ test("session switch timing", async ({browser}) => {
     } finally {
         await page.close()
         await context.close()
+        rmSync(authFile, {force: true})
     }
 
     const report = {

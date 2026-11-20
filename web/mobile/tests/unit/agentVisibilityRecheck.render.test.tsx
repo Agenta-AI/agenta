@@ -104,15 +104,7 @@ const mount = async (sessionId: string) => {
                 </QueryClientProvider>,
             ),
         )
-    await act(async () =>
-        root.render(
-            <QueryClientProvider client={client}>
-                <Provider store={store}>
-                    <Probe sessionId={sessionId} />
-                </Provider>
-            </QueryClientProvider>,
-        ),
-    )
+    await render(sessionId)
 }
 
 const advance = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)))

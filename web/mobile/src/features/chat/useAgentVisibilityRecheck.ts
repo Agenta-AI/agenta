@@ -4,9 +4,7 @@ import {useEffect, useRef} from "react"
  * Re-reads the agent revision on each sharing recheck; the server hides a private agent as unknown.
  *
  * The first read of a session is not a recheck: the revision query reads the agent itself when
- * the session opens. The screen stays mounted across a session switch, so "first" is per session,
- * not per mount; counting it per mount re-read the revision on every switch, and the re-read
- * cancelled the switch read already in flight.
+ * the session opens. The screen stays mounted across a session switch, so "first" is per session.
  */
 export const useAgentVisibilityRecheck = ({
     sessionId,
