@@ -39,7 +39,7 @@ export const ConfigurationAgentTab = ({
                 <div
                     data-testid="configuration-agent-tab"
                     // On a phone the rows run edge to edge, with no card around them (M07).
-                    className="min-w-0 rounded-xl border border-solid border-border bg-background max-md:rounded-none max-md:border-0"
+                    className="min-w-0 overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-background max-md:rounded-none max-md:border-0"
                 >
                     <AgentBuildPanel
                         revisionId={revisionId}

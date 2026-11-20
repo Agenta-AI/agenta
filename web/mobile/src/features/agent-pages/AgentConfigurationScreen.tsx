@@ -1,4 +1,4 @@
-import {useEffect, useRef} from "react"
+import {useEffect, useRef, type ReactNode} from "react"
 
 import {PhoneSectionsContext, usePhoneSectionScreen} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
@@ -116,6 +116,22 @@ export const AgentConfigurationScreen = ({
             <SkeletonBlock active className="h-24 w-full" />
         </div>
     )
+    // On a desktop every tab but a loaded Agent tab sits in a 760 px centered column; the Agent
+    // tab draws its own, wider column.
+    // `inset` is false for a body that pads its own rows (the automations list).
+    const column = (node: ReactNode, inset = true) =>
+        phone ? (
+            node
+        ) : (
+            <div
+                className={cn(
+                    "mx-auto box-border flex min-h-0 w-full max-w-[760px] flex-1 flex-col pt-3.5",
+                    inset && "px-4",
+                )}
+            >
+                {node}
+            </div>
+        )
     // Access needs no revision; the other tabs wait for one.
     const body =
         tab === "access" ? (
@@ -124,21 +140,25 @@ export const AgentConfigurationScreen = ({
                     <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
                 </div>
             ) : (
-                <AccessTab
-                    agentId={agentId}
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                    className="px-0 pt-3.5"
-                />
+                column(
+                    <AccessTab
+                        agentId={agentId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        className="p-0"
+                    />,
+                )
             )
         ) : failed ? (
-            <LoadError
-                framed
-                title={tControls("entityUi.schemaControls.configCouldNotLoad")}
-                onRetry={retry}
-            />
+            column(
+                <LoadError
+                    framed
+                    title={tControls("entityUi.schemaControls.configCouldNotLoad")}
+                    onRetry={retry}
+                />,
+            )
         ) : !revisionId ? (
-            loading
+            column(loading)
         ) : tab === "agent" ? (
             <PhoneSectionsContext.Provider value={sectionScreen.api}>
                 <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
@@ -147,20 +167,23 @@ export const AgentConfigurationScreen = ({
             // The panel's Automations tab, without its Files part (this page has no session), with no
             // card around it. Its automation views open in the page, under the crumb "Automations";
             // the drawer chrome shows no close button outside a drawer.
-            <div className={cn("flex min-h-0 flex-1 flex-col", !phone && "pt-3.5")}>
-                <ViewStackHost
-                    chrome={DrawerViewChrome}
-                    rootTitle={t("agentLayout.panel.automations")}
-                    phone={phone}
-                >
-                    <PageViewStackGuard guardRef={automationsGuard} />
-                    <AutomationsTab
-                        revisionId={revisionId}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                    />
-                </ViewStackHost>
-            </div>
+            column(
+                <div className="min-h-0 flex-1 overflow-hidden bg-background">
+                    <ViewStackHost
+                        chrome={DrawerViewChrome}
+                        rootTitle={t("agentLayout.panel.automations")}
+                        phone={phone}
+                    >
+                        <PageViewStackGuard guardRef={automationsGuard} />
+                        <AutomationsTab
+                            revisionId={revisionId}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                        />
+                    </ViewStackHost>
+                </div>,
+                false,
+            )
         )
 
     return (
@@ -192,7 +215,7 @@ export const AgentConfigurationScreen = ({
                                             workspaceId={workspaceId}
                                             projectId={projectId}
                                         />
-                                        <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground">
+                                        <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                             {t("agentSidebar.configuration")}
                                         </h1>
                                     </div>
@@ -243,15 +266,11 @@ export const AgentConfigurationScreen = ({
                             value={tab}
                             className={cn(
                                 "flex h-full min-h-0 min-w-0 flex-col",
-                                phone
-                                    ? // On a phone the Agent and Automations tabs run edge to edge.
-                                      tab === "agent" || tab === "automations"
+                                phone &&
+                                    // On a phone the Agent and Automations tabs run edge to edge.
+                                    (tab === "agent" || tab === "automations"
                                         ? `p-0 ${SESSIONS_PAGE_FRAME}`
-                                        : `px-4 pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`
-                                    : // The Agent tab draws its own column; the others sit in a
-                                      // narrower one.
-                                      (tab !== "agent" || failed || !revisionId) &&
-                                          "mx-auto box-border w-full max-w-[760px] px-4",
+                                        : `px-4 pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`),
                             )}
                         >
                             {/* The same host parts (model providers, skills, subagents) and edit

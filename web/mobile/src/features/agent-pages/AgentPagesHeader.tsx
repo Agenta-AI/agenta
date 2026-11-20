@@ -8,7 +8,7 @@ import {Hammer} from "@phosphor-icons/react"
 import {NavDrawer} from "../nav/NavDrawer"
 
 /**
- * The header of an agent page (Configuration, Sessions, Channels, Analytics): a 48 px bar with the
+ * The header of an agent page: a 48 px bar with the
  * page name at the left, the page's own controls at the right, and the Builder icon at the far
  * right. The Builder icon shows only when the page can open the builder (`onOpenBuilder`).
  */

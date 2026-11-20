@@ -7,7 +7,10 @@ interface SectionAnchor {
     title: string
 }
 
-/** The space above a section when it is scrolled to: the page's top padding. */
+/**
+ * The space above a section when it is scrolled to: the Agent tab's top padding and the list's
+ * sticky offset (`pt-7` and `top-7` in ConfigurationAgentTab).
+ */
 const SECTION_TOP = 28
 
 /** The titled section anchors the configuration renders, in document order. */
@@ -104,7 +107,7 @@ export const ConfigurationSectionNav = ({
                     type="button"
                     aria-current={current === section.key ? "location" : undefined}
                     className={cn(
-                        "h-8 truncate rounded-lg border-0 bg-transparent px-2.5 text-left text-[13px] [font-family:inherit]",
+                        "h-8 truncate rounded-[8px] border-0 bg-transparent px-2.5 text-left text-[13px] [font-family:inherit]",
                         current === section.key
                             ? "bg-[var(--ag-controlItemBgActive)] font-medium text-colorText"
                             : "cursor-pointer text-colorTextSecondary hover:text-colorText",
