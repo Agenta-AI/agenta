@@ -14,6 +14,8 @@
 import {strFromU8, unzipSync} from "fflate"
 import {load as loadYaml} from "js-yaml"
 
+import {skillFilesOf} from "./skillFiles"
+
 export interface SkillFileEntry {
     path: string
     content: string
@@ -335,7 +337,7 @@ export function applySkillUpload(
 ): {skill: Record<string, unknown>} | {error: "noSkillMd"} {
     const parsed = upload.skill
     if (mode === "add") {
-        const files = Array.isArray(skill.files) ? [...(skill.files as SkillFileEntry[])] : []
+        const files = [...skillFilesOf(skill)]
         for (const file of parsed.files) {
             const at = files.findIndex((entry) => entry.path === file.path)
             if (at === -1) files.push(file)

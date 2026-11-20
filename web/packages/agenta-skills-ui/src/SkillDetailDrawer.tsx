@@ -4,6 +4,7 @@
  */
 import {useMemo} from "react"
 
+import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {ViewDrawerHost, type ViewRequest} from "@agenta/ui/view-stack"
 
 import {registrySkillView} from "./registrySkillView"
@@ -33,7 +34,7 @@ export function SkillDetailDrawer({
 }: SkillDetailDrawerProps) {
     // A registry skill is addressed by its workflow slug, as an embed reference stores it.
     const slug = skill?.workflowSlug ?? ""
-    const request = useMemo<ViewRequest<{slug: string}>>(
+    const request = useMemo<ViewRequest<RegistrySkillParams>>(
         () => ({view: registrySkillView, params: {slug}, target: {kind: "project"}}),
         [slug],
     )

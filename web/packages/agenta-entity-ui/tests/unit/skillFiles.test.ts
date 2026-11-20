@@ -33,6 +33,9 @@ describe("filePathProblem", () => {
         expect(filePathProblem([file("")], 0)).toBe("empty")
         expect(filePathProblem([file("../x.py")], 0)).toBe("invalid")
         expect(filePathProblem([file("/abs.py")], 0)).toBe("invalid")
+        // A configuration written by hand may hold a path that is not text.
+        expect(filePathProblem([{path: 7, content: ""} as never], 0)).toBe("invalid")
+        expect(filePathProblem([{content: ""} as never], 0)).toBe("empty")
     })
 
     it("accepts a unique relative path", () => {

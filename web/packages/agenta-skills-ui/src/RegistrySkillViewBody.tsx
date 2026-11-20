@@ -75,7 +75,7 @@ export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
 export const SkillAgentHrefContext = createContext<((agentId: string) => string) | null>(null)
 
 /** The Skills page with this skill open, in this project: the "skill registry" link. */
-export const skillsPageHref = (slug: string): string | null => {
+const skillsPageHref = (slug: string): string | null => {
     if (typeof window === "undefined") return null
     const project = window.location.pathname.match(/^(.*?\/p\/[^/]+)/)?.[1]
     return project ? `${project}/skills?skill=${encodeURIComponent(slug)}` : null
