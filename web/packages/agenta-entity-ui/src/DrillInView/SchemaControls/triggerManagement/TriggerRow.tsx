@@ -1,16 +1,15 @@
 /** The Triggers section's standalone trigger row (used for schedules). */
 import {type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n"
-import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {TooltipProvider} from "@agenta/ui/ui"
 
 import {PHONE_LINE_CLASS, PHONE_NAME_CLASS, PHONE_ROW_CLASS, PhoneRowSwitch} from "./phoneRow"
+import {LINE_CLASS, NAME_CLASS, ROW_CLASS, RowStatusDot} from "./rowParts"
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
 
-/** A trigger row: leading status-dot icon, name, subtitle, ⋯ menu. */
+/** A trigger row: the tile, name, line, the status dot (or a phone's switch) and the "⋯" menu. */
 export function TriggerRow({
-    icon,
+    tile,
     name,
     nameMuted,
     subtitle,
@@ -23,7 +22,8 @@ export function TriggerRow({
     phone,
     onToggle,
 }: {
-    icon: ReactNode
+    /** The 28 px tile before the name (`RowTile`). */
+    tile: ReactNode
     name: string
     nameMuted?: boolean
     subtitle: string
@@ -41,20 +41,17 @@ export function TriggerRow({
     /** Phone only: the row's switch turns the automation on or off. Absent, no switch. */
     onToggle?: (next: boolean) => void
 }) {
-    const t = useT(triggersCatalog)
     // Read-only mode opens nothing: the row's target is an editable drawer.
     const open = disabled ? undefined : onOpen
     return (
         <TooltipProvider>
             {/* The clickable region is a SIBLING of the ⋯ menu, not its ancestor:
-                `role="button"` forbids focusable descendants (axe nested-interactive). Same
-                geometry — the outer flex keeps the gap-2.5 the children sit in. */}
+                `role="button"` forbids focusable descendants (axe nested-interactive). */}
             <div
-                // White sheet on the expanded section's band, like the tool/skill item cards.
                 className={
                     phone
                         ? `${PHONE_ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer"}`
-                        : `group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2 transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`
+                        : `${ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`
                 }
             >
                 <div
@@ -71,47 +68,26 @@ export function TriggerRow({
                     }}
                     className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : "gap-2.5"}`}
                 >
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
-                                {icon}
-                                <span
-                                    className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-solid border-[var(--ag-colorBgContainer)] ${
-                                        active
-                                            ? "bg-[var(--ag-colorSuccess)]"
-                                            : "bg-[var(--ag-colorTextQuaternary)]"
-                                    }`}
-                                />
-                            </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            {active ? t("entityUi.triggers.active") : t("entityUi.triggers.paused")}
-                        </TooltipContent>
-                    </Tooltip>
+                    {tile}
                     <div className="min-w-0 flex-1">
                         <div
-                            className={`${phone ? PHONE_NAME_CLASS : "truncate text-xs"} font-normal ${
+                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} font-normal ${
                                 nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
                             }`}
                         >
                             {name}
                         </div>
-                        <div
-                            className={
-                                phone
-                                    ? PHONE_LINE_CLASS
-                                    : "mt-0.5 truncate text-xs leading-snug text-[var(--ag-colorTextSecondary)]"
-                            }
-                        >
-                            {subtitle}
-                        </div>
+                        <div className={phone ? PHONE_LINE_CLASS : LINE_CLASS}>{subtitle}</div>
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1" role="presentation">
                     {onToggle ? (
                         <PhoneRowSwitch name={name} active={active} onToggle={onToggle} />
-                    ) : null}
+                    ) : (
+                        <RowStatusDot active={active} />
+                    )}
                     <TriggerActionsMenu
+                        name={name}
                         menu={menu}
                         open={menuOpen}
                         container={menuContainer}

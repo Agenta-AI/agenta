@@ -9,6 +9,7 @@ import {
     defaultBuilderState,
     describeCadence,
     describeCron,
+    describeSchedule,
     formatNextRun,
     suggestScheduleName,
     summarizeSchedule,
@@ -99,6 +100,16 @@ describe.each([
             ),
         ).toBe("Every 6h at :30 UTC")
         expect(summarizeSchedule(cronToBuilder("0 9 * * 1").state, text)).toBe("Mon at 09:00 UTC")
+        // A hand-written day range is a weekly schedule the builder can show.
+        expect(cronToBuilder("0 9 * * 1-5").representable).toBe(true)
+        expect(summarizeSchedule(cronToBuilder("0 9 * * 1-5").state, text)).toBe(
+            "Weekdays at 09:00 UTC",
+        )
+        expect(cronToBuilder("0 9 * * 0,5-6").state.weekdays).toEqual([0, 5, 6])
+        expect(cronToBuilder("0 9 * * 5-2").representable).toBe(false)
+        expect(cronToBuilder("0 */24 * * *").representable).toBe(false)
+        expect(describeSchedule("0 9 * * 1-5", text)).toBe("Weekdays at 09:00 UTC")
+        expect(describeSchedule("0 9 1,15 * 1", text)).toBe("0 9 1,15 * 1 (UTC)")
         expect(summarizeSchedule(state({cadence: "custom", cron: "0 9 * * 1-5"}), text)).toBe(
             "0 9 * * 1-5",
         )

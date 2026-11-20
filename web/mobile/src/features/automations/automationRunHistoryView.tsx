@@ -15,11 +15,13 @@ export interface AutomationRunHistoryViewParams {
 
 /**
  * One automation's run history as a view (F05 f6 to f9): the list, a run open, and the list and
- * the run side by side once the view is 700px wide. It writes nothing; Done goes back.
+ * the run side by side once the view is 700px wide. It writes nothing, so it has no footer: the
+ * crumb and the panel's close are the ways out.
  */
 export const automationRunHistoryView = defineView<AutomationRunHistoryViewParams>({
     id: "automations.runHistory",
     apply: "immediate",
+    actionRow: false,
     // "Widen the panel" gives 760px, which shows the list beside the newest run.
     wide: true,
     Component: dynamic(() => import("./AutomationRunHistoryViewBody"), {ssr: false}),

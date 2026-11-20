@@ -20,12 +20,10 @@ import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presen
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
-import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {
     AddAutomationPhoneAction,
     AddTriggerDropdown,
     TriggerManagementSection,
-    useAgentTriggers,
     type TriggerOwnerRef,
 } from "./TriggerManagementSection"
 
@@ -68,15 +66,12 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
             <section className="flex flex-col" aria-busy>
-                <AgentRegionHeaderBar
-                    title={t("entityUi.agentOperations.automations")}
-                    sticky={sticky}
-                >
-                    <ConfigRowTrailing>
-                        <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
-                    </ConfigRowTrailing>
-                </AgentRegionHeaderBar>
+                {/* The Automations region has no header bar; its "Add automation" button sits at
+                    the top right of the list. */}
                 <div className={`flex flex-col ${bodyClass}`}>
+                    <div className="flex justify-end pb-1 pt-2.5">
+                        <SkeletonBlock active className="h-7 w-[132px] shrink-0" />
+                    </div>
                     <SkeletonSectionRow title={112} value={44} withAdd divider />
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
@@ -146,29 +141,18 @@ export function AgentOperationsSections({
     phone?: boolean
 }) {
     const t = useT(agentOperationsCatalog)
-    const {count: triggerCount} = useAgentTriggers(revisionId)
 
     return (
         <>
             {/* On a phone the list is the whole screen: its white sheet runs down to the button. */}
             <section className={phone ? "flex grow flex-col" : "flex flex-col"}>
-                {phone ? null : (
-                    <AgentRegionHeaderBar
-                        title={t("entityUi.agentOperations.automations")}
-                        sticky={sticky}
-                    >
-                        {/* No reserved affordance column: this region has no caret, and the empty
-                        14px slot only held the "+" off the bar's right edge. */}
-                        <ConfigRowTrailing reserve={false}>
-                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                                {countSummary(triggerCount, "automation")}
-                            </span>
-                            {/* "Add automation": the kind is chosen in the menu (F05 f2). */}
-                            {disabled ? null : (
-                                <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
-                            )}
-                        </ConfigRowTrailing>
-                    </AgentRegionHeaderBar>
+                {/* No header bar: the tab already names the list. "Add automation" is a bordered
+                    button at the top right; the kind is chosen in its menu (F05 f1, f2). A phone
+                    has the button at the bottom instead (M10). */}
+                {phone || disabled ? null : (
+                    <div className={`${sectionsBodyClass} flex justify-end pt-3.5`}>
+                        <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
+                    </div>
                 )}
                 <div className={phone ? `${sectionsBodyClass} grow` : sectionsBodyClass}>
                     <TriggerManagementSection

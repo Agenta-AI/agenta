@@ -99,7 +99,8 @@ export function cronToBuilder(cron: string): {
     // Hourly: hour is "*" or "*/n", a single run minute, no day restriction.
     if (dom === "*" && dow === "*" && minutes?.length === 1) {
         const step = hour === "*" ? 1 : stepOfStar(hour)
-        if (step !== null) {
+        // The builder offers steps up to 23 hours; a larger one keeps the cron's own words.
+        if (step !== null && step <= 23) {
             return {
                 state: {
                     ...defaultBuilderState("hourly"),
@@ -121,7 +122,7 @@ export function cronToBuilder(cron: string): {
     }
     // Weekly: day-of-week list, no day-of-month.
     if (dom === "*" && dow !== "*") {
-        const weekdays = plainIntList(dow)
+        const weekdays = dayOfWeekList(dow)
         if (!weekdays) return custom()
         return {state: {...defaultBuilderState("weekly"), weekdays, times}, representable: true}
     }
@@ -189,6 +190,15 @@ export function summarizeSchedule(state: ScheduleBuilderState, text: ScheduleTex
     if (state.cadence === "custom") return cadence
     if (state.cadence === "hourly") return text.utc(cadence)
     return text.atTimesUtc(cadence, timesPhrase(state.times, text))
+}
+
+/**
+ * A cron in words: the builder's summary ("Weekdays at 09:00 UTC") when the builder can show the
+ * expression, else the longhand of {@link describeCron}.
+ */
+export function describeSchedule(cron: string, text: ScheduleText): string {
+    const {state, representable} = cronToBuilder(cron)
+    return representable ? summarizeSchedule(state, text) : describeCron(cron, text)
 }
 
 /**
@@ -263,6 +273,28 @@ function plainIntList(field: string): number[] | null {
     for (const part of field.split(",")) {
         if (!/^\d+$/.test(part)) return null
         out.push(Number(part))
+    }
+    return sortedUnique(out)
+}
+
+/**
+ * The day-of-week field as sorted unique days (0 = Sunday), or null for syntax the builder cannot
+ * show. Accepts plain ranges ("1-5") as well as lists, and reads 7 as Sunday, as cron does: a
+ * weekday schedule written by hand is still a weekday schedule.
+ */
+function dayOfWeekList(field: string): number[] | null {
+    const out: number[] = []
+    for (const part of field.split(",")) {
+        const range = part.match(/^(\d)-(\d)$/)
+        if (range) {
+            const from = Number(range[1])
+            const to = Number(range[2])
+            if (from > to || to > 7) return null
+            for (let day = from; day <= to; day += 1) out.push(day % 7)
+            continue
+        }
+        if (!/^\d$/.test(part) || Number(part) > 7) return null
+        out.push(Number(part) % 7)
     }
     return sortedUnique(out)
 }

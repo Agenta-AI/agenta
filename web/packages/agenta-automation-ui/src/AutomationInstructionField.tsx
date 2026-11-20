@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     addsEventText,
@@ -26,7 +26,7 @@ import {
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Checkbox} from "@agenta/ui/ui"
-import {Eye} from "@phosphor-icons/react"
+import {CaretRight, ChatCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AutomationField} from "./AutomationField"
@@ -230,6 +230,7 @@ function EventInstruction({
             ? null
             : renderMessagePreview(template, lastEvent, includeEvent && addsEvent)
 
+    const [showPreview, setShowPreview] = useState(false)
     const insertApi = useRef<{insert: (selector: string) => void} | null>(null)
     const onInsert = useCallback((field: EventField) => {
         insertApi.current?.insert(field.selector)
@@ -237,7 +238,7 @@ function EventInstruction({
 
     return (
         <AutomationField label={t("automations.editor.instruction")} error={error}>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
                 <EventMessageComposer
                     inputsText={inputsText}
                     onChange={onChange}
@@ -253,20 +254,46 @@ function EventInstruction({
                     />
                     {t("automations.editor.attachEvent")}
                 </label>
+                {/* A closed row, "What the agent gets · Preview ›"; the preview opens under it
+                    (F05 f4). */}
                 {preview === null ? null : (
-                    <div className="flex flex-col gap-2 border-0 border-t border-solid border-border pt-4">
-                        <span className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
-                            <Eye aria-hidden className="size-4" />
-                            {t("automations.editor.whatAgentGets")}
+                    <div className="flex flex-col border-0 border-b border-solid border-colorSplit">
+                        <button
+                            type="button"
+                            aria-expanded={showPreview}
+                            onClick={() => setShowPreview((open) => !open)}
+                            className="flex h-10 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-1 text-left"
+                        >
+                            <ChatCircle
+                                aria-hidden
+                                size={14}
+                                className="shrink-0 text-muted-foreground"
+                            />
+                            <span className="text-[13px] font-medium text-foreground">
+                                {t("automations.editor.whatAgentGets")}
+                            </span>
                             {lastEvent ? (
-                                <span className="font-normal text-muted-foreground">
+                                <span className="text-[13px] text-muted-foreground">
                                     {t("automations.editor.fromLastEvent")}
                                 </span>
                             ) : null}
-                        </span>
-                        <pre className="m-0 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 font-[inherit] text-[13px] text-foreground">
-                            {preview}
-                        </pre>
+                            <span className="ml-auto truncate text-xs text-colorTextTertiary">
+                                {t("automations.editor.preview")}
+                            </span>
+                            <CaretRight
+                                aria-hidden
+                                size={10}
+                                weight="fill"
+                                className={`shrink-0 text-muted-foreground transition-transform ${
+                                    showPreview ? "rotate-90" : ""
+                                }`}
+                            />
+                        </button>
+                        {showPreview ? (
+                            <pre className="m-0 mb-3 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 font-[inherit] text-[13px] text-foreground">
+                                {preview}
+                            </pre>
+                        ) : null}
                     </div>
                 )}
             </div>

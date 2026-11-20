@@ -59,7 +59,7 @@ export const BottomSheet = ({
                 />
                 <SheetTitle
                     className={cn(
-                        "px-4 pb-2 pt-1 text-base font-semibold",
+                        "px-4 pb-2 pt-1 text-base font-semibold leading-5",
                         !showTitle && "sr-only",
                     )}
                 >
@@ -70,7 +70,8 @@ export const BottomSheet = ({
                     {actions}
                     <Button
                         variant="outline"
-                        className={PHONE_BUTTON_CLASS}
+                        // fg2 text, as the canvas draws Cancel (M11).
+                        className={cn(PHONE_BUTTON_CLASS, "text-colorTextSecondary")}
                         onClick={() => onOpenChange(false)}
                     >
                         {t("ui.phone.cancel")}
