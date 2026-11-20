@@ -157,6 +157,7 @@ export const LiveConversation = ({
     inputRef,
     hideSlashCommands = false,
     userMessageAccessory,
+    canSwitchModel = true,
 }: {
     entityId: string
     sessionId: string
@@ -207,6 +208,8 @@ export const LiveConversation = ({
     hideSlashCommands?: boolean
     /** Shown with each sent user message, from the message as stored (with its full text). */
     userMessageAccessory?: (message: UIMessage) => ReactNode
+    /** The person may switch this agent's model (not in the builder chat: the platform picks it). */
+    canSwitchModel?: boolean
 }) => {
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
@@ -1159,6 +1162,7 @@ export const LiveConversation = ({
                                             (personalSetup.open && !readOnly && !accessPending)
                                         }
                                         onSwitchModel={() => modelPickerRef.current?.()}
+                                        canSwitchModel={canSwitchModel}
                                     />
                                 </ContentRail>
                             </div>
