@@ -1396,6 +1396,16 @@ class VaultService:
         await self._invalidate_project(project_id)
         return deleted
 
+    async def has_personal_sign_ins(
+        self, *, organization_id: UUID, slugs: Sequence[str]
+    ) -> bool:
+        """Whether any person in the organization holds an MCP sign-in at these slugs."""
+        if not slugs:
+            return False
+        return await self.secrets_dao.has_personal_sign_ins(
+            organization_id=organization_id, slugs=list(slugs)
+        )
+
     # -- organization credentials (M5) --------------------------------------------
 
     def _check_organization_secret(self, *, secret: Any) -> None:

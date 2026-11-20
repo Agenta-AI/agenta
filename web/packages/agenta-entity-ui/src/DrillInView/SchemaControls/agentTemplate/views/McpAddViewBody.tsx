@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useRef} from "react"
 
+import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
 import {
     findCustomMcpEndpoint,
     getMcpConnectionStatus,
@@ -9,14 +10,22 @@ import {
     readMcpConnectionSlug,
     readMcpToolCount,
     type MCPEndpoint,
+    type McpSignInOwner,
 } from "@agenta/entities/mcpEndpoint"
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {McpAddServerList, type McpConnectionOption} from "../../../../mcpEndpoint/McpAddServerList"
-import {buildMcpAgentItem, customMcpEndpoints, mcpItemRef, mcpsOf} from "../mcpRail"
+import {
+    buildMcpAgentItem,
+    customMcpEndpoints,
+    mcpItemRef,
+    mcpsOf,
+    withMcpAccountSource,
+} from "../mcpRail"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
 import type {McpAddViewParams} from "./mcpAddView"
@@ -61,10 +70,15 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
     )
 
     const {push, replace} = nav
-    /** Add the server to the agent, then open its server view in place of this one. */
+    /**
+     * Add the server to the agent, then open its server view in place of this one. A server
+     * signed in with "Only me" starts on "Each person's own", the sign-in it has.
+     */
     const add = useCallback(
-        (option: {slug: string; name: string}) => {
-            const item = buildMcpAgentItem(option)
+        (option: {slug: string; name: string; owner?: McpSignInOwner}) => {
+            const built = buildMcpAgentItem(option)
+            const item =
+                option.owner === "user" ? withMcpAccountSource(built, USER_ACCOUNT_SOURCE) : built
             // Opens the server's view only when the write landed (the writer skips a write while
             // the configuration loads, or without the edit right).
             const written: {mcps: unknown[] | null} = {mcps: null}
@@ -82,13 +96,20 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
     // revision: it calls the add of this view as it is then, with the writer it has then.
     const addRef = useRef(add)
     addRef.current = add
+    // With personal accounts on, Connect for an agent asks "Who can use it", as the integration
+    // connect form does. With no agent the sign-in is the project's.
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const askOwner = target.kind === "agent_draft" && access === "on"
     const connect = useCallback(() => {
         void push?.(
             mcpConnectView,
-            {onConnected: (endpoint) => addRef.current(endpoint)},
+            {
+                owners: askOwner ? ["user", "project"] : undefined,
+                onConnected: (endpoint) => addRef.current(endpoint),
+            },
             {kind: "project"},
         )
-    }, [push])
+    }, [push, askOwner])
     const reconnect = useCallback(
         (option: McpConnectionOption) => {
             const reconnectTarget = mcpReconnectTarget(

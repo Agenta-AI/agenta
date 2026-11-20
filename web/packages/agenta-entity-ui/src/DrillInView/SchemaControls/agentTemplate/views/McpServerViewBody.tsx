@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
 import {
     findCustomMcpEndpoint,
     getMcpConnectionStatus,
@@ -11,6 +12,7 @@ import {
     readMcpPolicy,
     readMcpToolCount,
     type MCPEndpoint,
+    type McpConnectionStatus,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
 import {useT} from "@agenta/i18n"
@@ -65,14 +67,16 @@ const useReconnect = (endpoint: MCPEndpoint | undefined, nav: ViewNav) => {
 const ServerTitle = ({
     name,
     endpoint,
+    status,
     onReconnect,
 }: {
     name: string
     endpoint: MCPEndpoint | undefined
+    /** The project's sign-in state; absent when it is not the one this place uses. */
+    status: McpConnectionStatus | undefined
     onReconnect?: () => void
 }) => {
     const t = useT(mcpPermissionsCatalog)
-    const status = endpoint ? getMcpConnectionStatus(endpoint) : undefined
     const host = endpoint ? hostnameLabel(endpoint.data.route.base_url ?? "") : ""
     return (
         <div className="flex min-w-0 items-center gap-3 px-4 pb-1 pt-3">
@@ -133,6 +137,11 @@ const AgentServer = ({
         [writer, item],
     )
     const onReconnect = useReconnect(endpoint, nav)
+    const projectStatus = endpoint ? getMcpConnectionStatus(endpoint) : undefined
+    // Each person's own sign-in: the project's sign-in state is not whose account runs, so the
+    // title says nothing about it, and the tool list (read with the project's credential) shows
+    // only while the project is signed in.
+    const personal = readMcpAccountSource(entry) === USER_ACCOUNT_SOURCE
     const accountContext = useMemo(
         () => ({revisionId: writer.revisionId, agent: writer.agent}),
         [writer.revisionId, writer.agent],
@@ -141,7 +150,7 @@ const AgentServer = ({
         slug,
         connectionName: endpoint?.name || undefined,
         // Passed rather than defaulted: the source assumes "connected" when given nothing.
-        status: endpoint ? getMcpConnectionStatus(endpoint) : undefined,
+        status: personal ? "connected" : projectStatus,
         cachedToolCount: endpoint ? readMcpToolCount(endpoint) : null,
         policy: readMcpPolicy(entry),
         onChange: (policy: McpServerPolicy) => update((current) => ({...current, policy})),
@@ -149,6 +158,7 @@ const AgentServer = ({
         disabled: writer.readOnly,
         // The title line says it, with "Reconnect".
         banner: false,
+        listTools: !personal || projectStatus === "connected",
     })
 
     if (!entry) {
@@ -175,6 +185,7 @@ const AgentServer = ({
             <ServerTitle
                 name={name}
                 endpoint={endpoint}
+                status={personal ? undefined : projectStatus}
                 onReconnect={writer.readOnly ? undefined : onReconnect}
             />
             <div className="flex min-h-0 flex-1 flex-col">
@@ -249,7 +260,12 @@ const ProjectServer = ({nav, slug}: ViewProps<McpServerViewParams> & {slug: stri
     })
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <ServerTitle name={name} endpoint={endpoint} onReconnect={onReconnect} />
+            <ServerTitle
+                name={name}
+                endpoint={endpoint}
+                status={endpoint ? getMcpConnectionStatus(endpoint) : undefined}
+                onReconnect={onReconnect}
+            />
             <div className="flex min-h-0 flex-1 flex-col">
                 <PermissionDrawerBody
                     {...mcp.source}

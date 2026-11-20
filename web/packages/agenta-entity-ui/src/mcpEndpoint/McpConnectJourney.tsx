@@ -402,6 +402,8 @@ export interface McpConnectScreensInput {
     journey: McpConnectJourneyApi
     existingNames?: (string | null | undefined)[]
     reconnect?: McpConnectJourneyProps["reconnect"]
+    /** The "Who can use it" field, which the OAuth screen shows under the name. */
+    ownerField?: ReactNode
 }
 
 /**
@@ -413,6 +415,7 @@ export function useMcpConnectScreens({
     journey,
     existingNames = [],
     reconnect = null,
+    ownerField,
 }: McpConnectScreensInput): McpConnectScreens {
     const t = useT(mcpJourneyCatalog)
     const {state} = journey
@@ -912,6 +915,8 @@ export function useMcpConnectScreens({
                     />
                 </HintedField>
             ) : null}
+
+            {screen === "oauth" ? ownerField : null}
 
             {(screen === "oauth" || screen === "no_auth") && urlProblem ? (
                 <InlineError headline={null}>{urlProblem}</InlineError>
