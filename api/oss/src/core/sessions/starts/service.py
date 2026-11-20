@@ -495,15 +495,31 @@ class SessionStartsService:
         async with self._start_lock(
             project_id=project_id, lock_id=f"{_INPUT_NAMESPACE}:{session_id}"
         ):
-            if kind != PendingInputKind.message and await server_input_waits(
-                streams_dao=self._streams,
-                executions_dao=self._executions,
-                inputs_dao=self._inputs_dao,
-                turns_dao=self._turns,
-                cancelled_by_steer=self._cancelled_by_steer,
+            # A retry of a call that already passed the hold and was promoted for its own
+            # turn finishes that dispatch; the hold does not change its answer.
+            earlier = await self._inputs.fetch_by_idempotency_key(
                 project_id=project_id,
                 session_id=session_id,
-                turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+                idempotency_key=idempotency_key,
+            )
+            resumes = (
+                earlier is not None
+                and earlier.state == PendingInputState.promoted
+                and earlier.promoted_execution_id == execution_id
+            )
+            if (
+                not resumes
+                and kind != PendingInputKind.message
+                and await server_input_waits(
+                    streams_dao=self._streams,
+                    executions_dao=self._executions,
+                    inputs_dao=self._inputs_dao,
+                    turns_dao=self._turns,
+                    cancelled_by_steer=self._cancelled_by_steer,
+                    project_id=project_id,
+                    session_id=session_id,
+                    turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+                )
             ):
                 waiting = await self._inputs.queue_input(
                     project_id=project_id,

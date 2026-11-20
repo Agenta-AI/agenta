@@ -38,6 +38,14 @@ from oss.tests.pytest.utils.principals import make_envelope
 from oss.tests.pytest.utils.sharing import RecordingRunAdmission
 
 
+@pytest.fixture(autouse=True)
+def _turn_limit_of_twenty(monkeypatch):
+    """The cap tests count to the default, whatever the environment sets."""
+    from oss.src.utils.env import env
+
+    monkeypatch.setattr(env.agenta.sessions, "turns_without_person_limit", 20)
+
+
 PROJECT_ID = uuid4()
 USER_ID = uuid4()
 SESSION_ID = "chief-of-staff"
@@ -247,6 +255,9 @@ class _Harness:
         self.streams_dao = _StreamsDAO(deleted=deleted)
 
         async def invoke(**kwargs):
+            # Yield first, so a second enqueue runs while this turn is not yet seen as
+            # running; only the session lock keeps it out.
+            await asyncio.sleep(0)
             self.executions.add(kwargs["run_id"])
             self.streams.running = True
 
@@ -1104,3 +1115,35 @@ async def test_an_api_key_of_the_sender_cannot_edit_her_browser_message(monkeypa
     assert getattr(raised.value, "status_code", None) == 403
     assert raised.value.detail["details"]["reason"] == "not_sender"
     assert _text(dao.items[0]) != "Ben's text."
+
+
+@pytest.mark.asyncio
+async def test_a_retry_of_a_released_dispatch_finishes_it_even_when_the_hold_now_applies():
+    """The first call passed the hold, was promoted, and its invoke was never sent. A
+    retry with the same key resumes that dispatch instead of answering `promoted` for a
+    turn that never started."""
+    harness = _Harness()
+    harness.workflows.invoke_workflow_detached.side_effect = None
+    first = None
+    try:
+        await harness.enqueue()
+    except Exception:
+        pass
+    [item] = harness.inputs_dao.items
+    assert item.state == PendingInputState.promoted
+    first = item.promoted_execution_id
+    harness.inputs_dao.dispatched.clear()  # the claim was released
+    [person] = _ids(1)
+    harness.turns.add(person, RunOrigin.WEB)
+    harness.executions.add(person, outcome="stopped")
+    harness.streams_dao.turn_id = person
+
+    async def invoke(**kwargs):
+        harness.executions.add(kwargs["run_id"])
+
+    harness.workflows.invoke_workflow_detached.side_effect = invoke
+    result = await harness.enqueue()
+
+    assert result.state == PendingInputState.promoted
+    assert result.execution_id == first
+    assert harness.executions.rows.get((SESSION_ID, first)) is not None
