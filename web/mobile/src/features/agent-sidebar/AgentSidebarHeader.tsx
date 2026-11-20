@@ -73,7 +73,7 @@ export const SidebarNewButton = ({
                     onClick={onClick}
                     aria-label={label}
                     title={label}
-                    className="flex size-7 items-center justify-center rounded-sm !text-colorText no-underline hover:bg-colorFillQuaternary"
+                    className="flex size-7 items-center justify-center rounded-sm !text-foreground no-underline hover:bg-muted"
                 >
                     <PlusIcon size={16} />
                 </Link>
@@ -84,7 +84,7 @@ export const SidebarNewButton = ({
             <Link
                 href={href}
                 onClick={onClick}
-                className={`flex w-full items-center justify-center gap-1.5 bg-colorBgContainer font-medium !text-colorText no-underline shadow-[inset_0_0_0_1px_var(--ag-colorBorder)] hover:bg-[var(--ag-surface-raised)] ${phone ? "h-11 rounded-lg text-[15px] leading-5" : "h-8 rounded-md text-sm"}`}
+                className={`flex w-full items-center justify-center gap-1.5 bg-background font-medium !text-foreground no-underline shadow-[inset_0_0_0_1px_var(--border)] hover:bg-muted ${phone ? "h-11 rounded-lg text-[15px] leading-5" : "h-8 rounded-md text-sm"}`}
             >
                 <PlusIcon size={14} aria-hidden />
                 {label}

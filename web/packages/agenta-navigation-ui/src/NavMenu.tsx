@@ -397,7 +397,7 @@ const SectionHeading = ({
                 item.rowClassName,
             )}
         >
-            {item.link ? (
+            {item.link && !item.disabled ? (
                 <Link
                     href={item.link}
                     prefetch={item.prefetch}

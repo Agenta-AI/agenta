@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
@@ -12,7 +12,11 @@ import {ListIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {currentSidebar, openAgentSidebar} from "../agent-sidebar/selectedSidebar"
+import {
+    currentSidebar,
+    openAgentSidebar,
+    type SelectedSidebar,
+} from "../agent-sidebar/selectedSidebar"
 import {usePageAgentId} from "../agent-sidebar/useAgentSidebarSync"
 import {liveChatOpenAtom} from "../support/crispChat"
 
@@ -67,21 +71,24 @@ export const NavDrawer = ({
     // A screen with its own rail keeps it.
     const pageAgentId = usePageAgentId(projectId)
     const agentSheet = phone && !scopeOverride
-    // The menu opened before the session's agent was known (its row still loading).
-    const [awaitingAgent, setAwaitingAgent] = useState(false)
+    // The menu opened before the session's agent was known (its row still loading): the sidebar
+    // shown then. The agent's sidebar follows when the agent arrives, unless the person picked
+    // another sidebar meanwhile (Back, a switcher pick) or closed the sheet.
+    const waitingFor = useRef<SelectedSidebar | null>(null)
     const onOpenChange = (next: boolean) => {
         if (next && agentSheet) {
             if (pageAgentId) showAgentSidebar(pageAgentId)
-            else setAwaitingAgent(true)
+            else waitingFor.current = currentSidebar()
         }
-        if (!next) setAwaitingAgent(false)
         setOpen(next)
     }
     useEffect(() => {
-        if (!open || !awaitingAgent || !pageAgentId) return
-        setAwaitingAgent(false)
-        showAgentSidebar(pageAgentId)
-    }, [awaitingAgent, open, pageAgentId])
+        if (!open) waitingFor.current = null
+        if (!open || !waitingFor.current || !pageAgentId) return
+        const shown = waitingFor.current
+        waitingFor.current = null
+        if (currentSidebar() === shown) showAgentSidebar(pageAgentId)
+    }, [open, pageAgentId])
     useEffect(() => {
         // Fetch the agent sidebar's code ahead of the tap, so it is cached when the sheet opens.
         if (agentSheet && pageAgentId) void import("../agent-sidebar/agentSidebarScope")

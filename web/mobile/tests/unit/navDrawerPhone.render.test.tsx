@@ -112,4 +112,16 @@ describe("the sidebar sheet on a phone", () => {
             expect(selected()).toEqual({kind: "agent", agentId: "a1", from: "main"}),
         )
     })
+
+    it("keeps a Back made before the session's agent arrives", async () => {
+        getDefaultStore().set(selectedSidebarAtom, {kind: "agent", agentId: "a0", from: "main"})
+        const {rerender} = render(<NavDrawer workspaceId="ws" projectId="proj" />)
+        await open()
+        // "Back" in the sheet.
+        getDefaultStore().set(selectedSidebarAtom, MAIN_SIDEBAR)
+        page.agentId = "a1"
+        rerender(<NavDrawer workspaceId="ws" projectId="proj" />)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(selected()).toEqual(MAIN_SIDEBAR)
+    })
 })
