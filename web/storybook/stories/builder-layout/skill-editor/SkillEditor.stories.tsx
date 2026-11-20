@@ -204,7 +204,7 @@ export const RegistryMenu: Story = {
     args: {kind: "registry", revisionId: ""},
     play: async ({canvasElement}) => {
         const canvas = within(canvasElement)
-        await canvas.findByText("skill registry")
+        await canvas.findByText(/Shared in your skill registry/)
         await userEvent.click(await canvas.findByRole("button", {name: "Skill actions"}))
         await body().findByText("Archive")
     },
@@ -224,7 +224,7 @@ export const AgentOnlyMenu: Story = {
 export const RegistryFileMenu: Story = {
     args: {kind: "registry", revisionId: ""},
     play: async ({canvasElement}) => {
-        await within(canvasElement).findByText("skill registry")
+        await within(canvasElement).findByText(/Shared in your skill registry/)
         await openFileMenu(canvasElement)
     },
 }

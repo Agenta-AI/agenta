@@ -64,7 +64,6 @@ import {useRouter} from "next/router"
 
 import {toSkillListItem, toSourceInfo} from "./registrySections"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
-import {skillTitle} from "./skillTitle"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
 /** The head-revision query's key; the registry row's Download reads the same cache. */
@@ -110,6 +109,9 @@ const useRegistrySkill = (slug: string) => {
     return {item, query}
 }
 
+/** A skill has one name, its SKILL.md name ("ticket-triage"); there is no readable title. */
+const skillName = (skill: SkillListItem): string => skill.name || skill.slug
+
 /** Open on hover, close a beat after the pointer leaves, so crossing a gap does not shut it. */
 const useHoverOpen = () => {
     const [open, setOpen] = useState(false)
@@ -132,7 +134,7 @@ const useHoverOpen = () => {
 const RegistrySkillViewBody = ({params, target, nav}: ViewProps<RegistrySkillParams>) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const {item, query} = useRegistrySkill(params.slug)
-    useViewTitle(item ? skillTitle(item) : params.slug)
+    useViewTitle(item ? skillName(item) : params.slug)
 
     if (!item) {
         return query.isPending ? (
@@ -427,7 +429,7 @@ const RegistrySkillEditor = ({
     return (
         <div ref={setEditorRoot} className="flex min-h-0 flex-1 flex-col">
             <SkillViewHeader
-                name={skillTitle(skill)}
+                name={skillName(skill)}
                 status={status}
                 extra={
                     <>
@@ -483,6 +485,7 @@ const RegistrySkillEditor = ({
                         value={value}
                         onChange={readOnly ? () => undefined : setDraft}
                         baseline={headValue}
+                        downloadable
                         disabled={readOnly}
                         showMissing={dirty && !valid}
                     />
@@ -503,7 +506,7 @@ const RegistrySkillEditor = ({
                 >
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            {t("skills.gallery.archiveTitle", {name: skillTitle(skill)})}
+                            {t("skills.gallery.archiveTitle", {name: skillName(skill)})}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             {t("skills.gallery.archiveBody")}
