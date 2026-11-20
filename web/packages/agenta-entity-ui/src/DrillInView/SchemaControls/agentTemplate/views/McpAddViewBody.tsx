@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
 import {
     findCustomMcpEndpoint,
@@ -72,9 +72,17 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
         [writer, replace, target],
     )
 
+    // The connect step reports back after its sign-in, when auto-save may have moved the
+    // revision: it calls the add of this view as it is then, with the writer it has then.
+    const addRef = useRef(add)
+    addRef.current = add
     const connect = useCallback(() => {
-        void push?.(mcpConnectView, {onConnected: add}, {kind: "project"})
-    }, [push, add])
+        void push?.(
+            mcpConnectView,
+            {onConnected: (endpoint) => addRef.current(endpoint)},
+            {kind: "project"},
+        )
+    }, [push])
     const reconnect = useCallback(
         (option: McpConnectionOption) => {
             const reconnectTarget = mcpReconnectTarget(
