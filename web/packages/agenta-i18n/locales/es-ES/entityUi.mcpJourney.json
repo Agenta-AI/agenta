@@ -24,10 +24,6 @@
     "urlHelp": "El endpoint HTTP del servidor. Agenta lo comprueba y detecta si necesita OAuth, una clave de API o nada.",
     "legacyTransportWarning": "Puede que esta dirección use el transporte SSE antiguo, que Agenta no admite. Muchos proveedores ofrecen el transporte nuevo en una dirección que termina en /mcp. Consulta la documentación del proveedor.",
     "name": "Nombre",
-    "nameHelp": "Lo que ve el modelo en las herramientas de este servidor. Se fija al elegir la conexión, así que renombrar la conexión no renombra las herramientas aquí.",
-    "namePrefixHint": "Se muestra en todo el proyecto. Las herramientas llevan el prefijo <code>{{prefix}}_</code>",
-    "oauthNotice": "Conectar abre la página de autorización de {{name}} en una ventana nueva; {{name}} te pregunta qué permisos conceder (normalmente lectura y escritura). El inicio de sesión se guarda solo para este proyecto.",
-    "theServer": "el servidor",
     "clientSecret": "Secreto de cliente",
     "projectSecret": "Secreto del proyecto",
     "noKeyRefusedAdvice": "Elige otro modo de autenticación arriba.",
@@ -37,11 +33,11 @@
     "openWindowAgain": "Volver a abrir la ventana",
     "savedOauthUnreadable": "No se han podido leer los ajustes de OAuth guardados. Inténtalo de nuevo.",
     "consentCancelled": "{{name}} no ha autorizado a Agenta. El inicio de sesión se ha cancelado o denegado. No se ha guardado nada.",
-    "continue": "Continuar",
     "tryAgain": "Reintentar",
     "connect": "Conectar",
     "selectProjectSecret": "Selecciona un secreto del proyecto",
     "noProjectSecrets": "No se han encontrado secretos del proyecto",
     "unnamedSecret": "Secreto sin nombre",
-    "createSecret": "Crear secreto"
+    "createSecret": "Crear secreto",
+    "advancedSummary": "URL de retorno, ID de cliente, ámbitos"
 }

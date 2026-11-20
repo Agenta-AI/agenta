@@ -194,7 +194,10 @@ describe("the expired-login banner's way back", () => {
 
         expect(text()).toContain("Reconnect MCP server")
         expect(text()).not.toContain("Connect MCP server")
-        // A reconnect is not asked for an address: it already has one.
-        expect(document.querySelector('input[aria-label="Server URL"]')).toBeNull()
+        // A reconnect is not asked for an address: it shows the one it has, and it cannot
+        // be edited.
+        const address = document.querySelector<HTMLInputElement>('input[aria-label="Server URL"]')
+        expect(address?.value).toBe("https://app.octolens.com/mcp")
+        expect(address?.disabled).toBe(true)
     })
 })

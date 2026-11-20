@@ -12,7 +12,6 @@ import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {useFamilyMap} from "../hooks/useFamilyMap"
-import {useIntegrationLogos} from "../hooks/useIntegrationLogos"
 
 import {AddSubagentList, type SubagentOption} from "./AddSubagentList"
 import {toolReferenceSlug} from "./itemDescriptors"
@@ -79,13 +78,6 @@ export function ConnectedAddSubagentList({
     )
     const iconById = useFamilyMap(idsKey, iconFamily)
 
-    // Logos for every app any listed agent connects, resolved once for the batch.
-    const logoKeys = useMemo(
-        () => agents.flatMap((wf) => bySlug[wf.slug]?.integrations ?? []),
-        [agents, bySlug],
-    )
-    const logoByKey = useIntegrationLogos(logoKeys)
-
     const options = useMemo<SubagentOption[]>(() => {
         const saved = new Set(savedSlugs)
         return agents.map((wf: WorkflowReferenceUI) => {
@@ -97,13 +89,10 @@ export function ConnectedAddSubagentList({
                 icon: iconById.get(wf.id) ?? null,
                 model: entry?.model,
                 provider: entry?.provider,
-                integrations: (entry?.integrations ?? []).map(
-                    (key) => logoByKey.get(key) ?? {key, name: key, logo: null},
-                ),
                 added: saved.has(wf.slug),
             }
         })
-    }, [agents, bySlug, iconById, logoByKey, savedSlugs])
+    }, [agents, bySlug, iconById, savedSlugs])
 
     // Sequential on purpose: each add re-reads the freshest config after an await.
     const handleAdd = useCallback(

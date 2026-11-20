@@ -14,6 +14,7 @@ import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import mcpAccountCatalog from "@agenta/i18n/catalogs/entityUi.mcpAccount"
+import {Button} from "@agenta/ui/ui"
 import {Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -23,6 +24,7 @@ import {McpSignIn} from "../../../../accounts/McpSignIn"
 import {useItemWorkflowId, type ItemAccountContext} from "../../../../accounts/useItemAccount"
 
 import {mcpAccountOptions} from "./accountOptions"
+import {EmptyAccountBox} from "./EmptyAccountBox"
 import {useRunsWithoutPerson} from "./useRunsWithoutPerson"
 
 export interface McpAccountBlockProps {
@@ -151,7 +153,8 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                 submitLabel={t("entityUi.accounts.saveToken")}
             >
                 {(start, pending) => (
-                    <AccountLine
+                    // Canvas F03 f7: a dashed box with the dark sign-in button.
+                    <EmptyAccountBox
                         text={
                             own
                                 ? t("entityUi.accounts.signInExpired")
@@ -159,11 +162,16 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                         }
                     >
                         {start ? (
-                            <AccountLineAction disabled={pending} onClick={start}>
+                            <Button
+                                size="compact"
+                                className="max-md:h-11"
+                                disabled={pending}
+                                onClick={start}
+                            >
                                 {t("entityUi.mcpAccount.signInTo", {name})}
-                            </AccountLineAction>
+                            </Button>
                         ) : null}
-                    </AccountLine>
+                    </EmptyAccountBox>
                 )}
             </McpSignIn>
         </div>
@@ -182,11 +190,14 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
     )
 }
 
+/** Canvas F03 f7: 13/20/600 and a 12/16 note; 14/20 on a phone (M09). `text-xs` is 13 px in /m. */
 function FieldHeading({label, note}: {label: string; note: string}) {
     return (
         <div className="flex flex-col gap-px">
-            <span className="text-[13px] font-semibold text-colorText">{label}</span>
-            <span className="text-xs text-colorTextSecondary">{note}</span>
+            <span className="text-[13px] font-semibold leading-5 text-colorText max-md:text-[14px]">
+                {label}
+            </span>
+            <span className="text-[12px] leading-4 text-colorTextSecondary">{note}</span>
         </div>
     )
 }

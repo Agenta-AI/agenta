@@ -147,6 +147,19 @@ const press = async (element: Element | undefined) => {
     await settle()
 }
 
+/** Enter in a field: the address field checks the address at once. */
+const pressEnter = async (input: HTMLInputElement) => {
+    await act(async () => {
+        input.dispatchEvent(
+            new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
+        )
+    })
+    await settle()
+}
+
+/** Check the typed address now, without waiting for the pause that checks it by itself. */
+const checkAddress = () => pressEnter(field("Server URL")!)
+
 /**
  * A host that keeps the journey rendered and toggles `open`, which is what the settings
  * section does and what made the state survive into the next attempt.
@@ -228,7 +241,7 @@ afterEach(async () => {
 
 describe("the duplicate-name refusal reaches assistive technology", () => {
     it("marks the name field invalid and points it at the reason", async () => {
-        // Behaviour was correct for a sighted mouse user and announced nothing: Continue goes
+        // Behaviour was correct for a sighted mouse user and announced nothing: Connect goes
         // dead and a screen-reader user is told why by nothing at all (round 4, D4).
         createMcpEndpoint.mockRejectedValue({
             response: {
@@ -252,7 +265,7 @@ describe("the duplicate-name refusal reaches assistive technology", () => {
 
         await openJourney()
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
-        await press(button("Continue"))
+        await checkAddress()
         await press(button("Connect"))
 
         const name = field("Name")
@@ -272,7 +285,7 @@ describe("the rendered journey", () => {
         await openJourney()
 
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
-        await press(button("Continue"))
+        await checkAddress()
         await typeInto(field("Name")!, "Acme")
         await press(button("Connect"))
         await settle()
@@ -368,7 +381,7 @@ describe("the rendered journey", () => {
         await openJourney()
 
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
-        await press(button("Continue"))
+        await checkAddress()
         expect(field("Name")).not.toBeNull()
 
         // Closed and reopened through the host, the way the settings section does it.
@@ -407,7 +420,7 @@ describe("connecting a server that uses OAuth", () => {
 
         await openJourney()
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
-        await press(button("Continue"))
+        await checkAddress()
         await typeInto(field("Name")!, "Acme")
         await press(button("Connect"))
 
@@ -462,7 +475,7 @@ describe("connecting a server that uses OAuth", () => {
 
         await openJourney()
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
-        await press(button("Continue"))
+        await checkAddress()
         await press(button("Connect"))
 
         expect(window.open).toHaveBeenCalledOnce()
@@ -495,7 +508,7 @@ describe("connecting a server that uses OAuth", () => {
 
         await openJourney()
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
-        await press(button("Continue"))
+        await checkAddress()
         await press(button("Connect"))
 
         await waitFor(
@@ -554,7 +567,11 @@ describe("an OAuth reconnect's saved settings", () => {
         await openReconnect()
         await act(async () => probe.release(offering(["read", "write"])))
         await settle()
-        await press(button("Advanced"))
+        await press(
+            [...document.querySelectorAll("button")].find((candidate) =>
+                candidate.textContent?.startsWith("Advanced"),
+            ),
+        )
 
         const boxes = [...document.querySelectorAll("[role='checkbox']")]
         expect(boxes.map((box) => box.getAttribute("aria-checked"))).toEqual(["true", "false"])
@@ -576,16 +593,7 @@ describe("an OAuth reconnect's saved settings", () => {
 })
 
 describe("Enter in the Server URL field", () => {
-    const pressEnter = async (input: HTMLInputElement) => {
-        await act(async () => {
-            input.dispatchEvent(
-                new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
-            )
-        })
-        await settle()
-    }
-
-    it("starts the check, as the Continue button does", async () => {
+    it("starts the check at once", async () => {
         probeMcpUrl.mockResolvedValue({
             count: 1,
             probe: {
@@ -608,5 +616,55 @@ describe("Enter in the Server URL field", () => {
         await pressEnter(field("Server URL")!)
 
         expect(probeMcpUrl).not.toHaveBeenCalled()
+    })
+})
+
+describe("one form: the address checks itself", () => {
+    beforeEach(() => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "none", scopes_offered: []},
+            },
+        })
+    })
+    afterEach(() => {
+        vi.useRealTimers()
+    })
+
+    it("checks once typing pauses, with no step to press through", async () => {
+        vi.useFakeTimers({toFake: ["setTimeout", "clearTimeout"]})
+        await openJourney()
+        // Connect waits on the answer; there is nothing to connect before it.
+        expect(button("Connect")?.disabled).toBe(true)
+
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
+        await act(async () => {
+            vi.advanceTimersByTime(300)
+        })
+        expect(probeMcpUrl).not.toHaveBeenCalled()
+
+        await act(async () => {
+            vi.advanceTimersByTime(700)
+        })
+        await settle()
+        expect(probeMcpUrl).toHaveBeenCalledTimes(1)
+        // The answer opens the rest of the same form under the address.
+        expect(field("Server URL")?.value).toBe("https://mcp.acme.test/")
+        expect(field("Name")).toBeTruthy()
+        expect(document.querySelector('[data-testid="mcp-probe-result"]')).toBeTruthy()
+    })
+
+    it("checks when the field is left", async () => {
+        await openJourney()
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
+        await act(async () => {
+            field("Server URL")!.dispatchEvent(new FocusEvent("focusout", {bubbles: true}))
+        })
+        await settle()
+
+        expect(probeMcpUrl).toHaveBeenCalledTimes(1)
     })
 })

@@ -56,7 +56,11 @@ export function AccountSwitch<Value extends string>({
             aria-label={ariaLabel}
             aria-disabled={disabled || undefined}
             onKeyDown={onKeyDown}
-            className={cn("flex gap-0.5 rounded-[10px] bg-colorFillTertiary p-[3px]", className)}
+            // The canvas track (F02 f6, M09): the split color, a solid gray in both themes.
+            className={cn(
+                "flex gap-0.5 rounded-[10px] bg-[var(--ag-colorSplit)] p-[3px]",
+                className,
+            )}
         >
             {choices.map((choice, index) => {
                 const selected = index === selectedIndex
@@ -85,7 +89,8 @@ export function AccountSwitch<Value extends string>({
                     >
                         <span
                             className={cn(
-                                "text-[13px] font-medium leading-5",
+                                // 13/20 on the desktop, 14/20 on a phone (M09).
+                                "text-[13px] font-medium leading-5 max-md:text-[14px]",
                                 selected ? "text-colorText" : "text-colorTextSecondary",
                             )}
                         >
@@ -94,7 +99,8 @@ export function AccountSwitch<Value extends string>({
                         {choice.note ? (
                             <span
                                 className={cn(
-                                    "text-xs leading-4",
+                                    // 12/16: `text-xs` is 13 px in /m.
+                                    "text-[12px] leading-4",
                                     selected ? "text-colorTextSecondary" : "text-colorTextTertiary",
                                 )}
                             >

@@ -24,10 +24,6 @@
     "urlHelp": "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing.",
     "legacyTransportWarning": "This address may use the older SSE transport, which Agenta does not support. Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs.",
     "name": "Name",
-    "nameHelp": "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here.",
-    "namePrefixHint": "Shown across this project. Tools are prefixed <code>{{prefix}}_</code>",
-    "oauthNotice": "Connect opens {{name}}'s authorization page in a new window; {{name}} asks which permissions to grant (usually read and write). The login is stored for this project only.",
-    "theServer": "the server",
     "clientSecret": "Client secret",
     "projectSecret": "Project secret",
     "noKeyRefusedAdvice": "Pick another authentication mode above.",
@@ -37,11 +33,11 @@
     "openWindowAgain": "Open the window again",
     "savedOauthUnreadable": "The saved OAuth settings could not be read. Try again.",
     "consentCancelled": "{{name}} didn't authorize Agenta. The sign-in was cancelled or denied. Nothing was saved.",
-    "continue": "Continue",
     "tryAgain": "Try again",
     "connect": "Connect",
     "selectProjectSecret": "Select a project secret",
     "noProjectSecrets": "No project secrets found",
     "unnamedSecret": "Unnamed secret",
-    "createSecret": "Create secret"
+    "createSecret": "Create secret",
+    "advancedSummary": "Callback URL, client ID, scopes"
 }

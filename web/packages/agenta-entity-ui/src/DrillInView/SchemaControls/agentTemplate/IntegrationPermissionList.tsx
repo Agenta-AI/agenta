@@ -15,7 +15,6 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
-import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {useIsPhone} from "@agenta/ui/phone"
 import {Badge, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
@@ -319,10 +318,14 @@ const ToolRow = memo(function ToolRow({
                     {lockedReason ? (
                         <span className="text-xs text-colorTextTertiary">{lockedReason}</span>
                     ) : (
+                        // Canvas F02 f6: one 12 px line, the line itself opens the full text; a
+                        // phone shows the whole line (M09).
                         <ExpandableDescription
                             description={tool.description}
                             label={tool.name || humanizeActionKey(tool.key)}
                             onExpandedChange={setExpanded}
+                            canvas
+                            full={phone}
                         />
                     )}
                 </div>
@@ -339,14 +342,16 @@ const ToolRow = memo(function ToolRow({
                         options={options}
                         disabled={disabled || Boolean(lockedReason)}
                         size="sm"
+                        canvas="chip"
                         triggerTitle={triggerTitle}
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
-                        // A compact 28px chip, so a long list reads as rows, not a column of fields.
-                        // On a phone a full-width 44px field on its own line.
+                        // A compact 28px chip (radius 6, canvas F02 f6), so a long list reads as
+                        // rows, not a column of fields. On a phone a full-width 44px field on its
+                        // own line (radius 8, M09).
                         triggerClassName={`${
                             phone
-                                ? "w-full !h-11 !text-[15px]"
-                                : "w-auto min-w-[96px] shrink-0 !h-7 !px-2 !text-[13px] sm:min-w-[116px]"
+                                ? "w-full !h-11 !rounded-[8px] !text-[15px]"
+                                : "w-auto min-w-[96px] shrink-0 gap-2 !h-7 !rounded-[6px] !px-2 !text-[13px] sm:min-w-[116px]"
                         } ${
                             permission === "deny"
                                 ? "border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
@@ -418,7 +423,7 @@ function ToolGroup({
     const remaining = matching.length - visible.length
 
     return (
-        <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)]">
+        <div className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
             <div
                 onClick={setOpen}
                 role="button"
@@ -442,15 +447,11 @@ function ToolGroup({
                 )}
                 {/* Sentence case, not the board's uppercase: the house style wins over the spec's
                     typography, and "Read-only · 22" is how every other count reads in the app. */}
-                <span className="flex-1 text-[12px] font-medium tracking-wide text-[var(--ag-colorTextSecondary)]">
+                <span className="flex-1 text-[12px] font-medium leading-5 text-[var(--ag-colorTextSecondary)]">
                     {label} · {tools.length}
                 </span>
-                <span className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--ag-colorTextTertiary)]">
-                    {/* Only "runs automatically" carries a glyph, as the board draws it. The other
-                        four rollups are plain text. */}
-                    {rollup.kind === "shared" && rollup.permission === "allow" ? (
-                        <PolicyGlyph value={rollup.permission} size={12} />
-                    ) : null}
+                {/* Plain 12 px text for every rollup (canvas F02 f6, M09). */}
+                <span className="shrink-0 text-[12px] leading-4 text-[var(--ag-colorTextTertiary)]">
                     {rollupLabel(rollup)}
                 </span>
             </div>
@@ -613,9 +614,14 @@ export function PermissionDrawerBody({
     return (
         // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
         <ScrollFadeArea
-            className={`flex min-h-0 flex-1 flex-col gap-3.5 [scrollbar-gutter:stable] ${
+            className={`flex min-h-0 flex-1 flex-col gap-3.5 ${
                 // -mx/px: the field rings keep 4px clear of the scroll clip.
-                flush ? "-mx-1 px-1 pb-1 pt-4" : "p-4"
+                flush
+                    ? "-mx-1 px-1 pb-1 pt-4 [scrollbar-gutter:stable]"
+                    : // The quiet 6 px bar keeps a stable gutter; 10 px more on the right puts the
+                      // column at the canvas 16 px on both sides (F02 f6: x17 to x423). A phone's
+                      // bar overlays the content, so it keeps 16 px.
+                      "ag-scroll-quiet py-4 pl-4 pr-2.5 max-md:pr-4"
             }`}
         >
             {banner}
@@ -631,7 +637,8 @@ export function PermissionDrawerBody({
 
                 {readOnly ? null : (
                     <div className="flex flex-col gap-1.5">
-                        <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                        {/* 12/16/500 (canvas F02 f6, M09); `text-xs` is 13 px in /m. */}
+                        <span className="text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]">
                             {t("entityUi.permissionDrawer.defaultPermission")}
                         </span>
                         {presets?.pending ? (
@@ -659,7 +666,14 @@ export function PermissionDrawerBody({
                                 options={presetOptions}
                                 disabled={inert}
                                 aria-label={t("entityUi.permissionDrawer.defaultPermission")}
-                                triggerClassName={phone ? "w-full !h-11" : undefined}
+                                // Two lines, the value and its help (canvas F02 f6, F10 f3): 44 px,
+                                // radius 6, 13 px; 52 px, radius 8, 14 px on a phone (M09).
+                                canvas="field"
+                                triggerClassName={
+                                    phone
+                                        ? "w-full gap-2 !h-[52px] !rounded-[8px] !px-3 !text-[14px]"
+                                        : "w-full gap-2 !h-11 !rounded-[6px] !px-[11px] !text-[13px]"
+                                }
                             />
                         )}
                         {agentPolicyNote ? (
@@ -682,7 +696,12 @@ export function PermissionDrawerBody({
                         onValueChange={setQuery}
                         disabled={inert}
                         // shrink-0: the column is a flex column that shrinks its children when the list overflows.
-                        className={phone ? "h-11 shrink-0" : undefined}
+                        // Canvas F02 f6: 30 px, radius 6, the secondary border, 13 px.
+                        className={
+                            phone
+                                ? "h-11 shrink-0"
+                                : "h-[30px] shrink-0 rounded-[6px] border-colorBorderSecondary md:[&_input]:text-[13px]"
+                        }
                     />
                 ) : null}
 
@@ -850,13 +869,22 @@ export function IntegrationTitle({
     target,
     connectionSlug,
     notConnected,
+    attention,
 }: {
     target: GatewayConnectionTarget
     connectionSlug: string
     /** Each person's own account, and the viewer has none. */
     notConnected?: boolean
+    /**
+     * The words of the server's needs-setup check for this item ("Sign-in expired"), the same the
+     * section row shows, or null when it needs nothing. Given, it replaces the connection's own
+     * status, so the row and the view never name one state twice (F02 f1). Absent, the title reads
+     * the connection status as before.
+     */
+    attention?: string | null
 }) {
     const tCommon = useT(commonCatalog)
+    const phone = useIsPhone()
     const {integration} = useToolIntegrationDetail(target.integration)
     const {connections, isLoading} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
@@ -866,33 +894,40 @@ export function IntegrationTitle({
     const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
     // A healthy connection shows no tag.
     const healthy = connection && isConnectionActive(connection) && isConnectionValid(connection)
+    // Canvas F10 f3: a bordered 12 px tag.
+    const tag = "m-0 shrink-0 px-1.5 text-[12px] font-normal leading-4"
 
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
         <div className="flex w-full min-w-0 items-center gap-2.5">
-            <ProviderLogo
-                logo={integration?.logo ?? null}
-                size={22}
-                className="max-sm:!size-[18px]"
-            />
+            <ProviderLogo logo={integration?.logo ?? null} size={22} />
+            {/* Canvas F02 f6: name 13/20/600, the account 12/16; a phone shows the name alone at
+                15/20 (M09). */}
             <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                <span className="truncate text-sm font-semibold">{displayName}</span>
-                {showSlug ? (
-                    // Dropped on a phone: it never shrinks, so it cut the name down to one letter.
-                    <span className="hidden shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)] sm:inline">
+                <span className="truncate text-[13px] font-semibold leading-5 max-md:text-[15px]">
+                    {displayName}
+                </span>
+                {showSlug && !phone ? (
+                    <span className="shrink-0 text-[12px] font-normal leading-4 text-[var(--ag-colorTextTertiary)]">
                         {target.integration}
                     </span>
                 ) : null}
-                {connectionSlug ? (
-                    <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                {connectionSlug && !phone ? (
+                    <span className="min-w-0 truncate text-[12px] font-normal leading-4 text-[var(--ag-colorTextTertiary)]">
                         {connectionSlug}
                     </span>
                 ) : null}
             </div>
             {notConnected || missing ? (
-                <span className="shrink-0 text-xs font-normal">
-                    <StatusIndicator tone="default" label={tCommon("common.notConnected")} />
-                </span>
+                <Badge variant="outlined" className={`${tag} text-colorTextSecondary`}>
+                    {tCommon("common.notConnected")}
+                </Badge>
+            ) : attention !== undefined ? (
+                attention ? (
+                    <Badge variant="warning" className={tag}>
+                        {attention}
+                    </Badge>
+                ) : null
             ) : connection && !healthy ? (
                 <span className="shrink-0 text-xs font-normal">
                     <ConnectionStatusBadge connection={connection} />

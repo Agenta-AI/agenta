@@ -3,9 +3,9 @@ import {useCallback, useMemo, useRef, useState} from "react"
 import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
 import {usePersonalToolConnections, useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
+import {agentRequirementsAtomFamily, requirementForItem} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
-import {useIsPhone} from "@agenta/ui/phone"
 import {Button} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
@@ -24,18 +24,19 @@ import {
     UnmigratedNotice,
 } from "../IntegrationPermissionList"
 import {integrationTargetOf, removeIntegrationByRef} from "../itemKinds/tool"
+import {needsSetupReasonText, needsSetupLabel} from "../needsSetupText"
 import {IntegrationRemoveDialog} from "../sections/IntegrationsSection"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import {useAgentTools} from "../useAgentTools"
 
 import {integrationConnectView} from "./integrationConnectView"
 import type {IntegrationViewParams} from "./integrationView"
+import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 
 const noCreate = () => undefined
 
 const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewParams>) => {
     const t = useT(integrationViewsCatalog)
-    const phone = useIsPhone()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const onChange = useCallback(
         (next: Record<string, unknown>) => writer.update(() => next),
@@ -63,6 +64,8 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
     const [confirming, setConfirming] = useState(false)
     const access = useAtomValue(personalAccountsAccessAtom)
     const {connections: personal} = usePersonalToolConnections()
+    // The server's needs-setup check, read as the section row reads it, so both say one state.
+    const requirements = useAtomValue(agentRequirementsAtomFamily(writer.revisionId))
     const {push} = nav
     // The connect view can return after auto-save replaced the revision: write through the latest.
     const writerRef = useRef(writer)
@@ -108,6 +111,19 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
     }
 
     const connectionSlug = integrationRowConnection(row) ?? ""
+    const requirement = requirements
+        ? requirementForItem(requirements, {
+              kinds: ["app_connection"],
+              slug: connectionSlug,
+              integration: integrationTarget.integration,
+          })
+        : undefined
+    // Unknown until the check answers: no tag rather than a guess.
+    const attention = requirements
+        ? requirement
+            ? (needsSetupReasonText(requirement.reason) ?? needsSetupLabel())
+            : null
+        : null
     const eachPerson = row.entry?.accountSource === USER_ACCOUNT_SOURCE
     const notConnected =
         eachPerson &&
@@ -127,11 +143,12 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 px-4 pb-1 pt-3">
+            <div className="shrink-0 px-4 pb-1 pt-3.5">
                 <IntegrationTitle
                     target={integrationTarget}
                     connectionSlug={eachPerson ? "" : connectionSlug}
                     notConnected={notConnected}
+                    attention={attention}
                 />
             </div>
             <div className="flex min-h-0 flex-1 flex-col">
@@ -167,19 +184,7 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                     <UnmigratedNotice target={integrationTarget} />
                 )}
             </div>
-            {writer.readOnly ? null : (
-                <div className="shrink-0 px-4 py-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        // A 44 px target on a phone (M09).
-                        className={phone ? "!h-11 text-colorError" : "text-colorError"}
-                        onClick={() => setConfirming(true)}
-                    >
-                        {t("entityUi.integrationViews.removeFromAgent")}
-                    </Button>
-                </div>
-            )}
+            {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
             {confirming ? (
                 <IntegrationRemoveDialog
                     row={row}

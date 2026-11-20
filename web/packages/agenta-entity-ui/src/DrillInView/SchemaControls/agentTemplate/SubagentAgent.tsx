@@ -8,6 +8,7 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
+import {ArrowSquareOut} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {toolReferenceSlug} from "./itemDescriptors"
@@ -52,9 +53,16 @@ export function SubagentOpenAgentButton({
     const href = detail?.workflowId ? (bridge.agentHref?.(detail.workflowId) ?? null) : null
     if (!href) return null
     return (
-        <Button variant="outline" size="sm" asChild>
+        // A quiet link with the external-link glyph (canvas F03 f2); 44 px on a phone.
+        <Button
+            variant="ghost"
+            size="compact"
+            className="gap-1.5 text-colorTextSecondary max-md:h-11 [&_svg]:size-3"
+            asChild
+        >
             {/* no-underline: a bare anchor picks up the app's link styling inside a button. */}
             <a href={href} target="_blank" rel="noreferrer" className="no-underline">
+                <ArrowSquareOut />
                 {t("entityUi.configItems.openAgent")}
             </a>
         </Button>

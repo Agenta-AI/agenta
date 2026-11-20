@@ -43,6 +43,7 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
 import {mcpConnectView} from "./mcpConnectView"
 import type {McpServerViewParams} from "./mcpServerView"
+import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 
 /** The project's `custom` servers, the namespace an agent's connection reference names. */
 const useCustomEndpoints = (): MCPEndpoint[] => {
@@ -79,21 +80,34 @@ const ServerTitle = ({
     const t = useT(mcpPermissionsCatalog)
     const host = endpoint ? hostnameLabel(endpoint.data.route.base_url ?? "") : ""
     return (
-        <div className="flex min-w-0 items-center gap-3 px-4 pb-1 pt-3">
+        // Canvas F03 f7: the name 13/20/600 with the host under it, 12/16 mono; 15/20 on a phone.
+        <div className="flex min-w-0 items-center gap-3 px-4 pb-1 pt-3.5">
             <McpServerMark size={24} />
-            <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                <span className="truncate text-[15px] font-semibold">{name}</span>
+            <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[13px] font-semibold leading-5 max-md:text-[15px]">
+                    {name}
+                </span>
                 {host ? (
-                    <span className="truncate text-xs text-colorTextTertiary">{host}</span>
+                    <span className="truncate font-mono text-[12px] leading-4 text-colorTextSecondary">
+                        {host}
+                    </span>
                 ) : null}
             </div>
             {status && status !== "connected" ? (
                 <>
-                    <Badge variant="warning" className="m-0 shrink-0 font-normal">
+                    <Badge
+                        variant="warning"
+                        className="m-0 shrink-0 px-1.5 text-[12px] font-normal leading-4"
+                    >
                         {getMcpConnectionStatusLabel(status)}
                     </Badge>
                     {onReconnect ? (
-                        <Button variant="outline" size="sm" onClick={onReconnect}>
+                        <Button
+                            variant="outline"
+                            size="compact"
+                            className="max-md:h-11"
+                            onClick={onReconnect}
+                        >
                             <ArrowClockwise data-icon="inline-start" />
                             {t("entityUi.mcpPermissions.reconnect")}
                         </Button>
@@ -214,18 +228,7 @@ const AgentServer = ({
                     }
                 />
             </div>
-            {writer.readOnly ? null : (
-                <div className="shrink-0 px-4 py-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-colorError"
-                        onClick={() => setConfirming(true)}
-                    >
-                        {t("entityUi.integrationViews.removeFromAgent")}
-                    </Button>
-                </div>
-            )}
+            {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
             {confirming ? (
                 <RemoveFromAgentDialog
                     open

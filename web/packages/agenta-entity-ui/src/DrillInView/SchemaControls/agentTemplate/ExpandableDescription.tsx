@@ -15,6 +15,8 @@ const CLAMP: Record<number, string> = {
 }
 
 const TEXT_CLASS = "text-xs text-[var(--ag-colorTextTertiary)]"
+// 12 px: `text-xs` is 13 px in /m.
+const CANVAS_TEXT_CLASS = "text-[12px] leading-5 text-[var(--ag-colorTextTertiary)]"
 const EXPANDED_CLASS = "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
 
 export interface ExpandableDescriptionProps {
@@ -25,6 +27,13 @@ export interface ExpandableDescriptionProps {
     onExpandedChange?: (expanded: boolean) => void
     /** Names what the toggle expands, so a list of Show more buttons stays distinguishable. */
     label?: string
+    /**
+     * The canvas tool line (F02 f6): 12/20, and the line itself is the toggle, with no caret.
+     * Absent, the description keeps today's size and caret.
+     */
+    canvas?: boolean
+    /** Show the whole text, with no clamp and no toggle (a phone, M09: "its line shows in full"). */
+    full?: boolean
 }
 
 export function ExpandableDescription({
@@ -32,6 +41,8 @@ export function ExpandableDescription({
     lines = 1,
     onExpandedChange,
     label,
+    canvas = false,
+    full = false,
 }: ExpandableDescriptionProps) {
     const t = useT(configItemsCatalog)
     const textId = useId()
@@ -46,7 +57,7 @@ export function ExpandableDescription({
             setOverflows(false)
             return
         }
-        if (!preview || expanded) return
+        if (!preview || expanded || full) return
         const measure = () =>
             setOverflows(
                 lines > 1
@@ -60,7 +71,7 @@ export function ExpandableDescription({
         const observer = new ResizeObserver(measure)
         observer.observe(preview)
         return () => observer.disconnect()
-    }, [preview, expanded, text, lines])
+    }, [preview, expanded, text, lines, full])
 
     const setExpanded = (next: boolean) => {
         setExpandedState(next)
@@ -72,9 +83,10 @@ export function ExpandableDescription({
     const truncatable = isDescriptionTruncatable(text, overflows)
     const clamp = CLAMP[lines] ?? CLAMP[1]
 
-    const textClass = `${TEXT_CLASS} ${expanded ? EXPANDED_CLASS : clamp}`
+    const base = canvas ? CANVAS_TEXT_CLASS : TEXT_CLASS
+    const textClass = `${base} ${full ? "whitespace-pre-line" : expanded ? EXPANDED_CLASS : clamp}`
 
-    if (!truncatable) {
+    if (full || !truncatable) {
         return (
             <span id={textId} ref={setPreview} className={textClass}>
                 {text}
@@ -110,13 +122,15 @@ export function ExpandableDescription({
             >
                 {text}
             </span>
-            <CaretDown
-                aria-hidden
-                size={10}
-                className={`shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform ${
-                    expanded ? "mt-[3px] rotate-180" : ""
-                }`}
-            />
+            {canvas ? null : (
+                <CaretDown
+                    aria-hidden
+                    size={10}
+                    className={`shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform ${
+                        expanded ? "mt-[3px] rotate-180" : ""
+                    }`}
+                />
+            )}
         </button>
     )
 }

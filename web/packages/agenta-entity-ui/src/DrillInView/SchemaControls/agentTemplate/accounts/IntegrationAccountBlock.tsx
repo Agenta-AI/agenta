@@ -13,7 +13,7 @@ import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import {Button} from "@agenta/ui/ui"
-import {Plus, Warning} from "@phosphor-icons/react"
+import {AppWindow, Users, Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AccountSwitch} from "../../../../accounts/AccountSwitch"
@@ -31,6 +31,7 @@ import type {
 } from "../../toolUtils"
 
 import {AccountSelect, CONNECT_ANOTHER} from "./AccountSelect"
+import {EmptyAccountBox} from "./EmptyAccountBox"
 import {
     accountSourcePick,
     defaultAccountOf,
@@ -148,6 +149,7 @@ export function IntegrationAccountBlock({
                         }
                         aria-label={t("entityUi.accountSwitch.sharedAccount")}
                         disabled={disabled}
+                        icon={<AppWindow size={14} />}
                     />
                 </div>
             )}
@@ -167,11 +169,14 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
     )
 }
 
+/** Canvas F02 f6: 13/20/600 and a 12/16 note; 14/20 on a phone (M09). `text-xs` is 13 px in /m. */
 function FieldHeading({label, note}: {label: string; note: string}) {
     return (
         <div className="flex flex-col gap-px">
-            <span className="text-[13px] font-semibold text-colorText">{label}</span>
-            <span className="text-xs text-colorTextSecondary">{note}</span>
+            <span className="text-[13px] font-semibold leading-5 text-colorText max-md:text-[14px]">
+                {label}
+            </span>
+            <span className="text-[12px] leading-4 text-colorTextSecondary">{note}</span>
         </div>
     )
 }
@@ -200,16 +205,13 @@ function YourAccount({
 
     let body: ReactNode
     if (yours.length === 0) {
+        // Canvas F10 f3: a dashed box with the dark connect button.
         body = (
-            <div className="flex items-center justify-between gap-3">
-                <span className="text-[13px] text-colorTextSecondary">
-                    {t("entityUi.accountSwitch.noAccountYet")}
-                </span>
-                <Button variant="outline" size="sm" onClick={onConnect}>
-                    <Plus size={14} />
+            <EmptyAccountBox text={t("entityUi.accountSwitch.noAccountYet")}>
+                <Button size="compact" className="max-md:h-11" onClick={onConnect}>
                     {t("entityUi.accountSwitch.connectApp", {name})}
                 </Button>
-            </div>
+            </EmptyAccountBox>
         )
     } else {
         const fallback = defaultAccountOf(yours, account)
@@ -237,6 +239,7 @@ function YourAccount({
                         })),
                 ]}
                 connectLabel={t("entityUi.accounts.connectAnother", {name})}
+                icon={<Users size={14} />}
                 onChange={(value) => void pick(value)}
                 aria-label={t("entityUi.accountSwitch.yourAccount")}
                 disabled={choice.busy || loading || failed}
