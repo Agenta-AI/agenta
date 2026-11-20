@@ -106,7 +106,8 @@ export const BrowseIdeasDialog = ({
                         placeholder={t("builder.page.searchIdeas")}
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        // B02: a tertiary glyph 8 px in, 8 px before the text.
+                        // B02: a tertiary glyph 8 px in, 8 px before the text. The prefix is the
+                        // default glyph; passing it is how its color is set.
                         prefix={
                             <MagnifyingGlass
                                 aria-hidden

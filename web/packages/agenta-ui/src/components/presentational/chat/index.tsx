@@ -189,10 +189,10 @@ export const ChatActionIconButton = ({
                 "flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 p-0",
                 "bg-transparent text-colorTextSecondary transition-colors",
                 "hover:bg-colorFillTertiary hover:text-colorText",
-                // A phone: a 44 px area, and 13 px more room each side, so centres sit 44 px
-                // apart and no two areas overlap.
+                // A phone: a 44 px area, and 11 px more room each side. With the row's 4 px gap
+                // the centres sit 44 px apart, so no two areas overlap.
                 PHONE_TOUCH_TARGET_CLASS,
-                "max-md:mx-[13px]",
+                "max-md:mx-[11px]",
             )}
         >
             {icon}

@@ -497,7 +497,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             <div
                                 className={clsx(
                                     // Below md: phones have no Enter/Cmd chords worth advertising.
-                                    "flex shrink-0 items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
+                                    "flex items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
+                                    // The canvas row stays one line; its Newline hint gives way.
+                                    canvas ? "shrink-0" : "flex-wrap",
                                     hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",
