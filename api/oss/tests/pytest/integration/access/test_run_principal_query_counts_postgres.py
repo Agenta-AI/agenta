@@ -358,6 +358,7 @@ async def _exchange(access):
             # statement, which this count proves.
             workflow_id=None,
             item_keys=None,
+            session_id=None,
         )
 
 
