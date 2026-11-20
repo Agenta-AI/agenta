@@ -60,7 +60,7 @@ const renderList = (phone: PhoneSectionsApi | null) =>
 
 describe("AgentTemplateSectionList on a phone", () => {
     it("shows one row per section with its current value", () => {
-        renderList({openKey: null, open: vi.fn()})
+        renderList({shownKey: null, show: vi.fn()})
         const rows = [...container.querySelectorAll("[data-testid=phone-section-list] button")]
         expect(rows.map((row) => row.textContent)).toEqual([
             "ModelClaude Sonnet 5.5 · via Claude Code",
@@ -70,20 +70,20 @@ describe("AgentTemplateSectionList on a phone", () => {
     })
 
     it("opens the section's view, or the section as its own screen", () => {
-        const open = vi.fn()
-        renderList({openKey: null, open})
+        const show = vi.fn()
+        renderList({shownKey: null, show})
         const rows = container.querySelectorAll<HTMLButtonElement>(
             "[data-testid=phone-section-list] button",
         )
         act(() => rows[0].click())
         expect(openModel).toHaveBeenCalledOnce()
-        expect(open).not.toHaveBeenCalled()
+        expect(show).not.toHaveBeenCalled()
         act(() => rows[1].click())
-        expect(open).toHaveBeenCalledWith("skills", "Skills")
+        expect(show).toHaveBeenCalledWith("skills", "Skills")
     })
 
     it("shows only the open section's body and its add control", () => {
-        renderList({openKey: "skills", open: vi.fn()})
+        renderList({shownKey: "skills", show: vi.fn()})
         expect(container.querySelector("[data-testid=phone-section-list]")).toBeNull()
         expect(container.textContent).toBe("Addskill rows")
     })

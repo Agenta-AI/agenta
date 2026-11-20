@@ -70,7 +70,7 @@ export const AgentTemplateSectionList = ({
     headerBand = "-mx-4 px-4",
 }: AgentTemplateSectionListProps) => {
     const t = useT(configItemsCatalog)
-    const phone = usePhoneSections()
+    const phoneSections = usePhoneSections()
     if (sections.length === 0) {
         // antd `Typography.Text type="secondary"` = colorTextDescription + `word-break: break-word`.
         // Its line-height token does NOT apply here: the call site already carried `text-xs`, and
@@ -82,7 +82,7 @@ export const AgentTemplateSectionList = ({
         )
     }
 
-    if (phone) return <PhoneSectionList sections={sections} phone={phone} />
+    if (phoneSections) return <PhoneSectionList sections={sections} phoneSections={phoneSections} />
 
     return (
         <>
@@ -128,6 +128,7 @@ export const AgentTemplateSectionList = ({
     )
 }
 
+/** A section's title as text: its header title on a phone. Every section passes a string. */
 const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
     typeof s.title === "string" ? s.title : s.key
 
@@ -137,17 +138,17 @@ const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
  */
 const PhoneSectionList = ({
     sections,
-    phone,
+    phoneSections,
 }: {
     sections: AgentTemplateSectionDescriptor[]
-    phone: PhoneSectionsApi
+    phoneSections: PhoneSectionsApi
 }) => {
-    const open = sections.find((s) => s.key === phone.openKey && !s.onOpen)
-    if (open) {
+    const shown = sections.find((s) => s.key === phoneSections.shownKey && !s.onOpen)
+    if (shown) {
         return (
-            <div data-config-section={open.key} className="flex flex-col gap-3 pb-6 pt-3">
-                {open.extra ? <div className="flex justify-end">{open.extra}</div> : null}
-                {open.content}
+            <div data-config-section={shown.key} className="flex flex-col gap-3 pb-6 pt-3">
+                {shown.extra ? <div className="flex justify-end">{shown.extra}</div> : null}
+                {shown.content}
             </div>
         )
     }
@@ -158,9 +159,11 @@ const PhoneSectionList = ({
                     key={s.key}
                     type="button"
                     data-config-section={s.key}
-                    data-config-section-title={typeof s.title === "string" ? s.title : undefined}
+                    data-config-section-title={sectionTitle(s)}
                     className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-4 py-2 text-left font-[inherit] active:bg-colorFillTertiary"
-                    onClick={() => (s.onOpen ? s.onOpen() : phone.open(s.key, sectionTitle(s)))}
+                    onClick={() =>
+                        s.onOpen ? s.onOpen() : phoneSections.show(s.key, sectionTitle(s))
+                    }
                 >
                     {s.icon ? (
                         <span

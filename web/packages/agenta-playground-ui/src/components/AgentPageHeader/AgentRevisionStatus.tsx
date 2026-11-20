@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useId, useRef, useState} from "react"
 
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
@@ -16,7 +16,8 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {cn} from "@agenta/ui/styles"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"
 
 import {openAgentVersionHistoryAtom, versionHistoryOpenAtomFamily} from "../AgentVersionHistory"
@@ -28,6 +29,13 @@ const AgentVersionHistoryDrawer = dynamic(
     () => import("../AgentVersionHistory").then((m) => m.AgentVersionHistoryDrawer),
     {ssr: false},
 )
+
+/**
+ * The mounted chips of each workflow, oldest first. One history drawer opens per workflow: the
+ * newest chip draws it (on a phone the Configuration screen's chip covers the session header's,
+ * which stays mounted), so one tap never opens two drawers.
+ */
+const historyChipsAtomFamily = atomFamily((_workflowId: string) => atom<string[]>([]))
 
 /** Wraps in a tooltip only when there is something to say beyond the visible label. */
 const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
@@ -51,10 +59,12 @@ export interface AgentRevisionStatusProps {
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
     /**
-     * On a phone: the chip says "Saved as vN" and has a 44 px hit area, and the version history
-     * covers the screen with a back arrow to `backTitle` (the screen the chip sits on).
+     * Lay out for a phone: the chip says "Saved as vN" and has a 44 px hit area, and the version
+     * history covers the screen with a back arrow.
      */
-    phone?: {backTitle: string}
+    phone?: boolean
+    /** On a phone, the name of the screen the history's back arrow returns to. */
+    backTitle?: string
     className?: string
 }
 
@@ -74,7 +84,8 @@ export const AgentRevisionStatus = ({
     onUpdate,
     autoUpdate = false,
     checkKey,
-    phone,
+    phone = false,
+    backTitle,
     className,
 }: AgentRevisionStatusProps) => {
     const t = useT(headerCatalog, revisionStatusCatalog)
@@ -97,6 +108,15 @@ export const AgentRevisionStatus = ({
     const autoCommitScheduled = useAtomValue(agentAutoCommitScheduledAtomFamily(revisionId || ""))
     const retrySave = useSetAtom(flushAgentAutoCommitAtom)
 
+    const chipId = useId()
+    const historyChips = useAtomValue(historyChipsAtomFamily(historyWorkflowId || ""))
+    const setHistoryChips = useSetAtom(historyChipsAtomFamily(historyWorkflowId || ""))
+    useEffect(() => {
+        if (!historyWorkflowId) return
+        setHistoryChips((chips) => [...chips, chipId])
+        return () => setHistoryChips((chips) => chips.filter((id) => id !== chipId))
+    }, [historyWorkflowId, chipId, setHistoryChips])
+    const drawsHistory = historyChips[historyChips.length - 1] === chipId
     const historyOpen = useAtomValue(versionHistoryOpenAtomFamily(historyWorkflowId || ""))
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     // Latched, not unmounted on close: tearing the drawer out mid-close skips its slide-out.
@@ -297,13 +317,14 @@ export const AgentRevisionStatus = ({
                 </button>
             ) : null}
 
-            {historyWorkflowId && historyMounted ? (
+            {historyWorkflowId && historyMounted && drawsHistory ? (
                 <AgentVersionHistoryDrawer
                     workflowId={historyWorkflowId}
                     revisionId={revisionId}
                     currentVersion={version}
                     onUpdate={onUpdate}
                     phone={phone}
+                    backTitle={backTitle}
                 />
             ) : null}
 

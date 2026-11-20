@@ -49,10 +49,12 @@ export interface AgentVersionHistoryDrawerProps {
     /** Switch this view to a newer version. */
     onUpdate?: (revisionId: string) => void
     /**
-     * On a phone: the history covers the screen, with a back arrow to `backTitle` instead of the
-     * close button, and 44 px buttons.
+     * Lay out for a phone: the history covers the screen, with a back arrow instead of the close
+     * button, and 44 px buttons.
      */
-    phone?: {backTitle: string}
+    phone?: boolean
+    /** On a phone, the name of the screen the back arrow returns to. */
+    backTitle?: string
 }
 
 export const AgentVersionHistoryDrawer = ({
@@ -60,7 +62,8 @@ export const AgentVersionHistoryDrawer = ({
     revisionId,
     currentVersion,
     onUpdate,
-    phone,
+    phone = false,
+    backTitle,
 }: AgentVersionHistoryDrawerProps) => {
     const t = useT(versionCatalog)
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
@@ -256,7 +259,7 @@ export const AgentVersionHistoryDrawer = ({
             {phone ? (
                 <PhoneScreenHeader
                     title={t("playground.versionHistory.title")}
-                    backTitle={phone.backTitle}
+                    backTitle={backTitle}
                     onBack={handleClose}
                 />
             ) : null}

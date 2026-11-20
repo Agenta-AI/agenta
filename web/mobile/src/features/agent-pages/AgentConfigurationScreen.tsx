@@ -1,6 +1,6 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useRef} from "react"
 
-import {PhoneSectionsContext, type PhoneSectionsApi} from "@agenta/entity-ui/drill-in"
+import {PhoneSectionsContext, usePhoneSectionScreen} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
@@ -74,18 +74,8 @@ export const AgentConfigurationScreen = ({
     const automationsGuard = useRef<PageViewStackGuardApi | null>(null)
     // On a phone (M07) the Agent tab is a list of rows, and a row opens its section as a screen.
     const phone = useIsPhone()
-    const [phoneSection, setPhoneSection] = useState<{key: string; title: string} | null>(null)
-    const shownSection = phone && tab === "agent" ? phoneSection : null
-    const phoneSections = useMemo<PhoneSectionsApi | null>(
-        () =>
-            phone
-                ? {
-                      openKey: shownSection?.key ?? null,
-                      open: (key, title) => setPhoneSection({key, title}),
-                  }
-                : null,
-        [phone, shownSection],
-    )
+    const sectionScreen = usePhoneSectionScreen(phone)
+    const shownSection = sectionScreen.shown
     const openTab = async (next: ConfigurationTab) => {
         const guard = automationsGuard.current
         // Leaving the tab closes its views; an open form with edits asks first.
@@ -93,7 +83,7 @@ export const AgentConfigurationScreen = ({
             if (!(await guard.stack.closeAll())) return
             guard.allowNext()
         }
-        setPhoneSection(null)
+        sectionScreen.close()
         void router.replace({query: {...router.query, tab: next}}, undefined, {shallow: true})
     }
 
@@ -105,7 +95,8 @@ export const AgentConfigurationScreen = ({
                 revisionId={revisionId}
                 historyWorkflowId={agentId}
                 onUpdate={pin}
-                phone={phone ? {backTitle: t("agentLayout.header.configuration")} : undefined}
+                phone={phone}
+                backTitle={t("agentLayout.header.configuration")}
                 className={phone ? "shrink-0" : undefined}
             />
         ) : null
@@ -132,7 +123,7 @@ export const AgentConfigurationScreen = ({
         ) : !revisionId ? (
             loading
         ) : tab === "agent" ? (
-            <PhoneSectionsContext.Provider value={phoneSections}>
+            <PhoneSectionsContext.Provider value={sectionScreen.api}>
                 <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
             </PhoneSectionsContext.Provider>
         ) : (
@@ -172,7 +163,7 @@ export const AgentConfigurationScreen = ({
                                 <PhoneScreenHeader
                                     title={shownSection.title}
                                     backTitle={t("agentLayout.header.configuration")}
-                                    onBack={() => setPhoneSection(null)}
+                                    onBack={sectionScreen.close}
                                 />
                             ) : (
                                 <div

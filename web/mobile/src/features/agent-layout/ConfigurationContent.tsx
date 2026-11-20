@@ -3,8 +3,8 @@ import {useMemo, useState} from "react"
 import {
     AgentEditorContext,
     PhoneSectionsContext,
+    usePhoneSectionScreen,
     type AgentEditor,
-    type PhoneSectionsApi,
 } from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
@@ -34,12 +34,6 @@ export interface ConfigurationContentProps {
     projectId: string
 }
 
-/** The section the Agent tab shows as its own screen on a phone. */
-export interface PhoneSection {
-    key: string
-    title: string
-}
-
 /**
  * The Configuration content of the right panel: four tabs over one view stack. The sections keep
  * today's bodies and drawers; a view opened from a tab shows with the panel chrome.
@@ -61,18 +55,8 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
         [props.revisionId, readOnly, hasChannel],
     )
     // On a phone the Agent tab is a list of rows, and a row opens its section as a screen.
-    const [phoneSection, setPhoneSection] = useState<PhoneSection | null>(null)
-    const shownSection = panel.phone && panel.configTab === "agent" ? phoneSection : null
-    const phoneSections = useMemo<PhoneSectionsApi | null>(
-        () =>
-            panel.phone
-                ? {
-                      openKey: shownSection?.key ?? null,
-                      open: (key, title) => setPhoneSection({key, title}),
-                  }
-                : null,
-        [panel.phone, shownSection],
-    )
+    // A tab switch goes back to the rows (ConfigurationRoot closes the section).
+    const sectionScreen = usePhoneSectionScreen(panel.phone)
     return (
         // Open agent views follow the revision on screen (auto-save replaces it) and the edit right.
         // The DrillIn bridge holds the stack, so an open view gets the same host parts (model
@@ -86,7 +70,7 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
                 <AgentChannelPresence agentId={props.agentId} onChange={setHasChannel} />
             ) : null}
             <AgentEditorContext.Provider value={editor}>
-                <PhoneSectionsContext.Provider value={phoneSections}>
+                <PhoneSectionsContext.Provider value={sectionScreen.api}>
                     <ViewStackHost
                         chrome={PanelViewChrome}
                         // On a phone a view's back arrow names the screen it opened from (the
@@ -94,7 +78,8 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
                         // breadcrumb starts at the tab.
                         rootTitle={
                             panel.phone
-                                ? (shownSection?.title ?? t("agentLayout.header.configuration"))
+                                ? (sectionScreen.shown?.title ??
+                                  t("agentLayout.header.configuration"))
                                 : t(`agentLayout.panel.${panel.configTab}`)
                         }
                         phone={panel.phone}
@@ -102,8 +87,8 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
                         <StackGuards />
                         <ConfigurationRoot
                             {...props}
-                            phoneSection={shownSection}
-                            onCloseSection={() => setPhoneSection(null)}
+                            phoneSection={sectionScreen.shown}
+                            onCloseSection={sectionScreen.close}
                         />
                     </ViewStackHost>
                 </PhoneSectionsContext.Provider>

@@ -1,5 +1,4 @@
 /** M07 Configuration on a phone: the section rows with their current values (canvas text). */
-export const M07_AGENT_NAME = "Support triage"
 export const M07_VERSION_LABEL = "Saved as v4"
 export const M07_SECTIONS: {key: string; title: string; summary: string}[] = [
     {key: "model-harness", title: "Model", summary: "Claude Sonnet 5.5 · via Claude Code"},
