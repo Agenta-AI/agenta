@@ -60,6 +60,7 @@ def _stream_filter(
         flags=query.flags if query else None,
         origins=query.origins if query else None,
         exclude_origins=query.exclude_origins if query else None,
+        calling_session=query.calling_session if query else None,
     )
 
 

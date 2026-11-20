@@ -230,13 +230,6 @@ describe("sessions that another session created", () => {
         })
     })
 
-    it("accepts the channel and api origins", () => {
-        for (const origin of ["channel", "api"]) {
-            const out = sessionStreamSchema.parse({...wireRow, origin})
-            expect(out.origin).toBe(origin)
-        }
-    })
-
     it("degrades a malformed calling_session record without failing the row", () => {
         const out = sessionStreamSchema.parse({...wireRow, calling_session: {turn_id: 3}})
         expect(out.calling_session).toBeUndefined()
@@ -288,5 +281,23 @@ describe("drift guard: a renamed wire key is silently dropped, not rejected", ()
         const out = sessionStreamSchema.parse(renamed)
         expect(out.references).toBeUndefined()
         expect((out as Record<string, unknown>).refs).toBeUndefined()
+    })
+})
+
+describe("sessionStreamSchema origin", () => {
+    it.each(["manual", "trigger", "channel", "api", "calling_session"])(
+        "keeps the origin %s",
+        (origin) => {
+            expect(sessionStreamSchema.parse({...wireRow, origin}).origin).toBe(origin)
+        },
+    )
+
+    it("reads an unknown origin as undefined and keeps the row", () => {
+        const out = sessionsQueryResponseSchema.parse({
+            count: 1,
+            sessions: [{...wireRow, origin: "not-an-origin"}],
+        })
+        expect(out.sessions).toHaveLength(1)
+        expect(out.sessions[0].origin).toBeUndefined()
     })
 })

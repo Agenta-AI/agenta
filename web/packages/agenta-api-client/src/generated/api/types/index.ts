@@ -622,6 +622,8 @@ export * from "./Selector.js";
 export * from "./SessionAttachment.js";
 export * from "./SessionAttachmentResponse.js";
 export * from "./SessionAttachmentsResponse.js";
+export * from "./SessionCallingSession.js";
+export * from "./SessionCallingSessionRequest.js";
 export * from "./SessionCancelRequest.js";
 export * from "./SessionContinuationResumeResponse.js";
 export * from "./SessionDelivery.js";

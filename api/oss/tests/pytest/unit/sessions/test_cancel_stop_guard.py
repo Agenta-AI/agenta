@@ -151,6 +151,7 @@ async def test_cancel_with_matching_expected_id_cancels_that_turn(lock_engine):
     await _seat_turn(lock_engine, "turn-1", started_at_ms=1_000)
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=_cancel("turn-1"),
@@ -181,6 +182,7 @@ async def test_cancel_with_stale_expected_id_is_refused_and_touches_nothing(
 
     with pytest.raises(SessionTurnMismatch) as excinfo:
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=_cancel("turn-1"),
@@ -227,6 +229,7 @@ async def test_cancel_refuses_owner_replaced_immediately_before_atomic_displacem
 
     with pytest.raises(SessionTurnMismatch) as excinfo:
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=_cancel("turn-1"),
@@ -259,6 +262,7 @@ async def test_cancel_with_expected_id_tombstones_a_turn_that_holds_nothing(
     svc = _service(lock_engine)
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=_cancel("turn-1"),
@@ -295,6 +299,7 @@ async def test_cancel_without_id_refuses_a_turn_that_started_after_it_arrived(
 
     with pytest.raises(SessionTurnMismatch) as excinfo:
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=_cancel(),
@@ -320,6 +325,7 @@ async def test_cancel_without_id_still_cancels_a_turn_that_started_earlier(lock_
     await _seat_turn(lock_engine, "turn-1", started_at_ms=1_000)
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=_cancel(),
@@ -346,6 +352,7 @@ async def test_cancel_without_id_still_cancels_a_turn_with_no_recorded_start(
     )
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=_cancel(),
@@ -366,6 +373,7 @@ async def test_cancel_ordering_uses_the_shared_redis_clock(lock_engine):
 
     with pytest.raises(SessionTurnMismatch):
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=_cancel(),
@@ -392,6 +400,7 @@ async def test_start_turn_records_a_start_time(lock_engine):
 
     svc = _service(lock_engine)
     turn_id = await svc._start_turn(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         session_id=_SESSION,
@@ -481,6 +490,7 @@ async def test_steer_is_not_subject_to_the_guard(lock_engine):
     await _seat_turn(lock_engine, "turn-2", started_at_ms=4_000_000_000_000)
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(

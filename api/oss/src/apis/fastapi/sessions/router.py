@@ -747,6 +747,7 @@ class SessionStreamsRouter:
                 user_id=user_id,
                 request=payload,
                 access=policy_for_request(request, kind=SharedItemKind.SESSION),
+                envelope=request_run_envelope(request),
                 recheck=recheck,
             )
         except SessionStreamNotFound as error:
@@ -1120,6 +1121,7 @@ class SessionStreamsRouter:
             access=policy_for_request(
                 request, kind=SharedItemKind.SESSION, requested=visibility
             ),
+            envelope=request_run_envelope(request),
             recheck=session_recheck(request, action=action, session_id=session_id),
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
