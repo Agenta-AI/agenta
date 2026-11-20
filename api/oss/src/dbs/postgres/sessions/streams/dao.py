@@ -284,8 +284,8 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             "status": claim_status.model_dump(mode="json", exclude_none=True),
             "data": {"session_id": session_id},
         }
-        # Normalize/filter columns to the real table and reuse the shared conflict
-        # target builder so all call sites stay in parity.
+        # Normalize/filter columns to the real table; the claim itself comes from the
+        # shared builder, so all claims keep one conflict target and one retry rule.
         delivery_values = build_trigger_delivery_values(delivery_values)
         parent_dbe = TriggerScheduleDBE if by_schedule else TriggerSubscriptionDBE
         active_flags = (
