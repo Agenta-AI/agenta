@@ -14,12 +14,13 @@ export const ChatRow = ({
     row,
     now,
     onOpen,
-    size = "panel",
+    layout = "panel",
 }: {
     row: BuilderChatRow
     now: number
     onOpen: (sessionId: string) => void
-    size?: "panel" | "phone" | "phoneList"
+    /** Where the row shows: the desktop panel, the phone "Recent chats", the phone history. */
+    layout?: "panel" | "phoneRecent" | "phoneHistory"
 }) => {
     const t = useT(builderPanelCatalog)
     const age = useChatAgeLabel()
@@ -30,9 +31,9 @@ export const ChatRow = ({
             onClick={() => onOpen(row.session_id)}
             className={cn(
                 "flex w-full min-w-0 shrink-0 cursor-pointer items-center border-0 bg-transparent text-left text-colorText hover:bg-colorFillTertiary",
-                size === "panel" && "h-8 gap-2 rounded-md px-2 text-[13px]",
-                size === "phone" && "h-11 gap-2 rounded-md px-1 text-[15px]",
-                size === "phoneList" &&
+                layout === "panel" && "h-8 gap-2 rounded-md px-2 text-[13px]",
+                layout === "phoneRecent" && "h-11 gap-2 rounded-md px-1 text-[15px]",
+                layout === "phoneHistory" &&
                     "min-h-14 gap-3 border-b border-solid border-colorBorderSecondary py-1.5 pl-4 pr-2 text-[15px]",
             )}
         >

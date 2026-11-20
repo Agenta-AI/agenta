@@ -172,14 +172,15 @@ const DiffRows = ({rows}: {rows: DiffRow[]}) => (
 
 /**
  * A text diff: the first rows in the card, and "View full diff" for the rest. On the desktop the
- * link opens the whole diff in place; on a phone it opens it full screen (M05), titled by `title`.
+ * link opens the whole diff in place; on a phone it opens it full screen (M05), titled by
+ * `screenTitle`.
  */
 const TextDiff = ({
     detail,
-    title,
+    screenTitle,
 }: {
     detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>
-    title: string
+    screenTitle: string
 }) => {
     const t = useT(chatChangeCardCatalog)
     const phone = useIsPhone()
@@ -215,7 +216,7 @@ const TextDiff = ({
                 </button>
             ) : null}
             {phone && !inDetail ? (
-                <PhoneDetailScreen open={full} onOpenChange={setFull} title={title}>
+                <PhoneDetailScreen open={full} onOpenChange={setFull} title={screenTitle}>
                     <div
                         className="overflow-x-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 font-mono text-xs leading-[1.7]"
                         data-testid="change-diff-full"
@@ -318,16 +319,16 @@ const Item = ({
 const Detail = ({
     detail,
     section,
-    title,
+    screenTitle,
 }: {
     detail: ApprovalChangeDetail
     section: ApprovalChangeSection
-    /** The name of the change, the title of its full screen detail on a phone. */
-    title: string
+    /** The title of the change's full screen detail on a phone. */
+    screenTitle: string
 }) => {
     switch (detail.kind) {
         case "text_diff":
-            return <TextDiff detail={detail} title={title} />
+            return <TextDiff detail={detail} screenTitle={screenTitle} />
         case "value_change":
             return <ValueChange detail={detail} />
         case "item":
@@ -391,6 +392,18 @@ export const RiskLine = ({children}: {children: ReactNode}) => (
     </div>
 )
 
+/**
+ * A block's label: its path, and the item it adds or removes. A grouped row shows it, and a phone
+ * detail screen of the block takes it as its title.
+ */
+export const blockLabel = (block: ChangeBlock): string => {
+    const item = block.changes.find((change) => change.detail?.kind === "item")?.detail
+    const name = item?.kind === "item" ? item.name : undefined
+    const path =
+        name && block.path[block.path.length - 1] !== name ? [...block.path, name] : block.path
+    return path.join(" › ") || block.title
+}
+
 export const Block = ({
     block,
     small,
@@ -418,7 +431,7 @@ export const Block = ({
                     key={index}
                     detail={change.detail}
                     section={change.section}
-                    title={block.path.join(" › ") || block.title}
+                    screenTitle={blockLabel(block)}
                 />
             ) : null,
         )}

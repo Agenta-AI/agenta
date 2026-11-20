@@ -54,7 +54,7 @@ export const ChatHistoryList = ({
                         row={row}
                         now={now}
                         onOpen={onOpen}
-                        size={phone ? "phoneList" : "panel"}
+                        layout={phone ? "phoneHistory" : "panel"}
                     />
                 ))}
             </>
@@ -68,8 +68,8 @@ export const ChatHistoryList = ({
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
-                    // On a phone the field is the 44 px hit area itself: the input fills its
-                    // height, and the 14 px clear button gives way to the keyboard's delete.
+                    // On a phone the input fills the field, so the input itself is 44 px high
+                    // (46 px less the border). M06 draws no clear button.
                     allowClear={!phone}
                     className={phone ? "h-[46px] items-stretch py-0 text-[15px]" : undefined}
                 />

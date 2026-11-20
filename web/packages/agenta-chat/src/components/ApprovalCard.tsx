@@ -51,7 +51,8 @@ export interface ApprovalCardProps {
     entityId?: string
     /** Show the Redirect (deny + note) entry point — hosts gate it by their own flag. */
     steerEnabled?: boolean
-    /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. */
+    /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. A phone
+     *  width draws the actions 44 px high instead, whatever this says. */
     touch?: boolean
     /** A host-side failure to surface under the actions (e.g. the detached resume failed). */
     errorText?: string | null
@@ -221,10 +222,10 @@ export const ApprovalCard = ({
         return info.eligible && !info.alreadyAllowed
     })
     const canAlwaysAllow = grantableTools.length > 0
-    // Touch must NOT change the chrome — the tap target extends invisibly instead.
-    // On a phone the card's buttons are drawn 44 px high (M05).
+    // On a phone the actions are drawn 44 px high (M05). Touch elsewhere keeps the chrome and
+    // extends the tap target invisibly.
     const phone = useIsPhone()
-    const touchCls = phone
+    const actionCls = phone
         ? "h-11 rounded-[10px] px-4 text-[15px]"
         : touch
           ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
@@ -490,7 +491,7 @@ export const ApprovalCard = ({
                                 <Button
                                     variant="ghost"
                                     disabled={responding}
-                                    className={`text-colorTextSecondary ${touchCls}`}
+                                    className={`text-colorTextSecondary ${actionCls}`}
                                     onClick={() => setSteerOpen(true)}
                                 >
                                     {t("chat.approvalCard.redirect")}
@@ -500,7 +501,7 @@ export const ApprovalCard = ({
                                 variant="ghost"
                                 disabled={responding}
                                 loading={responding && firedAction === "deny"}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={deny}
                                 aria-keyshortcuts={shortcutAria("approval.deny")}
                             >
@@ -520,7 +521,7 @@ export const ApprovalCard = ({
                                 variant={removes ? "destructive" : undefined}
                                 disabled={responding}
                                 loading={responding && firedAction === "approve"}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={approve}
                                 aria-keyshortcuts={shortcutAria("approval.approve")}
                             >
@@ -565,7 +566,7 @@ export const ApprovalCard = ({
                             <Button
                                 variant="ghost"
                                 disabled={responding}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={() => setSteerOpen(false)}
                             >
                                 {t("chat.approvalCard.cancel")}
@@ -574,7 +575,7 @@ export const ApprovalCard = ({
                             <Button
                                 variant="outline"
                                 disabled={responding || !steerMessage.trim()}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={() => {
                                     setFiredAction("deny")
                                     onRespond({

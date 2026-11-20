@@ -128,18 +128,11 @@ export const BuilderHeader = ({
                 <Plus aria-hidden size={20} />
             </button>
         )
-        return isHistory ? (
+        return (
             <PhoneScreenHeader
-                title={t("builder.panel.chatHistory")}
-                onBack={onBack}
-                backTitle={t("builder.panel.chat")}
-                trailing={newChat}
-            />
-        ) : (
-            <PhoneScreenHeader
-                title={titleMenu}
-                onBack={onClose}
-                backTitle={backTitle}
+                title={isHistory ? t("builder.panel.chatHistory") : titleMenu}
+                onBack={isHistory ? onBack : onClose}
+                backTitle={isHistory ? t("builder.panel.chat") : backTitle}
                 trailing={newChat}
             />
         )

@@ -16,7 +16,14 @@ import {CaretRight, PencilSimple, Plus, Sparkle, X} from "@phosphor-icons/react"
 import {useChangeVersions} from "../hooks/useChangeVersions"
 import type {ApprovalPreview} from "../skin/types"
 
-import {Block, diffRows, groupChanges, RiskLine, type ChangeBlock} from "./ChangeSections"
+import {
+    Block,
+    blockLabel,
+    diffRows,
+    groupChanges,
+    RiskLine,
+    type ChangeBlock,
+} from "./ChangeSections"
 import {PhoneDetailScreen} from "./PhoneDetailScreen"
 
 type Translate = (
@@ -55,15 +62,6 @@ const blockSummary = (block: ChangeBlock, t: Translate): string | undefined => {
         default:
             return undefined
     }
-}
-
-/** The row's label: the block's path, and the item it adds or removes. */
-const blockLabel = (block: ChangeBlock): string => {
-    const item = block.changes.find((change) => change.detail?.kind === "item")?.detail
-    const name = item?.kind === "item" ? item.name : undefined
-    const path =
-        name && block.path[block.path.length - 1] !== name ? [...block.path, name] : block.path
-    return path.join(" › ") || block.title
 }
 
 const blockMark = (block: ChangeBlock): "added" | "removed" | "changed" => {

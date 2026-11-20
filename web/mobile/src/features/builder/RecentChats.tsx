@@ -68,7 +68,7 @@ export const RecentChats = ({
                             row={row}
                             now={now}
                             onOpen={onOpen}
-                            size={phone ? "phone" : "panel"}
+                            layout={phone ? "phoneRecent" : "panel"}
                         />
                     ))
             )}
