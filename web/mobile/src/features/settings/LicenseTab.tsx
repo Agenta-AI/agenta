@@ -1,5 +1,7 @@
 import {useEffect, useState} from "react"
 
+import {createT, richText, useT} from "@agenta/i18n"
+import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
 import {isEE} from "@agenta/shared/api"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
@@ -16,10 +18,12 @@ import {instanceLicenseQueryKey, useInstanceLicense} from "./useInstanceLicense"
 
 const UPGRADE_DOCS_URL = "https://docs.agenta.ai/self-host/upgrades/oss-to-ee-switch"
 
+const tNow = createT(settingsLicenseCatalog)
+
 const errorMessage = (error: unknown) =>
     isInvalidLicenseKey(error)
-        ? "This license key is not valid"
-        : "We could not add the key. Try again."
+        ? tNow("settings.license.invalidKey")
+        : tNow("settings.license.addFailed")
 
 /**
  * The instance license, for the instance admin: the plan, the key behind it, and a field to add
@@ -27,6 +31,7 @@ const errorMessage = (error: unknown) =>
  * check is not there, so the page points to the Enterprise image instead of the field.
  */
 export const LicenseTab = ({projectId}: SettingsTabProps) => {
+    const t = useT(settingsLicenseCatalog)
     const queryClient = useQueryClient()
     const license = useInstanceLicense(projectId)
     const [linkKey, dismissLinkKey] = useActivationLinkKey()
@@ -57,7 +62,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
     if (license.isError)
         return (
             <BillingLoadError
-                message="We could not load the license."
+                message={t("settings.license.loadFailed")}
                 onRetry={() => void license.refetch()}
             />
         )
@@ -73,19 +78,22 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
 
             {!enterprise ? (
                 <p className="text-muted-foreground m-0 text-[13px]">
-                    License keys need the Enterprise image.{" "}
-                    <a
-                        href={UPGRADE_DOCS_URL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-foreground underline"
-                    >
-                        How to upgrade
-                    </a>
+                    {richText(t("settings.license.needsEnterpriseImage"), {
+                        link: (text) => (
+                            <a
+                                href={UPGRADE_DOCS_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-foreground underline"
+                            >
+                                {text}
+                            </a>
+                        ),
+                    })}
                 </p>
             ) : fromEnvironment ? (
                 <p className="text-muted-foreground m-0 text-[13px]">
-                    This key is set in the server settings and cannot be changed here.
+                    {t("settings.license.fromEnvironment")}
                 </p>
             ) : (
                 <LicenseKeyForm
@@ -97,9 +105,9 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
 
             <ConfirmModal
                 open={canAddKey && Boolean(linkKey)}
-                title="Add this license key?"
-                description="The key from your link changes the plan of every organization on this instance."
-                confirmLabel="Add key"
+                title={t("settings.license.confirmTitle")}
+                description={t("settings.license.confirmDescription")}
+                confirmLabel={t("settings.license.addKey")}
                 destructive={false}
                 pending={activate.isPending}
                 error={linkKey ? error : null}
