@@ -63,5 +63,6 @@
     "countSkill_other": "{{count}} skills",
     "countTool_one": "{{count}} herramienta",
     "countTool_many": "{{count}} herramientas",
-    "countTool_other": "{{count}} herramientas"
+    "countTool_other": "{{count}} herramientas",
+    "change": "Cambiar"
 }

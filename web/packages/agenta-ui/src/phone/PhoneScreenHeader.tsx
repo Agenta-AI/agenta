@@ -50,7 +50,7 @@ export const PhoneScreenHeader = ({
                     aria-label={
                         backTitle ? t("ui.phone.backTo", {title: backTitle}) : t("ui.phone.back")
                     }
-                    className="box-border flex h-11 min-w-11 max-w-[130px] shrink-0 cursor-pointer items-center gap-0.5 rounded-lg border-0 bg-transparent py-0 pl-0.5 pr-1.5 font-[inherit] text-[15px] text-colorTextSecondary active:bg-colorFillTertiary"
+                    className="box-border flex h-11 min-w-11 max-w-[130px] shrink-0 cursor-pointer items-center gap-0.5 rounded-[8px] border-0 bg-transparent py-0 pl-0.5 pr-1.5 font-[inherit] text-[15px] leading-5 text-colorTextSecondary active:bg-colorFillTertiary"
                     onClick={onBack}
                 >
                     <CaretLeft size={18} aria-hidden className="shrink-0" />
@@ -59,7 +59,7 @@ export const PhoneScreenHeader = ({
             ) : null}
             <h1
                 className={cn(
-                    "m-0 min-w-0 truncate text-base font-semibold text-colorText",
+                    "m-0 min-w-0 truncate text-base leading-5 font-semibold text-colorText",
                     onBack ? "pr-1.5" : "px-3",
                 )}
             >

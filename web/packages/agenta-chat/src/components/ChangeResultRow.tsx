@@ -13,6 +13,7 @@ import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardSt
 import {Button} from "@agenta/ui/ui"
 import {Check, CircleNotch, Lock, Warning, X} from "@phosphor-icons/react"
 
+import {useChangeVersions} from "../hooks/useChangeVersions"
 import {agentCallTarget} from "../model/approvalDescribers/describeAgentChanges"
 import {describeApproval} from "../model/approvalPreview"
 import {
@@ -193,11 +194,13 @@ const useChangeCallSummary = (call: Pick<ChangeCall, "toolName" | "input">) => {
         input: call.input,
     })
     const blocks = groupChanges(preview.changes ?? [])
+    // The call may name the agent by its id: the name comes from the base revision's agent.
+    const agentName = useChangeVersions(preview.base).agentName ?? preview.agentName
     if (preview.header) return preview.header.title
     if (blocks.length === 1) return blocks[0].title
     if (!blocks.length) return undefined
-    return preview.agentName
-        ? tChange("chat.changeCard.changesTo", {count: blocks.length, agent: preview.agentName})
+    return agentName
+        ? tChange("chat.changeCard.changesTo", {count: blocks.length, agent: agentName})
         : tStates("chat.changeCardStates.changesCount", {count: blocks.length})
 }
 

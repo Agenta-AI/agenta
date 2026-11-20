@@ -3,6 +3,7 @@ import {Cpu} from "@phosphor-icons/react"
 
 import {modelIdFromConfig} from "../../connectionUtils"
 import {needsSetupLabel} from "../needsSetupText"
+import {SectionPageAction} from "../SectionPageAction"
 import {SectionTitleBadge} from "../SectionTitleBadge"
 
 import type {AgentTemplateT, ModelHarness, SectionIndicatorFor, SectionResult} from "./types"
@@ -46,6 +47,7 @@ export const modelSection = ({
             defaultOpen: false,
             // The row opens the Model view, which holds today's list; a pick applies at once.
             onOpen: openModel,
+            pageAction: <SectionPageAction action="change" onClick={openModel} />,
             content: null,
         }
     )

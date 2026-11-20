@@ -13,7 +13,7 @@ const BuildKitViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const {buildKitSection} = useBuildKit({
         revisionId: writer.revisionId,
-        disabled: writer.readOnly,
+        readOnly: writer.readOnly,
     })
     useViewTitle(t("entityUi.modelHarness.buildKit"))
     return <div className="flex min-h-0 flex-1 flex-col px-4 py-3">{buildKitSection}</div>

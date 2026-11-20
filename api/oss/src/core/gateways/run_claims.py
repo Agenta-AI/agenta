@@ -76,7 +76,8 @@ def gateway_platform_run(request: Optional[Request]) -> bool:
 def run_accounts(request: Optional[Request]) -> List[Dict[str, Any]]:
     """The presenting credential's `run_accounts` claim, in token form, for a route that
     re-mints the credential: the new credential carries the run's accounts unchanged,
-    never more. Empty for every caller that is not a run."""
+    never more. Empty for a caller whose credential carries no claim (a session, an API
+    key)."""
     if request is None:
         return []
     return [

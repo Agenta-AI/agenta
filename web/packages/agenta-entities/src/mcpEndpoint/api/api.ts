@@ -3,6 +3,7 @@
 import {getGatewayMcpClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
+import {USER_ACCOUNT_SOURCE, userItemKey, type AccountSource} from "../../accountChoice/items"
 import {safeParseWithLogging} from "../../shared"
 import type {McpToolSummary} from "../core/connectJourney"
 import {
@@ -293,11 +294,24 @@ const relayFailure = (error: unknown, method: string): McpProtocolError => {
  * conversation that broke are different answers, and only the first is safe to show as a
  * connected server with nothing to restrict.
  */
-export const listMcpTools = async (slug: string, projectId?: string): Promise<McpToolSummary[]> => {
+export const listMcpTools = async (
+    slug: string,
+    projectId?: string,
+    {accountSource = "agent"}: {accountSource?: AccountSource} = {},
+): Promise<McpToolSummary[]> => {
     const params = projectId ? {project_id: projectId} : undefined
-    const minted = await axios.post(`${getAgentaApiUrl()}/gateways/credentials`, {}, {params})
+    // "user": the viewer's own sign-in to the server, as a run of that person uses it. The
+    // credential names the item, the server resolves the viewer's own account for it, and the
+    // relay is asked for the person's sign-in rather than the project's.
+    const personal = accountSource === USER_ACCOUNT_SOURCE
+    const minted = await axios.post(
+        `${getAgentaApiUrl()}/gateways/credentials`,
+        personal ? {item_keys: [userItemKey("mcp_server", slug)]} : {},
+        {params},
+    )
     const credentials = minted.data?.credentials
     if (!credentials) throw new McpProtocolError("Could not authorize the tool list request.")
+    const relayParams = personal ? {...params, account_source: USER_ACCOUNT_SOURCE} : params
 
     const url = `${getAgentaApiUrl()}${BASE.replace("/endpoints", "")}/custom/${slug}`
     const headers: Record<string, string> = {
@@ -309,7 +323,7 @@ export const listMcpTools = async (slug: string, projectId?: string): Promise<Mc
     let nextId = 1
     const call = async (method: string, body: Record<string, unknown>) => {
         try {
-            return await axios.post(url, body, {headers, params})
+            return await axios.post(url, body, {headers, params: relayParams})
         } catch (error) {
             throw relayFailure(error, method)
         }
@@ -338,7 +352,7 @@ export const listMcpTools = async (slug: string, projectId?: string): Promise<Mc
         await axios.post(
             url,
             {jsonrpc: "2.0", method: "notifications/initialized", params: {}},
-            {headers, params},
+            {headers, params: relayParams},
         )
     } catch {
         // Deliberately ignored: `initialize` already proved the connection.
