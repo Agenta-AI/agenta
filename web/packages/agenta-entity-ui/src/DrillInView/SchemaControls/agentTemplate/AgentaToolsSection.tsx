@@ -14,7 +14,7 @@ import {useAtomValue} from "jotai"
 
 import {describeBuildKitPlatformTool} from "./buildKitDescriptors"
 import {buildKitToolOptions} from "./BuildKitSection"
-import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
+import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionList"
 
 const tNow = createT(buildKitCatalog)
 

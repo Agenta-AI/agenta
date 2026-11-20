@@ -610,6 +610,15 @@ function applyEvent(
                     },
                 })
             }
+            // The server preview of an agent write rides the same event: the card shows its old
+            // and new values from the records the durable send path renders.
+            if (reqPayload.preview !== undefined) {
+                draft.parts.push({
+                    type: "data-approval-preview",
+                    id: `${toolCallId}:preview`,
+                    data: {toolCallId, approvalId: str(payload.id), preview: reqPayload.preview},
+                })
+            }
             return
         }
         case "interaction_response": {

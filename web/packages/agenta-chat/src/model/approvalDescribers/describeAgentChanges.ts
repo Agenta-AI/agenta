@@ -6,10 +6,13 @@
  * The call names its target by the slug or id the model passed, so that is what the card shows
  * until a result names it: the settled row reads the agent's name off the tool result.
  */
+import {createT} from "@agenta/i18n"
+import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import {asRecord, formatCount, tryParseAsObject} from "@agenta/shared/utils"
 
 import type {ApprovalPreview} from "../../skin/types"
 
+import {describeConfigChanges} from "./describeChanges"
 import {describeOperationItems} from "./describeCommitRevision"
 
 const stringField = (value: unknown, field: string): string | undefined => {
@@ -32,17 +35,30 @@ export const agentCallTarget = (input: unknown, output?: unknown): string | unde
     stringField(input, "name") ??
     stringField(input, "agent")
 
-export const describeEditAgentConfig = (input: unknown): ApprovalPreview | null => {
+export const describeEditAgentConfig = (
+    input: unknown,
+    _manifest?: unknown,
+    _appName?: string,
+    changePreview?: unknown,
+): ApprovalPreview | null => {
     const agent = agentCallTarget(input)
     if (!agent) return null
-    const items = describeOperationItems(asRecord(input)?.operations)
+    const operations = asRecord(input)?.operations
+    const items = describeOperationItems(operations)
+    const described = describeConfigChanges(operations, changePreview)
     return {
         sentence: `Save ${changes(items.length)} to the agent ${agent}. Agenta saves this as a new version of that agent and does not deploy it.`,
         items,
+        ...(described.changes.length || described.cannotApply ? described : {}),
     }
 }
 
-export const describeCreateAgent = (input: unknown): ApprovalPreview | null => {
+export const describeCreateAgent = (
+    input: unknown,
+    _manifest?: unknown,
+    _appName?: string,
+    changePreview?: unknown,
+): ApprovalPreview | null => {
     const name = stringField(input, "name")
     if (!name) return null
     const items = describeOperationItems(asRecord(input)?.operations)
@@ -54,13 +70,34 @@ export const describeCreateAgent = (input: unknown): ApprovalPreview | null => {
         stringField(input, "visibility") === "project"
             ? "Everyone in this project will see it."
             : "Only you will see it."
-    return {sentence: `${create} ${audience}`, items}
+    const described = describeConfigChanges(asRecord(input)?.operations, changePreview)
+    // A new agent with no operations has nothing to list.
+    return {
+        sentence: `${create} ${audience}`,
+        items,
+        ...(described.changes.length || described.cannotApply ? described : {}),
+    }
 }
 
-/** The settled row's one-liner: the agent's name, then what changed. */
+const tCard = createT(chatChangeCardCatalog)
+
+/**
+ * The version a committed result saved, from `revision: {id, version}`; null for any other
+ * result (denied, refused, a conflict).
+ */
+export const savedVersion = (output: unknown): string | null => {
+    const result = toolOutputRecord(output)
+    if (result?.status !== "committed") return null
+    const version = asRecord(result.revision)?.version
+    return typeof version === "string" && version ? version : null
+}
+
+/** The settled row's one-liner: "Saved as vN" when the call saved, the agent's name, then what changed. */
 export const summarizeAgentCall = (input: unknown, output: unknown): string | null => {
     const agent = agentCallTarget(input, output)
     if (!agent) return null
     const titles = describeOperationItems(asRecord(input)?.operations).map((item) => item.title)
-    return titles.length ? `${agent}: ${titles.join("; ")}` : agent
+    const line = titles.length ? `${agent}: ${titles.join("; ")}` : agent
+    const version = savedVersion(output)
+    return version ? `${tCard("chat.changeCard.savedAs", {version})} · ${line}` : line
 }

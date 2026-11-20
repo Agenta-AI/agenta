@@ -18,6 +18,12 @@ export {
     summarizeAgentCall,
 } from "./describeAgentChanges"
 export {describeRunTool}
+export {
+    describeConfigChanges,
+    parseChangePreview,
+    readablePath,
+    type DescribedChanges,
+} from "./describeChanges"
 export {parseApprovedContentManifest} from "./approvedContentManifest"
 export type {ApprovedContentManifestValue} from "./approvedContentManifest"
 export {

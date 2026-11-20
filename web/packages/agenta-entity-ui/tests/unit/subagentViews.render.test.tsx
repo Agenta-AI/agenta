@@ -21,6 +21,7 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest
 
 import {subagentsSection} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SubagentsSection"
 import {
+    findSubagentIndex,
     removeSubagentByRef,
     subagentItemRef,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/subagentReference"
@@ -271,6 +272,19 @@ describe("Subagent view", () => {
         ])
     })
 
+    it("keeps its entry when a write drops the legacy name that keyed it", async () => {
+        const legacy = {...reference("lead-finder", "Finds leads"), name: "Leads"}
+        writer.agent = {tools: [legacy]}
+        await openIn(subagentView, {item: subagentItemRef(legacy, [legacy])!})
+        await findByText("", "textarea")
+        // A save of this entry elsewhere drops the copied name, so the engine key becomes the slug.
+        await act(async () =>
+            writer.update(() => ({tools: [reference("lead-finder", "Finds leads")]})),
+        )
+        expect(document.querySelector("textarea")).not.toBeNull()
+        expect(byText("This subagent is no longer in the agent.")).toBeUndefined()
+    })
+
     it("shows the removed state when the subagent left the agent", async () => {
         writer.agent = {tools: [reference("lead-finder")]}
         await openIn(subagentView, {item})
@@ -329,17 +343,48 @@ describe("Subagents section", () => {
     })
 })
 
+describe("two legacy subagents with the same copied name", () => {
+    const us = {...reference("support-us", "US"), name: "Support"}
+    const eu = {...reference("support-eu", "EU"), name: "Support"}
+
+    it("are addressed by slug, so the second one never touches the first", async () => {
+        const tools = [us, eu]
+        expect(subagentItemRef(eu, tools)).toEqual({list: "tools", key: "support-eu"})
+        expect(findSubagentIndex(tools, {list: "tools", key: "support-eu"})).toBe(1)
+        // The engine key alone is ambiguous here, so it addresses nothing.
+        expect(findSubagentIndex(tools, {list: "tools", key: "Support"})).toBe(-1)
+    })
+
+    it("open, save and remove the second one only", async () => {
+        writer.agent = {tools: [us, eu]}
+        await openIn(subagentView, {item: subagentItemRef(eu, [us, eu])!})
+        const field = await findByText("", 'textarea[aria-label="Subagent description"]')
+        expect((field as HTMLTextAreaElement).value).toBe("EU")
+        await change(field, "Europe")
+        await click(byText("Save"))
+        expect(tools().map((tool) => [tool.slug, tool.description])).toEqual([
+            ["support-us", "US"],
+            ["support-eu", "Europe"],
+        ])
+        await click(byText("open"))
+        await click(await findByText("Remove from agent"))
+        await findByText("", '[data-testid="remove-from-agent-dialog"]')
+        await click(byText("Remove"))
+        expect(tools().map((tool) => tool.slug)).toEqual(["support-us"])
+    })
+})
+
 describe("subagent keys", () => {
     it("use the engine's key: the entry name, else the slug", () => {
-        expect(subagentItemRef(reference("lead-finder"))).toEqual({
+        expect(subagentItemRef(reference("lead-finder"), [])).toEqual({
             list: "tools",
             key: "lead-finder",
         })
-        expect(subagentItemRef({...reference("lead-finder"), name: "Leads"})).toEqual({
+        expect(subagentItemRef({...reference("lead-finder"), name: "Leads"}, [])).toEqual({
             list: "tools",
             key: "Leads",
         })
-        expect(subagentItemRef(integration)).toBeNull()
+        expect(subagentItemRef(integration, [])).toBeNull()
         const list = [reference("a"), reference("b")]
         expect(removeSubagentByRef(list, {list: "tools", key: "c"})).toBe(list)
     })

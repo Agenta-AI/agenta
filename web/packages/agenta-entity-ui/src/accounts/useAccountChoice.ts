@@ -1,12 +1,10 @@
-/**
- * Store the viewer's account for one "user" item of one agent, then read again what each agent
- * gets and what Needs setup asks for. The one write behind the drawers, "Attach a secret" and the
- * setup card. A second pick while one is saving is ignored.
- */
+/** Store or clear the viewer's account choice for one "user" item of one agent, then read again. */
 import {useState} from "react"
 
 import {
+    deleteAccountChoice,
     invalidatePersonalAccountReads,
+    queryAccountChoices,
     upsertAccountChoice,
     type AccountPick,
 } from "@agenta/entities/accountChoice"
@@ -17,13 +15,13 @@ export const useAccountChoice = (workflowId: string, itemKey: string) => {
     const projectId = useAtomValue(projectIdAtom)
     const [busy, setBusy] = useState(false)
     const [failed, setFailed] = useState(false)
-    /** True when the choice is stored, false when the write failed, null when nothing was sent. */
-    const choose = async (account: AccountPick): Promise<boolean | null> => {
+    /** Runs one write; true when it worked, false when it failed, null when nothing was sent. */
+    const run = async (write: (projectId: string) => Promise<unknown>): Promise<boolean | null> => {
         if (!projectId || !workflowId || busy) return null
         setBusy(true)
         setFailed(false)
         try {
-            await upsertAccountChoice({projectId, workflowId, itemKey, account})
+            await write(projectId)
             await invalidatePersonalAccountReads()
             return true
         } catch {
@@ -33,5 +31,15 @@ export const useAccountChoice = (workflowId: string, itemKey: string) => {
             setBusy(false)
         }
     }
-    return {choose, busy, failed}
+    /** Store `account` as the viewer's choice for this item of this agent. */
+    const choose = (account: AccountPick) =>
+        run((projectId) => upsertAccountChoice({projectId, workflowId, itemKey, account}))
+    /** Remove the viewer's choice, so runs follow their default account again. */
+    const clear = () =>
+        run(async (projectId) => {
+            const choices = await queryAccountChoices({projectId, filter: {workflowId, itemKey}})
+            for (const choice of choices)
+                await deleteAccountChoice({projectId, accountChoiceId: choice.id})
+        })
+    return {choose, clear, busy, failed}
 }

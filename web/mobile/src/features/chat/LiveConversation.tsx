@@ -140,6 +140,7 @@ export const LiveConversation = ({
     canSend = true,
     accessPending = false,
     embedded = false,
+    beforeSend,
 }: {
     entityId: string
     sessionId: string
@@ -170,6 +171,12 @@ export const LiveConversation = ({
      * the conversation's role ("page" or "embedded" builder chat) comes from `ConversationRoleContext`.
      */
     embedded?: boolean
+    /**
+     * Called when a message leaves the composer, with the person's trimmed words. Returns the
+     * text the model reads instead (the builder chat puts its context line first); the words
+     * stay the text the person sees. Omitted, the words are what the model reads.
+     */
+    beforeSend?: (text: string) => string | undefined
 }) => {
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
@@ -220,7 +227,10 @@ export const LiveConversation = ({
         }
     }, [])
     const sendFailed = useCallback(
-        (message: {text: string; fileParts?: FileUIPart[]}, error?: unknown) => {
+        (
+            message: {text: string; executionText?: string; fileParts?: FileUIPart[]},
+            error?: unknown,
+        ) => {
             refreshOnSetupFailure(error instanceof SendRefusedError ? error.refusalCode : null)
             if (onScreenRef.current) {
                 dropUnacceptedLocalSession(sessionId)
@@ -231,6 +241,10 @@ export const LiveConversation = ({
                 task: {
                     agentId: agentId ?? entityId,
                     text: message.text,
+                    // A retry sends the snapshot it was sent with, not the page of the retry.
+                    ...(message.executionText !== undefined
+                        ? {executionText: message.executionText}
+                        : {}),
                     parts: message.fileParts,
                     failureReason: refusedSendReason(error) ?? undefined,
                 },
@@ -418,7 +432,10 @@ export const LiveConversation = ({
                 await sendToConversation(input)
             } catch (error) {
                 // The durable path reports this through `onSendFailed` too; this covers the rest.
-                sendFailed({text: input.text, fileParts: input.parts}, error)
+                sendFailed(
+                    {text: input.text, executionText: input.executionText, fileParts: input.parts},
+                    error,
+                )
                 throw error
             }
         },
@@ -453,7 +470,8 @@ export const LiveConversation = ({
         }
         void sendPendingTask({
             sessionId,
-            send: (task) => send({text: task.text, parts: task.parts}),
+            send: (task) =>
+                send({text: task.text, executionText: task.executionText, parts: task.parts}),
         })
     }, [
         pendingTask,
@@ -1115,7 +1133,12 @@ export const LiveConversation = ({
                                     void sendPendingTask({
                                         sessionId,
                                         retry: true,
-                                        send: (task) => send({text: task.text, parts: task.parts}),
+                                        send: (task) =>
+                                            send({
+                                                text: task.text,
+                                                executionText: task.executionText,
+                                                parts: task.parts,
+                                            }),
                                     })
                                 }}
                             />
@@ -1136,8 +1159,14 @@ export const LiveConversation = ({
                                     // An open edit rewrites its held message instead of sending. The
                                     // input clears on submit, so the displaced draft goes back after.
                                     if (!conversation.editingId) {
-                                        if (await steerOverDocks({text, parts, stagedFiles})) return
-                                        await send({text, parts, stagedFiles})
+                                        const input = {
+                                            text,
+                                            parts,
+                                            stagedFiles,
+                                            executionText: beforeSend?.(text.trim()),
+                                        }
+                                        if (await steerOverDocks(input)) return
+                                        await send(input)
                                         return
                                     }
                                     const draft = await conversation.commitEdit({
@@ -1151,8 +1180,14 @@ export const LiveConversation = ({
                                 }}
                                 onSteer={async ({text, parts, stagedFiles}) => {
                                     if (locked) return
-                                    if (await steerOverDocks({text, parts, stagedFiles})) return
-                                    await conversation.steer({text, parts, stagedFiles})
+                                    const input = {
+                                        text,
+                                        parts,
+                                        stagedFiles,
+                                        executionText: beforeSend?.(text.trim()),
+                                    }
+                                    if (await steerOverDocks(input)) return
+                                    await conversation.steer(input)
                                 }}
                                 disabled={disabled}
                                 sendDisabled={setupBlocked}

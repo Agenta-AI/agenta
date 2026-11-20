@@ -6,7 +6,7 @@ import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationV
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
-import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useViewForm, useViewTitle, type ConfigItemRef, type ViewProps} from "@agenta/ui/view-stack"
 
 import {ReferenceToolFormView} from "../../ReferenceToolFormView"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
@@ -37,7 +37,17 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const tools = toolsOf(writer.agent)
-    const index = findSubagentIndex(tools, params.item)
+    // Saving the description drops a legacy copied `name`, which changes the entry's key; the
+    // view keeps finding its entry by the slug it opened on.
+    const [openedSlug] = useState(() => {
+        const opened = findSubagentIndex(tools, params.item)
+        return opened < 0 ? undefined : toolReferenceSlug(tools[opened])
+    })
+    const itemRef: ConfigItemRef =
+        findSubagentIndex(tools, params.item) < 0 && openedSlug
+            ? {list: "tools", key: openedSlug}
+            : params.item
+    const index = findSubagentIndex(tools, itemRef)
     const entry = index < 0 ? null : (tools[index] as Record<string, unknown>)
     // The text the view opened with. A builder save meanwhile does not reset the person's edits.
     const [original] = useState(() =>
@@ -52,7 +62,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
         save: async () => {
             writer.update((agent) => ({
                 ...agent,
-                tools: setSubagentDescription(toolsOf(agent), params.item, draft),
+                tools: setSubagentDescription(toolsOf(agent), itemRef, draft),
             }))
             return true
         },
@@ -78,7 +88,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
         setConfirming(false)
         writer.update((agent) => ({
             ...agent,
-            tools: removeSubagentByRef(toolsOf(agent), params.item),
+            tools: removeSubagentByRef(toolsOf(agent), itemRef),
         }))
         // The form belongs to the subagent that is gone: leave without asking.
         nav.cancel()

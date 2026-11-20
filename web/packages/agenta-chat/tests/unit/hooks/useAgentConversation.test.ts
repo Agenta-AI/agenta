@@ -287,6 +287,31 @@ describe("useAgentConversation", () => {
         expect(outbound?.parts).toEqual([attachment])
     })
 
+    // The builder chat sends a context line the model reads; the person's words go out as
+    // `display_content`, which every layer keeps and the bubble shows.
+    it("sends a given execution text to the model and the words as display_content", async () => {
+        fetchMock.mockResolvedValue(streamResponse("ok"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({
+                text: "Make replies shorter",
+                executionText: "[context]\n\nMake replies shorter",
+            })
+        })
+        await waitFor(() => expect(vi.mocked(buildAgentRequest)).toHaveBeenCalled())
+
+        const outbound = vi.mocked(buildAgentRequest).mock.calls.at(-1)?.[1].at(-1) as {
+            parts?: unknown
+            metadata?: unknown
+        }
+        expect(outbound?.parts).toEqual([{type: "text", text: "[context]\n\nMake replies shorter"}])
+        expect(outbound?.metadata).toEqual({display_content: "Make replies shorter"})
+    })
+
     it("runs a full turn: send → run → settle → persist + status publish", async () => {
         const store = createStore()
         const sessionId = nextSessionId()
