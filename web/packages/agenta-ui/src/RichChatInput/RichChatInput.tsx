@@ -358,9 +358,10 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
 
         const comfortable = size === "comfortable"
         const canvas = surface === "canvas"
-        // The canvas box: 14 px text on a 22 px line (15 / 20 on a phone) and a 12 px inset over
-        // a one-line editor; the toolbar sits 12 px under it (S03, M01).
-        const minHeightClassName = minHeightProp ?? (canvas ? "min-h-[34px]" : "min-h-[62px]")
+        // The canvas box: 14 px text on a 22 px line (15 / 20 in a 24 px row on a phone) and a
+        // 12 px inset over a one-line editor; the toolbar sits 12 px under it (S03, M01).
+        const minHeightClassName =
+            minHeightProp ?? (canvas ? "min-h-[34px] max-md:min-h-9" : "min-h-[62px]")
         const textSizeClassName =
             textSizeProp ??
             (canvas ? "text-sm leading-[22px] max-md:text-[15px] max-md:leading-5" : "text-xs")
@@ -446,7 +447,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             comfortable
                                 ? "px-4 pb-3 pt-1.5"
                                 : canvas
-                                  ? "pb-2.5 pl-2.5 pr-3 pt-3 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-1 max-md:pt-1.5"
+                                  ? // A phone row is 44 px: the 36 px buttons and their 4 px reach.
+                                    "pb-2.5 pl-2.5 pr-3 pt-3 max-md:min-h-14 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-1 max-md:pt-1.5"
                                   : "px-2 py-1.5",
                         )}
                     >

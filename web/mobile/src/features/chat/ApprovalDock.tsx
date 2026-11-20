@@ -46,7 +46,8 @@ export const ApprovalDock = ({
     if (approvals.length === 0) return null
     return (
         <div
-            className={`bg-background shrink-0 px-3 pt-3 ${
+            // A phone draws the card 16 px in, 4 px inside the composer's edge (M05).
+            className={`bg-background shrink-0 px-3 pt-3 max-md:px-4 ${
                 // When the composer sits below it brings its own top padding, so only the
                 // bottom-most dock pads the safe area — a full pb here just doubles the gap.
                 bottomMost ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "pb-0"

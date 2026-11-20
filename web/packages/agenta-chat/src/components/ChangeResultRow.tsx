@@ -190,7 +190,7 @@ export const ChangeResultRow = ({
                 <span className="truncate text-[13px] font-medium text-colorText">{title}</span>
                 {detail ? (
                     <span
-                        className="truncate text-xs leading-4 text-colorTextSecondary"
+                        className="truncate text-[12px] leading-4 text-colorTextSecondary"
                         title={detail}
                     >
                         {detail}

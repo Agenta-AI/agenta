@@ -209,7 +209,7 @@ const TextDiff = ({
             <div
                 className={`max-h-80 overflow-auto font-mono ${
                     bleed
-                        ? `border-0 border-y border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] py-1 text-xs ${
+                        ? `border-0 border-y border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] py-1 text-[12px] ${
                               phone ? "leading-[1.7]" : "leading-[1.8]"
                           }`
                         : "rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 text-[11px] leading-[1.7]"
@@ -228,7 +228,7 @@ const TextDiff = ({
                               `w-full text-left hover:bg-[var(--ag-surface-raised)] ${
                                   phone
                                       ? "p-3 text-[13px] leading-[22px]"
-                                      : "px-3 py-1.5 text-xs leading-5"
+                                      : "px-3 py-1.5 text-[12px] leading-5"
                               }`
                             : `self-start p-0 text-xs ${
                                   // A 44 px hit area around the 16 px line.
@@ -392,7 +392,7 @@ const ChangeHeader = ({
         <div className="flex min-w-0 items-center gap-2.5">
             <span
                 aria-hidden
-                className={`flex shrink-0 items-center justify-center rounded-md bg-colorBgLayout text-[var(--ag-zinc-8)] ${
+                className={`flex shrink-0 items-center justify-center rounded-[6px] bg-colorBgLayout text-[var(--ag-zinc-8)] ${
                     small ? "size-5" : "size-[26px]"
                 }`}
             >
@@ -406,7 +406,8 @@ const ChangeHeader = ({
                 </span>
                 {joined ? (
                     <span
-                        className="truncate text-xs leading-4 text-colorTextSecondary"
+                        // 12 / 16, the canvas's secondary line (the app's text-xs is 13 px).
+                        className="truncate text-[12px] leading-4 text-colorTextSecondary"
                         title={joined}
                         data-testid="change-path"
                     >
@@ -421,7 +422,7 @@ const ChangeHeader = ({
 export const RiskLine = ({children}: {children: ReactNode}) => (
     <div
         role="note"
-        className="flex items-start gap-2 rounded-lg bg-colorWarningBg px-2.5 py-2 text-xs leading-4 text-colorWarningText"
+        className="flex items-start gap-2 rounded-lg bg-colorWarningBg px-2.5 py-2 text-[12px] leading-4 text-colorWarningText"
         data-testid="change-risk"
     >
         <Warning size={14} aria-hidden className="mt-px shrink-0" />

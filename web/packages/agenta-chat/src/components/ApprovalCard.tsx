@@ -485,12 +485,12 @@ export const ApprovalCard = ({
                         }`}
                     >
                         {grouped ? (
-                            <span className="text-xs text-colorTextSecondary">
+                            <span className="text-[12px] leading-4 text-colorTextSecondary">
                                 {tStates("chat.changeCardStates.openRow")}
                             </span>
                         ) : changes && baseVersion !== undefined ? (
                             <span
-                                className="text-xs leading-4 text-colorTextSecondary"
+                                className="text-[12px] leading-4 text-colorTextSecondary"
                                 data-testid="change-saves-as"
                             >
                                 {tChange("chat.changeCard.savesAs", {version: baseVersion + 1})}
