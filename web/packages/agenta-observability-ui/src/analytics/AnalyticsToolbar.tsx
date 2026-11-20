@@ -141,6 +141,8 @@ export const AnalyticsToolbar = ({
     ).map((value) => ({value, label: t(GROUP_LABEL[value]), icon: GROUP_ICONS[value]}))
     // The locked agent shows as its own chip, never as a removable filter.
     const dims = locked ? DIMS.filter((d) => d.key !== "agent") : DIMS
+    // The agent's own Analytics page draws its toolbar on the canvas scale (A09).
+    const controlSize = locked ? "compact" : "sm"
     const active = dims.filter((d) => filters[d.key].length)
     const label = (dim: FilterDim, key: string) => (dim === "agent" ? agentName(key) : key)
     const [customOpen, setCustomOpen] = useState(false)
@@ -153,7 +155,7 @@ export const AnalyticsToolbar = ({
                 <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>
                     <PopoverAnchor asChild>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size={controlSize}>
                                 <ClockCounterClockwise data-icon="inline-start" />
                                 {rangeLabel}
                             </Button>
@@ -250,6 +252,7 @@ export const AnalyticsToolbar = ({
                 queryFilters={queryFilters}
                 dims={dims}
                 locked={locked}
+                size={controlSize}
             />
 
             <GroupMenu
@@ -262,6 +265,7 @@ export const AnalyticsToolbar = ({
                         : t("observabilityUi.analytics.groupWith", {group: t(GROUP_LABEL[group])})
                 }
                 icon={<ListBullets size={ICON} />}
+                size={controlSize}
             />
 
             {locked ? lockedAgentChip : null}
@@ -458,6 +462,7 @@ const AnalyticsFilterMenu = ({
     queryFilters,
     dims,
     locked,
+    size,
 }: {
     filters: AnalyticsFilters
     onChange: (filters: AnalyticsFilters) => void
@@ -469,6 +474,7 @@ const AnalyticsFilterMenu = ({
     dims: readonly (typeof DIMS)[number][]
     /** The page is locked to one agent: the list is narrowed, so the Filter dot shows (A09). */
     locked: boolean
+    size: "compact" | "sm"
 }) => {
     const t = useT(analyticsCatalog)
     const [open, setOpen] = useState(false)
@@ -534,6 +540,7 @@ const AnalyticsFilterMenu = ({
             searchPlaceholder={t("observabilityUi.analytics.searchAgentsAndModels")}
             align="start"
             active={anyActive || locked}
+            size={size}
             onReset={() => onChange({agent: [], model: []})}
             resetDisabled={!anyActive}
         />

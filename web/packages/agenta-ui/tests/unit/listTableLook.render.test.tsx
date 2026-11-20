@@ -58,11 +58,13 @@ describe("ListTable look options", () => {
     it("draws the chevron, row lines and the header classes when asked", () => {
         renderTable({
             groupCaret: "chevron",
-            rowDividers: true,
+            rowClassName: "border-b py-0",
             headerClassName: "text-xs font-normal",
         })
         const row = rowOf("First")
         expect(row.className).toContain("border-b")
+        expect(row.className).toContain("py-0")
+        expect(row.className).not.toContain("py-[13px]")
         const heading = screen.getByRole("button", {name: /Today/})
         expect(heading.querySelector("[data-slot='collapse-caret']")).toBeNull()
         expect(heading.querySelector("svg")).not.toBeNull()

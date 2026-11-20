@@ -101,7 +101,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
             data-testid="agent-channels"
         >
             <p
-                className={`m-0 text-[13px] leading-normal text-muted-foreground ${phone ? "px-4 pb-1 pt-3.5" : ""}`}
+                className={`m-0 text-[13px] leading-5 text-muted-foreground ${phone ? "px-4 pb-1 pt-3.5" : ""}`}
             >
                 {t("agentPages.channels.intro", {agent: agentName})}
             </p>
@@ -212,7 +212,7 @@ const ChannelGroup = ({
 }) =>
     phone ? (
         <section className="flex flex-col">
-            <h3 className="m-0 px-4 pb-1.5 pt-4 text-xs font-medium leading-4 text-colorTextTertiary">
+            <h3 className="m-0 px-4 pb-1.5 pt-4 text-xs font-medium leading-5 text-colorTextTertiary">
                 {title}
             </h3>
             <div className="flex flex-col">{children}</div>
@@ -225,7 +225,7 @@ const ChannelGroup = ({
     )
 
 const ROW_DESKTOP =
-    "box-border flex w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left text-[13px]"
+    "box-border flex w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left text-sm leading-5"
 const ROW_PHONE =
     "box-border flex min-h-14 w-full items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer py-1.5 pl-4 pr-2 text-left text-[15px] leading-5"
 
@@ -255,7 +255,7 @@ const ChannelRow = ({
     const body = (
         <>
             <span className="flex flex-none items-center" aria-hidden>
-                {platformLogo(platform, phone ? 22 : 28)}
+                {platformLogo(platform, phone ? 22 : 32)}
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-center gap-1.5 font-medium text-foreground">
@@ -296,7 +296,7 @@ const ChannelRow = ({
             {body}
             <Button
                 variant="outline"
-                size="sm"
+                size="compact"
                 // On a phone 36 px high with a 44 px hit area, as drawn (M13).
                 className={
                     phone
@@ -317,7 +317,7 @@ const ChannelRowsSkeleton = ({phone}: {phone: boolean}) => (
             <div key={platform} className={phone ? ROW_PHONE : ROW_DESKTOP}>
                 <SkeletonBlock
                     active
-                    className={phone ? "size-[22px] rounded" : "size-7 rounded-md"}
+                    className={phone ? "size-[22px] rounded" : "size-8 rounded-md"}
                 />
                 <div className="flex flex-1 flex-col gap-1.5">
                     <SkeletonBlock active className="h-3.5 w-20" />

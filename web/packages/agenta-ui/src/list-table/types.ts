@@ -162,8 +162,8 @@ export interface ListTableBaseProps<Row> {
      * light down chevron the agent pages draw (A02), turned to the right when collapsed.
      */
     groupCaret?: "fill" | "chevron"
-    /** A light line under each row (the Agents list, A03). */
-    rowDividers?: boolean
+    /** Extra classes for each list row, merged over its defaults (the Agents list, A03). */
+    rowClassName?: string
     /** Extra classes for the column header row, merged over its defaults. */
     headerClassName?: string
     /** Row selection with a select-all and a bulk bar. Absent ⇒ no checkbox column. */

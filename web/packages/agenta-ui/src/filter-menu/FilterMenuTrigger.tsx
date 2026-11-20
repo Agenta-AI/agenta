@@ -29,7 +29,12 @@ export const FilterMenuTrigger = ({
     const t = useT(uiControlsCatalog)
     const text = label === undefined ? defaultLabel : label
     const iconOnly = text === null || text === "" || text === false
-    const iconSize = size === "sm" || size === "icon-sm" ? "icon-sm" : "icon"
+    const iconSize =
+        size === "compact" || size === "icon-compact"
+            ? "icon-compact"
+            : size === "sm" || size === "icon-sm"
+              ? "icon-sm"
+              : "icon"
 
     return (
         <PopoverTrigger asChild>

@@ -197,7 +197,8 @@ export const AgentListScreen = ({
                                     newAgent={newAgent}
                                     base={base}
                                     align="end"
-                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                    // The canvas size (A03): 28 px high, radius 6, 13 px.
+                                    className="h-control-sm rounded-[6px] px-btn-sm text-btn-sm"
                                 />
                             </div>
                         </div>

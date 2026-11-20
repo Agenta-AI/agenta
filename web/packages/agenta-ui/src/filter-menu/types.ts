@@ -93,7 +93,7 @@ export interface FilterMenuTriggerProps {
     label?: ReactNode | null
     /** Replaces the default leading glyph. */
     icon?: ReactNode
-    size?: "sm" | "default" | "lg" | "icon" | "icon-sm"
+    size?: "sm" | "default" | "lg" | "icon" | "icon-sm" | "compact" | "icon-compact"
     variant?: "outline" | "ghost" | "default" | "secondary" | "dashed" | "link"
     triggerClassName?: string
     triggerAriaLabel?: string

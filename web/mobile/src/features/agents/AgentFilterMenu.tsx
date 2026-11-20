@@ -155,7 +155,7 @@ export const AgentFilterMenu = ({
             align="start"
             // A text button, sliders and "Filter", as drawn (A03). The default label is "Filter".
             triggerAriaLabel={t("agents.list.filterTriggerLabel")}
-            size="sm"
+            size="compact"
             active={!isDefaultAgentListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.

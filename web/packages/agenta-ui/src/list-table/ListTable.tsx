@@ -94,7 +94,7 @@ export const ListTable = <Row,>({
     hideHeader: hideHeaderProp = false,
     density = "default",
     groupCaret = "fill",
-    rowDividers = false,
+    rowClassName,
     headerClassName,
     selection,
     className,
@@ -448,8 +448,7 @@ export const ListTable = <Row,>({
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
-                                                    rowDividers &&
-                                                        "rounded-none border-b border-solid border-colorSplit",
+                                                    rowClassName,
                                                     opens(row) &&
                                                         "cursor-pointer hover:bg-accent/60",
                                                     opens(row) && FOCUS_RING,

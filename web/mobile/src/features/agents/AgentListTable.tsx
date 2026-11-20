@@ -111,7 +111,8 @@ export const AgentListTable = ({
             stickyHeader
             // As drawn (A03): quiet 12 px column names over a line, a light line under each row.
             headerClassName="border-colorBorderSecondary text-xs font-normal text-colorTextTertiary"
-            rowDividers
+            // 56 px rows with a light line under each (A03).
+            rowClassName="min-h-14 border-b border-solid border-colorSplit py-0"
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.id}
