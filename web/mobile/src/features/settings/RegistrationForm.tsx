@@ -1,5 +1,7 @@
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
 import {Button, Checkbox, Input} from "@agenta/ui/ui"
 import {useMutation} from "@tanstack/react-query"
 
@@ -24,6 +26,7 @@ export const RegistrationForm = ({
     secondary?: ReactNode
     onRegistered?: () => void
 }) => {
+    const t = useT(settingsLicenseCatalog)
     const [email, setEmail] = useState(defaultEmail ?? "")
     const [productUpdates, setProductUpdates] = useState(false)
     const register = useMutation({
@@ -37,7 +40,7 @@ export const RegistrationForm = ({
     if (register.isSuccess) {
         return (
             <p role="status" className="text-foreground m-0 text-[13px]">
-                Check your inbox. We sent a key to {register.data.email}.
+                {t("settings.license.registrationSent", {email: register.data.email})}
             </p>
         )
     }
@@ -51,7 +54,9 @@ export const RegistrationForm = ({
             }}
         >
             <label className="flex flex-col gap-1.5">
-                <span className="text-foreground text-sm font-medium">Email</span>
+                <span className="text-foreground text-sm font-medium">
+                    {t("settings.license.registrationEmail")}
+                </span>
                 <Input
                     type="email"
                     value={email}
@@ -65,7 +70,7 @@ export const RegistrationForm = ({
                 />
                 {refused ? (
                     <span role="alert" className="text-colorError text-sm">
-                        Enter a valid email address.
+                        {t("settings.license.registrationInvalidEmail")}
                     </span>
                 ) : null}
             </label>
@@ -74,18 +79,20 @@ export const RegistrationForm = ({
                     checked={productUpdates}
                     onCheckedChange={(checked) => setProductUpdates(checked === true)}
                 />
-                <span>Send me product updates. The free key needs this.</span>
+                <span>{t("settings.license.registrationProductUpdates")}</span>
             </label>
             {register.isError && !refused ? (
                 <p role="alert" className="text-colorError m-0 text-sm">
                     {isRegistrationUnreachable(register.error)
-                        ? "We could not reach Agenta. Try again later."
-                        : "We could not send the request. Try again."}
+                        ? t("settings.license.registrationUnreachable")
+                        : t("settings.license.registrationSendFailed")}
                 </p>
             ) : null}
             <div className="flex items-center gap-2">
                 <Button type="submit" disabled={!valid || !productUpdates || register.isPending}>
-                    {register.isPending ? "Sending…" : "Send me a key"}
+                    {register.isPending
+                        ? t("settings.license.registrationSending")
+                        : t("settings.license.registrationSubmit")}
                 </Button>
                 {secondary}
             </div>

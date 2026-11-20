@@ -65,6 +65,3 @@ export const captureUpgradeClick = (
     screen: UpgradeScreen,
     action: UpgradeAction,
 ) => capture("upgrade_prompt_clicked", {feature, screen, action})
-
-/** The line under a self-hosted locked section; cloud keeps the plan names. */
-export const SELF_HOSTED_AVAILABILITY = "Available with an Enterprise license."

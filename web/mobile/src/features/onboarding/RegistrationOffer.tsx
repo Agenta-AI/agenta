@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import onboardingRegistrationOfferCatalog from "@agenta/i18n/catalogs/onboarding.registrationOffer"
 import {
     Button,
     Dialog,
@@ -27,16 +29,16 @@ export const RegistrationOffer = ({
     largeCompany: boolean
     onClose: () => void
 }) => {
+    const t = useT(onboardingRegistrationOfferCatalog)
     const [registered, setRegistered] = useState(false)
 
     return (
         <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Get a free key</DialogTitle>
+                    <DialogTitle>{t("onboarding.registrationOffer.title")}</DialogTitle>
                     <DialogDescription>
-                        Get product updates and the free features we add later. We email you a free
-                        key.
+                        {t("onboarding.registrationOffer.description")}
                     </DialogDescription>
                 </DialogHeader>
                 <RegistrationForm
@@ -45,13 +47,13 @@ export const RegistrationOffer = ({
                     onRegistered={() => setRegistered(true)}
                     secondary={
                         <Button type="button" variant="ghost" onClick={onClose}>
-                            Skip
+                            {t("onboarding.registrationOffer.skip")}
                         </Button>
                     }
                 />
                 {registered ? (
                     <Button type="button" className="self-start" onClick={onClose}>
-                        Continue
+                        {t("onboarding.registrationOffer.continue")}
                     </Button>
                 ) : null}
                 {largeCompany ? (
@@ -61,7 +63,7 @@ export const RegistrationOffer = ({
                         rel="noreferrer"
                         className="text-foreground text-[13px] underline"
                     >
-                        Talk to us about Enterprise
+                        {t("onboarding.registrationOffer.talkAboutEnterprise")}
                     </a>
                 ) : null}
             </DialogContent>

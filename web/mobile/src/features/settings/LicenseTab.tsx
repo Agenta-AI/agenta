@@ -81,10 +81,11 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
             {!license.data.license ? (
                 <section className="flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
-                        <h3 className="text-foreground m-0 text-sm font-medium">Get a free key</h3>
+                        <h3 className="text-foreground m-0 text-sm font-medium">
+                            {t("settings.license.freeKeyTitle")}
+                        </h3>
                         <p className="text-muted-foreground m-0 text-[13px]">
-                            Register this instance with your email. We send you a key, product
-                            updates and the free features we add later.
+                            {t("settings.license.freeKeyDescription")}
                         </p>
                     </div>
                     <RegistrationForm projectId={projectId} defaultEmail={user?.email} />
