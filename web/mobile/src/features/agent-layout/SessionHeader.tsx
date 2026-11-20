@@ -5,6 +5,7 @@ import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {agentDisplayNameAtomFamily} from "@agenta/navigation"
+import {agentAutoCommitStatusAtomFamily} from "@agenta/playground/state"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {cn} from "@agenta/ui/styles"
@@ -112,6 +113,8 @@ export const SessionHeader = ({
                 checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
             />
         ) : null
+    // On a phone the Configuration tab row shows the version; row 2 shows it only on a failed save.
+    const saveFailed = useAtomValue(agentAutoCommitStatusAtomFamily(entityId ?? "")) === "error"
     const sessionTitle = session.data?.name || t("agentLayout.header.untitledSession")
     const sharing = (
         <SessionSharingControl
@@ -176,12 +179,18 @@ export const SessionHeader = ({
                             onRetry={sessionOrder.retry}
                         />
                     ) : null}
-                    {/* The version status: the save state, a failed save with its retry, and
-                        the offer of a newer version. It keeps its drawn size; the hit area of
-                        each of its buttons grows to 44 px, as for the share control. The retry of a
-                        failed save is a span with the button role, so the rule matches that role. */}
+                    {/* Mounted even when hidden: it drives session follow. A save can fail after
+                        the person leaves Configuration, so the notice and retry show here. Hit
+                        areas grow to 44 px as for the share control; the retry is a span with the
+                        button role. */}
                     {revisionStatus ? (
-                        <span className="flex shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-3 [&_:is(button,[role=button])]:after:content-['']">
+                        <span
+                            data-testid="session-header-save-status"
+                            className={cn(
+                                "shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-3 [&_:is(button,[role=button])]:after:content-['']",
+                                saveFailed ? "flex" : "hidden",
+                            )}
+                        >
                             {revisionStatus}
                         </span>
                     ) : null}

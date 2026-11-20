@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {agentAutoCommitStatusAtomFamily} from "@agenta/playground/state"
 import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {cleanup, fireEvent, render, screen, waitFor, within} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
@@ -23,7 +24,13 @@ vi.mock("@agenta/entity-ui/agent", () => ({
     AgentIdentity: ({name}: {name: string}) => <span>{name}</span>,
     useAgentActions: () => actions,
 }))
-vi.mock("@agenta/playground-ui/agent-page-header", () => ({AgentRevisionStatus: () => null}))
+vi.mock("@agenta/playground-ui/agent-page-header", () => ({
+    AgentRevisionStatus: () => (
+        <button type="button" aria-label="Retry saving">
+            v4
+        </button>
+    ),
+}))
 vi.mock("@agenta/sessions-ui", () => ({SessionCardList: () => null}))
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/sessions/useSessionRowMenu", () => ({useSessionRowMenu: () => ({})}))
@@ -68,10 +75,11 @@ const panel = (over: Partial<AgentPanelApi> = {}): AgentPanelApi => ({
 
 const renderHeader = (
     apiIn: AgentPanelApi,
-    {hidden = false, builder = false, inspector = false} = {},
+    {hidden = false, builder = false, inspector = false, saveFailed = false} = {},
 ) => {
     let api = apiIn
     const store = createStore()
+    if (saveFailed) store.set(agentAutoCommitStatusAtomFamily("rev-1"), "error")
     store.set(activeUserIdAtom, "qa-user")
     store.set(playgroundInspectorEnabledAtom, inspector)
     if (builder) api = {...api, available: {...api.available, builder: true}}
@@ -218,6 +226,21 @@ describe("the session header on a phone", () => {
         expect(within(sheet).getByRole("link", {name: "Sessions"})).toBeTruthy()
         fireEvent.click(within(sheet).getByRole("button", {name: "Cancel"}))
         await waitFor(() => expect(screen.queryByTestId("session-sheet")).toBeNull())
+    })
+
+    // jsdom applies no Tailwind styles, so the shown or hidden state is read from the class.
+    it("keeps the version status mounted but hidden in row 2, and shows it while a save failed", () => {
+        renderHeader(panel({phone: true}))
+        const hidden = screen.getByTestId("session-header-save-status")
+        // Mounted while hidden: it drives session follow.
+        expect(within(hidden).getByRole("button", {name: "Retry saving"})).toBeTruthy()
+        expect(hidden.className).toContain("hidden")
+        cleanup()
+        renderHeader(panel({phone: true}), {saveFailed: true})
+        const shown = screen.getByTestId("session-header-save-status")
+        expect(within(shown).getByRole("button", {name: "Retry saving"})).toBeTruthy()
+        expect(shown.className).not.toContain("hidden")
+        expect(shown.className).toContain("flex")
     })
 
     it("shows no Configuration and no Builder for a private agent the reader cannot see", () => {
