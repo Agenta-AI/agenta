@@ -11,6 +11,7 @@ import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {useAgentPanel} from "../agent-layout/agentPanelContext"
 import {useAgentRow} from "../agent-layout/useAgentRow"
+import {BuilderChatContext} from "../chat/builderChat"
 import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
 import {pageSessionIdAtom} from "../chat/pageSessionId"
@@ -265,7 +266,9 @@ export const BuilderChat = ({
                 focus is in it, never the session's own approval card. It stays mounted under the
                 history, so its composer text and scroll position are there on the way back. */}
             <ConversationRoleContext.Provider value="embedded">
-                <div className={view === "history" ? "hidden" : "min-h-0 flex-1"}>{body}</div>
+                <BuilderChatContext.Provider value>
+                    <div className={view === "history" ? "hidden" : "min-h-0 flex-1"}>{body}</div>
+                </BuilderChatContext.Provider>
             </ConversationRoleContext.Provider>
         </div>
     )

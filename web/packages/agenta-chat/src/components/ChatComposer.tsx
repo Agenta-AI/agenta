@@ -71,6 +71,8 @@ export interface ChatComposerProps {
     hideShortcutHints?: boolean
     /** The box's look: `canvas` is the builder layout design (see RichChatInput). */
     surface?: ComposerSurface
+    /** The agent this composer talks to: the resting placeholder reads "Message <agent>". */
+    agentName?: string | null
     /** Full placeholder override; when absent, `waitingOnUser` picks the queue message. */
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
@@ -132,6 +134,7 @@ export const ChatComposer = ({
     hideSendButton,
     hideShortcutHints,
     placeholder,
+    agentName,
     surface,
     waitingOnUser,
     hasTurns = false,
@@ -260,7 +263,8 @@ export const ChatComposer = ({
                 onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
-                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || hasTurns)}
+                // With "Message <agent>" in the field, the key hints stay on as chips (shown on focus).
+                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || (hasTurns && !agentName))}
                 // A touch keyboard has no modifier to make a newline with, so its Enter IS the
                 // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
                 submitOnEnter={hasKeyboard}
@@ -272,12 +276,15 @@ export const ChatComposer = ({
                           ? // The parked interaction is docked directly above, so point at it rather
                             // than describing the wait in the abstract.
                             t("chat.chatComposer.placeholderWaiting")
-                          : !hasTurns
-                            ? t("chat.chatComposer.placeholderFirst")
-                            : // An ongoing session carries the key hints here instead of as chips.
-                              hasKeyboard
-                              ? t("chat.chatComposer.placeholderKeyboard")
-                              : t("chat.chatComposer.placeholderTouch"))
+                          : agentName
+                            ? // The canvas names the agent (M01, S03); the key hints stay as chips.
+                              t("chat.chatComposer.placeholderAgent", {agent: agentName})
+                            : !hasTurns
+                              ? t("chat.chatComposer.placeholderFirst")
+                              : // An ongoing session carries the key hints here instead of as chips.
+                                hasKeyboard
+                                ? t("chat.chatComposer.placeholderKeyboard")
+                                : t("chat.chatComposer.placeholderTouch"))
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}

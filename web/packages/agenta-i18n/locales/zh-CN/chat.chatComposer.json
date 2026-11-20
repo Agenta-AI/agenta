@@ -3,6 +3,7 @@
     "attachFiles": "添加附件",
     "attachUpTo": "最多 {{count}} 个文件",
     "listening": "正在聆听…",
+    "placeholderAgent": "给 {{agent}} 发消息",
     "placeholderFirst": "我们要做什么？",
     "placeholderKeyboard": "问问 Agent…（回车发送，⌘/Ctrl+回车换行）",
     "placeholderQuoted": "引用的部分要改什么？",

@@ -102,9 +102,11 @@ vi.mock("@agenta/entities/session", async () => {
 vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     const ready = atom(true)
+    const name = atom("Support triage")
     return {
         invalidateAgentCommittedRevisionCache: vi.fn(),
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
+        workflowMolecule: {selectors: {artifactName: () => name}},
     }
 })
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))

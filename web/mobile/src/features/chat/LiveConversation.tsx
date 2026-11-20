@@ -51,6 +51,7 @@ import {
 import {
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
+    workflowMolecule,
 } from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
@@ -71,6 +72,7 @@ import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
+import {ContentRailCapContext} from "@/components/contentRailCap"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBuilderCommitChecks} from "../builder/useBuilderCommitChecks"
@@ -87,6 +89,7 @@ import {CreditAlertStrip} from "../wallet/CreditAlertStrip"
 import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {useIsBuilderChat} from "./builderChat"
 import {waitForBuildKit} from "./buildKitWait"
 import {ChangeResultHostContext} from "./changeResultHost"
 import {createCommitFollower} from "./commitFollower"
@@ -222,6 +225,10 @@ export const LiveConversation = ({
     onMessagesChanged?: (messages: UIMessage[]) => void
 }) => {
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
+    // The builder's own chat: its answers carry the author line and its cards no always-allow.
+    const builderChat = useIsBuilderChat()
+    // The composer reads "Message <agent>" in the agent's own chat.
+    const agentName = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
@@ -1000,77 +1007,86 @@ export const LiveConversation = ({
         body = <ChatLoading />
     } else {
         body = (
-            <ContentRail
-                ref={quoteRootRef}
-                className="relative flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-            >
-                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
-                {/* A held or failed Home task stays visible until accepted. */}
-                {heldTaskText ? (
-                    <div className={`${mobileTurnRowClass} justify-end`}>
-                        <ChatBubble
-                            placement="end"
-                            variant="filled"
-                            className="min-w-0 max-w-[85%]"
-                            classNames={{
-                                content: "min-w-0 max-w-full overflow-hidden text-xs",
-                                body: "min-w-0 max-w-full overflow-hidden",
-                            }}
-                            content={
-                                <span className="whitespace-pre-wrap break-words">
-                                    {heldTaskText}
-                                </span>
-                            }
-                        />
-                    </div>
-                ) : null}
-                {conversation.isEmpty ? (
-                    // The SAME card the desktop shows a conversation with no messages: who you are
-                    // about to talk to. A blank session is not an error state — /m rendered nothing
-                    // here, and for a freshly minted one it claimed the history was unavailable,
-                    // which is a different and much more alarming thing to say.
-                    <div
-                        className={`${groupLayout === "middle" ? "mx-auto mt-auto" : groupLayout === "top" ? "mx-auto" : "m-auto"} w-full max-w-[420px]`}
-                    >
-                        {emptyState ?? <AgentIntroCard entityId={entityId} />}
-                        {conversation.historyReadFailed ? (
-                            <div className="mt-3 flex flex-col items-center gap-2">
-                                <p className="text-muted-foreground m-0 text-center text-xs">
-                                    {t("chat.mobileLive.couldNotLoadEarlier")}
+            // The 16 px side inset sits outside the rail, so the messages are as wide as the
+            // composer column.
+            <div className="flex grow flex-col px-4">
+                <ContentRail
+                    ref={quoteRootRef}
+                    className="relative flex grow flex-col gap-3 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+                >
+                    <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
+                    {/* A held or failed Home task stays visible until accepted. */}
+                    {heldTaskText ? (
+                        <div className={`${mobileTurnRowClass} justify-end`}>
+                            <ChatBubble
+                                placement="end"
+                                variant="filled"
+                                className="min-w-0 max-w-[85%]"
+                                classNames={{
+                                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                                    body: "min-w-0 max-w-full overflow-hidden",
+                                }}
+                                content={
+                                    <span className="whitespace-pre-wrap break-words">
+                                        {heldTaskText}
+                                    </span>
+                                }
+                            />
+                        </div>
+                    ) : null}
+                    {conversation.isEmpty ? (
+                        // The SAME card the desktop shows a conversation with no messages: who you are
+                        // about to talk to. A blank session is not an error state — /m rendered nothing
+                        // here, and for a freshly minted one it claimed the history was unavailable,
+                        // which is a different and much more alarming thing to say.
+                        <div
+                            className={`${groupLayout === "middle" ? "mx-auto mt-auto" : groupLayout === "top" ? "mx-auto" : "m-auto"} w-full max-w-[420px]`}
+                        >
+                            {emptyState ?? <AgentIntroCard entityId={entityId} />}
+                            {conversation.historyReadFailed ? (
+                                <div className="mt-3 flex flex-col items-center gap-2">
+                                    <p className="text-muted-foreground m-0 text-center text-xs">
+                                        {t("chat.mobileLive.couldNotLoadEarlier")}
+                                    </p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={conversation.retryHistory}
+                                    >
+                                        {t("chat.mobileLive.tryAgain")}
+                                    </Button>
+                                </div>
+                            ) : conversation.historyUnavailable ? (
+                                <p className="text-muted-foreground mt-3 text-center text-xs">
+                                    {t("chat.mobileLive.noMessagesSaved")}
                                 </p>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={conversation.retryHistory}
-                                >
-                                    {t("chat.mobileLive.tryAgain")}
-                                </Button>
-                            </div>
-                        ) : conversation.historyUnavailable ? (
-                            <p className="text-muted-foreground mt-3 text-center text-xs">
-                                {t("chat.mobileLive.noMessagesSaved")}
-                            </p>
-                        ) : null}
-                    </div>
-                ) : null}
-                <UserMessageAccessoryContext.Provider value={readUserMessageAccessory}>
-                    <ChangeResultHostContext.Provider value={changeResultHost}>
-                        <TranscriptTurns
-                            turns={visibleTurns}
-                            scrollerRef={autoScroll.ref}
-                            sessionId={sessionId}
-                            remoteRunning={showingTurnActivity && !streamingHere}
-                            waitingOnUser={parkedOnUser}
-                            resuming={resumingAfterAnswer}
-                            pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
-                            // A tool answer and a rewind both write: someone who cannot send here cannot
-                            // answer a tool or re-run a turn (retry rides rewind) either.
-                            onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
-                            onRewind={locked ? undefined : handleRewind}
-                        />
-                    </ChangeResultHostContext.Provider>
-                </UserMessageAccessoryContext.Provider>
-            </ContentRail>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    <UserMessageAccessoryContext.Provider value={readUserMessageAccessory}>
+                        <ChangeResultHostContext.Provider value={changeResultHost}>
+                            <TranscriptTurns
+                                turns={visibleTurns}
+                                scrollerRef={autoScroll.ref}
+                                sessionId={sessionId}
+                                remoteRunning={showingTurnActivity && !streamingHere}
+                                waitingOnUser={parkedOnUser}
+                                resuming={resumingAfterAnswer}
+                                pending={showTrailingWorkingPulse(
+                                    showingTurnActivity,
+                                    visibleTurns,
+                                )}
+                                // A tool answer and a rewind both write: someone who cannot send here cannot
+                                // answer a tool or re-run a turn (retry rides rewind) either.
+                                onClientToolOutput={
+                                    locked ? undefined : conversation.sendToolOutput
+                                }
+                                onRewind={locked ? undefined : handleRewind}
+                            />
+                        </ChangeResultHostContext.Provider>
+                    </UserMessageAccessoryContext.Provider>
+                </ContentRail>
+            </div>
         )
     }
 
@@ -1251,6 +1267,7 @@ export const LiveConversation = ({
                             <Composer
                                 entityId={entityId}
                                 sessionId={sessionId}
+                                agentName={builderChat ? undefined : agentName}
                                 attachments={attachments}
                                 onRefusedOverDraft={({text, parts}) =>
                                     conversation.keepRefusedSend({text, fileParts: parts})
@@ -1332,8 +1349,13 @@ export const LiveConversation = ({
         </ConnectionFocusProvider>
     )
 
-    // Marks this conversation for the focus rule of its shortcuts and its approval card.
-    const rootedScaffold = <ConversationRoot>{scaffold}</ConversationRoot>
+    // Marks this conversation for the focus rule of its shortcuts and its approval card. Every rail
+    // inside takes the canvas column: 720 px in a session, 780 px on the builder page.
+    const rootedScaffold = (
+        <ContentRailCapContext.Provider value={builderChat ? "max-w-[780px]" : "max-w-[720px]"}>
+            <ConversationRoot>{scaffold}</ConversationRoot>
+        </ContentRailCapContext.Provider>
+    )
 
     // Embedded: the workspace owns the shell and the pane geometry.
     return embedded ? (
