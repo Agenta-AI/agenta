@@ -212,7 +212,7 @@ export const ChatScreen = ({
             // Per SESSION only — see `conversationKey`. Keying it here and not the page keeps the
             // shell, the split and the config pane mounted while the transcript is rebuilt.
             key={conversationKey({sessionId, revisionId: heldEntityId})}
-            embedded
+            parentOwnsShell
             entityId={heldEntityId}
             sessionId={sessionId}
             projectId={projectId}

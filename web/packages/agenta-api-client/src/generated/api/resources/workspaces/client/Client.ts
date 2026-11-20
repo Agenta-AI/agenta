@@ -89,15 +89,9 @@ export class WorkspacesClient {
     }
 
     /**
-     * Get all workspace roles.
-     *
-     * Returns a list of all available workspace roles.
-     *
-     * Returns:
-     *     List[WorkspaceRoleResponse]: A list of DefaultRole objects representing the available workspace roles.
-     *
-     * Raises:
-     *     HTTPException: If an error occurs while retrieving the workspace roles.
+     * Get the offered roles of the caller's organization: the roles its invites and
+     * role changes may set. The plan decides the list; `GET /access/roles`
+     * also returns the full catalog.
      *
      * @param {WorkspacesClient.RequestOptions} requestOptions - Request-specific configuration.
      *

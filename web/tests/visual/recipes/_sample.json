@@ -14,6 +14,6 @@
         "width": 1440,
         "height": 900,
         "theme": "light",
-        "steps": []
+        "steps": [{"wait": "button:\"Continue\""}]
     }
 ]

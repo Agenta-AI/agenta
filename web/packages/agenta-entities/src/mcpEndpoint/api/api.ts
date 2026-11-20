@@ -1,6 +1,6 @@
 // This domain uses the shared Axios client the host configures. The person's own sign-in calls
-// (`owner_kind=user`) use the generated client.
-import {getGatewayMcpClient} from "@agenta/sdk/resources"
+// (`owner_kind=user`) and the gateway credential use the generated client.
+import {getGatewayClient, getGatewayMcpClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
 import {USER_ACCOUNT_SOURCE, userItemKey, type AccountSource} from "../../accountChoice/items"
@@ -304,12 +304,11 @@ export const listMcpTools = async (
     // credential names the item, the server resolves the viewer's own account for it, and the
     // relay is asked for the person's sign-in rather than the project's.
     const personal = accountSource === USER_ACCOUNT_SOURCE
-    const minted = await axios.post(
-        `${getAgentaApiUrl()}/gateways/credentials`,
+    const minted = await getGatewayClient().issueGatewayCredentials(
         personal ? {item_keys: [userItemKey("mcp_server", slug)]} : {},
-        {params},
+        {queryParams: params},
     )
-    const credentials = minted.data?.credentials
+    const credentials = minted?.credentials
     if (!credentials) throw new McpProtocolError("Could not authorize the tool list request.")
     const relayParams = personal ? {...params, account_source: USER_ACCOUNT_SOURCE} : params
 
