@@ -1,10 +1,15 @@
 import {useCallback} from "react"
 
-import {AgentOperationsSections, type TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
+import {
+    AgentOperationsSections,
+    type AutomationAddKind,
+    type TriggerOwnerRef,
+} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {useViewStack} from "@agenta/ui/view-stack"
 
 import {automationRunHistoryView} from "../automations/automationRunHistoryView"
+import {automationNewView, automationView} from "../automations/automationView"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
@@ -39,6 +44,26 @@ export const AutomationsTab = ({
             ),
         [projectId, stack, workspaceId],
     )
+    // The automation and its create forms open in the panel as views, not drawers.
+    const openAutomation = useCallback(
+        ({id, kind}: TriggerOwnerRef) =>
+            void stack.open(
+                automationView,
+                {
+                    automationId: id,
+                    kind: kind === "schedule" ? ("schedule" as const) : ("event" as const),
+                    workspaceId,
+                    projectId,
+                },
+                {kind: "project"},
+            ),
+        [projectId, stack, workspaceId],
+    )
+    const addAutomation = useCallback(
+        (kind: AutomationAddKind, references: Record<string, {id?: string; slug?: string}>) =>
+            void stack.open(automationNewView, {kind, revisionId, references}, {kind: "project"}),
+        [revisionId, stack],
+    )
     return (
         <div className="ag-scroll-no-bar h-full min-h-0 overflow-y-auto">
             <DrillInBridgeProvider projectId={projectId}>
@@ -60,9 +85,12 @@ export const AutomationsTab = ({
                             scope={filesScope}
                         />
                     }
-                    // The session workspace mounts the automation drawers.
+                    // The automations open as views; the session workspace still mounts the
+                    // automation drawers for its other openers.
                     automationDrawer={null}
                     onOpenRunHistory={openRunHistory}
+                    onOpenAutomation={openAutomation}
+                    onAddAutomation={addAutomation}
                 />
             </DrillInBridgeProvider>
         </div>

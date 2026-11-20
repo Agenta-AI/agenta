@@ -16,7 +16,7 @@
  *  2. Default-bind — opening a create drawer from this section pre-binds the new trigger
  *     to the current agent via `defaultReferences` (see the trigger drawer atoms).
  */
-import {useCallback, type ReactNode} from "react"
+import {useCallback, useState, type ReactNode} from "react"
 
 import {
     getScheduleMessagePreview,
@@ -29,6 +29,8 @@ import {
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
+import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
@@ -45,12 +47,15 @@ import {
 import {useSetAtom} from "jotai"
 
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
+import {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
 const tNow = createT(triggersCatalog)
+const tScreens = createT(automationsScreensCatalog)
 
-export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
+export {AddTriggerDropdown, type AutomationAddKind} from "./triggerManagement/AddTriggerDropdown"
+export {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
 /** Which automation a row action names: a schedule or an event subscription, by id. */
@@ -70,6 +75,11 @@ export interface TriggerManagementSectionProps {
      */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
     /**
+     * Where a row click and "Edit" go: the host opens the automation view. Absent, they open the
+     * automation drawer.
+     */
+    onOpenAutomation?: (owner: TriggerOwnerRef) => void
+    /**
      * The unified create/edit automation drawer, mounted once by this section. This package
      * cannot import it directly (that package depends on this one), so the host passes it in.
      */
@@ -80,21 +90,49 @@ export function TriggerManagementSection({
     entityId,
     disabled,
     onOpenRunHistory,
+    onOpenAutomation,
     automationDrawer,
 }: TriggerManagementSectionProps) {
-    const t = useT(triggersCatalog)
+    const t = useT(triggersCatalog, automationsPanelCatalog)
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
 
     const {
         remove: removeSubscription,
         refresh: refreshSubscription,
         revoke: revokeSubscription,
+        setActive: setSubscriptionActive,
     } = useTriggerSubscription()
     const {remove: removeSchedule, setActive: setScheduleActive} = useTriggerSchedule()
 
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
+    // "Delete" asks first (F06 f4); the dialog runs the delete and reports a failure.
+    const [pendingDelete, setPendingDelete] = useState<{
+        name: string
+        remove: () => Promise<void>
+    } | null>(null)
+
+    // Deactivate and Activate act at once, for both kinds. No agent version is saved.
+    const toggleAutomation = useCallback(
+        async (
+            setActive: (id: string, next: boolean) => Promise<void>,
+            id: string,
+            next: boolean,
+        ) => {
+            try {
+                await setActive(id, next)
+                message.success(
+                    next
+                        ? tScreens("automations.screens.switchedOn")
+                        : tScreens("automations.screens.switchedOff"),
+                )
+            } catch {
+                message.error(tScreens("automations.screens.changeFailed"))
+            }
+        },
+        [],
+    )
 
     // A schedule (cron) has no external event to replay — simulate it with its own
     // configured inputs, exactly like the schedule drawer's "Run in playground".
@@ -120,243 +158,216 @@ export function TriggerManagementSection({
         [entityId, setPendingRun],
     )
 
-    // ---- subscription actions ----
-    // The menu body is composed JSX (the `@agenta/ui` DropdownMenu has no items array).
-    // No per-item stopPropagation: the menu portals out of the row, so item clicks never
-    // bubble back to the row's onClick.
+    // A row click and "Edit" open the automation: as a view where the host has a stack, else in
+    // the automation drawer.
+    const openSchedule = useCallback(
+        (id: string) =>
+            onOpenAutomation
+                ? onOpenAutomation({kind: "schedule", id})
+                : openScheduleDrawer({scheduleId: id, playgroundEntityId: entityId ?? undefined}),
+        [entityId, onOpenAutomation, openScheduleDrawer],
+    )
+    const openSubscription = useCallback(
+        (id: string) =>
+            onOpenAutomation
+                ? onOpenAutomation({kind: "subscription", id})
+                : openSubscriptionDrawer({
+                      subscriptionId: id,
+                      playgroundEntityId: entityId ?? undefined,
+                  }),
+        [entityId, onOpenAutomation, openSubscriptionDrawer],
+    )
+
+    // ---- row menus ----
+    // The menu body is composed JSX (the `@agenta/ui` DropdownMenu has no items array). No
+    // per-item stopPropagation: the menu portals out of the row, so item clicks never bubble
+    // back to the row's onClick. A viewer gets "Run history" only.
+    const runHistoryItem = (owner: TriggerOwnerRef) =>
+        onOpenRunHistory ? (
+            <DropdownMenuItem onSelect={() => onOpenRunHistory(owner)}>
+                <ClockCounterClockwise size={16} />
+                {tNow("entityUi.triggers.runHistory")}
+            </DropdownMenuItem>
+        ) : null
+
+    const toggleItem = (active: boolean, onToggle: (next: boolean) => void) =>
+        active ? (
+            <DropdownMenuItem onSelect={() => onToggle(false)}>
+                <Pause size={16} />
+                {tNow("entityUi.triggers.deactivate")}
+            </DropdownMenuItem>
+        ) : (
+            <DropdownMenuItem onSelect={() => onToggle(true)}>
+                <Play size={16} />
+                {tNow("entityUi.triggers.activate")}
+            </DropdownMenuItem>
+        )
+
+    const deleteItem = (name: string, remove: () => Promise<void>) => (
+        <DropdownMenuItem variant="destructive" onSelect={() => setPendingDelete({name, remove})}>
+            <Trash size={16} />
+            {tNow("entityUi.triggers.delete")}
+        </DropdownMenuItem>
+    )
+
     const subscriptionMenu = useCallback(
-        (record: TriggerSubscription): ReactNode => (
-            <>
-                {onOpenRunHistory ? (
+        (record: TriggerSubscription): ReactNode => {
+            const id = record.id
+            if (!id) return null
+            if (disabled) return runHistoryItem({kind: "subscription", id})
+            return (
+                <>
+                    {runHistoryItem({kind: "subscription", id})}
+                    <DropdownMenuItem onSelect={() => openSubscription(id)}>
+                        <PencilSimpleLine size={16} />
+                        {tNow("entityUi.triggers.edit")}
+                    </DropdownMenuItem>
+                    {toggleItem(
+                        isEntityActive(record),
+                        (next) => void toggleAutomation(setSubscriptionActive, id, next),
+                    )}
                     <DropdownMenuItem
-                        onSelect={() => {
-                            if (record.id) onOpenRunHistory({kind: "subscription", id: record.id})
+                        onSelect={async () => {
+                            try {
+                                await refreshSubscription(id)
+                                message.success(tNow("entityUi.triggers.subscriptionRefreshed"))
+                            } catch {
+                                message.error(tNow("entityUi.triggers.subscriptionRefreshFailed"))
+                            }
                         }}
                     >
-                        <ClockCounterClockwise size={16} />
-                        {tNow("entityUi.triggers.runHistory")}
+                        <ArrowsClockwise size={16} />
+                        {tNow("entityUi.triggers.refresh")}
                     </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem
-                    disabled={disabled}
-                    onSelect={() => {
-                        if (record.id)
-                            openSubscriptionDrawer({
-                                subscriptionId: record.id,
-                                playgroundEntityId: entityId ?? undefined,
-                            })
-                    }}
-                >
-                    <PencilSimpleLine size={16} />
-                    {tNow("entityUi.triggers.edit")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                    disabled={disabled}
-                    onSelect={async () => {
-                        if (!record.id) return
-                        try {
-                            await refreshSubscription(record.id)
-                            message.success(tNow("entityUi.triggers.subscriptionRefreshed"))
-                        } catch {
-                            message.error(tNow("entityUi.triggers.subscriptionRefreshFailed"))
-                        }
-                    }}
-                >
-                    <ArrowsClockwise size={16} />
-                    {tNow("entityUi.triggers.refresh")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    disabled={disabled}
-                    onSelect={async () => {
-                        if (!record.id) return
-                        try {
-                            await revokeSubscription(record.id)
-                            message.success(tNow("entityUi.triggers.subscriptionRevoked"))
-                        } catch {
-                            message.error(tNow("entityUi.triggers.subscriptionRevokeFailed"))
-                        }
-                    }}
-                >
-                    <XCircle size={16} />
-                    {tNow("entityUi.triggers.revoke")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                    variant="destructive"
-                    disabled={disabled}
-                    onSelect={async () => {
-                        if (!record.id) return
-                        try {
-                            await removeSubscription(record.id)
-                            message.success(tNow("entityUi.triggers.subscriptionDeleted"))
-                        } catch {
-                            message.error(tNow("entityUi.triggers.subscriptionDeleteFailed"))
-                        }
-                    }}
-                >
-                    <Trash size={16} />
-                    {tNow("entityUi.triggers.delete")}
-                </DropdownMenuItem>
-            </>
-        ),
+                    <DropdownMenuItem
+                        onSelect={async () => {
+                            try {
+                                await revokeSubscription(id)
+                                message.success(tNow("entityUi.triggers.subscriptionRevoked"))
+                            } catch {
+                                message.error(tNow("entityUi.triggers.subscriptionRevokeFailed"))
+                            }
+                        }}
+                    >
+                        <XCircle size={16} />
+                        {tNow("entityUi.triggers.revoke")}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {deleteItem(record.name ?? "", async () => {
+                        await removeSubscription(id)
+                        message.success(tScreens("automations.screens.deleted"))
+                    })}
+                </>
+            )
+        },
         [
-            entityId,
+            disabled,
             onOpenRunHistory,
-            openSubscriptionDrawer,
+            openSubscription,
             refreshSubscription,
             revokeSubscription,
             removeSubscription,
-            disabled,
+            setSubscriptionActive,
+            toggleAutomation,
         ],
-    )
-
-    // ---- schedule actions ----
-    const toggleSchedule = useCallback(
-        async (record: TriggerSchedule, next: boolean) => {
-            if (!record.id) return
-            try {
-                await setScheduleActive(record.id, next)
-                message.success(
-                    next
-                        ? tNow("entityUi.triggers.scheduleResumed")
-                        : tNow("entityUi.triggers.schedulePaused"),
-                )
-            } catch {
-                message.error(tNow("entityUi.triggers.scheduleUpdateFailed"))
-            }
-        },
-        [setScheduleActive],
     )
 
     const scheduleMenu = useCallback(
-        (record: TriggerSchedule): ReactNode => (
-            <>
-                <DropdownMenuItem
-                    disabled={disabled || !record.id}
-                    onSelect={() => simulateSchedule(record)}
-                >
-                    <Play size={16} />
-                    {tNow("entityUi.triggers.runNow")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {onOpenRunHistory ? (
-                    <DropdownMenuItem
-                        onSelect={() => {
-                            if (record.id) onOpenRunHistory({kind: "schedule", id: record.id})
-                        }}
-                    >
-                        <ClockCounterClockwise size={16} />
-                        {tNow("entityUi.triggers.runHistory")}
-                    </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem
-                    disabled={disabled}
-                    onSelect={() => {
-                        if (record.id)
-                            openScheduleDrawer({
-                                scheduleId: record.id,
-                                playgroundEntityId: entityId ?? undefined,
-                            })
-                    }}
-                >
-                    <PencilSimpleLine size={16} />
-                    {tNow("entityUi.triggers.edit")}
-                </DropdownMenuItem>
-                {isEntityActive(record) ? (
-                    <DropdownMenuItem
-                        disabled={disabled || !record.id}
-                        onSelect={() => toggleSchedule(record, false)}
-                    >
-                        <Pause size={16} />
-                        {tNow("entityUi.triggers.deactivate")}
-                    </DropdownMenuItem>
-                ) : (
-                    <DropdownMenuItem
-                        disabled={disabled || !record.id}
-                        onSelect={() => toggleSchedule(record, true)}
-                    >
+        (record: TriggerSchedule): ReactNode => {
+            const id = record.id
+            if (!id) return null
+            if (disabled) return runHistoryItem({kind: "schedule", id})
+            return (
+                <>
+                    {/* Run now stays as today: the session's browser path (useTriggerTestRun). */}
+                    <DropdownMenuItem onSelect={() => simulateSchedule(record)}>
                         <Play size={16} />
-                        {tNow("entityUi.triggers.activate")}
+                        {tNow("entityUi.triggers.runNow")}
                     </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    variant="destructive"
-                    disabled={disabled}
-                    onSelect={async () => {
-                        if (!record.id) return
-                        try {
-                            await removeSchedule(record.id)
-                            message.success(tNow("entityUi.triggers.scheduleDeleted"))
-                        } catch {
-                            message.error(tNow("entityUi.triggers.scheduleDeleteFailed"))
-                        }
-                    }}
-                >
-                    <Trash size={16} />
-                    {tNow("entityUi.triggers.delete")}
-                </DropdownMenuItem>
-            </>
-        ),
+                    {runHistoryItem({kind: "schedule", id})}
+                    <DropdownMenuItem onSelect={() => openSchedule(id)}>
+                        <PencilSimpleLine size={16} />
+                        {tNow("entityUi.triggers.edit")}
+                    </DropdownMenuItem>
+                    {toggleItem(
+                        isEntityActive(record),
+                        (next) => void toggleAutomation(setScheduleActive, id, next),
+                    )}
+                    <DropdownMenuSeparator />
+                    {deleteItem(record.name ?? "", async () => {
+                        await removeSchedule(id)
+                        message.success(tScreens("automations.screens.deleted"))
+                    })}
+                </>
+            )
+        },
         [
-            onOpenRunHistory,
-            openScheduleDrawer,
-            removeSchedule,
-            simulateSchedule,
-            toggleSchedule,
-            entityId,
             disabled,
+            onOpenRunHistory,
+            openSchedule,
+            removeSchedule,
+            setScheduleActive,
+            simulateSchedule,
+            toggleAutomation,
         ],
     )
 
-    return (
-        <div className="flex flex-col gap-2 py-3">
-            {/* One list, not a Subscriptions section beside a Schedules section: both are
-                automations, the region header above already names them, and two accordions for
-                what is usually one or two rows spent more height on their own headers than on
-                their contents. Event-backed ones stay grouped by the app they arrive from,
-                because that grouping IS how a reader finds them. */}
-            {scopedSubscriptions.length > 0 ? (
-                <AppTriggerProviderGroups
-                    scopedSubscriptions={scopedSubscriptions}
-                    entityId={entityId}
-                    disabled={disabled}
-                    subscriptionMenu={subscriptionMenu}
-                />
-            ) : null}
+    const groupHeading = (label: string) => (
+        <h3 className="m-0 px-0.5 text-[12px] font-medium text-[var(--ag-colorTextTertiary)]">
+            {label}
+        </h3>
+    )
 
+    return (
+        <div className="flex flex-col gap-3 py-3">
+            {/* Two groups, "Scheduled triggers" first; a group with no automation does not
+                show (F05 f1). App triggers stay grouped by the app they arrive from. */}
             {scopedSchedules.length > 0 ? (
-                <div className="flex flex-col gap-2">
+                <section className="flex flex-col gap-2">
+                    {groupHeading(t("automations.panel.scheduledTriggers"))}
                     {scopedSchedules.map((record) => (
                         <ScheduleTriggerRow
                             key={`schedule-${record.id}`}
                             record={record}
                             disabled={disabled}
-                            onOpen={() =>
-                                record.id &&
-                                openScheduleDrawer({
-                                    scheduleId: record.id,
-                                    playgroundEntityId: entityId ?? undefined,
-                                })
-                            }
+                            onOpen={() => record.id && openSchedule(record.id)}
                             menu={scheduleMenu(record)}
                         />
                     ))}
-                </div>
+                </section>
             ) : null}
 
-            {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 && !disabled ? (
-                // One quiet line; the header's "+" is the way to add one.
+            {scopedSubscriptions.length > 0 ? (
+                <section className="flex flex-col gap-2">
+                    {groupHeading(t("automations.panel.appTriggers"))}
+                    <AppTriggerProviderGroups
+                        scopedSubscriptions={scopedSubscriptions}
+                        entityId={entityId}
+                        disabled={disabled}
+                        subscriptionMenu={subscriptionMenu}
+                        onOpenSubscription={openSubscription}
+                    />
+                </section>
+            ) : null}
+
+            {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 ? (
+                // One quiet line; the header's "Add automation" is the way to add one.
                 <span className="text-xs text-colorTextTertiary">
                     {t("entityUi.triggers.noAutomations")}
                 </span>
             ) : null}
 
-            {/* Propless, atom-driven drawers — mounted once; they manage their own
-                visibility. App browsing + connecting now happens inside the subscription
-                drawer (no separate catalog drawer in the playground). When a
-                subscription/schedule is created here it default-binds to this agent. */}
+            {/* Propless, atom-driven drawers, mounted once. A new automation created here is
+                bound to this agent. */}
             {automationDrawer}
+            <AutomationDeleteDialog
+                open={Boolean(pendingDelete)}
+                name={pendingDelete?.name ?? ""}
+                onDelete={async () => {
+                    await pendingDelete?.remove()
+                }}
+                onClose={() => setPendingDelete(null)}
+            />
         </div>
     )
 }

@@ -1,0 +1,11 @@
+{
+    "scheduledTriggers": "Geplante Auslöser",
+    "appTriggers": "App-Auslöser",
+    "deleteFailed": "Diese Automatisierung konnte nicht gelöscht werden. Versuche es erneut.",
+    "runs": "Ausführungen",
+    "settings": "Einstellungen",
+    "history": "Verlauf",
+    "seeAllRuns": "Alle Ausführungen ansehen",
+    "lastRun": "Letzte Ausführung",
+    "didNotFinish": "nicht abgeschlossen"
+}

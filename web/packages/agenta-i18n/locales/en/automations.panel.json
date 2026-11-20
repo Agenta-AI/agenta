@@ -1,0 +1,11 @@
+{
+    "scheduledTriggers": "Scheduled triggers",
+    "appTriggers": "App triggers",
+    "deleteFailed": "Couldn't delete this automation. Try again.",
+    "runs": "Runs",
+    "settings": "Settings",
+    "history": "History",
+    "seeAllRuns": "See all runs",
+    "lastRun": "Last run",
+    "didNotFinish": "did not finish"
+}

@@ -379,8 +379,10 @@ export {
 export {
     TriggerManagementSection,
     AddTriggerDropdown,
+    AutomationDeleteDialog,
 } from "./SchemaControls/TriggerManagementSection"
 export type {
+    AutomationAddKind,
     TriggerManagementSectionProps,
     TriggerOwnerRef,
 } from "./SchemaControls/TriggerManagementSection"
