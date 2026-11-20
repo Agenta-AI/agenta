@@ -69,6 +69,36 @@ describe("ConfigurationSectionNav", () => {
         )
     })
 
+    it("marks the first section at the top of the page, not the last", () => {
+        // Each section 200 px below the one before; the first one 28 px below the top.
+        const keys = ["model-harness", "instructions", "advanced"]
+        const rect = vi
+            .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+            .mockImplementation(function (this: HTMLElement) {
+                const index = keys.indexOf(this.dataset.configSection ?? "")
+                const top = index < 0 ? 0 : 28 + index * 200
+                return {top, bottom: top + 100, left: 0, right: 0, width: 0, height: 100} as DOMRect
+            })
+        act(() =>
+            root.render(
+                <Page
+                    sections={[
+                        {key: "model-harness", title: "Model"},
+                        {key: "instructions", title: "Instructions"},
+                        {key: "advanced", title: "Advanced"},
+                    ]}
+                />,
+            ),
+        )
+        // Not scrolled; jsdom has no scroll height, so the box also reads as "at the bottom".
+        expect(
+            buttons()
+                .filter((b) => b.getAttribute("aria-current") === "location")
+                .map((b) => b.textContent),
+        ).toEqual(["Model"])
+        rect.mockRestore()
+    })
+
     it("scrolls to a section on click and marks it", () => {
         act(() =>
             root.render(

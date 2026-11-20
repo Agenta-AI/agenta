@@ -7,6 +7,9 @@ interface SectionAnchor {
     title: string
 }
 
+/** The space above a section when it is scrolled to: the page's top padding. */
+const SECTION_TOP = 28
+
 /** The titled section anchors the configuration renders, in document order. */
 const readAnchors = (root: HTMLElement): (SectionAnchor & {el: HTMLElement})[] =>
     [...root.querySelectorAll<HTMLElement>("[data-config-section]")].flatMap((el) => {
@@ -63,12 +66,13 @@ export const ConfigurationSectionNav = ({
                 setCurrent(clicked.current)
                 return
             }
-            // At the bottom the last section is the one in view, though its top never reaches.
-            if (root.scrollTop + root.clientHeight >= root.scrollHeight - 1) {
+            // Scrolled to the bottom, the last section is the one in view, though its top never
+            // reaches. At the top of the page the first section is, however short the page.
+            if (root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 1) {
                 setCurrent(sections[sections.length - 1].key)
                 return
             }
-            const top = root.getBoundingClientRect().top + 8
+            const top = root.getBoundingClientRect().top + SECTION_TOP + 8
             let inView = sections[0].key
             for (const {key, el} of readAnchors(root)) {
                 if (el.getBoundingClientRect().top <= top) inView = key
@@ -100,10 +104,10 @@ export const ConfigurationSectionNav = ({
                     type="button"
                     aria-current={current === section.key ? "location" : undefined}
                     className={cn(
-                        "h-8 truncate rounded-md border-0 bg-transparent px-2.5 text-left text-sm [font-family:inherit]",
+                        "h-8 truncate rounded-lg border-0 bg-transparent px-2.5 text-left text-[13px] [font-family:inherit]",
                         current === section.key
-                            ? "bg-muted font-medium text-foreground"
-                            : "cursor-pointer text-muted-foreground hover:text-foreground",
+                            ? "bg-[var(--ag-controlItemBgActive)] font-medium text-colorText"
+                            : "cursor-pointer text-colorTextSecondary hover:text-colorText",
                     )}
                     onClick={() => {
                         const root = contentRef.current
@@ -113,7 +117,8 @@ export const ConfigurationSectionNav = ({
                             top:
                                 el.getBoundingClientRect().top -
                                 root.getBoundingClientRect().top +
-                                root.scrollTop,
+                                root.scrollTop -
+                                SECTION_TOP,
                             behavior: "smooth",
                         })
                         clicked.current = section.key

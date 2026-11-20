@@ -31,9 +31,15 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 
+import {AgentPagesHeader} from "./AgentPagesHeader"
 import {ConfigurationAgentTab} from "./ConfigurationAgentTab"
 import {ConfigurationEditorProvider} from "./ConfigurationEditorProvider"
-import {CONFIGURATION_TABS, isConfigurationTab, type ConfigurationTab} from "./configurationTabs"
+import {
+    CONFIGURATION_PAGE_COLUMN,
+    CONFIGURATION_TABS,
+    isConfigurationTab,
+    type ConfigurationTab,
+} from "./configurationTabs"
 import {PageViewStackGuard, type PageViewStackGuardApi} from "./PageViewStackGuard"
 import {useConfigurationRevision} from "./useConfigurationRevision"
 
@@ -113,9 +119,18 @@ export const AgentConfigurationScreen = ({
     // Access needs no revision; the other tabs wait for one.
     const body =
         tab === "access" ? (
-            <div className="max-w-[560px]">
-                <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
-            </div>
+            phone ? (
+                <div className="max-w-[560px]">
+                    <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
+                </div>
+            ) : (
+                <AccessTab
+                    agentId={agentId}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    className="px-0 pt-3.5"
+                />
+            )
         ) : failed ? (
             <LoadError
                 framed
@@ -129,10 +144,10 @@ export const AgentConfigurationScreen = ({
                 <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
             </PhoneSectionsContext.Provider>
         ) : (
-            // The panel's Automations tab, without its Files part (this page has no session). Its
-            // automation views open in the page, under the crumb "Automations"; the drawer chrome
-            // shows no close button outside a drawer.
-            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-solid border-border bg-background max-md:rounded-none max-md:border-0">
+            // The panel's Automations tab, without its Files part (this page has no session), with no
+            // card around it. Its automation views open in the page, under the crumb "Automations";
+            // the drawer chrome shows no close button outside a drawer.
+            <div className={cn("flex min-h-0 flex-1 flex-col", !phone && "pt-3.5")}>
                 <ViewStackHost
                     chrome={DrawerViewChrome}
                     rootTitle={t("agentLayout.panel.automations")}
@@ -161,6 +176,8 @@ export const AgentConfigurationScreen = ({
                     }}
                 >
                     <ScreenScaffold
+                        // On a desktop each tab scrolls its own column.
+                        fill={!phone}
                         header={
                             shownSection ? (
                                 <PhoneScreenHeader
@@ -168,51 +185,73 @@ export const AgentConfigurationScreen = ({
                                     backTitle={t("agentLayout.header.configuration")}
                                     onBack={sectionScreen.close}
                                 />
-                            ) : (
-                                <div
-                                    className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
-                                >
+                            ) : phone ? (
+                                <div className="box-border shrink-0 px-4 pb-3 pt-3">
                                     <div className="flex min-w-0 items-center gap-2">
                                         <NavDrawer
                                             workspaceId={workspaceId}
                                             projectId={projectId}
                                         />
-                                        <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                        <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground">
                                             {t("agentSidebar.configuration")}
                                         </h1>
-                                        {phone ? null : revisionStatus}
                                     </div>
                                     <div className="mt-3 flex min-w-0 items-center gap-1">
-                                        <TabsList
-                                            className={cn(
-                                                phone &&
-                                                    "ag-scroll-no-bar min-w-0 flex-1 justify-start overflow-x-auto",
-                                            )}
-                                        >
+                                        <TabsList className="ag-scroll-no-bar min-w-0 flex-1 justify-start overflow-x-auto">
                                             {CONFIGURATION_TABS.map((key) => (
                                                 <TabsTrigger
                                                     key={key}
                                                     value={key}
-                                                    className={cn(phone && "min-h-11 shrink-0")}
+                                                    className="min-h-11 shrink-0"
                                                 >
                                                     {t(`agentLayout.panel.${key}`)}
                                                 </TabsTrigger>
                                             ))}
                                         </TabsList>
-                                        {phone ? revisionStatus : null}
+                                        {revisionStatus}
                                     </div>
                                 </div>
+                            ) : (
+                                <>
+                                    <AgentPagesHeader
+                                        title={t("agentSidebar.configuration")}
+                                        workspaceId={workspaceId}
+                                        projectId={projectId}
+                                        actions={revisionStatus}
+                                    />
+                                    {/* The tab row sits in the page column, on a white strip. */}
+                                    <div className="box-border h-10 shrink-0 border-0 border-b border-solid border-colorBorderSecondary bg-background">
+                                        <div className={`flex h-full ${CONFIGURATION_PAGE_COLUMN}`}>
+                                            <TabsList className="h-full gap-[18px] p-0">
+                                                {CONFIGURATION_TABS.map((key) => (
+                                                    <TabsTrigger
+                                                        key={key}
+                                                        value={key}
+                                                        className="h-full flex-none rounded-none px-0.5 py-0 text-[13px] font-normal text-colorTextSecondary after:-bottom-px data-[state=active]:font-medium"
+                                                    >
+                                                        {t(`agentLayout.panel.${key}`)}
+                                                    </TabsTrigger>
+                                                ))}
+                                            </TabsList>
+                                        </div>
+                                    </div>
+                                </>
                             )
                         }
                     >
                         <TabsContent
                             value={tab}
                             className={cn(
-                                `flex h-full min-h-0 min-w-0 flex-col pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`,
-                                // On a phone the Agent and Automations tabs run edge to edge.
-                                phone && (tab === "agent" || tab === "automations")
-                                    ? "px-0 pb-0 pt-0"
-                                    : "px-4",
+                                "flex h-full min-h-0 min-w-0 flex-col",
+                                phone
+                                    ? // On a phone the Agent and Automations tabs run edge to edge.
+                                      tab === "agent" || tab === "automations"
+                                        ? `p-0 ${SESSIONS_PAGE_FRAME}`
+                                        : `px-4 pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`
+                                    : // The Agent tab draws its own column; the others sit in a
+                                      // narrower one.
+                                      (tab !== "agent" || failed || !revisionId) &&
+                                          "mx-auto box-border w-full max-w-[760px] px-4",
                             )}
                         >
                             {/* The same host parts (model providers, skills, subagents) and edit
