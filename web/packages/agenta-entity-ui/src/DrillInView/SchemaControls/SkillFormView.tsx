@@ -542,6 +542,8 @@ export function SkillFormView({
                             setSkipped(upload.skipped)
                             setUploading(false)
                             setSelected("skill")
+                            // The upload rewrote the files, so no placeholder file is left.
+                            setFreshFile(null)
                             if (mode === "replace") {
                                 setNameTouched(true)
                                 if (result.skill.disable_model_invocation) setAdvancedOpen(true)
