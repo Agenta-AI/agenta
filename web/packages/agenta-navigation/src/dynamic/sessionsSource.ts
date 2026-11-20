@@ -1182,50 +1182,68 @@ const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
 )
 
+/** Pages the rail may load on its own; past them a scroll asks, as before. */
+export const MAX_AUTO_SESSION_PAGES = 3
+
 /**
- * True when an agent known to have chats has no row loaded yet.
+ * The agents the rail should show a section for but has no row of yet: agents with a chat inside
+ * the rail's activity window (from the ranking query, newest 200 chats), minus the agents the
+ * agent filter leaves out and the agents already loaded.
  *
  * Under agent grouping each agent section shows a few rows, so a first page full of one busy
  * agent's sessions draws a rail too short to scroll, and a scroll is the only other way to ask
- * for the next page. Agents outside the agent filter do not count.
+ * for the next page.
  */
 export const hasUnloadedAgent = ({
-    agentsWithChats,
+    chats,
     loadedRefs,
     agentFilter,
+    oldest,
 }: {
-    agentsWithChats: Iterable<string>
+    chats: readonly SessionStream[]
     loadedRefs: readonly SessionSidebarRef[]
     agentFilter: readonly string[]
+    /** The rail's activity floor (ISO), or undefined for no floor. */
+    oldest?: string
 }): boolean => {
     const loaded = new Set(loadedRefs.map((ref) => ref.agentId))
-    for (const agentId of agentsWithChats) {
+    const floor = oldest ? Date.parse(oldest) : null
+    for (const row of chats) {
+        const agentId = sessionOpenTarget(row)?.appId
+        if (!agentId || loaded.has(agentId)) continue
         if (agentFilter.length > 0 && !agentFilter.includes(agentId)) continue
-        if (!loaded.has(agentId)) return true
+        const activity = Date.parse(row.updated_at ?? row.created_at ?? "")
+        if (floor !== null && !(activity >= floor)) continue
+        return true
     }
     return false
 }
 
 /**
- * Should the rail ask for the next page now, without a scroll? Only under agent grouping, and
- * only while an agent with chats has no row yet. Paging stops on its own at the last page, at
- * `MAX_SESSION_PAGES`, or on an error.
+ * Should the rail ask for the next page now, without a scroll? Only for the default list shape
+ * the ranking query can speak for (agent grouping, chats, any status), only while an agent with
+ * a chat in the window has no row yet, and for at most `MAX_AUTO_SESSION_PAGES` pages.
  */
 export const sidebarSessionsNeedNextPageAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        // The counts are of chats, so they say nothing about the automation list.
-        if (filters.groupBy !== "agent" || filters.type === "automation") return false
+        if (filters.groupBy !== "agent" || filters.type !== "chat" || filters.status !== "all")
+            return false
+        if (get(sidebarSessionPageCountAtomFamily(scopeId)) >= MAX_AUTO_SESSION_PAGES) return false
         const paging = get(sidebarSessionPagingAtomFamily(scopeId))
         if (!paging.hasMore || paging.isLoadingMore || paging.isError) return false
         const live = get(liveAgentIdsAtom)
-        const agentsWithChats = [...get(sidebarAgentCountsAtomFamily(scopeId)).keys()].filter(
-            (agentId) => live === null || live.has(agentId),
+        const chats = (get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => {
+                const agentId = sessionOpenTarget(row)?.appId
+                return Boolean(agentId) && (live === null || live.has(agentId as string))
+            },
         )
         return hasUnloadedAgent({
-            agentsWithChats,
+            chats,
             loadedRefs: get(sidebarSessionRefsAtomFamily(scopeId)),
             agentFilter: filters.agentIds,
+            oldest: requestFilters(filters).oldest,
         })
     }),
 )
