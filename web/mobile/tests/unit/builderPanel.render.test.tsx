@@ -440,6 +440,15 @@ describe("BuilderPanel: page context", () => {
         expect(byTestId("builder-context-chip")?.textContent).toContain("Charged twice for March")
     })
 
+    it("shows the chip again for another agent on the same page part", async () => {
+        store.set(pageContextAtom, configuration)
+        await render("agent-1")
+        await click(container.querySelector('[aria-label="Remove the context"]'))
+        expect(byTestId("builder-context-chip")).toBeNull()
+        await render("agent-2")
+        expect(byTestId("builder-context-chip")?.textContent).toBe("Support triage · ticket-triage")
+    })
+
     it("shows the chip again after a removal on another page", async () => {
         onSession()
         await render()

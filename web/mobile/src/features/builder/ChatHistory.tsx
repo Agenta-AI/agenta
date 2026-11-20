@@ -24,7 +24,8 @@ export const ChatHistory = ({
     return (
         <ChatHistoryList
             rows={list.rows}
-            pending={list.pending}
+            // A new search with no rows on screen yet loads, rather than saying nothing matches.
+            pending={list.pending || (list.refreshing && list.rows.length === 0)}
             failed={list.failed}
             search={search}
             onSearch={setSearch}

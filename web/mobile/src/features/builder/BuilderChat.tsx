@@ -31,7 +31,7 @@ import {ContextChip} from "./ContextChip"
 import {NewChatIntro} from "./NewChatIntro"
 import {sessionToOpen} from "./openRule"
 import {parseSentContextLine, withContextLine, type PageContext} from "./pageContext"
-import {readPagePart} from "./pagePart"
+import {readPagePart, removedPagePartAtom} from "./pagePart"
 import {QuickActions} from "./QuickActions"
 import {RecentChats} from "./RecentChats"
 import {SentContextChip} from "./SentContextChip"
@@ -103,13 +103,18 @@ export const BuilderChat = ({
         [liveness.data],
     )
 
+    // A removed chip belongs to the agent it was removed on: another agent starts with the chip.
+    const setRemovedPagePart = useSetAtom(removedPagePartAtom)
+    useEffect(() => setRemovedPagePart(null), [setRemovedPagePart])
+
     const show = useCallback((id: string) => {
         setBuilderSessionId(id)
         setView("chat")
     }, [])
     // The open rule, once the list answered (no stored chat answers at once). A failed list
     // opens a new chat; "Recent chats" then says it could not load.
-    const ruleReady = builderSessionId === null && !recent.pending
+    // A chat that still runs opens too: wait for liveness as well as the list.
+    const ruleReady = builderSessionId === null && !recent.pending && !liveness.isLoading
     useEffect(() => {
         if (!ruleReady) return
         setBuilderSessionId(

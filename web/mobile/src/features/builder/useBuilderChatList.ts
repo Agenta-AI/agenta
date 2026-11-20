@@ -66,6 +66,8 @@ export const useBuilderChatList = ({
         rows,
         /** Waiting for the first answer of a query that runs. */
         pending: hasChats && list.isPending,
+        /** The rows shown answer an earlier search while this one loads. */
+        refreshing: hasChats && list.isPlaceholderData,
         failed: hasChats && failed,
         retry: () => void list.refetch(),
     }
