@@ -241,11 +241,9 @@ export const SessionHeader = ({
             ) : (
                 <span className="truncate text-[15px] font-semibold">{name}</span>
             )}
-            {/* A narrow column (a wide panel) shrinks the version first, then the name and the
-                session button down to a few letters and "…", so the icons stay in the row. */}
-            {revisionStatus ? (
-                <span className="flex min-w-0 shrink-[8] overflow-hidden">{revisionStatus}</span>
-            ) : null}
+            {/* A narrow column (a wide panel) shrinks the name and the session button down to a
+                few letters and "…", so the version, its retry and the icons stay in the row. */}
+            {revisionStatus ? <span className="flex shrink-0">{revisionStatus}</span> : null}
             <div className="flex-1" />
             {agentId ? (
                 <SessionMenu

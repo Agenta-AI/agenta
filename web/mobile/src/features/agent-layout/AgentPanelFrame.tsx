@@ -111,7 +111,7 @@ export const AgentPanelFrame = ({
         const cancel = (e: PointerEvent) => {
             if (e.pointerId !== pointerId) return
             stop()
-            resize.onLive(startWidth)
+            resize.onLive(width)
         }
         window.addEventListener("pointermove", move)
         window.addEventListener("pointerup", up)

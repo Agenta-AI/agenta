@@ -468,7 +468,7 @@ function Chip({
             aria-pressed={active}
             onClick={onClick}
             className={cn(
-                "flex h-[26px] cursor-pointer items-center rounded-full border border-solid px-2.5 py-0 font-[inherit] text-[12px] leading-4 outline-none transition-colors max-md:h-11",
+                "flex h-[26px] cursor-pointer items-center justify-center rounded-full border border-solid px-2.5 py-0 font-[inherit] text-[12px] leading-4 outline-none transition-colors max-md:h-11 max-md:min-w-11",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
                 active
                     ? "border-colorText bg-colorText text-colorBgContainer"

@@ -87,8 +87,9 @@ export interface SelectTriggerProps
     extends
         Omit<React.ComponentProps<typeof SelectPrimitive.Trigger>, "size">,
         VariantProps<typeof selectTriggerVariants> {
-    /** The trailing icon in place of the chevron (the canvas up-down icon, for one). */
-    icon?: React.ReactNode
+    /** The trailing icon in place of the chevron (the canvas up-down icon, for one). One element:
+     *  Radix renders it through `asChild`. */
+    icon?: React.ReactElement | null
 }
 
 function SelectTrigger({className, variant, size, icon, children, ...props}: SelectTriggerProps) {

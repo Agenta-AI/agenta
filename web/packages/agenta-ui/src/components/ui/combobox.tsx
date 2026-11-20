@@ -83,7 +83,7 @@ export interface ComboboxProps extends Pick<SelectTriggerProps, "size" | "varian
     /** Portal target for the dropdown; defaults to document.body. */
     container?: HTMLElement | null
     /** The trailing icon in place of the chevron (the canvas up-down icon, for one). */
-    icon?: React.ReactNode
+    icon?: React.ReactElement | null
 }
 
 type RenderRow =
