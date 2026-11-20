@@ -82,31 +82,39 @@ export const AgentTemplateSectionList = ({
             {sections.map((s, index) => {
                 const controlled = Boolean(controlledKeys?.has(s.key))
                 return (
-                    <ConfigAccordionSection
+                    // An anchor per section, so a host can list the sections and scroll to one.
+                    <div
                         key={s.key}
-                        icon={s.icon}
-                        title={s.title}
-                        titleBadge={s.titleBadge}
-                        summary={s.summary}
-                        extra={s.extra}
-                        indicator={s.indicator}
-                        onOpen={s.onOpen}
-                        bodyClassName={s.bodyClassName}
-                        // The panel body sits in the config section's `px-4` field wrapper
-                        // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
-                        // each side to the panel edges while its text stays aligned with the
-                        // content below.
-                        headerBand={headerBand}
-                        noDivider={index === sections.length - 1}
-                        {...(controlled
-                            ? {
-                                  open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
-                                  onOpenChange: (open: boolean) => onOpenChange?.(s.key, open),
-                              }
-                            : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
+                        data-config-section={s.key}
+                        data-config-section-title={
+                            typeof s.title === "string" ? s.title : undefined
+                        }
                     >
-                        {s.content}
-                    </ConfigAccordionSection>
+                        <ConfigAccordionSection
+                            icon={s.icon}
+                            title={s.title}
+                            titleBadge={s.titleBadge}
+                            summary={s.summary}
+                            extra={s.extra}
+                            indicator={s.indicator}
+                            onOpen={s.onOpen}
+                            bodyClassName={s.bodyClassName}
+                            // The panel body sits in the config section's `px-4` field wrapper
+                            // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
+                            // each side to the panel edges while its text stays aligned with the
+                            // content below.
+                            headerBand={headerBand}
+                            noDivider={index === sections.length - 1}
+                            {...(controlled
+                                ? {
+                                      open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
+                                      onOpenChange: (open: boolean) => onOpenChange?.(s.key, open),
+                                  }
+                                : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
+                        >
+                            {s.content}
+                        </ConfigAccordionSection>
+                    </div>
                 )
             })}
         </>
