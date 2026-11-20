@@ -1,0 +1,56 @@
+[
+    {
+        "id": "model-picker-providers-light",
+        "story": "builderlayout-model-picker-model-providers--list",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add a provider or subscription"
+    },
+    {
+        "id": "model-picker-providers-dark",
+        "story": "builderlayout-model-picker-model-providers--list",
+        "width": 600,
+        "height": 800,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add a provider or subscription"
+    },
+    {
+        "id": "model-picker-add-light",
+        "story": "builderlayout-model-picker-model-providers--add",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Use an API key"
+    },
+    {
+        "id": "model-picker-add-dark",
+        "story": "builderlayout-model-picker-model-providers--add",
+        "width": 600,
+        "height": 800,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Use an API key"
+    },
+    {
+        "id": "model-picker-builtin-light",
+        "story": "builderlayout-model-picker-model-providers--builtin",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Provided by Agenta"
+    },
+    {
+        "id": "model-picker-builtin-dark",
+        "story": "builderlayout-model-picker-model-providers--builtin",
+        "width": 600,
+        "height": 800,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Provided by Agenta"
+    }
+]
