@@ -23,7 +23,7 @@ const withRow: ViewDef<Record<string, never>> = defineView({
 const noRow: ViewDef<Record<string, never>> = defineView({
     id: "test.noRow",
     apply: "immediate",
-    actions: "none",
+    actionRow: false,
     Component: Body,
 })
 
@@ -44,13 +44,13 @@ const openIn = async (view: ViewDef<Record<string, never>>) => {
 
 afterEach(cleanup)
 
-describe("ViewDef.actions", () => {
+describe("ViewDef.actionRow", () => {
     it("an immediate view keeps its Done row by default", async () => {
         await openIn(withRow)
         expect(screen.getByRole("button", {name: "Done"})).toBeTruthy()
     })
 
-    it('"none" draws no action row', async () => {
+    it("false draws no action row", async () => {
         await openIn(noRow)
         expect(screen.queryByRole("button", {name: "Done"})).toBeNull()
     })

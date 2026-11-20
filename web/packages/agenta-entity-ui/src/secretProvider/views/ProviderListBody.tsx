@@ -20,7 +20,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
-import {useIsPhone} from "@agenta/ui/phone"
+import {PhonePrimaryAction, useIsPhone} from "@agenta/ui/phone"
 import {Badge, Button, SkeletonRows} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -174,12 +174,18 @@ export const ProviderListBody = ({
                     </>
                 )}
             </div>
-            <div className="shrink-0 px-4 py-3">
-                <Button className="w-full" onClick={onAdd}>
-                    <Plus size={14} />
+            {phone ? (
+                <PhonePrimaryAction icon={<Plus size={14} />} onClick={onAdd}>
                     {t("entityUi.providerList.addProviderOrSubscription")}
-                </Button>
-            </div>
+                </PhonePrimaryAction>
+            ) : (
+                <div className="shrink-0 px-4 py-3">
+                    <Button className="w-full" onClick={onAdd}>
+                        <Plus size={14} />
+                        {t("entityUi.providerList.addProviderOrSubscription")}
+                    </Button>
+                </div>
+            )}
         </div>
     )
 }

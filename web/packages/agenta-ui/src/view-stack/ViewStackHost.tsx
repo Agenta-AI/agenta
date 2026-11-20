@@ -369,7 +369,7 @@ export const ViewStackHost = ({
                         wide={Boolean(top.view.wide)}
                         readOnly={
                             (phone && Boolean(top.view.readOnlyOnPhone)) ||
-                            top.view.actions === "none"
+                            top.view.actionRow === false
                         }
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null

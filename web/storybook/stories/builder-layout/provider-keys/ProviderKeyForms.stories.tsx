@@ -209,6 +209,7 @@ export const PhoneList: Story = {
 /** M12: the OpenAI form full screen on a phone, after the key works. */
 export const PhoneForm: Story = {
     args: {kind: "openai", phone: true},
+    parameters: {viewport: {defaultViewport: "mobile2"}},
     beforeEach: answerProbe(PROBE_ANSWERS.works),
     play: ({canvasElement}) => pasteKey(canvasElement, "Paste your OpenAI API key"),
 }
