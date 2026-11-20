@@ -472,78 +472,86 @@ export const FlyoutChildren = ({
     items: NavItem[]
     selectedKeys: string[]
     onItemSelect?: NavMenuProps["onItemSelect"]
-}) => (
-    <>
-        {items.map((child) => {
-            if (child.isPlaceholder || child.isGroupLabel) {
-                return (
-                    <DropdownMenuLabel key={child.key} className="text-xs text-colorTextTertiary">
-                        {child.title}
-                    </DropdownMenuLabel>
-                )
-            }
-            // The icon is the row's leading glyph on every other path (LeafRow, the group row,
-            // the collapsed trigger). The flyout has to draw it too, or Help & Docs loses the
-            // icons the antd menu always rendered through its own `icon` slot.
-            const body = (
-                <>
-                    {child.icon ? (
-                        <span className="flex shrink-0 items-center">{child.icon}</span>
-                    ) : null}
-                    <span className="min-w-0 flex-1 truncate">{child.title}</span>
-                    {/* The version rides the row it describes; the inline path draws it through
+}) => {
+    // The flyout renders in a portal, outside the phone sheet, but the context still reaches it.
+    const phone = useContext(SidebarLayoutContext) === "phone"
+    return (
+        <>
+            {items.map((child) => {
+                if (child.isPlaceholder || child.isGroupLabel) {
+                    return (
+                        <DropdownMenuLabel
+                            key={child.key}
+                            className="text-xs text-colorTextTertiary"
+                        >
+                            {child.title}
+                        </DropdownMenuLabel>
+                    )
+                }
+                // The icon is the row's leading glyph on every other path (LeafRow, the group row,
+                // the collapsed trigger). The flyout has to draw it too, or Help & Docs loses the
+                // icons the antd menu always rendered through its own `icon` slot.
+                const body = (
+                    <>
+                        {child.icon ? (
+                            <span className="flex shrink-0 items-center">{child.icon}</span>
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate">{child.title}</span>
+                        {/* The version rides the row it describes; the inline path draws it through
                         RowLabel, so this path has to draw it too or it disappears. */}
-                    {child.suffix ? (
-                        <span className="ml-auto shrink-0 pl-2">{child.suffix}</span>
-                    ) : null}
-                </>
-            )
-            return (
-                <Fragment key={child.key}>
-                    <DropdownMenuItem
-                        disabled={child.disabled}
-                        // gap-[10px] over the item's default gap-2: antd's Menu icon margin.
-                        // It rides on `className` (which goes through tailwind-merge) rather
-                        // than on the Link, because `asChild` merges classes by concatenation
-                        // and would leave both gaps in the list.
-                        className={clsx(
-                            "gap-[10px]",
-                            selectedKeys.includes(child.key) && "font-medium",
-                            // Same field the inline rows read, so a row that tunes its own
-                            // geometry does it once for both paths.
-                            child.rowClassName,
-                        )}
-                        asChild={Boolean(child.link)}
-                        onSelect={
-                            child.link
-                                ? undefined
-                                : (event) => child.onClick?.(event as unknown as MouseEvent)
-                        }
-                    >
-                        {child.link ? (
-                            <Link
-                                href={child.link}
-                                prefetch={child.prefetch}
-                                className="!text-inherit no-underline"
-                                target={isExternal(child.link) ? "_blank" : undefined}
-                                rel={isExternal(child.link) ? "noopener noreferrer" : undefined}
-                                onClick={linkClickHandler(child, onItemSelect)}
-                            >
-                                {body}
-                            </Link>
-                        ) : (
-                            body
-                        )}
-                    </DropdownMenuItem>
-                    {/* `divider` means "a rule FOLLOWS this row", which is the contract the
+                        {child.suffix ? (
+                            <span className="ml-auto shrink-0 pl-2">{child.suffix}</span>
+                        ) : null}
+                    </>
+                )
+                return (
+                    <Fragment key={child.key}>
+                        <DropdownMenuItem
+                            disabled={child.disabled}
+                            // gap-[10px] over the item's default gap-2: antd's Menu icon margin.
+                            // It rides on `className` (which goes through tailwind-merge) rather
+                            // than on the Link, because `asChild` merges classes by concatenation
+                            // and would leave both gaps in the list.
+                            className={clsx(
+                                "gap-[10px]",
+                                phone && "min-h-11",
+                                selectedKeys.includes(child.key) && "font-medium",
+                                // Same field the inline rows read, so a row that tunes its own
+                                // geometry does it once for both paths.
+                                child.rowClassName,
+                            )}
+                            asChild={Boolean(child.link)}
+                            onSelect={
+                                child.link
+                                    ? undefined
+                                    : (event) => child.onClick?.(event as unknown as MouseEvent)
+                            }
+                        >
+                            {child.link ? (
+                                <Link
+                                    href={child.link}
+                                    prefetch={child.prefetch}
+                                    className="!text-inherit no-underline"
+                                    target={isExternal(child.link) ? "_blank" : undefined}
+                                    rel={isExternal(child.link) ? "noopener noreferrer" : undefined}
+                                    onClick={linkClickHandler(child, onItemSelect)}
+                                >
+                                    {body}
+                                </Link>
+                            ) : (
+                                body
+                            )}
+                        </DropdownMenuItem>
+                        {/* `divider` means "a rule FOLLOWS this row", which is the contract the
                         inline path and the old antd menu both implement. Treating it as "this
                         row IS a rule" replaced the Documentation item with a hairline. */}
-                    {child.divider ? <DropdownMenuSeparator /> : null}
-                </Fragment>
-            )
-        })}
-    </>
-)
+                        {child.divider ? <DropdownMenuSeparator /> : null}
+                    </Fragment>
+                )
+            })}
+        </>
+    )
+}
 
 const NavMenuImpl = ({
     items,
@@ -698,7 +706,11 @@ const NavMenuImpl = ({
                                     {title: String(item.title)},
                                 )}
                                 // z-[1] keeps the toggle clickable above the stretched link anchor.
-                                className="relative z-[1] mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
+                                // A 44 px target in the phone sheet; the 12 px caret keeps its size.
+                                className={clsx(
+                                    "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText",
+                                    phone ? "size-11" : "size-[22px]",
+                                )}
                                 onClick={(event) => {
                                     event.preventDefault()
                                     event.stopPropagation()

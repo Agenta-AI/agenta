@@ -2,6 +2,5 @@
     "back": "Voltar",
     "backTo": "Voltar para {{title}}",
     "cancel": "Cancelar",
-    "closeSidebar": "Fechar a barra lateral",
-    "openSidebar": "Abrir a barra lateral"
+    "closeSidebar": "Fechar a barra lateral"
 }
