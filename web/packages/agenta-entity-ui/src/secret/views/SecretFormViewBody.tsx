@@ -18,22 +18,12 @@ import {useProjectName} from "../../accounts/useProjectName"
 import type {SecretOwner} from "../agentSecretRules"
 import {OwnerRadioGroup} from "../OwnerRadioGroup"
 import {SecretForm, useSecretForm, type SecretFormController} from "../SecretForm"
-import {rowsToObject} from "../SecretForm/primitives"
+import {objectToRows, type KvRow} from "../SecretForm/primitives"
 
 import type {SecretFormViewParams} from "./secretFormView"
 
-/** The JSON value the form holds: the editor's text when it is open, else the grid. */
-const jsonValueOf = (
-    form: Pick<SecretFormController, "kvRows" | "jsonView" | "jsonText">,
-): unknown => {
-    if (form.jsonView === "grid") return rowsToObject(form.kvRows)
-    try {
-        return JSON.parse(form.jsonText)
-    } catch {
-        // Text that does not parse is an edit too.
-        return form.jsonText
-    }
-}
+/** Grid rows as the person sees them; a row with a value and no key yet still counts. */
+const filledRows = (rows: KvRow[]) => rows.filter((row) => row.key.trim() || row.value !== "")
 
 /** The form differs from the secret it opened with (or, for a new one, holds any value). */
 export const secretFormDirty = (
@@ -43,8 +33,23 @@ export const secretFormDirty = (
     >,
     secret: NamedSecretRow | null,
 ): boolean => {
-    const json = jsonValueOf(form)
-    if (!secret) return Boolean(form.name.trim() || form.textValue.trim()) || !deepEqual(json, {})
+    const savedJson =
+        secret?.format === CustomSecretFormat.Json &&
+        secret.content &&
+        typeof secret.content === "object"
+            ? secret.content
+            : {}
+    // The JSON editor's text when it is open; text that does not parse is an edit too.
+    const jsonChanged = () => {
+        if (form.jsonView === "grid")
+            return !deepEqual(filledRows(form.kvRows), filledRows(objectToRows(savedJson)))
+        try {
+            return !deepEqual(JSON.parse(form.jsonText), savedJson)
+        } catch {
+            return true
+        }
+    }
+    if (!secret) return Boolean(form.name.trim() || form.textValue.trim()) || jsonChanged()
     if (
         form.name !== (secret.name ?? "") ||
         form.format !== secret.format ||
@@ -53,10 +58,7 @@ export const secretFormDirty = (
         return true
     if (form.format === CustomSecretFormat.Text)
         return form.textValue !== (typeof secret.content === "string" ? secret.content : "")
-    return !deepEqual(
-        json,
-        secret.content && typeof secret.content === "object" ? secret.content : {},
-    )
+    return jsonChanged()
 }
 
 const SecretFormViewBody = ({params}: ViewProps<SecretFormViewParams>) => {

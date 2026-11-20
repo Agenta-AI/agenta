@@ -127,7 +127,9 @@ import {
     advancedView,
     executionView,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/views/advancedViews"
+import {SecretsSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SecretsSection"
 import {SecretRemoveDialog} from "../../src/secret/SecretRemoveDialog"
+import {secretFormDirty} from "../../src/secret/views/SecretFormViewBody"
 import {secretAttachView} from "../../src/secret/views/secretAttachView"
 import {secretFormView} from "../../src/secret/views/secretFormView"
 
@@ -446,7 +448,7 @@ describe("The one secret form (Settings › Secrets)", () => {
 })
 
 describe("Remove a secret attachment (F06 f3)", () => {
-    it("Remove saves without the attachment; a failure keeps the dialog with the reason", async () => {
+    it("a failure keeps the dialog open with the reason", async () => {
         const onRemove = vi.fn(async () => {
             throw new Error("conflict")
         })
@@ -461,6 +463,79 @@ describe("Remove a secret attachment (F06 f3)", () => {
         expect(onClose).not.toHaveBeenCalled()
         await click(saveButton("Cancel"))
         expect(onClose).toHaveBeenCalled()
+    })
+})
+
+describe("The Secrets section", () => {
+    it("Remove saves a version without that attachment only", async () => {
+        const bindings = [
+            {
+                secret: {slug: "billing-prod"},
+                binding: {type: "env" as const, name: "BILLING_API_KEY"},
+            },
+            {secret: {slug: "github-bot"}, binding: {type: "env" as const, name: "GH"}},
+        ]
+        await mount(
+            <SecretsSectionBody
+                revisionId="rev-1"
+                bindings={bindings}
+                canEditSecrets
+                openAttach={() => undefined}
+            />,
+        )
+        const bins = [...document.querySelectorAll('button[aria-label="Remove"]')]
+        expect(bins).toHaveLength(2)
+        await click(bins[1])
+        await click(saveButton("Remove"))
+        await waitFor(() => expect(fx.commits).toHaveLength(1))
+        expect(fx.commits[0]).toEqual({revisionId: "rev-1", bindings: [bindings[0]]})
+        await waitFor(() => expect(document.body.textContent).not.toContain("Remove this secret"))
+    })
+})
+
+describe("The secret form's unsaved state", () => {
+    const json = {
+        id: "j1",
+        name: "service",
+        slug: "service",
+        format: "json",
+        content: {region: "eu"},
+    } as never
+    const form = (patch: Record<string, unknown>) =>
+        ({
+            name: "service",
+            textValue: "",
+            defaultEnvVar: "",
+            format: "json",
+            jsonView: "grid",
+            jsonText: "{}",
+            kvRows: [{key: "region", value: "eu"}],
+            ...patch,
+        }) as never
+
+    it("is clean when the form holds the saved value", () => {
+        expect(secretFormDirty(form({}), json)).toBe(false)
+        expect(secretFormDirty(form({jsonView: "json", jsonText: '{"region": "eu"}'}), json)).toBe(
+            false,
+        )
+    })
+
+    it("counts an edit in the JSON editor, text that does not parse, and a row with no key yet", () => {
+        expect(secretFormDirty(form({jsonView: "json", jsonText: '{"region": "us"}'}), json)).toBe(
+            true,
+        )
+        expect(secretFormDirty(form({jsonView: "json", jsonText: '{"region": '}), json)).toBe(true)
+        expect(
+            secretFormDirty(
+                form({
+                    kvRows: [
+                        {key: "region", value: "eu"},
+                        {key: "", value: "x"},
+                    ],
+                }),
+                json,
+            ),
+        ).toBe(true)
     })
 })
 

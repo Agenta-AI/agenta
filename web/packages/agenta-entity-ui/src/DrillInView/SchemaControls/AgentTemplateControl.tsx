@@ -249,7 +249,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const openAdvanced = useCallback(() => {
         if (viewTarget) void openView(advancedView, {}, viewTarget)
     }, [openView, viewTarget])
-    const openSectionDrawer = useCallback(
+    const openSection = useCallback(
         (key: "model-harness" | "advanced") => {
             if (key === "model-harness") openModel()
             else openAdvanced()
@@ -269,9 +269,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     useEffect(() => {
         if (!openSectionRequest) return
         // Always clears the request: it opens the view once and is never queued.
-        openSectionDrawer(openSectionRequest)
+        openSection(openSectionRequest)
         setOpenSectionRequest(null)
-    }, [openSectionRequest, openSectionDrawer, setOpenSectionRequest])
+    }, [openSectionRequest, openSection, setOpenSectionRequest])
     // `config` IS the agent template (`parameters.agent`); `schema` is the `agent-template` type and
     // decides which sections exist. Portable fields (instructions / llm / tools / mcps / skills) are
     // FLAT; execution parts (harness / runner / sandbox) are nested sub-objects (see useModelHarness).
@@ -361,12 +361,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     //
     // TWO instances, on purpose:
-    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries. Keeping it live
-    //    means a section header NEVER reflects the drawer's unsaved draft
-    //    (the reported bug: editing in the open drawer updated the background summary).
-    //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
-    //    now lives inside `ModelHarnessSectionBody`, mounted only while a drawer/inline body is on screen, so
-    //    its harness/vault/overlay subscriptions don't run in the background.
+    //  - `mh` is bound to the live entity — it drives the section header summaries.
+    //  - A second one runs inside `ModelHarnessSectionBody` for the inline change bodies, below the
+    //    changed-paths and focus providers it reads, and only while such a body is on screen.
     const mh = useModelHarness({
         schema,
         config,
@@ -592,7 +589,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             return (
                 <SectionChangeBody
                     paths={sectionPaths}
-                    onOpenDetails={() => openSectionDrawer(key as "model-harness" | "advanced")}
+                    onOpenDetails={() => openSection(key as "model-harness" | "advanced")}
                     disabled={disabled}
                     changes={panelChangedPaths}
                 >
@@ -610,7 +607,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         [
             sectionChanges.draft,
-            openSectionDrawer,
+            openSection,
             panelChangedPaths,
             disabled,
             schema,
