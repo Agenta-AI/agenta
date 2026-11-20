@@ -335,7 +335,7 @@ export const AgentLayoutBody = ({
                                 // phone.
                                 closeControl="none"
                                 expanded={!phone && filesLayout.expanded}
-                                // A phone has no wider pane, and Files is read only there.
+                                // A phone has no wider pane.
                                 onToggleExpand={phone ? undefined : filesLayout.toggleExpand}
                                 readOnly={phone}
                                 touch={phone}
