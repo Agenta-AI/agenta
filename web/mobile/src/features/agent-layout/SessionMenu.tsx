@@ -99,32 +99,33 @@ export const SessionMenu = ({
     if (phone) {
         return (
             <>
-                <button
-                    type="button"
-                    aria-haspopup="dialog"
-                    title={title}
-                    className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-lg border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
-                    onClick={() => setOpen(true)}
-                >
-                    <span aria-hidden className="flex shrink-0 text-colorTextTertiary">
-                        {running ? (
-                            <CircleNotchIcon size={12} className="animate-spin" />
-                        ) : (
-                            <CircleIcon size={10} />
-                        )}
-                    </span>
-                    <span className="truncate">{title}</span>
-                    <CaretUpDown
-                        size={14}
-                        aria-hidden
-                        className="shrink-0 text-colorTextSecondary"
-                    />
-                </button>
                 <BottomSheet
                     open={open}
                     onOpenChange={setOpen}
                     title={t("agentLayout.header.sessions")}
                     data-testid="session-sheet"
+                    trigger={
+                        <button
+                            type="button"
+                            aria-haspopup="dialog"
+                            title={title}
+                            className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-lg border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
+                        >
+                            <span aria-hidden className="flex shrink-0 text-colorTextTertiary">
+                                {running ? (
+                                    <CircleNotchIcon size={12} className="animate-spin" />
+                                ) : (
+                                    <CircleIcon size={10} />
+                                )}
+                            </span>
+                            <span className="truncate">{title}</span>
+                            <CaretUpDown
+                                size={14}
+                                aria-hidden
+                                className="shrink-0 text-colorTextSecondary"
+                            />
+                        </button>
+                    }
                     actions={
                         <>
                             <Button className={PHONE_BUTTON_CLASS} onClick={newSession}>

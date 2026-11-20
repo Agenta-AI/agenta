@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 
 import {Button} from "../components/ui/button"
-import {Sheet, SheetContent, SheetTitle} from "../components/ui/sheet"
+import {Sheet, SheetContent, SheetTitle, SheetTrigger} from "../components/ui/sheet"
 import {cn} from "../utils/styles"
 
 import {PHONE_BUTTON_CLASS} from "./phoneButton"
@@ -16,6 +16,12 @@ export interface BottomSheetProps {
     title: string
     /** Shows the heading. A sheet whose trigger already names it may hide it (read only). */
     showTitle?: boolean
+    /**
+     * The control that opens the sheet. Given here, it opens the sheet and gets the focus back when
+     * the sheet closes. It must take a ref and an onClick (a button, or an element with the button
+     * role and its own keyboard handling).
+     */
+    trigger?: ReactNode
     /** Buttons above "Cancel" (for example "New session"). Use `PHONE_BUTTON_CLASS`. */
     actions?: ReactNode
     "data-testid"?: string
@@ -32,12 +38,14 @@ export const BottomSheet = ({
     title,
     showTitle = true,
     actions,
+    trigger,
     "data-testid": testId = "bottom-sheet",
     children,
 }: BottomSheetProps) => {
     const t = useT(phoneCatalog)
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
+            {trigger ? <SheetTrigger asChild>{trigger}</SheetTrigger> : null}
             <SheetContent
                 side="bottom"
                 data-testid={testId}

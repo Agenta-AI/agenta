@@ -26,6 +26,8 @@ export interface BottomSheetMenuProps {
     /** Shows the heading. A menu whose trigger already names it may hide it (read only). */
     showTitle?: boolean
     items: BottomSheetMenuItem[]
+    /** The control that opens the menu; it gets the focus back when the menu closes. */
+    trigger?: ReactNode
 }
 
 /**
@@ -40,6 +42,7 @@ export const BottomSheetMenu = ({
     title,
     showTitle = true,
     items,
+    trigger,
 }: BottomSheetMenuProps) => {
     return (
         <BottomSheet
@@ -47,6 +50,7 @@ export const BottomSheetMenu = ({
             onOpenChange={onOpenChange}
             title={title}
             showTitle={showTitle}
+            trigger={trigger}
             data-testid="bottom-sheet-menu"
         >
             <div role="menu" aria-label={title} className="flex flex-col">

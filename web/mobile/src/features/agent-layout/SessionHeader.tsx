@@ -175,6 +175,11 @@ export const SessionHeader = ({
                             onRetry={sessionOrder.retry}
                         />
                     ) : null}
+                    {/* The version status: the save state, a failed save with its retry, and
+                        the offer of a newer version. */}
+                    {revisionStatus ? (
+                        <span className="flex shrink-0 items-center">{revisionStatus}</span>
+                    ) : null}
                     <div className="min-w-0 flex-1" />
                     {icon("files", t("agentLayout.header.files"), <FolderSimple size={20} />)}
                     {/* The share control keeps its drawn size; its hit area grows to 44 px. */}
@@ -182,9 +187,6 @@ export const SessionHeader = ({
                         {sharing}
                     </span>
                 </div>
-                {/* The version status keeps watching for a newer version (session follow); on a
-                    phone it shows on the Configuration page, not in the header. */}
-                <div className="hidden">{revisionStatus}</div>
             </header>
         )
     }
