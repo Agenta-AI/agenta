@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 interface Captured {
-    filter: {sections: {key: string}[]; onReset: () => void} | null
+    filter: {sections: {key: string}[]; onReset: () => void; active?: boolean} | null
     group: {options: {value: string}[]} | null
 }
 const captured = vi.hoisted(() => ({filter: null, group: null}) as Captured)
@@ -94,6 +94,8 @@ describe("AnalyticsToolbar", () => {
     it("locks the agent: no Agent filter row, no Agent grouping, the chip shows", async () => {
         await mount(<span data-testid="chip" />)
         expect(captured.filter?.sections.map((s) => s.key)).toEqual(["model"])
+        // The page is narrowed to its agent, so the Filter button shows the dot (A09).
+        expect(captured.filter?.active).toBe(true)
         expect(captured.group?.options.map((o) => o.value)).toEqual(["none", "model", "provider"])
         expect(host.querySelector('[data-testid="chip"]')).not.toBeNull()
         // No agent counts for a filter the page does not offer.
@@ -107,6 +109,7 @@ describe("AnalyticsToolbar", () => {
     it("offers the Agent filter and grouping on the Settings page", async () => {
         await mount()
         expect(captured.filter?.sections.map((s) => s.key)).toEqual(["agent", "model"])
+        expect(captured.filter?.active).toBe(false)
         expect(captured.group?.options.map((o) => o.value)).toContain("agent")
     })
 })

@@ -76,6 +76,9 @@ describe("AgentChannelsView", () => {
         expect(row("slack").textContent).toContain("Manage")
         expect(row("slack").textContent).not.toContain("Needs attention")
         expect(row("telegram").textContent).toContain("Connect")
+        // A connected channel is one button; a channel to add has its own Connect button (A07).
+        expect(row("slack").tagName).toBe("BUTTON")
+        expect(row("telegram").querySelector("button")?.textContent).toBe("Connect")
     })
 
     it("says your agent while the agent name is not known", async () => {
@@ -133,7 +136,7 @@ describe("AgentChannelsView", () => {
         })
         expect(groups()).toEqual(["Connected", "Add a channel"])
         expect(row("telegram").textContent).toContain("Needs attention")
-        await act(async () => row("telegram").querySelector("button")!.click())
+        await act(async () => row("telegram").click())
         // The existing connection's manage view, not the hosted setup.
         expect(container.querySelector('[data-testid="inner-view"]')?.textContent).toBe("telegram")
         expect(container.querySelector("nav")?.textContent).toContain("Telegram")
@@ -142,7 +145,7 @@ describe("AgentChannelsView", () => {
 
     it("opens the manage view in place and returns with the breadcrumb", async () => {
         await render({...EMPTY_CONNECTIONS, slack: slackHere})
-        await act(async () => row("slack").querySelector("button")!.click())
+        await act(async () => row("slack").click())
         const view = container.querySelector('[data-testid="agent-channels-open-view"]')!
         expect(view.querySelector("nav")?.textContent).toContain("Channels")
         expect(view.querySelector("nav")?.textContent).toContain("Slack")
@@ -158,7 +161,7 @@ describe("AgentChannelsView", () => {
     it("on a phone covers the screen, keeps focus inside, and Escape goes back to the list", async () => {
         phone.value = true
         await render({...EMPTY_CONNECTIONS, slack: slackHere})
-        await act(async () => row("slack").querySelector("button")!.click())
+        await act(async () => row("slack").click())
         const layer = document.querySelector<HTMLElement>(
             '[data-testid="agent-channels-open-view-phone"]',
         )!
