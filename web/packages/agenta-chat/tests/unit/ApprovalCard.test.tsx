@@ -522,6 +522,14 @@ describe("the change card of a builder edit (task 8.2)", () => {
         expect(html).toContain(">+++ bold<")
     })
 
+    it("says a refused change cannot apply and marks the failing change", () => {
+        const html = card(editAgentConfigTurn.failedPreview)
+        expect(html).toContain("This change cannot be applied to the current version of the agent.")
+        expect(html).toContain('data-fails="true"')
+        expect(html).not.toContain("does not occur")
+        expect(html).not.toContain('data-testid="change-proposed"')
+    })
+
     it("shows the proposed values with a label when the call has no preview", () => {
         const html = card(undefined)
         expect(html).toContain("Proposed values. The current values could not be loaded.")

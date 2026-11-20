@@ -340,7 +340,7 @@ export const AgentLayoutBody = ({
             ) : null}
             {available.builder && (mounted.has("builder") || content === "builder") ? (
                 <div className={content === "builder" ? "h-full min-h-0" : "hidden"}>
-                    {/* No session id: the builder reads the page session itself (design D6). */}
+                    {/* No page session id goes into the builder: it runs its own chat (design D6). */}
                     <BuilderPanel
                         agentId={agentId!}
                         workspaceId={workspaceId}

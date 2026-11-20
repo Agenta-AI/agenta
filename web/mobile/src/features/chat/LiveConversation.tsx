@@ -227,7 +227,10 @@ export const LiveConversation = ({
         }
     }, [])
     const sendFailed = useCallback(
-        (message: {text: string; fileParts?: FileUIPart[]}, error?: unknown) => {
+        (
+            message: {text: string; executionText?: string; fileParts?: FileUIPart[]},
+            error?: unknown,
+        ) => {
             refreshOnSetupFailure(error instanceof SendRefusedError ? error.refusalCode : null)
             if (onScreenRef.current) {
                 dropUnacceptedLocalSession(sessionId)
@@ -238,6 +241,10 @@ export const LiveConversation = ({
                 task: {
                     agentId: agentId ?? entityId,
                     text: message.text,
+                    // A retry sends the snapshot it was sent with, not the page of the retry.
+                    ...(message.executionText !== undefined
+                        ? {executionText: message.executionText}
+                        : {}),
                     parts: message.fileParts,
                     failureReason: refusedSendReason(error) ?? undefined,
                 },
@@ -425,7 +432,10 @@ export const LiveConversation = ({
                 await sendToConversation(input)
             } catch (error) {
                 // The durable path reports this through `onSendFailed` too; this covers the rest.
-                sendFailed({text: input.text, fileParts: input.parts}, error)
+                sendFailed(
+                    {text: input.text, executionText: input.executionText, fileParts: input.parts},
+                    error,
+                )
                 throw error
             }
         },
@@ -460,7 +470,8 @@ export const LiveConversation = ({
         }
         void sendPendingTask({
             sessionId,
-            send: (task) => send({text: task.text, parts: task.parts}),
+            send: (task) =>
+                send({text: task.text, executionText: task.executionText, parts: task.parts}),
         })
     }, [
         pendingTask,
@@ -1122,7 +1133,12 @@ export const LiveConversation = ({
                                     void sendPendingTask({
                                         sessionId,
                                         retry: true,
-                                        send: (task) => send({text: task.text, parts: task.parts}),
+                                        send: (task) =>
+                                            send({
+                                                text: task.text,
+                                                executionText: task.executionText,
+                                                parts: task.parts,
+                                            }),
                                     })
                                 }}
                             />

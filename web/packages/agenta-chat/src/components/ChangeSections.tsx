@@ -79,7 +79,7 @@ const Detail = ({detail}: {detail: ApprovalChangeDetail}) => {
                     {detail.old !== undefined ? (
                         <>
                             <span
-                                className="break-all text-colorTextTertiary line-through"
+                                className="whitespace-pre-wrap break-all text-colorTextTertiary line-through"
                                 data-testid="change-old"
                             >
                                 {detail.old}
@@ -93,7 +93,7 @@ const Detail = ({detail}: {detail: ApprovalChangeDetail}) => {
                     ) : null}
                     {detail.new !== undefined ? (
                         <span
-                            className="break-all font-medium text-colorText"
+                            className="whitespace-pre-wrap break-all font-medium text-colorText"
                             data-testid="change-new"
                         >
                             {detail.new}
