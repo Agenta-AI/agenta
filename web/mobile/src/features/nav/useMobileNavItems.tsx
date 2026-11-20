@@ -240,11 +240,6 @@ export const useRailSessionRowWrapper = (projectURL: string) => {
     )
 }
 
-/**
- * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
- * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
- * forking a component.
- */
 /** The chord that opens the search window, for the search buttons' tooltips. */
 export const usePaletteShortcut = () => {
     // Platform read in an effect: the server has none, and a guess mismatches on hydration.
@@ -257,6 +252,11 @@ export const usePaletteShortcut = () => {
     }, [mac])
 }
 
+/**
+ * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
+ * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
+ * forking a component.
+ */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog)
     const tBuilder = useT(builderPageCatalog)

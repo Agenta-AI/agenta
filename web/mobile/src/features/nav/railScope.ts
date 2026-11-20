@@ -5,7 +5,11 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {useSelectedSidebar} from "../agent-sidebar/selectedSidebar"
+import {
+    clearSidebarChange,
+    sidebarChangePending,
+    useSelectedSidebar,
+} from "../agent-sidebar/selectedSidebar"
 
 import {appScopeAppId, lastMainRailPathAtom} from "./appRoute"
 import {useMobileNavScope} from "./mobileNavScope"
@@ -107,17 +111,21 @@ export const sidebarEnterFrom = (
     return undefined
 }
 
-/** `sidebarEnterFrom` for the scope on screen, against the one shown before it. */
+/**
+ * `sidebarEnterFrom` for the scope on screen, against the one shown before it. Only for a change
+ * the person made in this tab: the agent sidebar restored on load does not slide in.
+ */
 export const useSidebarEnterFrom = (scopeId: string) => {
     const previous = useRef<string | null>(null)
     const enterFrom = useMemo(
-        () => sidebarEnterFrom(previous.current, scopeId),
-        // Read once per scope change; the ref moves in the effect below.
+        () => (sidebarChangePending() ? sidebarEnterFrom(previous.current, scopeId) : undefined),
+        // Read once per scope change; the ref and the flag move in the effect below.
 
         [scopeId],
     )
     useEffect(() => {
         previous.current = scopeId
+        clearSidebarChange()
     }, [scopeId])
     return enterFrom
 }

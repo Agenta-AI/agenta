@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type {SidebarSessionFilters} from "@agenta/navigation"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {orderAgentsLikeMainSidebar} from "../../src/features/agent-sidebar/agentOrder"
@@ -7,8 +8,10 @@ import {agentSidebarItems} from "../../src/features/agent-sidebar/agentSidebarIt
 import {sidebarAfterRoute} from "../../src/features/agent-sidebar/agentSidebarRoute"
 import {groupByDay} from "../../src/features/agent-sidebar/dayGroups"
 import {
+    clearSidebarChange,
     MAIN_SIDEBAR,
     SELECTED_SIDEBAR_KEY,
+    sidebarChangePending,
     openAgentSidebar,
     parseSelectedSidebar,
     openMainSidebar,
@@ -176,6 +179,25 @@ describe("the agent sidebar's session rows", () => {
         expect(group.groupAction).toBe(sessionsActions)
     })
 
+    it("says when the filters hide every session, and leaves out the older row while filtered", () => {
+        const empty = sessionsGroup(agentSidebarItems({...base, total: 0, filtered: true}))
+        expect(empty.submenu!.map((row) => row.title)).toEqual(["agentSidebar.noSessionsMatch"])
+        const session = {
+            sessionId: "s1",
+            appId: "a1",
+            name: "One",
+            archived: false,
+            title: "One",
+            activityAt: new Date().toISOString(),
+            status: "idle" as const,
+            isAutomation: false,
+        }
+        const narrowed = sessionsGroup(
+            agentSidebarItems({...base, sessions: [session], total: 30, filtered: true}),
+        )
+        expect(narrowed.submenu!.some((row) => row.key === "agent-sidebar-older")).toBe(false)
+    })
+
     it("shows Sessions without a number until the count loads, then the older sessions row", () => {
         expect(sessionsGroup(agentSidebarItems(base)).suffix).toBeUndefined()
         const session = {
@@ -250,6 +272,17 @@ describe("the slide between the main sidebar and an agent sidebar", () => {
         expect(sidebarEnterFrom("builder-sidebar", "agent-sidebar:a1")).toBe("end")
     })
 
+    it("marks a sidebar change made in the tab, so the rail slides only for those", () => {
+        clearSidebarChange()
+        expect(sidebarChangePending()).toBe(false)
+        openAgentSidebar("a1")
+        expect(sidebarChangePending()).toBe(true)
+        clearSidebarChange()
+        openMainSidebar()
+        expect(sidebarChangePending()).toBe(true)
+        clearSidebarChange()
+    })
+
     it("does not slide on the first mount, on the same sidebar, or from one agent to another", () => {
         expect(sidebarEnterFrom(null, "agent-sidebar:a1")).toBeUndefined()
         expect(sidebarEnterFrom("mobile-main", "mobile-main")).toBeUndefined()
@@ -258,11 +291,17 @@ describe("the slide between the main sidebar and an agent sidebar", () => {
 })
 
 describe("the agent sidebar's filters as server predicates", () => {
-    const now = Date.parse("2026-11-20T12:00:00Z")
-    const all = {status: "all", type: "all", activity: "all"} as const
+    const all: SidebarSessionFilters = {
+        groupBy: "none",
+        agentIds: [],
+        status: "all",
+        type: "all",
+        activity: "all",
+    }
+    afterEach(() => vi.useRealTimers())
 
     it("narrows nothing by default", () => {
-        expect(agentSessionsNarrowing(all, null, now)).toEqual({
+        expect(agentSessionsNarrowing(all, null)).toEqual({
             flags: undefined,
             sessionIds: undefined,
             origins: undefined,
@@ -271,28 +310,30 @@ describe("the agent sidebar's filters as server predicates", () => {
         })
     })
 
-    it("sends status, type and last activity the way the main sidebar does", () => {
-        expect(agentSessionsNarrowing({...all, status: "running"}, null, now)?.flags).toEqual({
+    it("sends status, type and last activity through the main sidebar's mapping", () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(Date.parse("2026-11-20T12:00:00Z"))
+        expect(agentSessionsNarrowing({...all, status: "running"}, null)?.flags).toEqual({
             is_running: true,
         })
-        expect(agentSessionsNarrowing({...all, status: "idle"}, null, now)?.flags).toEqual({
+        expect(agentSessionsNarrowing({...all, status: "idle"}, null)?.flags).toEqual({
             is_alive: false,
         })
-        expect(agentSessionsNarrowing({...all, type: "chat"}, null, now)?.excludeOrigins).toEqual([
+        expect(agentSessionsNarrowing({...all, type: "chat"}, null)?.excludeOrigins).toEqual([
             "trigger",
         ])
-        expect(agentSessionsNarrowing({...all, type: "automation"}, null, now)?.origins).toEqual([
+        expect(agentSessionsNarrowing({...all, type: "automation"}, null)?.origins).toEqual([
             "trigger",
         ])
-        expect(agentSessionsNarrowing({...all, activity: "24h"}, null, now)?.activityFloor).toBe(
+        expect(agentSessionsNarrowing({...all, activity: "24h"}, null)?.activityFloor).toBe(
             "2026-11-19T12:00:00.000Z",
         )
     })
 
     it("narrows Waiting to the sessions with a pending interaction, and waits for that list", () => {
-        expect(agentSessionsNarrowing({...all, status: "waiting"}, null, now)).toBeNull()
+        expect(agentSessionsNarrowing({...all, status: "waiting"}, null)).toBeNull()
         expect(
-            agentSessionsNarrowing({...all, status: "waiting"}, ["s1", "s2"], now)?.sessionIds,
+            agentSessionsNarrowing({...all, status: "waiting"}, ["s1", "s2"])?.sessionIds,
         ).toEqual(["s1", "s2"])
     })
 })

@@ -97,7 +97,11 @@ const scopeGroups = (scopeId: string) => GROUPED_SCOPES.has(scopeId)
 
 /** Every filter is a server predicate: narrowing a fetched page would filter the window, not
  * the set. Liveness maps onto the row's mirrored flags; the agent onto the turns' references. */
-const requestFilters = (filters: SidebarSessionFilters) => {
+/**
+ * A sidebar's filters as the session list's server predicates. The main sidebar and the agent
+ * sidebar both send these. "Waiting" is not here: it is an id set from the pending interactions.
+ */
+export const sidebarSessionRequestFilters = (filters: SidebarSessionFilters) => {
     const flags: {is_running?: boolean; is_alive?: boolean} = {}
     if (filters.status === "running") flags.is_running = true
     if (filters.status === "idle") flags.is_alive = false
@@ -127,7 +131,7 @@ export const livePollInterval = (rows: SessionStream[] | null | undefined) =>
     livenessPollInterval(rows, {idle: IDLE_POLL_MS})
 
 /**
- * One request per selected agent, merged — see `requestFilters` on why they cannot be one.
+ * One request per selected agent, merged — see `sidebarSessionRequestFilters` on why they cannot be one.
  *
  * Unioned by session id and re-sorted by last activity, which is the order the server would have
  * returned had it been able to answer in one query. Each request carries the full window, so the
@@ -314,7 +318,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
         const projectId = get(projectIdAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
-            requestFilters(filters)
+            sidebarSessionRequestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
         const waitingIds = waitingQuery.data ?? null
@@ -454,7 +458,7 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
         const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
-            requestFilters(filters)
+            sidebarSessionRequestFilters(filters)
         const boundary = get(sidebarSessionBoundaryAtomFamily(scopeId))
         const waiting = filters.status === "waiting"
         const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
@@ -552,7 +556,8 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
         const projectId = get(projectIdAtom)
         const allPinnedIds = get(pinnedSessionIdsAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {agentIds, flags, includeArchived, origin, excludeOrigin} = requestFilters(filters)
+        const {agentIds, flags, includeArchived, origin, excludeOrigin} =
+            sidebarSessionRequestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingIds = get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? null
         // "Awaiting input" has no server predicate — it is an id set — so a pin has to be
@@ -1272,7 +1277,7 @@ export const sidebarSessionsNeedNextPageAtomFamily = atomFamily((scopeId: string
             chats,
             loadedRefs: get(sidebarSessionRefsAtomFamily(scopeId)),
             agentFilter: filters.agentIds,
-            oldest: requestFilters(filters).oldest,
+            oldest: sidebarSessionRequestFilters(filters).oldest,
         })
     }),
 )

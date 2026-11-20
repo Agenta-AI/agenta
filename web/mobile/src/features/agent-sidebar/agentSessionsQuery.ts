@@ -1,5 +1,5 @@
 import {sessionListQueryOptions, type SessionListFilters} from "@agenta/entities/session"
-import {ACTIVITY_WINDOW_HOURS, type SidebarSessionFilters} from "@agenta/navigation"
+import {sidebarSessionRequestFilters, type SidebarSessionFilters} from "@agenta/navigation"
 
 /** What the agent sidebar's filter menu narrows the list by: server predicates only. */
 export type AgentSessionsNarrowing = Pick<
@@ -9,27 +9,21 @@ export type AgentSessionsNarrowing = Pick<
 
 /**
  * The agent sidebar's filters (Type, Status, Last activity) as the session list's server
- * predicates, the same ones the main sidebar sends. "Waiting" is the sessions with a pending
- * interaction (`waitingIds`); null while that list loads. `now` is the floor's clock.
+ * predicates, from the main sidebar's own mapping (`sidebarSessionRequestFilters`). "Waiting" is
+ * the sessions with a pending interaction (`waitingIds`); null while that list loads.
  */
 export const agentSessionsNarrowing = (
-    filters: Pick<SidebarSessionFilters, "status" | "type" | "activity">,
+    filters: SidebarSessionFilters,
     waitingIds: string[] | null,
-    now: number,
 ): AgentSessionsNarrowing | null => {
     if (filters.status === "waiting" && waitingIds === null) return null
-    const hours = ACTIVITY_WINDOW_HOURS[filters.activity]
+    const request = sidebarSessionRequestFilters(filters)
     return {
-        flags:
-            filters.status === "running"
-                ? {is_running: true}
-                : filters.status === "idle"
-                  ? {is_alive: false}
-                  : undefined,
+        flags: request.flags,
         sessionIds: filters.status === "waiting" ? (waitingIds ?? []) : undefined,
-        origins: filters.type === "automation" ? ["trigger"] : undefined,
-        excludeOrigins: filters.type === "chat" ? ["trigger"] : undefined,
-        activityFloor: hours ? new Date(now - hours * 3_600_000).toISOString() : undefined,
+        origins: request.origin ? [request.origin] : undefined,
+        excludeOrigins: request.excludeOrigin ? [request.excludeOrigin] : undefined,
+        activityFloor: request.oldest,
     }
 }
 

@@ -7,6 +7,7 @@ import {
     livePollInterval,
     setSidebarSessionFilterDefaults,
     sidebarSessionFiltersAtomFamily,
+    sidebarSessionFiltersDirtyAtomFamily,
 } from "@agenta/navigation"
 import type {
     SidebarScope,
@@ -67,17 +68,18 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
     // Joined, so a poll that returns the same waiting sessions keeps the same query.
     const waitingKey = pending ? [...pending.keys()].sort().join(",") : null
-    const {status: statusFilter, type, activity} = filters
-    // Computed per filter change, not per render: a floor from the clock on every render would
-    // make a new query each time.
+    // Per filter change, not per render: the activity floor reads the clock, and a new floor on
+    // every render would make a new query each time.
     const narrowing = useMemo(
         () =>
             agentSessionsNarrowing(
-                {status: statusFilter, type, activity},
+                filters,
                 waitingKey === null ? null : waitingKey.split(",").filter(Boolean),
-                Date.now(),
             ),
-        [activity, statusFilter, type, waitingKey],
+        [filters, waitingKey],
+    )
+    const filtered = useAtomValue(
+        sidebarSessionFiltersDirtyAtomFamily(agentSidebarFilterScope(agentId)),
     )
     const query = useQuery({
         ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSION_LIMIT, narrowing ?? {}),
@@ -111,7 +113,7 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     const status = query.isPending ? "loading" : query.isError ? "error" : "ready"
     const {refetch} = query
     const retry = useCallback(() => void refetch(), [refetch])
-    return {sessions, total: query.data?.total ?? null, status, retry} as const
+    return {sessions, total: query.data?.total ?? null, status, retry, filtered} as const
 }
 
 /**
@@ -148,7 +150,7 @@ export const createAgentSidebarScope = (
         const phone = useContext(SidebarLayoutContext) === "phone"
         const bottomItems = useMobileBottomNavItems(projectURL)
         const wrapSessionRow = useRailSessionRowWrapper(projectURL)
-        const {sessions, total, status, retry} = useAgentSessions(projectId, agentId)
+        const {sessions, total, status, retry, filtered} = useAgentSessions(projectId, agentId)
         const tNav = useT(navigationCatalog)
         const paletteShortcut = usePaletteShortcut()
         // The main sidebar's Sessions controls: search opens the search window, the filter
@@ -185,6 +187,7 @@ export const createAgentSidebarScope = (
                     phone,
                     wrapSessionRow: phone ? undefined : wrapSessionRow,
                     sessionsActions,
+                    filtered,
                 }),
             }
             return phone
@@ -193,7 +196,18 @@ export const createAgentSidebarScope = (
                       agent,
                       {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
                   ]
-        }, [bottomItems, phone, retry, sessions, sessionsActions, status, t, total, wrapSessionRow])
+        }, [
+            bottomItems,
+            filtered,
+            phone,
+            retry,
+            sessions,
+            sessionsActions,
+            status,
+            t,
+            total,
+            wrapSessionRow,
+        ])
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {

@@ -39,7 +39,8 @@ export type AgentSidebarText = (
         | "agentSidebar.showOlderSessionsShort"
         | "agentSidebar.loading"
         | "agentSidebar.loadError"
-        | "agentSidebar.retry",
+        | "agentSidebar.retry"
+        | "agentSidebar.noSessionsMatch",
     values?: {count: number},
 ) => string
 
@@ -114,6 +115,7 @@ export const agentSidebarItems = ({
     phone = false,
     wrapSessionRow,
     sessionsActions,
+    filtered = false,
 }: {
     projectURL: string
     agentId: string
@@ -130,6 +132,9 @@ export const agentSidebarItems = ({
     wrapSessionRow?: (session: SessionRowTarget, node: ReactNode) => ReactElement
     /** The controls at the right of the "Sessions" heading: search, then filter. */
     sessionsActions?: ReactNode
+    /** The filter menu narrows the list: an empty list says so, and the "older" row, which
+     * opens the unfiltered Sessions page, is left out. */
+    filtered?: boolean
 }): SidebarConfig[] => {
     const sessionsHref = agentPageHref(projectURL, agentId, "sessions")
     const pageRow = (view: AgentPageView, title: string, icon: ReactNode): SidebarConfig => ({
@@ -183,7 +188,14 @@ export const agentSidebarItems = ({
                 onClick: () => onRetry?.(),
             },
         )
-    const older = total !== null ? total - sessions.length : 0
+    if (sessions.length === 0 && status === "ready" && filtered)
+        rows.push({
+            key: "agent-sidebar-sessions-none-match",
+            title: t("agentSidebar.noSessionsMatch"),
+            disabled: true,
+            isPlaceholder: true,
+        })
+    const older = total !== null && !filtered ? total - sessions.length : 0
     if (older > 0)
         rows.push({
             key: "agent-sidebar-older",

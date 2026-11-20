@@ -1,4 +1,4 @@
-import {createElement, useCallback, useEffect, useMemo, useState} from "react"
+import {createElement, useEffect, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
@@ -20,16 +20,15 @@ const SEARCH_DEBOUNCE_MS = 300
 /**
  * The search window over the builder chats (B06): the production search window, opened from
  * the search button next to "Chats". It searches every builder chat by title on the server.
+ * Mounted only while open, so each opening starts with an empty field.
  */
 const BuilderChatSearchWindow = ({
     workspaceId,
     projectId,
-    open,
     onOpenChange,
 }: {
     workspaceId: string
     projectId: string
-    open: boolean
     onOpenChange: (open: boolean) => void
 }) => {
     const t = useT(builderPageCatalog, navigationCatalog)
@@ -62,21 +61,10 @@ const BuilderChatSearchWindow = ({
             },
         ]
     }, [chats.rows, projectId, t, workspaceId])
-    const onWindowOpenChange = useCallback(
-        (next: boolean) => {
-            onOpenChange(next)
-            // Cleared on close, so a reopen starts on every chat.
-            if (!next) {
-                setQuery("")
-                setTerm("")
-            }
-        },
-        [onOpenChange],
-    )
     return (
         <CommandPalette
-            open={open}
-            onOpenChange={onWindowOpenChange}
+            open
+            onOpenChange={onOpenChange}
             query={query}
             onQueryChange={setQuery}
             groups={groups}
@@ -115,7 +103,6 @@ export const BuilderChatSearch = ({
                 <BuilderChatSearchWindow
                     workspaceId={workspaceId}
                     projectId={projectId}
-                    open={open}
                     onOpenChange={setOpen}
                 />
             ) : null}
