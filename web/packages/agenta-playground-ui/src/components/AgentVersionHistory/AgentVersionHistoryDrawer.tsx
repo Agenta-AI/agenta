@@ -24,6 +24,7 @@ import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/stat
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn, textColors} from "@agenta/ui/styles"
+import {SheetTitle} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -257,11 +258,17 @@ export const AgentVersionHistoryDrawer = ({
                 onConfirm={handleConfirm}
             />
             {phone ? (
-                <PhoneScreenHeader
-                    title={t("playground.versionHistory.title")}
-                    backTitle={backTitle}
-                    onBack={handleClose}
-                />
+                <>
+                    {/* The drawer has no header on a phone; this names the dialog. */}
+                    <SheetTitle className="sr-only">
+                        {t("playground.versionHistory.title")}
+                    </SheetTitle>
+                    <PhoneScreenHeader
+                        title={t("playground.versionHistory.title")}
+                        backTitle={backTitle}
+                        onBack={handleClose}
+                    />
+                </>
             ) : null}
             <div className={cn("flex min-h-0", phone ? "flex-1" : "h-full")}>
                 <div
