@@ -49,6 +49,11 @@ export interface AgentBuildPanelProps {
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
     /** The reader may not edit this agent: every config and automation control is locked. */
     disabled?: boolean
+    /**
+     * False leaves out the operational sections, for a host that shows them in a tab of their
+     * own (the agent panel's Automations tab). Default: shown under the configuration.
+     */
+    operations?: boolean
     className?: string
 }
 
@@ -72,6 +77,7 @@ export const AgentBuildPanel = memo(
         automationDrawer,
         onOpenRunHistory,
         disabled,
+        operations = true,
         className,
     }: AgentBuildPanelProps) => {
         const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
@@ -104,7 +110,7 @@ export const AgentBuildPanel = memo(
 
                 {/* Triggers and Mounts — operational, never part of the committable config, each
                     with its own Configuration-style sticky header. */}
-                {hasPendingHydration ? (
+                {!operations ? null : hasPendingHydration ? (
                     <AgentOperationsSkeleton sticky={sticky} />
                 ) : (
                     <AgentOperationsSections

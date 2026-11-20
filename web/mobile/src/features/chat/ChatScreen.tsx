@@ -45,6 +45,7 @@ import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
 import {useSessionTranscript} from "./useSessionTranscript"
 import {useSessionWatch} from "./useSessionWatch"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+import {viewFormDirtyAtom} from "./viewFormDirty"
 import {watchAwarePollMs} from "./watchRelay"
 
 /**
@@ -171,10 +172,12 @@ export const ChatScreen = ({
     // This tab's run state knows of a send or an approval wait before liveness does.
     const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
     const turnActive = running || runStatus === "running" || runStatus === "awaiting"
+    // An open view form with edits holds the move too; the header then offers "Update to vN".
+    const viewFormDirty = useAtomValue(viewFormDirtyAtom)
     // Across a switch the bar still holds the last session's revision and agent, and an active
     // turn keeps the revision it started on, so neither may move this session's pin.
     const autoUpdateRevision =
-        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !turnActive
+        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !turnActive && !viewFormDirty
     // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
     // agent from the chat before it, so a private chat looks exactly like an unknown one.
     if (access.blocked) {
