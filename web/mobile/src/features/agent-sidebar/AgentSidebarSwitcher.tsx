@@ -1,6 +1,6 @@
 import {useContext, useMemo, useState} from "react"
 
-import {AgentChip, useAgentIconChrome} from "@agenta/entity-ui/agent"
+import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import {SidebarLayoutContext} from "@agenta/navigation-ui"
@@ -11,7 +11,9 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {CaretUpDownIcon, RobotIcon} from "@phosphor-icons/react"
+import {CaretUpDownIcon} from "@phosphor-icons/react"
+
+import {SwitcherTile} from "./SwitcherTile"
 
 /** Above this many agents the menu gets a search field. */
 const SEARCH_FROM = 8
@@ -23,29 +25,6 @@ export interface SwitcherAgent {
 }
 
 const agentName = (agent: SwitcherAgent | undefined) => agent?.name || agent?.slug || ""
-
-/**
- * The agent's tile in the switcher: 32 px, radius 8, with an 18 px glyph. An agent with no icon of
- * its own gets the agent type's blue tint, as the design draws it.
- */
-const SwitcherTile = ({agentId}: {agentId: string}) => {
-    const chrome = useAgentIconChrome(agentId, {
-        size: 18,
-        fallbackGlyph: <RobotIcon aria-hidden size={18} />,
-    })
-    return (
-        <span
-            className={`flex size-8 shrink-0 items-center justify-center rounded-md ${
-                chrome.customised
-                    ? chrome.className
-                    : "bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]"
-            }`}
-            style={chrome.style}
-        >
-            {chrome.glyph}
-        </span>
-    )
-}
 
 /**
  * The agent sidebar's switcher: the sidebar's agent, and a menu with every agent the person can

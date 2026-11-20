@@ -24,7 +24,7 @@ import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems, useRailSessionRowWrapper} from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
-import {AgentSidebarHeader, SidebarNewButton} from "./AgentSidebarHeader"
+import {AgentSidebarHeader} from "./AgentSidebarHeader"
 import {
     agentSidebarItems,
     agentSidebarSelectedKey,
@@ -37,6 +37,7 @@ import {
     openMainSidebar,
     useSelectedSidebar,
 } from "./selectedSidebar"
+import {SidebarNewButton} from "./SidebarNewButton"
 import {switchTarget} from "./switchAgent"
 
 /** How many latest sessions the agent sidebar lists; "Show N older sessions" opens the rest. */
