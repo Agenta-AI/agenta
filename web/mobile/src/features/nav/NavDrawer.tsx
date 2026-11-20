@@ -2,6 +2,7 @@ import {useEffect, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarLayoutContext, SidebarShell} from "@agenta/navigation-ui"
@@ -39,6 +40,7 @@ export const NavDrawer = ({
     scope?: SidebarScope
 }) => {
     const t = useT(navigationCatalog)
+    const tPhone = useT(phoneCatalog)
     const [open, setOpen] = useState(false)
     // A phone gets the 300 px sidebar sheet with 44 px rows; wider windows keep the rail's sheet.
     const phone = useIsPhone()
@@ -72,12 +74,12 @@ export const NavDrawer = ({
         />
     )
 
-    const menuButton = (
+    const menuButton = (label: string) => (
         <Button
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={t("navigation.chrome.openNavigation")}
+            aria-label={label}
             // 20px glyph, not the button's 16: the hamburger is the header's only mark.
             className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] lg:hidden [&_svg:not([class*='size-'])]:size-5"
         >
@@ -93,7 +95,7 @@ export const NavDrawer = ({
                 onOpenChange={setOpen}
                 title={t("navigation.chrome.navigationTitle")}
                 showHeader={false}
-                trigger={menuButton}
+                trigger={menuButton(tPhone("ui.phone.openSidebar"))}
                 // Every small button and link of the sidebar (group +, row ⋯, search, help) is 44 x 44 px
                 // here, so a finger reaches it; the icons keep their size.
                 className="[&_a]:min-h-11 [&_a]:min-w-11 [&_button]:min-h-11 [&_button]:min-w-11"
@@ -105,7 +107,7 @@ export const NavDrawer = ({
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>{menuButton}</SheetTrigger>
+            <SheetTrigger asChild>{menuButton(t("navigation.chrome.openNavigation"))}</SheetTrigger>
             {/* Flush to the viewport's left edge, unlike the kit's floating panel: a nav drawer
                 reads as the rail sliding in, so only its open side is rounded. */}
             <SheetContent

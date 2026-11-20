@@ -48,7 +48,7 @@ import {NavDrawer} from "@/features/nav/NavDrawer"
 afterEach(cleanup)
 
 const open = () => {
-    fireEvent.click(screen.getByRole("button", {name: "Open navigation"}))
+    fireEvent.click(screen.getByRole("button", {name: "Open the sidebar"}))
     return screen.findByTestId("sidebar-sheet")
 }
 
@@ -69,7 +69,7 @@ describe("the sidebar sheet on a phone", () => {
 
     it("closes with the sidebar's own Close and gives the focus back to the menu button", async () => {
         render(<NavDrawer workspaceId="ws" projectId="proj" />)
-        const trigger = screen.getByRole("button", {name: "Open navigation"})
+        const trigger = screen.getByRole("button", {name: "Open the sidebar"})
         trigger.focus()
         await open()
         fireEvent.click(screen.getByRole("button", {name: "Close navigation"}))
