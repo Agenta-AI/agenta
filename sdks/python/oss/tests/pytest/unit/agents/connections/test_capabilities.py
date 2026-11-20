@@ -259,12 +259,12 @@ def test_claude_models_are_the_alias_set_under_anthropic():
     models = HARNESS_CONNECTION_CAPABILITIES["claude"].models
     assert set(models) == {"anthropic"}
     assert models["anthropic"] == list(CLAUDE_MODEL_ALIASES)
-    # Exact harness config values, not provider-prefixed ids or friendly aliases.
-    assert "opus[1m]" in models["anthropic"]
-    assert "claude-fable-5-1" in models["anthropic"]
-    # The pinned Claude Code build no longer offers Fable 5 as a selectable model.
-    assert "claude-fable-5" not in models["anthropic"]
-    assert "fable" not in models["anthropic"]
+    # Exact harness config values: the tier aliases the pinned build lists for every login.
+    assert "opus" in models["anthropic"]
+    assert "fable" in models["anthropic"]
+    # The pinned build lists no concrete Fable value for an API key.
+    assert "claude-fable-5-2" not in models["anthropic"]
+    assert "claude-fable-5-1" not in models["anthropic"]
     assert all("/" not in alias for alias in models["anthropic"])
 
 

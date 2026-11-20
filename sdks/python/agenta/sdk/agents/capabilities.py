@@ -90,21 +90,20 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
 }
 PI_SUBSCRIPTION_PROVIDERS: List[str] = list(PI_SUBSCRIPTION_MODELS)
 
-# Claude Code selects a model by alias, not a ``provider/id`` string. These are stable request
-# values for the picker. A live Claude session can expose a context-hinted variant such as
-# ``claude-fable-5-1[1m]`` (subscription accounts) where an API-key session exposes the bare
-# ``claude-fable-5-1``. The runner safely widens a bare request to the hinted option when that is
-# the only available variant, so the catalog must keep the stable bare value. The pinned Claude
-# Code build no longer offers ``claude-fable-5`` at all, so it is not listed. They
-# live under the ``anthropic`` provider in the ``models`` map (Claude reaches anthropic only).
-# Revisit if the model family changes (see the ``sync-model-catalog`` skill and
-# ``docs/design/agent-workflows/projects/model-config/``).
+# Claude Code selects a model by alias, not a ``provider/id`` string. These are the stable request
+# values for the picker: the tier aliases claude-agent-acp 0.109.0 (Claude Code 2.1.328) lists for
+# both an API key and a subscription login. ``fable`` resolves to Claude Fable 5.2 and ``haiku`` to
+# Claude Haiku 5.5; neither session lists ``claude-fable-5-2`` or ``claude-haiku-5-5`` as a value.
+# The runner widens a bare alias to a ``[1m]`` option when that is the only variant on offer, and
+# runs a concrete id the build does not list on its tier alias. They live under the ``anthropic``
+# provider in the ``models`` map (Claude reaches anthropic only). Revisit on every adapter bump
+# (see the ``sync-model-catalog`` skill and ``docs/design/agent-workflows/projects/model-config/``).
 CLAUDE_MODEL_ALIASES: List[str] = [
     "default",
     "sonnet",
     "haiku",
-    "opus[1m]",
-    "claude-fable-5-1",
+    "opus",
+    "fable",
 ]
 
 # The curated Codex model set the harness advertises under the ``openai`` family: the models the
@@ -229,17 +228,14 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
 
 # A harness that selects by alias (Claude) names a TIER, not a model id, so a curated id has to
 # be translated before it can be matched. Keyed by prefix because the alias tracks the tier
-# across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Only ids a
-# harness could otherwise not name belong here. Fable maps to the current ``claude-fable-5-1``
-# request value (Claude Code itself migrates a saved ``claude-fable-5`` to Fable 5.1). Opus maps
-# to the bracketed ``opus[1m]`` rather than a bare ``opus`` because that bracketed spelling is the exact value Claude Code publishes for the Opus tier in its accepted
-# alias set (see :data:`CLAUDE_MODEL_ALIASES`), and a harness only advertises defaults it can
-# actually select, so any other spelling would be dropped instead of offered.
+# across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Each value is
+# a request value in :data:`CLAUDE_MODEL_ALIASES`, because a harness only advertises defaults it
+# can actually select.
 MODEL_ID_ALIASES: Dict[str, str] = {
-    "anthropic/claude-fable-5": "claude-fable-5-1",
+    "anthropic/claude-fable-": "fable",
     "anthropic/claude-sonnet-": "sonnet",
     "anthropic/claude-haiku-": "haiku",
-    "anthropic/claude-opus-": "opus[1m]",
+    "anthropic/claude-opus-": "opus",
 }
 
 

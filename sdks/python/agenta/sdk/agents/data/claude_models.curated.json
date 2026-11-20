@@ -2,8 +2,8 @@
   "schema_version": "1",
   "_curation": {
     "harness": "claude",
-    "note": "Hand-curated. `id` is the stable Claude Code request value (model_selection = alias). label/description/ratings written by a human from the current lineup. The live harness can add or remove context-hinted variants as account access changes, so the catalog uses the stable bare id the runner can widen to a `[1m]` option when available. Current lineup: Claude Fable 5.1 is the frontier, Claude Opus 5.5 is the recommended default one tier below it, and the `sonnet` alias resolves to Claude Sonnet 5.5 from Claude Code 2.1.284. The pinned Claude Code build no longer offers `claude-fable-5` as a selectable model (it offers `claude-fable-5-1`, or `claude-fable-5-1[1m]` on subscription accounts), so Fable 5 is not listed. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
-    "sources": "@anthropic-ai/claude-agent-sdk@0.3.284 accepted set (sonnet -> claude-sonnet-5-5); Anthropic models overview + pricing pages, checked 2026-09-29."
+    "note": "Hand-curated. `id` is the stable Claude Code request value (model_selection = alias). label/description/ratings written by a human from the current lineup. claude-agent-acp 0.109.0 (Claude Code 2.1.328) lists the tier aliases `default`, `opus`, `fable`, `sonnet` and `haiku` for both an API key and a subscription login, so the catalog publishes those. `fable` resolves to Claude Fable 5.2 and `haiku` to Claude Haiku 5.5; neither session lists `claude-fable-5-2` or `claude-haiku-5-5` as a value. Current lineup: Claude Fable 5.2 is the frontier, Claude Opus 5.5 is the recommended default one tier below it, then Sonnet 5.5 and Haiku 5.5. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
+    "sources": "@agentclientprotocol/claude-agent-acp@0.109.0 session/new model config options (API key and subscription login, probed 2026-11-20); Anthropic models overview, Fable 5.2 overview and pricing pages, checked 2026-11-20."
   },
   "models": [
     {
@@ -29,7 +29,7 @@
       "pricing": {
         "input_per_mtok": 2.0,
         "output_per_mtok": 10.0,
-        "cache_read_per_mtok": 0.2,
+        "cache_read_per_mtok": 0.1,
         "cache_write_per_mtok": 2.5,
         "currency": "USD"
       },
@@ -50,21 +50,21 @@
       "id": "haiku",
       "provider": "anthropic",
       "source": "curated",
-      "name": "Claude Haiku 4.5",
+      "name": "Claude Haiku 5.5",
       "pricing": {
-        "input_per_mtok": 1.0,
-        "output_per_mtok": 5.0,
-        "cache_read_per_mtok": 0.1,
-        "cache_write_per_mtok": 1.25,
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.5,
+        "cache_read_per_mtok": 0.01,
+        "cache_write_per_mtok": 0.125,
         "currency": "USD"
       },
-      "context_window": 200000,
+      "context_window": 1000000,
       "modalities": [
         "text",
         "image"
       ],
-      "label": "Haiku 4.5",
-      "description": "The fastest, cheapest tier. Use for high-volume, latency-sensitive tasks.",
+      "label": "Haiku 5.5",
+      "description": "The fastest, cheapest tier for high-volume, latency-sensitive tasks. Prompts over 100K tokens cost five times the listed price.",
       "ratings": {
         "cost": 5,
         "intelligence": 2,
@@ -72,7 +72,7 @@
       }
     },
     {
-      "id": "opus[1m]",
+      "id": "opus",
       "provider": "anthropic",
       "source": "curated",
       "name": "Claude Opus 5.5",
@@ -88,7 +88,7 @@
         "text",
         "image"
       ],
-      "label": "Opus 5.5 (1M context)",
+      "label": "Opus 5.5",
       "description": "The recommended default: strong reasoning and long-running agentic coding at a mid-tier price, with a 1M-token context window.",
       "ratings": {
         "cost": 3,
@@ -97,15 +97,15 @@
       }
     },
     {
-      "id": "claude-fable-5-1",
+      "id": "fable",
       "provider": "anthropic",
       "source": "curated",
-      "name": "Claude Fable 5.1",
+      "name": "Claude Fable 5.2",
       "pricing": {
-        "input_per_mtok": 10.0,
-        "output_per_mtok": 50.0,
-        "cache_read_per_mtok": 0.25,
-        "cache_write_per_mtok": 12.5,
+        "input_per_mtok": 8.0,
+        "output_per_mtok": 40.0,
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 10.0,
         "currency": "USD"
       },
       "context_window": 1000000,
@@ -113,8 +113,8 @@
         "text",
         "image"
       ],
-      "label": "Fable 5.1",
-      "description": "The current Anthropic frontier (Fable 5.1): the strongest reasoning tier for demanding, long-horizon agentic work.",
+      "label": "Fable 5.2",
+      "description": "The current Anthropic frontier (Fable 5.2): the strongest model for demanding reasoning and long-horizon agentic work, at twice the price of Opus.",
       "ratings": {
         "cost": 2,
         "intelligence": 5,

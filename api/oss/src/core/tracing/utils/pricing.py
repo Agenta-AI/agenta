@@ -15,11 +15,13 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-# Bare family names that harnesses send as the model id (e.g. Claude Code's "sonnet").
+# Bare family names that harnesses send as the model id (e.g. Claude Code's "sonnet"), mapped
+# to the model each one runs in the pinned Claude Code build (claude-agent-acp 0.109.0).
 MODEL_ALIASES: Dict[str, str] = {
     "sonnet": "claude-sonnet-5-5",
-    "opus": "claude-opus-5",
-    "haiku": "claude-haiku-4-5",
+    "opus": "claude-opus-5-5",
+    "fable": "claude-fable-5-2",
+    "haiku": "claude-haiku-5-5",
 }
 
 # Models litellm's price map does not carry yet, as (base key, per-token
@@ -39,17 +41,30 @@ PRICE_MAP_ADDITIONS: Dict[str, Tuple[str, Dict[str, float]]] = {
             "cache_creation_input_token_cost_above_1hr": 8e-06,
         },
     ),
-    # Anthropic list price: $2 input, $10 output, $0.20 cache read, $2.50 cache write
-    # (5-minute), $4 cache write (1-hour) per million tokens, the same as Sonnet 5.
+    # Anthropic list price: $2 input, $10 output, $0.10 cache read, $2.50 cache write
+    # (5-minute), $4 cache write (1-hour) per million tokens.
     # litellm 1.101.0 (the version this API pins) does not carry it yet.
     "claude-sonnet-5-5": (
         "claude-sonnet-5",
         {
             "input_cost_per_token": 2e-06,
             "output_cost_per_token": 1e-05,
-            "cache_read_input_token_cost": 2e-07,
+            "cache_read_input_token_cost": 1e-07,
             "cache_creation_input_token_cost": 2.5e-06,
             "cache_creation_input_token_cost_above_1hr": 4e-06,
+        },
+    ),
+    # Anthropic list price: $8 input, $40 output, $0.20 cache read, $10 cache write
+    # (5-minute), $16 cache write (1-hour) per million tokens, with no long-context tier.
+    # litellm's bundled price map does not carry it yet.
+    "claude-fable-5-2": (
+        "claude-fable-5-1",
+        {
+            "input_cost_per_token": 8e-06,
+            "output_cost_per_token": 4e-05,
+            "cache_read_input_token_cost": 2e-07,
+            "cache_creation_input_token_cost": 1e-05,
+            "cache_creation_input_token_cost_above_1hr": 1.6e-05,
         },
     ),
     # Anthropic list price for prompts up to 100,000 tokens: $0.10 input, $0.50 output,

@@ -62,31 +62,29 @@ describe("pickModel", () => {
     assert.equal(pickModel(allowed, "haiku"), "haiku");
   });
 
-  it("resolves claude-fable-5-1 against both option sets the pinned Claude build reports", () => {
-    // Captured from @anthropic-ai/claude-agent-sdk 0.3.280 supportedModels(): an API-key session
-    // offers the bare id, a subscription session only the [1m] variant.
-    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
-    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
-    assert.equal(pickModel(apiKey, "claude-fable-5-1"), "claude-fable-5-1");
-    assert.equal(pickModel(subscription, "claude-fable-5-1"), "claude-fable-5-1[1m]");
-  });
-
-  it("upgrades a saved claude-fable-5 to Fable 5.1, which the pinned build offers instead", () => {
-    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
-    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
-    for (const saved of ["claude-fable-5", "anthropic/claude-fable-5", "claude-fable-5[1m]"]) {
-      assert.equal(pickModel(apiKey, saved), "claude-fable-5-1", saved);
-      assert.equal(pickModel(subscription, saved), "claude-fable-5-1[1m]", saved);
+  it("resolves Fable ids against both option sets the pinned Claude build reports", () => {
+    // Captured from claude-agent-acp 0.109.0 (claude-agent-sdk 0.3.328) session/new config
+    // options: an API-key session lists only the tier aliases; a subscription session also lists
+    // older concrete ids. Neither lists `claude-fable-5-2`; `fable` resolves to it.
+    const apiKey = ["default", "opus", "fable", "sonnet", "haiku"];
+    const subscription = [...apiKey, "claude-fable-5-1", "claude-haiku-4-5-20251001", "claude-fable-5"];
+    assert.equal(pickModel(apiKey, "fable"), "fable");
+    assert.equal(pickModel(subscription, "fable"), "fable");
+    for (const saved of ["claude-fable-5-2", "anthropic/claude-fable-5-2", "claude-fable-5-2[1m]"]) {
+      assert.equal(pickModel(apiKey, saved), "fable", saved);
+      assert.equal(pickModel(subscription, saved), "fable", saved);
     }
-    // A build that still offers Fable 5 keeps it: the upgrade applies only once nothing matched.
-    assert.equal(pickModel(["claude-fable-5", "claude-fable-5-1"], "claude-fable-5"), "claude-fable-5");
-    // No successor on offer: still no match, so the strict path fails loud.
-    assert.equal(pickModel(["default", "sonnet"], "claude-fable-5"), undefined);
+    // A listed concrete id keeps its exact model; an unlisted one runs on the tier alias.
+    assert.equal(pickModel(subscription, "claude-fable-5-1"), "claude-fable-5-1");
+    assert.equal(pickModel(apiKey, "claude-fable-5-1"), "fable");
+    assert.equal(pickModel(apiKey, "claude-fable-5"), "fable");
+    // No Fable on offer: still no match, so the strict path fails loud.
+    assert.equal(pickModel(["default", "sonnet"], "claude-fable-5-2"), undefined);
   });
 
   it("runs a concrete Claude id on its tier alias when the build does not offer the id", () => {
-    // Captured from the pinned build on staging: an API-key session offers `opus[1m]` but not
-    // `claude-opus-5-5`, so a saved concrete id failed with ModelNotSettableError.
+    // Captured from claude-agent-acp 0.84.0 on staging: an API-key session offered `opus[1m]`
+    // but not `claude-opus-5-5`, so a saved concrete id failed with ModelNotSettableError.
     const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
     const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
     const cases: Array<[string, string]> = [
@@ -264,14 +262,14 @@ describe("applyModel", () => {
     assert.deepEqual(calls, ["gpt-5.5", "openai-codex/gpt-5.5"]);
   });
 
-  it("runs a saved claude-fable-5 config on Fable 5.1 instead of failing (strict default)", async () => {
+  it("runs a saved claude-fable-5-2 on the fable alias and logs it (strict default)", async () => {
     const calls: string[] = [];
     const session = {
       setModel: async (id: string) => {
         calls.push(id);
-        if (id !== "claude-fable-5-1[1m]") {
+        if (id !== "fable") {
           throw new Error(
-            "Unsupported value. Allowed values: default, opus[1m], claude-fable-5-1[1m], sonnet, haiku",
+            "Unsupported value. Allowed values: default, opus, fable, sonnet, haiku",
           );
         }
       },
@@ -279,12 +277,12 @@ describe("applyModel", () => {
 
     const logs: string[] = [];
     assert.equal(
-      await applyModel(session, "claude-fable-5", (m) => logs.push(m)),
-      "claude-fable-5-1[1m]",
+      await applyModel(session, "anthropic/claude-fable-5-2", (m) => logs.push(m)),
+      "fable",
     );
-    assert.deepEqual(calls, ["claude-fable-5", "claude-fable-5-1[1m]"]);
+    assert.deepEqual(calls, ["anthropic/claude-fable-5-2", "fable"]);
     assert.deepEqual(logs, [
-      "model 'claude-fable-5' is retired by this harness; upgraded to 'claude-fable-5-1[1m]'",
+      "model 'anthropic/claude-fable-5-2' is not offered by this harness; running its tier alias 'fable'",
     ]);
   });
 

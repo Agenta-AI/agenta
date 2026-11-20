@@ -554,7 +554,7 @@ async def test_bare_claude_alias_infers_anthropic_and_routes_through_the_gateway
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
-    for alias in ("haiku", "sonnet", "opus[1m]"):
+    for alias in ("haiku", "sonnet", "opus", "fable"):
         resolved = await VaultConnectionResolver(connection).resolve(
             model=ModelRef.coerce(alias),
             context=RuntimeAuthContext(harness="claude"),

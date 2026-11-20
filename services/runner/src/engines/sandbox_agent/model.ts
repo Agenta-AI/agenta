@@ -34,37 +34,22 @@ export class ModelNotSettableError extends Error {
  */
 const stripContextHint = (id: string) => id.replace(/\[[^[\]]*\]$/, "");
 
-/**
- * Retired model ids the harness no longer offers, mapped to the successor a saved config should
- * run on instead. Claude Code 2.1.280 dropped `claude-fable-5` and moves its own saved setting to
- * Fable 5.1; saved agent configs get the same treatment so they keep running. Consulted only
- * after the requested id failed to match, so a harness that still offers the old id keeps it.
- */
-const RETIRED_MODEL_SUCCESSORS: Record<string, string> = {
-  "claude-fable-5": "claude-fable-5-1",
-};
-
-/**
- * The successor for a retired id, in any spelling a saved config may hold: bare,
- * provider-prefixed (`anthropic/claude-fable-5`) or context-hinted (`claude-fable-5[1m]`). The
- * successor is returned bare; `pickModel` then widens it to the hinted option when that is the
- * only variant on offer.
- */
+/** A model id without its provider prefix and context hint: `anthropic/claude-fable-5[1m]` -> `claude-fable-5`. */
 const baseModelId = (id: string) => stripContextHint(id.slice(id.indexOf("/") + 1));
-
-const retiredModelSuccessor = (id: string): string | undefined =>
-  RETIRED_MODEL_SUCCESSORS[baseModelId(id)];
 
 /**
  * Model-id prefixes mapped to the tier alias the Claude harness names them by. Claude Code
- * selects by tier alias, and which concrete ids a build also accepts depends on the account: an
- * API-key session of the pinned build offers `opus[1m]` but not `claude-opus-5-5`, while a
- * subscription session accepts it. A concrete id the build does not offer runs on its tier alias
- * rather than failing. Mirrors the tier entries of the SDK's `MODEL_ID_ALIASES`
- * (sdks/python/agenta/sdk/agents/capabilities.py), which a unit test holds equal.
+ * selects by tier alias, and which concrete ids a build also lists depends on the account:
+ * claude-agent-acp 0.109.0 lists `default`, `opus`, `fable`, `sonnet` and `haiku` for an API key,
+ * and adds older concrete ids such as `claude-fable-5-1` for a subscription, but lists no
+ * `claude-fable-5-2` or `claude-haiku-5-5` for either. A concrete id the build does not list runs
+ * on its tier alias rather than failing. Mirrors the tier entries of the SDK's
+ * `MODEL_ID_ALIASES` (sdks/python/agenta/sdk/agents/capabilities.py), which a unit test holds
+ * equal.
  */
 export const CLAUDE_TIER_ALIASES: Record<string, string> = {
   "claude-opus-": "opus",
+  "claude-fable-": "fable",
   "claude-sonnet-": "sonnet",
   "claude-haiku-": "haiku",
 };
@@ -106,9 +91,7 @@ const pickTierAlias = (allowed: string[], wanted: string): string | undefined =>
  * context) variant; it never falls back from a hinted request to a bare id, which would silently
  * shrink the context window.
  *
- * Then a retired id the harness no longer offers resolves to its successor (see
- * `RETIRED_MODEL_SUCCESSORS`), and last a concrete Claude id resolves to its tier alias (see
- * `CLAUDE_TIER_ALIASES`).
+ * Last, a concrete Claude id resolves to its tier alias (see `CLAUDE_TIER_ALIASES`).
  */
 export function pickModel(allowed: string[], wanted?: string): string | undefined {
   if (!wanted) return undefined;
@@ -119,9 +102,7 @@ export function pickModel(allowed: string[], wanted?: string): string | undefine
     allowed.find((id) => suffix(id) === suffix(wanted)) ??
     allowed.find((id) => id !== wanted && stripContextHint(id) === wanted);
   if (match) return match;
-  const successor = retiredModelSuccessor(wanted);
-  const upgraded = successor ? pickModel(allowed, successor) : undefined;
-  return upgraded ?? pickTierAlias(allowed, wanted);
+  return pickTierAlias(allowed, wanted);
 }
 
 /**
@@ -199,9 +180,7 @@ export async function applyModel(
     if (match && match !== wanted) {
       try {
         await session.setModel(match);
-        if (retiredModelSuccessor(wanted) && baseModelId(match) !== baseModelId(wanted)) {
-          log(`model '${wanted}' is retired by this harness; upgraded to '${match}'`);
-        } else if (claudeTierAlias(wanted) && baseModelId(match) !== baseModelId(wanted)) {
+        if (claudeTierAlias(wanted) && baseModelId(match) !== baseModelId(wanted)) {
           log(`model '${wanted}' is not offered by this harness; running its tier alias '${match}'`);
         }
         return match;
