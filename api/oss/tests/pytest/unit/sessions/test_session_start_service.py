@@ -1013,3 +1013,26 @@ async def test_start_records_the_run_origin_and_the_calling_session_on_the_row()
     stream = streams.create.await_args.kwargs["stream"]
     assert stream.run_envelope == envelope
     assert stream.calling_session == calling_session
+
+
+@pytest.mark.asyncio
+async def test_a_calling_session_record_without_a_policy_is_refused():
+    """Only the row the start creates carries the record: without `access` the start
+    creates no row, so the record would be lost."""
+    from oss.src.core.sessions.types import SessionCallingSession
+
+    streams = AsyncMock()
+    with pytest.raises(ValueError):
+        await _start_with_streams(streams, []).start_once(
+            **{
+                **_args(),
+                "envelope": make_envelope(origin="calling_session"),
+            },
+            calling_session=SessionCallingSession(
+                id="calling-session",
+                turn_id="calling-turn",
+                agent_id=uuid4(),
+                revision_id=uuid4(),
+            ),
+        )
+    streams.create.assert_not_awaited()

@@ -3150,6 +3150,9 @@ class SessionsRootRouter:
             resource=session_resource(session_id),
         ):
             raise _pending_input_not_found(input_id=str(input_id))
+        # The editor is the sender of this request's own envelope, not the user behind
+        # its credential: an API key carries no sender.
+        envelope = request_run_envelope(request)
         try:
             item = await self.inputs_service.update(
                 project_id=project_id,
@@ -3157,6 +3160,7 @@ class SessionsRootRouter:
                 session_id=session_id,
                 input_id=input_id,
                 update=payload,
+                sender=envelope.sender if envelope is not None else None,
             )
         except SessionInputNotFound as error:
             raise HTTPException(

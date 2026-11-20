@@ -13,6 +13,7 @@ from sqlalchemy import text
 from oss.src.apis.fastapi.sessions.models import PendingInputAdmissionRequest
 from oss.src.apis.fastapi.sessions.router import SessionControlRouter
 import oss.src.apis.fastapi.sessions.router as router_module
+from oss.src.core.access.dtos import RunSender
 from oss.src.core.sessions.commands.dtos import (
     SessionCommandCreate,
     SessionCommandKind,
@@ -26,6 +27,7 @@ from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
 from oss.src.core.sessions.executions.dtos import SessionExecutionState
 from oss.src.core.sessions.inputs.dtos import (
     PendingInputCreate,
+    PendingInputKind,
     PendingInputState,
     PendingInputUpdate,
     PendingInputAttachment,
@@ -169,6 +171,10 @@ def _input(scope, *, key: str, message: str, policy: str = "queue"):
         policy=policy,
         idempotency_key=key,
         request_fingerprint=input_fingerprint(content=content, policy=policy),
+        # The scope's user sent it, so the edit tests may edit it as that user.
+        run_envelope=make_envelope(
+            project_id=scope["project_id"], principal_id=scope["user_id"]
+        ),
     )
 
 
@@ -1388,6 +1394,7 @@ async def test_edit_pending_preserves_payload_identity_and_retry_attachments(
             input_id=row.id,
             user_id=input_scope["user_id"],
             update=update,
+            sender=RunSender(user_id=input_scope["user_id"]),
         )
     original_retry = await service.admit(
         project_id=input_scope["project_id"],
@@ -1459,6 +1466,7 @@ async def test_edit_pending_rejects_promoted_and_reserved_rows(input_scope, row_
             input_id=row.id,
             user_id=input_scope["user_id"],
             update=PendingInputUpdate(text="changed"),
+            sender=RunSender(user_id=input_scope["user_id"]),
         )
     stored = await dao.fetch_input(
         project_id=input_scope["project_id"],
@@ -1522,6 +1530,7 @@ async def test_edit_pending_scope_and_invalid_content_leave_row_unchanged(input_
         input_id=row.id,
         user_id=input_scope["user_id"],
         update=PendingInputUpdate(text="new"),
+        sender=RunSender(user_id=input_scope["user_id"]),
     )
     with pytest.raises(SessionInputNotFound):
         await service.update(**{**args, "project_id": uuid.uuid4()})
@@ -1790,3 +1799,49 @@ async def test_concurrent_claims_after_a_release_let_exactly_one_through(input_s
 
     assert won.count(True) == 1
     assert await _is_claimed(scope, item.id) is True
+
+
+async def test_messages_only_promotion_skips_server_inputs_and_reads_null_as_message(
+    input_scope,
+):
+    scope = input_scope
+    inputs = SessionInputsDAO(engine=scope["engine"])
+    service = SessionInputsService(inputs_dao=inputs, streams_service=SimpleNamespace())
+    where = {"project_id": scope["project_id"], "session_id": scope["session_id"]}
+
+    async def queue(key, kind):
+        return await service.queue_input(
+            **where,
+            user_id=scope["user_id"],
+            content={"session_id": scope["session_id"], "data": {"messages": [key]}},
+            idempotency_key=key,
+            envelope=make_envelope(project_id=scope["project_id"]),
+            kind=kind,
+        )
+
+    update = await queue("ag:child_update:c:1", PendingInputKind.child_update)
+    assert await inputs.has_pending_server_input(**where) is True
+    message = await queue("client-1", PendingInputKind.message)
+    # A row that an older pod wrote has no kind.
+    async with scope["engine"].session() as session:
+        await session.execute(
+            text("UPDATE session_inputs SET kind = NULL WHERE id = :id"),
+            {"id": message.id},
+        )
+
+    promoted = await inputs.promote_next(
+        **where, execution_id="execution-held-1", messages_only=True
+    )
+
+    assert promoted.id == message.id
+    assert promoted.kind == PendingInputKind.message
+    assert await inputs.has_pending_server_input(**where) is True
+    assert (
+        await inputs.promote_next(
+            **where, execution_id="execution-held-2", messages_only=True
+        )
+        is None
+    )
+    promoted = await inputs.promote_next(**where, execution_id="execution-held-3")
+    assert promoted.id == update.id
+    assert await inputs.has_pending_server_input(**where) is False

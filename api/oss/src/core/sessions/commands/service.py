@@ -31,6 +31,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
     which is exact.
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
@@ -1865,15 +1866,21 @@ class SessionCommandsService:
             transaction=transaction,
         ):
             return False
-        return await server_input_waits(
-            streams_dao=self._streams_dao,
-            executions_dao=self._executions,
-            inputs_dao=self._inputs,
-            turns_dao=self._turns,
-            cancelled_by_steer=self.cancelled_by_steer,
-            project_id=project_id,
-            session_id=session_id,
-            turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+        # In its own task: `engine.session()` hands every caller in one task the same
+        # session and commits and closes it on exit, so the rule's reads in this task
+        # would commit the turn end's transaction early and drop the input lock. A new
+        # task reads through its own session and sees committed rows only.
+        return await asyncio.create_task(
+            server_input_waits(
+                streams_dao=self._streams_dao,
+                executions_dao=self._executions,
+                inputs_dao=self._inputs,
+                turns_dao=self._turns,
+                cancelled_by_steer=self.cancelled_by_steer,
+                project_id=project_id,
+                session_id=session_id,
+                turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+            )
         )
 
     async def _promote_next_input(

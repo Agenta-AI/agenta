@@ -56,6 +56,7 @@ async def test_claim_insert_writes_policy(trigger_project):
     dao = SessionStreamsDAO(engine=get_transactions_engine())
 
     claimed = await dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=alice,
         event_id="event-private",
@@ -80,6 +81,7 @@ async def test_claim_insert_writes_the_ownerless_policy(trigger_project):
     dao = SessionStreamsDAO(engine=get_transactions_engine())
 
     await dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=trigger_project["user_id"],
         event_id="event-ownerless",
@@ -102,6 +104,7 @@ async def test_claim_conflict_arm_tags_only(trigger_project):
 
     first = _attribution(schedule_id)
     await dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=alice,
         event_id="event-first",
@@ -112,6 +115,7 @@ async def test_claim_conflict_arm_tags_only(trigger_project):
 
     second = _attribution(schedule_id)
     claimed = await dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=alice,
         event_id="event-second",

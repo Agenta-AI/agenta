@@ -416,6 +416,10 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         self, *, project_id: UUID, session_id: str, transaction: Optional[Any] = None
     ) -> bool:
         async def execute(session: Any) -> bool:
+            # The same lock as `create_input`, held to the end of the caller's
+            # transaction: a row written after this answer waits for the next promotion,
+            # so the hold check and the promotion see one queue.
+            await self._lock_session(session, project_id, session_id)
             row = (
                 await session.execute(
                     select(SessionInputDBE.id)

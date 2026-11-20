@@ -1,8 +1,8 @@
 """Whether a person sent a turn, and when a server input must wait for a person.
 
 `enqueue_session_input` and the queue promotion at a turn end apply the hold rule, and the
-cap of turns in a row in that rule reads `is_sent_by_person`. Later the answer at the
-approval gate reads it too, so each fact is derived in one place.
+cap of turns in a row in that rule reads `is_sent_by_person`, so each fact is derived in
+one place.
 """
 
 from typing import Any, Awaitable, Callable, Optional
