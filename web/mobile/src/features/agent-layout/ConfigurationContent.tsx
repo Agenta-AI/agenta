@@ -9,7 +9,7 @@ import {
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
-import {ViewStackHost} from "@agenta/ui/view-stack"
+import {useSystemBack, ViewStackHost} from "@agenta/ui/view-stack"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -58,6 +58,13 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
     // On a phone the Agent tab is a list of rows, and a row opens its section as a screen.
     // A tab switch goes back to the rows (ConfigurationRoot closes the section).
     const sectionScreen = usePhoneSectionScreen(panel.phone)
+    // A section's screen is a level of the browser back, as its back arrow.
+    // Only while the panel shows Configuration: the content stays mounted, hidden, after it closes.
+    useSystemBack(
+        panel.content === "configuration" && sectionScreen.shown ? 1 : 0,
+        "section",
+        sectionScreen.close,
+    )
     return (
         // Open agent views follow the revision on screen (auto-save replaces it) and the edit right.
         // The DrillIn bridge holds the stack, so an open view gets the same host parts (model

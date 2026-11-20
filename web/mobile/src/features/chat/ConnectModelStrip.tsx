@@ -44,7 +44,13 @@ export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateA
                         <Lock className="size-3.5 shrink-0" />
                         <span className="truncate">{t("chat.mobileComposer.addProviderKey")}</span>
                     </span>
-                    <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
+                    <Button
+                        size="sm"
+                        // A phone: 44 px high itself, into the strip's padding. Not an after area:
+                        // the reveal around the strip clips its overflow.
+                        className="shrink-0 max-md:-my-2 max-md:min-h-11"
+                        onClick={() => setOpen(true)}
+                    >
                         {t("chat.mobileComposer.setUpProviders")}
                     </Button>
                 </div>
