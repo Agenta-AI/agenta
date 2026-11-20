@@ -224,3 +224,21 @@ describe("drift guard: a renamed wire key is silently dropped, not rejected", ()
         expect((out as Record<string, unknown>).refs).toBeUndefined()
     })
 })
+
+describe("sessionStreamSchema origin", () => {
+    it.each(["manual", "trigger", "channel", "api", "calling_session"])(
+        "keeps the origin %s",
+        (origin) => {
+            expect(sessionStreamSchema.parse({...wireRow, origin}).origin).toBe(origin)
+        },
+    )
+
+    it("reads an unknown origin as undefined and keeps the row", () => {
+        const out = sessionsQueryResponseSchema.parse({
+            count: 1,
+            sessions: [{...wireRow, origin: "not-an-origin"}],
+        })
+        expect(out.sessions).toHaveLength(1)
+        expect(out.sessions[0].origin).toBeUndefined()
+    })
+})
