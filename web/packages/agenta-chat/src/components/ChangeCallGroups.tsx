@@ -5,17 +5,26 @@
  * row opens in place and shows the same detail as the single card. The other groups ("Needs you
  * first", "Applies at once") are section 46.
  */
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {useT, type CatalogKey, type TranslationValues} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
+import {useIsPhone} from "@agenta/ui/phone"
 import {CaretRight, PencilSimple, Plus, Sparkle, X} from "@phosphor-icons/react"
 
 import {useChangeVersions} from "../hooks/useChangeVersions"
 import type {ApprovalPreview} from "../skin/types"
 
-import {Block, diffRows, groupChanges, RiskLine, type ChangeBlock} from "./ChangeSections"
+import {
+    Block,
+    blockLabel,
+    diffRows,
+    groupChanges,
+    RiskLine,
+    type ChangeBlock,
+} from "./ChangeSections"
+import {PhoneDetailScreen} from "./PhoneDetailScreen"
 
 type Translate = (
     key: CatalogKey<typeof chatChangeCardStatesCatalog> | CatalogKey<typeof chatChangeCardCatalog>,
@@ -55,15 +64,6 @@ const blockSummary = (block: ChangeBlock, t: Translate): string | undefined => {
     }
 }
 
-/** The row's label: the block's path, and the item it adds or removes. */
-const blockLabel = (block: ChangeBlock): string => {
-    const item = block.changes.find((change) => change.detail?.kind === "item")?.detail
-    const name = item?.kind === "item" ? item.name : undefined
-    const path =
-        name && block.path[block.path.length - 1] !== name ? [...block.path, name] : block.path
-    return path.join(" › ") || block.title
-}
-
 const blockMark = (block: ChangeBlock): "added" | "removed" | "changed" => {
     const detail = block.changes[0]?.detail
     return detail?.kind === "item" ? detail.change : "changed"
@@ -71,23 +71,30 @@ const blockMark = (block: ChangeBlock): "added" | "removed" | "changed" => {
 
 const Row = ({block}: {block: ChangeBlock}) => {
     const t = useT(chatChangeCardStatesCatalog, chatChangeCardCatalog)
+    // On a phone a row opens its detail full screen (M05); on the desktop it opens in place.
+    const phone = useIsPhone()
     const [open, setOpen] = useState(false)
+    // A move across the phone width closes the row rather than turning one view into the other.
+    useEffect(() => setOpen(false), [phone])
     const mark = blockMark(block)
+    const label = blockLabel(block)
     const summary = blockSummary(block, t)
     return (
         <div className="flex min-w-0 flex-col" data-testid="change-block-row">
             <button
                 type="button"
                 onClick={() => setOpen((value) => !value)}
-                aria-expanded={open}
-                className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1 py-1.5 text-left hover:bg-colorFillQuaternary"
+                aria-expanded={phone ? undefined : open}
+                className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1 text-left hover:bg-colorFillQuaternary ${
+                    phone ? "min-h-11" : "py-1.5"
+                }`}
             >
                 <CaretRight
                     size={11}
                     weight="bold"
                     aria-hidden
                     className={`shrink-0 text-colorTextTertiary transition-transform ${
-                        open ? "rotate-90" : ""
+                        open && !phone ? "rotate-90" : ""
                     }`}
                 />
                 <span
@@ -109,7 +116,7 @@ const Row = ({block}: {block: ChangeBlock}) => {
                     )}
                 </span>
                 <span className="shrink-0 truncate text-[13px] font-medium text-colorText">
-                    {blockLabel(block)}
+                    {label}
                 </span>
                 {summary ? (
                     <span
@@ -120,7 +127,12 @@ const Row = ({block}: {block: ChangeBlock}) => {
                     </span>
                 ) : null}
             </button>
-            {open ? (
+            {phone ? (
+                <PhoneDetailScreen open={open} onOpenChange={setOpen} title={label}>
+                    <Block block={block} small={false} pathPrefix={[]} />
+                </PhoneDetailScreen>
+            ) : null}
+            {open && !phone ? (
                 <div className="py-2 pl-6">
                     <Block block={block} small pathPrefix={[]} />
                 </div>
