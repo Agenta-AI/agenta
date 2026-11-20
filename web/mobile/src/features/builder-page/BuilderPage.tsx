@@ -303,7 +303,7 @@ export const BuilderPage = ({
                     <SplitPane
                         className="h-full"
                         paneSide="end"
-                        paneSize={paneOpen ? (dragWidth ?? layout.width) : 0}
+                        paneSize={paneOpen && !paneFull ? (dragWidth ?? layout.width) : 0}
                         paneMin={paneOpen && !paneFull ? PANE_MIN_WIDTH : 0}
                         paneMax={PANE_MAX_WIDTH}
                         fillMin={paneOpen && !paneFull ? CHAT_MIN_WIDTH : 0}
