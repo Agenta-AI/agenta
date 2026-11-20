@@ -107,6 +107,8 @@ export interface RichChatInputProps {
     footer?: ReactNode
     /** Trailing slot in the toolbar row, right-aligned (e.g. custom submit actions). */
     trailing?: ReactNode
+    /** Right-aligned in the toolbar row, just before Send (e.g. the composer's model button). */
+    beforeSend?: ReactNode
     /** Files pasted into the editor (clipboard images/files). */
     onPasteFile?: (files: FileList) => void
     /** Something besides the text is sendable (e.g. attachments): Send and Enter send "". */
@@ -196,6 +198,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             header,
             footer,
             trailing,
+            beforeSend,
             onPasteFile,
             sendForceEnabled,
             sendDisabled,
@@ -452,7 +455,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 />
                             </div>
                         )}
-                        <div className="ml-auto flex items-center gap-2">
+                        <div className="ml-auto flex min-w-0 items-center gap-2">
+                            {beforeSend}
                             {hideSendButton ? null : (
                                 <SendButton
                                     onSubmit={handleSubmit}

@@ -1,9 +1,7 @@
 import {defineView} from "@agenta/ui/view-stack"
 
-import type {
-    ConnectionOwner,
-    CreatedConnection,
-} from "../../../../gatewayTool/components/ConnectForm"
+import type {ConnectionOwner} from "../../../../accounts/ConnectOwnerField"
+import type {CreatedConnection} from "../../../../gatewayTool/components/ConnectForm"
 
 import {lazyView} from "./lazyView"
 

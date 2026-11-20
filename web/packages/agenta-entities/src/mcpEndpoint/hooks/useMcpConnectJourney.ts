@@ -22,11 +22,14 @@ import {useCallback, useEffect, useMemo, useReducer, useRef} from "react"
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import type {OwnerKind} from "@agenta/shared/types"
 import {randomAlphanumeric} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {
     beginMcpConnect,
+    beginPersonalMcpSignIn,
     cancelMcpConnectAttempt,
     createMcpEndpoint,
     deleteMcpEndpoint,
@@ -79,8 +82,24 @@ export interface McpConnectJourneyOptions {
     existingNames?: (string | null | undefined)[]
     /** Set when reconnecting an endpoint that already exists. */
     reconnect?: McpReconnectTarget | null
+    /**
+     * Whose sign-in the OAuth consent writes: the project's (the default), or the person's own
+     * (`"user"`, "Only me"). Other modes and a reconnect always store the project's.
+     */
+    owner?: McpSignInOwner
     /** Called once the connection is real, with the slug agents reference it by. */
-    onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
+    onConnected?: (endpoint: McpConnectedEndpoint) => void
+}
+
+/** Who owns a new server's first sign-in. */
+export type McpSignInOwner = Exclude<OwnerKind, "organization">
+
+/** The server a journey connected, and whose sign-in it stored. */
+export interface McpConnectedEndpoint {
+    id: string
+    slug: string
+    name: string
+    owner: McpSignInOwner
 }
 
 /**
@@ -180,6 +199,7 @@ const sameOauthConfig = (
 export function useMcpConnectJourney({
     existingNames = [],
     reconnect = null,
+    owner = "project",
     onConnected,
 }: McpConnectJourneyOptions = {}) {
     const projectId = useAtomValue(projectIdAtom) ?? undefined
@@ -208,6 +228,8 @@ export function useMcpConnectJourney({
     // The server-side consent attempt still waiting on a callback, so leaving the journey can
     // cancel it rather than let a late callback bind a grant nobody is waiting for.
     const consentAttemptRef = useRef<{endpointId: string; attemptId: string} | null>(null)
+    // Whose grant the last consent started for, so the end reports the owner it stored.
+    const consentOwnerRef = useRef<McpSignInOwner>("project")
     const popupNameRef = useRef(`mcp_oauth_${randomAlphanumeric(6)}`)
     // The reducer's state is not readable from inside an async step that already started,
     // so the identity is mirrored here for the teardown and the callbacks.
@@ -503,7 +525,13 @@ export function useMcpConnectJourney({
             const attempt = attemptRef.current
             // A new window replaces the last one, whose callback must not land after it.
             void cancelConsentAttempt()
-            const result = await beginMcpConnect(endpointId, scopes, projectId)
+            // "Only me" stores the person's own grant (`owner_kind=user`). The discovery the
+            // project's connect step stored on the row is what that sign-in reuses.
+            const personal = owner === "user" && !reconnecting
+            consentOwnerRef.current = personal ? "user" : "project"
+            const result = personal
+                ? await beginPersonalMcpSignIn(endpointId, scopes, projectId)
+                : await beginMcpConnect(endpointId, scopes, projectId)
 
             if (!isCurrent(attempt)) {
                 // The dialog closed while the authorization URL was being minted. Installing
@@ -512,12 +540,13 @@ export function useMcpConnectJourney({
                 // cannot cover because there is nothing installed yet to tear down. The
                 // attempt it minted is cancelled for the same reason.
                 popup?.close()
-                if (result.attempt_id) void cancelServerAttempt(endpointId, result.attempt_id)
+                if (result?.attempt_id) void cancelServerAttempt(endpointId, result.attempt_id)
                 return
             }
-            const redirectUrl = result.redirect_url
-            const attemptId = result.attempt_id
-            if (!redirectUrl || !attemptId || !result.expires_in) {
+            const redirectUrl = result?.redirect_url
+            const attemptId = result?.attempt_id
+            const expiresIn = result?.expires_in
+            if (!redirectUrl || !attemptId || !expiresIn) {
                 throw new Error("No authorization URL returned.")
             }
 
@@ -554,7 +583,7 @@ export function useMcpConnectJourney({
                     (await fetchMcpConnectAttempt(endpointId, attemptId, projectId)).attempt ??
                     null,
                 // The same lifetime the callback enforces, so neither side gives up first.
-                timeoutMs: result.expires_in * 1000,
+                timeoutMs: expiresIn * 1000,
                 onConnected: () => {
                     consentAttemptRef.current = null
                     dispatch({type: "consent_succeeded"})
@@ -569,7 +598,15 @@ export function useMcpConnectJourney({
 
             popup.location.href = redirectUrl
         },
-        [cancelConsentAttempt, cancelServerAttempt, isCurrent, projectId, stopWatch],
+        [
+            cancelConsentAttempt,
+            cancelServerAttempt,
+            isCurrent,
+            owner,
+            projectId,
+            reconnecting,
+            stopWatch,
+        ],
     )
 
     /**
@@ -1111,7 +1148,11 @@ export function useMcpConnectJourney({
         if (!endpoint) return
         const attempt = attemptRef.current
         stopWatch()
-        if (state.authMode === "oauth") {
+        const grantOwner: McpSignInOwner =
+            state.authMode === "oauth" ? consentOwnerRef.current : "project"
+        // The check runs with the project's credential, so it cannot see a person's own grant:
+        // it would record a refusal on a server that works for its owner.
+        if (state.authMode === "oauth" && grantOwner === "project") {
             // The handshake every other mode runs before it says connected, so the row can say
             // when it was last checked. The grant the person just approved stays either way:
             // a failed check is reported on the row, not by taking the grant back.
@@ -1128,12 +1169,19 @@ export function useMcpConnectJourney({
             await recordMcpEndpointCheck(endpoint.id, check, projectId)
         }
         await refreshEndpoints()
+        // A person's own sign-in is an account write: the run accounts and Needs setup read it.
+        if (grantOwner === "user") await invalidatePersonalAccountReads()
         // The grant is stored either way, so nothing is lost by saying nothing: the connection
         // is in settings. Telling a form that was abandoned mid-refresh to select it would be
         // the one outcome nobody asked for.
         if (!isCurrent(attempt)) return
         dispatch({type: "saved"})
-        onConnected?.({id: endpoint.id, slug: endpoint.slug, name: state.name.trim()})
+        onConnected?.({
+            id: endpoint.id,
+            slug: endpoint.slug,
+            name: state.name.trim(),
+            owner: grantOwner,
+        })
     }, [isCurrent, onConnected, projectId, refreshEndpoints, state.authMode, state.name, stopWatch])
 
     /**
@@ -1161,6 +1209,8 @@ export function useMcpConnectJourney({
         }
         // A failed attempt can keep a row the list never fetched.
         if (endpoint) await refreshEndpoints()
+        // A person's own sign-in may have finished unseen; the API then kept the row.
+        if (endpoint && consentOwnerRef.current === "user") await invalidatePersonalAccountReads()
     }, [abandonAttempt, projectId, refreshEndpoints, state])
 
     /**

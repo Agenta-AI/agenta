@@ -13,9 +13,7 @@ import {
     useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
 import {useT} from "@agenta/i18n"
-import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
-import type {OwnerKind} from "@agenta/shared/types"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {
     Field,
@@ -28,12 +26,11 @@ import {
 } from "@agenta/ui/ui"
 import Image from "next/image"
 
-import {AccountSwitch} from "../../accounts/AccountSwitch"
+import {ConnectOwnerField, type ConnectionOwner} from "../../accounts/ConnectOwnerField"
 import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
 
-export type ConnectionOwner = Exclude<OwnerKind, "organization">
 type AuthMode = "oauth" | "api_key"
 
 export interface ConnectFormInput {
@@ -230,24 +227,7 @@ export function ConnectFormFields({
     /** The current project's name, for "Everyone in {project}". */
     projectName?: string
 }) {
-    const t = useT(connectFormCatalog, accountSwitchCatalog)
-    // Each choice has one short sentence; the full sentence of the selected one shows under it.
-    const ownerChoices = [
-        {
-            value: "user" as const,
-            label: t("entityUi.connectForm.onlyMe"),
-            note: t("entityUi.accountSwitch.onlyMeShort"),
-            detail: t("entityUi.connectForm.onlyMeNote", {name: integrationName}),
-        },
-        {
-            value: "project" as const,
-            label: projectName
-                ? t("entityUi.connectForm.everyoneInProject", {project: projectName})
-                : t("entityUi.connectForm.everyoneInThisProject"),
-            note: t("entityUi.accountSwitch.everyoneShort"),
-            detail: t("entityUi.connectForm.everyoneNote"),
-        },
-    ]
+    const t = useT(connectFormCatalog)
     const {owners} = form
     return (
         <>
@@ -279,21 +259,13 @@ export function ConnectFormFields({
                 </Field>
 
                 {owners && owners.length > 1 ? (
-                    <Field label={t("entityUi.connectForm.whoCanUseIt")}>
-                        <div className="flex flex-col gap-2">
-                            <AccountSwitch
-                                value={form.owner}
-                                choices={ownerChoices.filter((choice) =>
-                                    owners.includes(choice.value),
-                                )}
-                                onChange={form.setOwner}
-                                aria-label={t("entityUi.connectForm.whoCanUseIt")}
-                            />
-                            <span className="text-xs text-colorTextTertiary">
-                                {ownerChoices.find((choice) => choice.value === form.owner)?.detail}
-                            </span>
-                        </div>
-                    </Field>
+                    <ConnectOwnerField
+                        value={form.owner}
+                        owners={owners}
+                        onChange={form.setOwner}
+                        onlyMeDetail={t("entityUi.connectForm.onlyMeNote", {name: integrationName})}
+                        projectName={projectName}
+                    />
                 ) : null}
 
                 {form.availableModes.length > 1 && (

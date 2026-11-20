@@ -38,7 +38,7 @@ import {
 } from "@agenta/ui/select-llm-provider"
 import {Button} from "@agenta/ui/ui"
 import {useOptionalViewStack} from "@agenta/ui/view-stack"
-import {Plus} from "@phosphor-icons/react"
+import {Faders, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
@@ -284,6 +284,7 @@ const ModelPickerControl = ({
                     }}
                     panelFooter={
                         <Button variant="outline" className="w-full" onClick={openModelProviders}>
+                            <Faders size={14} />
                             {t("ui.llmProvider.manageProviders")}
                         </Button>
                     }

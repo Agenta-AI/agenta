@@ -526,9 +526,12 @@ class MCPGatewayService:
         the row as it goes.
 
         With `pending_auth_mode`, only a connection still in that mode with no credential
-        bound and no sign-in in flight is deleted: the pending row a connect sheet made
-        and is abandoning, after it cancelled its own sign-in. A row that another tab
-        moved on since, or is signing in on, raises `MCPConnectionChangedError` and stays.
+        bound, no sign-in in flight and no person's own finished sign-in is deleted: the
+        pending row a connect sheet made and is abandoning, after it cancelled its own
+        sign-in. A row that another tab moved on since, or is signing in on, raises
+        `MCPConnectionChangedError` and stays. So does a row a person signed in to with
+        their own account ("Only me"): it binds no credential, and the sheet may leave
+        before it hears that the sign-in finished.
         """
         async with self.mcp_endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint_id
@@ -542,8 +545,17 @@ class MCPGatewayService:
                     or current.secret_id is not None
                     or (
                         self.oauth_refresher is not None
-                        and await self.oauth_refresher.has_active_attempts(
-                            project_id=project_id, endpoint_id=endpoint_id
+                        and (
+                            await self.oauth_refresher.has_active_attempts(
+                                project_id=project_id, endpoint_id=endpoint_id
+                            )
+                            or await self.oauth_refresher.has_personal_sign_ins(
+                                organization_id=organization_id,
+                                slugs=[
+                                    grant_slug(endpoint_id),
+                                    token_slug(endpoint_id),
+                                ],
+                            )
                         )
                     )
                 ):

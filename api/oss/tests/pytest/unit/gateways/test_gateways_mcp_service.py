@@ -2946,9 +2946,11 @@ class _ReleasingRefresher:
 class _SigningInRefresher(_ReleasingRefresher):
     """Holds the sign-ins in flight on one connection, by attempt id."""
 
-    def __init__(self, *active: UUID) -> None:
+    def __init__(self, *active: UUID, personal_sign_in: bool = False) -> None:
         super().__init__()
         self.active = set(active)
+        # A person finished their own sign-in on the connection.
+        self.personal_sign_in = personal_sign_in
 
     async def cancel_attempts(self, *, project_id, endpoint_id, attempt_id=None) -> int:
         cancelled = self.active if attempt_id is None else self.active & {attempt_id}
@@ -2957,6 +2959,9 @@ class _SigningInRefresher(_ReleasingRefresher):
 
     async def has_active_attempts(self, *, project_id, endpoint_id) -> bool:
         return bool(self.active)
+
+    async def has_personal_sign_ins(self, *, organization_id, slugs) -> bool:
+        return self.personal_sign_in
 
 
 @pytest.mark.asyncio
@@ -2984,6 +2989,30 @@ async def test_a_sheet_abandoning_a_row_another_tab_is_signing_in_on_keeps_it():
 
     assert "delete_endpoint" not in dao.calls
     assert refresher.active == {other_tab_attempt}
+    assert refresher.deleted_sign_ins == []
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_abandoning_a_row_a_person_signed_in_to_keeps_it():
+    """Only me: the person's own sign-in finished and binds no credential to the row. A
+    sheet that leaves before it hears so asks to delete the row: the row and the
+    person's sign-in both stay."""
+    dao = MockMCPEndpointsDAO()
+    refresher = _SigningInRefresher(personal_sign_in=True)
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    pending = await _oauth_endpoint(dao, connected=False)
+
+    with pytest.raises(MCPConnectionChangedError):
+        await service.delete_endpoint(
+            organization_id=uuid4(),
+            project_id=uuid4(),
+            endpoint_id=pending.id,
+            pending_auth_mode=MCPAuthScheme.OAUTH,
+        )
+
+    assert "delete_endpoint" not in dao.calls
     assert refresher.deleted_sign_ins == []
 
 

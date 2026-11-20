@@ -1,5 +1,6 @@
 import type {MutableRefObject} from "react"
 
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 
@@ -18,12 +19,20 @@ import {PaneNotice} from "./PaneNotice"
  */
 export const BuilderTabContent = ({
     tab,
+    builderSaveToolCallId,
+    builderSaveRevisionId,
+    onSectionOpened,
     guardRef,
     builderSessionId,
     workspaceId,
     projectId,
 }: {
     tab: BuilderTab
+    /** The builders latest save of this tabs agent in this visit (the pane follows it). */
+    builderSaveToolCallId: string | null
+    builderSaveRevisionId: string | null
+    /** The person opened or used a section of this agent tab marked "Changed by the builder". */
+    onSectionOpened: (section: MarkableSectionKey) => void
     guardRef: MutableRefObject<PageViewStackGuardApi | null>
     builderSessionId: string
     workspaceId: string
@@ -34,6 +43,10 @@ export const BuilderTabContent = ({
         return (
             <AgentTabContent
                 agentId={tab.id}
+                builderSaveToolCallId={builderSaveToolCallId}
+                builderSaveRevisionId={builderSaveRevisionId}
+                changedSections={tab.changedSections}
+                onSectionOpened={onSectionOpened}
                 guardRef={guardRef}
                 builderSessionId={builderSessionId}
                 workspaceId={workspaceId}

@@ -4,6 +4,7 @@
     "openInBuilder": "Im Builder öffnen",
     "chatHistory": "Chatverlauf",
     "back": "Zurück",
+    "chat": "Chat",
     "question": "Was sollen wir ändern?",
     "intro": "Ich kann {{agent}} ändern, testen und erklären.",
     "placeholder": "Frag den Builder zu diesem Agent",

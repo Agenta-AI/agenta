@@ -5,11 +5,12 @@
  * one header. Old values come from the server preview; without one the card shows the proposed
  * values and says so. The footer (the version note and the buttons) is the card's.
  */
-import {useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import {computeTextDiffLines} from "@agenta/ui/diff"
+import {useIsPhone} from "@agenta/ui/phone"
 import {
     ArrowRight,
     BookOpen,
@@ -33,6 +34,8 @@ import type {
     ApprovalChangeRiskLine,
     ApprovalChangeSection,
 } from "../skin/types"
+
+import {PhoneDetailScreen, useInPhoneDetail} from "./PhoneDetailScreen"
 
 const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
     instructions: FileText,
@@ -167,13 +170,31 @@ const DiffRows = ({rows}: {rows: DiffRow[]}) => (
     </>
 )
 
-const TextDiff = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>}) => {
+/**
+ * A text diff: the first rows in the card, and "View full diff" for the rest. On the desktop the
+ * link opens the whole diff in place; on a phone it opens it full screen (M05), titled by
+ * `screenTitle`.
+ */
+const TextDiff = ({
+    detail,
+    screenTitle,
+}: {
+    detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>
+    screenTitle: string
+}) => {
     const t = useT(chatChangeCardCatalog)
+    const phone = useIsPhone()
+    // A phone detail screen already shows the whole diff.
+    const inDetail = useInPhoneDetail()
     const [full, setFull] = useState(false)
+    // The open state means "in place" on the desktop and "full screen" on a phone: a move across
+    // the phone width closes it rather than turning one into the other.
+    useEffect(() => setFull(false), [phone])
     const rows = diffRows(detail)
-    const shown = full ? rows.full : rows.short.slice(0, INLINE_DIFF_LINES)
+    const inPlace = (full && !phone) || inDetail
+    const shown = inPlace ? rows.full : rows.short.slice(0, INLINE_DIFF_LINES)
     const more =
-        !full && (rows.short.length > INLINE_DIFF_LINES || rows.full.length > rows.short.length)
+        !inPlace && (rows.short.length > INLINE_DIFF_LINES || rows.full.length > rows.short.length)
     return (
         <div className="flex flex-col gap-1">
             <div
@@ -186,11 +207,26 @@ const TextDiff = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "text_
                 <button
                     type="button"
                     onClick={() => setFull(true)}
-                    className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-colorTextSecondary hover:text-colorText"
+                    className={`cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-colorTextSecondary hover:text-colorText ${
+                        // A 44 px hit area around the 16 px line.
+                        phone
+                            ? "relative after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
+                            : ""
+                    }`}
                     data-testid="change-full-diff"
                 >
                     {t("chat.changeCard.viewFullDiff", {count: rows.full.length})}
                 </button>
+            ) : null}
+            {phone && !inDetail ? (
+                <PhoneDetailScreen open={full} onOpenChange={setFull} title={screenTitle}>
+                    <div
+                        className="overflow-x-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 font-mono text-xs leading-[1.7]"
+                        data-testid="change-diff-full"
+                    >
+                        <DiffRows rows={rows.full} />
+                    </div>
+                </PhoneDetailScreen>
             ) : null}
         </div>
     )
@@ -286,13 +322,16 @@ const Item = ({
 const Detail = ({
     detail,
     section,
+    screenTitle,
 }: {
     detail: ApprovalChangeDetail
     section: ApprovalChangeSection
+    /** The title of the change's full screen detail on a phone. */
+    screenTitle: string
 }) => {
     switch (detail.kind) {
         case "text_diff":
-            return <TextDiff detail={detail} />
+            return <TextDiff detail={detail} screenTitle={screenTitle} />
         case "value_change":
             return <ValueChange detail={detail} />
         case "item":
@@ -356,6 +395,18 @@ export const RiskLine = ({children}: {children: ReactNode}) => (
     </div>
 )
 
+/**
+ * A block's label: its path, and the item it adds or removes. A grouped row shows it, and a phone
+ * detail screen of the block takes it as its title.
+ */
+export const blockLabel = (block: ChangeBlock): string => {
+    const item = block.changes.find((change) => change.detail?.kind === "item")?.detail
+    const name = item?.kind === "item" ? item.name : undefined
+    const path =
+        name && block.path[block.path.length - 1] !== name ? [...block.path, name] : block.path
+    return path.join(" › ") || block.title
+}
+
 export const Block = ({
     block,
     small,
@@ -379,7 +430,12 @@ export const Block = ({
         />
         {block.changes.map((change, index) =>
             change.detail ? (
-                <Detail key={index} detail={change.detail} section={change.section} />
+                <Detail
+                    key={index}
+                    detail={change.detail}
+                    section={change.section}
+                    screenTitle={blockLabel(block)}
+                />
             ) : null,
         )}
         {block.risks.map((risk) => (

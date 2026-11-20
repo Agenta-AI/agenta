@@ -368,6 +368,11 @@ export type McpPermissionSourceInput = Pick<
     open?: boolean
     /** Show the login-expired banner. A container that says it in its own title passes false. */
     banner?: boolean
+    /**
+     * Read the tool list. Defaults to true. False when the list cannot be read with the project's
+     * credential (a person's own sign-in only): the body then shows no list and no error.
+     */
+    listTools?: boolean
 }
 
 /**
@@ -378,6 +383,7 @@ export type McpPermissionSourceInput = Pick<
 export function useMcpPermissionSource({
     open = true,
     banner: showBanner = true,
+    listTools = true,
     slug,
     connectionName,
     status = "connected",
@@ -417,10 +423,10 @@ export function useMcpPermissionSource({
     }, [loadToolsFrom, projectId, slug])
 
     useEffect(() => {
-        if (!open) return
+        if (!open || !listTools) return
         if (slug) void loadTools()
         else setTools({status: "idle"})
-    }, [loadTools, open, slug])
+    }, [listTools, loadTools, open, slug])
 
     const permissions = useMemo(() => toGatewayPermissions(policy), [policy])
 
@@ -525,7 +531,7 @@ export function useMcpPermissionSource({
 
     // Still on its way, as opposed to settled with no list: a failed read is not coming back, and a
     // control that waits forever is its own kind of untruth.
-    const toolsArriving = tools.status === "loading" || tools.status === "idle"
+    const toolsArriving = listTools && (tools.status === "loading" || tools.status === "idle")
 
     const {preset, overrideCount} = useMemo(
         () => readMcpPreset(policy, {names: readOnlyToolNames, arriving: toolsArriving}),
@@ -601,6 +607,9 @@ export function useMcpPermissionSource({
 
     const catalog = useMemo<PermissionDrawerCatalog>(() => {
         if (!slug) return {status: "error", tools: [], complete: false, errorNode}
+        // Not read: no list and no error. The default permission stays editable, except the
+        // preset that names read-only tools, which needs the list.
+        if (!listTools) return {status: "error", tools: [], complete: false, errorNode: null}
         if (tools.status === "loading" || tools.status === "idle") {
             return {status: "loading", tools: [], complete: false}
         }
@@ -610,7 +619,7 @@ export function useMcpPermissionSource({
         // A settled list from one request, so a saved key missing from it really has left the
         // server rather than merely not having been fetched yet.
         return {status: "ready", tools: catalogTools, complete: true}
-    }, [catalogTools, errorNode, slug, tools.status])
+    }, [catalogTools, errorNode, listTools, slug, tools.status])
 
     const footNote =
         strandedByFilter.length && !readOnly ? (

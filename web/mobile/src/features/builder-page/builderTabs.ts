@@ -1,3 +1,4 @@
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
@@ -33,6 +34,8 @@ export interface BuilderTab extends BuilderTabRef {
     name: string
     /** The builder changed it while it was not the active tab. */
     dot?: boolean
+    /** Agent panel sections the builder changed, marked until the person opens them (41.2). */
+    changedSections?: MarkableSectionKey[]
 }
 
 export interface BuilderTabsState {
@@ -65,14 +68,22 @@ const markFollowed = (state: BuilderTabsState, ids: string[]): BuilderTabsState 
 }
 
 /** True for a chat that has never had a tab and followed nothing. */
-const isUntouched = (state: BuilderTabsState) =>
+export const isUntouched = (state: BuilderTabsState) =>
     !state.tabs.length && !state.closed.length && !state.followedToolCallIds.length
 
-export const agentTab = (agent: AgentRef): BuilderTab => ({
+export const agentTab = (
+    agent: AgentRef,
+    changedSections: MarkableSectionKey[] = [],
+): BuilderTab => ({
     kind: "agent",
     id: agent.id,
     name: agent.name,
+    ...withChangedSections(changedSections),
 })
+
+/** The `changedSections` field of a tab: left out when the list is empty. */
+const withChangedSections = (sections: readonly MarkableSectionKey[]) =>
+    sections.length ? {changedSections: [...new Set(sections)]} : {}
 
 export const builderTabKey = (ref: BuilderTabRef) => `${ref.kind}:${ref.id}`
 
@@ -124,7 +135,14 @@ export const followBuilderResult = (state: BuilderTabsState, tab: BuilderTab): B
     const tabs = found
         ? state.tabs.map((held) =>
               builderTabKey(held) === key
-                  ? {...withName(held, tab.name), dot: held.dot || dot}
+                  ? {
+                        ...withName(held, tab.name),
+                        dot: held.dot || dot,
+                        ...withChangedSections([
+                            ...(held.changedSections ?? []),
+                            ...(tab.changedSections ?? []),
+                        ]),
+                    }
                   : held,
           )
         : [...state.tabs, {...tab, dot}]
@@ -159,6 +177,27 @@ export const closeBuilderTab = (state: BuilderTabsState, key: string): BuilderTa
             : tabs,
         active,
         closed,
+    }
+}
+
+/** The person opened a marked section of a tab: its mark goes away. */
+export const clearChangedSection = (
+    state: BuilderTabsState,
+    key: string,
+    section: MarkableSectionKey,
+): BuilderTabsState => {
+    const tab = state.tabs.find((held) => builderTabKey(held) === key)
+    if (!tab?.changedSections?.includes(section)) return state
+    return {
+        ...state,
+        tabs: state.tabs.map((held) => {
+            if (held !== tab) return held
+            const {changedSections, ...rest} = held
+            return {
+                ...rest,
+                ...withChangedSections((changedSections ?? []).filter((name) => name !== section)),
+            }
+        }),
     }
 }
 
@@ -198,7 +237,8 @@ export const followBuilderResults = (
     for (const result of results) {
         if (next.followedToolCallIds.includes(result.toolCallId)) continue
         next = markFollowed(next, [result.toolCallId])
-        if (result.saved) next = followBuilderResult(next, agentTab(result.agent))
+        if (result.saved)
+            next = followBuilderResult(next, agentTab(result.agent, result.changedSections))
     }
     return next
 }
@@ -219,6 +259,11 @@ const parseTab = (value: unknown): BuilderTab | null => {
         id: tab.id,
         name: typeof tab.name === "string" ? tab.name : "",
         dot: tab.dot === true,
+        ...withChangedSections(
+            (Array.isArray(tab.changedSections) ? tab.changedSections : []).filter(
+                (name): name is MarkableSectionKey => typeof name === "string",
+            ),
+        ),
     }
 }
 

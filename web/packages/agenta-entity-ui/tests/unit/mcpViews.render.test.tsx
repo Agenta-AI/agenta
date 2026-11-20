@@ -21,14 +21,18 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest
 import {
     buildMcpAgentItem,
     mcpItemRef,
+    readMcpAccountSource,
     removeMcpByRef,
+    withMcpAccountSource,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
 import {mcpAddView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/mcpAddView"
 import {mcpServerView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/mcpServerView"
 
 import {byText, click, findByText} from "./domHelpers"
 
-const {writer, listeners, endpoints} = vi.hoisted(() => ({
+const {writer, listeners, endpoints, access, toolReads} = vi.hoisted(() => ({
+    access: {value: "on"},
+    toolReads: {count: 0},
     listeners: new Set<() => void>(),
     endpoints: {rows: [] as unknown[]},
     writer: {
@@ -69,24 +73,62 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
         ...original,
         mcpEndpointsQueryAtom: query,
         refreshMcpEndpointsAtom: jotaiAtom(null, () => undefined),
-        listMcpTools: async () => [
-            {name: "list_issues", title: "List issues", annotations: {readOnlyHint: true}},
-            {name: "create_issue", title: "Create issue", annotations: {readOnlyHint: false}},
-        ],
+        listMcpTools: async () => {
+            toolReads.count += 1
+            return [
+                {name: "list_issues", title: "List issues", annotations: {readOnlyHint: true}},
+                {name: "create_issue", title: "Create issue", annotations: {readOnlyHint: false}},
+            ]
+        },
     }
 })
+
+vi.mock("@agenta/entities/secret", async (importOriginal) => {
+    const {atom: jotaiAtom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
+        personalAccountsAccessAtom: jotaiAtom(() => access.value),
+    }
+})
+
+// The no-person warning reads the agent's triggers, which this suite does not load.
+vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/accounts/useRunsWithoutPerson", () => ({
+    useRunsWithoutPerson: () => false,
+}))
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
     invalidateAgentRequirements: () => undefined,
 }))
 
-// The connect step stands in for itself and records what it was opened with.
+// The connect step stands in for itself: it shows what it was opened with, and its buttons
+// finish the connection as each owner would.
 vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/views/McpConnectViewBody", async () => {
     const {createElement: h} = await import("react")
+    type Params = {
+        reconnect?: {slug: string} | null
+        owners?: string[]
+        onConnected?: (endpoint: Record<string, string>) => void
+    }
+    const finish = (params: Params, owner: string) =>
+        h(
+            "button",
+            {
+                onClick: () =>
+                    params.onConnected?.({id: "id-new", slug: "new-server", name: "new", owner}),
+            },
+            `finish as ${owner}`,
+        )
     return {
-        default: ({params}: {params: {reconnect?: {slug: string} | null}}) =>
-            h("div", null, `connect step: ${params.reconnect?.slug ?? "new"}`),
+        default: ({params}: {params: Params}) =>
+            h(
+                "div",
+                null,
+                h("span", null, `connect step: ${params.reconnect?.slug ?? "new"}`),
+                h("span", null, `owners: ${params.owners?.join(",") ?? "none"}`),
+                finish(params, "user"),
+                finish(params, "project"),
+            ),
     }
 })
 
@@ -156,6 +198,7 @@ beforeEach(() => {
     endpoints.rows = [endpoint("linear", "healthy"), endpoint("docs-search", "healthy")]
     writer.agent = {mcps: [linear]}
     writer.readOnly = false
+    access.value = "on"
     writer.update = vi.fn((next) => {
         writer.agent = next(writer.agent)
         listeners.forEach((listener) => listener())
@@ -177,6 +220,43 @@ describe("Add MCP server view", () => {
         expect(mcps().map((item) => item.name)).toEqual(["linear", "docs_search"])
         await findByText("crumb:docs-search")
         expect(byText("crumb:Add MCP server")).toBeUndefined()
+    })
+})
+
+describe("Connect server, who can use it", () => {
+    const added = () => mcps().find((item) => item.name === "new")
+
+    it("asks for the owner, and an Only me sign-in starts on each person's own", async () => {
+        await openIn(mcpAddView, {})
+        await click(await findByText("Connect server", "button"))
+        await findByText("owners: user,project")
+        await click(byText("finish as user"))
+        expect(added()?.connection).toEqual({
+            type: "gateway",
+            namespace: "custom",
+            slug: "new-server",
+            account_source: "user",
+        })
+        expect(readMcpAccountSource(added())).toBe("user")
+    })
+
+    it("keeps one shared sign-in for Everyone", async () => {
+        await openIn(mcpAddView, {})
+        await click(await findByText("Connect server", "button"))
+        await click(await findByText("finish as project"))
+        expect(added()?.connection).toEqual({
+            type: "gateway",
+            namespace: "custom",
+            slug: "new-server",
+        })
+        expect(readMcpAccountSource(added())).toBe("agent")
+    })
+
+    it("does not ask with personal accounts off", async () => {
+        access.value = "off"
+        await openIn(mcpAddView, {})
+        await click(await findByText("Connect server", "button"))
+        await findByText("owners: none")
     })
 })
 
@@ -216,6 +296,39 @@ describe("MCP server view", () => {
         expect(dialog.textContent).toContain("The connection stays in the project.")
         await click(byText("Remove"))
         expect(mcps().map((item) => item.name)).toEqual(["docs_search"])
+    })
+
+    it("says nothing about the project's sign-in on each person's own entry", async () => {
+        // "Only me": the person signed in, the project never did.
+        endpoints.rows = [
+            {
+                ...endpoint("linear", "healthy"),
+                auth_mode: "oauth",
+                secret_id: null,
+                user_sign_in: {},
+            },
+        ]
+        const own = withMcpAccountSource(linear, "user")
+        writer.agent = {mcps: [own]}
+        toolReads.count = 0
+        await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
+        await findByText("crumb:linear")
+        await findByText("Each person's own")
+        expect(byText("Not signed in")).toBeUndefined()
+        expect(byText("Reconnect")).toBeUndefined()
+        // The project's credential cannot read this server's tools: no list and no error.
+        expect(toolReads.count).toBe(0)
+        expect(document.body.textContent).not.toContain("Couldn't read this server's tools")
+    })
+
+    it("lists the tools of each person's own entry while the project is signed in", async () => {
+        const own = withMcpAccountSource(linear, "user")
+        writer.agent = {mcps: [own]}
+        toolReads.count = 0
+        await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
+        await findByText("List issues")
+        expect(toolReads.count).toBe(1)
+        expect(byText("Reconnect")).toBeUndefined()
     })
 
     it("shows the removed state when the server left the agent", async () => {

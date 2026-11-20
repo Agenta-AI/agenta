@@ -438,6 +438,13 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             project_id=project_id, endpoint_id=endpoint_id
         )
 
+    async def has_personal_sign_ins(
+        self, *, organization_id: UUID, slugs: List[str]
+    ) -> bool:
+        return await self.vault_service.has_personal_sign_ins(
+            organization_id=organization_id, slugs=slugs
+        )
+
     async def fetch_attempt(
         self, *, project_id: UUID, endpoint_id: UUID, attempt_id: UUID
     ) -> Optional[MCPOAuthAttempt]:

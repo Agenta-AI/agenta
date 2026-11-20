@@ -104,6 +104,7 @@ import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {modelIdFromConfig} from "./connectionUtils"
 import {SkillFormSkeleton} from "./DrawerSkeletons"
 import {JsonObjectEditor} from "./JsonObjectEditor"
+import {useSectionMarks} from "./sectionMarks"
 import {
     integrationRowIndices,
     parseGatewayEntry,
@@ -908,6 +909,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         permissionsSection({t, mh, sectionIndicator, panelChangedPaths, bodyProps}),
         advancedSection({t, mh, sectionIndicator, advancedChangeBody, openAdvanced}),
     ].filter(Boolean) as AgentTemplateSectionDescriptor[]
+    // A container's marks on sections (the builder page's "Changed by the builder").
+    const marked = useSectionMarks(sections)
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -917,9 +920,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const shownEditing = editing ?? lastEditingRef.current
 
     return (
-        <div className={cn("flex flex-col", className)}>
+        <div className={cn("flex flex-col", className)} {...marked.handlers}>
             <AgentTemplateSectionList
-                sections={sections}
+                sections={marked.sections}
                 controlledKeys={CONTROLLED_SECTION_KEYS}
                 openByKey={sectionOpen}
                 onOpenChange={setSectionOpenByKey}

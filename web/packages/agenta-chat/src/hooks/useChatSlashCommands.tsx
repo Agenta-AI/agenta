@@ -46,14 +46,17 @@ import {useAtomValue, useSetAtom} from "jotai"
 /** Which picker the palette drilled into, or null when the palette is just a list. */
 export type SlashPicker = "model" | "permissions" | null
 
+/** What opened the picker: its `/` command, or a control outside the palette (the model button). */
+export type SlashPickerOrigin = "command" | "direct"
+
 /**
  * The `/` palette for the agent chat composer.
  *
- * `/model` drills into a picker whose apply writes the DRAFT agent config through
- * `updateConfiguration` — the same write-through `useAlwaysAllowTool` uses, so the change takes
- * effect on the next send with no commit. Tools and skills insert their name as plain text: the
- * request carries text and file parts only, so an inserted name is a hint the agent usually
- * follows, never a dispatch. Nothing in the UI may claim otherwise.
+ * `/model` (and the composer's model button) drills into a picker whose apply writes the agent
+ * config through `updateConfiguration`, the draft write the Configuration Model section makes too.
+ * Auto-save (`agentAutoCommit`) commits that write as a new version. Tools and skills insert
+ * their name as plain text: the request carries text and file parts only, so an inserted name is
+ * a hint the agent usually follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
 const tNow = createT(chatSlashCommandsCatalog)
 
@@ -87,6 +90,7 @@ export function useChatSlashCommands({
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
 
     const [picker, setPicker] = useState<SlashPicker>(null)
+    const [pickerOrigin, setPickerOrigin] = useState<SlashPickerOrigin>("command")
 
     /**
      * Clear the command, then open the picker a frame later. Clearing schedules a Lexical
@@ -94,9 +98,12 @@ export function useChatSlashCommands({
      * autofocused itself, reads that as focus leaving, and dismisses immediately.
      */
     const openPicker = useCallback(
-        (which: Exclude<SlashPicker, null>) => {
+        (which: Exclude<SlashPicker, null>, origin: SlashPickerOrigin = "command") => {
             onPickerOpen?.()
-            requestAnimationFrame(() => setPicker(which))
+            requestAnimationFrame(() => {
+                setPickerOrigin(origin)
+                setPicker(which)
+            })
         },
         [onPickerOpen],
     )
@@ -409,8 +416,9 @@ export function useChatSlashCommands({
     return {
         sections,
         picker,
+        pickerOrigin,
         closePicker: useCallback(() => setPicker(null), []),
-        openModelPicker: useCallback(() => openPicker("model"), [openPicker]),
+        openModelPicker: useCallback(() => openPicker("model", "direct"), [openPicker]),
         modelGroups,
         currentModel,
         currentModelKey,

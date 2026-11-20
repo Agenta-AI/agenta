@@ -2,9 +2,9 @@
     "addProviderKey": "Añade la clave de tu proveedor de modelos para ejecutar este agente.",
     "attachment": "Archivo adjunto",
     "backToCommands": "← volver a los comandos",
-    "changesDraft": "Cambia la configuración en borrador de este agente.",
     "connectModelPlaceholder": "Conecta un modelo para empezar a chatear…",
     "messageSubject": "Mensaje",
+    "modelButton": "Modelo: {{model}}",
     "removeOneToAdd": "Quita uno para añadir otro (máximo {{count}})",
     "searchModels": "Buscar modelos",
     "setUpProviders": "Configurar proveedores de modelos"

@@ -1636,9 +1636,9 @@
         "addProviderKey": "d8a0de517b88",
         "attachment": "040d2b3689dd",
         "backToCommands": "df3790ea06ea",
-        "changesDraft": "5b4806dd089b",
         "connectModelPlaceholder": "3526aaee9cce",
         "messageSubject": "2f77668a9dfb",
+        "modelButton": "0960231fccde",
         "removeOneToAdd": "f86a8768b249",
         "searchModels": "10421935232f",
         "setUpProviders": "1e908d96293a"
@@ -3376,6 +3376,9 @@
         "noServersYetBody": "06e132b9e99f",
         "searchServers": "3d7d709f953e",
         "noServersMatch": "6c98afe733d3"
+    },
+    "entityUi.mcpConnectOwner": {
+        "onlyMeNote": "8285c397b79d"
     },
     "entityUi.mcpDetail": {
         "connectionRenamed": "e8150aac20f0",

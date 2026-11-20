@@ -22,6 +22,7 @@ import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {useIsPhone} from "@agenta/ui/phone"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
@@ -50,7 +51,8 @@ export interface ApprovalCardProps {
     entityId?: string
     /** Show the Redirect (deny + note) entry point — hosts gate it by their own flag. */
     steerEnabled?: boolean
-    /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. */
+    /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. A phone
+     *  width draws the actions 44 px high instead, whatever this says. */
     touch?: boolean
     /** A host-side failure to surface under the actions (e.g. the detached resume failed). */
     errorText?: string | null
@@ -220,10 +222,14 @@ export const ApprovalCard = ({
         return info.eligible && !info.alreadyAllowed
     })
     const canAlwaysAllow = grantableTools.length > 0
-    // Touch must NOT change the chrome — the tap target extends invisibly instead.
-    const touchCls = touch
-        ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
-        : ""
+    // On a phone the actions are drawn 44 px high (M05). Touch elsewhere keeps the chrome and
+    // extends the tap target invisibly.
+    const phone = useIsPhone()
+    const actionCls = phone
+        ? "h-11 rounded-[10px] px-4 text-[15px]"
+        : touch
+          ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
+          : ""
     // The keycaps ride on the actions themselves, so the gesture reads without a hover. Gated on
     // the keyboard, not on `touch`: that prop sizes the buttons, and /m serves desktop browsers too.
     const showKeys = hasKeyboard
@@ -461,7 +467,11 @@ export const ApprovalCard = ({
                             </span>
                         ) : null}
                         {canAlwaysAllow ? (
-                            <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
+                            <label
+                                className={`flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary ${
+                                    phone ? "min-h-11" : ""
+                                }`}
+                            >
                                 <Checkbox
                                     checked={alwaysAllowArmed}
                                     disabled={responding}
@@ -476,12 +486,17 @@ export const ApprovalCard = ({
                                 </span>
                             </label>
                         ) : null}
-                        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                        <div
+                            className={`ml-auto flex items-center gap-1.5 ${
+                                // The 44 px phone buttons wrap rather than run off a narrow card.
+                                phone ? "flex-wrap justify-end" : "shrink-0"
+                            }`}
+                        >
                             {steerEnabled ? (
                                 <Button
                                     variant="ghost"
                                     disabled={responding}
-                                    className={`text-colorTextSecondary ${touchCls}`}
+                                    className={`text-colorTextSecondary ${actionCls}`}
                                     onClick={() => setSteerOpen(true)}
                                 >
                                     {t("chat.approvalCard.redirect")}
@@ -491,7 +506,7 @@ export const ApprovalCard = ({
                                 variant="ghost"
                                 disabled={responding}
                                 loading={responding && firedAction === "deny"}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={deny}
                                 aria-keyshortcuts={shortcutAria("approval.deny")}
                             >
@@ -511,7 +526,7 @@ export const ApprovalCard = ({
                                 variant={removes ? "destructive" : undefined}
                                 disabled={responding}
                                 loading={responding && firedAction === "approve"}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={approve}
                                 aria-keyshortcuts={shortcutAria("approval.approve")}
                             >
@@ -556,7 +571,7 @@ export const ApprovalCard = ({
                             <Button
                                 variant="ghost"
                                 disabled={responding}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={() => setSteerOpen(false)}
                             >
                                 {t("chat.approvalCard.cancel")}
@@ -565,7 +580,7 @@ export const ApprovalCard = ({
                             <Button
                                 variant="outline"
                                 disabled={responding || !steerMessage.trim()}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={() => {
                                     setFiredAction("deny")
                                     onRespond({

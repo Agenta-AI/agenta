@@ -1,0 +1,59 @@
+[
+    {
+        "id": "builder-phone-m04-light",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--new-chat",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=What should we change?"
+    },
+    {
+        "id": "builder-phone-m04-dark",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--new-chat-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=What should we change?"
+    },
+    {
+        "id": "builder-phone-m05-light",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--change-card",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=Approve"
+    },
+    {
+        "id": "builder-phone-m06-light",
+        "story": "builderlayout-builder-phone-builder-on-a-phone--chat-history",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-phone-story\"]",
+        "ready": "text=Chat history"
+    },
+    {
+        "id": "builder-phone-m04-screen",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [{"click": "button:Builder"}, {"wait": "text=What should we change?"}]
+    },
+    {
+        "id": "builder-phone-m06-screen",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [
+            {"click": "button:Builder"},
+            {"wait": "text=What should we change?"},
+            {"click": "button:View all"},
+            {"wait": "text=Chat history"}
+        ]
+    }
+]

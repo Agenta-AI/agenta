@@ -2,16 +2,18 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {builderAgentRevisionIdQueryAtom} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
+import agentLayoutPhoneCatalog from "@agenta/i18n/catalogs/agentLayout.phone"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useQueryClient} from "@tanstack/react-query"
 import type {UIMessage} from "ai"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {useAgentPanel} from "../agent-layout/agentPanelContext"
 import {useAgentRow} from "../agent-layout/useAgentRow"
 import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
+import {pageSessionIdAtom} from "../chat/pageSessionId"
 import {ChatLoading} from "../chat/states/ChatStates"
 import {ChatUnreachable} from "../chat/states/ChatUnreachable"
 import {useSessionHeader} from "../chat/useSessionHeader"
@@ -41,6 +43,9 @@ import {builderChatLinkVersionAtom, useBuilderChatList} from "./useBuilderChatLi
  */
 const lastShownChat = new Map<string, {agentId: string; builderSessionId: string}>()
 
+/** A boolean, so a switch between two sessions renders nothing here (only the chip reads the id). */
+const onSessionPageAtom = atom((get) => Boolean(get(pageSessionIdAtom)))
+
 const sentContextChip = (message: UIMessage) => {
     const context = sentContextOf(message)
     return context ? <SentContextChip context={context} /> : null
@@ -60,7 +65,11 @@ export const BuilderChat = ({
     userId,
 }: BuilderPanelProps & {userId: string}) => {
     const t = useT(builderPanelCatalog)
+    const tPhone = useT(agentLayoutPhoneCatalog)
     const panel = useAgentPanel()
+    // On a phone the builder covers the screen (M04 to M06): its back arrow returns to the page.
+    const phone = panel.phone
+    const onSessionPage = useAtomValue(onSessionPageAtom)
     const builder = useAtomValue(builderAgentRevisionIdQueryAtom)
     const builderRevisionId = builder.data ?? null
     const memoryKey = `${userId}:${projectId}`
@@ -184,18 +193,25 @@ export const BuilderChat = ({
                 inputRef={inputRef}
                 hideSlashCommands
                 composerPlaceholder={t("builder.panel.placeholder")}
-                composerHeaderExtra={<ContextChip projectId={projectId} agentName={agentName} />}
+                composerHeaderExtra={
+                    <ContextChip projectId={projectId} agentName={agentName} phone={phone} />
+                }
                 emptyState={<NewChatIntro agentName={agentName} />}
                 belowComposer={
                     isUnlinked ? (
                         <div className="flex flex-col gap-4 px-3 pb-3">
-                            <QuickActions sessionId={builderSessionId} onPick={fillComposer} />
+                            <QuickActions
+                                sessionId={builderSessionId}
+                                onPick={fillComposer}
+                                phone={phone}
+                            />
                             <RecentChats
                                 rows={recent.rows}
                                 failed={recent.failed}
                                 onRetry={recent.retry}
                                 onOpen={show}
                                 onViewAll={() => setView("history")}
+                                phone={phone}
                             />
                         </div>
                     ) : null
@@ -225,6 +241,8 @@ export const BuilderChat = ({
                         : null
                 }
                 onClose={() => void panel.close()}
+                phone={phone}
+                backTitle={onSessionPage ? tPhone("agentLayout.phone.session") : undefined}
             />
             {view === "history" ? (
                 <ChatHistory
@@ -232,6 +250,7 @@ export const BuilderChat = ({
                     projectId={projectId}
                     agentId={agentId}
                     onOpen={show}
+                    phone={phone}
                 />
             ) : null}
             {/* The builder chat is the "embedded" conversation: its keys answer only while the
