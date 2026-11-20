@@ -134,7 +134,7 @@ export const EventPickerPanel = ({
         connection?.integration_key ?? "",
         eventKey,
     )
-    const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
+    const schema = useMemo(() => liveConfigSchema(event?.trigger_config), [event?.trigger_config])
 
     const activeApp = useMemo<ConnectedApp | undefined>(() => {
         const key = railKey ?? connection?.integration_key
@@ -366,6 +366,31 @@ export const EventPickerPanel = ({
  * it can never disagree. JSON Schema's `required` is untyped here (the schema arrives as raw
  * provider JSON), hence the narrowing rather than a cast.
  */
+/**
+ * The event's filter schema without the fields the provider marks deprecated.
+ *
+ * Composio still lists a deprecated polling "interval" on its polling events ("use
+ * `polling_interval` on the trigger instance instead"), with a default. Shown, it read as a
+ * required setting of the event; left out, the provider uses its default. Null when nothing is
+ * left to fill.
+ */
+function liveConfigSchema(config: unknown): Record<string, unknown> | null {
+    if (!config || typeof config !== "object") return null
+    const schema = config as Record<string, unknown>
+    const properties = schema.properties as Record<string, unknown> | undefined
+    if (!properties) return schema
+    const kept = Object.fromEntries(
+        Object.entries(properties).filter(
+            ([, property]) => !(property as {deprecated?: unknown} | null)?.deprecated,
+        ),
+    )
+    if (Object.keys(kept).length === 0) return null
+    const required = Array.isArray(schema.required)
+        ? schema.required.filter((key) => typeof key === "string" && key in kept)
+        : schema.required
+    return {...schema, properties: kept, required}
+}
+
 function requiredGaps(
     schema: Record<string, unknown> | null,
     values: Record<string, unknown>,
@@ -419,7 +444,7 @@ export const EventInlineCard = ({
         if (hasNextPage && !isFetchingNextPage) requestMore()
     }, [hasNextPage, isFetchingNextPage, requestMore])
     const {event, isLoading: eventLoading} = useTriggerEvent(app?.integrationKey ?? "", eventKey)
-    const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
+    const schema = useMemo(() => liveConfigSchema(event?.trigger_config), [event?.trigger_config])
     const [configForm] = useSchemaFormInstance()
 
     const formRef = useRef<SchemaFormHandle>(null)

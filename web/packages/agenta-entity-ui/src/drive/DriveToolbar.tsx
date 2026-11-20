@@ -36,7 +36,7 @@ import {
     CircleNotch,
     Clock,
     Code,
-    DotsThreeVertical,
+    DotsThree,
     DownloadSimple,
     HardDrive,
     Key,
@@ -45,14 +45,15 @@ import {
     MarkdownLogo,
     PencilSimple,
     Play,
-    SlidersHorizontal,
     SquaresFour,
     TextAa,
     TextAlignLeft,
     Trash,
 } from "@phosphor-icons/react"
+// The design's sort glyph: three rails with offset knobs (Phosphor's has two).
+import {SlidersHorizontal} from "lucide-react"
 
-import {type DriveFolderActions, driveFolderMenuEntries} from "./DriveFolderMenu"
+import {type DriveFolderActions, driveFolderMenuEntries, PHONE_MENU_ROWS} from "./DriveFolderMenu"
 import {ROW_ICON_BTN, ROW_ICON_BTN_ON} from "./DriveHeader"
 import {DriveInlineName} from "./DriveInlineName"
 import {SelectedMark} from "./DriveMenuMark"
@@ -66,12 +67,35 @@ const ROW_TEXT_BTN =
 const PHONE_HIT = "relative after:absolute after:-inset-1 after:content-['']"
 const PHONE_PILL = "h-9 rounded-[6px] p-0.5"
 /**
- * Each segment grows its own hit area to 44 px high (one over the whole list would take the taps);
- * only vertically, so a tap near the edge between Grid and List picks the segment under it.
+ * Each segment is 34 px wide, as drawn, and grows its own hit area to 44 x 44 px (one over the
+ * whole list would take the taps): up and down, and out at the pill's outer edge only, so a tap
+ * near the edge between Grid and List picks the segment under it.
  */
 const PHONE_PILL_TRIGGER =
-    "relative h-full rounded-[5px] px-2.5 py-0 after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] [&_svg]:size-4"
+    "relative h-full rounded-[5px] px-2.5 py-0 after:absolute after:inset-x-0 after:-inset-y-1.5 first:after:-left-2.5 last:after:-right-2.5 after:content-['']"
 const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_HIT}`
+
+/**
+ * A phone's one 52 px row: the crumb at the left, then the row's controls and its ⋯ menu.
+ * The crumb parts and Retry keep a 44 px tap target, as row 1 gives them.
+ */
+const PhoneRow = ({crumb, children}: {crumb: ReactNode; children: ReactNode}) => (
+    <div className="box-border flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-3 pr-1">
+        <div className="flex min-w-0 flex-1 items-center [&_button]:min-h-11 [&_button]:min-w-11">
+            {crumb}
+        </div>
+        {children}
+    </div>
+)
+
+/**
+ * A phone: row 1 and row 2 are one row, with the crumb at the left. Row 1's controls (Back,
+ * Forward, the file tree, the view options) come first in the ⋯ menu.
+ */
+interface DrivePhoneRow {
+    crumb: ReactNode
+    menu: ReactNode
+}
 
 type BrowserKey = CatalogKey<typeof driveBrowserCatalog>
 
@@ -163,11 +187,7 @@ type DriveToolbarProps =
           downloadingAll?: boolean
           /** Read only (a phone): no write entries in the ⋯ menu. */
           readOnly?: boolean
-          /**
-           * A phone: one 52 px row with the crumb at the left; row 1's controls (Back, Forward,
-           * the file tree, the view options) come first in the ⋯ menu.
-           */
-          phone?: {crumb: ReactNode; menu: ReactNode}
+          phone?: DrivePhoneRow
       }
     | {
           variant: "markdown"
@@ -202,6 +222,8 @@ type DriveToolbarProps =
           onDownload?: () => void
           /** Read only (a phone): no Rename or Delete in the ⋯ menu. */
           readOnly?: boolean
+          /** A phone: the crumb, with the file at its end, stands in for the file name. */
+          phone?: DrivePhoneRow
       }
 
 /** Saving… / Saved as it happens; a failed write offers Retry; pending edits say nothing. */
@@ -237,9 +259,12 @@ const FileActionsMenu = ({
     onCopyLink,
     onDownload,
     readOnly,
+    phoneMenu,
 }: {
     actions?: DriveFileActions
     appView?: DriveAppView
+    /** A phone: row 1's controls, first in the menu. */
+    phoneMenu?: ReactNode
     /** Leaves Rename and Delete out rather than disabled. */
     readOnly?: boolean
     /** Read-side actions, offered on a read-only mount too. */
@@ -256,17 +281,23 @@ const FileActionsMenu = ({
                     size="icon-sm"
                     aria-label={t("entityUi.driveBrowser.moreActions")}
                     title={t("entityUi.driveBrowser.more")}
-                    className={ROW_ICON_BTN}
+                    className={cn(ROW_ICON_BTN, phoneMenu ? "size-11" : null)}
                 >
-                    <DotsThreeVertical size={14} weight="bold" />
+                    <DotsThree size={16} weight="bold" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align="end"
-                className="min-w-[180px]"
+                className={cn("min-w-[180px]", PHONE_MENU_ROWS)}
                 // New / Rename open a name field; the menu must not pull focus back to its trigger.
                 onCloseAutoFocus={(e) => e.preventDefault()}
             >
+                {phoneMenu ? (
+                    <>
+                        {phoneMenu}
+                        <DropdownMenuSeparator />
+                    </>
+                ) : null}
                 {appView ? (
                     <>
                         <DropdownMenuItem onSelect={appView.onToggle}>
@@ -429,7 +460,10 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             <CaretDown weight="bold" className="size-3 opacity-70" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-[170px]">
+                    <DropdownMenuContent
+                        align="start"
+                        className={cn("min-w-[170px]", PHONE_MENU_ROWS)}
+                    >
                         {(Object.keys(SORT_LABELS) as DriveSortKey[]).map((key) => (
                             <DropdownMenuItem key={key} onSelect={() => setSort(key)}>
                                 {SORT_ICONS[key]}
@@ -451,12 +485,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         title={t("entityUi.driveBrowser.more")}
                         className={cn(ROW_ICON_BTN, phone ? "size-11" : "size-6 rounded-[6px]")}
                     >
-                        <DotsThreeVertical size={14} weight="bold" />
+                        <DotsThree size={16} weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     align="end"
-                    className="min-w-[180px]"
+                    className={cn("min-w-[180px]", PHONE_MENU_ROWS)}
                     // New / Rename open a name field; the menu must not pull focus back to its trigger.
                     onCloseAutoFocus={(e) => e.preventDefault()}
                 >
@@ -496,14 +530,10 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
         if (phone)
             return (
-                <div className="box-border flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-3 pr-1">
-                    {/* The crumb parts and Retry keep a 44 px tap target, as row 1 gives them. */}
-                    <div className="flex min-w-0 flex-1 items-center [&_button]:min-h-11 [&_button]:min-w-11">
-                        {phone.crumb}
-                    </div>
+                <PhoneRow crumb={phone.crumb}>
                     {controls}
                     {more}
-                </div>
+                </PhoneRow>
             )
         return (
             <Row>
@@ -582,7 +612,32 @@ export function DriveToolbar(props: DriveToolbarProps) {
         onCopyLink,
         onDownload,
         readOnly,
+        phone,
     } = props
+    const fileMenu = (
+        <FileActionsMenu
+            actions={actions}
+            appView={appView}
+            onCopyPath={onCopyPath}
+            onCopyLink={onCopyLink}
+            onDownload={onDownload}
+            readOnly={readOnly}
+            phoneMenu={phone?.menu}
+        />
+    )
+    const fileControls = (
+        <>
+            {controlsRef ? <div ref={controlsRef} className="flex items-center gap-1" /> : null}
+            {sessionId && isCommentableKind(previewKind) ? <CommentToggle /> : null}
+        </>
+    )
+    if (phone)
+        return (
+            <PhoneRow crumb={phone.crumb}>
+                {fileControls}
+                {fileMenu}
+            </PhoneRow>
+        )
     return (
         <Row>
             <DriveInlineName
@@ -595,16 +650,8 @@ export function DriveToolbar(props: DriveToolbarProps) {
             ) : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
-            {controlsRef ? <div ref={controlsRef} className="flex items-center gap-1" /> : null}
-            {sessionId && isCommentableKind(previewKind) ? <CommentToggle /> : null}
-            <FileActionsMenu
-                actions={actions}
-                appView={appView}
-                onCopyPath={onCopyPath}
-                onCopyLink={onCopyLink}
-                onDownload={onDownload}
-                readOnly={readOnly}
-            />
+            {fileControls}
+            {fileMenu}
         </Row>
     )
 }

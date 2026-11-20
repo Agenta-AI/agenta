@@ -21,6 +21,7 @@ from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.git.types import RetrieveRefsInconsistent, RetrieveRefsInsufficient
 from oss.src.core.triggers.dtos import (
     DiscoveredTriggerAlternative,
@@ -341,6 +342,16 @@ def _resumed_meta(meta):
     return {key: value for key, value in dict(meta).items() if key != "paused_reason"}
 
 
+# How a settled detached run reads on its delivery. "continued" is not here on purpose: the
+# run went on in a continuation, so the delivery is not finished yet.
+_RUN_OUTCOME_STATUS: Dict[str, str] = {
+    "completed": "success",
+    "failed": "failed",
+    "stopped": "failed",
+    "lost": "failed",
+}
+
+
 class TriggersService:
     """Triggers domain orchestration.
 
@@ -358,10 +369,14 @@ class TriggersService:
         triggers_dao: TriggersDAOInterface,
         connections_service: ConnectionsService,
         workflows_service: WorkflowsService,
+        # Reads how a detached run ended, so its delivery stops reading "dispatched".
+        # None in test compositions that do not read deliveries.
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
         # Assigned post-construction in the composition root (worker wiring); guarded at use.
         schedule_dispatch_task: Optional[Any] = None,
     ):
         self.adapter_registry = adapter_registry
+        self.executions_dao = executions_dao
         self.catalog_service = catalog_service
         self.dao = triggers_dao
         self.connections_service = connections_service
@@ -2036,10 +2051,16 @@ class TriggersService:
         #
         delivery_id: UUID,
     ) -> Optional[TriggerDelivery]:
-        return await self.dao.fetch_delivery(
+        delivery = await self.dao.fetch_delivery(
             project_id=project_id,
             delivery_id=delivery_id,
         )
+        if delivery is None:
+            return None
+        resolved = await self._with_run_outcomes(
+            project_id=project_id, deliveries=[delivery]
+        )
+        return resolved[0]
 
     async def query_deliveries(
         self,
@@ -2050,11 +2071,70 @@ class TriggersService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[TriggerDelivery]:
-        return await self.dao.query_deliveries(
+        deliveries = await self.dao.query_deliveries(
             project_id=project_id,
             delivery=delivery,
             windowing=windowing,
         )
+        return await self._with_run_outcomes(
+            project_id=project_id, deliveries=deliveries
+        )
+
+    async def _with_run_outcomes(
+        self,
+        *,
+        project_id: UUID,
+        deliveries: List[TriggerDelivery],
+    ) -> List[TriggerDelivery]:
+        """Show how a detached run ended on its "dispatched" delivery.
+
+        The dispatcher writes `202 dispatched` when the runner accepts a detached run. It has
+        no callback for the end of the run, so the stored row never changes after that. The
+        end of the run is in `session_executions` (the run id is the execution id). One
+        batched read turns a settled run into `success` or `failed`. A run that still goes
+        on, or that went on in a continuation, keeps `dispatched`. The stored row does not
+        change.
+        """
+        if self.executions_dao is None:
+            return deliveries
+
+        keys: Dict[UUID, Tuple[str, str]] = {}
+        for delivery in deliveries:
+            if delivery.id is None or delivery.status.message != "dispatched":
+                continue
+            data = delivery.data
+            run_id = (data.result or {}).get("run_id") if data else None
+            if data and data.session_id and run_id:
+                keys[delivery.id] = (data.session_id, str(run_id))
+        if not keys:
+            return deliveries
+
+        settled = await self.executions_dao.query_settled(
+            project_id=project_id,
+            keys=list(keys.values()),
+        )
+
+        resolved: List[TriggerDelivery] = []
+        for delivery in deliveries:
+            key = keys.get(delivery.id) if delivery.id else None
+            execution = settled.get(key) if key else None
+            message = (
+                _RUN_OUTCOME_STATUS.get(execution.terminal_outcome or "")
+                if execution
+                else None
+            )
+            if execution is None or message is None:
+                resolved.append(delivery)
+                continue
+            status_update: Dict[str, Any] = {"message": message}
+            if execution.settled_at:
+                status_update["timestamp"] = execution.settled_at
+            resolved.append(
+                delivery.model_copy(
+                    update={"status": delivery.status.model_copy(update=status_update)}
+                )
+            )
+        return resolved
 
     async def write_delivery(
         self,

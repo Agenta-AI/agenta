@@ -34,7 +34,7 @@ import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
+import {DropdownMenuItem} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     ClockCounterClockwise,
@@ -266,7 +266,6 @@ export function TriggerManagementSection({
                         <XCircle size={16} />
                         {tNow("entityUi.triggers.revoke")}
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     {deleteItem(record.name ?? "", async () => {
                         await removeSubscription(id)
                         message.success(tScreens("automations.screens.deleted"))
@@ -307,7 +306,6 @@ export function TriggerManagementSection({
                         isEntityActive(record),
                         (next) => void toggleAutomation(setScheduleActive, id, next),
                     )}
-                    <DropdownMenuSeparator />
                     {deleteItem(record.name ?? "", async () => {
                         await removeSchedule(id)
                         message.success(tScreens("automations.screens.deleted"))
@@ -332,7 +330,7 @@ export function TriggerManagementSection({
         <h3
             className={
                 phone
-                    ? "m-0 pb-1.5 pt-4 text-[12px] font-medium text-[var(--ag-colorTextTertiary)]"
+                    ? "m-0 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-[var(--ag-colorTextTertiary)]"
                     : "m-0 mt-1 text-[12px] font-medium text-[var(--ag-colorTextSecondary)]"
             }
         >

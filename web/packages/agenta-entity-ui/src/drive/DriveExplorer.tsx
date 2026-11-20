@@ -620,7 +620,7 @@ export function DriveExplorer({
     // erroring while the session's own files loaded (or vice-versa) — still has a tree to browse, so
     // it falls through and renders the tree; its retry rides row 1 (see DriveHeader's
     // `partialErrored` slot), NOT a new banner row that would shove the content down.
-    // Row 1 of the pane. On a phone, a folder draws it inside its toolbar row (one row, as drawn).
+    // Row 1 of the pane. On a phone, a folder or a file draws it inside its toolbar row (one row).
     const headerProps: DriveHeaderProps = {
         selectedPath,
         isFolder: selectedIsFolder,
@@ -652,7 +652,7 @@ export function DriveExplorer({
         retrying: drive.isFetching,
     }
     let headerInToolbar = false
-    // On a phone a folder's one row spans the tree and the content, as row 1 does elsewhere.
+    // On a phone the one row spans the tree and the content, as row 1 does elsewhere.
     let phoneRow: ReactNode = null
     let body: ReactNode
     if (drive.errored && drive.fileCount === 0) {
@@ -692,8 +692,26 @@ export function DriveExplorer({
                   }
                 : undefined
 
-        // A host whose close lives in row 1 keeps row 1: the one row has no close.
-        headerInToolbar = Boolean(touch && chrome && selectedIsFolder && !onClose)
+        // A host whose close lives in row 1 keeps row 1: the one row has no close. An editable
+        // markdown file keeps its two rows: its formatting bar needs the whole of row 2.
+        headerInToolbar = Boolean(touch && chrome && !onClose && !editableMarkdown)
+        const phoneRowParts = headerInToolbar
+            ? {
+                  crumb: (
+                      <>
+                          <DriveBreadcrumb
+                              variant="icons"
+                              shown={selectedPath ?? ""}
+                              rootLabel={rootLabel}
+                              isFile={!selectedIsFolder}
+                              onNavigate={select}
+                          />
+                          <DrivePartialError {...headerProps} />
+                      </>
+                  ),
+                  menu: <DriveHeaderMenuItems {...headerProps} />,
+              }
+            : undefined
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -703,25 +721,7 @@ export function DriveExplorer({
                 sort={sort}
                 setSort={setSort}
                 {...folderMenu}
-                phone={
-                    headerInToolbar
-                        ? {
-                              crumb: (
-                                  <>
-                                      <DriveBreadcrumb
-                                          variant="icons"
-                                          shown={selectedPath ?? ""}
-                                          rootLabel={rootLabel}
-                                          isFile={false}
-                                          onNavigate={select}
-                                      />
-                                      <DrivePartialError {...headerProps} />
-                                  </>
-                              ),
-                              menu: <DriveHeaderMenuItems {...headerProps} />,
-                          }
-                        : undefined
-                }
+                phone={phoneRowParts}
             />
         ) : editableMarkdown ? (
             <DriveToolbar
@@ -759,6 +759,7 @@ export function DriveExplorer({
                 onCopyLink={onCopyCurrentLink}
                 onDownload={onDownloadCurrent}
                 readOnly={readOnly}
+                phone={phoneRowParts}
             />
         )
 

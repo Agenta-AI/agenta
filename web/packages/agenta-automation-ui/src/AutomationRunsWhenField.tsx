@@ -6,7 +6,7 @@ import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {Button, selectTriggerVariants} from "@agenta/ui/ui"
 import {CalendarBlank, Lightning} from "@phosphor-icons/react"
-import {ChevronDown, ChevronRight} from "lucide-react"
+import {ChevronRight, ChevronsUpDown} from "lucide-react"
 
 import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
@@ -105,7 +105,6 @@ export const AutomationRunsWhenField = ({
         )
     }
 
-    const Icon = isSchedule ? CalendarBlank : Lightning
     // While the popover is open the summary tracks the builder, not the saved row: a cron typed
     // in the Cron editor is not yet a saved `automation.cron`.
     const label = isSchedule ? schedule.summary : runsWhenLabel(automation)
@@ -124,18 +123,11 @@ export const AutomationRunsWhenField = ({
                         aria-invalid={error ? true : undefined}
                         className={cn(selectTriggerVariants(), "h-auto py-input-y")}
                     >
-                        <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <Icon
-                                aria-hidden
-                                size={14}
-                                className="text-muted-foreground shrink-0"
-                            />
-                            <span className="min-w-0 truncate">{label}</span>
-                        </span>
-                        {/* Down for a popover that drops from the field; right for the sheet
-                            that slides in from the side, so the glyph says what opens. */}
+                        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+                        {/* Up and down for a popover that drops from the field; right for the
+                            sheet that slides in from the side, so the glyph says what opens. */}
                         {isWide ? (
-                            <ChevronDown className="text-placeholder size-3 shrink-0" />
+                            <ChevronsUpDown className="text-placeholder size-3.5 shrink-0" />
                         ) : (
                             <ChevronRight className="text-placeholder size-3 shrink-0" />
                         )}

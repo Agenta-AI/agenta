@@ -43,14 +43,14 @@ export const AutomationRunNowButton = ({
         <span title={blockedText}>
             <Button
                 type="button"
-                size="sm"
+                size="compact"
                 variant="outline"
-                className={phone ? "h-11 text-sm font-normal" : "text-xs font-normal"}
+                className={phone ? "h-11 text-sm font-normal" : "font-normal"}
                 disabled={blocked !== null || starting}
                 title={blockedText ?? t("automations.screens.runNowTitle")}
                 onClick={() => void run()}
             >
-                <Play aria-hidden className="size-3" />
+                <Play aria-hidden className="size-3.5" />
                 {t("automations.screens.runNow")}
             </Button>
         </span>

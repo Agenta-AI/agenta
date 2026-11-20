@@ -27,7 +27,12 @@ export {useAutomationDraft} from "./useAutomationDraft"
 // One drawer for both kinds — what the playground mounts in place of its two forms.
 export {AutomationDrawer} from "./AutomationDrawer"
 export {AutomationCreateBody} from "./AutomationCreateBody"
-export {useAutomationCreate, DEFAULT_CRON, DRAFT_ID} from "./useAutomationCreate"
+export {
+    useAutomationCreate,
+    defaultAutomationName,
+    DEFAULT_CRON,
+    DRAFT_ID,
+} from "./useAutomationCreate"
 export type {AutomationCreateState, AutomationDraft} from "./useAutomationCreate"
 export {useAutomationEditor} from "./useAutomationEditor"
 
