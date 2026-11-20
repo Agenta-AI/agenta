@@ -223,7 +223,7 @@ describe("Add integration: Connect, then attach", () => {
 })
 
 describe("the catalog with no agent (chat, playground, prompts)", () => {
-    it("connects to the project, asking who can use it when personal accounts are on", async () => {
+    it("connects a project connection, without asking, even with personal accounts on", async () => {
         const push = vi.fn(async () => true)
         const store = createStore()
         store.set(accessAtom.current, "on")
@@ -244,7 +244,7 @@ describe("the catalog with no agent (chat, playground, prompts)", () => {
         await clickConnect()
         expect(push).toHaveBeenCalledWith(
             integrationConnectView,
-            expect.objectContaining({integrationKey: "gmail", owners: ["user", "project"]}),
+            expect.objectContaining({integrationKey: "gmail", owners: undefined}),
             {kind: "project"},
         )
     })
@@ -258,5 +258,33 @@ describe("the catalog with no agent (chat, playground, prompts)", () => {
         expect(document.body.textContent).toContain("Connected")
         expect(document.querySelector('[aria-label="Add Gmail"]')).toBeNull()
         expect(document.body.textContent).not.toContain("Added")
+    })
+})
+
+describe("an app with several connections and no agent", () => {
+    it("opens to manage each connection, with no way to add", async () => {
+        catalog.connections = [
+            {
+                slug: "gmail-work",
+                name: "Work",
+                integration_key: "gmail",
+                provider_key: "composio",
+                flags: valid,
+            },
+            {
+                slug: "gmail-backup",
+                name: "Backup",
+                integration_key: "gmail",
+                provider_key: "composio",
+                flags: valid,
+            },
+        ]
+        await render(createElement(IntegrationCatalog, {onConnect}))
+        const row = document.querySelector<HTMLElement>('[role="button"][aria-label="Gmail"]')
+        expect(row).not.toBeNull()
+        await act(async () => row!.click())
+        expect(document.body.textContent).toContain("Work")
+        expect(document.body.textContent).toContain("Backup")
+        expect(document.body.textContent).not.toContain("Add Work")
     })
 })

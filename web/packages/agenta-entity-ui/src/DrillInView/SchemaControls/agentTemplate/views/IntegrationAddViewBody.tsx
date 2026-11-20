@@ -66,8 +66,10 @@ const IntegrationAddViewBody = ({target, nav}: ViewProps<IntegrationAddViewParam
     )
     // A sign-in here can fix a tagged integration without a new revision: check again on leaving.
     useEffect(() => (forAgent ? () => void invalidateAgentRequirements() : undefined), [forAgent])
-    // With personal accounts on, Connect asks "Who can use it", as Settings does.
-    const askOwner = useAtomValue(personalAccountsAccessAtom) === "on"
+    // With personal accounts on, Connect for an agent asks "Who can use it". With no agent the
+    // connection is the project's, which is what a chat's connect request checks for.
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const askOwner = forAgent && access === "on"
     const {push} = nav
     const connect = useCallback(
         (integrationKey: string, onCreated: (created: CreatedConnection) => void) => {

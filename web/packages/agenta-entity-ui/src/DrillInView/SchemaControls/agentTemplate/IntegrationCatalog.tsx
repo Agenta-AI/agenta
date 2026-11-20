@@ -203,19 +203,22 @@ function ConnectedRow({
     const attention = multiple ? null : attentionOf(single)
     const title = multiple ? name : connectionLabel(single, integration?.name)
 
-    const subtitle = choosing
-        ? t("entityUi.integrationDrawer.chooseConnection")
-        : added && !swappable
-          ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
-          : multiple
-            ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
-            : // What the app does says more than repeating its name; the old line is the fallback.
-              integration?.description?.trim() ||
-              [name, authLabel(single)].filter(Boolean).join(" · ")
+    const subtitle =
+        choosing && onAdd
+            ? t("entityUi.integrationDrawer.chooseConnection")
+            : added && !swappable
+              ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
+              : multiple
+                ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
+                : // What the app does says more than repeating its name; the old line is the fallback.
+                  integration?.description?.trim() ||
+                  [name, authLabel(single)].filter(Boolean).join(" · ")
 
     // An added integration offers Change only when it has an entry to edit; adding a second
     // surface to one still on the legacy format is never the intent.
     const chooserButton = Boolean(onAdd) && multiple && (!added || swappable)
+    // With no agent, an app with several connections opens to manage each one.
+    const browseList = !onAdd && multiple
 
     // Adding is the row's own click; only switching connections needs a visible button.
     const rowAction =
@@ -230,15 +233,15 @@ function ConnectedRow({
     return (
         <CatalogListRow
             highlighted={choosing}
-            actionLabel={t("entityUi.integrationDrawer.addName", {name})}
+            actionLabel={onAdd ? t("entityUi.integrationDrawer.addName", {name}) : name}
             onClick={
-                choosing
+                choosing && !browseList
                     ? undefined
                     : // As in Settings: a sign-in that never finished opens to finishing it.
                       attention === "pending"
                       ? () => handlers.onFinish(single, name, logo)
-                      : chooserButton
-                        ? () => setChoosing(true)
+                      : chooserButton || browseList
+                        ? () => setChoosing((value) => !value)
                         : onAdd && !added && single.slug
                           ? () => onAdd(single.slug ?? "")
                           : undefined
@@ -275,7 +278,46 @@ function ConnectedRow({
                 </span>
             }
             expansion={
-                choosing ? (
+                choosing && browseList ? (
+                    <div className="ml-[42px] mt-2 flex flex-col gap-1">
+                        {group.connections.map((connection) => {
+                            const label = connectionLabel(connection, integration?.name)
+                            const pending = attentionOf(connection) === "pending"
+                            return (
+                                <div
+                                    key={connection.slug}
+                                    className="flex items-center gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-2.5 py-1 text-xs"
+                                >
+                                    <span className="flex-1 truncate">{label}</span>
+                                    {pending ? (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                                handlers.onFinish(connection, name, logo)
+                                            }
+                                        >
+                                            {t("entityUi.integrationDrawer.pending")}
+                                        </Button>
+                                    ) : isConnectionValid(connection) ? null : (
+                                        <span className="shrink-0 text-[var(--ag-colorWarningText)]">
+                                            {t("entityUi.integrationDrawer.needsReconnect")}
+                                        </span>
+                                    )}
+                                    <ConnectionRowMenu
+                                        onRefresh={() => handlers.onRefresh(connection)}
+                                        onRevoke={() =>
+                                            handlers.onConfirm("revoke", connection, label)
+                                        }
+                                        onDelete={() =>
+                                            handlers.onConfirm("delete", connection, label)
+                                        }
+                                    />
+                                </div>
+                            )
+                        })}
+                    </div>
+                ) : choosing ? (
                     <div className="ml-[42px] mt-2 flex flex-col gap-1">
                         <RadioGroup value={selected} onValueChange={setSelected}>
                             {group.connections.map((connection) => (

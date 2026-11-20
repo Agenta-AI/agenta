@@ -54,7 +54,7 @@ export default function ConnectDrawer({
                 const owner = created.current
                 created.current = null
                 if (owner) onSuccess?.(owner)
-                else onClose()
+                onClose()
             }}
         />
     )
