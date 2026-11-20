@@ -1,5 +1,7 @@
 import {useEffect} from "react"
 
+import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
+import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 import {integrationConnectView} from "@agenta/entity-ui/gatewayTool"
 import {
     useViewStack,
@@ -21,9 +23,6 @@ import {
     configSliceQueries,
     configSliceRevisionId,
 } from "../../../fixtures/builderLayout/foundation-a2"
-
-import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
-import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 
 const panel: AgentPanelApi = {
     content: "configuration",
