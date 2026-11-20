@@ -2226,6 +2226,9 @@ SESSION_NOT_FOUND = "session_not_found"
 SHARING_WOULD_WIDEN = "sharing_would_widen"
 TURN_NOT_FOUND = "turn_not_found"
 
+# A session name as the session tools show it, cut so that a long name cannot crowd out
+# the steps of a read.
+SESSION_NAME_MAX_CHARS = 200
 # The newest turns `read_session` lists; `totals` always covers every turn.
 READ_SESSION_TURNS_LIMIT = 20
 # Cuts of one step, as in the result file (design D8).
@@ -2793,7 +2796,7 @@ async def handle_list_sessions(
         )
         item = {
             "session_id": stream.session_id,
-            "name": stream.name,
+            "name": _cut(stream.name, SESSION_NAME_MAX_CHARS)[0],
             "agent": _agent_entry(stream.references, names),
             **_origin_entry(stream),
             "status": status.value if status else None,
@@ -3098,6 +3101,11 @@ async def handle_read_session(
         return PlatformHandlerResult.failure(e.error)
 
     records_service = sessions_service.records_service
+    # The commit bound comes first: every record of the page is then older than the
+    # turns and endings read next, so each step finds its turn.
+    read_state = await records_service.get_read_state(
+        project_id=project_id, session_id=session_id
+    )
     turns = sorted(
         await sessions_service.turns_service.query_turns(
             project_id=project_id, query=SessionTurnQuery(session_id=session_id)
@@ -3156,9 +3164,6 @@ async def handle_read_session(
         # The newest execution, which has written no ending yet.
         return newest_id if execution_id == stream.turn_id else None
 
-    read_state = await records_service.get_read_state(
-        project_id=project_id, session_id=session_id
-    )
     latest = max(read_state.latest_sequence, cursor.after_sequence)
     through = cursor.through_sequence or latest
     page = await records_service.get_records_page(
@@ -3183,7 +3188,7 @@ async def handle_read_session(
     agent = _agent_entry(stream.references, names)
     session_entry = {
         "session_id": session_id,
-        "name": stream.name,
+        "name": _cut(stream.name, SESSION_NAME_MAX_CHARS)[0],
         "agent": agent,
         **_origin_entry(stream),
     }

@@ -647,6 +647,12 @@ async def test_steps_stop_below_the_budget_and_the_cursor_resumes(world):
     assert lines["cursor"] == f"0.0.{shown}"
     step = json.loads(_field(result.content, "steps").splitlines()[0])
     assert len(step["output"]) == 16_384 and step["is_truncated"] is True
+    # The next page starts at the first step left out: none is skipped or repeated.
+    resumed = await _read(
+        world, caller, session_id=source.session_id, cursor=lines["cursor"]
+    )
+    first = json.loads(_field(resumed.content, "steps").splitlines()[0])
+    assert first["tool_call_id"] == f"c{shown}"
 
 
 async def test_a_credential_of_another_project_is_refused(world):
