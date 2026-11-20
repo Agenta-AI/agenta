@@ -22,7 +22,7 @@ import {useAtomValue} from "jotai"
 
 import {ConfigItemList} from "./ConfigItemList"
 import {type ItemRowStatus} from "./ItemRow"
-import {customMcpEndpoints, mcpItemNeedsRepair, mcpItemRef} from "./mcpRail"
+import {customMcpEndpoints, findMcpIndex, mcpItemNeedsRepair, mcpItemRef} from "./mcpRail"
 import {needsSetupStatus} from "./needsSetup"
 import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {useAgentRequirements} from "./useAgentRequirements"
@@ -130,7 +130,9 @@ export function McpServersSectionBody({
                     const ref = mcpItemRef(item, items)
                     const endpoint = endpointForItem(item)
                     setRemoving({
-                        item: ref,
+                        // Two identical entries share every address: then only the index names
+                        // this one.
+                        item: ref && findMcpIndex(items, ref) >= 0 ? ref : null,
                         index,
                         name:
                             endpoint?.name ||

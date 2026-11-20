@@ -11,7 +11,7 @@ import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
-import {subagentItemRef, subagentSlugRef} from "../subagentReference"
+import {findSubagentIndex, subagentItemRef, subagentSlugRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -123,8 +123,10 @@ const SubagentSectionBody = ({
         removeItem: (_kind, index) => {
             const tool = entries.find((entry) => entry.index === index)?.item
             const slug = toolReferenceSlug(tool)
+            const ref = slug ? subagentSlugRef(slug) : subagentItemRef(tool, subagentItems)
             setRemoving({
-                item: slug ? subagentSlugRef(slug) : subagentItemRef(tool, subagentItems),
+                // Two identical entries share every address: then only the index names this one.
+                item: ref && findSubagentIndex(subagentItems, ref) >= 0 ? ref : null,
                 index,
                 slug: slug ?? "",
                 name: describeSubagent(tool).name,
