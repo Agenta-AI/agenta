@@ -383,7 +383,9 @@ export function ConfigAccordionSection({
                 onClick={headerActs ? activate : undefined}
                 className={cn(
                     "flex items-center justify-between gap-2 select-none",
-                    canvas === "pane" ? "h-[45px] px-4" : canvas ? "h-10 px-1" : "py-3",
+                    // The section's 1 px divider is outside the row: 39 + 1 makes the canvas'
+                    // 40 px row (F01); the pane's row is 45 px plus the divider (B03).
+                    canvas === "pane" ? "h-[45px] px-4" : canvas ? "h-[39px] px-1" : "py-3",
                     highlight && "bg-[var(--ag-colorInfoBg)]",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",

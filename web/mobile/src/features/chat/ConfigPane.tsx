@@ -31,32 +31,41 @@ export const ConfigPane = ({
     // The edit right comes from the container (ConfigurationContent), which its open views share.
     const readOnly = useContext(AgentEditorContext)?.readOnly ?? false
 
+    const panel = (
+        <AgentBuildPanel
+            className={column ? "mx-auto w-full max-w-[760px]" : undefined}
+            revisionId={entityId}
+            disabled={readOnly}
+            // Automations and files have their own places in the panel.
+            operations={false}
+            stickyHeaderTop={0}
+            banner={
+                // The alert keeps a gap under the tabs; it collapses with the banner.
+                <div className="px-4 [&_[data-slot=alert]]:mt-3">
+                    <ModelSetupBanner
+                        revisionId={entityId}
+                        layout="alert"
+                        onSetUp={openModelSetup}
+                    />
+                </div>
+            }
+            // The operational sections (and their drawers) live in the Automations tab.
+            automationDrawer={null}
+        />
+    )
+
     return (
         // On a phone the size container lets a section screen fill the pane (its primary action at
         // the bottom).
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]">
-            <SectionListLayoutContext.Provider value={column ? "pane" : null}>
-                <AgentBuildPanel
-                    className={column ? "mx-auto w-full max-w-[760px]" : undefined}
-                    revisionId={entityId}
-                    disabled={readOnly}
-                    // Automations and files have their own places in the panel.
-                    operations={false}
-                    stickyHeaderTop={0}
-                    banner={
-                        // The alert keeps a gap under the tabs; it collapses with the banner.
-                        <div className="px-4 [&_[data-slot=alert]]:mt-3">
-                            <ModelSetupBanner
-                                revisionId={entityId}
-                                layout="alert"
-                                onSetUp={openModelSetup}
-                            />
-                        </div>
-                    }
-                    // The operational sections (and their drawers) live in the Automations tab.
-                    automationDrawer={null}
-                />
-            </SectionListLayoutContext.Provider>
+            {/* Only the wide host sets a layout: the Configuration page sets "page" above this. */}
+            {column ? (
+                <SectionListLayoutContext.Provider value="pane">
+                    {panel}
+                </SectionListLayoutContext.Provider>
+            ) : (
+                panel
+            )}
         </div>
     )
 }

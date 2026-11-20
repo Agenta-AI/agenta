@@ -83,7 +83,7 @@ describe("AgentTemplateSectionList layouts", () => {
         const list = section("subagents").parentElement!
         expect(list.className).toContain("gap-1.5")
         expect(list.className).toContain("pt-3.5")
-        expect(headerRow("subagents").className).toContain("h-10")
+        expect(headerRow("subagents").className).toContain("h-[39px]")
         expect(headerRow("subagents").className).toContain("px-1")
         expect(section("subagents").textContent).not.toContain("None")
         expect(section("skills").textContent).toContain("2 skills")

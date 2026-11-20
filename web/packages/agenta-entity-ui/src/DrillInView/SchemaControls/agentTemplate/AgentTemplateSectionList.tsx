@@ -295,7 +295,7 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                 className="flex flex-col gap-2"
             >
                 <div className="flex min-h-7 items-center justify-between gap-2">
-                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-colorText">
+                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-[15px] font-semibold leading-5 text-colorText">
                         <span className="truncate">{s.title}</span>
                         <IndicatorDot indicator={s.indicator} />
                         {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
