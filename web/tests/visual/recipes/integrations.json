@@ -1,0 +1,20 @@
+[
+    {
+        "id": "integrations-account-switch-own-light",
+        "story": "builderlayout-integrations-account-switch--each-persons-own",
+        "width": 480,
+        "height": 200,
+        "theme": "light",
+        "selector": "[data-testid=\"account-switch\"]",
+        "ready": "text=Each person's own"
+    },
+    {
+        "id": "integrations-account-switch-shared-dark",
+        "story": "builderlayout-integrations-account-switch--one-shared-account",
+        "width": 480,
+        "height": 200,
+        "theme": "dark",
+        "selector": "[data-testid=\"account-switch\"]",
+        "ready": "text=One shared account"
+    }
+]
