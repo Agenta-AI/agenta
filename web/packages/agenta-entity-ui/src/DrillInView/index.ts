@@ -116,7 +116,8 @@ export type {
     DrillInUIProviderProps,
     GatewayToolsBridge,
     SkillsBridge,
-    SkillsPickerHostProps,
+    AddSkillsBodyProps,
+    NewSkillBodyProps,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
@@ -439,11 +440,11 @@ export {
 } from "./SchemaControls/agentTemplate/ToolManagementList"
 export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
 export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
-export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export {AddSubagentList} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {
     SubagentOption,
     SubagentIntegration,
-} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
 export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
@@ -451,8 +452,6 @@ export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
 export {SkillFormView} from "./SchemaControls/SkillFormView"
 export {SkillFormSkeleton} from "./SchemaControls/DrawerSkeletons"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
-export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
-export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
 export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
 export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
 export {

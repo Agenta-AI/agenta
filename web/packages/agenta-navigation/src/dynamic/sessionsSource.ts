@@ -328,7 +328,10 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.type,
                 waiting ? waitingIds : null,
             ],
-            queryFn: ({signal}) =>
+            // No abort signal: a session switch remounts the rail, and a read aborted with its
+            // last observer started again for the next one. Without the signal the remounted rail
+            // joins the head read in flight.
+            queryFn: () =>
                 queryByAgents(agentIds, (references) =>
                     querySessions({
                         projectId: projectId ?? "",
@@ -341,7 +344,6 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         // No server predicate for "awaiting input" — ids are pushed down instead.
                         sessionIds: waiting ? (waitingIds ?? []) : undefined,
                         limit: scopeLimit(scopeId),
-                        abortSignal: signal,
                         lowPriority: true,
                     }),
                 ),
@@ -571,7 +573,9 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
-            queryFn: ({signal}) =>
+            //
+            // No abort signal, as for the head rows above: a remount joins the read in flight.
+            queryFn: () =>
                 queryByAgents(agentIds, (references) =>
                     querySessions({
                         projectId: projectId ?? "",
@@ -581,7 +585,6 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         origin,
                         excludeOrigin,
                         sessionIds: pinnedIds,
-                        abortSignal: signal,
                         lowPriority: true,
                     }),
                 ),
@@ -644,6 +647,30 @@ const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
     if (!query.data) return null
     return new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
 })
+
+/** Each listed agent's name, by id, from the same unpaged catalog as `liveAgentIdsAtom`. */
+const catalogAgentNamesAtom = atom<ReadonlyMap<string, string>>((get) => {
+    const names = new Map<string, string>()
+    for (const ref of get(appWorkflowsListQueryAtom).data?.refs ?? []) {
+        if (ref.name) names.set(ref.id, ref.name)
+    }
+    return names
+})
+
+/**
+ * The name an agent heading, a search row and the session header show: the artifact name, else
+ * the catalog name while the artifact query loads. Accepts a workflow id or a revision id.
+ */
+export const agentDisplayNameAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        return (
+            get(workflowMolecule.selectors.artifactName(entityId)) ||
+            get(catalogAgentNamesAtom).get(entityId) ||
+            null
+        )
+    }),
+)
 
 /**
  * Drop sessions whose agent is no longer listed (#5944, #6457). A PIN is exempt, the same exemption
@@ -801,8 +828,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
 
         const groupBy = filters.groupBy
         const now = Date.now()
-        // The owning agent's name, read off the workflow ARTIFACT — the same selector every other
-        // session surface uses, so a heading and a row can never disagree about an agent's name.
+        // The owning agent's name (see `agentDisplayNameAtomFamily`).
         // The heading is resolved HERE, not in the entity's `getGroupKey`: that closure is not
         // reactive, so a `groupBy` change would not re-bucket the rows.
         const grouped = merged.map((ref) => {
@@ -811,9 +837,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
                 // OR, not a replacement: a gate the host already knows about is open before the
                 // interactions query has a row for it.
                 waiting: waitingIds.has(ref.sessionId) || Boolean(ref.waiting),
-                agentName: ref.agentId
-                    ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
-                    : null,
+                agentName: ref.agentId ? get(agentDisplayNameAtomFamily(ref.agentId)) : null,
             }
             const group = sidebarSessionGroup(named, groupBy, now)
             return {
@@ -1387,9 +1411,7 @@ export const sidebarSessionSearchResultsAtom = atom<SessionSidebarRef[]>((get) =
         .filter((ref): ref is SessionSidebarRef => ref !== null)
     return dropMissingAgentSessions(refs, get(liveAgentIdsAtom)).map((ref) => ({
         ...ref,
-        agentName: ref.agentId
-            ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
-            : null,
+        agentName: ref.agentId ? get(agentDisplayNameAtomFamily(ref.agentId)) : null,
     }))
 })
 

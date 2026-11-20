@@ -25,7 +25,7 @@ interface Server {
     slug: string
     name: string
     auth_mode: "oauth" | "api_key" | "none"
-    user_sign_in?: {is_ready: boolean} | null
+    user_sign_in?: {is_ready: boolean; account_name?: string} | null
     data: {route: {base_url: string}}
 }
 
@@ -96,6 +96,19 @@ describe("McpYoursTable", () => {
         expect(within(statuses[0] as HTMLElement).queryByText("Sign in")).toBeNull()
         expect(statuses[1]?.textContent).toContain("Not signed in")
         expect(within(statuses[1] as HTMLElement).getByText("Sign in")).toBeTruthy()
+    })
+
+    it("names the account the server gave at sign-in", () => {
+        renderTable([
+            server({
+                id: "linear",
+                name: "Linear",
+                user_sign_in: {is_ready: true, account_name: "Lena at Acme"},
+            }),
+        ])
+        expect(screen.getByTestId("mcp-personal-status").textContent).toContain(
+            "Your sign-in: Lena at Acme",
+        )
     })
 
     it("opens the OAuth sign-in inside the click", () => {

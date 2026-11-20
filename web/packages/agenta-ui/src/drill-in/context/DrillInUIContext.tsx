@@ -211,21 +211,33 @@ export interface WorkflowReferenceBridge {
     }
     /** One subagent's configuration for the detail panel, cached so the header and the body share it.
      *  Required, not optional: a hook that may be absent cannot be called without breaking hook order. */
-    useSubagentDetail: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
+    useSubagentDetail: (slug: string) => {
+        detail: SubagentDetail | null
+        loading: boolean
+        /** The read failed, so the caller can say so instead of showing an empty configuration. */
+        failed: boolean
+        retry: () => void
+    }
     /** A link to an agent's own page. Only the host knows its routes; without it the button hides. */
     agentHref?: (workflowId: string) => string | null
 }
 
-/** Props the agent-config panel hands the injected skills picker (artboard 4b). */
-export interface SkillsPickerHostProps {
-    open: boolean
-    onClose: () => void
-    /** Skills already referenced by the agent: their embed slugs, with the pin when pinned. */
-    added: {slug: string; pinnedVersion?: string}[]
-    /** Append fully-built `@ag.embed` entries to the agent's skills list. */
-    onAdd: (entries: Record<string, unknown>[]) => void
-    /** Remove the embed entries whose referenced slug matches. */
-    onRemove: (slugs: string[]) => void
+/** What the agent's "Add skills" view hands the registry list (F04 f2). */
+export interface AddSkillsBodyProps {
+    /** Embed slugs already on this agent; their rows show "Added". */
+    addedSlugs: string[]
+    /** Append one fully-built `@ag.embed` entry to the agent's skills. */
+    onAdd: (entry: Record<string, unknown>) => void
+    /** Remove the embed entries that reference this slug. */
+    onRemove: (slug: string) => void
+    /** Opens "New skill" at depth 2. */
+    onNewSkill: () => void
+}
+
+/** What the agent's "New skill" view hands the create steps (F07 f12 to f15). */
+export interface NewSkillBodyProps {
+    /** Each created or imported skill, as the `@ag.embed` entry the agent adds. */
+    onCreated: (entries: Record<string, unknown>[]) => void
 }
 
 /**
@@ -237,14 +249,17 @@ export interface RegistrySkillParams {
 }
 
 /**
- * Bridge for the registry-backed "Add skill" flow. Injected as a COMPONENT so this package
- * stays dependency-free: the implementation (registry list, create/upload/import drawers)
+ * Bridge for the registry-backed skills flow. Injected as COMPONENTS so this package
+ * stays dependency-free: the implementation (registry list, create, upload, import)
  * lives in @agenta/skills-ui and is wired by each host's DrillInUIProvider. Parallels
  * {@link GatewayToolsBridge}. Absent → the panel falls back to the inline-skill editor.
  */
 export interface SkillsBridge {
     enabled: boolean
-    PickerHost: ComponentType<SkillsPickerHostProps>
+    /** The body of the agent's "Add skills" view: the registry list. */
+    AddSkillsBody: ComponentType<AddSkillsBodyProps>
+    /** The body of the agent's "New skill" view: choose how, write, upload, import. */
+    NewSkillBody: ComponentType<NewSkillBodyProps>
     /** Registry head versions by embed slug (no "v" prefix) — the panel's pinned rows use
      * it for the "vN available" nudge. A hook (required, not optional: hook order) that
      * may answer {} while the registry list loads. */

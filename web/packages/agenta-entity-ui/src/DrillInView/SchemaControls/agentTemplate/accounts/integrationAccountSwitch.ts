@@ -60,7 +60,12 @@ export const sharedAccountOptions = (
 
 /** An automation as the trigger queries return it: the agent it targets and who it runs as. */
 export interface AutomationRunner {
+    /**
+     * Null for an automation bound through an environment; its `application` or `workflow`
+     * reference then names the agent. A binding by variant or revision only is not resolved here.
+     */
     artifact_id?: string | null
+    data?: {references?: Record<string, {id?: string | null} | undefined> | null} | null
     principal?: {kind?: string | null} | null
 }
 
@@ -75,7 +80,9 @@ export const hasAutomationWithoutPerson = (
     Boolean(workflowId) &&
     automations.some(
         (automation) =>
-            automation.artifact_id === workflowId &&
+            (automation.artifact_id ??
+                automation.data?.references?.application?.id ??
+                automation.data?.references?.workflow?.id) === workflowId &&
             Boolean(automation.principal?.kind) &&
             automation.principal?.kind !== "human",
     )

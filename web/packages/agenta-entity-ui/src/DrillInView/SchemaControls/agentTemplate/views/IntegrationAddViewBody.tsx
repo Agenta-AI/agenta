@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
@@ -25,8 +25,6 @@ const noCreate = () => undefined
 /** Adds apps to the agent: the agent configuration's rows and writes. */
 const useAgentAdding = (revisionId: string): IntegrationCatalogAdding => {
     const writer = useAgentConfigWriter(revisionId)
-    const configRef = useRef(writer.agent)
-    configRef.current = writer.agent
     const onChange = useCallback(
         (next: Record<string, unknown>) => writer.update(() => next),
         [writer],
@@ -34,7 +32,6 @@ const useAgentAdding = (revisionId: string): IntegrationCatalogAdding => {
     const {integrationRows, setIntegrationConnection, addPersonalIntegration} = useAgentTools({
         config: writer.agent,
         onChange,
-        configRef,
         openCreate: noCreate,
     })
     return useMemo(

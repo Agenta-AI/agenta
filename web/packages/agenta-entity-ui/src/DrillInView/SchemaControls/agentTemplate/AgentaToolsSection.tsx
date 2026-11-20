@@ -86,6 +86,23 @@ function presetValue(preset: Preset, readOnly: boolean): "allow" | "ask" | undef
     return undefined
 }
 
+/** The preset the tools' permissions match, or "custom". */
+export function agentaToolsPreset(
+    tools: AgentaToolsMap,
+    access: Record<string, "read" | "write">,
+): Preset {
+    const entries = Object.entries(access)
+    return (
+        (["deny_all", "allow_all", "always_ask", "ask_writes"] as const).find((value) =>
+            entries.every(([op, kind]) => tools[op] === presetValue(value, kind === "read")),
+        ) ?? "custom"
+    )
+}
+
+/** The name of a preset, as the "Default permission" select shows it. */
+export const agentaToolsPresetLabel = (value: Preset): string =>
+    presets.find((option) => option.value === value)?.label ?? value
+
 export interface AgentaToolsSectionProps {
     tools: AgentaToolsMap
     onChange: (next: AgentaToolsMap) => void
@@ -118,10 +135,7 @@ export function AgentaToolsSection({
             readOnly: kind === "read",
         }
     })
-    const preset =
-        (["deny_all", "allow_all", "always_ask", "ask_writes"] as const).find((value) =>
-            rows.every((row) => tools[row.key] === presetValue(value, row.readOnly)),
-        ) ?? "custom"
+    const preset = agentaToolsPreset(tools, access)
     return (
         <div className="flex min-h-0 flex-col">
             <div className="flex flex-col gap-1">
@@ -172,19 +186,12 @@ export function AgentaToolsSection({
     )
 }
 
-/** The section for the agent in `config`, editing its `agenta_tools` entry in the draft. */
-export function useAgentaTools({
-    config,
-    onChange,
-    revisionId,
-    disabled,
-}: {
-    config: Record<string, unknown>
-    onChange: (next: Record<string, unknown>) => void
-    revisionId: string | null
-    disabled?: boolean
-}) {
-    const t = useT(buildKitCatalog)
+/**
+ * The Agenta tools of the agent in `config`: which tools exist (`access`), the agent's entry
+ * (`tools`), and the ones the playground build kit overrides. `status` is "none" when the
+ * deployment offers no Agenta tool.
+ */
+export function useAgentaToolsData(config: Record<string, unknown>, revisionId: string | null) {
     const accessQuery = useAtomValue(agentaToolsAccessAtom)
     const overlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
@@ -204,23 +211,24 @@ export function useAgentaTools({
             ),
         [overlay, buildKit],
     )
-    if (accessQuery.isError) {
-        return (
-            <span className="text-xs text-colorError">
-                {t("entityUi.buildKit.couldNotLoadAgentaTools")}
-            </span>
-        )
-    }
     const access = accessQuery.data
-    if (!access || Object.keys(access).length === 0) return null
-    const tools = Array.isArray(config.tools) ? config.tools : []
-    return (
-        <AgentaToolsSection
-            tools={readAgentaTools(tools) ?? {}}
-            onChange={(next) => onChange({...config, tools: writeAgentaTools(tools, next)})}
-            access={access}
-            buildKitOps={buildKitOps}
-            disabled={disabled}
-        />
+    const status: "error" | "none" | "ready" = accessQuery.isError
+        ? "error"
+        : !access || Object.keys(access).length === 0
+          ? "none"
+          : "ready"
+    const tools = useMemo(
+        () => readAgentaTools(Array.isArray(config.tools) ? config.tools : []) ?? {},
+        [config.tools],
     )
+    return {status, access: access ?? {}, tools, buildKitOps}
 }
+
+/** The agent's `agenta_tools` entry with `next` written into its tool list. */
+export const withAgentaTools = (
+    config: Record<string, unknown>,
+    next: AgentaToolsMap,
+): Record<string, unknown> => ({
+    ...config,
+    tools: writeAgentaTools(Array.isArray(config.tools) ? config.tools : [], next),
+})

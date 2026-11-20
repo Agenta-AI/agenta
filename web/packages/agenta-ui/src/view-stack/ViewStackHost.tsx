@@ -9,6 +9,7 @@ import {
 } from "react"
 
 import {ViewEntryContext, ViewStackContext, type ViewEntryApi} from "./context"
+import {useReportOpenViewItem} from "./openItem"
 import type {
     ViewChromeProps,
     ViewDef,
@@ -323,6 +324,7 @@ export const ViewStackHost = ({
 
     const dirty = saving || Object.values(forms).some((form) => form.dirty)
     const depth = entries.length as 0 | 1 | 2
+    useReportOpenViewItem(entries, titles)
 
     const stack = useMemo<ViewStack>(
         () => ({open, closeAll, back, dirty, depth}),
@@ -365,7 +367,10 @@ export const ViewStackHost = ({
                         crumbs={crumbs}
                         apply={top.view.apply}
                         wide={Boolean(top.view.wide)}
-                        readOnly={phone && Boolean(top.view.readOnlyOnPhone)}
+                        readOnly={
+                            (phone && Boolean(top.view.readOnlyOnPhone)) ||
+                            top.view.actionRow === false
+                        }
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }

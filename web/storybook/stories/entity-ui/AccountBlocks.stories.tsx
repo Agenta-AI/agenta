@@ -204,15 +204,30 @@ function McpHost({initial}: {initial: MCPEndpoint}) {
     const [source, setSource] = useState<"user" | "agent">("user")
     return (
         <div className="w-[480px]">
-            <McpAccountBlock endpoint={initial} source={source} onChange={setSource} />
+            <McpAccountBlock
+                endpoint={initial}
+                source={source}
+                onChange={setSource}
+                context={{revisionId: null, workflowId: "wf-story", agent: {}}}
+            />
         </div>
     )
 }
 
-/** Each person's own sign-in, and the viewer is signed in. */
+/** Each person's own sign-in, and the viewer is signed in; the server gave no account name. */
 export const McpSignedIn: Story = {
     parameters: seeded(),
     render: () => <McpHost initial={endpoint({user_sign_in: {is_ready: true}})} />,
+}
+
+/** Each person's own sign-in, signed in, with the account name the server gave (task 39.2). */
+export const McpSignedInWithName: Story = {
+    parameters: seeded(),
+    render: () => (
+        <McpHost
+            initial={endpoint({user_sign_in: {is_ready: true, account_name: "Lena at Acme"}})}
+        />
+    ),
 }
 
 /** Each person's own sign-in, and the viewer has none yet. */

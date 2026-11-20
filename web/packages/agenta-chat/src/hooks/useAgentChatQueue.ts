@@ -306,11 +306,17 @@ export const useAgentChatQueue = ({
         untilSeq: number | null
     } | null>(null)
     const refreshQueue = server.refresh
+    // Whether a read has listed this session's queue as empty, read in the effect below.
+    const listedEmptyRef = useRef(false)
+    listedEmptyRef.current = server.viewSeq > 0 && server.queued.length === 0
     useEffect(() => {
         const grew = userCount > lastUserCountRef.current
         lastUserCountRef.current = userCount
         if (!grew) return
         const ids = retiredParkedIdsRef.current
+        // Nothing listed and nothing of ours parked: no input can have started, so a re-read has
+        // nothing to drop.
+        if (listedEmptyRef.current && ids.size === 0) return
         const settle = (untilSeq: number) =>
             setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
         setHandoff({ids, untilSeq: null})

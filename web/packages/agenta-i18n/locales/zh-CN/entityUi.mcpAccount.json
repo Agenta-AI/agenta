@@ -1,0 +1,15 @@
+{
+    "chooseWhose": "选择 Agent 使用谁的 {{name}} 登录",
+    "eachPersonsOwnNote": "每个人都使用自己的 {{name}} 登录。",
+    "oneShared": "一个共享登录",
+    "oneSharedNote": "所有人都使用项目的登录。",
+    "sharedSignIn": "共享登录",
+    "sharedSignInNote": "无论谁发起，每次运行都使用此登录",
+    "yourSignIn": "你的登录",
+    "yourSignInNote": "你自己的运行使用的 {{name}} 登录",
+    "notSignedInYet": "尚未登录",
+    "signInTo": "登录 {{name}}",
+    "signedInAs": "你的登录：{{account}}",
+    "signedIn": "已登录",
+    "noPersonWarning": "来自频道或使用 API 密钥创建的自动化的运行没有对应的人。它们无法使用每个人自己的登录，因此此服务器对它们不可用。"
+}

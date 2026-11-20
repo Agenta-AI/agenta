@@ -25,11 +25,21 @@ vi.mock("../../src/hooks/useAlwaysAllowTool", () => ({
     }),
 }))
 
+// The agent's latest version, as the latest-revision query would answer it.
+const versions = vi.hoisted(() => ({latest: undefined as number | undefined}))
+vi.mock("../../src/hooks/useChangeVersions", () => ({
+    useChangeVersions: (base?: {version?: number}) => ({
+        baseVersion: base?.version,
+        latestVersion: versions.latest,
+    }),
+}))
+
 const {ApprovalCard} = await import("../../src/components/ApprovalCard")
 const {createRoot} = await import("react-dom/client")
 const {act} = await import("react")
 
 beforeEach(() => {
+    versions.latest = undefined
     grantState.eligible = false
     grantState.alreadyAllowed = false
     granted.calls = []
@@ -517,9 +527,10 @@ describe("the change card of a builder edit (task 8.2)", () => {
                 },
             ],
         })
-        expect(html).not.toContain(">--- old<")
-        expect(html).toContain(">----<")
-        expect(html).toContain(">+++ bold<")
+        expect(html).not.toContain(">-- old<")
+        // The sign goes to the gutter; the rest of the line is its text.
+        expect(html).toContain(">---<")
+        expect(html).toContain(">++ bold<")
     })
 
     it("says a refused change cannot apply and marks the failing change", () => {
@@ -535,5 +546,90 @@ describe("the change card of a builder edit (task 8.2)", () => {
         expect(html).toContain("Proposed values. The current values could not be loaded.")
         expect(html).not.toMatch(/data-testid="change-old"[^>]*>claude-sonnet-5-5</)
         expect(html).toContain("Approve")
+    })
+
+    it("has a header per change, and a footer that says which version it saves", () => {
+        const html = card(preview)
+        expect(html).toContain("3 changes to support-triage")
+        expect(html).toContain("Edit the instructions")
+        expect(html).toContain("Instructions › AGENTS.md")
+        expect(html).toMatch(/data-testid="change-saves-as"[^>]*>Saves as v5</)
+        // The change is the header: no eyebrow and no tool sentence while it waits.
+        expect(html).not.toContain("Needs your approval")
+        expect(html).not.toContain("Agenta saves this as a new version")
+        expect(html).not.toContain('data-testid="change-conflict"')
+    })
+
+    it("shows the conflict before a click when a newer version landed", () => {
+        versions.latest = 5
+        const html = card(preview)
+        expect(html).toContain('data-testid="change-conflict"')
+        expect(html).toContain("Someone saved v5 after the builder read v4.")
+        // The number does not follow the latest version.
+        expect(html).toContain("Saves as v5")
+        expect(html).toContain("Approve")
+    })
+
+    it("says no version when the base version is not known", () => {
+        expect(card(undefined)).not.toContain("change-saves-as")
+    })
+
+    it("words the main button Remove for a card that only removes", () => {
+        const gmail = {list: "tools", key: "gateway_connection:composio:gmail"}
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    {
+                        approvalId: "perm-2",
+                        toolName: "edit_agent_config",
+                        input: {
+                            agent: "support-triage",
+                            operations: [
+                                {operation: "remove_item", target: ["parameters", "agent", gmail]},
+                            ],
+                        },
+                    },
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("Remove an integration")
+        // A card with one change names the agent at the start of its path.
+        expect(html).toContain("support-triage › Integrations")
+        expect(html).toContain("No longer available to the agent")
+        expect(html).toMatch(/>Remove</)
+        expect(html).not.toMatch(/>Approve</)
+    })
+
+    it("shows the warning line and border of a risky change", () => {
+        const target = [
+            "parameters",
+            "agent",
+            {list: "tools", key: "gateway_connection:composio:zendesk"},
+            "policy",
+            "permissions",
+            "tools",
+            "ZENDESK_CLOSE_TICKET",
+        ]
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    {
+                        approvalId: "perm-3",
+                        toolName: "edit_agent_config",
+                        input: {
+                            agent: "support-triage",
+                            operations: [{operation: "set", target, value: "allow"}],
+                        },
+                    },
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain('data-testid="change-risk"')
+        expect(html).toContain("The agent will use Close ticket without asking you.")
+        expect(html).toContain("!border-colorWarningBorder")
     })
 })

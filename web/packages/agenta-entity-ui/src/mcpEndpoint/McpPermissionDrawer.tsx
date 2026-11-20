@@ -47,6 +47,7 @@ import {useAtomValue} from "jotai"
 import {
     IntegrationPermissionDrawer,
     type PermissionDrawerCatalog,
+    type PermissionDrawerSource,
     type PermissionPresetSource,
 } from "../DrillInView/SchemaControls/agentTemplate/IntegrationPermissionDrawer"
 import {PolicyGlyph} from "../DrillInView/SchemaControls/agentTemplate/PermissionGlyph"
@@ -301,26 +302,93 @@ function RemoveFromAgent({
     )
 }
 
-export default function McpPermissionDrawer({
-    open,
-    onClose,
+export default function McpPermissionDrawer(props: McpPermissionDrawerProps) {
+    const {
+        open,
+        onClose,
+        slug,
+        toolPrefix,
+        onRemove,
+        onBack,
+        readOnly,
+        disabled,
+        panelRef,
+        account,
+    } = props
+    const mcp = useMcpPermissionSource(props)
+    return (
+        <IntegrationPermissionDrawer
+            open={open}
+            onClose={onClose}
+            panelRef={panelRef}
+            // The MCP source supplies its own header and catalog, so neither field reaches a
+            // Composio query. They are still required by the shared props.
+            target={{provider: "mcp", integration: slug ?? ""}}
+            connectionSlug={slug ?? ""}
+            permissions={mcp.permissions}
+            onChangePermissions={mcp.write}
+            onChangeToolPermission={mcp.setTool}
+            agentPolicy={props.agentPolicy}
+            disabled={disabled}
+            account={account}
+            source={{
+                ...mcp.source,
+                title: (
+                    <DrawerTitle
+                        onBack={onBack}
+                        connectionName={mcp.name}
+                        toolPrefix={toolPrefix}
+                        status={mcp.status}
+                        toolCount={mcp.readOnlyToolCount}
+                    />
+                ),
+                footerStart:
+                    onRemove && !readOnly && !disabled ? (
+                        <RemoveFromAgent connectionName={mcp.name} onRemove={onRemove} />
+                    ) : null,
+            }}
+        />
+    )
+}
+
+export type McpPermissionSourceInput = Pick<
+    McpPermissionDrawerProps,
+    | "slug"
+    | "connectionName"
+    | "status"
+    | "cachedToolCount"
+    | "loadTools"
+    | "policy"
+    | "onChange"
+    | "onReconnect"
+    | "readOnly"
+    | "disabled"
+> & {
+    /** The tool list loads while this is true. Defaults to true. */
+    open?: boolean
+    /** Show the login-expired banner. A container that says it in its own title passes false. */
+    banner?: boolean
+}
+
+/**
+ * One MCP server as a permission source for the shared permission body: the tool list (read
+ * live from the server), the presets, and the writes. The drawer above and the server view both
+ * use it, so the two cannot drift.
+ */
+export function useMcpPermissionSource({
+    open = true,
+    banner: showBanner = true,
     slug,
     connectionName,
-    toolPrefix,
     status = "connected",
     cachedToolCount,
     loadTools: loadToolsFrom,
     policy,
     onChange,
     onReconnect,
-    onRemove,
-    onBack,
-    agentPolicy,
     readOnly,
     disabled,
-    panelRef,
-    account,
-}: McpPermissionDrawerProps) {
+}: McpPermissionSourceInput) {
     const t = useT(mcpPermissionsCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
@@ -566,66 +634,42 @@ export default function McpPermissionDrawer({
             </div>
         ) : null
 
-    return (
-        <IntegrationPermissionDrawer
-            open={open}
-            onClose={onClose}
-            panelRef={panelRef}
-            // The MCP source supplies its own header and catalog, so neither field reaches a
-            // Composio query. They are still required by the shared props.
-            target={{provider: "mcp", integration: slug ?? ""}}
-            connectionSlug={slug ?? ""}
-            permissions={permissions}
-            onChangePermissions={write}
-            onChangeToolPermission={setTool}
-            agentPolicy={agentPolicy}
-            disabled={disabled}
-            account={account}
-            source={{
-                catalogKey: slug ?? "mcp",
-                title: (
-                    <DrawerTitle
-                        onBack={onBack}
-                        connectionName={name}
-                        toolPrefix={toolPrefix}
-                        status={status}
-                        toolCount={
-                            readOnly
-                                ? catalog.status === "ready"
-                                    ? catalogTools.length
-                                    : (cachedToolCount ?? undefined)
-                                : undefined
-                        }
-                    />
-                ),
-                catalog,
-                searchCount:
-                    catalog.status === "ready" ? undefined : (cachedToolCount ?? undefined),
-                emptyLabel: t("entityUi.mcpPermissions.noToolsYet"),
-                readOnlyLabel: t("entityUi.mcpPermissions.readOnly"),
-                writeLabel: t("entityUi.mcpPermissions.write"),
-                // The spec's own phrase for a saved rule whose tool the server has stopped
-                // advertising. "Not in catalog" is the Composio wording and names a thing an MCP
-                // server does not have.
-                staleLabel: t("entityUi.mcpPermissions.noLongerOffered"),
-                toolOptions,
-                presets,
-                lockedTool: (toolKey) =>
-                    isToolHidden(policy, toolKey)
-                        ? t("entityUi.mcpPermissions.hiddenByFilter")
-                        : null,
-                rowValue,
-                banner: askToReconnect ? (
-                    <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />
-                ) : null,
-                controlsDisabled: loginLapsed,
-                footNote,
-                footerStart:
-                    onRemove && !readOnly && !disabled ? (
-                        <RemoveFromAgent connectionName={name} onRemove={onRemove} />
-                    ) : null,
-                readOnly,
-            }}
-        />
-    )
+    const source: Omit<PermissionDrawerSource, "title" | "footerStart"> = {
+        catalogKey: slug ?? "mcp",
+        catalog,
+        searchCount: catalog.status === "ready" ? undefined : (cachedToolCount ?? undefined),
+        emptyLabel: t("entityUi.mcpPermissions.noToolsYet"),
+        readOnlyLabel: t("entityUi.mcpPermissions.readOnly"),
+        writeLabel: t("entityUi.mcpPermissions.write"),
+        // The spec's own phrase for a saved rule whose tool the server has stopped
+        // advertising. "Not in catalog" is the Composio wording and names a thing an MCP
+        // server does not have.
+        staleLabel: t("entityUi.mcpPermissions.noLongerOffered"),
+        toolOptions,
+        presets,
+        lockedTool: (toolKey) =>
+            isToolHidden(policy, toolKey) ? t("entityUi.mcpPermissions.hiddenByFilter") : null,
+        rowValue,
+        banner:
+            askToReconnect && showBanner ? (
+                <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />
+            ) : null,
+        controlsDisabled: loginLapsed,
+        footNote,
+        readOnly,
+    }
+    return {
+        name,
+        status,
+        permissions,
+        write,
+        setTool,
+        source,
+        /** The tool count the read-only view shows in its title. */
+        readOnlyToolCount: readOnly
+            ? catalog.status === "ready"
+                ? catalogTools.length
+                : (cachedToolCount ?? undefined)
+            : undefined,
+    }
 }

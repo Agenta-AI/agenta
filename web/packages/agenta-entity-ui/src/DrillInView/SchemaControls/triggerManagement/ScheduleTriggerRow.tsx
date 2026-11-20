@@ -36,11 +36,17 @@ export function ScheduleTriggerRow({
     disabled,
     onOpen,
     menu,
+    phone,
+    onToggle,
 }: {
     record: TriggerSchedule
     disabled?: boolean
     onOpen: () => void
     menu: ReactNode
+    /** The phone shape of the row (M10). */
+    phone?: boolean
+    /** Phone only: the row's switch. */
+    onToggle?: (next: boolean) => void
 }) {
     const t = useT(triggersCatalog)
     const cron = record.data?.schedule
@@ -73,6 +79,8 @@ export function ScheduleTriggerRow({
             disabled={disabled}
             onOpen={onOpen}
             menu={menu}
+            phone={phone}
+            onToggle={onToggle}
         />
     )
 }

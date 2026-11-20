@@ -1,14 +1,16 @@
 /** One saved subagent: the calling agent's own description, over a read-only summary of the agent
  *  it calls. A subagent always runs that agent's LATEST revision, and this offers no way to pin. */
-import {useMemo, useState} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import {formatNumber, useT} from "@agenta/i18n"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {AutosizeTextarea, Badge, SkeletonBlock} from "@agenta/ui/ui"
+import {AutosizeTextarea, Badge, Button, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown, CaretUp, Cube, FileText, Info, Lock} from "@phosphor-icons/react"
 
 import {normalizeSubagentReference} from "./agentTemplate/subagentReference"
@@ -19,6 +21,15 @@ export interface ReferenceToolFormViewProps {
     value: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
+    /** Shown in the title of the read-only Configuration, next to the data it opens ("Open agent"). */
+    configurationAction?: ReactNode
+}
+
+interface DetailState {
+    detail: SubagentDetail | null
+    loading: boolean
+    failed: boolean
+    retry?: () => void
 }
 
 /** One row of the configuration card: a muted label column, then the value. */
@@ -90,7 +101,7 @@ export function ReferenceToolFormView(props: ReferenceToolFormViewProps) {
     return workflowReference ? (
         <ConnectedReferenceToolFormView bridge={workflowReference} {...props} />
     ) : (
-        <SubagentDetailPanel {...props} detail={null} loading={false} />
+        <SubagentDetailPanel {...props} detail={null} loading={false} failed={false} />
     )
 }
 
@@ -99,18 +110,21 @@ function ConnectedReferenceToolFormView({
     ...props
 }: ReferenceToolFormViewProps & {bridge: WorkflowReferenceBridge}) {
     const slug = typeof props.value?.slug === "string" ? props.value.slug : ""
-    const {detail, loading} = bridge.useSubagentDetail(slug)
-    return <SubagentDetailPanel {...props} detail={detail} loading={loading} />
+    const state = bridge.useSubagentDetail(slug)
+    return <SubagentDetailPanel {...props} {...state} />
 }
 
 function SubagentDetailPanel({
     value,
     onChange,
     disabled,
+    configurationAction,
     detail,
     loading,
-}: ReferenceToolFormViewProps & {detail: SubagentDetail | null; loading: boolean}) {
-    const t = useT(toolFormCatalog)
+    failed,
+    retry,
+}: ReferenceToolFormViewProps & DetailState) {
+    const t = useT(toolFormCatalog, subagentViewsCatalog, integrationViewsCatalog)
     const tool = value ?? {}
 
     // The bridge knows WHICH apps connect; their logos come from the catalog, which needs a component.
@@ -130,6 +144,7 @@ function SubagentDetailPanel({
                     {t("entityUi.toolForm.description")}
                 </span>
                 <AutosizeTextarea
+                    autoSize={{minRows: 5}}
                     value={description}
                     disabled={disabled}
                     onChange={(e) =>
@@ -152,12 +167,27 @@ function SubagentDetailPanel({
                         <Lock size={11} />
                         {t("entityUi.toolForm.readOnly")}
                     </Badge>
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {t("entityUi.toolForm.managedOnAgent")}
-                    </span>
+                    {configurationAction ? (
+                        <span className="ml-auto">{configurationAction}</span>
+                    ) : (
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                            {t("entityUi.toolForm.managedOnAgent")}
+                        </span>
+                    )}
                 </div>
                 <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)]">
-                    {loading && !detail ? (
+                    {failed && !detail ? (
+                        <div className="flex items-center gap-3 p-4 text-[13px]">
+                            <span className="min-w-0 flex-1 text-[var(--ag-colorTextSecondary)]">
+                                {t("entityUi.subagentViews.configLoadError")}
+                            </span>
+                            {retry ? (
+                                <Button variant="outline" size="sm" onClick={retry}>
+                                    {t("entityUi.integrationViews.tryAgain")}
+                                </Button>
+                            ) : null}
+                        </div>
+                    ) : loading && !detail ? (
                         <div className="flex flex-col gap-2 p-4">
                             <SkeletonBlock className="h-3 w-40" />
                             <SkeletonBlock className="h-3 w-full" />

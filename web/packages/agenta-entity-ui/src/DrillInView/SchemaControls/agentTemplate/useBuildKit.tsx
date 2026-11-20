@@ -5,7 +5,6 @@ import {
     workflowBuildKitUiStateAtomFamily,
     workflowBuildKitScopeAtomFamily,
     migrateBuildKitStateAtom,
-    type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -26,16 +25,14 @@ function embedRow(entry: Record<string, unknown>, fallbackKey: string): BuildKit
 export function useBuildKit({
     revisionId,
     disabled,
-    stateOverride,
 }: {
     revisionId: string | null
     disabled?: boolean
-    stateOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
 }) {
     const overlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const [state, setState] = useAtom(
+    const [value, onChange] = useAtom(
         useMemo(() => workflowBuildKitUiStateAtomFamily(revisionId ?? ""), [revisionId]),
     )
     const scope = useAtomValue(
@@ -45,8 +42,6 @@ export function useBuildKit({
     useEffect(() => {
         if (revisionId && scope) migrate(revisionId)
     }, [revisionId, scope, migrate])
-    const value = stateOverride?.value ?? state
-    const onChange = stateOverride?.onChange ?? setState
     const tools = useMemo(() => {
         const access = asObj(overlay?.op_access) ?? {}
         const rows: BuildKitTool[] = []

@@ -1,19 +1,13 @@
 import {
     providerIconFor,
-    SubscriptionConnectionCard,
-    SubscriptionSignInDialog,
+    subscriptionSignInView,
+    subscriptionTokenView,
 } from "@agenta/entity-ui/secretProvider"
 import {useT} from "@agenta/i18n"
 import creditsCatalog from "@agenta/i18n/catalogs/onboarding.credits"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
+import {useViewOpener} from "@agenta/ui/view-stack"
 import {ArrowRight, Check, Coins, OpenAiLogo} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
@@ -43,6 +37,25 @@ export const OnboardingCreditsStep = ({
 }) => {
     const t = useT(creditsCatalog)
     const {credits, chatgpt, claude, keys} = model
+    // The subscription views, in a drawer. The Claude token view's Save goes back, and the
+    // ChatGPT sign-in view goes back by itself when the sign-in arrives; both close the drawer.
+    const views = useViewOpener()
+    const connectChatgpt = () => {
+        chatgpt.setDialogOpen(true)
+        void views.open(
+            subscriptionSignInView,
+            {provider: "chatgpt", connectionId: chatgpt.connection?.id},
+            {kind: "project"},
+        )
+    }
+    const connectClaude = () => {
+        claude.setDialogOpen(true)
+        void views.open(
+            subscriptionTokenView,
+            {provider: "claude", connectionId: claude.connection?.id},
+            {kind: "project"},
+        )
+    }
     const balance = credits?.balanceMusd ?? null
     const heading = credits
         ? balance !== null
@@ -102,11 +115,7 @@ export const OnboardingCreditsStep = ({
                                     : t("onboarding.credits.connected")}
                             </span>
                         ) : (
-                            <Button
-                                variant="outline"
-                                className={ACTION}
-                                onClick={() => chatgpt.setDialogOpen(true)}
-                            >
+                            <Button variant="outline" className={ACTION} onClick={connectChatgpt}>
                                 {t("onboarding.credits.connect")}
                             </Button>
                         )
@@ -132,11 +141,7 @@ export const OnboardingCreditsStep = ({
                                     : t("onboarding.credits.connected")}
                             </span>
                         ) : (
-                            <Button
-                                variant="outline"
-                                className={ACTION}
-                                onClick={() => claude.setDialogOpen(true)}
-                            >
+                            <Button variant="outline" className={ACTION} onClick={connectClaude}>
                                 {t("onboarding.credits.connect")}
                             </Button>
                         )
@@ -217,30 +222,7 @@ export const OnboardingCreditsStep = ({
                     <ArrowRight data-icon="inline-end" />
                 </Button>
             </div>
-            <Dialog open={chatgpt.dialogOpen} onOpenChange={chatgpt.setDialogOpen}>
-                <DialogContent className="sm:max-w-[480px]">
-                    <DialogHeader>
-                        <DialogTitle>{t("onboarding.credits.chatgptDialogTitle")}</DialogTitle>
-                        <DialogDescription>
-                            {t("onboarding.credits.chatgptDialogBody")}
-                        </DialogDescription>
-                    </DialogHeader>
-                    {chatgpt.dialogOpen ? (
-                        <SubscriptionConnectionCard
-                            provider="chatgpt"
-                            connection={chatgpt.connection}
-                            autoStart
-                        />
-                    ) : null}
-                </DialogContent>
-            </Dialog>
-            <SubscriptionSignInDialog
-                open={claude.dialogOpen}
-                onClose={() => claude.setDialogOpen(false)}
-                provider="claude"
-                connection={claude.connection}
-                logo={<ClaudeLogo />}
-            />
+            {views.drawer}
         </div>
     )
 }

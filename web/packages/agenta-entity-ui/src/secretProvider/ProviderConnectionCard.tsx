@@ -1,20 +1,18 @@
 /**
- * The provider connection card — one pushed level inside the provider drawer, and the only place
- * a connection is configured. No modal, no toast: everything the user needs to know is on the
- * card, including why the footer's Done is disabled.
+ * The provider connection form: the one place a connection is configured, in the provider
+ * views, the provider drawer and the run error drawer.
  *
- * Its five parts follow experience.md exactly: credential (schema-driven by provider kind) with
- * one Test action, an optional name, the active-model list, the collapsed harness policy, and a
- * Cancel/Done footer. The footer itself is the drawer's — the card publishes its save wiring
- * through `onSaveStateChange`. Nothing is written until Done — Test spends the credential on one
- * read and keeps nothing.
+ * Fields in this order: Name (required, pre-filled), the credential, "Who can use it" where the
+ * host offers it, Active models, Harnesses. The host draws Cancel and Save: the form publishes
+ * its save state through `onSaveStateChange`.
  *
- * Layout: the credential, the name, and the harness policy are fixed height; Active models is the
- * one flexible region and scrolls inside itself, so every extra viewport pixel goes to the list
- * rather than to a gap above the footer. On a viewport too short for the fixed sections, the list
- * floors at three rows and the DRAWER BODY takes over the scrolling, header and footer still put.
+ * The key check runs by itself (there is no "Test" button): on a paste, on a blur after an edit,
+ * when a saved connection opens (with the stored key, which the browser never sends), and on
+ * "Check again" or "Update". "Stop" or a new edit drops the running check. A standard provider
+ * shows its models and harnesses only after the check passes; a provider with several
+ * credential fields keeps the dashed "Active models" box until then.
  *
- * Design: docs/design/provider-connections-models/experience.md ("Provider connection card").
+ * Spec: openspec model-providers ("Automatic key check" and the per-provider forms).
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
@@ -23,7 +21,6 @@ import {
     buildModelOptions,
     connectionPolicyForSave,
     credentialFieldsForKind,
-    credentialStatusLine,
     credentialValuesFor,
     DEFAULT_ENDPOINT_PROTOCOL,
     defaultNamePreview,
@@ -31,18 +28,17 @@ import {
     endpointProtocolFieldForKind,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    httpStatusOf,
     initialEndpointProtocol,
     manualModelPlaceholderForKind,
     modelDisplayOrder,
     nextConnectionName,
-    probeProviderMutationAtom,
     probeFailureMessage,
     probeRequestFor,
     providerModelCatalog,
     providerTitleForKind,
     saveProviderConnectionAtom,
     secretKindForProviderKind,
-    secretNoteForKind,
     SecretKind,
     storedCredentialFields,
     type CredentialValues,
@@ -50,24 +46,17 @@ import {
     type OrganizationSecretProjects,
     type ProbeProviderResponse,
     type ProviderConnection,
+    type ProviderFieldConfig,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {createT, richText, useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
 import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
+import providerKeyFormCatalog from "@agenta/i18n/catalogs/entityUi.providerKeyForm"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
-import {
-    InputAffix,
-    LoadingButton,
-    PasswordInput,
-    Segmented,
-    Textarea,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
+import {useIsPhone} from "@agenta/ui/phone"
+import {Button, InputAffix, PasswordInput, Segmented, Spinner, Textarea} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -85,6 +74,7 @@ import {
     translateProtocolField,
     translateProviderField,
 } from "./providerFieldText"
+import {useKeyCheck, type KeyCheckRequest} from "./useKeyCheck"
 import {
     organizationSavedToast,
     organizationSaveError,
@@ -104,13 +94,43 @@ const HARNESS_DOMAINS: Record<string, string> = {pi_core: "pi.dev"}
  */
 const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
 
-/** What the drawer's footer needs from the card to render Cancel/Done for it. */
+/** How long a multi-field form waits after the last keystroke before it checks by itself. */
+const SETTLE_MS = 800
+
+/**
+ * On a phone every control of the form has a 44 px hit area: fields, buttons and links, and the
+ * model and harness rows (a label around a checkbox). A checkbox itself stays small.
+ */
+const PHONE_TARGETS =
+    "[&_[data-slot=input-affix]]:min-h-11 [&_textarea]:min-h-11 [&_button:not([role=checkbox])]:min-h-11 [&_button:not([role=checkbox])]:min-w-11 [&_label]:min-h-11"
+
+/** The two ways to sign in to AWS Bedrock, and the fields of each. */
+type BedrockWay = "apiKey" | "accessKeys"
+const BEDROCK_WAY_FIELDS: Record<BedrockWay, string[]> = {
+    apiKey: ["bearerToken"],
+    accessKeys: ["accessKeyId", "accessKey"],
+}
+const BEDROCK_FIELDS = [...BEDROCK_WAY_FIELDS.apiKey, ...BEDROCK_WAY_FIELDS.accessKeys]
+
+/** A saved Bedrock connection opens on the way it was saved with; a new one on the API key. */
+const initialBedrockWay = (connection: ProviderConnection | null | undefined): BedrockWay =>
+    connection?.source.accessKeyId ? "accessKeys" : "apiKey"
+
+/** A field whose value is a secret: the vault never returns it, and it is never shown. */
+const isSecretField = (field: ProviderFieldConfig): boolean =>
+    field.attributes?.kind === "json" ||
+    (field.attributes?.kind === "text" && field.attributes.type === "password")
+
+/** What the host needs from the form to draw Cancel and Save for it. */
 export interface ProviderCardSaveState {
     canSave: boolean
     saving: boolean
-    /** The last save failure, for the footer to state where the button was pressed. */
+    /** The last save failure, for the host to state where the button was pressed. */
     error: string | null
-    submit: () => void
+    /** The form differs from what it opened with. */
+    dirty: boolean
+    /** Saves the connection; resolves `true` when it is stored. */
+    submit: () => Promise<boolean>
 }
 
 export interface ProviderConnectionCardProps {
@@ -122,15 +142,12 @@ export interface ProviderConnectionCardProps {
     connections: ProviderConnection[]
     /** Called after a successful save, so the host can refetch and close. */
     onSaved: (savedConnectionId?: string) => void
-    /**
-     * Publishes the save wiring so the drawer can draw the footer outside the scrolling card.
-     * Cancel is the drawer's own — it is the step that opened the card that gets undone.
-     */
+    /** Publishes the save wiring so the host can draw Cancel and Save outside the form. */
     onSaveStateChange?: (state: ProviderCardSaveState) => void
     /**
      * Set for an organization connection: it saves to the organization, names itself
      * "{provider} (Organization)", and ends with "Projects that can use it". Read-only for a
-     * member, who can still Test it.
+     * member, for whom the form checks the stored key as saved.
      */
     organization?: OrganizationConnectionScope
     /**
@@ -166,6 +183,13 @@ const savedProjectsOf = (
           }
         : null
 
+const ALL_PROJECTS: OrganizationSecretProjects = {availability: "all_projects", projectIds: []}
+
+/** One line under the credential fields. */
+type StatusLine =
+    | {tone: "progress"}
+    | {tone: "success" | "neutral" | "error"; text: string; checkAgain: boolean}
+
 const ProviderConnectionCard = ({
     kind,
     connection,
@@ -175,7 +199,7 @@ const ProviderConnectionCard = ({
     organization: organizationScope,
     ownerChoice: ownerChoiceProp,
 }: ProviderConnectionCardProps) => {
-    const t = useT(providerConnectionCatalog)
+    const t = useT(providerConnectionCatalog, providerKeyFormCatalog)
     // Only a new connection asks; a saved one keeps its owner.
     const ownerChoice = connection ? undefined : ownerChoiceProp
     const [owner, setOwner] = useState<ProviderOwner>("project")
@@ -184,20 +208,17 @@ const ProviderConnectionCard = ({
     const readOnly = !!organization?.readOnly
     const projectId = useAtomValue(projectIdAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
-    const probeMutation = useAtomValue(probeProviderMutationAtom)
     const saveConnection = useSetAtom(saveProviderConnectionAtom)
+    const keyCheck = useKeyCheck()
+    const phone = useIsPhone()
 
     const fields = useMemo(() => credentialFieldsForKind(kind), [kind])
     const title = providerTitleForKind(kind)
     // Shown in the active language; the default connection name keeps `title`, since it is saved.
     const displayTitle = providerDisplayTitle(kind, title)
-    // Test sits beside the field that carries the key. A kind without one (Vertex's credentials
-    // JSON, Bedrock's either/or pair) has no single field to attach it to, so it stands alone.
-    const testedField = useMemo(
-        () => (fields.some((field) => field.key === "apiKey") ? "apiKey" : null),
-        [fields],
-    )
     const isStandard = secretKindForProviderKind(kind) === SecretKind.ProviderKey
+    const isBedrock = kind === "bedrock"
+    const takesBaseUrl = fields.some((field) => field.key === "apiBaseUrl")
 
     const storedCredential = useMemo<CredentialValues>(
         () =>
@@ -208,9 +229,9 @@ const ProviderConnectionCard = ({
     )
 
     const [credential, setCredential] = useState<CredentialValues>(storedCredential)
-    const [name, setName] = useState(connection?.name ?? "")
-    const [probe, setProbe] = useState<ProbeProviderResponse | null>(null)
-    const [probeFailure, setProbeFailure] = useState<string | null>(null)
+    // `null` is "not typed": the field shows the default name, and a save stores it.
+    const [name, setName] = useState<string | null>(connection?.name ?? null)
+    const [bedrockWay, setBedrockWay] = useState<BedrockWay>(() => initialBedrockWay(connection))
     const [saveError, setSaveError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [manualModels, setManualModels] = useState<string[]>([])
@@ -227,48 +248,152 @@ const ProviderConnectionCard = ({
     // A new organization connection starts with every project.
     const savedProjects = useMemo(() => savedProjectsOf(connection), [connection])
     const [projects, setProjects] = useState<OrganizationSecretProjects>(
-        savedProjects ?? {availability: "all_projects", projectIds: []},
+        savedProjects ?? ALL_PROJECTS,
     )
 
-    // The card is remounted per provider by its key in the drawer, but a Settings row click can
-    // swap the connection under a mounted card; reseed rather than show the previous one's state.
-    const seededFor = useRef<string | null>(connection?.id ?? null)
-    useEffect(() => {
-        const identity = connection?.id ?? null
-        if (seededFor.current === identity) return
-        seededFor.current = identity
-        setCredential(storedCredential)
-        setName(connection?.name ?? "")
-        setProbe(null)
-        setProbeFailure(null)
-        setSaveError(null)
-        setManualModels([])
-        setCheckedModels(connection?.models ?? null)
-        setHarnesses(connection?.harnesses ?? null)
-        setProtocol(initialEndpointProtocol(connection))
-        setProjects(savedProjectsOf(connection) ?? {availability: "all_projects", projectIds: []})
-    }, [connection, storedCredential])
+    // What the form opened with, to tell the host whether it has edits.
+    const snapshot = JSON.stringify({
+        credential,
+        name,
+        bedrockWay,
+        manualModels,
+        checkedModels,
+        harnesses,
+        protocol,
+        owner,
+        projects,
+    })
+    const openedWith = useRef(snapshot)
+
+    // The saved connection the list was last fetched for, when it opened.
+    const refreshedFor = useRef<string | null>(null)
+    // The field a paste landed in: its next change starts the check.
+    const pastedInto = useRef<string | null>(null)
+
+    // The hosts key the card by the connection id, so another connection mounts a new card.
+    const dirty = !readOnly && snapshot !== openedWith.current
+
+    // Bedrock shows, checks and saves only the fields of the chosen way to sign in.
+    const otherWayFields = useMemo(
+        () =>
+            isBedrock
+                ? BEDROCK_FIELDS.filter((key) => !BEDROCK_WAY_FIELDS[bedrockWay].includes(key))
+                : [],
+        [isBedrock, bedrockWay],
+    )
+    const forChosenWay = useCallback(
+        (values: CredentialValues): CredentialValues =>
+            otherWayFields.length
+                ? {
+                      ...values,
+                      ...Object.fromEntries(otherWayFields.map((key) => [key, ""])),
+                  }
+                : values,
+        [otherWayFields],
+    )
+    const chosenCredential = useMemo(() => forChosenWay(credential), [forChosenWay, credential])
 
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
     // They still count as filled — otherwise editing only the model list would demand the key again.
-    const storedFields = useMemo(() => storedCredentialFields(connection), [connection])
-    // A saved key's status replaces the Test explainer under the fields.
-    const keyStored = storedFields.includes("apiKey")
-    // Typed OR already in the vault. Test used to demand typed material, because an empty form had
-    // no credential to spend; the probe now takes a `secret_id` and resolves the stored one itself,
-    // so a write-only connection is testable without retyping a key it can never read back.
-    const credentialFilled = hasRequiredCredential(kind, credential, storedFields)
-    const storedCredentialUnchanged = useMemo(
+    // A Bedrock way other than the one the connection opened with has nothing stored yet.
+    const wayChanged = isBedrock && bedrockWay !== initialBedrockWay(connection)
+    const storedFields = useMemo(
         () =>
-            !!connection &&
-            fields.every(
-                (field) => (credential[field.key] ?? "") === (storedCredential[field.key] ?? ""),
+            storedCredentialFields(connection).filter(
+                (key) =>
+                    !otherWayFields.includes(key) && !(wayChanged && BEDROCK_FIELDS.includes(key)),
             ),
-        [connection, credential, fields, storedCredential],
+        [connection, otherWayFields, wayChanged],
+    )
+    const credentialFilled = hasRequiredCredential(kind, chosenCredential, storedFields)
+    /** A saved connection whose credential fields hold what it opened with. */
+    const unchangedFromStored = useCallback(
+        (values: CredentialValues) =>
+            !!connection &&
+            (!isBedrock || bedrockWay === initialBedrockWay(connection)) &&
+            fields.every(
+                (field) =>
+                    otherWayFields.includes(field.key) ||
+                    (values[field.key] ?? "") === (storedCredential[field.key] ?? ""),
+            ),
+        [connection, isBedrock, bedrockWay, fields, storedCredential, otherWayFields],
+    )
+    const storedCredentialUnchanged = unchangedFromStored(credential)
+
+    // Bedrock needs its region as well as one way to sign in before a check can say anything.
+    const readyToCheck = useCallback(
+        (values: CredentialValues) =>
+            hasRequiredCredential(kind, values, storedFields) &&
+            (!isBedrock || !!(values.region ?? "").trim()),
+        [kind, storedFields, isBedrock],
     )
 
+    // A member checks the organization connection exactly as saved: any field sent would be an
+    // edit, which only an owner or admin may make.
+    const requestFor = useCallback(
+        (values: CredentialValues): KeyCheckRequest => {
+            const request =
+                readOnly && connection
+                    ? {kind: undefined, provider: {}, secret_id: connection.id}
+                    : probeRequestFor(kind, values, connection)
+            return organization && request.secret_id
+                ? {...request, secretScope: "organization"}
+                : request
+        },
+        [readOnly, connection, kind, organization],
+    )
+    // A member's check of the stored organization row runs through the current project, so only
+    // where the project may use it. An owner or admin reads the row from any project, and a
+    // typed key is checked on its own.
+    const testableFor = (request: KeyCheckRequest) =>
+        !request.secretScope ||
+        !readOnly ||
+        connection?.availability !== "selected_projects" ||
+        (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
+
+    // "key": an edited credential is checked, and the line under the field follows it.
+    // "refresh": a saved connection's stored credential fetches the list again, and the line
+    // under the list follows it.
+    const [checkMode, setCheckMode] = useState<"key" | "refresh">("key")
+    const runCheck = (values: CredentialValues, force: boolean) => {
+        const request = requestFor(values)
+        if (!testableFor(request)) return
+        setCheckMode(unchangedFromStored(values) ? "refresh" : "key")
+        setSaveError(null)
+        void keyCheck.check(request, {force})
+    }
+
+    /**
+     * Starts the check by itself when the credential is complete and changed since the last
+     * check. A paste always checks.
+     */
+    const autoCheck = (values: CredentialValues, pasted = false) => {
+        if (readOnly || !keyCheck.ready) return
+        const chosen = forChosenWay(values)
+        if (!readyToCheck(chosen)) return
+        // A saved connection with nothing edited refreshes when it opens and on "Update" only.
+        if (unchangedFromStored(chosen)) return
+        runCheck(chosen, pasted)
+    }
+
+    // A saved connection fetches its list again when it opens, with the stored key.
+    useEffect(() => {
+        if (!connection || !keyCheck.ready || refreshedFor.current === connection.id) return
+        if (!connection.hasStoredCredential && !readyToCheck(storedCredential)) return
+        refreshedFor.current = connection.id
+        runCheck(storedCredential, true)
+        // Once per opened connection; the request reads the form as it opened.
+    }, [connection, keyCheck.ready])
+
+    const checkState = keyCheck.state
+    const probe: ProbeProviderResponse | null =
+        checkState.phase === "done" ? checkState.result : null
+    const checking = checkState.phase === "checking"
+    const checkFailed = checkState.phase === "failed"
     const credentialStatus = probe?.credential.status ?? null
     const discovered = probe?.discovery.status === "fetched"
+    // A key that works, or one Agenta cannot prove: the models come next.
+    const passed = credentialStatus === "valid" || credentialStatus === "unknown"
 
     // Standard providers name a family the harness catalog knows; the credential-set kinds carry
     // whatever the endpoint serves, so their list comes from discovery and manual entry alone.
@@ -302,8 +427,6 @@ const ProviderConnectionCard = ({
         () =>
             modelDisplayOrder({
                 available,
-                // Defaults first: they carry Agenta's own ranking (newest tier first), and
-                // `modelDisplayOrder` now leads with this array's order.
                 prioritized: [...catalog.defaults, ...(connection?.models ?? [])],
                 manual: manualModels,
             }),
@@ -358,20 +481,21 @@ const ProviderConnectionCard = ({
         [harnesses, defaultHarness],
     )
 
-    // Available as soon as there is a credential to attach models to, not only after a successful
-    // test: a manual model id must be enterable for every provider in every state, including the
-    // ones Agenta cannot test at all. Testing still gates Save, which is what protects the write.
-    const showModels = credentialFilled || !!connection
+    // The models show once the check passed, and at once for a saved connection.
+    const showModels = passed || !!connection
+    // A standard provider keeps its harnesses with its models; the forms with several credential
+    // fields show them from the start, under the dashed "Active models" box.
+    const showHarnesses = !readOnly && (showModels || !isStandard)
 
     const done = doneState({
         credentialFilled,
         status: credentialStatus,
         storedCredentialUnchanged,
-        transportFailed: !!probeFailure,
+        transportFailed: checkFailed,
     })
 
     // What an empty name would become. A connection being edited keeps its own name out of the
-    // count, so clearing the field previews the name it already has rather than the next one.
+    // count, so the preview never names it after itself.
     const previewPool =
         ownerChoice && owner === "organization" ? ownerChoice.connections : connections
     const otherConnections = previewPool.filter((candidate) => candidate.id !== connection?.id)
@@ -382,55 +506,40 @@ const ProviderConnectionCard = ({
               otherConnections.map((candidate) => candidate.name),
           )
         : defaultNamePreview(kind, otherConnections)
+    const nameValue = name ?? namePreview
+    const checkedCount = modelOptions.filter((option) => option.checked).length
 
-    // A member tests the organization connection exactly as saved: any field sent would be an
-    // edit, which only an owner or admin may make.
-    const probeRequest = useMemo(
-        () =>
-            readOnly && connection
-                ? {kind: undefined, provider: {}, secret_id: connection.id}
-                : probeRequestFor(kind, credential, connection),
-        [readOnly, connection, kind, credential],
-    )
-    // A member's probe of the stored organization row runs through the current project, so only
-    // where the project may use it. An owner or admin reads the row from any project, and a
-    // typed key is tested on its own.
-    const readsOrganizationSecret = !!organization && !!probeRequest.secret_id
-    const testableHere =
-        !readsOrganizationSecret ||
-        !readOnly ||
-        connection?.availability !== "selected_projects" ||
-        (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
+    const canSave =
+        !readOnly &&
+        done.enabled &&
+        !!nameValue.trim() &&
+        // A list with models needs one checked; an endpoint with no list saves with none, and
+        // an edit that leaves a saved choice as it was keeps it.
+        (modelOptions.length === 0 ||
+            checkedCount > 0 ||
+            (!!connection && checkedModels === (connection.models ?? null)))
 
-    const runProbe = useCallback(async () => {
-        if (!projectId) return
-        setProbeFailure(null)
-        setSaveError(null)
-        try {
-            const result = await probeMutation.mutateAsync({
-                projectId,
-                kind: probeRequest.kind,
-                provider: probeRequest.provider,
-                secretId: probeRequest.secret_id,
-                ...(readsOrganizationSecret ? {secretScope: "organization" as const} : {}),
-            })
-            setProbe(result)
-            if (!result)
-                setProbeFailure(
-                    tNow("entityUi.providerConnection.couldNotRead", {provider: displayTitle}),
-                )
-        } catch (error) {
-            setProbe(null)
-            setProbeFailure(probeFailureMessage(error, title))
-        }
-    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title, displayTitle])
+    // A form with several credential fields checks by itself a moment after the last required
+    // field is filled, even when the focus stays in it.
+    const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    useEffect(() => () => clearTimeout(settleTimer.current ?? undefined), [])
 
-    const setField = (key: string, value: string) => {
-        setCredential((previous) => ({...previous, [key]: value}))
-        // The last verdict belonged to the previous credential; keep showing it and Save would
-        // store an untested key under a stale "accepted".
-        setProbe(null)
-        setProbeFailure(null)
+    const setField = (key: string, value: string, pasted = false) => {
+        const next = {...credential, [key]: value}
+        setCredential(next)
+        // The last answer belonged to the previous credential; keep it and Save would store an
+        // untested key under a stale "works".
+        keyCheck.drop()
+        clearTimeout(settleTimer.current ?? undefined)
+        if (pasted) autoCheck(next, true)
+        else if (!isStandard) settleTimer.current = setTimeout(() => autoCheck(next), SETTLE_MS)
+    }
+
+    const changeBedrockWay = (next: BedrockWay) => {
+        setBedrockWay(next)
+        // A delayed check of the other way would answer for the wrong keys.
+        clearTimeout(settleTimer.current ?? undefined)
+        keyCheck.drop()
     }
 
     // A harness the new protocol cannot reach leaves the saved list rather than staying in it as
@@ -452,13 +561,13 @@ const ProviderConnectionCard = ({
                 : effectiveChecked.filter((model) => model !== id),
         )
 
-    const onSave = async () => {
+    const onSave = async (): Promise<boolean> => {
         setSaving(true)
         setSaveError(null)
         const draft = {
             kind,
-            name,
-            credential,
+            name: nameValue.trim(),
+            credential: chosenCredential,
             // Omitted for a record that declares no protocol, which keeps it undeclared:
             // sending the control's displayed default would narrow a gateway nobody
             // described, and an Anthropic-compatible one would lose every Claude Code row.
@@ -477,7 +586,7 @@ const ProviderConnectionCard = ({
                 defaultHarness,
             }),
         }
-        const savedName = name.trim() || connection?.name || namePreview
+        const savedName = nameValue.trim() || namePreview
         try {
             const savedConnectionId = await saveConnection({
                 draft,
@@ -495,159 +604,311 @@ const ProviderConnectionCard = ({
             })
             if (organization) message.success(organizationSavedToast(savedName, projects))
             onSaved(savedConnectionId ?? undefined)
+            return true
         } catch (error) {
             setSaveError(
                 (organization && organizationSaveError(error, organization.name, savedName)) ||
                     tNow("entityUi.providerConnection.couldNotSave", {provider: displayTitle}),
             )
+            return false
         } finally {
             setSaving(false)
         }
     }
 
-    // The drawer draws the footer, so the card hands it a stable submit and the flags behind it.
-    // The ref keeps `submit` identical across renders: only a flag change re-renders the drawer.
+    // The host draws Save, so the card hands it a stable submit and the flags behind it.
     const saveRef = useRef(onSave)
     saveRef.current = onSave
-    const submit = useCallback(() => void saveRef.current(), [])
+    const submit = useCallback(() => saveRef.current(), [])
 
     useEffect(() => {
-        onSaveStateChange?.({canSave: done.enabled, saving, error: saveError, submit})
-    }, [onSaveStateChange, done.enabled, saving, saveError, submit])
+        onSaveStateChange?.({canSave, saving, error: saveError, dirty, submit})
+    }, [onSaveStateChange, canSave, saving, saveError, dirty, submit])
 
-    const credentialMessage = probeFailure ?? probe?.credential.message ?? null
-    const credentialFailed = credentialStatus === "invalid" || !!probeFailure
+    // The detail of a failed check goes to the logs; the form says what it means.
+    const failedError = checkState.phase === "failed" ? checkState.error : undefined
+    useEffect(() => {
+        if (failedError !== undefined)
+            console.warn("[provider key check]", probeFailureMessage(failedError, title))
+    }, [failedError, title])
 
-    // The provider's own verdict plus what the same call fetched. Required-ness is carried by
-    // Done's disabled state, so no field wears an asterisk.
-    const statusLine = credentialMessage
-        ? credentialStatusLine(
-              credentialMessage,
-              discovered ? (probe?.discovery.models?.length ?? 0) : null,
-          )
-        : null
+    const checkAgain = () => runCheck(chosenCredential, true)
 
-    // The span carries the tooltip, since a disabled button takes no pointer events.
-    const testButton = (
-        <TooltipProvider delayDuration={300}>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <span className="inline-flex shrink-0">
-                        <LoadingButton
-                            variant="outline"
-                            loading={probeMutation.isPending}
-                            disabled={!credentialFilled || !projectId || !testableHere}
-                            onClick={() => void runProbe()}
-                        >
-                            {credentialFailed
-                                ? t("entityUi.providerConnection.retry")
-                                : t("entityUi.providerConnection.test")}
-                        </LoadingButton>
-                    </span>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-64">
-                    {secretNoteForKind(kind, title)}
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    )
+    // The line under the credential fields: the check that runs, or what it answered.
+    const statusLine = ((): StatusLine | null => {
+        if (checkState.phase === "idle") return null
+        // Stopped: nothing to report, and "Check again" starts it again.
+        if (checkState.phase === "stopped")
+            return checkMode === "key" ? {tone: "neutral", text: "", checkAgain: true} : null
+        if (checking) return checkMode === "key" ? {tone: "progress"} : null
+        if (checkFailed) {
+            if (checkMode === "refresh") return null
+            const refused = takesBaseUrl && httpStatusOf(checkState.error) === 422
+            return {
+                tone: "error",
+                text: refused
+                    ? t("entityUi.providerKeyForm.addressRefused")
+                    : t("entityUi.providerKeyForm.checkFailed"),
+                checkAgain: !refused,
+            }
+        }
+        if (!probe) return null
+        if (credentialStatus === "invalid") {
+            return {
+                tone: "error",
+                text: t("entityUi.providerKeyForm.keyRejected", {provider: displayTitle}),
+                checkAgain: true,
+            }
+        }
+        // A refresh with the stored key reports on the list, not on the key.
+        if (checkMode === "refresh") return null
+        if (credentialStatus === "valid") {
+            return {
+                tone: "success",
+                text: discovered
+                    ? t("entityUi.providerKeyForm.keyWorks", {
+                          count: probe.discovery.models?.length ?? 0,
+                      })
+                    : t("entityUi.providerKeyForm.keyWorksNoList"),
+                checkAgain: false,
+            }
+        }
+        if (probe.discovery.status === "failed") {
+            return {
+                tone: "neutral",
+                text: t("entityUi.providerKeyForm.notReachedInTime", {provider: displayTitle}),
+                checkAgain: true,
+            }
+        }
+        if (kind === "custom" && probe.discovery.status === "unsupported") {
+            return {
+                tone: "neutral",
+                text: t("entityUi.providerKeyForm.noModelList"),
+                checkAgain: false,
+            }
+        }
+        if (kind === "custom" && !(chosenCredential.apiKey ?? "").trim()) {
+            return {
+                tone: "neutral",
+                text: t("entityUi.providerKeyForm.answeredWithoutKey"),
+                checkAgain: false,
+            }
+        }
+        return {tone: "neutral", text: t("entityUi.providerKeyForm.noFreeCheck"), checkAgain: false}
+    })()
+
+    // A refresh with the stored key that did not come back: the saved list stays.
+    const unreachableNote =
+        checkMode === "refresh" &&
+        (checkFailed || (credentialStatus !== "invalid" && probe?.discovery.status === "failed"))
+            ? t("entityUi.providerKeyForm.unreachable", {provider: displayTitle})
+            : null
 
     const protocolText = protocolField ? translateProtocolField(protocolField) : null
+    const shownFields = fields.filter((field) => !otherWayFields.includes(field.key))
+    const firstSecretField = shownFields.find(isSecretField)?.key
+
+    const renderField = (declaredField: ProviderFieldConfig) => {
+        const field = translateProviderField(declaredField, kind, {perKindLabels: true})
+        const value = credential[field.key] ?? ""
+        const block =
+            field.attributes?.kind === "json" || field.attributes?.kind === "textarea"
+                ? field.attributes
+                : null
+        const secret = field.attributes?.kind === "text" && field.attributes.type === "password"
+        // Stored but unreadable: the field is a replace box, never a prefilled value.
+        const replaceOnly = storedFields.includes(field.key)
+        const isKey = field.key === "apiKey"
+        const label = replaceOnly
+            ? isKey
+                ? t("entityUi.providerConnection.replaceKey")
+                : t("entityUi.providerConnection.replaceField", {field: field.label})
+            : isKey && kind === "custom"
+              ? t("entityUi.providerKeyForm.apiKeyOptional")
+              : field.key === "accessKey"
+                ? t("entityUi.providerKeyForm.secretAccessKey")
+                : field.label
+        const placeholder =
+            isKey && replaceOnly && connection?.keyPreview
+                ? t("entityUi.providerKeyForm.replaceKeyPlaceholder", {
+                      preview: connection.keyPreview,
+                  })
+                : isKey && isStandard && !replaceOnly
+                  ? t("entityUi.providerKeyForm.pasteKey", {provider: displayTitle})
+                  : field.placeholder
+        // Only the hints that say what to type (a base URL's shape); the secret notes are the
+        // "Encrypted at rest" tag, and the Bedrock either/or note is the "Sign in with" switch.
+        const note = replaceOnly
+            ? isKey
+                ? t("entityUi.providerKeyForm.leaveBlank")
+                : t("entityUi.providerConnection.savedValueKeep")
+            : !isSecretField(field) && field.key !== "bearerToken"
+              ? field.note
+              : undefined
+        const common = {
+            disabled: readOnly,
+            placeholder,
+            ...PASSWORD_MANAGER_OPT_OUT,
+            onPaste: () => {
+                pastedInto.current = field.key
+            },
+            onBlur: () => autoCheck(credential),
+        }
+        const change = (next: string) => {
+            const pasted = pastedInto.current === field.key
+            pastedInto.current = null
+            setField(field.key, next, pasted)
+        }
+
+        return (
+            <div key={field.key} className="flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium text-colorText">{label}</span>
+                    {field.key === firstSecretField ? (
+                        <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                            {t("entityUi.providerConnection.encryptedAtRest")}
+                        </span>
+                    ) : null}
+                </div>
+                {block ? (
+                    <Textarea
+                        {...common}
+                        rows={block.rows ?? 8}
+                        className="font-mono !text-xs"
+                        spellCheck={false}
+                        autoComplete="off"
+                        value={value}
+                        onChange={(event) => change(event.target.value)}
+                    />
+                ) : secret ? (
+                    <PasswordInput
+                        {...common}
+                        autoFocus={!connection && field.key === firstSecretField}
+                        className={FIELD_TYPE_SCALE}
+                        autoComplete="new-password"
+                        value={value}
+                        onValueChange={change}
+                    />
+                ) : (
+                    <InputAffix
+                        {...common}
+                        className={FIELD_TYPE_SCALE}
+                        autoComplete="off"
+                        value={value}
+                        onValueChange={change}
+                    />
+                )}
+                {note ? <span className="text-[11px] text-colorTextTertiary">{note}</span> : null}
+            </div>
+        )
+    }
+    const wayFields = shownFields.filter((field) => BEDROCK_FIELDS.includes(field.key))
+    const otherFields = shownFields.filter((field) => !BEDROCK_FIELDS.includes(field.key))
+
+    const statusNode = statusLine ? (
+        statusLine.tone === "progress" ? (
+            <span className="flex items-center gap-2 text-colorTextSecondary" role="status">
+                <Spinner size="small" />
+                <span>{t("entityUi.providerKeyForm.checking", {provider: displayTitle})}</span>
+                <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto px-0"
+                    onClick={() => keyCheck.stop()}
+                >
+                    {t("entityUi.providerKeyForm.stop")}
+                </Button>
+            </span>
+        ) : (
+            <span
+                className={
+                    statusLine.tone === "error"
+                        ? "flex min-w-0 items-start gap-1 text-colorError"
+                        : statusLine.tone === "success"
+                          ? "flex min-w-0 items-start gap-1.5 text-colorSuccess"
+                          : "flex min-w-0 items-start gap-1 text-colorTextSecondary"
+                }
+                role={statusLine.tone === "error" ? "alert" : "status"}
+            >
+                {statusLine.tone === "error" ? (
+                    <WarningCircle size={14} className="mt-0.5 shrink-0" />
+                ) : statusLine.tone === "success" ? (
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                ) : null}
+                <span>
+                    {statusLine.text}
+                    {statusLine.checkAgain ? (
+                        <>
+                            {statusLine.text ? " " : null}
+                            <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto px-0 align-baseline"
+                                onClick={checkAgain}
+                            >
+                                {t("entityUi.providerKeyForm.checkAgain")}
+                            </Button>
+                        </>
+                    ) : null}
+                </span>
+            </span>
+        )
+    ) : // Before any check, a new standard key says what will happen.
+    isStandard && !connection && !readOnly ? (
+        <span className="text-[11px] text-colorTextTertiary">
+            {t("entityUi.providerKeyForm.keyCheckHint")}
+        </span>
+    ) : null
 
     return (
-        <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
-            <section className="flex shrink-0 flex-col gap-3">
-                {fields.map((declaredField, index) => {
-                    const field = translateProviderField(declaredField, kind, {perKindLabels: true})
-                    const value = credential[field.key] ?? ""
-                    const block =
-                        field.attributes?.kind === "json" || field.attributes?.kind === "textarea"
-                            ? field.attributes
-                            : null
-                    const secret =
-                        field.attributes?.kind === "text" && field.attributes.type === "password"
-                    // Test belongs beside the credential it spends. A JSON credential is a block,
-                    // not a line, so it gets the button underneath instead.
-                    const inlineTest = field.key === testedField && !block
-                    // Stored but unreadable: the field is a replace box, never a prefilled value.
-                    const replaceOnly = storedFields.includes(field.key)
+        <div
+            className={`flex min-h-full flex-1 flex-col gap-4 text-xs ${phone ? PHONE_TARGETS : ""}`}
+        >
+            {/* A member cannot rename an organization connection, so the field is not offered. */}
+            {readOnly ? null : (
+                <div className="flex shrink-0 flex-col gap-1">
+                    <span className="font-medium text-colorText">
+                        {t("entityUi.providerKeyForm.name")}
+                    </span>
+                    <InputAffix
+                        className={FIELD_TYPE_SCALE}
+                        autoComplete="off"
+                        {...PASSWORD_MANAGER_OPT_OUT}
+                        value={nameValue}
+                        onValueChange={setName}
+                    />
+                </div>
+            )}
 
-                    return (
-                        <div key={field.key} className="flex flex-col gap-1">
-                            <div className="flex items-baseline justify-between gap-3">
-                                <span className="font-medium text-colorText">
-                                    {/* TODO(copy: owner) */}
-                                    {replaceOnly
-                                        ? field.key === "apiKey"
-                                            ? t("entityUi.providerConnection.replaceKey")
-                                            : t("entityUi.providerConnection.replaceField", {
-                                                  field: field.label,
-                                              })
-                                        : field.label}
-                                </span>
-                                {/* The card's one encryption disclaimer, on the first credential. */}
-                                {index === 0 ? (
-                                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
-                                        {t("entityUi.providerConnection.encryptedAtRest")}
-                                    </span>
-                                ) : null}
-                            </div>
-                            {replaceOnly && field.key !== "apiKey" ? (
-                                <span className="text-[11px] text-colorTextTertiary">
-                                    {/* TODO(copy: owner) */}
-                                    {t("entityUi.providerConnection.savedValueKeep")}
-                                </span>
-                            ) : null}
-                            <div className="flex items-start gap-2">
-                                <div className="min-w-0 flex-1">
-                                    {block ? (
-                                        <Textarea
-                                            disabled={readOnly}
-                                            placeholder={field.placeholder}
-                                            rows={block.rows ?? 8}
-                                            className="font-mono !text-xs"
-                                            spellCheck={false}
-                                            autoComplete="off"
-                                            {...PASSWORD_MANAGER_OPT_OUT}
-                                            value={value}
-                                            onChange={(event) =>
-                                                setField(field.key, event.target.value)
-                                            }
-                                        />
-                                    ) : secret ? (
-                                        <PasswordInput
-                                            disabled={readOnly}
-                                            autoFocus={!connection && index === 0}
-                                            placeholder={field.placeholder}
-                                            className={FIELD_TYPE_SCALE}
-                                            autoComplete="new-password"
-                                            {...PASSWORD_MANAGER_OPT_OUT}
-                                            value={value}
-                                            onValueChange={(next) => setField(field.key, next)}
-                                        />
-                                    ) : (
-                                        <InputAffix
-                                            disabled={readOnly}
-                                            autoFocus={!connection && index === 0}
-                                            placeholder={field.placeholder}
-                                            className={FIELD_TYPE_SCALE}
-                                            autoComplete="off"
-                                            {...PASSWORD_MANAGER_OPT_OUT}
-                                            value={value}
-                                            onValueChange={(next) => setField(field.key, next)}
-                                        />
-                                    )}
-                                </div>
-                                {inlineTest ? testButton : null}
-                            </div>
-                            {field.note ? (
-                                <span className="text-[11px] text-colorTextTertiary">
-                                    {field.note}
-                                </span>
-                            ) : null}
-                        </div>
-                    )
-                })}
+            <section className="flex shrink-0 flex-col gap-3">
+                {otherFields.map(renderField)}
+
+                {isBedrock ? (
+                    <div className="flex flex-col gap-1.5">
+                        <span className="font-medium text-colorText">
+                            {t("entityUi.providerKeyForm.signInWith")}
+                        </span>
+                        <OwnerRadioGroup<BedrockWay>
+                            aria-label={t("entityUi.providerKeyForm.signInWith")}
+                            value={bedrockWay}
+                            onChange={changeBedrockWay}
+                            options={[
+                                {
+                                    value: "apiKey",
+                                    label: t("entityUi.providerKeyForm.bedrockApiKey"),
+                                    note: t("entityUi.providerKeyForm.bedrockApiKeyHint"),
+                                },
+                                {
+                                    value: "accessKeys",
+                                    label: t("entityUi.providerKeyForm.bedrockAccessKeys"),
+                                    note: t("entityUi.providerKeyForm.bedrockAccessKeysHint"),
+                                },
+                            ]}
+                        />
+                    </div>
+                ) : null}
+
+                {wayFields.map(renderField)}
 
                 {protocolText ? (
                     <div className="flex flex-col gap-1">
@@ -664,45 +925,7 @@ const ProviderConnectionCard = ({
                     </div>
                 ) : null}
 
-                {testedField === null ? <div>{testButton}</div> : null}
-
-                {statusLine ? (
-                    <span
-                        className={
-                            credentialFailed
-                                ? "flex min-w-0 items-start gap-1 text-colorError"
-                                : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
-                        }
-                    >
-                        {credentialFailed ? (
-                            <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                        ) : (
-                            <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
-                        )}
-                        <span>
-                            {statusLine}
-                            {credentialFailed
-                                ? ` ${t("entityUi.providerConnection.nothingSaved")}`
-                                : null}
-                        </span>
-                    </span>
-                ) : null}
-
-                {keyStored ? (
-                    <span className="text-[11px] text-colorTextTertiary">
-                        {connection?.keyPreview
-                            ? t("entityUi.providerConnection.keyConfiguredPreview", {
-                                  preview: connection.keyPreview,
-                              })
-                            : t("entityUi.providerConnection.keyConfigured")}
-                    </span>
-                ) : null}
-
-                {/* Why the footer's Done is disabled (or what saving now would mean), stated where
-                    the credential that decides it is. */}
-                {done.note && !readOnly ? (
-                    <span className="text-[11px] text-colorTextTertiary">{done.note}</span>
-                ) : null}
+                {statusNode}
             </section>
 
             {ownerChoice ? (
@@ -733,27 +956,6 @@ const ProviderConnectionCard = ({
                 </div>
             ) : null}
 
-            {/* A member cannot rename an organization connection, so the field is not offered. */}
-            {readOnly ? null : (
-                <div className="flex shrink-0 flex-col gap-1">
-                    <span className="font-medium text-colorText">
-                        {richText(t("entityUi.providerConnection.nameOptional"), {
-                            muted: (text) => (
-                                <span className="font-normal text-colorTextTertiary">{text}</span>
-                            ),
-                        })}
-                    </span>
-                    <InputAffix
-                        placeholder={namePreview}
-                        className={FIELD_TYPE_SCALE}
-                        autoComplete="off"
-                        {...PASSWORD_MANAGER_OPT_OUT}
-                        value={name}
-                        onValueChange={setName}
-                    />
-                </div>
-            )}
-
             {showModels ? (
                 <ActiveModelsSection
                     readOnly={readOnly}
@@ -769,9 +971,15 @@ const ProviderConnectionCard = ({
                         setCheckedModels([...effectiveChecked.filter((model) => model !== id), id])
                     }}
                     fetchedAt={discovered ? (probe?.fetched_at ?? null) : null}
-                    onRefetch={() => void runProbe()}
-                    refetching={probeMutation.isPending}
+                    onRefresh={() => runCheck(chosenCredential, true)}
+                    refreshing={checking && checkMode === "refresh"}
+                    unreachableNote={unreachableNote}
                 />
+            ) : isStandard ? (
+                // The models come after the key works; one line says so.
+                <p className="m-0 text-colorTextTertiary">
+                    {t("entityUi.providerKeyForm.nextModels")}
+                </p>
             ) : (
                 // Says where the model list comes from instead of leaving the card blank.
                 <section className="flex shrink-0 flex-col gap-2">
@@ -784,7 +992,7 @@ const ProviderConnectionCard = ({
                 </section>
             )}
 
-            {readOnly ? null : (
+            {showHarnesses ? (
                 <HarnessesSection
                     choices={harnessChoices}
                     selected={effectiveHarnesses}
@@ -797,7 +1005,7 @@ const ProviderConnectionCard = ({
                         )
                     }
                 />
-            )}
+            ) : null}
 
             {organization && !readOnly ? (
                 <OrganizationProjectsSection

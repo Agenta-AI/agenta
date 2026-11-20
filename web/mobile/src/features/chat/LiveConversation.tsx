@@ -1,4 +1,12 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type MutableRefObject,
+    type ReactNode,
+} from "react"
 
 import {
     latestTurnId,
@@ -59,7 +67,7 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import type {FileUIPart} from "ai"
+import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -102,6 +110,7 @@ import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./tu
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useOpenModelSetup} from "./useOpenModelSetup"
 import {usePersonalSetupStep} from "./usePersonalSetupStep"
+import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
@@ -141,6 +150,15 @@ export const LiveConversation = ({
     accessPending = false,
     embedded = false,
     beforeSend,
+    emptyState,
+    composerHeaderExtra,
+    belowComposer,
+    composerPlaceholder,
+    inputRef,
+    hideSlashCommands = false,
+    userMessageAccessory,
+    canSwitchModel = true,
+    onMessagesChanged,
 }: {
     entityId: string
     sessionId: string
@@ -177,6 +195,24 @@ export const LiveConversation = ({
      * stay the text the person sees. Omitted, the words are what the model reads.
      */
     beforeSend?: (text: string) => string | undefined
+    /** Shown in place of the agent's intro card while the conversation has no message. */
+    emptyState?: ReactNode
+    /** Inside the composer frame, above the editor (the builder's context chip). */
+    composerHeaderExtra?: ReactNode
+    /** Under the composer (the builder's quick actions and recent chats). */
+    belowComposer?: ReactNode
+    /** The composer's placeholder when it is not gated. */
+    composerPlaceholder?: string
+    /** The host's handle on the composer input, so the host can write into it. */
+    inputRef?: MutableRefObject<RichChatInputHandle | null>
+    /** The `/` palette would change the agent's own configuration: offer none (the builder). */
+    hideSlashCommands?: boolean
+    /** Shown with each sent user message, from the message as stored (with its full text). */
+    userMessageAccessory?: (message: UIMessage) => ReactNode
+    /** The person may switch this agent's model (not in the builder chat: the platform picks it). */
+    canSwitchModel?: boolean
+    /** Called after the messages change (the builder page reads its tool results). */
+    onMessagesChanged?: (messages: UIMessage[]) => void
 }) => {
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
@@ -186,7 +222,8 @@ export const LiveConversation = ({
     // The composer's input handle. Declared here because the released task puts its text back in
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
-    const composerRef = useRef<RichChatInputHandle | null>(null)
+    const ownComposerRef = useRef<RichChatInputHandle | null>(null)
+    const composerRef = inputRef ?? ownComposerRef
     const modelPickerRef = useRef<(() => void) | null>(null)
     // Quote-to-reply anchors its pill and note box inside the transcript rail.
     const quoteRootRef = useRef<HTMLDivElement>(null)
@@ -208,7 +245,7 @@ export const LiveConversation = ({
             if (taken) setRejections([{name: "Message", reason: "wasn't sent — try again."}])
             return taken
         },
-        [restoreAttachments, setRejections],
+        [restoreAttachments, setRejections, composerRef],
     )
 
     // The rail row for a fresh session follows its first send: admitted keeps it until the server
@@ -311,6 +348,28 @@ export const LiveConversation = ({
     }, [conversation.messages])
     // A builder in this conversation saved another agent: that agent's open sessions check for it.
     useBuilderCommitChecks(conversation.messages)
+    // From an effect: the host reads the messages without rendering this conversation again.
+    const onMessagesChangedRef = useRef(onMessagesChanged)
+    onMessagesChangedRef.current = onMessagesChanged
+    useEffect(() => {
+        onMessagesChangedRef.current?.(conversation.messages)
+    }, [conversation.messages])
+    // A stable reader, so the memoized turn rows do not render again on every streamed chunk.
+    const messagesRef = useRef(conversation.messages)
+    messagesRef.current = conversation.messages
+    const accessoryRef = useRef(userMessageAccessory)
+    accessoryRef.current = userMessageAccessory
+    const hasAccessory = Boolean(userMessageAccessory)
+    const readUserMessageAccessory = useMemo(
+        () =>
+            hasAccessory
+                ? (messageId: string) => {
+                      const source = messagesRef.current.find((m) => m.id === messageId)
+                      return source ? (accessoryRef.current?.(source) ?? null) : null
+                  }
+                : null,
+        [hasAccessory],
+    )
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -358,13 +417,13 @@ export const LiveConversation = ({
             input?.setMarkdown(message.text)
             input?.focus()
         },
-        [beginEdit],
+        [beginEdit, composerRef],
     )
     const cancelQueuedEdit = useCallback(() => {
         const input = composerRef.current
         input?.setMarkdown(cancelEdit())
         input?.focus()
-    }, [cancelEdit])
+    }, [cancelEdit, composerRef])
 
     // Landing on a session — a new one from `+` or the shortcut, or a switch to an existing one —
     // puts the caret in the composer, once it can take input. Not while the caret is already in
@@ -389,7 +448,7 @@ export const LiveConversation = ({
             composerRef.current?.focus()
         })
         return () => cancelAnimationFrame(frame)
-    }, [disabled, sessionId])
+    }, [disabled, sessionId, composerRef])
 
     // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
@@ -867,7 +926,7 @@ export const LiveConversation = ({
                 onOk: run,
             })
         },
-        [rewind],
+        [rewind, composerRef],
     )
 
     // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
@@ -942,7 +1001,7 @@ export const LiveConversation = ({
                     // here, and for a freshly minted one it claimed the history was unavailable,
                     // which is a different and much more alarming thing to say.
                     <div className="m-auto w-full max-w-[420px]">
-                        <AgentIntroCard entityId={entityId} />
+                        {emptyState ?? <AgentIntroCard entityId={entityId} />}
                         {conversation.historyReadFailed ? (
                             <div className="mt-3 flex flex-col items-center gap-2">
                                 <p className="text-muted-foreground m-0 text-center text-xs">
@@ -963,19 +1022,21 @@ export const LiveConversation = ({
                         ) : null}
                     </div>
                 ) : null}
-                <TranscriptTurns
-                    turns={visibleTurns}
-                    scrollerRef={autoScroll.ref}
-                    sessionId={sessionId}
-                    remoteRunning={showingTurnActivity && !streamingHere}
-                    waitingOnUser={parkedOnUser}
-                    resuming={resumingAfterAnswer}
-                    pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
-                    // A tool answer and a rewind both write: someone who cannot send here cannot
-                    // answer a tool or re-run a turn (retry rides rewind) either.
-                    onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
-                    onRewind={locked ? undefined : handleRewind}
-                />
+                <UserMessageAccessoryContext.Provider value={readUserMessageAccessory}>
+                    <TranscriptTurns
+                        turns={visibleTurns}
+                        scrollerRef={autoScroll.ref}
+                        sessionId={sessionId}
+                        remoteRunning={showingTurnActivity && !streamingHere}
+                        waitingOnUser={parkedOnUser}
+                        resuming={resumingAfterAnswer}
+                        pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                        // A tool answer and a rewind both write: someone who cannot send here cannot
+                        // answer a tool or re-run a turn (retry rides rewind) either.
+                        onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
+                        onRewind={locked ? undefined : handleRewind}
+                    />
+                </UserMessageAccessoryContext.Provider>
             </ContentRail>
         )
     }
@@ -1110,6 +1171,7 @@ export const LiveConversation = ({
                                             (personalSetup.open && !readOnly && !accessPending)
                                         }
                                         onSwitchModel={() => modelPickerRef.current?.()}
+                                        canSwitchModel={canSwitchModel}
                                     />
                                 </ContentRail>
                             </div>
@@ -1196,7 +1258,7 @@ export const LiveConversation = ({
                                         ? t("chat.mobileComposer.connectModelPlaceholder")
                                         : setupBlocked
                                           ? modelSetupPlaceholder()
-                                          : undefined
+                                          : composerPlaceholder
                                 }
                                 hasTurns={!conversation.isEmpty}
                                 waitingOnUser={parkedOnUser}
@@ -1209,12 +1271,15 @@ export const LiveConversation = ({
                                 inputBusy={conversation.inputBusy}
                                 inputRef={composerRef}
                                 modelPickerRef={modelPickerRef}
+                                headerExtra={composerHeaderExtra}
+                                hideSlashCommands={hideSlashCommands}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={
                                     agentId ? () => startBlankSession(agentId) : undefined
                                 }
                             />
                         )}
+                        {belowComposer}
                     </div>
                 }
             >

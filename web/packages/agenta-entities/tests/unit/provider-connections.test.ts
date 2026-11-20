@@ -1034,6 +1034,33 @@ describe("probeProvider", () => {
         expect(fernProbeProvider.mock.lastCall?.[0]).not.toHaveProperty("secret_id")
     })
 
+    it("hands the abort signal to the client, so Stop aborts the request", async () => {
+        // The generated client rejects when its `abortSignal` fires; this fake does the same.
+        fernProbeProvider.mockImplementationOnce(
+            (_body: unknown, options: {abortSignal?: AbortSignal}) =>
+                new Promise((_resolve, reject) => {
+                    options.abortSignal?.addEventListener("abort", () =>
+                        reject(new DOMException("aborted", "AbortError")),
+                    )
+                }),
+        )
+        const controller = new AbortController()
+
+        const pending = probeProvider({
+            projectId: "proj-1",
+            kind: "openai",
+            provider: {key: "sk-one"},
+            signal: controller.signal,
+        })
+        expect(fernProbeProvider).toHaveBeenLastCalledWith(
+            {kind: "openai", provider: {key: "sk-one"}},
+            {queryParams: {project_id: "proj-1"}, abortSignal: controller.signal},
+        )
+        controller.abort()
+
+        await expect(pending).rejects.toThrow("aborted")
+    })
+
     it("defaults a fetched-but-model-less discovery to an empty list", async () => {
         fernProbeProvider.mockResolvedValueOnce({
             credential: {status: "unknown", message: "not tested"},

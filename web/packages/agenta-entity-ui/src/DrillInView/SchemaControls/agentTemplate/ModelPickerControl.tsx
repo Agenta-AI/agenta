@@ -39,9 +39,10 @@ import {
 import {Button} from "@agenta/ui/ui"
 import {useOptionalViewStack} from "@agenta/ui/view-stack"
 import {Plus} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
+import {providerSaveFollowUpAtom} from "../../../secretProvider/views/providerSaveFollowUp"
 import {providerListView} from "../../../secretProvider/views/providerViews"
 import {
     buildConnectionPickerRows,
@@ -162,17 +163,6 @@ const ModelPickerControl = ({
         () => (modelId && harness ? {modelId, provider, mode, slug, namespace, harness} : null),
         [modelId, provider, mode, slug, namespace, harness],
     )
-    // In a container with a view stack (the panel, a view drawer), Model providers takes the
-    // Model view's place; elsewhere the provider drawer opens.
-    const stack = useOptionalViewStack()
-    const openModelProviders = useCallback(() => {
-        if (stack) {
-            void stack.open(providerListView, {}, {kind: "project"})
-            return
-        }
-        drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
-        setDrawerOpen(true)
-    }, [connections, stack])
     const providerSaved = useCallback(
         async (savedConnectionId?: string) => {
             const previousConnectionKeys = drawerConnectionKeysRef.current
@@ -219,6 +209,21 @@ const ModelPickerControl = ({
             userId,
         ],
     )
+
+    // In a container with a view stack (the panel, a view drawer), Model providers takes the
+    // Model view's place; elsewhere the provider drawer opens. Both run `providerSaved` after a
+    // save: the drawer through `onSaved`, the stack through the follow-up its form view runs.
+    const stack = useOptionalViewStack()
+    const store = useStore()
+    const openModelProviders = useCallback(() => {
+        drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
+        if (stack) {
+            store.set(providerSaveFollowUpAtom, {host: stack.open, run: providerSaved})
+            void stack.open(providerListView, {}, {kind: "project"})
+            return
+        }
+        setDrawerOpen(true)
+    }, [connections, providerSaved, stack, store])
 
     const drawer = (
         <ProviderDrawer

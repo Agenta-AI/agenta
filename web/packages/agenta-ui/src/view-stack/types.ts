@@ -31,11 +31,21 @@ export interface ViewDef<P> {
      * no Cancel, Save or Done. For views whose editing needs a desktop (long text, technical forms).
      */
     readOnlyOnPhone?: boolean
+    /**
+     * False: the chrome draws no action row (no Done) for this view. For a picker whose body
+     * carries its own primary action at the bottom, such as the Model providers list. Absent
+     * keeps the row.
+     */
+    actionRow?: false
     /** The body. Use a `next/dynamic` component so the code loads on first open. */
     Component: ComponentType<ViewProps<P>>
 }
 
-/** Params carry addresses only, never display names. */
+/**
+ * Params carry addresses only, never display names. A view that shows one configuration item
+ * puts its address at `params.item` (a `ConfigItemRef`); the stack reports it to a page that asks
+ * (`ReportOpenViewItemContext`).
+ */
 export interface ViewProps<P> {
     params: P
     target: ViewTarget
@@ -94,6 +104,8 @@ export interface ViewForm {
     leaveDescription: string
     /** The Save button's label when the view names its action (for example "Connect"). */
     saveLabel?: string
+    /** The Save button's label while the save runs (for example "Checking…"). */
+    savingLabel?: string
 }
 
 /** For the container's root and for the container itself. */
@@ -123,7 +135,10 @@ export interface ViewChromeProps {
     crumbs: {title: string; onSelect?: () => void}[]
     apply: ViewApply
     wide: boolean
-    /** The top view is shown to read only: the chrome draws no action row. */
+    /**
+     * The chrome draws no action row: the top view is shown to read only, or it asks for none
+     * (`ViewDef.actionRow: false`).
+     */
     readOnly: boolean
     form: ViewChromeForm | null
     /** Guarded back one level. */

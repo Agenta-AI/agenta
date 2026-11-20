@@ -45,7 +45,8 @@ export const providerConnectionsAtom = atom<ProviderConnection[]>((get) =>
  * Test a credential against its provider.
  *
  * A mutation rather than a query: it spends a credential on an outbound request and must happen
- * only when the user asks for it, never on a re-render or a cache revalidation.
+ * only when the form starts a key check (a paste, a blur after an edit, opening a saved
+ * connection, "Check again", "Update"), never on a re-render or a cache revalidation.
  */
 export const probeProviderMutationAtom = atomWithMutation<
     ProbeProviderResponse | null,
@@ -55,10 +56,12 @@ export const probeProviderMutationAtom = atomWithMutation<
         provider: ProbeProviderCredentials
         secretId?: string
         secretScope?: SecretOwnerScope
+        /** Aborts the request ("Stop" on the key check). */
+        signal?: AbortSignal
     }
 >(() => ({
-    mutationFn: ({projectId, kind, provider, secretId, secretScope}) =>
-        probeProvider({projectId, kind, provider, secretId, secretScope}),
+    mutationFn: ({projectId, kind, provider, secretId, secretScope, signal}) =>
+        probeProvider({projectId, kind, provider, secretId, secretScope, signal}),
 }))
 
 /**

@@ -7,6 +7,17 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 const perms = vi.hoisted(() => ({edit: true}))
 const sessions = vi.hoisted(() => ({failed: false, retry: vi.fn()}))
 const actions = vi.hoisted(() => ({rename: vi.fn(), remove: vi.fn(), copy: vi.fn()}))
+const agentNames = vi.hoisted(() => new Map<string, string>())
+vi.mock("@agenta/navigation", async () => {
+    const {atom} = await import("jotai")
+    const {atomFamily} = await import("jotai-family")
+    // One atom per id, like the real family: a new atom each render would render forever.
+    return {
+        agentDisplayNameAtomFamily: atomFamily((id: string) =>
+            atom(() => agentNames.get(id) ?? null),
+        ),
+    }
+})
 vi.mock("next/router", () => ({useRouter: () => ({push: vi.fn(), query: {}, asPath: "/"})}))
 vi.mock("@agenta/entity-ui/agent", () => ({
     AgentIdentity: ({name}: {name: string}) => <span>{name}</span>,
@@ -39,6 +50,7 @@ import {SessionHeader} from "@/features/agent-layout/SessionHeader"
 afterEach(() => {
     cleanup()
     perms.edit = true
+    agentNames.clear()
 })
 
 const panel = (over: Partial<AgentPanelApi> = {}): AgentPanelApi => ({
@@ -157,6 +169,13 @@ describe("the session header", () => {
         expect(sessions.retry).toHaveBeenCalled()
         expect(screen.getByRole("button", {name: "New session"})).toBeTruthy()
         sessions.failed = false
+    })
+
+    it("names the agent by its id before its revision has loaded", () => {
+        agentNames.set("agent-1", "Support triage")
+        renderHeader(panel())
+        expect(screen.getByText("Support triage")).toBeTruthy()
+        expect(screen.queryByText("Agent")).toBeNull()
     })
 })
 
