@@ -1,0 +1,75 @@
+/* TemplatesShowcase — ported from the landing design board (iteration 1). */
+.sx-site { margin:0px; }
+.sx-site { margin:0px; background:var(--lp-surface-3); color:var(--lp-text); font-family:var(--font-sans); -webkit-font-smoothing:antialiased; }
+.sx-site h1, .sx-site h2, .sx-site h3, .sx-site p { margin:0px; text-wrap:pretty; }
+.sx-site a { color:inherit; text-decoration:none; }
+.sx-site .grid { display:grid; grid-template-columns:repeat(4, minmax(0px, 1fr)); gap:24px 16px; }
+.sx-site .c { display:flex; flex-direction:column; color:inherit; text-decoration:none; }
+.sx-site .bn { height:260px; border-radius:16px; display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; overflow:hidden; }
+.sx-site .art { transition:transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+.sx-site .c:hover .art { transform:translateY(-4px); }
+.sx-site .tx { padding:18px 2px 0px; }
+.sx-site .tx h3 { font:400 22px / 28px "GT Alpina", Georgia, serif; }
+.sx-site .tx p.d { font:400 15px / 23px var(--font-sans); color:var(--lp-body); margin-top:6px; }
+.sx-site .go { display:inline-flex; align-items:center; gap:6px; margin-top:12px; font:500 13px / 18px var(--font-sans); color:var(--lp-mut); transition:color 0.2s; }
+.sx-site .c:hover .go { color:var(--lp-text); }
+.sx-site .cap { font:500 10px / 14px "Geist Mono", monospace; letter-spacing:0.06em; text-transform:uppercase; opacity:0.72; margin-bottom:8px; }
+.sx-site .p { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0px 12px 0px 7px; border-radius:10px; background:var(--lp-surface); color:var(--lp-text); box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; font:500 13px / 1 Geist, var(--font-sans); white-space:nowrap; box-sizing:border-box; }
+.sx-site .p em { font:400 11px / 1 "Geist Mono", monospace; color:var(--lp-mut); margin-left:4px; }
+.sx-site .p.y { background:var(--yellow-400); box-shadow:rgba(255, 255, 255, 0.7) 0px 2px 0px inset, var(--yellow-border) 0px 0px 0px 1px; color:var(--ink-900) !important;}
+.sx-site .p.dark { background:var(--lp-ink-bg); color:rgb(246, 245, 243); padding:0px 14px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; }
+.sx-site .p .gl { width:20px; height:20px; border-radius:6px; background:var(--lp-surface-3); display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; color:var(--lp-text); }
+.sx-site .p.y .gl { background:rgba(255, 255, 255, 0.65); color:var(--lp-fixed-ink); }
+.sx-site .p.ghost .gl { background:rgba(255, 255, 255, 0.6); }
+.sx-site .gl .d { width:6px; height:6px; border-radius:2px; background:var(--lp-ink-bg); }
+.sx-site .gl .r { width:7px; height:7px; border-radius:50%; box-shadow:var(--lp-dim) 0px 0px 0px 1.4px inset; }
+.sx-site .col { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.sx-site .col .p:nth-child(3) { margin-left:14px; }
+.sx-site .steps { position:relative; display:flex; flex-direction:column; gap:10px; }
+.sx-site .steps::before { content: ""; position:absolute; left:10px; top:30px; bottom:18px; border-left:1px dashed; opacity:0.35; }
+.sx-site .srow { position:relative; display:flex; align-items:center; gap:10px; font:400 13px / 18px Geist, var(--font-sans); }
+.sx-site .srow .gl { background:var(--lp-surface); box-shadow:rgb(var(--lp-ink-rgb) / 0.08) 0px 0px 0px 1px; }
+.sx-site .srow.last { margin-left:-7px; }
+.sx-site .chat { display:flex; flex-direction:column; gap:9px; width:240px; }
+.sx-site .chat .p { align-self:flex-start; }
+.sx-site .chat .ans { align-self:flex-end; height:auto; padding:10px 14px; white-space:normal; line-height:18px; font-weight:400; border-radius:12px; }
+.sx-site .chat .p.y { align-self:flex-end; }
+@media (max-width: 1100px){.sx-site .grid { grid-template-columns:repeat(2, minmax(0px, 1fr)); }}
+@media (max-width: 640px){.sx-site .grid { grid-template-columns:minmax(0px, 1fr); }}
+@media (prefers-reduced-motion: reduce){.sx-site .art { transition:none; }}
+.sx-site a { color:var(--lp-text); text-decoration:none; }
+.sx-site a:hover { color:var(--lp-body); }
+.sx-site .bn .cap, .sx-site .bn .srow, .sx-site .bn .ck, .sx-site .mt .cap, .sx-site .mt .srow, .sx-site .mt .ck, .sx-site .pvb .cap, .sx-site .pvb .srow, .sx-site .pvb .ck, .sx-site .mcb .cap, .sx-site .mcb .srow, .sx-site .mcb .ck, .sx-site .rfb .cap, .sx-site .rfb .srow { color:inherit; }
+.sx-site .lp-tplin { max-width:1240px; margin:0px auto; display:flex; flex-direction:column; align-items:center; }
+.sx-site .lp-grid { width:100%; text-align:left; }
+.sx-site .tplx { background:var(--lp-surface-3) !important; padding:112px 24px 120px !important; }
+.sx-site .tplx .lp-tplin { margin:0px auto; max-width:1120px !important; }
+.sx-site .tplx .ag-sechead { margin:0px auto; max-width:780px !important; }
+.sx-site .tplx .ag-sectitle { letter-spacing:-0.01em; font:400 52px / 1.06 "GT Alpina", serif !important; color:var(--lp-text) !important; }
+.sx-site .tplx .ag-sechead p { font:400 17px / 27px var(--font-sans) !important; color:var(--lp-body) !important; }
+.sx-site .tplx .tsp { height:56px; }
+.sx-site .tplx .lp-grid { background:var(--lp-surface-6); border-top:1px solid var(--lp-line); border-bottom:1px solid var(--lp-line); display:grid !important; grid-template-columns:repeat(4, minmax(0px, 1fr)) !important; gap:1px !important; }
+.sx-site .tplx .c { background:var(--lp-surface-3); display:flex; flex-direction:column; padding:0px 0px 28px; text-decoration:none; border-radius:0px !important; box-shadow:none !important; }
+.sx-site .tplx .c:hover { background:var(--lp-surface-2); }
+.sx-site .tplx .bn { background:transparent !important; color:var(--lp-text) !important; border-radius:0px !important; box-shadow:none !important; height:220px !important; }
+.sx-site .tplx .tx { padding:0px 24px !important; }
+.sx-site .tplx .tx h3 { color:var(--lp-text); font:400 22px / 1.2 "GT Alpina", serif !important; }
+.sx-site .tplx .tx .d { font-size:14px !important; line-height:21px !important; color:var(--lp-mut) !important; }
+.sx-site .tplx .go { font-size:13px !important; color:var(--lp-text) !important; }
+.sx-site .tplx .p, .sx-site .tplx .p.dark, .sx-site .tplx .p.white, .sx-site .tplx .p.ghost, .sx-site .tplx .card, .sx-site .tplx .sheet { background:var(--lp-surface) !important; color:var(--lp-text) !important; border-radius:10px !important; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px !important; border:0px !important; }
+.sx-site .tplx .p.y { background:var(--yellow-400) !important; box-shadow:rgb(226, 226, 36) 0px 0px 0px 1px !important; color:var(--ink-900) !important;}
+.sx-site .tplx .p.dark.ans { background:var(--lp-ink-bg) !important; color:rgb(246, 245, 243) !important; }
+.sx-site .tplx .cap { color:var(--lp-dim) !important; }
+.sx-site .tplx .art svg path, .sx-site .tplx .art svg circle { stroke:var(--lp-line-strong) !important; }
+.sx-site .tplx .gl { color:var(--lp-body); }
+.sx-site .tplx .bn .art { transform:scale(0.88); transform-origin:center center; }
+.sx-site .tplx .ag-btn--outline { height:40px; padding:0px 16px; display:inline-flex; align-items:center; border-radius:8px !important; background:var(--lp-surface) !important; box-shadow:var(--lp-key-glow) 0px 3px 6px inset, rgb(229, 229, 227) 0px 0px 0px 1px !important; border:0px !important; color:var(--lp-text) !important; }
+a.btn, .ag-btn { transition:none !important; transform:none !important; }
+html body .lp .sx-site section.tplx, html body .lp .sx-site .tplx .c { background:var(--lp-surface) !important; }
+html body .lp .sx-site .tplx .c:hover { background:var(--lp-surface-3) !important; }
+.lp a.btn.btn-o, .lp .sx-site .ag-btn--outline, .lp .sx-site .tplx .ag-btn--outline { background:linear-gradient(var(--lp-surface-5) 0%, var(--lp-page) 100%) !important; border:1px solid var(--lp-frame) !important; box-shadow:var(--lp-key-glow) 0px 3px 6px inset !important; color:var(--lp-text) !important; }
+.lp .sx-site .tplx .ag-btn--outline { height:36px !important; padding:0px 12px !important; border-radius:8px !important; font:500 14px / 20px var(--font-sans) !important; }
+html body .lp section.tplx .chat .p.dark { background:var(--lp-surface) !important; color:var(--lp-text) !important; box-shadow:rgb(229, 229, 227) 0px 0px 0px 1px !important; }
+/* The connector-line rule above also caught the icons inside chips; they draw in the chip's ink. */
+.sx-site .tplx .art .gl svg path, .sx-site .tplx .art .gl svg circle { stroke:currentColor !important; }
+.sx-site .p.y .gl .d { background:var(--lp-fixed-ink); }

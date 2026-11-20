@@ -253,3 +253,43 @@
   font-size: 11px;
   white-space: nowrap;
 }
+
+/* Section carets: Phosphor's outline caret (an arrow), not the filled triangle.
+   The caret still turns 90 degrees when the section opens. */
+.ag-demo-config [data-slot="collapse-caret"] {
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ag-demo-config [data-slot="collapse-caret"] path {
+  display: none;
+}
+/* Tailwind's rotate-90 needs base-layer variables this page does not load. */
+.ag-demo-config [data-slot="collapse-caret"].rotate-90 {
+  transform: rotate(90deg);
+}
+
+/* Muted avatars: one neutral tile for instructions, subagents and skills. */
+.ag-demo-config .ag-settings-avatar { color: var(--muted-foreground); box-shadow: inset 0 0 0 1px var(--border); }
+
+/* Model picker, laid out like the product's two-column provider menu. */
+.ag-model-picker { display: flex; flex-direction: column; gap: 6px; }
+.ag-model-picker .ag-settings-select { width: 100%; cursor: pointer; font: inherit; text-align: left; }
+.ag-model-current { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.ag-model-current img, .ag-model-conns img { width: 14px; height: 14px; flex: 0 0 auto; }
+.ag-model-menu { border: 1px solid var(--border); border-radius: 8px; background: var(--background); box-shadow: var(--ag-boxShadowSecondary, 0 4px 12px rgb(0 0 0 / 0.08)); overflow: hidden; font-size: 13px; }
+.ag-model-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.ag-model-cols { display: grid; grid-template-columns: 112px minmax(0, 1fr); }
+.ag-model-conns { display: flex; flex-direction: column; padding: 4px; border-right: 1px solid var(--border); }
+.ag-model-conns button, .ag-model-list button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; font: inherit; color: var(--foreground); text-align: left; cursor: pointer; }
+.ag-model-conns button span { min-width: 0; font-weight: 500; white-space: nowrap; }
+.ag-model-conns button[aria-pressed="true"], .ag-model-list button[aria-selected="true"] { background: var(--muted); }
+.ag-model-conns button:hover, .ag-model-list button:hover { background: var(--muted); }
+.ag-model-list { padding: 4px; max-height: 220px; overflow-y: auto; }
+.ag-model-list p { margin: 6px 8px 2px; font-size: 11px; color: var(--muted-foreground); }
+.ag-model-list button span { flex: 1; }
+/* Picker logos follow the theme, like the integration rows. */
+[data-theme="dark"] .ag-model-current img,
+[data-theme="dark"] .ag-model-conns img {
+  filter: brightness(0) invert(0.8);
+}

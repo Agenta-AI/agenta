@@ -39,7 +39,7 @@
   /* Scrolled nav pill: paper-0 at 72%, so the backdrop blur behind it reads.
      The previous #EBE9E6 is not a palette value and sat darker than the bands
      it floats over. */
-  --th-glass: rgba(255, 255, 255, 0.85);
+  --th-glass: rgba(255, 255, 255, 0.94);
   --th-menu-bg: var(--paper-0); /* dropdown / mobile menu panel    */
 
   /* ── borders ─────────────────────────────────────────────── */
@@ -74,7 +74,11 @@
         everywhere (stronger ring than the token outline recipe). */
   /* Framer's outline button: the paper gradient, a 1px hairline border and an
      inset white highlight. There is no outer ring and no hover change. */
-  --th-btn-ghost-bg: linear-gradient(180deg, var(--paper-80) 0%, var(--paper-120) 100%);
+  --th-btn-ghost-bg: linear-gradient(
+    180deg,
+    var(--paper-80) 0%,
+    var(--paper-120) 100%
+  );
   --th-btn-ghost-shadow: inset 0 3px 6px #ffffff;
   --th-btn-ghost-border: var(--paper-line);
   --th-btn-ghost-text: var(--ink-900);
@@ -90,7 +94,7 @@
   /* Prose links: light = ink text with a faint underline (mockup);
      dark = brand yellow. */
   --th-link: var(--ink-900);
-  --th-accent-underline: var(--ink-300);
+  --th-accent-underline: var(--ink-250);
 
   /* ── prose code ──────────────────────────────────────────── */
   --th-code-bg: var(--paper-150);
@@ -109,13 +113,10 @@
   --th-darksec-border: rgba(255, 255, 255, 0.07);
 
   /* ── chrome extras ───────────────────────────────────────── */
-  /* Straight off Framer: a 1px ink ring, a 4px soft glow, then the two-layer
-     border — a 7px halo in the page paper tone with a 1px rule at its edge.
-     The handoff's version used pure white for the halo, which read as a
-     cut-out over the tinted bands. */
+  /* 1px ink ring, soft glow, then a 4px paper halo with a 1px rule. */
   --th-pill-shadow:
     0 0 0 1px rgba(72, 70, 68, 0.16), 0 0 4px rgba(72, 70, 68, 0.08),
-    0 0 0 7px #f6f4f2, 0 0 0 8px #e7e5e3;
+    0 0 0 4px #f6f4f2, 0 0 0 5px #e7e5e3;
   --th-menu-shadow:
     0 0 0 1px rgba(36, 34, 32, 0.08), 0 20px 48px rgba(36, 34, 32, 0.18);
   --th-scrollbar: rgba(36, 36, 36, 0.18);
@@ -146,8 +147,9 @@
   --th-text-hi: #f7f6f4;
   --th-text-body: rgba(255, 255, 255, 0.6);
   --th-text-prose: rgba(255, 255, 255, 0.72);
-  --th-text-mut: rgba(255, 255, 255, 0.45);
-  --th-text-dim: rgba(255, 255, 255, 0.38);
+  /* Muted and faint text keep 4.5:1 on the darkest surfaces. */
+  --th-text-mut: rgba(255, 255, 255, 0.55);
+  --th-text-dim: rgba(255, 255, 255, 0.5);
   --th-nav-text: rgba(255, 255, 255, 0.7);
 
   --th-hover: rgba(255, 255, 255, 0.05);
@@ -181,13 +183,10 @@
   --th-darksec-oss: var(--ag-d-bg-1);
   --th-darksec-border: rgba(255, 255, 255, 0.07);
 
-  /* Same four layers as the light pill: a 1px ring, the soft drop shadow, then
-     a 7px halo in the page canvas and a 1px rule at its edge. The rule uses the
-     dark grid colour (--th-nav-rule) so the side rules meet a visible edge; a
-     halo alone vanishes against the canvas and leaves a gap before the caps. */
+  /* Same layers as light; the rule uses the dark grid colour. */
   --th-pill-shadow:
     0 0 0 1px rgba(250, 247, 242, 0.09), 0 12px 36px rgba(0, 0, 0, 0.55),
-    0 0 0 7px var(--ag-d-bg-0), 0 0 0 8px rgba(255, 255, 255, 0.12);
+    0 0 0 4px var(--ag-d-bg-0), 0 0 0 5px rgba(255, 255, 255, 0.12);
   --th-menu-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 48px rgba(0, 0, 0, 0.55);
   --th-scrollbar: rgba(255, 255, 255, 0.2);

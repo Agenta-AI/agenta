@@ -1,0 +1,11 @@
+/* SelfHost: dark in both themes, so it uses the fixed palette. */
+html body .lp .ossx section.nsec {
+  color: var(--paper-0);
+  background: var(--carbon-950) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+html body .lp .ossx .rv2-oss h2 {
+  color: var(--text-on-dark-heading) !important;
+}

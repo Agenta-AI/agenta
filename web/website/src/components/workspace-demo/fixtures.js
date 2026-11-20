@@ -1,4 +1,4 @@
-// Curated sample jobs from the coworkers design. These are not live workspace records.
+// Curated sample jobs for the landing demo. These are not live workspace records.
 const L = (n) => `/logos/tools/${n}.svg`;
 const LOGO = {
   Notion: L("notion"),
@@ -8,6 +8,8 @@ const LOGO = {
   Zendesk: L("zendesk"),
   Linear: L("linear"),
   Drive: L("googledrive"),
+  Gmail: L("gmail"),
+  Stripe: L("stripe"),
   Discord: L("discord"),
   ChatGPT: L("openai"),
   Claude: L("anthropic"),
@@ -135,7 +137,7 @@ const AREAS = [
     area: "Sales",
     items: [
       {
-        title: "Outreach coworker",
+        title: "Outreach agent",
         version: "v7",
         desc: "Researches prospects, gathers context, and drafts outreach for your review.",
         tools: ["HubSpot", "Slack"],
@@ -153,7 +155,7 @@ const AREAS = [
           "I found their recent launch and prepared a short introduction. The research and draft are ready for your review.",
       },
       {
-        title: "Lead qualification agent",
+        title: "Lead Qualifier",
         version: "v11",
         desc: "Scores inbound leads against your ICP and routes them to the right owner.",
         tools: ["HubSpot", "Slack"],
@@ -204,21 +206,21 @@ const AREAS = [
           "Pipeline is $412K across 18 deals. Three have had no activity in 14 days and close this month; details in the review doc.",
       },
       {
-        title: "Proposal drafting agent",
+        title: "Meeting Follow-up",
         version: "v2",
-        desc: "Turns discovery notes into a first-draft proposal using your templates.",
+        desc: "Writes the follow-up email and notes after every customer call.",
         tools: ["Notion", "HubSpot"],
-        ask: "Draft a proposal for Acme from the discovery notes.",
+        ask: "Write the follow-up for today's Acme call from the notes.",
         worked: "Worked for 2m 10s",
         files: "1 file",
         meta: "4d ago · 2m 10s · 260K tokens · $0.021",
         steps: [
           S("HubSpot", "Read", "Acme deal and notes"),
-          S("Notion", "Read", "Proposal template"),
-          S("Notion", "Wrote", "Proposal · Acme"),
+          S("Notion", "Wrote", "Call notes · Acme"),
+          S("HubSpot", "Drafted", "follow-up email"),
         ],
         reply:
-          "The proposal draft covers scope, pricing tiers, and timeline from the notes. Pricing is left for you to confirm.",
+          "The follow-up recaps the agreed next steps and proposes a date for the technical review. It is waiting in your drafts.",
       },
     ],
   },
@@ -226,7 +228,7 @@ const AREAS = [
     area: "Support",
     items: [
       {
-        title: "Support coworker",
+        title: "Support Reply Drafter",
         version: "v21",
         desc: "Uses your company knowledge to draft replies and brings uncertain cases back to you.",
         tools: ["Zendesk", "Notion"],
@@ -317,7 +319,7 @@ const AREAS = [
     area: "Engineering",
     items: [
       {
-        title: "Code review coworker",
+        title: "Code review agent",
         version: "v9",
         desc: "Reviews changes against your team’s conventions and surfaces issues with file references.",
         tools: ["GitHub", "Linear"],

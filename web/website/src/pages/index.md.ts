@@ -7,6 +7,8 @@ import { markdownResponse, page } from "../lib/markdown";
 import {
   ABOUT,
   API,
+  CAPABILITIES,
+  GLOSSARY,
   HOSTING,
   HOW_TO_CALL,
   LINKS,
@@ -22,6 +24,14 @@ ${TAGLINE.replace(/\n/g, " ")}
 ## What you can do
 
 ${ABOUT.map((item) => `- ${item}`).join("\n")}
+
+## Capabilities
+
+${CAPABILITIES.map((item) => `- ${item}`).join("\n")}
+
+## Glossary
+
+${GLOSSARY.map((item) => `- ${item}`).join("\n")}
 
 ## When to use Agenta
 
@@ -51,9 +61,9 @@ ${LINKS.map((link) => `- [${link.label}](${link.href}): ${link.note}.`).join("\n
 export const GET: APIRoute = () =>
   markdownResponse(
     page({
-      title: "Agenta — The open-source workspace for your agents",
+      title: "Agenta — The open-source agent platform",
       description:
-        "Agenta is the open-source workspace for your agents. Build agents through chat, improve them with feedback, and share them with your whole team — self-hosted or in the cloud.",
+        "Agenta is the open-source agent platform. Build agents and automations by chatting with them, work with them in the Agenta workspace, or deploy them to Slack, Discord, Teams, WhatsApp, Telegram or your website. Self-hosted or in the cloud.",
       path: "/",
       body,
     }),

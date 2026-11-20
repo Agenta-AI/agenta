@@ -175,7 +175,7 @@ a {
   border-color: transparent;
 }
 /* Pill variant (landing): the shell sticks and the rAF loop toggles
-   `.nav-scrolled` on <html> past 24px. Only .ag-nav-inner animates — it narrows
+   `.nav-scrolled` on <html> past 160px. Only .ag-nav-inner animates — it narrows
    into a centered pill and drops by --nav-pill-inset, carrying brand (left) and
    CTAs (right) inward. The center links sit in a separate absolutely-centered
    layer, so they hold x (dx=0) and only ride down (dy=+inset) with the pill. */
@@ -205,6 +205,7 @@ nav[data-pill] {
     box-shadow 0.25s ease,
     border-radius 0.25s ease,
     width 0.25s ease,
+    height 0.25s ease,
     transform 0.25s ease;
 }
 .nav-scrolled .ag-nav-inner {
@@ -217,6 +218,12 @@ nav[data-pill] {
   box-shadow: var(--th-pill-shadow);
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
+}
+/* The pill is a little shorter than the bar; the flex shell keeps it centred. */
+@media (min-width: 861px) {
+  .nav-scrolled .ag-nav-inner {
+    height: 58px;
+  }
 }
 
 /* Center links: pinned to the shell's exact center in BOTH states. Absolute
@@ -250,14 +257,13 @@ nav[data-pill] {
   display: flex;
   align-items: center;
 }
+@media (max-width: 860px) {
+  .ag-brand img {
+    height: 19px !important;
+  }
+}
 
-/* ── the rules either side of the pill ───────────────────────
-   Framer runs a hairline from each edge of the nav's own column in to the
-   pill, ending in a 4x9 rounded cap that meets the pill's outer ring. The
-   rules are children of the SHELL, not of the pill, so they start exactly at
-   the column border and never spill past it. Their inner end lands 8px off
-   the pill box, which is where the pill's 8px outer ring sits, so cap and
-   ring meet. They fade in with the pill. */
+/* ── side rules: hairlines from the column edge to the pill's outer ring ── */
 .ag-nav-rule {
   position: absolute;
   top: 50%;
@@ -275,11 +281,11 @@ nav[data-pill] {
 }
 .ag-nav-rule-l {
   left: 0;
-  right: calc(50% + var(--nav-pill-w) / 2 + 8px);
+  right: calc(50% + var(--nav-pill-w) / 2 + 5px);
 }
 .ag-nav-rule-r {
   right: 0;
-  left: calc(50% + var(--nav-pill-w) / 2 + 8px);
+  left: calc(50% + var(--nav-pill-w) / 2 + 5px);
 }
 .ag-nav-rule::before,
 .ag-nav-rule::after {
@@ -390,6 +396,17 @@ html,
   display: inline-flex;
 }
 
+/* Divider between the theme switcher and the nav buttons. */
+.ag-navsep {
+  width: 1px;
+  height: 20px;
+  background: var(--th-ctl-ring);
+}
+/* Offset the button's 7px icon padding so both gaps around the divider are 12px. */
+.ag-theme-btn:has(+ .ag-navsep) {
+  margin-right: -7px;
+}
+
 /* ── interactive affordances (the .dc.html used DC hover hooks) ─ */
 .ag-navlink,
 .ag-navtrigger {
@@ -488,94 +505,33 @@ html,
   font: var(--text-caption);
 }
 
-/* ── nav dropdowns (Resources / Community) ───────────────────────────
-   Open on hover and on keyboard focus (focus-within). The panel sits flush
-   under the trigger; a transparent bridge (padding-top on the panel wrapper)
-   spans the gap so crossing the cursor never closes it. A short open delay is
-   hover-intent: brushing past doesn't flash the menu open. */
+/* ── nav menu triggers (the mega menus live in styles/nav-mega.css) ── */
 .ag-navdd {
   position: relative;
   display: inline-flex;
 }
-.ag-navdd-panel {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  padding-top: 8px;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease,
-    visibility 0.16s ease;
-  transition-delay: 0.12s;
-  z-index: 60;
-}
-.ag-navdd:hover .ag-navdd-panel,
-.ag-navdd:focus-within .ag-navdd-panel {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition-delay: 0s;
-}
-.ag-navdd-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 264px;
-  padding: 8px;
-  border-radius: 14px;
-  background: var(--th-menu-bg);
-  box-shadow: var(--th-menu-shadow);
-}
-.ag-navdd-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 10px;
-  border-radius: 10px;
-  text-decoration: none;
-  transition: background 0.16s ease;
-}
-.ag-navdd-item:hover {
-  background: var(--th-hover);
-}
-.ag-navdd-ico {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  background: var(--th-ctl-bg);
-  box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
-  color: var(--th-text-prose);
-}
-.ag-navdd-title {
-  font: var(--text-label);
-  color: var(--th-text-hi);
-  line-height: 1.25;
-}
-.ag-navdd-desc {
-  font: var(--text-caption);
-  color: var(--th-text-mut);
-  line-height: 1.25;
-}
-/* Chevron flips when its menu is open, like agenta.ai. */
-.ag-navdd:hover .ag-navdd-chev,
-.ag-navdd:focus-within .ag-navdd-chev {
-  transform: rotate(180deg);
-}
-.ag-navdd-chev {
-  display: inline-flex;
-  transition: transform 0.16s ease;
-}
-
 /* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
 .ag-menu {
   display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--th-text-hi);
+  cursor: pointer;
+}
+.ag-menu:hover,
+.ag-menu[aria-expanded="true"] {
+  background: var(--th-hover);
+}
+.ag-menu:focus-visible {
+  outline: 2px solid var(--th-text-hi);
+  outline-offset: 2px;
 }
 .ag-mobile-menu {
   display: none;
@@ -1073,28 +1029,34 @@ html,
     padding-right: 18px;
   }
 
-  /* Floating-nav mobile menu. The menu is a normal-flow sibling after <nav>, so
-     once the landing nav sticks and floats into its pill, opening the menu would
-     render it anchored near the top of the document — off-screen when scrolled
-     (measured top: -1081px at scrollY 1148). Pin it to the viewport under the
-     bar/pill so it is always reachable. Above 861px it stays display:none. */
+  /* Fixed so it stays reachable when the nav floats; same attached panel as desktop. */
   .ag-mobile-menu.is-open {
     position: fixed;
-    top: 58px;
-    left: 12px;
-    right: 12px;
+    top: 54px;
+    left: 8px;
+    right: 8px;
     z-index: 55;
-    margin-top: 0 !important;
-    max-height: calc(100dvh - 70px);
+    max-height: calc(100dvh - 66px);
     overflow-y: auto;
-    border-top: 1px solid var(--th-border-subtle) !important;
-    border-radius: 14px;
-    box-shadow: var(--th-menu-shadow);
+    border-radius: 0 0 18px 18px;
+    box-shadow:
+      1px 0 0 var(--lp-line-2),
+      -1px 0 0 var(--lp-line-2),
+      0 1px 0 var(--lp-line-2),
+      0 1px 1px rgba(24, 16, 16, 0.03);
+    animation: agMmIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-  /* When the landing nav has floated into its pill (inset 12px), drop the menu a
-     touch lower so it clears the pill's bottom edge. */
+  /* Under the floating pill: pill width, attached below its 5px outer ring. */
   .nav-scrolled .ag-mobile-menu.is-open {
-    top: 70px;
+    top: 88px;
+    left: 17px;
+    right: 17px;
+    max-height: calc(100dvh - 100px);
+    /* Detached from the pill, so every corner is round and the top has an edge. */
+    border-radius: 18px;
+    box-shadow:
+      0 0 0 1px var(--lp-line-2),
+      0 8px 24px rgba(24, 16, 16, 0.08);
   }
 
   /* Authors grids never collapsed (inline repeat(3,1fr)); 3-up -> 2-up on tablet.
@@ -1327,4 +1289,50 @@ html,
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ── phone tap targets and tables (site audit 2026-11) ───────────────── */
+@media (max-width: 600px) {
+  /* Footer, breadcrumb, back and contact links: at least 32px to tap. */
+  .ag-foot-link,
+  .ag-mkt-crumb a,
+  .ag-deflist a,
+  .ag-backlink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+  }
+  .ag-foot-cols > div {
+    gap: 4px !important;
+  }
+  .ag-btn--sm {
+    min-height: 36px;
+  }
+  /* Comparison tables scroll sideways instead of squeezing columns. */
+  .ag-prose table {
+    font-size: 14px;
+  }
+  .ag-prose th,
+  .ag-prose td {
+    min-width: 150px;
+  }
+  .ag-prose th:first-child,
+  .ag-prose td:first-child {
+    min-width: 0;
+    max-width: 150px;
+    white-space: normal;
+  }
+}
+
+/* Phone menu button: the two bars turn into an X while the menu is open. */
+.ag-menu .ag-menu-l1,
+.ag-menu .ag-menu-l2 {
+  transform-box: view-box;
+  transform-origin: 10px 10px;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ag-menu[aria-expanded="true"] .ag-menu-l1 { transform: translateY(2.5px) rotate(45deg); }
+.ag-menu[aria-expanded="true"] .ag-menu-l2 { transform: translateY(-2.5px) rotate(-45deg); }
+@media (prefers-reduced-motion: reduce) {
+  .ag-menu .ag-menu-l1, .ag-menu .ag-menu-l2 { transition: none; }
 }

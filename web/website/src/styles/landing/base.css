@@ -1,0 +1,122 @@
+/* Landing base rules; the section/h2 rules skip the hero demo (.ag-app-frame). */
+.lp section:not(.ag-app-frame section),
+.lp footer {
+  box-sizing: border-box;
+  border: 1px solid var(--lp-frame) !important;
+  margin-top: -1px !important;
+}
+.r3 {
+  margin: 0px;
+}
+.r3 {
+  color-scheme: light;
+}
+.r3,
+.r3 {
+  background: var(--lp-page);
+  margin: 0px;
+}
+.r3 * {
+  box-sizing: border-box;
+}
+.r3 ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.r3 ::-webkit-scrollbar-track {
+  background: 0px 0px;
+}
+.r3 ::-webkit-scrollbar-thumb {
+  background-clip: content-box;
+  border: 3px solid rgb(var(--lp-ink-rgb) / 0);
+  border-radius: 10px;
+}
+.r3 ::-webkit-scrollbar-thumb:hover {
+  background-clip: content-box;
+}
+.r3,
+.r3 [data-scroll="dark"] {
+  scrollbar-width: thin;
+  scrollbar-color: #2424242e transparent;
+}
+.r3 {
+  --hiw-body: var(--lp-text);
+  --hiw-bub-bg: var(--lp-surface-3);
+  --hiw-bub-ring: var(--lp-surface-4);
+  --hiw-bub-text: var(--lp-text);
+  --hiw-card-bg: var(--lp-surface);
+  --hiw-tool-bg: var(--lp-surface-2);
+  --hiw-tool-label: var(--lp-body);
+  --hiw-tool-ring: var(--lp-surface-6);
+  --ios-card-bg: var(--lp-surface);
+  --ios-card-shadow: 0 0 0 1px var(--lp-surface-6);
+  --ios-label: var(--lp-dim);
+  --ios-row-rule: var(--lp-surface-4);
+  --logo-grey: var(--lp-line-strong);
+  --st-title: var(--lp-text);
+  --tplx-chip-bg: var(--lp-surface);
+  --tplx-chip-shadow: 0px 0px 0px 1px #4846441a, 0px 1px 3px 0px #4846441a;
+  --tplx-panel-shadow:
+    0px 0px 0px 1px #48464414, 0px 1px 3px 0px #48464405,
+    0px 0px 0px 6px var(--lp-surface-3), 0px 0px 0px 7px var(--lp-line-2);
+  --tplx-rule: var(--lp-surface-4);
+  --tplx-rule-soft: var(--lp-surface-4);
+  --tplx-soon-bg: var(--lp-surface-4);
+  --tplx-soon-text: var(--lp-mut);
+  --tplx-trig-bg: var(--lp-line-soft);
+  --tplx-trig-ring: #2424241f;
+}
+.r3 {
+  background: transparent;
+  -webkit-font-smoothing: auto;
+}
+section.fg,
+section.s5,
+.sx-site section.tplx,
+section.fgx,
+section.nsec {
+  padding-top: 112px !important;
+  padding-bottom: 112px !important;
+}
+.lp > div {
+  background: transparent !important;
+}
+.lp section h2:not(.ag-app-frame h2),
+.lp .sx-site .tplw h2,
+.lp .sx-site .tplx .ag-sectitle,
+.lp .ctax .ca .ctaH {
+  font-weight: 300 !important;
+  font-size: 48px !important;
+  line-height: 52px !important;
+  color: var(--lp-text) !important;
+}
+.lp .hx-sub,
+.lp section h2:not(.ag-app-frame h2) + p,
+.lp .sx-site .tplw h2 + p,
+.lp .sx-site .tplx .ag-sectitle + p,
+.lp .nhd p,
+.lp .ctax .csub {
+  font-size: 16px !important;
+  line-height: 24px !important;
+  color: var(--lp-body) !important;
+}
+html body .lp section.s5 .g5,
+html body .lp section.fgx .grid,
+html body .lp .ctlx .ngrid,
+html body .lp .lp-tpl .ag-tpl,
+html body .lp .tplx .grid,
+html body .lp section.tp .grid {
+  border-left: 1px solid var(--lp-line) !important;
+  border-right: 1px solid var(--lp-line) !important;
+}
+
+/* Animations wait for data-lp-in (set by pages/index.astro). */
+.lp[data-lp-anim] > :not([data-lp-in]),
+.lp[data-lp-anim] > :not([data-lp-in]) *,
+.lp[data-lp-anim] > :not([data-lp-in]) *::before,
+.lp[data-lp-anim] > :not([data-lp-in]) *::after,
+.lp[data-lp-anim] [data-lp-gate]:not([data-lp-in]) *,
+.lp[data-lp-anim] [data-lp-gate]:not([data-lp-in]) *::before,
+.lp[data-lp-anim] [data-lp-gate]:not([data-lp-in]) *::after {
+  animation-play-state: paused !important;
+}

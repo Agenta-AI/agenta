@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { TEMPLATES as FEATURED } from "../components/TemplateExplorer";
+import { NAV_TEMPLATE_PICKS, SHOWCASE_KEYS } from "./landingTemplates";
 import {
   authors,
   templateByKey,
@@ -34,9 +34,18 @@ describe("website template data", () => {
 });
 
 describe("Use it for free", () => {
-  it("links every featured landing template to a key the catalog loads", () => {
-    for (const featured of FEATURED) {
-      expect(templateByKey(featured.key), featured.key).toBeDefined();
+  it("links every landing and nav template to a key the catalog loads", () => {
+    const keys = [...SHOWCASE_KEYS, ...NAV_TEMPLATE_PICKS.flatMap((g) => g.keys)];
+    for (const key of keys) {
+      expect(templateByKey(key), key).toBeDefined();
+    }
+  });
+
+  it("puts each nav pick under its own catalog category", () => {
+    for (const group of NAV_TEMPLATE_PICKS) {
+      for (const key of group.keys) {
+        expect(templateByKey(key)?.category, key).toBe(group.category);
+      }
     }
   });
 

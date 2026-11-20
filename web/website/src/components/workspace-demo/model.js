@@ -1,6 +1,8 @@
 import { AREAS, LOGO, GLOBE, WEB, mask } from "./fixtures.js";
 
-export function deriveWorkspace(state, setState) {
+const SKILL_AUTHORS = ["Alex", "Sam"];
+
+export function deriveWorkspace(state, setState, onLive) {
   const st = state;
   const FG = "var(--foreground)",
     MF = "var(--muted-foreground)";
@@ -152,126 +154,183 @@ export function deriveWorkspace(state, setState) {
       post,
       logoStyle: mask(k === WEB ? GLOBE : LOGO[k], 12),
     }));
+  // Mirrors the hero sidebar; the live task hands back to the hero's animated run.
   const playgroundGroups = [
     {
-      sessionIndex: 0,
+      sessionIndex: 7,
+      label: "Lead Qualifier",
       tasks: [
+        { name: "New leads from the website", live: true, status: "running" },
         {
-          ask: "Research the next best-tools article",
-          worked: "Worked for 2m 14s",
-          files1: "1 file",
-          meta: "2m ago · 2m 14s · 286K tokens · $0.024",
+          name: "Leads from the webinar",
+          status: "unread",
+          ask: "Qualify the 22 people who signed up for Tuesday's webinar.",
+          worked: "Worked for 1m 12s",
+          files1: "",
+          meta: "2h ago · 1m 12s · 140K tokens · $0.012",
           steps: [
-            [WEB, "Searched", "8 comparison queries"],
-            [WEB, "Read", "6 ranking articles"],
-            ["Notion", "Created", "Best-tools research brief", "on Notion"],
+            ["HubSpot", "Read", "22 webinar sign-ups"],
+            [WEB, "Researched", "company size and stack"],
+            ["HubSpot", "Updated", "fit score on 22 contacts"],
           ],
           reply:
-            "The research brief is ready with search intent, comparison criteria, six source articles, and a recommended outline. Review it in Notion before I draft.",
+            "Five sign-ups match your ICP. I tagged them for follow-up and put the other 17 into the nurture list.",
         },
         {
-          ask: "Draft the article and prepare a PR",
-          worked: "Worked for 4m 40s",
-          files1: "2 files",
-          meta: "18m ago · 4m 40s · 610K tokens · $0.048",
+          name: "Enrich the Acme list",
+          ask: "Fill in role and company size for the Acme Retail contacts.",
+          worked: "Worked for 54s",
+          files1: "",
+          meta: "1d ago · 54s · 88K tokens · $0.007",
           steps: [
-            ["Notion", "Read", "Approved best-tools brief"],
-            ["GitHub", "Wrote", "blog/best-llm-tools.mdx"],
-            ["GitHub", "Opened", "PR #412", "with the article draft"],
+            ["HubSpot", "Read", "18 Acme Retail contacts"],
+            [WEB, "Found", "roles for 16 contacts"],
+            ["HubSpot", "Updated", "16 contact records"],
           ],
           reply:
-            "The draft is in PR #412: 2,100 words, nine cited sources, and image placeholders marked for review. I left the title and call to action as separate suggestions.",
-        },
-      ],
-    },
-    {
-      sessionIndex: 5,
-      tasks: [
-        {
-          ask: "Review September campaign performance",
-          worked: "Worked for 47s",
-          files1: "1 file",
-          meta: "1h ago · 47s · 72K tokens · $0.006",
-          steps: [
-            ["HubSpot", "Read", "September campaign results"],
-            [WEB, "Compared", "cost and conversion trends"],
-            ["Slack", "Drafted", "campaign summary", "for #growth"],
-          ],
-          reply:
-            "The docs campaign lowered cost per qualified lead by 18%. The comparison campaign cost rose 40% with no lift in qualified leads, so I flagged it for review.",
+            "I added roles and company size for 16 of 18 contacts. Two had no public profile, so I flagged them for a manual check.",
         },
         {
-          ask: "Compare the paid search creative variants",
-          worked: "Worked for 1m 06s",
+          name: "Weekly pipeline review",
+          pinned: true,
+          ask: "Summarize this week's pipeline changes for the sales channel.",
+          worked: "Worked for 1m 40s",
           files1: "1 file",
-          meta: "3h ago · 1m 06s · 94K tokens · $0.009",
+          meta: "3d ago · 1m 40s · 190K tokens · $0.016",
           steps: [
-            ["HubSpot", "Read", "four creative variants"],
-            [WEB, "Compared", "clicks against qualified leads"],
-            ["Slack", "Drafted", "creative recommendation", "for #growth"],
+            ["HubSpot", "Read", "deals changed this week"],
+            ["Notion", "Wrote", "Pipeline review · week 46"],
+            ["Slack", "Posted", "summary to #sales"],
           ],
           reply:
-            "Variant B produced the most clicks, but Variant D produced 31% more qualified leads on similar spend. I recommend shifting the next test toward D's product-proof message.",
+            "Pipeline grew by $84K this week. Two deals moved to negotiation and one stalled. The full review is in Notion.",
         },
       ],
     },
     {
       sessionIndex: 10,
+      label: "Meeting Follow-up",
       tasks: [
         {
-          ask: "Draft the Acme proposal from the discovery notes",
-          worked: "Worked for 2m 10s",
-          files1: "1 file",
-          meta: "1d ago · 2m 10s · 260K tokens · $0.021",
+          name: "Follow-up for the Northwind call",
+          status: "unread",
+          ask: "Write the follow-up email for today's Northwind call.",
+          worked: "Worked for 48s",
+          files1: "1 draft",
+          meta: "1h ago · 48s · 76K tokens · $0.006",
           steps: [
-            ["HubSpot", "Read", "Acme deal and discovery notes"],
-            ["Notion", "Read", "Proposal template"],
-            ["Notion", "Wrote", "Proposal · Acme"],
+            ["Drive", "Read", "Northwind call notes"],
+            ["HubSpot", "Logged", "the call on the Northwind deal"],
+            ["Gmail", "Drafted", "follow-up email", "for your review"],
           ],
           reply:
-            "The proposal draft covers the agreed rollout, success criteria, timeline, and two pricing options. The commercial terms are highlighted for your approval.",
+            "The follow-up recaps the three next steps you agreed on and proposes Tuesday at 14:00 for the technical review. It is waiting in your drafts.",
         },
         {
-          ask: "Revise the Acme pricing and implementation plan",
-          worked: "Worked for 1m 34s",
+          name: "Notes from the Bloom demo",
+          ask: "Turn the Bloom Studio demo recording into notes and next steps.",
+          worked: "Worked for 1m 20s",
           files1: "1 file",
-          meta: "2d ago · 1m 34s · 184K tokens · $0.016",
+          meta: "1d ago · 1m 20s · 150K tokens · $0.013",
           steps: [
-            ["HubSpot", "Read", "Acme's requested changes"],
-            ["Notion", "Updated", "pricing and implementation phases"],
-            ["Notion", "Flagged", "two open commercial questions"],
+            ["Drive", "Read", "Bloom demo transcript"],
+            ["Notion", "Wrote", "Demo notes · Bloom Studio"],
+            ["Slack", "Posted", "next steps to #sales"],
           ],
           reply:
-            "I revised the proposal to a two-phase rollout and moved training into phase one. Two pricing questions remain highlighted before the document can be sent.",
+            "Bloom asked about pricing for small teams and a Figma integration. I wrote both up as open questions with owners in the notes.",
+        },
+      ],
+    },
+    {
+      sessionIndex: 11,
+      label: "Support Reply Drafter",
+      tasks: [
+        {
+          name: "Refund question from Dana",
+          ask: "Draft a reply to Dana's refund request.",
+          worked: "Worked for 36s",
+          files1: "",
+          meta: "20m ago · 36s · 54K tokens · $0.004",
+          steps: [
+            ["Zendesk", "Read", "ticket #4821"],
+            ["Stripe", "Checked", "Dana's last invoice"],
+            ["Zendesk", "Drafted", "reply", "for approval"],
+          ],
+          reply:
+            "Dana is inside the 30-day window, so the reply confirms a full refund in 5 to 7 days. It waits for your approval before it is sent.",
+        },
+        {
+          name: "Login issue at Acme Retail",
+          ask: "Help Acme Retail with their login problem.",
+          worked: "Worked for 58s",
+          files1: "",
+          meta: "2h ago · 58s · 82K tokens · $0.007",
+          steps: [
+            ["Zendesk", "Read", "ticket #4817"],
+            ["Notion", "Searched", "the SSO troubleshooting guide"],
+            ["Zendesk", "Drafted", "reply with the fix"],
+          ],
+          reply:
+            "Their SSO certificate expired yesterday. The reply explains how to upload a new one and links the guide.",
+        },
+        {
+          name: "Invoice copy for Bloom",
+          ask: "Send Bloom Studio a copy of their October invoice.",
+          worked: "Worked for 22s",
+          files1: "1 file",
+          meta: "1d ago · 22s · 30K tokens · $0.002",
+          steps: [
+            ["Zendesk", "Read", "ticket #4809"],
+            ["Stripe", "Downloaded", "October invoice"],
+            ["Zendesk", "Drafted", "reply with the invoice"],
+          ],
+          reply:
+            "I attached the October invoice to the reply. It is ready to send.",
         },
       ],
     },
   ];
-  const activeSession = sessions[st.session ?? 0];
-  const activePlaygroundGroup = playgroundGroups.find(
-    (group) => group.sessionIndex === (st.session ?? 0),
-  );
-  const activeTask = activePlaygroundGroup
-    ? (activePlaygroundGroup.tasks.find(
-        (task) => task.ask === st.playgroundTask,
-      ) ?? activePlaygroundGroup.tasks[0])
-    : null;
+  const isTask = (task) =>
+    task.ask &&
+    (task.ask === st.playgroundTask || task.name === st.playgroundTask);
+  // The hero sidebar opens a task by name alone, so find its group from that.
+  const activePlaygroundGroup =
+    st.session == null && st.playgroundTask
+      ? playgroundGroups.find((group) => group.tasks.some(isTask))
+      : playgroundGroups.find(
+          (group) => group.sessionIndex === (st.session ?? 0),
+        );
+  const activeSession =
+    sessions[activePlaygroundGroup?.sessionIndex ?? st.session ?? 0];
+  // A session opened from the Sessions list has no task and keeps its own thread.
+  const activeTask =
+    activePlaygroundGroup && st.playgroundTask
+      ? (activePlaygroundGroup.tasks.find(isTask) ??
+        activePlaygroundGroup.tasks.find((task) => !task.live))
+      : null;
   const ss = activeTask
     ? { ...activeSession, ...activeTask, steps: taskSteps(activeTask.steps) }
     : activeSession;
   const railGroups = playgroundGroups.map((group) => ({
     sessionIndex: group.sessionIndex,
-    agent: sessions[group.sessionIndex].title,
+    agent: group.label ?? sessions[group.sessionIndex].title,
     rows: group.tasks.map((task) => ({
       ...sessions[group.sessionIndex],
       ...task,
-      steps: taskSteps(task.steps),
-      open: () =>
-        setState({
-          view: "playground",
-          session: group.sessionIndex,
-          playgroundTask: task.ask,
-        }),
+      chat: true,
+      auto: false,
+      railDot: MF,
+      railFill: task.live ? "currentColor" : "transparent",
+      steps: taskSteps(task.steps ?? []),
+      open: task.live
+        ? () => onLive?.()
+        : () =>
+            setState({
+              view: "playground",
+              session: group.sessionIndex,
+              playgroundTask: task.ask,
+            }),
       style:
         NAV_ROW +
         "font-size:13px;color:" +
@@ -280,12 +339,8 @@ export function deriveWorkspace(state, setState) {
         (st.view === "playground" && ss.ask === task.ask ? SEL : ""),
     })),
   }));
-  const visibleRailGroups =
-    view.playground && activePlaygroundGroup
-      ? railGroups.filter(
-          (group) => group.sessionIndex === activePlaygroundGroup.sessionIndex,
-        )
-      : railGroups;
+  // Every group stays listed, as in the landing hero's sidebar.
+  const visibleRailGroups = railGroups;
   // Home (HomeFocus)
   const ROWB =
     "box-sizing:border-box;display:flex;width:100%;cursor:default;align-items:center;gap:14px;border-radius:10px;border:none;background:transparent;padding:8px 14px;text-align:left;";
@@ -416,141 +471,124 @@ export function deriveWorkspace(state, setState) {
   // Skills
   const skillsAll = [
     [
-      "research-brief",
+      "Research Brief",
       "Turn a topic into a sourced brief with search intent and outline.",
-      "3 files · 3 agents · 2w",
+      ["templates/brief.md", "examples/seo-brief.md"],
+      3,
+      "2w ago",
       "project",
-      "# research-brief\n\nInputs: topic, audience.\n1. Search the web and internal docs\n2. Cluster findings by intent\n3. Write a brief with sources\n\nOutput: a Notion page, linked in the reply.",
+      "Inputs: topic, audience.\n1. Search the web and internal docs\n2. Cluster findings by intent\n3. Write a brief with sources\n\nOutput: a Notion page, linked in the reply.",
     ],
     [
-      "draft-article",
+      "Draft Article",
       "Write a long-form draft from an approved brief, in the house voice.",
-      "2 files · 2 agents · 2w",
+      ["style-guide.md"],
+      2,
+      "2w ago",
       "project",
-      "# draft-article\n\nInputs: brief URL.\n1. Read the brief and the style guide\n2. Draft sections, cite every claim\n3. Open a PR with the .mdx\n\nRules: no hype adjectives, sentence case.",
+      "Inputs: brief URL.\n1. Read the brief and the style guide\n2. Draft sections, cite every claim\n3. Open a PR with the .mdx\n\nRules: no hype adjectives, sentence case.",
     ],
     [
-      "classify-ticket",
+      "Classify Ticket",
       "Label a support ticket by category and priority.",
-      "1 file · 2 agents · 1mo",
+      [],
+      2,
+      "1mo ago",
       "project",
-      "# classify-ticket\n\nCategories: how-to, bug, billing, security.\nPriority from impact x reach.\nBilling and security escalate to a human.",
+      "Categories: how-to, bug, billing, security.\nPriority from impact x reach.\nBilling and security escalate to a human.",
     ],
     [
-      "score-fit",
+      "Score Fit",
       "Score a lead against the ICP, 1 to 5, with reasons.",
-      "1 file · 2 agents · 3w",
+      [],
+      1,
+      "3w ago",
       "project",
-      "# score-fit\n\nSignals: size, industry, stack, role.\nBelow 2: recommend a polite pass.",
+      "Signals: size, industry, stack, role.\nBelow 2: recommend a polite pass.",
     ],
     [
-      "review-diff",
+      "Review Diff",
       "Review a pull request against team conventions.",
-      "2 files · 1 agent",
+      ["checklist.md"],
+      1,
+      "3d ago",
       "builtin",
-      "# review-diff\n\n1. Read PR description and linked issue\n2. Review file by file\n3. Comment only where you would block a merge",
+      "1. Read PR description and linked issue\n2. Review file by file\n3. Comment only where you would block a merge",
     ],
     [
-      "publish-digest",
+      "Publish Digest",
       "Post a short summary with links to a Slack channel.",
-      "1 file · 4 agents",
+      [],
+      4,
+      "3d ago",
       "builtin",
-      "# publish-digest\n\nMax 5 lines. One link per item. No emoji.",
+      "Max 5 lines. One link per item. No emoji.",
     ],
     [
-      "schedule-run",
+      "Schedule Run",
       "Create or update a schedule for the current agent.",
-      "1 file · 5 agents",
+      [],
+      5,
+      "3d ago",
       "builtin",
-      "# schedule-run\n\nParse the cadence, confirm the timezone, create the schedule.",
+      "Parse the cadence, confirm the timezone, create the schedule.",
     ],
-  ].map(([slug, desc, meta, origin, md], i) => ({
-    slug,
-    desc,
-    meta,
-    md,
-    builtin: origin === "builtin",
-    project: origin !== "builtin",
-    avatarStyle:
-      "display:flex;width:28px;height:28px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:6px;font:600 11px/1 var(--font-mono);" +
-      (origin === "builtin"
-        ? "background:var(--ag-colorPrimary);color:var(--ag-colorBgContainer);"
-        : "background:var(--demo-avatar-3);color:var(--demo-avatar-10);"),
-    versions: ["v4", "v3", "v2"].map((v, j) => ({
-      v,
-      when: j === 0 ? "current · " + whens[i + 1] : whens[i + 4 + j],
-      style: j === 0 ? "background:var(--accent);" : "",
-    })),
-    usedBy: [sessions[i], sessions[(i + 5) % sessions.length]],
-    open: () => setState({ skill: i, skillVersion: "v4" }),
-  }));
+  ].map(([title, desc, files, agents, age, origin, md], i) => {
+    const usedBy = Array.from(
+      { length: agents },
+      (_, j) => sessions[(i + j * 5) % sessions.length],
+    );
+    return {
+      title,
+      slug: title.toLowerCase().replace(/ /g, "-"),
+      desc,
+      files,
+      age,
+      md,
+      usedBy,
+      usedByLabel: agents === 1 ? usedBy[0].title : agents + " agents",
+      createdBy: origin === "builtin" ? "Agenta" : SKILL_AUTHORS[i % 2],
+      open: () => setState({ skill: i }),
+    };
+  });
   const skillSections = [
+    { label: "This project", count: 4, skills: skillsAll.slice(0, 4) },
     {
-      label: "This project",
-      count: 4,
-      tag: null,
-      skills: skillsAll.slice(0, 4),
-    },
-    {
-      label: "Agenta built-in",
+      label: "Agenta-AI/agenta-skills",
       count: 3,
-      tag: "synced 3d ago",
       skills: skillsAll.slice(4),
     },
   ];
-  // Playground
+  // Configuration pane: the agent setup behind the open session.
   const configOpen = st.configOpen !== false;
-  const TABC =
-    "display:inline-flex;height:28px;max-width:200px;flex:0 0 auto;align-items:center;gap:6px;border-radius:6px;border:none;cursor:default;padding:0 10px;margin-right:5px;font:400 13px/1 var(--font-sans);";
-  const tabTasks = activePlaygroundGroup?.tasks ?? [activeSession];
-  const tabs2 = tabTasks.map((task, index) => ({
-    ...ss,
-    ...task,
-    open: () => setState({ playgroundTask: task.ask }),
-    style:
-      TABC +
-      ((st.playgroundTask ? ss.ask === task.ask : index === 0)
-        ? "background:var(--ag-colorFillSecondary);color:" +
-          FG +
-          ";font-weight:500;"
-        : "background:transparent;color:" + MF + ";"),
-  }));
   const ssAutos = AUTOS.filter((au) => au.agent === ss.title);
   const ssFull = {
     ...ss,
     autos: ssAutos.length
       ? ssAutos
       : AUTOS.filter((automation) => automation.area === ss.area),
-    configIntegrations: [...new Set([...ss.tools, "Slack"])],
-    configSkills: skillsAll
-      .filter((skill) =>
-        (ss.area === "Marketing"
-          ? ["research-brief", "draft-article", "publish-digest"]
-          : ss.area === "Sales"
-            ? ["score-fit", "publish-digest", "schedule-run"]
-            : ss.area === "Support"
-              ? ["classify-ticket", "publish-digest", "schedule-run"]
-              : ["review-diff", "publish-digest", "schedule-run"]
-        ).includes(skill.slug),
-      )
-      .map((skill) => ({
-        ...skill,
-        open: () =>
-          setState({
-            view: "skills",
-            skill: skillsAll.indexOf(skill),
-            skillVersion: "v4",
-          }),
-      })),
+    // Every app the agent's own sessions use, so the pane matches the chat.
+    configIntegrations: [
+      ...new Set([
+        ...ss.tools,
+        ...(activePlaygroundGroup?.tasks ?? [])
+          .flatMap((task) => (task.steps ?? []).map((step) => step[0]))
+          .filter((k) => k !== WEB && LOGO[k]),
+      ]),
+    ],
+    configSkills: skillsAll.filter((skill) =>
+      (ss.area === "Marketing"
+        ? ["research-brief", "draft-article", "publish-digest"]
+        : ss.area === "Sales"
+          ? ["score-fit", "publish-digest", "schedule-run"]
+          : ss.area === "Support"
+            ? ["classify-ticket", "publish-digest", "schedule-run"]
+            : ["review-diff", "publish-digest", "schedule-run"]
+      ).includes(skill.slug),
+    ),
     subagents: sessions
       .filter((agent) => agent.area === ss.area && agent.title !== ss.title)
       .slice(0, 2),
-    autoCount:
-      (ssAutos.length || 1) +
-      (ssAutos.length === 1 || !ssAutos.length
-        ? " automation"
-        : " automations"),
-    fileCount: 3,
     files: [
       {
         name: ss.tools[0].toLowerCase() + "-notes.md",
@@ -565,6 +603,8 @@ export function deriveWorkspace(state, setState) {
     view,
     railGroups: visibleRailGroups,
     ss: ssFull,
+    configOpen,
+    toggleConfig: () => setState({ configOpen: !configOpen }),
     homeAgent: sessions[homeSel],
     homeRows,
     agentRows: sessions.slice(0, 10),
@@ -578,10 +618,5 @@ export function deriveWorkspace(state, setState) {
     sk: skillsAll[st.skill ?? 0],
     closeSkill: () => setState({ skill: null }),
     sessionRows: sessions.slice(0, 12),
-    configOpen,
-    configClosed: !configOpen,
-    toggleConfig: () => setState({ configOpen: !configOpen }),
-    splitCols: configOpen ? "320px minmax(0,1fr)" : "minmax(0,1fr)",
-    tabs2,
   };
 }

@@ -1,8 +1,4 @@
 /* Product-demo layout follows the supplied /m workspace reference. */
-.ag-hero .ag-app-frame {
-  margin-top: 24px;
-  flex-shrink: 0;
-}
 .ag-app-frame *,
 .ag-app-frame *::before,
 .ag-app-frame *::after {
@@ -28,43 +24,6 @@
 [data-theme="dark"] .ag-app-frame .th-light-only {
   display: none !important;
 }
-.ag-app-frame .ag-app-skills {
-  min-width: 0;
-}
-@media (min-width: 861px) and (max-width: 1100px) {
-  .ag-app-frame .ag-app-split:has(.ag-app-config) {
-    grid-template-columns: 280px minmax(0, 1fr) !important;
-  }
-}
-/* The product UI is presented at its intended 1120px size. Below the width
-   needed for that frame plus page gutters, the hero copy stands on its own. */
-@media (max-width: 1167px) {
-  .ag-hero {
-    padding-left: 24px !important;
-    padding-right: 24px !important;
-  }
-  .ag-hero .ag-app-frame {
-    display: none !important;
-  }
-}
-@media (max-width: 860px) {
-  .ag-hero .ag-app-frame {
-    grid-template-columns: minmax(0, 1fr) !important;
-    height: 560px !important;
-  }
-  .ag-app-frame .ag-app-side {
-    display: none !important;
-  }
-  .ag-app-frame .ag-app-split {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-  .ag-app-frame .ag-app-config {
-    display: none !important;
-  }
-  .ag-app-frame .ag-app-drawer-body {
-    grid-template-columns: 1fr !important;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .ag-app-frame *,
   .ag-app-frame *::before,
@@ -77,30 +36,7 @@
 .ag-app-frame [role="button"] {
   cursor: pointer !important;
 }
-.ag-demo-mobile-nav {
-  display: none;
-}
 @media (max-width: 860px) {
-  .ag-hero .ag-app-frame {
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .ag-demo-mobile-nav {
-    display: flex;
-    overflow-x: auto;
-    border-bottom: 1px solid var(--border);
-  }
-  .ag-demo-mobile-nav button {
-    flex: 1;
-    border: 0;
-    background: transparent;
-    padding: 12px 8px;
-    color: var(--foreground);
-    font-size: 11px;
-  }
-  .ag-demo-mobile-nav button[aria-pressed="true"] {
-    background: var(--accent);
-    font-weight: 600;
-  }
   .ag-app-content > div {
     padding-left: 20px !important;
     padding-right: 20px !important;
@@ -108,23 +44,9 @@
   .ag-app-content > div:first-child {
     padding-top: 36px !important;
   }
-  .ag-app-content > .ag-app-split {
-    padding: 0 !important;
-  }
 }
 
-@media (max-width: 860px) {
-  .ag-app-frame[data-mobile-config="true"] .ag-app-config {
-    display: flex !important;
-  }
-  .ag-app-frame[data-mobile-config="true"]
-    .ag-app-split
-    > div:not(.ag-app-config) {
-    display: none !important;
-  }
-}
-
-/* Avatar swatches measured from the supplied coworkers reference. */
+/* Avatar swatches. */
 .ag-app-frame {
   --demo-avatar-0: #242424;
   --demo-avatar-1: #484644;
@@ -362,47 +284,50 @@
   border-right: 0;
 }
 
-.ag-demo-group-toggle {
-  border: 0;
-  background: transparent;
-  text-align: left;
+/* Collapsed sidebar: an icon rail (DemoSidebar styles live in demo-sidebar.css). */
+.ag-app-frame[data-sidebar-collapsed="true"] {
+  grid-template-columns: 52px minmax(0, 1fr) !important;
 }
-@media (min-width: 861px) {
-  .ag-app-frame[data-sidebar-collapsed="true"] {
-    grid-template-columns: 52px minmax(0, 1fr) !important;
+
+/* Phones: the collapsed rail leaves a narrow content column. */
+@media (max-width: 600px) {
+  .ag-app-content > div > div {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
   }
-  .ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side > div:first-child {
-    margin: 6px 0 4px !important;
-    padding: 0 !important;
-    justify-content: center !important;
+}
+
+/* Skills registry table, as in the product. */
+.ag-app-frame .ag-skill-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns:
+    32px minmax(180px, 2fr) minmax(110px, 1fr) minmax(100px, 1fr)
+    80px 24px;
+}
+.ag-app-frame .ag-skill-row:hover {
+  background: var(--accent);
+}
+@media (max-width: 860px) {
+  .ag-app-frame .ag-skill-page-body {
+    flex-direction: column;
   }
-  .ag-app-frame[data-sidebar-collapsed="true"]
-    .ag-app-side
-    > div:first-child
-    img,
-  .ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side > div:last-child,
-  .ag-app-frame[data-sidebar-collapsed="true"]
-    .ag-app-side
-    nav
-    > div:last-child,
-  .ag-app-frame[data-sidebar-collapsed="true"]
-    .ag-app-side
-    nav
-    > button
-    > span:not(:first-child),
-  .ag-app-frame[data-sidebar-collapsed="true"]
-    .ag-app-side
-    nav
-    > div[role="button"]
-    > span:not(:first-child) {
+  .ag-app-frame .ag-skill-files {
+    width: auto !important;
+  }
+}
+@media (max-width: 600px) {
+  .ag-app-frame .ag-skill-grid {
+    gap: 10px;
+    grid-template-columns: 32px minmax(0, 1fr) 24px;
+  }
+  .ag-app-frame .ag-skill-title {
+    font-size: 19px !important;
+  }
+  .ag-app-frame .ag-skill-wide,
+  .ag-app-frame .ag-skill-age,
+  .ag-app-frame .ag-skill-intro,
+  .ag-app-frame .ag-skill-archived {
     display: none !important;
-  }
-  .ag-app-frame[data-sidebar-collapsed="true"] .ag-app-side nav > button,
-  .ag-app-frame[data-sidebar-collapsed="true"]
-    .ag-app-side
-    nav
-    > div[role="button"] {
-    padding: 0 !important;
-    justify-content: center !important;
   }
 }

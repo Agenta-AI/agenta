@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConfigAccordionSection } from "@agenta/ui/config-accordion";
 import {
   Cpu,
@@ -16,6 +16,8 @@ import {
   DotsThreeVertical,
   Plus,
   ArrowLeft,
+  Check,
+  MagnifyingGlass,
 } from "@phosphor-icons/react";
 import { LOGO } from "./fixtures.js";
 
@@ -52,9 +54,10 @@ const countSummary = (n, noun) =>
 
 // Row avatar colors from the product item descriptors.
 const AVATAR = {
+  // The product row colour for an instructions file (itemDescriptors.describeInstruction).
   instructions: "#0f766e",
-  subagent: "#7c3aed",
-  skill: "#6b7280",
+  subagent: "var(--muted)",
+  skill: "var(--muted)",
 };
 
 // Inert header add affordance, like the product section headers.
@@ -64,14 +67,144 @@ const addButton = (label) => (
   </span>
 );
 
+// The model picker mirrors the product's (SelectLLMProviderBase): connections on the
+// left, that connection's models on the right, grouped by the harness that runs them.
+const CONNECTIONS = [
+  {
+    name: "Anthropic",
+    logo: "Claude",
+    sections: [
+      ["Claude Code", ["Sonnet 5.5", "Opus 5.5", "Haiku 5.5"]],
+      ["Pi", ["Sonnet 5.5", "Opus 5.5"]],
+    ],
+  },
+  {
+    name: "OpenAI",
+    logo: "ChatGPT",
+    sections: [["Pi", ["GPT-5.2", "GPT-5.2 mini"]]],
+  },
+  {
+    name: "Google",
+    logo: "Gemini",
+    sections: [["Pi", ["Gemini 3.8", "Gemini 3.8 Flash"]]],
+  },
+];
+
+function ModelPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [connection, setConnection] = useState(value.connection);
+  const root = useRef(null);
+  // Close like the product's popover: Escape, or a press outside the picker.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event) => event.key === "Escape" && setOpen(false);
+    const onDown = (event) =>
+      root.current && !root.current.contains(event.target) && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [open]);
+  const current = CONNECTIONS.find((c) => c.name === connection);
+  return (
+    <div className="ag-model-picker" ref={root}>
+      <button
+        type="button"
+        className="ag-settings-select"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="ag-model-current">
+          <img
+            src={
+              LOGO[CONNECTIONS.find((c) => c.name === value.connection).logo]
+            }
+            alt=""
+          />
+          {value.harness} · {value.model}
+        </span>
+        <CaretDown size={12} />
+      </button>
+      {open && (
+        <div
+          className="ag-model-menu"
+          role="listbox"
+          aria-label="Choose a model"
+        >
+          <div className="ag-model-search">
+            <MagnifyingGlass size={14} aria-hidden="true" />
+            <span>Search models</span>
+          </div>
+          <div className="ag-model-cols">
+            <div className="ag-model-conns">
+              {CONNECTIONS.map((c) => (
+                <button
+                  type="button"
+                  key={c.name}
+                  aria-pressed={c.name === connection}
+                  onClick={() => setConnection(c.name)}
+                >
+                  <img src={LOGO[c.logo]} alt="" />
+                  <span>{c.name}</span>
+                </button>
+              ))}
+            </div>
+            <div className="ag-model-list">
+              {current.sections.map(([harness, models]) => (
+                <div key={harness}>
+                  <p>{harness}</p>
+                  {models.map((model) => {
+                    const selected =
+                      value.connection === connection &&
+                      value.harness === harness &&
+                      value.model === model;
+                    return (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        key={model}
+                        onClick={() => {
+                          onChange({ connection, harness, model });
+                          setOpen(false);
+                        }}
+                      >
+                        <span>{model}</span>
+                        {selected && <Check size={14} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const FILE_SIZES = ["3.0 KB", "1.2 KB", "4.7 KB", "0.8 KB", "12 KB"];
 
 export default function PlaygroundSettings({ agent, onHide }) {
   const [integration, setIntegration] = useState(null);
+  const [model, setModel] = useState({
+    connection: "Anthropic",
+    harness: "Claude Code",
+    model: "Sonnet 5.5",
+  });
   const instructionsOpen = false;
   const agentsMd = `# ${agent.title}\n\n${agent.desc}\n\nUse the connected apps and skills below. Cite sources, keep drafts ready for review, and ask before publishing or sending to customers.`;
   const wordCount = agentsMd.trim().split(/\s+/).filter(Boolean).length;
-  const mdPreview = agentsMd.replace(/[#\n]+/g, " ").trim();
+  // The preview starts after the "# Title" line, as the product card does.
+  const mdPreview = agentsMd
+    .split("\n")
+    .slice(1)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
   // Titles, icons, order, summaries, and row presentation mirror the product
   // config panel (AgentTemplateControl): Model, Instructions, Integrations,
   // Subagents, MCP servers, Skills, Permissions, Advanced.
@@ -79,14 +212,9 @@ export default function PlaygroundSettings({ agent, onHide }) {
     {
       title: "Model",
       icon: Cpu,
-      summary: `Pi · ${agent.model}`,
-      open: false,
-      content: (
-        <div className="ag-settings-select" role="presentation">
-          <span>{agent.model}</span>
-          <CaretDown size={12} />
-        </div>
-      ),
+      summary: `${model.harness} · ${model.model}`,
+      open: true,
+      content: <ModelPicker value={model} onChange={setModel} />,
     },
     {
       title: "Instructions",
@@ -102,7 +230,11 @@ export default function PlaygroundSettings({ agent, onHide }) {
           >
             <span
               className="ag-settings-avatar"
-              style={{ background: AVATAR.instructions }}
+              style={{
+                background: AVATAR.instructions,
+                color: "#fff",
+                boxShadow: "none",
+              }}
             >
               <FileText size={14} />
             </span>
@@ -273,15 +405,7 @@ export default function PlaygroundSettings({ agent, onHide }) {
             icon={<section.icon size={16} />}
             summary={section.summary}
             extra={section.extra}
-            open={
-              ["Model", "Permissions", "Advanced"].includes(section.title)
-                ? false
-                : undefined
-            }
-            onOpenChange={() => {}}
             defaultOpen={section.open || false}
-            locked={section.title === "Model"}
-            lockedReason="Model selection is fixed in this demo."
             headerBand="-mx-4 px-4"
             bodyClassName="ag-settings-body"
           >
@@ -327,7 +451,6 @@ export default function PlaygroundSettings({ agent, onHide }) {
             <FileText size={16} />
             <span className="ag-settings-name-row">
               <strong className="ag-settings-mono">{file.name}</strong>
-              <em className="ag-settings-tag">Agent</em>
             </span>
             <small className="ag-settings-item-meta">
               {FILE_SIZES[index % FILE_SIZES.length]} · {file.when}

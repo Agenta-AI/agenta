@@ -1,0 +1,91 @@
+/* StayInControl — ported from the landing design board (iteration 1). */
+.nsec { position:relative; padding:112px 24px 120px; background:none var(--lp-surface-3); font-family:var(--font-sans); color:var(--lp-text); }
+.nsec * { box-sizing:border-box; }
+.nsec svg, .nsec img { display:block; flex:0 0 auto; }
+.nhd { max-width:780px; margin:0px auto 64px; text-align:center; display:flex; flex-direction:column; gap:16px; align-items:center; }
+.nhd h2 { margin:0px; font:400 52px / 1.06 "GT Alpina", serif; letter-spacing:-0.01em; text-wrap:balance; }
+.ngrid { max-width:1120px; margin:0px auto; display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--lp-surface-6); border-top:1px solid var(--lp-line); border-bottom:1px solid var(--lp-line); }
+.ngrid.three { grid-template-columns:repeat(3, 1fr); }
+.nc { background:var(--lp-surface-3); display:flex; flex-direction:column; min-width:0px; }
+.ntx { padding:40px 40px 0px; display:flex; flex-direction:column; gap:8px; }
+.ntx b { font:400 24px / 1.2 "GT Alpina", serif; }
+.ntx p { margin:0px; font-size:14px; line-height:21px; color:var(--lp-mut); max-width:420px; }
+.ncard { background:var(--lp-surface); border-radius:12px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; font-size:12.5px; line-height:18px; color:var(--lp-text); overflow:hidden; }
+.nag { width:22px; height:22px; border-radius:6px; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); display:inline-flex; align-items:center; justify-content:center; }
+.aph { display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--lp-line-soft); }
+.aph b { font-weight:500; }
+.wt { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--lp-body); background:rgba(242, 242, 92, 0.22); border-radius:5px; padding:2px 7px; }
+.wt i { width:6px; height:6px; border-radius:50%; background:var(--lp-text-2); }
+.apb { padding:12px 14px 14px; display:flex; flex-direction:column; gap:10px; }
+.mail { padding:10px 12px; border-radius:9px; background:var(--lp-surface-2); box-shadow:var(--lp-line) 0px 0px 0px 1px inset; color:var(--lp-text-2); }
+.acts { display:flex; gap:6px; }
+.acts span { height:28px; padding:0px 11px; border-radius:7px; display:inline-flex; align-items:center; font-size:12px; font-weight:500; }
+.acts .b1 { background:var(--yellow-400); box-shadow:var(--yellow-border) 0px 0px 0px 1px inset; color:var(--ink-900);}
+.acts .b2 { background:var(--lp-surface); box-shadow:var(--lp-line) 0px 0px 0px 1px inset; }
+.acts .b3 { color:var(--lp-mut); }
+.ch2 { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--lp-line-soft); }
+.ch2 b { font-weight:500; }
+.ch2 span { font-size:11px; color:var(--lp-dim); }
+.nav { width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font:600 10px / 1 var(--font-sans); color:var(--lp-text); flex:0 0 auto; }
+.rl { display:inline-flex; align-items:center; gap:4px; height:24px; padding:0px 8px; border-radius:6px; box-shadow:var(--lp-line) 0px 0px 0px 1px inset; font-size:11.5px; color:var(--lp-body); }
+.ctlx .ngrid.three .nc .ntx { padding:36px 32px 0px; }
+.ctlx .mto { display:flex; gap:10px; font-size:12.5px; }
+.ctlx .mto span { color:var(--lp-dim); }
+.ctlx .mto b { font-weight:500; }
+.ctlx .ngrid.three .nc .ntx { padding:36px 32px 0px; }
+.ctlx .nv3 { position:relative; height:340px; padding:26px 28px 0px; }
+.ctlx .stk { position:relative; height:100%; }
+.ctlx .stk .ncard { position:absolute; left:0px; right:0px; }
+.ctlx .ghost2 { top:0px; transform:scale(0.88); transform-origin:center top; opacity:0.55; }
+.ctlx .ghost1 { top:12px; transform:scale(0.94); transform-origin:center top; opacity:0.7; }
+.ctlx .stk .front { top:26px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; }
+.ctlx .who2 { display:flex; flex-direction:column; flex:1 1 0%; min-width:0px; }
+.ctlx .who2 b { font-weight:500; }
+.ctlx .who2 span { font-size:11px; color:var(--lp-dim); }
+.ctlx .stk .aph b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ctlx .stk .mail { font-size:12px; line-height:18px; }
+.ctlx .acts .b1 { display:inline-flex; gap:5px; align-items:center; }
+.ctlx .cnt { position:absolute; right:10px; top:-8px; z-index:3; font-size:10.5px; font-weight:600; color:var(--ink-900); background:var(--yellow-400); border-radius:6px; padding:3px 7px; box-shadow:var(--lp-surface-3) 0px 0px 0px 2px; }
+.ctlx .accw { position:relative; height:100%; }
+.ctlx .acc2 { width:auto; }
+.ctlx .acc2 .ch2 { padding:10px 14px; }
+.ctlx .avs3 { display:inline-flex; }
+.ctlx .avs3 .nav { width:18px; height:18px; font-size:8px; box-shadow:var(--lp-surface) 0px 0px 0px 2px; }
+.ctlx .avs3 .nav + .nav { margin-left:-5px; }
+.ctlx .rl.open { box-shadow:var(--lp-text) 0px 0px 0px 1.5px inset; color:var(--lp-text); }
+.ctlx .vrow { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; font-size:12.5px; color:var(--lp-body); }
+.ctlx .rl svg { display:block; }
+.ctlx .rl { gap:6px !important; }
+.ctlx .mem { display:flex; align-items:center; gap:10px; padding:10px 14px 14px; border-top:1px solid var(--lp-line-soft); font-size:12px; color:var(--lp-body); }
+.ctlx .mic { width:26px; height:26px; border-radius:7px; background:var(--lp-surface-3); box-shadow:var(--lp-line) 0px 0px 0px 1px inset; display:inline-flex; align-items:center; justify-content:center; color:var(--lp-body); flex:0 0 auto; }
+.ctlx .pop { position:absolute; right:16px; top:104px; width:236px; padding:5px; z-index:4; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; }
+.ctlx .mi { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:7px; }
+.ctlx .mi div { display:flex; flex-direction:column; flex:1 1 0%; }
+.ctlx .mi b { font-weight:500; font-size:12px; }
+.ctlx .mi span { font-size:10.5px; color:var(--lp-dim); }
+.ctlx .mi.on { background:var(--lp-surface-4); }
+.ctlx .ana2 { width:auto; }
+.ctlx .seg2 { display:inline-flex; padding:2px; border-radius:7px; background:var(--lp-surface-4); }
+.ctlx .seg2 i { font-style:normal; font-size:10.5px; padding:2px 8px; border-radius:5px; color:var(--lp-mut); }
+.ctlx .seg2 i.on { background:var(--lp-surface); color:var(--lp-text); box-shadow:rgba(0, 0, 0, 0.08) 0px 1px 2px; }
+.ctlx .kp { display:grid; grid-template-columns:repeat(3, 1fr); padding:14px 14px 6px; }
+.ctlx .kp div { display:flex; flex-direction:column; gap:3px; }
+.ctlx .kp b { font:400 24px / 1 "GT Alpina", serif; }
+.ctlx .kp span { font-size:10.5px; color:var(--lp-dim); }
+.ctlx .chw { position:relative; margin:10px 14px 16px; height:90px; }
+.ctlx .chs { width:100%; height:90px; overflow:visible; }
+.ctlx .chs .ar { fill:rgba(184, 225, 255, 0.45); }
+.ctlx .chs .ln { fill:none; stroke:rgb(95, 169, 222); stroke-width:1.6; vector-effect:non-scaling-stroke; }
+.ctlx .chw .dot { position:absolute; width:10px; height:10px; margin:-5px 0px 0px -5px; border-radius:50%; background:var(--yellow-400); box-shadow:var(--lp-text) 0px 0px 0px 2px; color:var(--ink-900);}
+.ctlx .chw .tip { position:absolute; transform:translate(-50%, -34px); white-space:nowrap; font-size:10.5px; font-weight:500; color:var(--lp-on-ink); background:var(--lp-ink-bg); border-radius:6px; padding:3px 7px; }
+html body .lp .ctlx section.nsec, html body .lp .ctlx .nc { background:var(--lp-surface) !important; }
+html body .lp .ctlx .stk .ghost1, html body .lp .ctlx .stk .ghost2 { height:60px; overflow:hidden; }
+html body .lp .ctlx .stk .ghost1 > *, html body .lp .ctlx .stk .ghost2 > * { visibility:hidden; }
+html body .lp .ctlx .stk .ghost2 { top:0px; transform:scale(0.88); opacity:0.6; }
+html body .lp .ctlx .stk .ghost1 { top:8px; transform:scale(0.94); opacity:0.85; }
+html body .lp .ctlx .stk .front { top:16px; }
+html body .lp .ctlx .stk .cnt { top:6px; right:14px; }
+html body .lp .ctlx .pop { top:84px; right:13px; }
+html body .lp .ctlx .rl.open { background:var(--yellow-400); box-shadow:var(--yellow-border) 0px 0px 0px 1px inset; color:var(--ink-900); }
+html body .lp .ctlx .chs .ar { fill:var(--lp-line-soft) !important; }
+html body .lp .ctlx .chs .ln { stroke:var(--lp-text) !important; }

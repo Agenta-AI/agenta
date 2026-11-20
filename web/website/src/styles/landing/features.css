@@ -1,0 +1,121 @@
+/* EverythingYouNeed — ported from the landing design board (iteration 1). */
+.sx-feat { margin:0px; background:var(--lp-surface-3); color:var(--lp-text); font-family:var(--font-sans); -webkit-font-smoothing:antialiased; }
+.sx-feat h1, .sx-feat h2, .sx-feat h3, .sx-feat p { margin:0px; text-wrap:pretty; }
+.sx-feat .mono { font-family: "Geist Mono", ui-monospace, monospace; }
+.sx-feat .grid { display:grid; grid-template-columns:repeat(3, minmax(0px, 1fr)); gap:48px 16px; }
+.sx-feat .art { position:relative; height:300px; border-radius:16px; overflow:hidden; box-shadow:var(--lp-line) 0px 0px 0px 1px; display:flex; align-items:center; justify-content:center; }
+.sx-feat .comp { position:relative; width:320px; height:220px; }
+.sx-feat .pill { position:absolute; display:inline-flex; align-items:center; gap:8px; height:36px; padding:0px 14px; border-radius:999px; background:var(--lp-surface); box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; font:400 14px / 1 Geist, sans-serif; color:var(--lp-text); white-space:nowrap; box-sizing:border-box; }
+.sx-feat .pill img { width:16px; height:16px; }
+.sx-feat .sp { position:static; }
+.sx-feat .hub { position:absolute; width:72px; height:72px; border-radius:18px; background:var(--lp-surface); box-shadow:var(--lp-line) 0px 0px 0px 1px, rgba(255, 255, 255, 0.6) 0px 0px 0px 6px, var(--lp-line) 0px 0px 0px 7px; display:flex; align-items:center; justify-content:center; }
+.sx-feat .ok, .sx-feat .no { width:16px; height:16px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.sx-feat .ok { background:var(--lp-ink-bg); }
+.sx-feat .card { background:var(--lp-surface); border-radius:12px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; font:400 13px / 20px Geist, sans-serif; box-sizing:border-box; }
+.sx-feat .cap { font:500 11px / 16px var(--font-sans); letter-spacing:0.06em; text-transform:uppercase; color:var(--lp-mut); }
+.sx-feat .txt { padding:24px 10px 0px; }
+.sx-feat .txt h3 { font:400 22px / 28px "GT Alpina", Georgia, serif; }
+.sx-feat .txt p { font:400 15px / 23px var(--font-sans); color:var(--lp-body); margin-top:8px; max-width:340px; }
+.sx-feat .span2 { grid-column:span 2; }
+@media (max-width: 1000px){.sx-feat .grid { grid-template-columns:minmax(0px, 1fr); }}
+@media (max-width: 1000px){.sx-feat .span2 { grid-column:auto; }}
+.sx-feat { background:var(--lp-surface-3); }
+.sx-feat .fgx { position:relative; padding:112px 24px 120px; background:none var(--lp-surface-3); }
+.sx-feat .fgx .hd { max-width:760px; margin:0px auto 72px; text-align:center; display:flex; flex-direction:column; gap:16px; align-items:center; }
+.sx-feat .fgx .hd h2 { margin:0px; font:400 52px / 1.06 "GT Alpina", serif; letter-spacing:-0.01em; text-wrap:balance; }
+.sx-feat .fgx .hd p { margin:0px; max-width:600px; font:400 17px / 27px var(--font-sans); color:var(--lp-body); }
+.sx-feat .fgx .grid { max-width:1120px; margin:0px auto; gap:1px; background:var(--lp-surface-6); border-top:1px solid var(--lp-line); border-bottom:1px solid var(--lp-line); }
+.sx-feat .fgx .grid > div { background:var(--lp-surface-3); display:flex; flex-direction:column; }
+.sx-feat .fgx .txt { order:-1; padding:40px 40px 0px; }
+.sx-feat .fgx .txt h3 { font:400 24px / 1.2 "GT Alpina", serif; }
+.sx-feat .fgx .txt p { font-size:14px; line-height:21px; color:var(--lp-mut); max-width:420px; }
+.sx-feat .fgx .art { border-radius:0px; height:290px; margin-top:8px; background:none transparent !important; box-shadow:none !important; }
+.sx-feat .fgx .art .card { box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; }
+.sx-feat .fgx .art .pill { box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; }
+.sx-feat .fgx .art { height:256px; margin-top:4px; }
+.sx-feat .fgx .txt { padding:36px 40px 0px; }
+.sx-feat .mlbl { display:block; padding:8px 10px 4px; font:500 10px / 1 var(--font-sans); letter-spacing:0.06em; text-transform:uppercase; color:var(--lp-dim); }
+.sx-feat .lrn { display:flex; align-items:center; gap:40px; }
+.sx-feat .lchat { width:240px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
+.sx-feat .lq { align-self:flex-end; padding:7px 10px; border-radius:10px 10px 3px; background:var(--lp-surface-4); font-size:12.5px; }
+.sx-feat .la { display:flex; gap:7px; align-items:center; font-size:12.5px; color:var(--lp-text-2); }
+.sx-feat .lav { width:18px; height:18px; border-radius:5px; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; }
+.sx-feat .vh { position:relative; display:flex; flex-direction:column; gap:10px; padding-left:22px; }
+.sx-feat .vh::before { content: ""; position:absolute; left:5px; top:18px; bottom:18px; width:1px; background:var(--lp-surface-6); }
+.sx-feat .vr { position:relative; display:flex; align-items:center; }
+.sx-feat .vr > i { position:absolute; left:-21px; width:9px; height:9px; border-radius:50%; background:var(--lp-surface); box-shadow:var(--lp-line-strong) 0px 0px 0px 1px; }
+.sx-feat .vr.first > i { background:var(--lp-ink-bg); box-shadow:var(--lp-line-soft) 0px 0px 0px 3px; }
+.sx-feat .vc { display:flex; align-items:center; gap:14px; padding:9px 12px; min-width:270px; }
+.sx-feat .vc div { display:flex; flex-direction:column; flex:1 1 0%; }
+.sx-feat .vc b { font-weight:500; font-size:12.5px; }
+.sx-feat .vc div span { font-size:11px; color:var(--lp-dim); }
+.sx-feat .vt { font:500 10.5px / 1 "Geist Mono", monospace; color:var(--lp-mut); background:var(--lp-surface-4); border-radius:5px; padding:4px 6px; }
+.sx-feat .vr:not(.first) .vc { opacity:0.7; }
+.sx-feat .cmpx { position:relative; width:330px; height:226px; }
+.sx-feat .brx { position:absolute; left:0px; top:6px; width:230px; overflow:hidden; }
+.sx-feat .bxh { display:flex; align-items:center; gap:5px; height:26px; padding:0px 9px; border-bottom:1px solid var(--lp-line-soft); background:var(--lp-surface-2); }
+.sx-feat .bxh i { width:6px; height:6px; border-radius:50%; background:var(--lp-surface-6); }
+.sx-feat .bxh .url { margin-left:6px; font:500 9.5px / 1 "Geist Mono", monospace; color:var(--lp-dim); }
+.sx-feat .bxb { padding:10px 12px 14px; display:flex; flex-direction:column; gap:8px; }
+.sx-feat .bxb b { font:400 15px / 1.2 "GT Alpina", serif; }
+.sx-feat .pl { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; }
+.sx-feat .pl span { display:flex; flex-direction:column; gap:2px; padding:6px 7px; border-radius:6px; box-shadow:var(--lp-line) 0px 0px 0px 1px inset; font-size:12px; font-weight:500; }
+.sx-feat .pl em { font-style:normal; font-size:9.5px; font-weight:400; color:var(--lp-dim); }
+.sx-feat .pl .hl { box-shadow:var(--yellow-400) 0px 0px 0px 1.5px inset; background:rgba(242, 242, 92, 0.12); }
+.sx-feat .fsx { position:absolute; right:-6px; bottom:0px; width:184px; white-space:nowrap; padding:4px 0px 6px; font-size:11.5px; }
+.sx-feat .fxh { display:flex; align-items:center; justify-content:space-between; padding:7px 11px; border-bottom:1px solid var(--lp-line-soft); }
+.sx-feat .fxh b { font-weight:500; }
+.sx-feat .fxh span { font-size:10px; color:var(--lp-dim); }
+.sx-feat .fr { display:flex; align-items:center; gap:7px; height:24px; padding:0px 11px; color:var(--lp-body); }
+.sx-feat .fr.in { padding-left:26px; }
+.sx-feat .fr b { font-weight:500; color:var(--lp-text); }
+.sx-feat .fr.new { background:rgba(242, 242, 92, 0.12); }
+.sx-feat .fr em { margin-left:auto; font-style:normal; font-size:9.5px; font-weight:500; color:var(--ink-900); background:var(--yellow-400); border-radius:4px; padding:1px 5px; }
+.sx-feat .schx { display:flex; flex-direction:column; align-items:center; gap:12px; }
+.sx-feat .trg { width:300px; padding:2px 0px 6px; font-size:12px; }
+.sx-feat .trh { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-bottom:1px solid var(--lp-line-soft); }
+.sx-feat .trh b { font-weight:500; }
+.sx-feat .trh span { font-size:10.5px; color:var(--lp-dim); }
+.sx-feat .trw { display:flex; align-items:center; gap:9px; padding:7px 12px; }
+.sx-feat .trw div { display:flex; flex-direction:column; flex:1 1 0%; min-width:0px; }
+.sx-feat .trw b { font-weight:500; }
+.sx-feat .trw div span { font-size:10.5px; color:var(--lp-dim); }
+.sx-feat .tic { width:26px; height:26px; border-radius:7px; background:var(--lp-surface-4); display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.sx-feat .trh + .trw .tic { background:var(--yellow-400); color:var(--ink-900);}
+.sx-feat .span2 .art { height:296px; }
+.sx-feat .mcps { display:flex; flex-direction:column; align-items:center; width:300px; }
+.sx-feat .mcps .pill { height:38px; padding:0px 14px; font-size:13.5px; gap:9px; }
+.sx-feat .mfork { width:200px; height:50px; overflow:visible; }
+.sx-feat .mfork path { fill:none; stroke:var(--lp-line-strong); stroke-width:1.3; stroke-dasharray:3, 4; vector-effect:non-scaling-stroke; }
+.sx-feat .mout { display:flex; gap:24px; }
+.sx-feat .mcps .avs { display:inline-flex; }
+.sx-feat .mcps .avs i { width:20px; height:20px; border-radius:50%; font:600 8.5px / 20px var(--font-sans); text-align:center; box-shadow:var(--lp-surface) 0px 0px 0px 2px; background:var(--lp-surface-6); }
+.sx-feat .mcps .avs i + i { margin-left:-6px; }
+.sx-feat .mcps .avs i:nth-child(2) { background:var(--yellow-400); color:var(--ink-900);}
+.sx-feat .mcps .avs i:nth-child(3) { background:var(--lp-avatar); }
+.sx-feat .abr { margin-left:auto; font-size:9.5px; font-weight:500; color:var(--lp-body); background:var(--lp-surface-4); border-radius:4px; padding:2px 5px; }
+.sx-feat .rd2 { display:flex; align-items:center; gap:6px; margin:0px; font-size:10.5px; color:var(--lp-body); }
+.sx-feat .rd2 i { width:6px; height:6px; border-radius:50%; background:var(--yellow-400); box-shadow:rgba(242, 242, 92, 0.25) 0px 0px 0px 3px; color:var(--ink-900);}
+.sx-feat .brx { width:240px; }
+.sx-feat .fgx .pill { border-radius:10px !important; }
+.sx-feat .fgx .avs i { border-radius:6px !important; }
+.sx-feat .span2 .art { height:316px; }
+.sx-feat .span2 .art:has(> .lrn) { height:256px; }
+.sx-feat .mm2 { position:relative; width:450px; height:300px; }
+.sx-feat .mb2 { position:absolute; left:0px; top:30px; width:236px; padding:4px 6px 8px; opacity:0.6; }
+.sx-feat .mf2 { position:absolute; right:0px; top:4px; width:280px; padding:4px 6px 6px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px !important; }
+.sx-feat .mr2 { display:flex; align-items:center; gap:9px; height:30px; padding:0px 10px; border-radius:7px; font-size:12.5px; color:var(--lp-text); }
+.sx-feat .mr2 svg { flex:0 0 auto; }
+.sx-feat .mr2 em { margin-left:auto; font-style:normal; font-size:10.5px; color:var(--lp-dim); }
+.sx-feat .mr2.on { background:var(--lp-surface-4); }
+.sx-feat .mr2.on em { margin-right:6px; }
+.sx-feat .mr2.pr span { font-weight:500; }
+.sx-feat .xai2 { width:14px; height:14px; border-radius:3px; background:var(--lp-ink-bg); color:var(--lp-on-ink); font:700 9px / 14px var(--font-sans); text-align:center; flex:0 0 auto; }
+.sx-feat .kd { position:relative; height:26px; margin-left:16px; padding-left:18px; display:flex; align-items:center; font-size:12px; color:var(--lp-body); }
+.sx-feat .kd::before { content: ""; position:absolute; left:0px; top:-4px; height:17px; width:10px; border-left:1px solid var(--lp-line); border-bottom:1px solid var(--lp-line); border-bottom-left-radius:4px; }
+.sx-feat .kd:not(.last)::after { content: ""; position:absolute; left:0px; top:13px; bottom:0px; border-left:1px solid var(--lp-line); }
+html body .lp section.fgx, html body .lp .sx-feat .fgx .grid > div { background:var(--lp-surface-3) !important; }
+html body .lp section.fgx .bxh .abr { height:16px !important; line-height:16px !important; padding:0px 6px !important; font-size:9px !important; border-radius:4px !important; align-self:center !important; }
+[data-theme="dark"] .sx-feat .pl .hl em { color:var(--lp-body); }
+/* Icons on yellow tiles draw in the tile's ink, not the theme text colour. */
+.sx-feat .tic svg, .sx-feat .hub svg { stroke:currentColor; }

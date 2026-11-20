@@ -1,0 +1,261 @@
+/* Landing tablet and phone layouts; loaded after every section stylesheet. */
+
+/* Stop iOS text autosizing inside the mock-ups. */
+.lp {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ── short and mid screens ───────────────────────────────────── */
+/* Size the sticky stage to the screen. */
+@media (min-width: 861px) {
+  /* 96px clears the floating nav pill. */
+  html body .lp .sx-hiw section.hw .hw-stage {
+    top: 96px;
+    height: calc(100vh - 96px);
+    height: calc(100svh - 96px);
+    max-height: 1000px;
+    /* Breathing room above the heading and below the demo. */
+    box-sizing: border-box;
+    /* Little vertical padding: the demo gets the height instead of empty space. */
+    padding-block: clamp(16px, 3svh, 40px);
+  }
+  .sx-hiw .hw .hw-hd {
+    margin-bottom: clamp(16px, 3svh, 40px);
+  }
+}
+/* Wide screens: a heading that fits on fewer lines leaves more height for the demo. */
+@media (min-width: 1200px) {
+  .sx-hiw .hw .hw-hd {
+    max-width: 820px;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 861px) {
+  /* The chat needs its design width for the scripted scroll to land. */
+  .sx-hiw .hw .hw-files {
+    display: none;
+  }
+}
+
+/* Smaller screens: the hero's sidebar is a collapsed icon rail. */
+@media (max-width: 1100px) {
+  html body .lp .r3 .r3-aw.r3-aw-full {
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+  }
+}
+
+/* ── tablet ──────────────────────────────────────────────────── */
+@media (max-width: 1167px) {
+  /* The design hides the hero demo below 1167px; keep it, full width. */
+  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame:not([hidden]) {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 1100px) {
+  html body .lp .sx-site .tplx .lp-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  html body .lp .ossx .rv2-oss {
+    padding: 72px 24px !important;
+  }
+  html body .lp .ossx .rv2-oss > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 40px !important;
+    width: 100% !important;
+  }
+  html body .lp .ossx .rv2-oss > div > div {
+    width: auto !important;
+    max-width: 100% !important;
+  }
+  .lp .ctlx .nv3 {
+    height: auto;
+    min-height: 340px;
+  }
+}
+
+/* ── phone ───────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  html body .lp .sx-share .g5,
+  html body .lp .ctlx .ngrid.three {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  html body .lp .sx-share .s5.hl .t5:nth-child(2n) {
+    border-left: 0;
+  }
+  html body .lp section.fg,
+  html body .lp section.s5,
+  html body .lp .sx-site section.tplx,
+  html body .lp section.fgx,
+  html body .lp section.nsec {
+    padding-top: 72px !important;
+    padding-bottom: 72px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  html body .lp .ossx section.nsec {
+    padding: 0 !important;
+  }
+  html body .lp section h2:not(.ag-app-frame h2),
+  html body .lp .sx-site .tplx .ag-sectitle {
+    font-size: 34px !important;
+    line-height: 38px !important;
+  }
+  .lp .fg-hd,
+  .lp .nhd,
+  .lp .fgx .hd {
+    margin-bottom: 40px !important;
+  }
+
+  /* hero demo: drop the app sidebar, keep the run */
+  html body .lp .r3 .r3-ag-hero {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame {
+    height: 560px !important;
+  }
+  html body .lp .r3 .r3-ap-thread {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  html body .lp .r3 .r3-ap-comp {
+    margin-left: 12px !important;
+    margin-right: 12px !important;
+  }
+
+  /* No sticky stage on phones; the beats loop instead. */
+  html body .lp .sx-hiw section.hw {
+    height: auto !important;
+    padding: 72px 16px !important;
+  }
+  html body .lp .sx-hiw section.hw .hw-stage {
+    position: static;
+    height: auto;
+  }
+  .sx-hiw .hw .hw-hd {
+    margin-bottom: 32px;
+  }
+  .sx-hiw .hw .hw-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .sx-hiw .hw .hw-bt {
+    font-size: 23px;
+  }
+  .sx-hiw .hw .hw-beat {
+    padding: 18px 2px;
+  }
+  .sx-hiw .hw .hw-thread {
+    padding: 20px 16px 8px;
+  }
+  .sx-hiw .hw .hw-comp {
+    margin: 0 12px 12px;
+  }
+  .sx-hiw .hw [style*="animation-timeline"] {
+    animation-timeline: auto !important;
+    animation-range: normal !important;
+    animation-duration: 16s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Centre the mock-ups at their design width in wide single columns. */
+  html body .lp .sx-share .t5 > [data-lp-fit]:not([data-lp-fitted]),
+  html body .lp .sx-share .t5 > .r3 > [data-lp-fit]:not([data-lp-fitted]) {
+    width: 100%;
+    max-width: 615px;
+    align-self: center;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  html body .lp .ctlx .nc > [data-lp-fit]:not([data-lp-fitted]) {
+    width: 100%;
+    max-width: 440px;
+    align-self: center;
+  }
+
+  /* Work with your agents */
+  html body .lp .sx-share .s5.hl .tx5 {
+    padding: 28px 20px 0;
+  }
+  html body .lp .sx-share .vs5 {
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-bottom: 24px !important;
+  }
+
+  /* Templates */
+  html body .lp .sx-site .tplx .lp-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Everything you need */
+  .lp .sx-feat .grid > div > .txt {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  /* Stay in control */
+  .lp .ctlx .ngrid.three .nc .ntx {
+    padding: 28px 20px 0;
+  }
+  .lp .ctlx .nv3 {
+    padding: 24px 16px 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  /* The two-pane workspace shows one pane on phones, so it scales less. */
+  html body .lp .sx-share .k1 [data-lp-fit] {
+    --lp-fit-design: 360;
+  }
+  html body .lp .sx-share .k1 .swb {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html body .lp .sx-share .k1 .swb > .pn7 + .pn7 {
+    display: none;
+  }
+  .sx-hiw .hw .hw-files {
+    display: none;
+  }
+  html body .lp .ossx .rv2-oss h2 {
+    font-size: 34px !important;
+    line-height: 38px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Agents that learn: chat card above the version history. */
+  .lp .sx-feat .lrn {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .lp .sx-feat .grid > div:last-child > .art {
+    height: auto !important;
+    padding-top: 8px;
+    padding-bottom: 24px;
+  }
+}
+
+/* Scaled mock-ups: the fit script sets --lp-fit-w and a scale transform. */
+.lp [data-lp-fit][data-lp-fitted] {
+  transform-origin: top left;
+  width: var(--lp-fit-w) !important;
+  max-width: none !important;
+  flex: 0 0 auto !important;
+}
+
+/* ── dark-mode fixes for drawn logos ─────────────────────────────── */
+/* Single-colour brand marks on themed chips. */
+[data-theme="dark"] .lp img[src$="/logos/apps/github.svg"] {
+  filter: invert(1);
+}
+@media (max-width: 600px) {
+  .r3-ag-hero .ag-badge { height: 22px; padding: 1px 10px; gap: 5px; font-size: 10.5px; line-height: 18px; }
+  .r3-ag-hero .ag-badge svg { width: 11px; height: 11px; }
+}
