@@ -22,9 +22,7 @@ const instructionsOf = (agent: Record<string, unknown>): Record<string, unknown>
  */
 const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams>) => {
     const t = useT(instructionsViewCatalog, configItemsCatalog)
-    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "", {
-        readOnly: params.readOnly,
-    })
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     // The text the view opened with. A builder save meanwhile does not reset the person's edits.
     const [original] = useState(
         () => (instructionsOf(writer.agent).agents_md as string | null | undefined) ?? "",
@@ -33,7 +31,7 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
     useViewTitle(params.file)
     useViewForm({
         dirty: draft !== original,
-        valid: !params.readOnly,
+        valid: !writer.readOnly,
         leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
         save: async () => {
             writer.update((agent) => ({
@@ -48,7 +46,7 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
             <MarkdownEditor
                 value={draft}
                 onChange={setDraft}
-                disabled={params.readOnly}
+                disabled={writer.readOnly}
                 autoFocus
                 showToolbar
                 defaultView="rendered"

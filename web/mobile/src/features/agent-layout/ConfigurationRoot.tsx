@@ -101,7 +101,7 @@ export const ConfigurationRoot = ({
                 className="min-h-0 flex-1"
             >
                 {panel.configTab === "agent" ? (
-                    <ConfigPane entityId={revisionId} projectId={projectId} />
+                    <ConfigPane entityId={revisionId} />
                 ) : panel.configTab === "automations" ? (
                     <AutomationsTab
                         revisionId={revisionId}

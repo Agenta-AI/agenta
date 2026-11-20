@@ -15,19 +15,15 @@ import {rememberModelPick} from "../rememberModelPick"
 import {ModelHarnessSectionBody} from "../sections/ModelHarnessSectionBody"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
-export interface ModelViewParams {
-    readOnly?: boolean
-}
+export type ModelViewParams = Record<string, never>
 
 /**
  * Today's model list. A pick changes the agent configuration at once; auto-save then saves the
  * version, so the view has Done and no form.
  */
-const ModelViewBody = ({params, target}: ViewProps<ModelViewParams>) => {
+const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
     const t = useT(agentTemplateCatalog)
-    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "", {
-        readOnly: params.readOnly,
-    })
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const store = useStore()
     // The server's needs-setup check of the model; a personal requirement is each runner's own.
     const requirements = useAtomValue(agentRequirementsAtomFamily(writer.revisionId))
@@ -49,7 +45,7 @@ const ModelViewBody = ({params, target}: ViewProps<ModelViewParams>) => {
                     )
                         rememberModelPick(store, next)
                 }}
-                disabled={params.readOnly}
+                disabled={writer.readOnly}
                 revisionId={writer.revisionId}
                 // A model the chosen key no longer offers: list only that key's models.
                 onlyCurrentConnection={modelReq?.kind === "model"}

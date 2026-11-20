@@ -25,9 +25,7 @@ const noCreate = () => undefined
 
 const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewParams>) => {
     const t = useT(integrationViewsCatalog)
-    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "", {
-        readOnly: params.readOnly,
-    })
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const configRef = useRef(writer.agent)
     configRef.current = writer.agent
     const onChange = useCallback(
@@ -99,7 +97,7 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                             setIntegrationToolPermission(integrationTarget, toolKey, permission)
                         }
                         agentPolicy={readRunnerPermission(writer.agent)}
-                        disabled={params.readOnly}
+                        disabled={writer.readOnly}
                         account={
                             row.entry ? (
                                 <IntegrationAccountBlock
@@ -109,7 +107,7 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                                     onChange={(account) =>
                                         setIntegrationAccount(integrationTarget, account)
                                     }
-                                    disabled={params.readOnly}
+                                    disabled={writer.readOnly}
                                 />
                             ) : undefined
                         }
@@ -118,7 +116,7 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                     <UnmigratedNotice target={integrationTarget} />
                 )}
             </div>
-            {params.readOnly ? null : (
+            {writer.readOnly ? null : (
                 <div className="shrink-0 px-4 py-2">
                     <Button
                         variant="ghost"

@@ -7,7 +7,6 @@ import {lazyView} from "./lazyView"
 export interface InstructionsViewParams {
     /** The instruction file. One today: AGENTS.md (`instructions.agents_md`). */
     file: "AGENTS.md"
-    readOnly?: boolean
 }
 
 /** The AGENTS.md editor, edge to edge, with Cancel and Save (F01 f3). */

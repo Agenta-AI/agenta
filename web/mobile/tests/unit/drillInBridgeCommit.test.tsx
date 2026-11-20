@@ -40,6 +40,10 @@ vi.mock("@/features/agent-layout/ConfigurationRoot", () => ({
     ConfigurationRoot: () => <CommitsRevision />,
 }))
 vi.mock("@/features/agent-layout/StackGuards", () => ({StackGuards: () => null}))
+vi.mock("@/features/context/useProjectPermission", async (original) => ({
+    ...(await original<object>()),
+    useProjectPermissionState: () => ({pending: false, allowed: true}),
+}))
 
 const panel: AgentPanelApi = {
     content: "configuration",

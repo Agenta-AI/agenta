@@ -8,7 +8,6 @@ import {lazyView} from "./lazyView"
 export interface IntegrationViewParams {
     /** The integration, by its key in the agent's tools. */
     item: ConfigItemRef
-    readOnly?: boolean
 }
 
 /**

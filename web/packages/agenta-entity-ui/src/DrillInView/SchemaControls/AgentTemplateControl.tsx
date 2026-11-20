@@ -98,7 +98,7 @@ import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
 import {SubagentDrawerContainer} from "./agentTemplate/SubagentDrawerContainer"
 import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
-import {AgentRevisionContext} from "./agentTemplate/useAgentConfigWriter"
+import {AgentEditorContext, type AgentEditor} from "./agentTemplate/useAgentConfigWriter"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -184,6 +184,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Rows and "+" open views: in the container's stack, or, in a host with none, in a drawer.
     const views = useViewOpener()
     const openView = views.open
+    const editor = useMemo<AgentEditor | null>(
+        () => (revisionId ? {revisionId, readOnly: Boolean(disabled)} : null),
+        [revisionId, disabled],
+    )
     const viewTarget = useMemo<ViewTarget | null>(
         () => (revisionId ? {kind: "agent_draft", revisionId} : null),
         [revisionId],
@@ -194,7 +198,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (viewTarget) void openView(integrationAddView, {}, viewTarget)
     }, [openView, viewTarget])
     const openModel = useCallback(() => {
-        if (viewTarget) void openView(modelView, {readOnly: disabled}, viewTarget)
+        if (viewTarget) void openView(modelView, {}, viewTarget)
     }, [openView, viewTarget, disabled])
     // The integration whose remove dialog is open (F06 f2).
     const [removingIntegration, setRemovingIntegration] = useState<IntegrationRow | null>(null)
@@ -232,8 +236,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     // The instructions file list (one AGENTS.md today): a row opens the editor view.
     const openInstruction = useCallback(() => {
-        if (viewTarget)
-            void openView(instructionsView, {file: "AGENTS.md", readOnly: disabled}, viewTarget)
+        if (viewTarget) void openView(instructionsView, {file: "AGENTS.md" as const}, viewTarget)
     }, [openView, viewTarget, disabled])
 
     // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
@@ -508,11 +511,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         (row: IntegrationRow) => {
             migrateIntegrationEntries({provider: row.provider, integration: row.integration})
             if (viewTarget)
-                void openView(
-                    integrationView,
-                    {item: integrationItemRef(row), readOnly: disabled},
-                    viewTarget,
-                )
+                void openView(integrationView, {item: integrationItemRef(row)}, viewTarget)
         },
         [migrateIntegrationEntries, openView, viewTarget, disabled],
     )
@@ -1351,10 +1350,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 />
             )}
 
-            {/* A view in this drawer follows the revision on screen, as auto-save replaces it. */}
-            <AgentRevisionContext.Provider value={revisionId}>
-                {views.drawer}
-            </AgentRevisionContext.Provider>
+            {/* A view in this drawer follows the revision on screen and the edit right. */}
+            <AgentEditorContext.Provider value={editor}>{views.drawer}</AgentEditorContext.Provider>
             {removingIntegration ? (
                 <IntegrationRemoveDialog
                     row={removingIntegration}

@@ -10,7 +10,7 @@ import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {
-    AgentRevisionContext,
+    AgentEditorContext,
     useAgentConfigWriter,
     type AgentConfigWriter,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter"
@@ -26,10 +26,20 @@ vi.mock("@agenta/entities/workflow", async () => {
         if (!byId.has(id)) byId.set(id, makeAtom(configs[id] ?? null))
         return byId.get(id)!
     }
+    const saved = new Map<string, PrimitiveAtom<unknown>>()
+    const serverConfiguration = (id: string) => {
+        if (!saved.has(id)) saved.set(id, makeAtom({agent: {instructions: {agents_md: "saved"}}}))
+        return saved.get(id)!
+    }
     const updateConfiguration = makeAtom(null, (_get, set, id: string, params: unknown) =>
         set(configuration(id), params),
     )
-    return {workflowMolecule: {selectors: {configuration}, actions: {updateConfiguration}}}
+    return {
+        workflowMolecule: {
+            selectors: {configuration, serverConfiguration},
+            actions: {updateConfiguration},
+        },
+    }
 })
 
 vi.mock("../../src/DrillInView/components/PlaygroundConfigSection/atoms", () => ({
@@ -47,7 +57,7 @@ const Probe = ({revisionId}: {revisionId: string}) => {
 }
 
 /** `shown` is the revision the container shows now, when it provides one. */
-const mount = async (revisionId: string, shown?: string) => {
+const mount = async (revisionId: string, shown?: string, readOnly = false) => {
     const probe = createElement(Probe, {revisionId})
     await act(async () =>
         root.render(
@@ -56,7 +66,11 @@ const mount = async (revisionId: string, shown?: string) => {
                 {store},
                 shown === undefined
                     ? probe
-                    : createElement(AgentRevisionContext.Provider, {value: shown}, probe),
+                    : createElement(
+                          AgentEditorContext.Provider,
+                          {value: {revisionId: shown, readOnly}},
+                          probe,
+                      ),
             ),
         ),
     )
@@ -103,6 +117,15 @@ describe("useAgentConfigWriter", () => {
             tools: [1],
             llm: {model: "m"},
         })
+    })
+
+    it("without the edit right, shows the saved configuration and writes nothing", async () => {
+        await mount("rev-1", "rev-1", true)
+        expect(writer.readOnly).toBe(true)
+        expect(writer.agent).toEqual({instructions: {agents_md: "saved"}})
+        const next = vi.fn((agent: Record<string, unknown>) => agent)
+        await act(async () => writer.update(next))
+        expect(next).not.toHaveBeenCalled()
     })
 
     it("writes nothing while the configuration has not loaded", async () => {

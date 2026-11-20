@@ -52,6 +52,7 @@ const {writer, created} = vi.hoisted(() => ({
         agent: {} as Record<string, unknown>,
         schema: null,
         revisionId: "rev-1",
+        readOnly: false,
         update: null as unknown as (
             next: (agent: Record<string, unknown>) => Record<string, unknown>,
         ) => void,

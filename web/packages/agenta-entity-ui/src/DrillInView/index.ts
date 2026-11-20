@@ -461,8 +461,9 @@ export {
 } from "./SchemaControls/skillDownload"
 export type {SkillDownload} from "./SchemaControls/skillDownload"
 
-// The revision a container shows now; its open agent views follow it.
-export {AgentRevisionContext} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
+// The agent a container shows now (revision, edit right); its open agent views follow it.
+export {AgentEditorContext} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
+export type {AgentEditor} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
 
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the
 // control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,

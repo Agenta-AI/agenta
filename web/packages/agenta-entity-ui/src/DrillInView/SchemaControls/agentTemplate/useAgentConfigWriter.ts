@@ -3,9 +3,10 @@
  * revision. It writes the same draft the configuration section writes, so auto-save saves the
  * change as a new version, as production does. A view never writes the config another way.
  *
- * Auto-save replaces the revision while a view stays open (a picker adds two apps in a row). The
- * container that shows the agent says which revision it shows now ({@link AgentRevisionContext}),
- * and its open views follow it, so a next write starts from the saved configuration.
+ * Auto-save replaces the revision while a view stays open (a picker adds two apps in a row), and
+ * the edit right can arrive after a view opened. The container that shows the agent says which
+ * revision it shows now and whether it may edit it ({@link AgentEditorContext}); its open views
+ * follow both.
  */
 import {createContext, useCallback, useContext, useMemo} from "react"
 
@@ -24,11 +25,17 @@ const agentOf = (parameters: unknown): Config => {
     return agent && typeof agent === "object" ? (agent as Config) : EMPTY
 }
 
+/** The agent a container shows now: the revision on screen, and whether it may be edited. */
+export interface AgentEditor {
+    revisionId: string
+    readOnly: boolean
+}
+
 /**
- * The revision of the agent the container shows now. A container that hosts agent views provides
- * it around its view stack; outside one, a view writes the revision of its target.
+ * Provided by a container that hosts agent views, around its view stack. Without it a view writes
+ * the revision of its target and may edit.
  */
-export const AgentRevisionContext = createContext<string | null>(null)
+export const AgentEditorContext = createContext<AgentEditor | null>(null)
 
 export interface AgentConfigWriter {
     /** The agent configuration as edited (local draft first). */
@@ -37,6 +44,8 @@ export interface AgentConfigWriter {
     schema: SchemaProperty | null
     /** The revision the writes land on: the container's current one, else the view's target. */
     revisionId: string
+    /** No edit right: the view shows the saved configuration and writes nothing. */
+    readOnly: boolean
     /**
      * Replace the agent configuration. `next` gets the latest configuration at write time. Nothing
      * is written while the revision's configuration has not loaded.
@@ -44,13 +53,11 @@ export interface AgentConfigWriter {
     update: (next: (agent: Config) => Config) => void
 }
 
-export const useAgentConfigWriter = (
-    targetRevisionId: string,
-    /** A read-only view shows the saved configuration, not a local draft, and writes nothing. */
-    {readOnly = false}: {readOnly?: boolean} = {},
-): AgentConfigWriter => {
+export const useAgentConfigWriter = (targetRevisionId: string): AgentConfigWriter => {
     const store = useStore()
-    const revisionId = useContext(AgentRevisionContext) ?? targetRevisionId
+    const editor = useContext(AgentEditorContext)
+    const revisionId = editor?.revisionId ?? targetRevisionId
+    const readOnly = editor?.readOnly ?? false
     const configurationAtom = workflowMolecule.selectors.configuration(revisionId)
     const agent = agentOf(
         useAtomValue(
@@ -78,5 +85,5 @@ export const useAgentConfigWriter = (
         },
         [store, configurationAtom, revisionId, readOnly],
     )
-    return {agent, schema, revisionId, update}
+    return {agent, schema, revisionId, readOnly, update}
 }
