@@ -9,6 +9,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {AgentTemplateSectionList} from "../../src/DrillInView/SchemaControls/agentTemplate/AgentTemplateSectionList"
+import {SectionPageAction} from "../../src/DrillInView/SchemaControls/agentTemplate/SectionPageAction"
 import {
     SectionListLayoutContext,
     type SectionListLayout,
@@ -38,7 +39,7 @@ const sections = [
         title: "Model",
         summary: "Claude Code · Claude Sonnet 5.5",
         onOpen: openModel,
-        pageAction: createElement("button", {type: "button", onClick: openModel}, "Change"),
+        pageAction: createElement(SectionPageAction, {action: "change", onClick: openModel}),
         content: null,
     },
     {
@@ -46,7 +47,8 @@ const sections = [
         title: "Skills",
         summary: "2 skills",
         extra: createElement("button", {type: "button"}, "+"),
-        pageAction: createElement("button", {type: "button", onClick: addSkill}, "Add"),
+        pageAction: createElement(SectionPageAction, {action: "add", onClick: addSkill}),
+        indicator: {tone: "draft" as const},
         defaultOpen: false,
         content: createElement("p", null, "skill rows"),
     },
@@ -71,9 +73,26 @@ describe("AgentTemplateSectionList on the Configuration page", () => {
         const skills = container.querySelector("[data-config-section=skills]")!
         expect(skills.getAttribute("data-config-section-title")).toBe("Skills")
         // Content shows although the section is not open by default; the header "+" does not.
-        expect(skills.textContent).toBe("SkillsAddskill rows")
-        act(() => (skills.querySelector("button") as HTMLButtonElement).click())
+        expect(skills.textContent).toContain("skill rows")
+        expect(skills.textContent).not.toContain("+")
+        const add = skills.querySelector("button") as HTMLButtonElement
+        expect(add.textContent).toBe("Add")
+        expect(add.disabled).toBe(false)
+        act(() => add.click())
         expect(addSkill).toHaveBeenCalledTimes(1)
+        expect(
+            [...container.querySelectorAll("[data-config-section=model-harness] button")].map(
+                (b) => b.textContent,
+            ),
+        ).toContain("Change")
+    })
+
+    it("keeps the section's change dot after its title", () => {
+        renderList("page")
+        const title = container.querySelector("[data-config-section=skills] h3")!
+        expect(title.querySelector("span[aria-hidden]")).not.toBeNull()
+        const model = container.querySelector("[data-config-section=model-harness] h3")!
+        expect(model.querySelector("span[aria-hidden]")).toBeNull()
     })
 
     it("draws a section that opens a view as one row that opens it", () => {

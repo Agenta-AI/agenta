@@ -58,7 +58,6 @@ export const skillsSection = ({
                 .join(", ") || tNow("common.none"),
         indicator: sectionIndicator("skills"),
         extra: !disabled ? <SkillsAddMenu t={t} onManual={handleAddSkill} /> : undefined,
-        // On the Configuration page "Add" opens the add flow.
         pageAction: !disabled ? (
             <SectionPageAction action="add" onClick={handleAddSkill} />
         ) : undefined,

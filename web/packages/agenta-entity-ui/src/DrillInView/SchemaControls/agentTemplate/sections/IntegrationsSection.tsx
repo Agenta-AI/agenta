@@ -67,7 +67,6 @@ export const integrationsSection = ({
                     manualIcon={<Wrench size={16} />}
                 />
             ) : undefined,
-        // On the Configuration page "Add" opens the catalog.
         pageAction:
             !disabled && openAddIntegration ? (
                 <SectionPageAction action="add" onClick={openAddIntegration} />
