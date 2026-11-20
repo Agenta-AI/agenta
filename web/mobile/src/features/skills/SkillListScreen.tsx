@@ -148,18 +148,15 @@ export const SkillListScreen = ({
         setOpenedLink(linkedSkill)
         // The drawer resolves the skill by its workflow slug, archived skills included, so a
         // skill this list leaves out (archived, or not on this page) still opens.
-        const row = rows.find((r) => r.item.workflowSlug === linkedSkill)
-        setDetailSkill(
-            row?.item ?? {
-                id: linkedSkill,
-                slug: linkedSkill,
-                workflowSlug: linkedSkill,
-                name: linkedSkill,
-                origin: "project",
-            },
-        )
+        setDetailSkill({
+            id: linkedSkill,
+            slug: linkedSkill,
+            workflowSlug: linkedSkill,
+            name: linkedSkill,
+            origin: "project",
+        })
         setDetailOpen(true)
-    }, [linkedSkill, openedLink, rows])
+    }, [linkedSkill, openedLink])
     // The drawer's Used-by names lead to the agent.
     const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
     const [importOpen, setImportOpen] = useState(false)
