@@ -137,5 +137,17 @@
     "writeDone": "Wrote",
     "writeFileDone": "Wrote a file",
     "writeFileRunning": "Writing a file",
-    "writeRunning": "Writing"
+    "writeRunning": "Writing",
+    "forSearchQuery": "for {{query}}",
+    "termTrace": "a trace",
+    "termSchedule": "a schedule",
+    "termSchedules": "schedules",
+    "termTool": "a tool",
+    "termTools": "tools",
+    "termTriggers": "triggers",
+    "termConnections": "connections",
+    "termDeliveries": "deliveries",
+    "termChannelDestinations": "channel destinations",
+    "termChannelMessages": "channel messages",
+    "termChannelMessage": "channel message"
 }

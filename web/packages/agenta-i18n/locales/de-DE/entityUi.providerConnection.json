@@ -38,5 +38,18 @@
     "anyHarness": "jeder von Agenta unterstützte Harness",
     "noHarnessSelected": "kein Harness ausgewählt",
     "enabledInHarness": "aktiviert in {{harness}}",
-    "enabledInHarnesses": "aktiviert in {{harnesses}} und {{last}}"
+    "testNoteKey": "Testen prüft den Schlüssel bei {{provider}} und ruft die Modellliste ab. Erst mit „Fertig“ wird etwas gespeichert.",
+    "testNoteEndpoint": "Testen kontaktiert den Endpunkt und ruft die Modellliste ab. Erst mit „Fertig“ wird etwas gespeichert.",
+    "addModelIdApi": "Eine Modell-ID hinzufügen, die die API nicht auflistet",
+    "addModelIdEndpoint": "Eine Modell-ID hinzufügen, die der Endpunkt nicht auflistet",
+    "modelsFetched_one": "{{count}} Modell abgerufen",
+    "modelsFetched_other": "{{count}} Modelle abgerufen",
+    "activeModelsCount": "{{checked}} von {{total}}",
+    "connectionGone": "Diese Verbindung existiert nicht mehr. Laden Sie die Seite neu und versuchen Sie es erneut.",
+    "couldNotReach": "Agenta konnte {{provider}} nicht erreichen, um diese Zugangsdaten zu testen.",
+    "keyConfiguredLabel": "Schlüssel konfiguriert",
+    "modelCount_one": "{{count}} Modell",
+    "modelCount_other": "{{count}} Modelle",
+    "savedUntested": "Dieser Anbieter bietet keine kostenlose Prüfung der Zugangsdaten, daher wird der Schlüssel ungetestet gespeichert.",
+    "testBeforeSaving": "Testen Sie diese Zugangsdaten, bevor Sie sie speichern."
 }

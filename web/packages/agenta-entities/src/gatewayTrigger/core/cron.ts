@@ -117,7 +117,7 @@ export function describeCron(expression: string, text: ScheduleText): string {
         if (/^[\d,-]+$/.test(dow)) {
             const days = expandDayList(dow)
             if (days.length)
-                return text.cronDaysAt(days.map((day) => text.dayLong(day)).join(", "), time)
+                return text.cronDaysAt(text.enumerate(days.map((day) => text.dayLong(day))), time)
         }
     }
 

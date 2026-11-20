@@ -23,5 +23,7 @@
     "orgLoadFailed": "Impossible de charger les connexions de l’organisation.",
     "removeFailed": "Agenta n’a pas pu retirer {{name}}. Réessayez.",
     "signInAgain": "Se reconnecter",
-    "vertexFields": "Projet, emplacement et identifiants"
+    "vertexFields": "Projet, emplacement et identifiants",
+    "modelsDefaults": "Par défaut",
+    "modelsActive": "{{active}} sur {{total}} actifs"
 }

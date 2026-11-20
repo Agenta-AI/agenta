@@ -1737,7 +1737,19 @@
         "writeDone": "4271706273b6",
         "writeFileDone": "bd7b4f2aa077",
         "writeFileRunning": "8820b22786d9",
-        "writeRunning": "a8bfae3eee94"
+        "writeRunning": "a8bfae3eee94",
+        "forSearchQuery": "40912452b2f0",
+        "termTrace": "f58ff82e405e",
+        "termSchedule": "efe5bc15ef40",
+        "termSchedules": "6e9a1ab2a01b",
+        "termTool": "38af692dd9d8",
+        "termTools": "f9d35d43770d",
+        "termTriggers": "51936fd380f6",
+        "termConnections": "1e5fac867454",
+        "termDeliveries": "f69b1725bd4a",
+        "termChannelDestinations": "c9d9b1b0ebdc",
+        "termChannelMessages": "da18ea0f2de9",
+        "termChannelMessage": "9c298a0fa3e1"
     },
     "chat.turnActivity": {
         "waiting": "9f760ab20739",
@@ -3573,7 +3585,21 @@
         "showAll": "8b5e93d49d93",
         "fetched": "a897f546da1d",
         "refetch": "b2cf9c137f5a",
-        "apiKeyPlaceholder": "fad7ae6b940a"
+        "apiKeyPlaceholder": "fad7ae6b940a",
+        "testNoteKey": "83b6c80e3208",
+        "testNoteEndpoint": "54077ae459c1",
+        "addModelIdApi": "55461a8d6ca4",
+        "addModelIdEndpoint": "534cec6b3e7f",
+        "modelsFetched_one": "931bcc6bb5f2",
+        "modelsFetched_other": "98b2c4f1127f",
+        "activeModelsCount": "e4cfc6cf67fb",
+        "connectionGone": "2c0ef865c20c",
+        "couldNotReach": "244f58010e97",
+        "keyConfiguredLabel": "2ff5cb51f5de",
+        "modelCount_one": "602767f3938e",
+        "modelCount_other": "b8da2febc493",
+        "savedUntested": "6b1a7a916978",
+        "testBeforeSaving": "aef3492f92a5"
     },
     "entityUi.providerCredentials": {
         "openaiCompatible": "be400a6edf75",
@@ -3689,7 +3715,9 @@
         "timeUtc": "da59e0e45c51",
         "runTimeAria": "3bf5c1ba3b9d",
         "removeTime": "bc06853c0e12",
-        "add": "9fd728c66c9a"
+        "add": "9fd728c66c9a",
+        "hoursChip": "31a27385799a",
+        "cronPlaceholder": "49942efdb7b4"
     },
     "entityUi.scheduleText": {
         "atTimesUtc": "ec2ecb49ead0",
@@ -4067,7 +4095,16 @@
         "browserOpens": "5f49fc72b4af",
         "pasteTokenPrints": "9b103c3ef87c",
         "tokenWorksOneYear": "5bcaf232c1e8",
-        "connectedStatus": "22965568d22a"
+        "connectedStatus": "22965568d22a",
+        "signInNeeded": "ead5a0c8624a",
+        "notSignedIn": "491fc91cd76e",
+        "signInNoLongerValid": "a0e77a3d3254",
+        "signInNeedsRenewal": "0a3933388a0d",
+        "attemptLost": "e7963b22a9df",
+        "attemptInvalidLogin": "ab2dc286feaa",
+        "attemptDeclined": "4fd8789f9154",
+        "attemptIncomplete": "a14f2fb7660d",
+        "startedWithoutCode": "ecf323f27e72"
     },
     "entityUi.templateFormat": {
         "promptSyntax": "95fbf38278b0"
@@ -6470,7 +6507,9 @@
         "orgLoadFailed": "ba9628293a74",
         "removeFailed": "655599d649c0",
         "signInAgain": "51fbe1dc8a73",
-        "vertexFields": "e863b6c19e06"
+        "vertexFields": "e863b6c19e06",
+        "modelsDefaults": "610b7468ce69",
+        "modelsActive": "dd382a8d56d2"
     },
     "settings.resetPasswordLinkDialog": {
         "emailed": "70f29e943735",

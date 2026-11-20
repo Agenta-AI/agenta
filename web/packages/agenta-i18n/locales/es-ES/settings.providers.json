@@ -23,5 +23,7 @@
     "orgLoadFailed": "No hemos podido cargar las conexiones de la organización.",
     "removeFailed": "Agenta no ha podido quitar {{name}}. Inténtalo de nuevo.",
     "signInAgain": "Iniciar sesión de nuevo",
-    "vertexFields": "Proyecto, ubicación y credenciales"
+    "vertexFields": "Proyecto, ubicación y credenciales",
+    "modelsDefaults": "Predeterminados",
+    "modelsActive": "{{active}} de {{total}} activos"
 }

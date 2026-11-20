@@ -259,7 +259,7 @@ export function ScheduleBuilderPanel({
                                 active={n === builder.everyNHours}
                                 onClick={() => emit({...builder, everyNHours: n})}
                             >
-                                {n}h
+                                {t("entityUi.scheduleBuilder.hoursChip", {hours: n})}
                             </Chip>
                         ))}
                     </ChipRow>
@@ -281,7 +281,7 @@ export function ScheduleBuilderPanel({
                 <div className="flex flex-col gap-1.5">
                     <FieldLabel>{t("entityUi.scheduleBuilder.expression")}</FieldLabel>
                     <Input
-                        placeholder="minute hour day month weekday (UTC)"
+                        placeholder={t("entityUi.scheduleBuilder.cronPlaceholder")}
                         value={value}
                         onChange={(e) => setCronText(e.target.value)}
                         aria-invalid={validation.valid ? undefined : true}

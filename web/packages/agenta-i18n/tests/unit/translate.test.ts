@@ -3,7 +3,7 @@ import {afterEach, describe, expect, it} from "vitest"
 
 import {createEnglishT, createT, defineCatalog} from "../../src/catalog"
 import {byLanguage} from "./byLanguage"
-import {formatDate, formatNumber, richText} from "../../src/index"
+import {formatDate, formatList, formatNumber, richText} from "../../src/index"
 import {activeLanguageAtom, getActiveLanguage, type Language} from "../../src/language"
 import {catalogVersionAtom, loadLanguage} from "../../src/registry"
 import {translate} from "../../src/translate"
@@ -109,6 +109,19 @@ describe("t in Chinese", () => {
         expect(formatNumber(1234.5)).toBe(new Intl.NumberFormat(undefined).format(1234.5))
         await activateLanguage("zh-CN")
         expect(formatDate(date, options)).toBe("2026年10月12日")
+    })
+
+    it("joins a list with the separator of the active language", async () => {
+        const items = ["Pi", "Claude Code", "Codex"]
+        expect(formatList(items)).toBe("Pi, Claude Code, Codex")
+        expect(formatList(items.slice(0, 2))).toBe("Pi, Claude Code")
+        expect(formatList(items, {type: "conjunction", style: "long"})).toBe(
+            "Pi, Claude Code and Codex",
+        )
+        await activateLanguage("ja-JP")
+        expect(formatList(items)).toBe("Pi、Claude Code、Codex")
+        await activateLanguage("zh-CN")
+        expect(formatList(items)).toBe("Pi、Claude Code、Codex")
     })
 
     it("reads the active language from the store", () => {

@@ -38,5 +38,20 @@
     "anyHarness": "cualquier harness compatible con Agenta",
     "noHarnessSelected": "ningún harness seleccionado",
     "enabledInHarness": "habilitado en {{harness}}",
-    "enabledInHarnesses": "habilitado en {{harnesses}} y {{last}}"
+    "testNoteKey": "Probar comprueba la clave con {{provider}} y obtiene su lista de modelos. No se guarda nada hasta que pulses Listo.",
+    "testNoteEndpoint": "Probar contacta con el endpoint y obtiene su lista de modelos. No se guarda nada hasta que pulses Listo.",
+    "addModelIdApi": "Añade un ID de modelo que la API no incluye",
+    "addModelIdEndpoint": "Añade un ID de modelo que el endpoint no incluye",
+    "modelsFetched_one": "{{count}} modelo obtenido",
+    "modelsFetched_many": "{{count}} de modelos obtenidos",
+    "modelsFetched_other": "{{count}} modelos obtenidos",
+    "activeModelsCount": "{{checked}} de {{total}}",
+    "connectionGone": "Esta conexión ya no existe. Recarga la página y vuelve a intentarlo.",
+    "couldNotReach": "Agenta no ha podido contactar con {{provider}} para probar esta credencial.",
+    "keyConfiguredLabel": "Clave configurada",
+    "modelCount_one": "{{count}} modelo",
+    "modelCount_many": "{{count}} de modelos",
+    "modelCount_other": "{{count}} modelos",
+    "savedUntested": "Este proveedor no ofrece una comprobación gratuita de credenciales, así que la clave se guarda sin probar.",
+    "testBeforeSaving": "Prueba esta credencial antes de guardarla."
 }

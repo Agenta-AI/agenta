@@ -38,5 +38,16 @@
     "anyHarness": "Agenta が対応するすべてのハーネス",
     "noHarnessSelected": "ハーネスが選択されていません",
     "enabledInHarness": "{{harness}} で有効",
-    "enabledInHarnesses": "{{harnesses}} と {{last}} で有効"
+    "testNoteKey": "テストでは {{provider}} でキーを確認し、モデル一覧を取得します。「完了」を押すまで何も保存されません。",
+    "testNoteEndpoint": "テストではエンドポイントに接続し、モデル一覧を取得します。「完了」を押すまで何も保存されません。",
+    "addModelIdApi": "API に載っていないモデル ID を追加",
+    "addModelIdEndpoint": "エンドポイントに載っていないモデル ID を追加",
+    "modelsFetched_other": "{{count}} 件のモデルを取得",
+    "activeModelsCount": "{{total}} 件中 {{checked}} 件",
+    "connectionGone": "この接続はもう存在しません。再読み込みしてもう一度お試しください。",
+    "couldNotReach": "Agenta は {{provider}} に接続できず、この認証情報をテストできませんでした。",
+    "keyConfiguredLabel": "キー設定済み",
+    "modelCount_other": "{{count}} 件のモデル",
+    "savedUntested": "このプロバイダーには無料の認証情報チェックがないため、キーはテストせずに保存されます。",
+    "testBeforeSaving": "保存する前にこの認証情報をテストしてください。"
 }

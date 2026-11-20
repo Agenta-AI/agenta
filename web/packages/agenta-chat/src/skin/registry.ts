@@ -322,10 +322,11 @@ const verbParts = (id: VerbId): {verb: ToolActivity; frame: ToolActivity} => ({
     frame: withObject(id, OBJECT_SLOT),
 })
 
-/** The frame of a verb a skin registered: the language's plain word order. */
-const plainFrame = (verb: ToolActivity): ToolActivity => ({
-    running: tNow("chat.toolActivity.withObjectRunning", {verb: verb.running, object: OBJECT_SLOT}),
-    done: tNow("chat.toolActivity.withObjectDone", {verb: verb.done, object: OBJECT_SLOT}),
+/** The frame of a verb a skin registered. The skin's sentence opens with that verb in every
+ * language, so the frame does too; the catalog's word order would not match the skin's words. */
+const registeredFrame = (verb: ToolActivity): ToolActivity => ({
+    running: `${verb.running} ${OBJECT_SLOT}`,
+    done: `${verb.done} ${OBJECT_SLOT}`,
 })
 
 /** A verb with nothing after it leads the row, so it starts with a capital ("Gelesen"). */
@@ -469,13 +470,25 @@ export const resolveActivityIcon = (kind: ToolKind, canonical: string): Activity
  * so `agent` is "the agent", never "an agent". */
 const PLATFORM_TERMS = {
     agent: "chat.toolActivity.termAgent",
+    "channel destinations": "chat.toolActivity.termChannelDestinations",
+    "channel message": "chat.toolActivity.termChannelMessage",
+    "channel messages": "chat.toolActivity.termChannelMessages",
     config: "chat.toolActivity.termConfig",
+    connections: "chat.toolActivity.termConnections",
+    deliveries: "chat.toolActivity.termDeliveries",
     revision: "chat.toolActivity.termRevision",
+    schedule: "chat.toolActivity.termSchedule",
+    schedules: "chat.toolActivity.termSchedules",
     session: "chat.toolActivity.termSession",
     span: "chat.toolActivity.termSpan",
     spans: "chat.toolActivity.termSpans",
     subscription: "chat.toolActivity.termSubscription",
     subscriptions: "chat.toolActivity.termSubscriptions",
+    tool: "chat.toolActivity.termTool",
+    tools: "chat.toolActivity.termTools",
+    trace: "chat.toolActivity.termTrace",
+    // Only `discover_triggers` says it, after "search for": German puts it in the dative.
+    triggers: "chat.toolActivity.termTriggers",
     workflow: "chat.toolActivity.termWorkflow",
     workflows: "chat.toolActivity.termWorkflows",
 } as const
@@ -614,7 +627,10 @@ const conjugate = (
             ? [appName, qualifierFor(asked, appName)].filter(Boolean).join(" ")
             : lent || PREPOSITION_VERBS.has(verbId)
               ? asked
-              : tNow("chat.toolActivity.forQuery", {query: asked})
+              : // German searches "nach" a query but finds or reads "für" it.
+                verbId === "search"
+                ? tNow("chat.toolActivity.forSearchQuery", {query: asked})
+                : tNow("chat.toolActivity.forQuery", {query: asked})
         return {
             activity: withObject(verbId, phrase),
             namedApp: Boolean(appName),
@@ -887,7 +903,11 @@ const lookupToolDisplay = (canonical: string): LookedUpEntry | undefined => {
     if (!base) return registered
     if (!registered) return base
     // A registered verb brings no frame, so the built-in one must not outlive its verb.
-    return registered.verb ? {...base, ...registered, frame: undefined} : {...base, ...registered}
+    if (registered.verb) return {...base, ...registered, frame: undefined}
+    // A registered sentence without a verb drops the built-in verb and frame too: the frame would
+    // put the object in place of the skin's words. A summary-only entry keeps both.
+    if (registered.activity) return {...base, ...registered, verb: undefined, frame: undefined}
+    return {...base, ...registered}
 }
 
 /**
@@ -941,7 +961,7 @@ export const resolveToolDisplay = (
         detail: toolDetail(raw, input, output),
         summary: override?.summary,
         verb: built?.verb,
-        frame: built?.frame ?? (built?.verb ? plainFrame(built.verb) : undefined),
+        frame: built?.frame ?? (built?.verb ? registeredFrame(built.verb) : undefined),
         icon: override?.icon ?? resolveActivityIcon(kind, canonical),
     }
 }

@@ -23,5 +23,7 @@
     "orgLoadFailed": "組織の接続を読み込めませんでした。",
     "removeFailed": "Agenta は {{name}} を削除できませんでした。もう一度お試しください。",
     "signInAgain": "再度サインイン",
-    "vertexFields": "プロジェクト、ロケーション、認証情報"
+    "vertexFields": "プロジェクト、ロケーション、認証情報",
+    "modelsDefaults": "デフォルト",
+    "modelsActive": "{{total}} 件中 {{active}} 件が有効"
 }

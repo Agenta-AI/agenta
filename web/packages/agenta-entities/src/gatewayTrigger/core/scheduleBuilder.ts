@@ -325,5 +325,5 @@ const LIST_CAP = 3
 
 function joinCapped(items: string[], text: ScheduleText): string {
     if (items.length <= LIST_CAP) return text.join(items)
-    return `${items.slice(0, LIST_CAP).join(", ")} +${items.length - LIST_CAP}`
+    return `${text.enumerate(items.slice(0, LIST_CAP))} +${items.length - LIST_CAP}`
 }

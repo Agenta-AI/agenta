@@ -38,5 +38,20 @@
     "anyHarness": "qualquer harness compatível com o Agenta",
     "noHarnessSelected": "nenhum harness selecionado",
     "enabledInHarness": "ativado em {{harness}}",
-    "enabledInHarnesses": "ativado em {{harnesses}} e {{last}}"
+    "testNoteKey": "Testar verifica a chave com {{provider}} e obtém a lista de modelos. Nada é salvo até você clicar em Concluir.",
+    "testNoteEndpoint": "Testar contata o endpoint e obtém a lista de modelos. Nada é salvo até você clicar em Concluir.",
+    "addModelIdApi": "Adicione um ID de modelo que a API não lista",
+    "addModelIdEndpoint": "Adicione um ID de modelo que o endpoint não lista",
+    "modelsFetched_one": "{{count}} modelo obtido",
+    "modelsFetched_many": "{{count}} de modelos obtidos",
+    "modelsFetched_other": "{{count}} modelos obtidos",
+    "activeModelsCount": "{{checked}} de {{total}}",
+    "connectionGone": "Esta conexão não existe mais. Recarregue a página e tente novamente.",
+    "couldNotReach": "O Agenta não conseguiu contatar {{provider}} para testar esta credencial.",
+    "keyConfiguredLabel": "Chave configurada",
+    "modelCount_one": "{{count}} modelo",
+    "modelCount_many": "{{count}} de modelos",
+    "modelCount_other": "{{count}} modelos",
+    "savedUntested": "Este provedor não oferece verificação gratuita de credenciais, então a chave é salva sem teste.",
+    "testBeforeSaving": "Teste esta credencial antes de salvá-la."
 }

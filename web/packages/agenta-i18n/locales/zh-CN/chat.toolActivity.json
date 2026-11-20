@@ -137,5 +137,17 @@
     "writeDone": "已写入",
     "writeFileDone": "已写入文件",
     "writeFileRunning": "正在写入文件",
-    "writeRunning": "正在写入"
+    "writeRunning": "正在写入",
+    "forSearchQuery": "“{{query}}”",
+    "termTrace": "追踪",
+    "termSchedule": "定时任务",
+    "termSchedules": "定时任务",
+    "termTool": "工具",
+    "termTools": "工具",
+    "termTriggers": "触发器",
+    "termConnections": "连接",
+    "termDeliveries": "投递记录",
+    "termChannelDestinations": "渠道目标",
+    "termChannelMessages": "渠道消息",
+    "termChannelMessage": "渠道消息"
 }

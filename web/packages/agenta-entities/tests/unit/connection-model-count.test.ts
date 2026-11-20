@@ -1,13 +1,10 @@
 /**
- * The connected row's ONE subtitle, and the model count it folds in.
- *
- * The drawer's Connected rows carry no pills and no second status text — everything the row knows
- * has to survive in this line, and a part with nothing to say has to disappear rather than leave a
- * dangling separator.
+ * The model count the connected row's subtitle folds in. The subtitle's text is pinned in
+ * @agenta/entity-ui (providerCardText.test.ts).
  */
 import {describe, expect, it} from "vitest"
 
-import {connectedRowSubtitle, connectionModelCount} from "../../src/secret/core/connectionSummary"
+import {connectionModelCount} from "../../src/secret/core/connectionSummary"
 import type {HarnessCapabilityMap, ProviderConnection} from "../../src/secret/core/connections"
 import {SecretKind} from "../../src/secret/core/types"
 
@@ -28,30 +25,6 @@ const capabilities: HarnessCapabilityMap = {
         default_models: {openai: ["gpt-5.6-sol", "gpt-5.6-terra"]},
     },
 }
-
-describe("connectedRowSubtitle", () => {
-    it("folds credential, model count, and harnesses into one line", () => {
-        expect(
-            connectedRowSubtitle({
-                credential: "sk-••••AAA",
-                modelCount: 3,
-                harnessLabels: ["Pi", "Claude Code"],
-            }),
-        ).toBe("sk-••••AAA · 3 models · Pi, Claude Code")
-    })
-
-    it("counts one model in the singular", () => {
-        expect(
-            connectedRowSubtitle({credential: "sk-••••AAA", modelCount: 1, harnessLabels: ["Pi"]}),
-        ).toBe("sk-••••AAA · 1 model · Pi")
-    })
-
-    it("drops a part with nothing to say rather than leaving a dangling separator", () => {
-        expect(connectedRowSubtitle({credential: "—", modelCount: 0, harnessLabels: []})).toBe(
-            "0 models",
-        )
-    })
-})
 
 describe("connectionModelCount", () => {
     it("counts the saved list when the connection has one", () => {

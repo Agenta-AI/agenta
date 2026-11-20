@@ -184,3 +184,16 @@ describe("englishScheduleText in another language", () => {
         expect(summarizeSchedule(weekly, scheduleTextNow())).not.toBe("Mon and Wed at 09:00 UTC")
     })
 })
+
+describe("scheduleTextNow in Japanese", () => {
+    afterEach(() => getDefaultStore().set(activeLanguageAtom, "en"))
+
+    it("lists days with the Japanese separator, not a comma", () => {
+        getDefaultStore().set(activeLanguageAtom, "ja-JP")
+        const text = scheduleTextNow()
+        const capped = describeCadence(state({cadence: "weekly", weekdays: [1, 2, 3, 4, 6]}), text)
+        expect(capped).toContain("、")
+        expect(capped).not.toContain(", ")
+        expect(describeCron("0 9 * * 1,3", text)).not.toContain(", ")
+    })
+})
