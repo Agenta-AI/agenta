@@ -22,6 +22,8 @@ interface SeenProps {
     emptyState?: ReactNode
     composerHeaderExtra?: ReactNode
     belowComposer?: ReactNode
+    newChatFooter?: ReactNode
+    newChatLayout?: "middle" | "top"
     composerPlaceholder?: string
     hideSlashCommands?: boolean
     userMessageAccessory?: (message: UIMessage) => ReactNode
@@ -56,6 +58,9 @@ vi.mock("@/features/chat/LiveConversation", async () => {
                     {props.emptyState}
                     <div data-testid="composer">{props.composerHeaderExtra}</div>
                     {props.belowComposer}
+                    <div data-testid="new-chat-footer" data-layout={props.newChatLayout}>
+                        {props.newChatFooter}
+                    </div>
                 </div>
             )
         },
@@ -262,6 +267,9 @@ describe("BuilderPanel: which chat opens", () => {
         expect(recent.textContent).toContain("Add the refund skill")
         expect(recent.textContent).toContain("3d")
         expect(recent.textContent).toContain("View all")
+        // S07: the intro, composer and quick actions in the middle, Recent chats at the bottom.
+        expect(byTestId("new-chat-footer")?.getAttribute("data-layout")).toBe("middle")
+        expect(byTestId("new-chat-footer")?.contains(recent)).toBe(true)
     })
 
     it("opens an old chat that still runs", async () => {
@@ -569,6 +577,11 @@ describe("BuilderPanel: on a phone (M04, M06)", () => {
         expect(test?.querySelector("svg")).not.toBeNull()
         expect(test?.className).toContain("h-10")
         expect(byTestId("builder-chat-row")?.className).toContain("h-11")
+        // M04: the intro, composer and quick actions at the top, Recent chats at the bottom.
+        expect(byTestId("new-chat-footer")?.getAttribute("data-layout")).toBe("top")
+        expect(
+            byTestId("new-chat-footer")?.querySelector('[data-testid="builder-recent-chats"]'),
+        ).not.toBeNull()
     })
 
     it("opens the history full screen with a back arrow to the chat, and Back returns to the same chat", async () => {

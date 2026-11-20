@@ -1,7 +1,12 @@
+import type {ComponentType} from "react"
+
 import type {CatalogKey} from "@agenta/i18n"
 import type builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 
 export type PageKey = CatalogKey<typeof builderPageCatalog>
+
+/** A glyph of an idea, a category or a quick action: a Phosphor icon or the Builder mark. */
+export type Glyph = ComponentType<{size?: number; className?: string}>
 
 /** The categories of "Browse ideas" (B02), after "All". */
 export const IDEA_CATEGORIES = [
@@ -63,8 +68,8 @@ export const IDEAS: readonly Idea[] = [
 ]
 
 /** The ideas of `category` whose title or prompt holds `search`, ignoring case. */
-export const filterIdeas = (
-    ideas: readonly {category: IdeaCategory; title: string; prompt: string}[],
+export const filterIdeas = <T extends {category: IdeaCategory; title: string; prompt: string}>(
+    ideas: readonly T[],
     category: IdeaCategory | "all",
     search: string,
 ) => {

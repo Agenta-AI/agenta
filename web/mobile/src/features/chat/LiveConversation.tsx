@@ -153,7 +153,10 @@ export const LiveConversation = ({
     beforeSend,
     emptyState,
     composerHeaderExtra,
+    aboveComposer,
     belowComposer,
+    newChatFooter,
+    newChatLayout,
     composerPlaceholder,
     inputRef,
     hideSlashCommands = false,
@@ -199,8 +202,14 @@ export const LiveConversation = ({
     emptyState?: ReactNode
     /** Inside the composer frame, above the editor (the builder's context chip). */
     composerHeaderExtra?: ReactNode
-    /** Under the composer (the builder's quick actions and recent chats). */
+    /** Directly above the composer while the chat is new (the builder page's quick actions). */
+    aboveComposer?: ReactNode
+    /** Under the composer (the builder's quick actions). */
     belowComposer?: ReactNode
+    /** At the bottom of a new chat, under everything else (the builder panel's recent chats). */
+    newChatFooter?: ReactNode
+    /** A new chat groups empty state, composer and `belowComposer` in the middle or at the top. */
+    newChatLayout?: "middle" | "top"
     /** The composer's placeholder when it is not gated. */
     composerPlaceholder?: string
     /** The host's handle on the composer input, so the host can write into it. */
@@ -981,6 +990,11 @@ export const LiveConversation = ({
         return () => document.removeEventListener("keydown", onKey)
     }, [scrollerRef])
 
+    // Loaded and empty: a chat that still loads its messages is not new yet.
+    const newChat = conversation.isEmpty && !conversation.isHydrating
+    // "middle" splits the free space above the group and the footer; "top" gives it to the footer.
+    const groupLayout = newChat ? newChatLayout : undefined
+
     let body
     if (conversation.isHydrating) {
         body = <ChatLoading />
@@ -1015,7 +1029,9 @@ export const LiveConversation = ({
                     // about to talk to. A blank session is not an error state — /m rendered nothing
                     // here, and for a freshly minted one it claimed the history was unavailable,
                     // which is a different and much more alarming thing to say.
-                    <div className="m-auto w-full max-w-[420px]">
+                    <div
+                        className={`${groupLayout === "middle" ? "mx-auto mt-auto" : groupLayout === "top" ? "mx-auto" : "m-auto"} w-full max-w-[420px]`}
+                    >
                         {emptyState ?? <AgentIntroCard entityId={entityId} />}
                         {conversation.historyReadFailed ? (
                             <div className="mt-3 flex flex-col items-center gap-2">
@@ -1065,6 +1081,13 @@ export const LiveConversation = ({
                 scrollRef={autoScroll.ref}
                 onScroll={autoScroll.onScroll}
                 embedded={embedded}
+                scrollClassName={
+                    groupLayout === "middle"
+                        ? "basis-auto"
+                        : groupLayout === "top"
+                          ? "grow-0 basis-auto"
+                          : undefined
+                }
                 // Edge fades as a MASK, only where content is clipped — the Home list's rule, so
                 // the first message reads crisp at the top and the bottom says there is more.
                 scrollStyle={{
@@ -1072,7 +1095,7 @@ export const LiveConversation = ({
                     WebkitMaskImage: autoScroll.edgeMask,
                 }}
                 footer={
-                    <div className="relative">
+                    <div className={groupLayout ? "relative flex grow flex-col" : "relative"}>
                         {/* What you have lined up stays visible while a gate is open: the queued
                         message is the acknowledgement that the user's Send was not lost. */}
                         {/* Not for a reader who cannot send: every row control (send now, edit,
@@ -1221,6 +1244,7 @@ export const LiveConversation = ({
                                 }}
                             />
                         ) : null}
+                        {newChat ? aboveComposer : null}
                         {readOnly ? (
                             <ReadOnlyComposerNotice text={readOnly.notice} />
                         ) : (
@@ -1297,6 +1321,9 @@ export const LiveConversation = ({
                             />
                         )}
                         {belowComposer}
+                        {newChat && newChatFooter ? (
+                            <div className="mt-auto">{newChatFooter}</div>
+                        ) : null}
                     </div>
                 }
             >

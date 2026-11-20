@@ -24,7 +24,7 @@ const calls = vi.hoisted(() => ({
 const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
 const modelSetup = vi.hoisted(() => ({blocked: false, loading: false, canFix: false}))
 const personalSetup = vi.hoisted(() => ({open: false}))
-const engine = vi.hoisted(() => ({isEmpty: false}))
+const engine = vi.hoisted(() => ({isEmpty: false, isHydrating: false}))
 
 const approval = {approvalId: "gate-1", toolName: "send_email"}
 
@@ -39,7 +39,7 @@ vi.mock("@agenta/chat/hooks", () => ({
             },
         ],
         turns: [{id: "t1", hidden: false, isUser: false, message: {}}],
-        isHydrating: false,
+        isHydrating: engine.isHydrating,
         isEmpty: engine.isEmpty,
         queued: [{id: "q1", text: "queued text"}],
         editingId: null,
@@ -213,12 +213,14 @@ vi.mock("@/components/ScreenScaffold", () => ({
         children,
         footer,
         scrollRef,
+        scrollClassName,
     }: {
         children: ReactNode
         footer?: ReactNode
         scrollRef?: React.Ref<HTMLDivElement>
+        scrollClassName?: string
     }) => (
-        <div ref={scrollRef}>
+        <div ref={scrollRef} data-testid="scroller" data-scroll-class={scrollClassName ?? ""}>
             {children}
             {footer}
         </div>
@@ -329,6 +331,7 @@ let root: Root
 
 beforeEach(() => {
     engine.isEmpty = true
+    engine.isHydrating = false
     composerSeen.inputRef = undefined
     host = document.createElement("div")
     document.body.append(host)
@@ -401,6 +404,55 @@ describe("LiveConversation slots", () => {
         expect(byId("below")).not.toBeNull()
         // The accessory gets the stored message, full text and metadata included.
         expect(byId("sent-chip")?.textContent).toBe("seen")
+    })
+
+    it("shows the new chat slots around the composer only while the chat is new and loaded", async () => {
+        const slots = {
+            aboveComposer: <div data-testid="above" />,
+            belowComposer: <div data-testid="below" />,
+            newChatFooter: <div data-testid="footer" />,
+        }
+        await render(slots)
+        const order = [...host.querySelectorAll("[data-testid]")]
+            .map((node) => node.getAttribute("data-testid"))
+            .filter((id) => ["above", "composer", "below", "footer"].includes(id ?? ""))
+        expect(order).toEqual(["above", "composer", "below", "footer"])
+
+        // A chat that still loads its messages is not new: no quick actions, no recent chats.
+        engine.isHydrating = true
+        await render(slots)
+        expect(byId("above")).toBeNull()
+        expect(byId("footer")).toBeNull()
+
+        engine.isHydrating = false
+        engine.isEmpty = false
+        await render(slots)
+        expect(byId("above")).toBeNull()
+        expect(byId("footer")).toBeNull()
+        expect(byId("below")).not.toBeNull()
+    })
+
+    it("groups a new chat in the middle or at the top, and keeps the composer mounted after the first message", async () => {
+        await render({newChatLayout: "middle", emptyState: <div data-testid="empty" />})
+        expect(byId("scroller")!.getAttribute("data-scroll-class")).toBe("basis-auto")
+        const composer = byId("composer")
+        expect(composer!.parentElement!.className).toContain("grow")
+
+        await render({newChatLayout: "top", emptyState: <div data-testid="empty" />})
+        expect(byId("scroller")!.getAttribute("data-scroll-class")).toBe("grow-0 basis-auto")
+
+        // The first message: the default layout, and the same composer node (no remount).
+        engine.isEmpty = false
+        await render({newChatLayout: "top", emptyState: <div data-testid="empty" />})
+        expect(byId("scroller")!.getAttribute("data-scroll-class")).toBe("")
+        expect(byId("composer")).toBe(composer)
+        expect(composer!.parentElement!.className).toBe("relative")
+    })
+
+    it("keeps the session layout when no new chat layout is set", async () => {
+        await render({emptyState: <div data-testid="empty" />})
+        expect(byId("scroller")!.getAttribute("data-scroll-class")).toBe("")
+        expect(byId("composer")!.parentElement!.className).toBe("relative")
     })
 
     it("hides the model button while the model needs setup", async () => {

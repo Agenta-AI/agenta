@@ -68,22 +68,26 @@ export const ChatHistoryList = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="builder-chat-history">
-            <div className={cn("shrink-0", phone ? "px-4 pt-3 pb-1" : "px-3 pt-3 pb-2")}>
+            <div className={cn("shrink-0", phone ? "px-4 pt-3 pb-1" : "px-4 pt-3 pb-2")}>
                 <SearchInput
                     value={search}
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
-                    // On a phone the input fills the field, so the input itself is 44 px high
-                    // (46 px less the border). M06 draws no clear button.
+                    // Phone: a 44 px input (tap rule) and no clear button (M06).
                     allowClear={!phone}
-                    className={phone ? "h-[46px] items-stretch py-0 text-[15px]" : undefined}
+                    className={cn(
+                        "border-colorBorderSecondary",
+                        phone
+                            ? "h-[46px] items-stretch py-0 text-[15px]"
+                            : "h-[30px] rounded-[6px] text-[13px] md:text-[13px]",
+                    )}
                 />
             </div>
             <div
                 className={cn(
                     "ag-scroll-quiet flex min-h-0 flex-1 flex-col overflow-y-auto",
-                    phone ? "pb-3" : "gap-0.5 px-3 pb-3",
+                    phone ? "pb-3" : "gap-px px-2 pb-3",
                 )}
             >
                 {body}

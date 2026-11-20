@@ -54,13 +54,17 @@ export const BuilderTabButton = ({
                 }
             }}
             className={cn(
-                "flex h-8 min-w-[7.5rem] max-w-[200px] shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2 pr-1 text-[13px]",
+                "flex h-7 min-w-[7.5rem] max-w-[200px] shrink-0 cursor-pointer items-center gap-1.5 rounded-[4px] pl-2 pr-1 text-[12px] leading-5",
                 active
-                    ? "bg-colorFillSecondary font-medium text-colorText"
+                    ? "bg-colorFill font-medium text-colorText"
                     : "text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
             )}
         >
-            <KindIcon aria-hidden size={14} className="shrink-0" />
+            <KindIcon
+                aria-hidden
+                size={14}
+                className={cn("shrink-0", !active && "text-colorTextTertiary")}
+            />
             <span className="min-w-0 flex-1 truncate">{label}</span>
             {tab.kind === "agent" ? <PrivateMark agentId={tab.id} /> : null}
             {tab.dot ? (
@@ -79,7 +83,7 @@ export const BuilderTabButton = ({
                     event.stopPropagation()
                     onClose?.()
                 }}
-                className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:bg-colorFillSecondary hover:text-colorText"
+                className="flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextQuaternary hover:bg-colorFillSecondary hover:text-colorText"
             >
                 <X aria-hidden size={12} />
             </button>

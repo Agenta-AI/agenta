@@ -1,24 +1,22 @@
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import {
-    ChartBar,
-    Lightning,
-    SlidersHorizontal,
-    Sparkle,
-    SquaresFour,
-    type Icon,
-} from "@phosphor-icons/react"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
+import {ChartBar, Lightning, SlidersHorizontal, SquaresFour} from "@phosphor-icons/react"
 
 import {AgentPicker} from "./AgentPicker"
-import type {PageKey} from "./ideas"
+import type {Glyph, PageKey} from "./ideas"
 import type {AgentRef} from "./paneAgent"
 
 const buttonClass =
-    "inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border-0 bg-transparent px-3 text-[13px] text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary hover:bg-colorFillTertiary hover:text-colorText"
+    "inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border-0 bg-colorBgContainer px-3 text-[13px] leading-5 text-zinc-8 ring-1 ring-inset ring-colorBorderSecondary hover:bg-muted [&>svg]:text-colorTextSecondary"
 
 /** The quick actions that put a ready request in the composer (B01). */
-const READY: {label: PageKey; request: PageKey; icon: Icon}[] = [
-    {label: "builder.page.quickBuild", request: "builder.page.readyBuild", icon: Sparkle},
+const READY: {
+    label: PageKey
+    request: PageKey
+    icon: Glyph
+}[] = [
+    {label: "builder.page.quickBuild", request: "builder.page.readyBuild", icon: BuilderIcon},
     {label: "builder.page.quickTest", request: "builder.page.readyTest", icon: ChartBar},
     {label: "builder.page.quickAutomate", request: "builder.page.readyAutomate", icon: Lightning},
 ]
