@@ -150,7 +150,7 @@
         "height": 840,
         "theme": "light",
         "selector": "[data-testid=\"agent-panel\"]",
-        "ready": "text=Enter access key ID"
+        "ready": "text=Access key ID"
     },
     {
         "id": "provider-keys-bedrock-access-keys-dark",
@@ -159,7 +159,7 @@
         "height": 840,
         "theme": "dark",
         "selector": "[data-testid=\"agent-panel\"]",
-        "ready": "text=Enter access key ID"
+        "ready": "text=Access key ID"
     },
     {
         "id": "provider-keys-vertex-light",

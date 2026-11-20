@@ -87,8 +87,11 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
         void checkKey(next, key, true)
     }
 
+    // One save at a time: two presses during one check would both pass it.
+    const storing = useRef(false)
     const store = async () => {
-        if (!provider) return
+        if (!provider || storing.current) return
+        storing.current = true
         const apiKey = key.trim()
         setPhase("saving")
         try {
@@ -96,6 +99,8 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
             onSaved({provider: provider.title, last4: apiKey.slice(-4), connectionId})
         } catch {
             setPhase("saveFailed")
+        } finally {
+            storing.current = false
         }
     }
 

@@ -391,7 +391,10 @@ describe("review fixes", () => {
         await blur(url)
 
         expect(probeMutation.mutateAsync).toHaveBeenCalledWith(
-            expect.objectContaining({secretId: "conn-az"}),
+            expect.objectContaining({
+                secretId: "conn-az",
+                provider: expect.objectContaining({url: "https://new.openai.azure.com"}),
+            }),
         )
         expect(saveState?.canSave).toBe(true)
     })

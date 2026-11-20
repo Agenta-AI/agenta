@@ -69,8 +69,10 @@ const answerProbe = (answer: unknown) => () => {
             typeof input === "string" ? input : input instanceof URL ? input.href : input.url
         if (!url.includes("/providers/probe")) return original(input, init)
         if (answer === "pending") return new Promise<Response>(() => undefined)
+        // Stamped when it answers, so "List updated just now" holds whenever the story runs.
+        const body = {...(answer as Record<string, unknown>), fetched_at: new Date().toISOString()}
         return Promise.resolve(
-            new Response(JSON.stringify(answer), {
+            new Response(JSON.stringify(body), {
                 status: 200,
                 headers: {"content-type": "application/json"},
             }),

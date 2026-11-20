@@ -145,8 +145,14 @@ export function useKeyCheck(): KeyCheck {
         return next
     }
 
-    // A form that closes takes its running check with it.
-    useEffect(() => () => controller.current?.abort(), [])
+    // A form that closes takes its running check with it, and a late answer is ignored.
+    useEffect(
+        () => () => {
+            controller.current?.abort()
+            latest.current += 1
+        },
+        [],
+    )
 
     return {state, check, stop, drop, ready: !!projectId}
 }

@@ -93,6 +93,9 @@ const HARNESS_DOMAINS: Record<string, string> = {pi_core: "pi.dev"}
  */
 const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
 
+/** How long a multi-field form waits after the last keystroke before it checks by itself. */
+const SETTLE_MS = 800
+
 /** The two ways to sign in to AWS Bedrock, and the fields of each. */
 type BedrockWay = "apiKey" | "accessKeys"
 const BEDROCK_WAY_FIELDS: Record<BedrockWay, string[]> = {
@@ -283,9 +286,15 @@ const ProviderConnectionCard = ({
 
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
     // They still count as filled — otherwise editing only the model list would demand the key again.
+    // A Bedrock way other than the one the connection opened with has nothing stored yet.
+    const wayChanged = isBedrock && bedrockWay !== initialBedrockWay(connection)
     const storedFields = useMemo(
-        () => storedCredentialFields(connection).filter((key) => !otherWayFields.includes(key)),
-        [connection, otherWayFields],
+        () =>
+            storedCredentialFields(connection).filter(
+                (key) =>
+                    !otherWayFields.includes(key) && !(wayChanged && BEDROCK_FIELDS.includes(key)),
+            ),
+        [connection, otherWayFields, wayChanged],
     )
     const credentialFilled = hasRequiredCredential(kind, chosenCredential, storedFields)
     /** A saved connection whose credential fields hold what it opened with. */
@@ -495,8 +504,16 @@ const ProviderConnectionCard = ({
         !readOnly &&
         done.enabled &&
         !!nameValue.trim() &&
-        // A list with models needs one checked; an endpoint with no list saves with none.
-        (modelOptions.length === 0 || checkedCount > 0)
+        // A list with models needs one checked; an endpoint with no list saves with none, and
+        // an edit that leaves a saved choice as it was keeps it.
+        (modelOptions.length === 0 ||
+            checkedCount > 0 ||
+            (!!connection && checkedModels === (connection.models ?? null)))
+
+    // A form with several credential fields checks by itself a moment after the last required
+    // field is filled, even when the focus stays in it.
+    const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    useEffect(() => () => clearTimeout(settleTimer.current ?? undefined), [])
 
     const setField = (key: string, value: string, pasted = false) => {
         const next = {...credential, [key]: value}
@@ -504,7 +521,9 @@ const ProviderConnectionCard = ({
         // The last answer belonged to the previous credential; keep it and Save would store an
         // untested key under a stale "works".
         keyCheck.drop()
+        clearTimeout(settleTimer.current ?? undefined)
         if (pasted) autoCheck(next, true)
+        else if (!isStandard) settleTimer.current = setTimeout(() => autoCheck(next), SETTLE_MS)
     }
 
     const changeBedrockWay = (next: BedrockWay) => {

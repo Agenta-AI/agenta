@@ -1,4 +1,8 @@
-import {isOrganizationConnection, providerConnectionsAtom} from "@agenta/entities/secret"
+import {
+    isOrganizationConnection,
+    providerConnectionsAtom,
+    vaultSecretsQueryAtom,
+} from "@agenta/entities/secret"
 import {providerConnectionView, providerListView} from "@agenta/entity-ui/secretProvider"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
@@ -18,7 +22,11 @@ export const RunErrorProviderDrawer = ({
     providerKind?: string
 }) => {
     const connections = useAtomValue(providerConnectionsAtom)
+    const vault = useAtomValue(vaultSecretsQueryAtom)
     if (!open) return null
+    // The drawer opens its view once, so it waits for the vault: the failed provider's own
+    // connection must be known before the form opens. A failed load opens a new form.
+    if (providerKind && vault.isPending) return null
     // The drawer opens its view once; a closed drawer leaves, and the next open mounts a new one.
     if (!providerKind) {
         return (
