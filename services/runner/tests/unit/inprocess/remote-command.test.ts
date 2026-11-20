@@ -9,17 +9,29 @@
  * final poll loses no output).
  */
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { bounded, DaytonaCallTimeoutError } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
-import { commandLifetimeSeconds, launchScript, OUTPUT_CHUNK_BYTES } from "../../../src/engines/inprocess/sandbox/remote-command.ts";
+import { commandLifetimeSeconds, launchScript, OUTPUT_CHUNK_BYTES, parsePoll, pollScript } from "../../../src/engines/inprocess/sandbox/remote-command.ts";
 import { createTestWorkspace, type TestWorkspace } from "../../utils/inprocess-workspace.ts";
 import type { LocalSandbox } from "../../utils/local-daytona.ts";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const running = (pattern: string) => execSync(`pgrep -f '${pattern}' || true`).toString().trim();
+
+/** Wait for a real event (a file, a process) instead of a fixed delay: long enough for a loaded CI runner, and over as soon as it happens. */
+const until = (check: () => void) => vi.waitFor(check, { timeout: 20_000, interval: 10 });
+
+/** Resolves once a command that began with `touch <name>` is running: the file is its proof. */
+const started = (ws: TestWorkspace, name: string) => until(() => expect(existsSync(join(ws.inSandbox(ws.cwd), name))).toBe(true));
+
+/** The supervisor's attempt folders in the stand-in sandbox's temporary folder. */
+const attemptDirs = (ws: TestWorkspace) => {
+  const tmp = ws.inSandbox("/tmp");
+  return existsSync(tmp) ? readdirSync(tmp).filter((name) => name.startsWith(".agenta-cmd-")).map((name) => join(tmp, name)) : [];
+};
 
 /** The stand-in sandbox after a first command, so later commands reuse it. */
 async function warm(): Promise<{ ws: TestWorkspace; local: LocalSandbox }> {
@@ -39,16 +51,24 @@ const isPoll = (command: string) => command.includes("base64 -w0");
 const isKill = (command: string) => command.includes("kill -TERM");
 
 describe("bounded Daytona calls", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("gives up on a call that never answers, and says the outcome is unknown", async () => {
-    const t0 = Date.now();
-    await expect(bounded("probe", 100, undefined, () => new Promise(() => {}))).rejects.toBeInstanceOf(DaytonaCallTimeoutError);
-    expect(Date.now() - t0).toBeLessThan(1_000);
+    vi.useFakeTimers();
+    let settled: unknown;
+    const call = bounded("probe", 100, undefined, () => new Promise(() => {})).catch((err: unknown) => (settled = err));
+    await vi.advanceTimersByTimeAsync(99);
+    expect(settled).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    await call;
+    expect(settled).toBeInstanceOf(DaytonaCallTimeoutError);
   });
 
   it("gives up at once on Stop", async () => {
     const stop = new AbortController();
-    setTimeout(() => stop.abort(), 50);
-    await expect(bounded("probe", 60_000, stop.signal, () => new Promise(() => {}))).rejects.toThrow(/aborted/);
+    const call = bounded("probe", 60_000, stop.signal, () => new Promise(() => {}));
+    stop.abort();
+    await expect(call).rejects.toThrow(/aborted/);
   });
 });
 
@@ -56,13 +76,16 @@ describe("Stop", () => {
   it("kills the whole process group and returns within a few seconds", async () => {
     const { ws } = await warm();
     const stop = new AbortController();
-    const t0 = Date.now();
-    setTimeout(() => stop.abort(), 400);
-    const r = await ws.bash("sleep 31.1 & sleep 31.1; echo never", { signal: stop.signal });
+    let t0 = 0;
+    // Stop once the command is really running, so the kill has a group to reach.
+    void started(ws, "group-started").then(() => {
+      t0 = Date.now();
+      stop.abort();
+    });
+    const r = await ws.bash("touch group-started; sleep 31.1 & sleep 31.1; echo never", { signal: stop.signal });
     expect(r.outcome).toEqual({ kind: "aborted" });
     expect(Date.now() - t0).toBeLessThan(5_000);
-    await sleep(300);
-    expect(running("sleep 31[.]1")).toBe("");
+    await until(() => expect(running("sleep 31[.]1")).toBe(""));
   });
 
   it("never lets a command run after Stop reported it: a 3 s pause right after the claim (Codex R5 P0-3)", async () => {
@@ -76,8 +99,9 @@ describe("Stop", () => {
       return paused;
     });
     const stop = new AbortController();
+    const known = attemptDirs(ws); // the warm-up command's folder is already there
     const pending = ws.bash("echo ran > late-effect.txt", { signal: stop.signal });
-    await sleep(800); // claimed, paused
+    await until(() => expect(attemptDirs(ws).some((dir) => !known.includes(dir) && existsSync(join(dir, "claim")))).toBe(true)); // claimed, paused
     stop.abort();
     const r = await pending;
     expect(r.outcome).toEqual({ kind: "aborted" });
@@ -88,17 +112,27 @@ describe("Stop", () => {
 
   it("never lets a command run after Stop took its claim first (a slow launch)", async () => {
     const { ws, local } = await warm();
-    interceptRun(local, async (command) => {
-      if (isLaunch(command)) await sleep(1_200);
-      return undefined;
-    });
     const stop = new AbortController();
-    setTimeout(() => stop.abort(), 200);
-    const t0 = Date.now();
+    let t0 = 0;
+    let supervisor = "";
+    let landed = false;
+    const run = local.run.bind(local);
+    local.run = async (command, options) => {
+      if (!isLaunch(command)) return run(command, options);
+      // Stop while the launch is on its way, then let the launch land late.
+      t0 = Date.now();
+      stop.abort();
+      await sleep(1_200);
+      supervisor = `[.]${/agenta-cmd-[\w-]+/.exec(command)![0]}`;
+      const answer = await run(command, options);
+      landed = true;
+      return answer;
+    };
     const r = await ws.bash("echo late > late.txt", { signal: stop.signal });
     expect(r.outcome).toEqual({ kind: "aborted" });
     expect(Date.now() - t0).toBeLessThan(3_000);
-    await sleep(1_500);
+    // The late supervisor finds the claim taken and ends without running anything.
+    await until(() => expect(landed && running(supervisor) === "").toBe(true));
     expect(existsSync(`${ws.inSandbox(ws.cwd)}/late.txt`)).toBe(false);
   });
 
@@ -106,9 +140,12 @@ describe("Stop", () => {
     const { ws, local } = await warm();
     interceptRun(local, (command) => (isKill(command) ? new Promise<never>(() => {}) : undefined));
     const stop = new AbortController();
-    setTimeout(() => stop.abort(), 400);
-    const t0 = Date.now();
-    const r = await ws.bash("sleep 31.2; echo never", { signal: stop.signal });
+    let t0 = 0;
+    void started(ws, "kill-unconfirmed-started").then(() => {
+      t0 = Date.now();
+      stop.abort();
+    });
+    const r = await ws.bash("touch kill-unconfirmed-started; sleep 31.2; echo never", { signal: stop.signal });
     expect(r.outcome.kind).toBe("unknown");
     expect(Date.now() - t0).toBeLessThan(8_000);
     // The next command runs on a new sandbox; the old one is never used again.
@@ -121,9 +158,12 @@ describe("Stop", () => {
     const { ws, local } = await warm();
     interceptRun(local, (command) => (isPoll(command) || isKill(command) ? new Promise<never>(() => {}) : undefined));
     const stop = new AbortController();
-    setTimeout(() => stop.abort(), 400);
-    const t0 = Date.now();
-    const r = await ws.bash("sleep 31.3", { signal: stop.signal });
+    let t0 = 0;
+    void started(ws, "polls-hang-started").then(() => {
+      t0 = Date.now();
+      stop.abort();
+    });
+    const r = await ws.bash("touch polls-hang-started; sleep 31.3", { signal: stop.signal });
     expect(r.outcome.kind).toBe("unknown");
     expect(Date.now() - t0).toBeLessThan(8_000);
     execSync("pkill -f 'sleep 31[.]3' || true");
@@ -133,11 +173,13 @@ describe("Stop", () => {
 
   it("ends a command's wait in the queue at once on Stop (Codex R4 P1)", async () => {
     const { ws } = await warm();
-    const ahead = ws.bash("sleep 1.5; echo ahead");
+    const ahead = ws.bash("touch ahead-started; sleep 1.5; echo ahead");
     const stop = new AbortController();
     const queued = ws.bash("echo queued > queued.txt", { signal: stop.signal });
-    setTimeout(() => stop.abort(), 100);
+    // Stop once the command ahead holds the queue.
+    await started(ws, "ahead-started");
     const t0 = Date.now();
+    stop.abort();
     await expect(queued).rejects.toThrow(/aborted/);
     expect(Date.now() - t0).toBeLessThan(500);
     expect((await ahead).output).toContain("ahead");
@@ -152,8 +194,8 @@ describe("Stop", () => {
 
   it("ends a command that died without an exit code instead of waiting forever (CR5)", async () => {
     const { ws } = await warm();
-    const pending = ws.bash("sleep 31.4");
-    await sleep(700);
+    const pending = ws.bash("touch died-started; sleep 31.4");
+    await started(ws, "died-started");
     // The whole group dies at once, supervisor included (as when the sandbox restarts): nobody
     // records an exit code.
     const tmp = ws.inSandbox("/tmp");
@@ -287,8 +329,7 @@ describe("reading a finished command's output is repeatable (Codex R6 P1-3)", ()
     expect(r.output).toContain("important-output");
     expect(r.totals).toEqual({ bytes: "important-output\n".length, lines: 1, openLineBytes: 0 });
     // Received in full, so the small output file goes afterwards.
-    for (let i = 0; i < 50 && existsSync(ws.inSandbox(outputPath)); i += 1) await sleep(20);
-    expect(existsSync(ws.inSandbox(outputPath))).toBe(false);
+    await until(() => expect(existsSync(ws.inSandbox(outputPath))).toBe(false));
   });
 
   it("keeps an output file the model did not see in full", async () => {
@@ -300,15 +341,42 @@ describe("reading a finished command's output is repeatable (Codex R6 P1-3)", ()
   });
 });
 
+describe("a poll that races the supervisor's start", () => {
+  it("never reports a command as dead because the supervisor started between the poll's reads", () => {
+    // The supervisor writes `pgid` and then takes the claim. Here that happens at the exact moment
+    // the poll reads `pgid` (the shim `cat` is the poll's only read of it): the poll finds no
+    // `pgid`, and by the time it looks again the attempt is claimed. Whatever order the poll reads
+    // in, it must not answer "claimed, not alive, no exit code", which the runner reads as a death.
+    const base = mkdtempSync(join(tmpdir(), "poll-race-"));
+    const dir = join(base, "attempt");
+    const outputPath = join(base, "out.log");
+    mkdirSync(dir);
+    writeFileSync(outputPath, "");
+    // A live process group for the supervisor to record: the one this test runs in.
+    const stat = readFileSync("/proc/self/stat", "utf-8");
+    const liveGroup = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[2]!;
+    const shims = join(base, "shims");
+    mkdirSync(shims);
+    const cat = join(shims, "cat");
+    writeFileSync(cat, `#!/bin/bash\n/usr/bin/cat "$@"; status=$?\nif [ "$1" = "${dir}/pgid" ] && [ ! -e "${dir}/claim" ]; then echo ${liveGroup} > "${dir}/pgid"; mkdir "${dir}/claim"; fi\nexit $status\n`);
+    chmodSync(cat, 0o755);
+    const answer = execSync(pollScript(dir, outputPath, 0), { env: { ...process.env, PATH: `${shims}:${process.env.PATH}` } }).toString();
+    const poll = parsePoll(answer);
+    expect(poll.exitCode).toBeUndefined();
+    expect(poll.claimed && !poll.alive).toBe(false);
+  });
+});
+
 describe("a command whose runner died (Codex R9-1, accepted with this guard)", () => {
   it("is killed in the sandbox at its lifetime, with everything it started, though nobody polls it", async () => {
     const base = mkdtempSync(join(tmpdir(), "orphan-command-"));
     const late = join(base, "late.txt");
     // Launched as the runner does, then never polled or stopped: the runner is gone.
     execSync(launchScript(join(base, "attempt"), `sleep 31.7 & sleep 2.5; echo old > ${late}`, base, join(base, "out.log"), [], 1));
+    // Past the point where the command would have written `late` had it lived on.
     await sleep(3_500);
     expect(existsSync(late)).toBe(false);
-    expect(running("sleep 31[.]7")).toBe("");
+    await until(() => expect(running("sleep 31[.]7")).toBe(""));
   }, 10_000);
 
   it("keeps the grace a Stop gives between TERM and KILL", async () => {

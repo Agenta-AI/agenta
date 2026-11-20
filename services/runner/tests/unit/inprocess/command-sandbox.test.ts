@@ -7,10 +7,10 @@
  * recovered; registry capacity; a running slot goes back only once its sandbox is confirmed
  * stopped or gone.
  */
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ConversationRegistry } from "../../../src/engines/inprocess/conversation-registry.ts";
 import { CommandSandbox, CREDENTIALS_LABEL, NetworkPolicyError } from "../../../src/engines/inprocess/sandbox/command-sandbox.ts";
 import { boundedDaytonaApi } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
@@ -169,19 +169,24 @@ describe("recovery and retirement (CR7, R3-4, Codex 8)", () => {
   });
 
   it("lets Stop end a wait on a Daytona call that never answers", async () => {
-    const sandbox = new CommandSandbox("k", sandboxSettings(), { create: () => new Promise(() => {}) }, testOwner(), {}, () => {});
+    let asked!: () => void;
+    const creating = new Promise<void>((resolve) => (asked = resolve));
+    const sandbox = new CommandSandbox("k", sandboxSettings(), { create: () => (asked(), new Promise(() => {})) }, testOwner(), {}, () => {});
     const stop = new AbortController();
-    setTimeout(() => stop.abort(), 100);
+    const acquiring = sandbox.acquire(OPEN_NETWORK, stop.signal);
+    await creating; // the Daytona call is in flight and never answers
     const t0 = Date.now();
-    await expect(sandbox.acquire(OPEN_NETWORK, stop.signal)).rejects.toThrow(/aborted/);
+    stop.abort();
+    await expect(acquiring).rejects.toThrow(/aborted/);
     expect(Date.now() - t0).toBeLessThan(1_000);
   });
 
   it("waits for a command in flight before a park stops the sandbox (R3-13)", async () => {
     const ws = createTestWorkspace();
     await ws.bash("true");
-    const running = ws.bash("sleep 0.5; echo finished");
-    await new Promise((r) => setTimeout(r, 150));
+    const running = ws.bash("touch park-started; sleep 0.5; echo finished");
+    // Park only once the command really runs in the sandbox.
+    await vi.waitFor(() => expect(existsSync(join(ws.inSandbox(ws.cwd), "park-started"))).toBe(true), { timeout: 20_000, interval: 10 });
     ws.registry.release(ws.workspace, "park");
     const [local] = [...ws.daytona.sandboxes.values()];
     expect(local!.state).toBe("started");
