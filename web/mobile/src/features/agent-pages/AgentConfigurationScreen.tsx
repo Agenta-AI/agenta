@@ -8,7 +8,7 @@ import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
-import {DrawerViewChrome, ViewStackHost, type ViewStack} from "@agenta/ui/view-stack"
+import {DrawerViewChrome, ViewStackHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -30,7 +30,7 @@ import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 import {ConfigurationAgentTab} from "./ConfigurationAgentTab"
 import {ConfigurationEditorProvider} from "./ConfigurationEditorProvider"
 import {CONFIGURATION_TABS, isConfigurationTab, type ConfigurationTab} from "./configurationTabs"
-import {PageViewStackGuard} from "./PageViewStackGuard"
+import {PageViewStackGuard, type PageViewStackGuardApi} from "./PageViewStackGuard"
 import {useConfigurationRevision} from "./useConfigurationRevision"
 
 /**
@@ -67,15 +67,14 @@ export const AgentConfigurationScreen = ({
     // An automation's "Test run" starts a new session of this agent, as from the panel.
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     // The Automations tab's open views (an automation form may hold edits).
-    const automationsStack = useRef<ViewStack | null>(null)
+    const automationsGuard = useRef<PageViewStackGuardApi | null>(null)
     const openTab = async (next: ConfigurationTab) => {
+        const guard = automationsGuard.current
         // Leaving the tab closes its views; an open form with edits asks first.
-        if (
-            next !== tab &&
-            automationsStack.current &&
-            !(await automationsStack.current.closeAll())
-        )
-            return
+        if (next !== tab && guard) {
+            if (!(await guard.stack.closeAll())) return
+            guard.allowNext()
+        }
         void router.replace({query: {...router.query, tab: next}}, undefined, {shallow: true})
     }
 
@@ -111,7 +110,7 @@ export const AgentConfigurationScreen = ({
                     chrome={DrawerViewChrome}
                     rootTitle={t("agentLayout.panel.automations")}
                 >
-                    <PageViewStackGuard stackRef={automationsStack} />
+                    <PageViewStackGuard guardRef={automationsGuard} />
                     <AutomationsTab
                         revisionId={revisionId}
                         workspaceId={workspaceId}
