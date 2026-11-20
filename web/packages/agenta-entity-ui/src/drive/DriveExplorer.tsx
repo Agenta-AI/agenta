@@ -649,6 +649,7 @@ export function DriveExplorer({
                       onCopyLink: onCopyCurrentLink,
                       onDownloadAll: onDownloadCurrent,
                       downloadingAll,
+                      readOnly,
                   }
                 : undefined
 
@@ -697,6 +698,7 @@ export function DriveExplorer({
                 onCopyPath={onCopyCurrentPath}
                 onCopyLink={onCopyCurrentLink}
                 onDownload={onDownloadCurrent}
+                readOnly={readOnly}
             />
         )
 

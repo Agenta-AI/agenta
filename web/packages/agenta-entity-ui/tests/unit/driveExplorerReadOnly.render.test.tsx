@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * Files read only (a phone): the explorer of a writable drive opens and downloads, and offers no
- * write. The same drive, editable, offers its writes, so the test sees the difference.
+ * Files read only (a phone, M03): the explorer of a writable drive opens and downloads, and its
+ * menus leave every write out (not disabled). The same drive, editable, offers its writes, so the
+ * test sees the difference.
  */
 import {act} from "react"
 
@@ -64,14 +65,14 @@ afterEach(() => {
     host.remove()
 })
 
-const renderExplorer = async (readOnly: boolean) => {
+const renderExplorer = async (readOnly: boolean, initialPath = "") => {
     await act(async () =>
         root.render(
             <QueryClientProvider client={new QueryClient()}>
                 <Provider store={createStore()}>
                     <DriveExplorer
                         drive={drive as never}
-                        initialPath=""
+                        initialPath={initialPath}
                         onClose={() => undefined}
                         readOnly={readOnly}
                         touch={readOnly}
@@ -83,7 +84,7 @@ const renderExplorer = async (readOnly: boolean) => {
     await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
 }
 
-/** Opens row 2's "More actions" menu (the folder's verbs) and reads which entries are on. */
+/** Opens row 2's "More actions" menu and reads its entries, and whether each one is on. */
 const folderMenu = async () => {
     const trigger = [...host.querySelectorAll("button")].find(
         (button) => button.getAttribute("aria-label") === "More actions",
@@ -102,16 +103,31 @@ const folderMenu = async () => {
 const WRITES = ["New folder", "New file", "Upload files…"]
 
 describe("DriveExplorer read only", () => {
-    it("offers no write on a writable drive, and keeps the download", async () => {
+    it("leaves the folder's writes out on a writable drive, and keeps the download", async () => {
         await renderExplorer(true)
         const menu = await folderMenu()
-        for (const entry of WRITES) expect(menu[entry]).toBe(false)
+        for (const entry of WRITES) expect(menu).not.toHaveProperty(entry)
         expect(menu["Download all.zip"]).toBe(true)
     })
 
-    it("offers the writes when it is editable", async () => {
+    it("offers the folder's writes when it is editable", async () => {
         await renderExplorer(false)
         const menu = await folderMenu()
         for (const entry of WRITES) expect(menu[entry]).toBe(true)
+    })
+
+    it("leaves Rename and Delete out of an open file's menu, and keeps Download", async () => {
+        await renderExplorer(true, "notes.md")
+        const menu = await folderMenu()
+        expect(menu).not.toHaveProperty("Rename")
+        expect(menu).not.toHaveProperty("Delete")
+        expect(menu.Download).toBe(true)
+    })
+
+    it("offers Rename and Delete for an open file when it is editable", async () => {
+        await renderExplorer(false, "notes.md")
+        const menu = await folderMenu()
+        expect(menu.Rename).toBe(true)
+        expect(menu.Delete).toBe(true)
     })
 })
