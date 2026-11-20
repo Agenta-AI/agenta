@@ -78,8 +78,9 @@ export interface AgentRevisionStatusProps {
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
     /**
-     * Lay out for a phone: the chip says "Saved as vN" and has a 44 px hit area, and the version
-     * history covers the screen with a back arrow.
+     * Lay out for a phone: the chip says "Saved as vN" and has a 44 px hit area, the version
+     * history covers the screen with a back arrow, and a save state that needs attention ("Not
+     * saved") shows its words, not only its icon.
      */
     phone?: boolean
     /** On a phone, the name of the screen the history's back arrow returns to. */
@@ -248,8 +249,11 @@ export const AgentRevisionStatus = ({
             ) : (
                 <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
             )}
-            {/* Words only for states that need attention; hidden on a narrow bar. */}
-            {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
+            {/* Words only for states that need attention; hidden on a narrow bar, except on a
+                phone, where the icon alone does not say that a save failed. */}
+            {showLabel ? (
+                <span className={phone ? undefined : "hidden sm:inline"}>{dot.label}</span>
+            ) : null}
         </>
     )
 
