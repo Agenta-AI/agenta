@@ -15,7 +15,6 @@
 import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
 import {createT, getActiveLanguage} from "@agenta/i18n"
-import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import toolActivityCatalog from "@agenta/i18n/catalogs/chat.toolActivity"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
@@ -218,15 +217,6 @@ const PLATFORM_OPS = new Set([
 export const canonicalToolName = canonicalClientToolName
 
 const tNow = createT(toolActivityCatalog)
-const tChange = createT(chatChangeCardCatalog)
-
-/** The sentence of an agent tool, from the change card's words. */
-const changeActivity = (
-    id: "activityReadAgent" | "activityCreateAgent" | "activityEditAgent",
-): ToolActivity => ({
-    running: tChange(`chat.changeCard.${id}Running`),
-    done: tChange(`chat.changeCard.${id}Done`),
-})
 
 /** Verbs for `verb noun` tool names. Closed on purpose: an unknown verb keeps its plain label
  * rather than reading as "Getted". Each has a `<verb>Running` and a `<verb>Done` text. */
@@ -329,6 +319,9 @@ const capitalized = (text: string): string => text.charAt(0).toUpperCase() + tex
 
 type SentenceId =
     | "runCommand"
+    | "readAgent"
+    | "createAgent"
+    | "editAgent"
     | "testAgent"
     | "searchTools"
     | "connectApp"
@@ -378,43 +371,13 @@ const DEFAULT_TOOL_DISPLAY: Record<string, DefaultEntry> = {
     },
     // The agent tools act on ANOTHER agent, which the glossary's "the agent" would misname as
     // this one. Each settled row names that agent.
-    // The getters read the words when a row resolves, so they are in the reader's language.
     read_agent_config: {
-        get activity() {
-            return changeActivity("activityReadAgent")
-        },
-        get verb() {
-            return {
-                running: tChange("chat.changeCard.verbReading"),
-                done: tChange("chat.changeCard.verbRead"),
-            }
-        },
+        sentence: "readAgent",
+        verbId: "read",
         summary: (input, output) => agentCallTarget(input, output) ?? null,
     },
-    create_agent: {
-        get activity() {
-            return changeActivity("activityCreateAgent")
-        },
-        get verb() {
-            return {
-                running: tChange("chat.changeCard.verbCreating"),
-                done: tChange("chat.changeCard.verbCreated"),
-            }
-        },
-        summary: summarizeAgentCall,
-    },
-    edit_agent_config: {
-        get activity() {
-            return changeActivity("activityEditAgent")
-        },
-        get verb() {
-            return {
-                running: tChange("chat.changeCard.verbSaving"),
-                done: tChange("chat.changeCard.verbSaved"),
-            }
-        },
-        summary: summarizeAgentCall,
-    },
+    create_agent: {sentence: "createAgent", verbId: "create", summary: summarizeAgentCall},
+    edit_agent_config: {sentence: "editAgent", verbId: "commit", summary: summarizeAgentCall},
     // "Tested a run" misses the point — the run IS the agent under test.
     test_run: {sentence: "testAgent", verbId: "test"},
     // A tool search reports which tool it landed on. That name is worth far more than the keywords

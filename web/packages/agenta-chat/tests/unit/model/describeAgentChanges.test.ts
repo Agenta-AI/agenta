@@ -62,8 +62,8 @@ describe("describeCreateAgent", () => {
             sentence:
                 "Create the agent Invoice helper from the default setup. Only you will see it.",
             items: [],
-            agent: "Invoice helper",
-            heading: {title: "Create an agent", path: ["Invoice helper"]},
+            agentName: "Invoice helper",
+            header: {title: "Create an agent", path: ["Invoice helper"]},
             changes: [],
             proposedValues: false,
             cannotApply: false,

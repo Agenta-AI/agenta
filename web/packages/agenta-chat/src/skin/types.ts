@@ -66,11 +66,11 @@ export interface ChangePreviewChange {
 }
 
 /** Risk kinds a change can add; each shows one warning line on the card. */
-export type ApprovalChangeRisk = "fewer_approvals" | "data_egress" | "cost" | "breakage"
+export type ApprovalChangeRiskKind = "fewer_approvals" | "data_egress" | "cost" | "breakage"
 
 /** One warning line: the kind of risk and the line the card shows, ready to show. */
 export interface ApprovalChangeRiskLine {
-    kind: ApprovalChangeRisk
+    kind: ApprovalChangeRiskKind
     message: string
 }
 
@@ -159,10 +159,10 @@ export interface ApprovalPreview {
     proposedValues?: boolean
     /** The server preview says the change set cannot apply to the current version. */
     cannotApply?: boolean
-    /** The agent the changes are for, as the card names it ("{{count}} changes to {{agent}}"). */
-    agent?: string
+    /** The name of the agent the changes are for, as the card shows it. */
+    agentName?: string
     /** The card's own header, for a call that is more than its changes (`create_agent`). */
-    heading?: {title: string; path: string[]}
+    header?: {title: string; path: string[]}
     /**
      * The revision the change is made on: from the server preview, else the call's
      * `base_revision_id`. The host reads its version and the agent's latest version.

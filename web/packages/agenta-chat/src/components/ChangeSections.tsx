@@ -303,7 +303,7 @@ const Detail = ({
 }
 
 /** The card header: the section's icon, the title and the path joined with "›". */
-export const ChangeHeader = ({
+const ChangeHeader = ({
     icon: HeaderIcon,
     title,
     path,
@@ -356,7 +356,15 @@ export const RiskLine = ({children}: {children: ReactNode}) => (
     </div>
 )
 
-const Block = ({block, small}: {block: ChangeBlock; small: boolean}) => (
+const Block = ({
+    block,
+    small,
+    pathPrefix,
+}: {
+    block: ChangeBlock
+    small: boolean
+    pathPrefix: string[]
+}) => (
     <div
         className={`flex min-w-0 flex-col gap-2 ${
             block.fails ? "rounded-md border border-solid border-colorError p-2" : ""
@@ -366,7 +374,7 @@ const Block = ({block, small}: {block: ChangeBlock; small: boolean}) => (
         <ChangeHeader
             icon={SECTION_ICON[block.section]}
             title={block.title}
-            path={block.path}
+            path={[...pathPrefix, ...block.path]}
             small={small}
         />
         {block.changes.map((change, index) =>
@@ -389,37 +397,39 @@ export const ChangeSections = ({
     changes,
     proposedValues,
     cannotApply,
-    agent,
-    heading,
-    summary,
+    agentName,
+    header,
+    sentence,
 }: {
     changes: ApprovalChange[]
     proposedValues?: boolean
     cannotApply?: boolean
-    /** The agent the changes are for; it names a card with several changes. */
-    agent?: string
+    /** The name of the agent the changes are for; the card always names it. */
+    agentName?: string
     /** The card's own header (`create_agent`); the changes then show under it. */
-    heading?: {title: string; path: string[]}
+    header?: {title: string; path: string[]}
     /** The sentence a card with its own header shows as its detail. */
-    summary?: string
+    sentence?: string
 }) => {
     const t = useT(chatChangeCardCatalog)
     const blocks = groupChanges(changes)
-    // One block is the card: its header is the card's header.
-    const single = !heading && blocks.length === 1
-    const header = heading ? (
-        <ChangeHeader icon={Sparkle} title={heading.title} path={heading.path} />
-    ) : !single && blocks.length > 1 && agent ? (
+    // One block is the card: its header is the card's header, and its path starts with the agent.
+    const single = !header && blocks.length === 1
+    const cardHeader = header ? (
+        <ChangeHeader icon={Sparkle} title={header.title} path={header.path} />
+    ) : !single && blocks.length > 1 && agentName ? (
         <ChangeHeader
             icon={Sparkle}
-            title={t("chat.changeCard.changesTo", {count: blocks.length, agent})}
+            title={t("chat.changeCard.changesTo", {count: blocks.length, agent: agentName})}
         />
     ) : null
     return (
         <div className="flex min-w-0 flex-col gap-3" data-testid="change-sections">
-            {header}
-            {heading && summary ? (
-                <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">{summary}</p>
+            {cardHeader}
+            {header && sentence ? (
+                <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">
+                    {sentence}
+                </p>
             ) : null}
             {proposedValues ? (
                 <p className="m-0 text-xs text-colorTextSecondary" data-testid="change-proposed">
@@ -438,6 +448,7 @@ export const ChangeSections = ({
                             key={`${block.path.join("›")}-${index}`}
                             block={block}
                             small={!single}
+                            pathPrefix={single && agentName ? [agentName] : []}
                         />
                     ))}
                 </div>

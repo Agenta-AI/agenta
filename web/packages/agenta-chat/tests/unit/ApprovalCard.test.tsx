@@ -595,6 +595,8 @@ describe("the change card of a builder edit (task 8.2)", () => {
             />,
         )
         expect(html).toContain("Remove an integration")
+        // A card with one change names the agent at the start of its path.
+        expect(html).toContain("support-triage › Integrations")
         expect(html).toContain("No longer available to the agent")
         expect(html).toMatch(/>Remove</)
         expect(html).not.toMatch(/>Approve</)

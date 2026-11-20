@@ -160,7 +160,7 @@ export const ApprovalCard = ({
     // One agent change shows its changes in place; the rows behind the toggle would repeat them.
     // A refused change with no rows still shows its notice.
     const changes =
-        !batched && (preview?.changes?.length || preview?.cannotApply || preview?.heading)
+        !batched && (preview?.changes?.length || preview?.cannotApply || preview?.header)
             ? (preview.changes ?? [])
             : null
     const items = useMemo(
@@ -281,9 +281,9 @@ export const ApprovalCard = ({
                     changes={changes}
                     proposedValues={preview.proposedValues}
                     cannotApply={preview.cannotApply}
-                    agent={preview.agent}
-                    heading={preview.heading}
-                    summary={preview.sentence}
+                    agentName={preview.agentName}
+                    header={preview.header}
+                    sentence={preview.sentence}
                 />
             ) : (
                 <span

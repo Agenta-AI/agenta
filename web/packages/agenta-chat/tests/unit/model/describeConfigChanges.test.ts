@@ -13,10 +13,7 @@ import {
     savedVersion,
     summarizeAgentCall,
 } from "../../../src/model/approvalDescribers/describeAgentChanges"
-import {
-    readablePath,
-    describeConfigChanges,
-} from "../../../src/model/approvalDescribers/describeChanges"
+import {describeConfigChanges} from "../../../src/model/approvalDescribers/describeChanges"
 import {describeApproval} from "../../../src/model/approvalPreview"
 import {getPendingApprovals} from "../../../src/model/approvals"
 import recorded from "../fixtures/editAgentConfigTurn.json"
@@ -91,7 +88,7 @@ describe("describeConfigChanges with a preview", () => {
 
     it("names the base revision and its version, for Saves as v5", () => {
         expect(preview.base).toEqual({revisionId: "rev-4", version: 4})
-        expect(preview.agent).toBe("support-triage")
+        expect(preview.agentName).toBe("support-triage")
     })
 
     it("shows the value of a field that appears or goes away, not an item", () => {
@@ -270,6 +267,36 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
         expect(changes[2]).toMatchObject({
             title: "Remove a skill",
             detail: {kind: "item", change: "removed", name: "old-skill"},
+        })
+    })
+
+    it("removes a skill file as that file, not as the skill", () => {
+        const file = [
+            ...T,
+            {list: "skills", key: "release-qa"},
+            {list: "files", key: "scripts/check.py"},
+        ]
+        const {changes} = describeConfigChanges([{operation: "remove_item", target: file}])
+        expect(changes[0]).toMatchObject({
+            title: "Edit a skill file",
+            path: ["Skills", "release-qa", "scripts/check.py"],
+            detail: {kind: "item", change: "removed", name: "scripts/check.py"},
+        })
+        const previewed = describeConfigChanges(
+            [{operation: "remove_item", target: file}],
+            applied([
+                {
+                    path: file,
+                    operation_indexes: [0],
+                    kind: "removed",
+                    old: {path: "scripts/check.py", content: "print(1)"},
+                },
+            ]),
+        )
+        expect(previewed.changes[0].detail).toEqual({
+            kind: "item",
+            change: "removed",
+            name: "scripts/check.py",
         })
     })
 
@@ -489,20 +516,12 @@ describe("create_agent", () => {
                 changes: [],
             },
         )!
-        expect(preview.heading).toEqual({title: "Create an agent", path: ["Refund helper"]})
+        expect(preview.header).toEqual({title: "Create an agent", path: ["Refund helper"]})
         expect(preview.sentence).toBe(
             "Create the agent Refund helper from the default setup. Only you will see it.",
         )
         expect(preview.changes).toEqual([])
         expect(preview.base).toBeUndefined()
-    })
-})
-
-describe("readablePath", () => {
-    it("drops the addressing scaffolding and spells a list item as list then key", () => {
-        expect(
-            readablePath(["parameters", "agent", {list: "skills", key: "release-qa"}, "body"]),
-        ).toEqual(["skills", "release-qa", "body"])
     })
 })
 

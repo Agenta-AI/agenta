@@ -64,21 +64,6 @@ const selector = (segment: unknown): {list?: string; key?: string} | null => {
     }
 }
 
-/** Raw path segments: `[..., {list: "skills", key: "qa"}, "body"]` → `["skills", "qa", "body"]`. */
-export const readablePath = (target: unknown[]): string[] => {
-    const path: string[] = []
-    for (const segment of withoutScaffolding(target)) {
-        if (typeof segment === "string") {
-            path.push(segment)
-            continue
-        }
-        const picked = selector(segment)
-        if (picked?.list && path[path.length - 1] !== picked.list) path.push(picked.list)
-        if (picked?.key) path.push(picked.key)
-    }
-    return path
-}
-
 /** Where a target lands, in the words the card shows. */
 interface Location {
     section: ApprovalChangeSection
@@ -142,11 +127,15 @@ const locateSkill = (rest: unknown[], key: string | undefined): Location => {
     let file = false
     let text = false
     let label: string | undefined
+    // The key of a skill file the target selects; when it is the last segment, the target is
+    // that whole file.
+    let fileKey: string | undefined
     for (const segment of rest) {
         const picked = selector(segment)
         if (picked) {
             if (picked.list === "files" && picked.key) {
                 path.push(picked.key)
+                fileKey = picked.key
                 file = true
                 text = true
             }
@@ -166,8 +155,10 @@ const locateSkill = (rest: unknown[], key: string | undefined): Location => {
         section: "skills",
         path,
         label,
-        wholeItem: Boolean(key) && rest.length === 0,
-        itemKey: key,
+        wholeItem:
+            (Boolean(key) && rest.length === 0) ||
+            (fileKey !== undefined && selector(rest[rest.length - 1])?.key === fileKey),
+        itemKey: fileKey ?? key,
         text,
         file,
         permission: false,
@@ -308,17 +299,17 @@ const TITLES: Record<
     mcps: {
         added: "chat.changeCard.titleAddMcp",
         removed: "chat.changeCard.titleRemoveMcp",
-        changed: "chat.changeCard.titleEditMcp",
+        changed: "chat.changeCard.titleChangeMcp",
     },
     integrations: {
         added: "chat.changeCard.titleAddIntegration",
         removed: "chat.changeCard.titleRemoveIntegration",
-        changed: "chat.changeCard.titleEditIntegration",
+        changed: "chat.changeCard.titleChangeIntegration",
     },
     tools: {
         added: "chat.changeCard.titleAddTool",
         removed: "chat.changeCard.titleRemoveTool",
-        changed: "chat.changeCard.titleEditTool",
+        changed: "chat.changeCard.titleChangeTool",
     },
     permissions: {changed: "chat.changeCard.titleChangePermissions"},
     settings: {changed: "chat.changeCard.titleChangeSetting"},

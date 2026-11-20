@@ -54,7 +54,7 @@ export const describeEditAgentConfig = (
     return {
         sentence: `Save ${changes(items.length)} to the agent ${agent}. Agenta saves this as a new version of that agent and does not deploy it.`,
         items,
-        agent,
+        agentName: agent,
         ...(described.changes.length || described.cannotApply
             ? {...described, ...(base ? {base} : {})}
             : {}),
@@ -83,8 +83,8 @@ export const describeCreateAgent = (
     return {
         sentence: `${create} ${audience}`,
         items,
-        agent: name,
-        heading: {title: tCard("chat.changeCard.titleCreateAgent"), path: [name]},
+        agentName: name,
+        header: {title: tCard("chat.changeCard.titleCreateAgent"), path: [name]},
         changes: described.changes,
         // Nothing to label when the new agent has no operations.
         proposedValues: described.proposedValues && described.changes.length > 0,

@@ -35,7 +35,7 @@ is already set, so `aria-selected` marks the value in effect while `data-active`
 cursor. `useRovingList` sets only the latter; the panel sets `aria-selected` itself. Conflating them
 makes a picker misreport which value is live.
 
-The `/` palette is the exception, and deliberately: it has no value in effect, so the cursor *is*
+The `/` palette is the exception, and deliberately: it has no value in effect, so the cursor _is_
 the selection candidate and `aria-selected` tracks it — the standard combobox-with-listbox reading.
 Because focus stays in the editor there, the palette also has to publish `aria-controls` and
 `aria-activedescendant` on the contenteditable, or its listbox is inert to a screen reader.
