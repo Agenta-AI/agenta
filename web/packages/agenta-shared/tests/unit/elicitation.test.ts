@@ -74,6 +74,33 @@ describe("parseElicitationPayload", () => {
         expect(parseElicitationPayload(payload).ok).toBe(false)
     })
 
+    it("accepts a requestedSchema sent as a JSON string and uses the parsed object", () => {
+        const payload = validPayload()
+        const result = parseElicitationPayload({
+            ...payload,
+            requestedSchema: JSON.stringify(payload.requestedSchema),
+        })
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.payload.requestedSchema.type).toBe("object")
+        expect(Object.keys(result.payload.requestedSchema.properties)).toEqual([
+            "name",
+            "count",
+            "level",
+            "active",
+        ])
+    })
+
+    it("rejects a requestedSchema string that is not a JSON object", () => {
+        for (const requestedSchema of ["not json", "[1, 2]", '"text"', "null", "42"]) {
+            expect(parseElicitationPayload({message: "hi", requestedSchema}).ok).toBe(false)
+        }
+        expect(parseElicitationPayload({message: "hi", requestedSchema: "not json"})).toEqual({
+            ok: false,
+            reason: "missing requestedSchema",
+        })
+    })
+
     it("rejects empty properties", () => {
         const payload = validPayload()
         payload.requestedSchema.properties = {} as never
