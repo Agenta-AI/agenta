@@ -22,7 +22,6 @@ export interface SkillViewParams {
 export const skillView = defineView<SkillViewParams>({
     id: "agent.skill",
     apply: "on_save",
-    // Read only on a phone (phone-layout "Read-only views on a phone").
     readOnlyOnPhone: true,
     wide: true,
     Component: lazyView(

@@ -13,7 +13,6 @@ export type McpAddViewParams = Record<string, never>
 export const mcpAddView = defineView<McpAddViewParams>({
     id: "agent.mcp.add",
     apply: "immediate",
-    // Read only on a phone (phone-layout "Read-only views on a phone").
     readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./McpAddViewBody"),
