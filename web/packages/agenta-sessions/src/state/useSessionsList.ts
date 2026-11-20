@@ -8,17 +8,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {sessionRowVm, type SessionRowVm} from "../row/viewModel"
 
-import {
-    resetSessionFiltersAtom,
-    sessionAgentFilterAtom,
-    sessionFiltersActiveAtom,
-    sessionFiltersActiveExceptAgentAtom,
-    sessionSearchAtom,
-    sessionShowArchivedAtom,
-    sessionArchivedOnlyAtom,
-    sessionShowTriggeredAtom,
-    sessionStatusFilterAtom,
-} from "./filters"
+import {useSessionFilterAtoms} from "./filters"
 import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from "./pins"
 import {
     awaitingHiddenRows,
@@ -115,17 +105,18 @@ export const useSessionsList = ({
 }: UseSessionsListArgs) => {
     const t = useT(sessionsStatusCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    const search = useAtomValue(sessionSearchAtom)
-    const agentFilter = useAtomValue(sessionAgentFilterAtom)
+    const filters = useSessionFilterAtoms()
+    const search = useAtomValue(filters.search)
+    const agentFilter = useAtomValue(filters.agent)
     const agentId = scopedAgentId ?? agentFilter
-    const status = useAtomValue(sessionStatusFilterAtom)
-    const includeArchived = useAtomValue(sessionShowArchivedAtom)
-    const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
-    const showTriggered = useAtomValue(sessionShowTriggeredAtom)
-    const projectFiltersActive = useAtomValue(sessionFiltersActiveAtom)
-    const scopedFiltersActive = useAtomValue(sessionFiltersActiveExceptAgentAtom)
+    const status = useAtomValue(filters.status)
+    const includeArchived = useAtomValue(filters.showArchived)
+    const archivedOnly = useAtomValue(filters.archivedOnly)
+    const showTriggered = useAtomValue(filters.showTriggered)
+    const projectFiltersActive = useAtomValue(filters.active)
+    const scopedFiltersActive = useAtomValue(filters.activeExceptAgent)
     const filtersActive = scopedAgentId ? scopedFiltersActive : projectFiltersActive
-    const resetFilters = useSetAtom(resetSessionFiltersAtom)
+    const resetFilters = useSetAtom(filters.reset)
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
 
     const interactions = useActionableInteractions(projectId)
@@ -269,19 +260,20 @@ export const useSessionsList = ({
 
 /** The filter surface, as one hook — what the controls in `@agenta/sessions-ui` bind to. */
 export const useSessionFilters = () => {
-    const search = useAtomValue(sessionSearchAtom)
-    const agentId = useAtomValue(sessionAgentFilterAtom)
-    const status = useAtomValue(sessionStatusFilterAtom)
-    const includeArchived = useAtomValue(sessionShowArchivedAtom)
-    const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
-    const mode = useAtomValue(sessionShowTriggeredAtom)
-    const setSearch = useSetAtom(sessionSearchAtom)
-    const setAgentId = useSetAtom(sessionAgentFilterAtom)
-    const setStatus = useSetAtom(sessionStatusFilterAtom)
-    const setIncludeArchived = useSetAtom(sessionShowArchivedAtom)
-    const setArchivedOnly = useSetAtom(sessionArchivedOnlyAtom)
-    const setMode = useSetAtom(sessionShowTriggeredAtom)
-    const reset = useSetAtom(resetSessionFiltersAtom)
+    const filters = useSessionFilterAtoms()
+    const search = useAtomValue(filters.search)
+    const agentId = useAtomValue(filters.agent)
+    const status = useAtomValue(filters.status)
+    const includeArchived = useAtomValue(filters.showArchived)
+    const archivedOnly = useAtomValue(filters.archivedOnly)
+    const mode = useAtomValue(filters.showTriggered)
+    const setSearch = useSetAtom(filters.search)
+    const setAgentId = useSetAtom(filters.agent)
+    const setStatus = useSetAtom(filters.status)
+    const setIncludeArchived = useSetAtom(filters.showArchived)
+    const setArchivedOnly = useSetAtom(filters.archivedOnly)
+    const setMode = useSetAtom(filters.showTriggered)
+    const reset = useSetAtom(filters.reset)
     return {
         search,
         agentId,

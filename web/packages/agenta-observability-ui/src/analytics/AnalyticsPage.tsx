@@ -1,20 +1,16 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     EMPTY_FILTERS,
     ANALYTICS_RANGE,
+    createAnalyticsViewAtoms,
     defaultRange,
     isRangeLocked,
-    analyticsDrawerAtom,
-    analyticsFiltersAtom,
-    analyticsGroupAtom,
     analyticsHasAgentsAtom,
-    analyticsNowAtom,
-    analyticsRangeAtom,
-    analyticsCustomRangeAtom,
-    analyticsWindowAtom,
+    sharedAnalyticsViewAtoms,
+    type AnalyticsFilters,
     type AnalyticsFocus,
     type AnalyticsMetric,
     type AnalyticsRetention,
@@ -26,6 +22,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {AnalyticsEmptyState} from "./AnalyticsEmptyState"
 import {AnalyticsToolbar} from "./AnalyticsToolbar"
+import {AnalyticsViewContext, useAnalyticsView} from "./analyticsView"
 import {FailureRateCard} from "./cards/FailureRateCard"
 import {
     CostCard,
@@ -50,6 +47,12 @@ export interface AnalyticsPageProps {
     createAgentError?: string | null
     /** Opens a run's trace from the drawer's runs list. */
     onOpenTrace?: (traceId: string) => void
+    /**
+     * The Analytics page of one agent. The Agent filter is locked to it and shows as `chip`, the
+     * "Failures by agent" card is hidden, and the page keeps its own range, filters and grouping,
+     * so the shared Analytics view does not change.
+     */
+    lockedAgent?: {id: string; chip: ReactNode}
 }
 
 const WHAT_KEYS = {
@@ -59,27 +62,50 @@ const WHAT_KEYS = {
     failedRuns: "observabilityUi.analytics.whatFailedRuns",
 } as const satisfies Record<EmptyWhat, string>
 
-export const AnalyticsPage = ({
+export const AnalyticsPage = (props: AnalyticsPageProps) => {
+    const lockedAgentId = props.lockedAgent?.id
+    // Picked once: the host remounts the page for another agent.
+    const [view] = useState(() =>
+        lockedAgentId
+            ? createAnalyticsViewAtoms({agent: [lockedAgentId], model: []})
+            : sharedAnalyticsViewAtoms,
+    )
+    return (
+        <AnalyticsViewContext.Provider value={view}>
+            <AnalyticsPageBody {...props} />
+        </AnalyticsViewContext.Provider>
+    )
+}
+
+const AnalyticsPageBody = ({
     retention,
     onUpgrade,
     onCreateAgent,
     creatingAgent,
     createAgentError,
     onOpenTrace,
+    lockedAgent,
 }: AnalyticsPageProps) => {
-    const [range, setRange] = useAtom(analyticsRangeAtom)
-    const [custom, setCustom] = useAtom(analyticsCustomRangeAtom)
+    const view = useAnalyticsView()
+    const [range, setRange] = useAtom(view.range)
+    const [custom, setCustom] = useAtom(view.custom)
     const t = useT(analyticsCatalog)
     const {label: rangeLabel, inline: rangeInline} = useRangeLabel()
-    const [filters, setFilters] = useAtom(analyticsFiltersAtom)
-    const window = useAtomValue(analyticsWindowAtom)
+    const [filters, setFilters] = useAtom(view.filters)
+    const window = useAtomValue(view.window)
     const agents = useAtomValue(analyticsHasAgentsAtom)
-    const openDrawer = useSetAtom(analyticsDrawerAtom)
-    const [group, setGroup] = useAtom(analyticsGroupAtom)
+    const openDrawer = useSetAtom(view.drawer)
+    const [group, setGroup] = useAtom(view.group)
     const [rangeOpen, setRangeOpen] = useState(false)
+    // What "no filters" means here: nothing, or the locked agent alone.
+    const lockedAgentId = lockedAgent?.id
+    const baseFilters = useMemo<AnalyticsFilters>(
+        () => (lockedAgentId ? {agent: [lockedAgentId], model: []} : EMPTY_FILTERS),
+        [lockedAgentId],
+    )
 
     // Without a tick the window freezes at first read: runs after `newest` would never show.
-    const setNow = useSetAtom(analyticsNowAtom)
+    const setNow = useSetAtom(view.now)
     useEffect(() => {
         setNow(Date.now())
         const timer = setInterval(() => setNow(Date.now()), 60_000)
@@ -90,9 +116,9 @@ export const AnalyticsPage = ({
     const projectId = useAtomValue(projectIdAtom)
     const lastProject = useRef(projectId)
     useEffect(() => {
-        if (lastProject.current !== projectId) setFilters(EMPTY_FILTERS)
+        if (lastProject.current !== projectId) setFilters(baseFilters)
         lastProject.current = projectId
-    }, [projectId, setFilters])
+    }, [baseFilters, projectId, setFilters])
     useEffect(() => () => openDrawer(null), [openDrawer])
 
     // A plan that keeps less history than the open range moves the page to what it keeps.
@@ -109,8 +135,9 @@ export const AnalyticsPage = ({
             [data.agentOrder, filters.agent],
         ),
     )
-    const filtered = filters.agent.length > 0 || filters.model.length > 0
-    const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), [setFilters])
+    // The locked agent is the page, not a filter the reader set.
+    const filtered = (!lockedAgentId && filters.agent.length > 0) || filters.model.length > 0
+    const clearFilters = useCallback(() => setFilters(baseFilters), [baseFilters, setFilters])
     const emptyText = useCallback(
         (what: EmptyWhat) =>
             filtered
@@ -128,11 +155,12 @@ export const AnalyticsPage = ({
             openDrawer({
                 bucket,
                 metric,
-                dim: group === "agent" || group === "none" ? "agent" : "model",
+                // One agent has nothing to break down by agent.
+                dim: group === "agent" || (group === "none" && !lockedAgentId) ? "agent" : "model",
                 focus: null,
                 failedOnly: false,
             }),
-        [openDrawer, group],
+        [openDrawer, group, lockedAgentId],
     )
 
     const failures = useFailureReasons(window, filters, data.overview.totals.failed)
@@ -189,7 +217,9 @@ export const AnalyticsPage = ({
 
     const overviewStatus = data.status.overview
     // Archived agents keep their history, so "no agents" alone does not mean "no runs".
+    // An agent page with no runs shows each card's empty range text instead.
     const noAnalyticsYet =
+        !lockedAgentId &&
         !agents.pending &&
         !agents.failed &&
         !agents.hasAgents &&
@@ -227,6 +257,7 @@ export const AnalyticsPage = ({
                 onFiltersChange={setFilters}
                 group={group}
                 onGroupChange={setGroup}
+                lockedAgent={lockedAgent}
                 window={window}
                 agentName={agentName}
                 rangeOpen={rangeOpen}
@@ -240,7 +271,7 @@ export const AnalyticsPage = ({
                     </span>
                     <span className="min-w-0 flex-1 truncate">
                         {[
-                            filters.agent.length
+                            filters.agent.length && !lockedAgentId
                                 ? t("observabilityUi.analytics.filterAgent", {
                                       names: filters.agent.map(agentName).join(", "),
                                   })
@@ -268,22 +299,24 @@ export const AnalyticsPage = ({
                 <SuccessCard ctx={ctx} />
             </div>
             <TokensCard ctx={ctx} />
-            <FailureRateCard
-                data={data}
-                failures={failures}
-                agentName={agentName}
-                rangeLabel={rangeLabel}
-                emptyText={emptyText}
-                onSelectAgent={(id) =>
-                    openDrawer({
-                        bucket: null,
-                        metric: "runs",
-                        dim: "model",
-                        focus: {dim: "agent", key: id} satisfies AnalyticsFocus,
-                        failedOnly: true,
-                    })
-                }
-            />
+            {lockedAgentId ? null : (
+                <FailureRateCard
+                    data={data}
+                    failures={failures}
+                    agentName={agentName}
+                    rangeLabel={rangeLabel}
+                    emptyText={emptyText}
+                    onSelectAgent={(id) =>
+                        openDrawer({
+                            bucket: null,
+                            metric: "runs",
+                            dim: "model",
+                            focus: {dim: "agent", key: id} satisfies AnalyticsFocus,
+                            failedOnly: true,
+                        })
+                    }
+                />
+            )}
             <AnalyticsDrawer agentName={agentName} keyColor={keyColor} onOpenTrace={onOpenTrace} />
         </div>
     )

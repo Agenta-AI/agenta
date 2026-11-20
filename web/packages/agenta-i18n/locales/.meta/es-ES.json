@@ -1,4 +1,8 @@
 {
+    "agentPages.lockedFilter": {
+        "agent": "11b39c93777e",
+        "onlyThisAgent": "e4b153af241b"
+    },
     "agentSidebar": {
         "agent": "11b39c93777e",
         "agents": "279b44d2ab4b",

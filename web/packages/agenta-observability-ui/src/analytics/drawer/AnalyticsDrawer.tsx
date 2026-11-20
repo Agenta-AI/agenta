@@ -11,10 +11,6 @@ import {
     sharePercent,
     successRate,
     sum,
-    analyticsDrawerAtom,
-    analyticsGroupAtom,
-    analyticsFiltersAtom,
-    analyticsWindowAtom,
     type AnalyticsMetric,
     type AnalyticsPoint,
 } from "@agenta/observability/analytics"
@@ -23,6 +19,7 @@ import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@ag
 import {CaretLeft, CaretRight, X} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
+import {useAnalyticsView} from "../analyticsView"
 import {stackSeries} from "../cards/GroupedCard"
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
@@ -103,7 +100,7 @@ export interface AnalyticsDrawerProps {
 }
 
 export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
-    const [state, setState] = useAtom(analyticsDrawerAtom)
+    const [state, setState] = useAtom(useAnalyticsView().drawer)
     return (
         <Sheet open={state !== null} onOpenChange={(open) => !open && setState(null)}>
             <SheetContent
@@ -125,10 +122,11 @@ export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDra
 
 const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
     const t = useT(analyticsCatalog)
-    const [state, setState] = useAtom(analyticsDrawerAtom)
-    const pageWindow = useAtomValue(analyticsWindowAtom)
+    const view = useAnalyticsView()
+    const [state, setState] = useAtom(view.drawer)
+    const pageWindow = useAtomValue(view.window)
     const {label: rangeLabel} = useRangeLabel()
-    const [filters, setFilters] = useAtom(analyticsFiltersAtom)
+    const [filters, setFilters] = useAtom(view.filters)
     const [hovered, setHovered] = useState<number | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(scrollRef)
@@ -148,7 +146,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         [data.starts, tools],
     )
     // The page's group stacks the chart too, unless the drawer is on one key of it.
-    const group = useAtomValue(analyticsGroupAtom)
+    const group = useAtomValue(view.group)
     const stackDim = group !== "none" && focus?.dim !== group ? group : null
     const stackSplit = useAnalyticsSplit(
         stackDim ?? "agent",

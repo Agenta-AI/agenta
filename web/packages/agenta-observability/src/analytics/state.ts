@@ -37,34 +37,7 @@ import type {
     AnalyticsWindow,
 } from "./types"
 
-export const analyticsRangeAtom = atom<AnalyticsRangeKey>("7d")
-
-/** The page's clock; the host ticks it so the window follows real time. */
-export const analyticsNowAtom = atom(Date.now())
-
-/** A picked span of days; set, it replaces the preset range. */
-export const analyticsCustomRangeAtom = atom<AnalyticsCustomRange | null>(null)
-
-// Rounded to the hour or day, so the query keys only move at a boundary.
-export const analyticsWindowAtom = atom<AnalyticsWindow>((get) => {
-    const custom = get(analyticsCustomRangeAtom)
-    return custom
-        ? customWindow(custom)
-        : rangeWindow(get(analyticsRangeAtom), get(analyticsNowAtom))
-})
-
-export const analyticsRangeLabelAtom = atom((get) => {
-    const custom = get(analyticsCustomRangeAtom)
-    return custom
-        ? customRangeLabel(custom, get(analyticsNowAtom))
-        : ANALYTICS_RANGE[get(analyticsRangeAtom)].label
-})
-
 export const EMPTY_FILTERS: AnalyticsFilters = {agent: [], model: []}
-
-export const analyticsFiltersAtom = atom<AnalyticsFilters>(EMPTY_FILTERS)
-
-export const analyticsGroupAtom = atom<AnalyticsGroup>("none")
 
 const QUERY_OPTIONS = {
     staleTime: 60_000,
@@ -260,4 +233,43 @@ export interface AnalyticsDrawerState {
     failedOnly: boolean
 }
 
-export const analyticsDrawerAtom = atom<AnalyticsDrawerState | null>(null)
+/**
+ * One Analytics page's view: the range, the filters, the grouping and the open drawer. The
+ * Analytics tab in Settings uses the shared view (the exports below). A page that must not change
+ * it, such as the Analytics page locked to one agent, makes its own view. The queries are keyed by
+ * value, so both views share the query cache.
+ */
+export const createAnalyticsViewAtoms = (initialFilters: AnalyticsFilters = EMPTY_FILTERS) => {
+    const range = atom<AnalyticsRangeKey>("7d")
+    /** The page's clock; the host ticks it so the window follows real time. */
+    const now = atom(Date.now())
+    /** A picked span of days; set, it replaces the preset range. */
+    const custom = atom<AnalyticsCustomRange | null>(null)
+    // Rounded to the hour or day, so the query keys only move at a boundary.
+    const timeWindow = atom<AnalyticsWindow>((get) => {
+        const picked = get(custom)
+        return picked ? customWindow(picked) : rangeWindow(get(range), get(now))
+    })
+    const rangeLabel = atom((get) => {
+        const picked = get(custom)
+        return picked ? customRangeLabel(picked, get(now)) : ANALYTICS_RANGE[get(range)].label
+    })
+    const filters = atom<AnalyticsFilters>(initialFilters)
+    const group = atom<AnalyticsGroup>("none")
+    const drawer = atom<AnalyticsDrawerState | null>(null)
+    return {range, now, custom, window: timeWindow, rangeLabel, filters, group, drawer}
+}
+
+export type AnalyticsViewAtoms = ReturnType<typeof createAnalyticsViewAtoms>
+
+/** The view the Analytics tab in Settings keeps. */
+export const sharedAnalyticsViewAtoms: AnalyticsViewAtoms = createAnalyticsViewAtoms()
+
+export const analyticsRangeAtom = sharedAnalyticsViewAtoms.range
+export const analyticsNowAtom = sharedAnalyticsViewAtoms.now
+export const analyticsCustomRangeAtom = sharedAnalyticsViewAtoms.custom
+export const analyticsWindowAtom = sharedAnalyticsViewAtoms.window
+export const analyticsRangeLabelAtom = sharedAnalyticsViewAtoms.rangeLabel
+export const analyticsFiltersAtom = sharedAnalyticsViewAtoms.filters
+export const analyticsGroupAtom = sharedAnalyticsViewAtoms.group
+export const analyticsDrawerAtom = sharedAnalyticsViewAtoms.drawer

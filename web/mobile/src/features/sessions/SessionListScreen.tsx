@@ -1,12 +1,14 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import {
     applySessionScopeAtom,
-    resetSessionFiltersAtom,
-    sessionSearchAtom,
+    createSessionFilterAtoms,
+    SessionFilterAtomsContext,
+    sharedSessionFilterAtoms,
+    useSessionFilterAtoms,
     useSessionsList,
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
@@ -22,6 +24,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
+import {LockedAgentChip} from "../agent-pages/LockedAgentChip"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
@@ -33,7 +36,12 @@ import {SESSIONS_PAGE_FRAME} from "./pageFrame"
 import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
-import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
+import {
+    activityFloorIso,
+    AGENT_SESSION_LIST_VIEW,
+    DEFAULT_SESSION_LIST_VIEW,
+    type SessionListView,
+} from "./sessionListView"
 import {sessionScopeFromRoute} from "./sessionRouteScope"
 import {showSessionsOnboarding, useProjectHasSessions} from "./useProjectHasSessions"
 import {useSessionRowMenu} from "./useSessionRowMenu"
@@ -50,11 +58,39 @@ import {useSessionRowMenu} from "./useSessionRowMenu"
 export const SessionListScreen = ({
     workspaceId,
     projectId,
+    agentId,
 }: {
     workspaceId: string
     projectId: string
+    /**
+     * The Sessions page of one agent: the Agent filter is locked to it, the page groups by date
+     * and has no Agent column. Its filters are its own, so the all-sessions page keeps its own.
+     */
+    agentId?: string
+}) => {
+    // Picked once: the agent route remounts this screen for another agent.
+    const [filterAtoms] = useState(() =>
+        agentId ? createSessionFilterAtoms() : sharedSessionFilterAtoms,
+    )
+    return (
+        <SessionFilterAtomsContext.Provider value={filterAtoms}>
+            <SessionListBody workspaceId={workspaceId} projectId={projectId} agentId={agentId} />
+        </SessionFilterAtomsContext.Provider>
+    )
+}
+
+const SessionListBody = ({
+    workspaceId,
+    projectId,
+    agentId: lockedAgentId,
+}: {
+    workspaceId: string
+    projectId: string
+    agentId?: string
 }) => {
     const t = useT(sessionsMobileListCatalog)
+    const filterAtoms = useSessionFilterAtoms()
+    const defaultView = lockedAgentId ? AGENT_SESSION_LIST_VIEW : DEFAULT_SESSION_LIST_VIEW
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
@@ -71,8 +107,9 @@ export const SessionListScreen = ({
     // asking at the time, so only the first survives a reload — and the rest live in the shared
     // atoms anyway.
     const [view, setView] = useFilterMenuView<SessionListView>({
-        key: "agenta:sessions:view",
-        fallback: DEFAULT_SESSION_LIST_VIEW,
+        // The agent page keeps its grouping apart from the all-sessions page.
+        key: lockedAgentId ? "agenta:sessions:agent-view" : "agenta:sessions:view",
+        fallback: defaultView,
         persist: ["group"],
     })
 
@@ -88,6 +125,7 @@ export const SessionListScreen = ({
     // The SAME arguments `SessionListTable` passes, so both hooks resolve to one query rather
     // than two. This one is only here for the waiting count the filter menu shows.
     const list = useSessionsList({
+        agentId: lockedAgentId,
         activityFloor,
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
@@ -96,19 +134,22 @@ export const SessionListScreen = ({
     // Debounced: the search is a server predicate on two queries, so every keystroke would
     // otherwise refetch both. Seeded from the atom, which outlives this mount — coming back to a
     // narrowed list with an empty box reads as broken rather than as filtered.
-    const setSearch = useSetAtom(sessionSearchAtom)
-    const seedSearch = useAtomValue(sessionSearchAtom)
+    const setSearch = useSetAtom(filterAtoms.search)
+    const seedSearch = useAtomValue(filterAtoms.search)
     const listSettledEmpty = list.isEmpty && !list.isPlaceholder && !list.isPending
     const probe = useProjectHasSessions(listSettledEmpty)
-    const projectEmpty = showSessionsOnboarding({
-        listSettledEmpty,
-        listError: list.isError,
-        probe,
-        search: seedSearch,
-    })
+    // An agent with no session shows the table's own empty state, not the project onboarding.
+    const projectEmpty =
+        !lockedAgentId &&
+        showSessionsOnboarding({
+            listSettledEmpty,
+            listError: list.isError,
+            probe,
+            search: seedSearch,
+        })
     const search = useDebouncedAtomSearch(setSearch, 300, seedSearch)
 
-    const resetFilters = useSetAtom(resetSessionFiltersAtom)
+    const resetFilters = useSetAtom(filterAtoms.reset)
     // Two undos, because they answer different questions. A search that matched nothing is undone
     // by clearing the SEARCH — wiping the reader's other narrowing at the same time hands back a
     // list far wider than the one they were searching in, without saying so.
@@ -119,10 +160,12 @@ export const SessionListScreen = ({
     const resetView = useCallback(() => {
         resetFilters()
         search.reset()
-        setView(DEFAULT_SESSION_LIST_VIEW)
-    }, [resetFilters, search, setView])
+        setView(defaultView)
+    }, [defaultView, resetFilters, search, setView])
 
     useEffect(() => {
+        // The route scope writes the shared filters; the agent page has its own.
+        if (lockedAgentId) return
         const scope = sessionScopeFromRoute({mode: routeMode, agent: routeAgent}, agentLinkEnabled)
         if (!scope) return
         applyScope(scope)
@@ -130,7 +173,7 @@ export const SessionListScreen = ({
         // after it and re-narrow the list the route just scoped. The hook cannot see that on its
         // own: the atom was already empty, so its value never changed and nothing told the draft.
         clearSearch()
-    }, [agentLinkEnabled, applyScope, clearSearch, routeAgent, routeMode])
+    }, [agentLinkEnabled, applyScope, clearSearch, lockedAgentId, routeAgent, routeMode])
 
     // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
     // the desktop list bind. Without them a row here offers only the pin.
@@ -163,6 +206,13 @@ export const SessionListScreen = ({
         () => new Map(agents.map((agent: {id: string; name: string}) => [agent.id, agent.name])),
         [agents],
     )
+    const lockedAgent = useMemo(
+        () =>
+            lockedAgentId
+                ? {id: lockedAgentId, name: agentNames.get(lockedAgentId) ?? ""}
+                : undefined,
+        [agentNames, lockedAgentId],
+    )
 
     return (
         <>
@@ -181,7 +231,7 @@ export const SessionListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     {t("sessions.mobileList.sessions")}
                                 </h1>
-                                {projectEmpty ? null : (
+                                {projectEmpty || lockedAgentId ? null : (
                                     <HowThisWorksButton
                                         guide="sessions"
                                         className="max-sm:hidden"
@@ -215,13 +265,20 @@ export const SessionListScreen = ({
                                     onSearchChange={search.onChange}
                                     searchPlaceholder={t("sessions.mobileList.searchSessions")}
                                     actions={
-                                        <SessionFilterMenu
-                                            view={view}
-                                            onChange={setView}
-                                            agents={agents}
-                                            waitingCount={list.waitingCount}
-                                            onReset={resetView}
-                                        />
+                                        <>
+                                            <SessionFilterMenu
+                                                view={view}
+                                                onChange={setView}
+                                                agents={agents}
+                                                waitingCount={list.waitingCount}
+                                                onReset={resetView}
+                                                lockedAgent={lockedAgent}
+                                                defaultView={defaultView}
+                                            />
+                                            {lockedAgent ? (
+                                                <LockedAgentChip name={lockedAgent.name} />
+                                            ) : null}
+                                        </>
                                     }
                                 />
                                 <SessionListTable
@@ -230,7 +287,9 @@ export const SessionListScreen = ({
                                     agentNames={agentNames}
                                     agentNamesReady={!agentsQuery.isPending}
                                     verbs={verbs}
-                                    onNewSession={startBlank}
+                                    // The agent page has "New session" in its sidebar already.
+                                    onNewSession={lockedAgentId ? undefined : startBlank}
+                                    agentId={lockedAgentId}
                                     onClearSearch={clearSearch}
                                     onResetView={resetView}
                                 />
