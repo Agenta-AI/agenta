@@ -797,12 +797,15 @@ async def _queued(dao, *, envelope, kind=PendingInputKind.message):
 async def _edit(service, item, editor):
     from oss.src.core.sessions.inputs.dtos import PendingInputUpdate
 
+    from oss.src.core.access.dtos import RunSender
+
     return await service.update(
         project_id=PROJECT_ID,
         session_id=SESSION_ID,
         input_id=item.id,
         user_id=editor,
         update=PendingInputUpdate(text="Ben's text."),
+        sender=RunSender(user_id=editor) if editor is not None else None,
     )
 
 
@@ -1053,3 +1056,45 @@ async def test_a_turn_end_promotes_a_server_input_when_no_rule_holds():
     assert admission is not None
     assert update.state == PendingInputState.promoted
     assert update.promoted_execution_id == admission.execution_id
+
+
+@pytest.mark.asyncio
+async def test_an_api_key_of_the_sender_cannot_edit_her_browser_message(monkeypatch):
+    """The route reads the editor from the request's own envelope. An API key request
+    has no sender, so the key's creator does not count as the sender."""
+    import oss.src.apis.fastapi.sessions.router as module
+    from oss.src.apis.fastapi.sessions.router import SessionsRootRouter
+    from oss.src.core.access.dtos import RequestCredentialKind
+
+    ana = uuid4()
+    dao = _EditableDAO()
+    service, item = await _queued(
+        dao, envelope=make_envelope(project_id=PROJECT_ID, principal_id=ana)
+    )
+    router = SessionsRootRouter.__new__(SessionsRootRouter)
+    router.inputs_service = service
+    key_envelope = make_envelope(project_id=PROJECT_ID, kind="api_key")
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            project_id=str(PROJECT_ID),
+            user_id=str(ana),  # the key's creator
+            run_envelope=key_envelope,
+            credential_kind=RequestCredentialKind.API_KEY,
+        )
+    )
+
+    async def allow(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(module, "allow_resource", allow)
+    with pytest.raises(Exception) as raised:
+        await router.update_pending_input(
+            request,
+            SESSION_ID,
+            item.id,
+            module.PendingInputUpdateRequest(text="Ben's text."),
+        )
+
+    assert getattr(raised.value, "status_code", None) == 403
+    assert raised.value.detail["details"]["reason"] == "not_sender"
+    assert _text(dao.items[0]) != "Ben's text."
