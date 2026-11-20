@@ -136,3 +136,11 @@ async def test_a_set_body_session_never_falls_back_to_the_header(exchange):
     then fails), so the credential never names the header's session instead."""
     request = _Request({"session_id": ""}, headers={"x-ag-session-id": "header-1"})
     assert "session_id" not in await _params(exchange, request)
+
+
+async def test_any_content_type_spelling_reads_the_body(exchange):
+    request = _Request(
+        {"session_id": "body-1"},
+        headers={"content-type": "Application/JSON", "x-ag-session-id": "header-1"},
+    )
+    assert (await _params(exchange, request))["session_id"] == "body-1"
