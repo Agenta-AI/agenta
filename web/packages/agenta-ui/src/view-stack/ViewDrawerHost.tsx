@@ -67,7 +67,17 @@ export const ViewDrawerHost = <P,>({
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column"},
                 ...(phone
-                    ? {content: {inset: 0, width: "100%", maxWidth: "100%", borderRadius: 0}}
+                    ? {
+                          content: {
+                              inset: 0,
+                              width: "100%",
+                              maxWidth: "100%",
+                              borderRadius: 0,
+                              // Clear of the notch and the home bar, as the Channels connect layer.
+                              paddingTop: "env(safe-area-inset-top)",
+                              paddingBottom: "env(safe-area-inset-bottom)",
+                          },
+                      }
                     : null),
             }}
         >

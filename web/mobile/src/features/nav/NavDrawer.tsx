@@ -81,7 +81,8 @@ export const NavDrawer = ({
             size="icon"
             aria-label={label}
             // 20px glyph, not the button's 16: the hamburger is the header's only mark.
-            className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] lg:hidden [&_svg:not([class*='size-'])]:size-5"
+            // -inset-[7px]: the inset starts inside the 1 px border, so 6 px past each edge makes 44.
+            className="text-muted-foreground relative after:absolute after:-inset-[7px] after:content-[''] lg:hidden [&_svg:not([class*='size-'])]:size-5"
         >
             <ListIcon />
         </Button>
