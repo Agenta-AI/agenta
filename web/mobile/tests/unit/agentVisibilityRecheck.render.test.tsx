@@ -74,6 +74,7 @@ const Probe = ({sessionId}: {sessionId: string}) => {
     const agent = useAgentEntity(sessionId, PROJECT)
     const access = useChatAccess({sessionId, projectId: PROJECT, agentHidden: agent.agentHidden})
     useAgentVisibilityRecheck({
+        sessionId,
         checkedAt: access.checkedAt,
         enabled: Boolean(agent.agentId) && access.rowAgentHidden === null,
         refetch: agent.refetchLatest,
@@ -86,11 +87,23 @@ const Probe = ({sessionId}: {sessionId: string}) => {
     return null
 }
 
+let render: (sessionId: string) => Promise<void>
+
 const mount = async (sessionId: string) => {
     const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     const store = createStore()
     store.set(queryClientAtom, client)
     store.set(projectIdAtom, PROJECT)
+    render = (id: string) =>
+        act(async () =>
+            root.render(
+                <QueryClientProvider client={client}>
+                    <Provider store={store}>
+                        <Probe sessionId={id} />
+                    </Provider>
+                </QueryClientProvider>,
+            ),
+        )
     await act(async () =>
         root.render(
             <QueryClientProvider client={client}>
@@ -159,6 +172,28 @@ describe("an agent made private while its chat is open", () => {
         expect(rows.querySessionStreams).toHaveBeenCalledTimes(2)
         expect(sharing.fetchSessionSharing).not.toHaveBeenCalled()
         expect(seen.agentHidden).toBe(false)
+    })
+})
+
+describe("a session switch on the same screen", () => {
+    it("is not a recheck: the agent revision is read once, not again for the new session", async () => {
+        await mount("first")
+        await advance(0)
+        expect(retrieveWorkflowRevision).toHaveBeenCalledTimes(1)
+
+        // Some seconds later the screen stays mounted and only its session changes, as a
+        // sidebar click does.
+        await advance(5_000)
+        await render("second")
+        await advance(0)
+        expect(rows.querySessionStreams).toHaveBeenCalledTimes(2)
+        expect(retrieveWorkflowRevision).toHaveBeenCalledTimes(1)
+        expect(seen.agentHidden).toBe(false)
+
+        // The next sharing recheck of the new session still re-reads the revision.
+        await advance(60_500)
+        await advance(0)
+        expect(retrieveWorkflowRevision).toHaveBeenCalledTimes(2)
     })
 })
 

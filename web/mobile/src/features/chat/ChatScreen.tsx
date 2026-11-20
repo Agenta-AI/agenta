@@ -109,6 +109,7 @@ export const ChatScreen = ({
     // An agent made private while this screen is open: the session row read says so (one
     // request per recheck). Only a row that names no workflow re-reads the agent's revision.
     useAgentVisibilityRecheck({
+        sessionId,
         checkedAt: access.checkedAt,
         enabled: Boolean(resolvedAgentId) && access.rowAgentHidden === null,
         refetch: refetchLatest,
@@ -140,7 +141,8 @@ export const ChatScreen = ({
     useEffect(() => {
         if (pinnedRevisionId || !hasAgent) return
         let live = true
-        void refetchLatest().then(({data, status}) => {
+        // Joins the read the switch already started instead of cancelling it for a second one.
+        void refetchLatest({cancelRefetch: false}).then(({data, status}) => {
             if (live && status === "success" && data?.revisionId) pinRevision(data.revisionId)
         })
         return () => {
