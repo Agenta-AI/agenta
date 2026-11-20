@@ -606,7 +606,10 @@ const ProviderConnectionCard = ({
 
     // The line under the credential fields: the check that runs, or what it answered.
     const statusLine = ((): StatusLine | null => {
-        if (checkState.phase === "idle" || checkState.phase === "stopped") return null
+        if (checkState.phase === "idle") return null
+        // Stopped: nothing to report, and "Check again" starts it again.
+        if (checkState.phase === "stopped")
+            return checkMode === "key" ? {tone: "neutral", text: "", checkAgain: true} : null
         if (checking) return checkMode === "key" ? {tone: "progress"} : null
         if (checkFailed) {
             if (checkMode === "refresh") return null
@@ -806,7 +809,7 @@ const ProviderConnectionCard = ({
                     {statusLine.text}
                     {statusLine.checkAgain ? (
                         <>
-                            {" "}
+                            {statusLine.text ? " " : null}
                             <Button
                                 variant="link"
                                 size="sm"

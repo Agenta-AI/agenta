@@ -187,7 +187,7 @@ describe("onboarding API key row", () => {
         await submit()
         expect(keyCheck.check).toHaveBeenCalledWith(
             expect.objectContaining({kind: "openai", provider: {key: "sk-live-12345678"}}),
-            {force: true},
+            {force: false},
         )
         expect(saveKey).toHaveBeenCalledWith("openai", "sk-live-12345678")
     })

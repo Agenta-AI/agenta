@@ -66,6 +66,8 @@ export function useKeyCheck(): KeyCheck {
         setStateValue(next)
     }, [])
     const controller = useRef<AbortController | null>(null)
+    // The running check, so a second call for the same request waits on it instead.
+    const running = useRef<{signature: string; answer: Promise<KeyCheckState | null>} | null>(null)
     // Each check has a number; an answer whose number is not the latest is ignored.
     const latest = useRef(0)
 
@@ -96,36 +98,52 @@ export function useKeyCheck(): KeyCheck {
             if (!projectId) return null
             const signature = signatureOf(request)
             const current = stateRef.current
-            if (!force && current.phase !== "idle" && current.signature === signature) return null
+            if (!force && current.phase !== "idle" && current.signature === signature) {
+                return current.phase === "checking" && running.current?.signature === signature
+                    ? running.current.answer
+                    : null
+            }
             controller.current?.abort()
             const own = new AbortController()
             controller.current = own
             const id = (latest.current += 1)
             setState({phase: "checking", signature})
-            let next: KeyCheckState
-            try {
-                const result = await probeRef.current.mutateAsync({
-                    projectId,
-                    kind: request.kind,
-                    provider: request.provider,
-                    secretId: request.secret_id,
-                    ...(request.secretScope ? {secretScope: request.secretScope} : {}),
-                    signal: own.signal,
-                })
-                next = result
-                    ? {phase: "done", signature, result}
-                    : {phase: "failed", signature, error: null}
-            } catch (error) {
-                next = {phase: "failed", signature, error}
-            } finally {
-                if (controller.current === own) controller.current = null
-            }
-            if (id !== latest.current) return null
-            setState(next)
-            return next
+            const answer = run(projectId, request, signature, own, id)
+            running.current = {signature, answer}
+            return answer
         },
         [projectId, setState],
     )
+
+    async function run(
+        projectId: string,
+        request: KeyCheckRequest,
+        signature: string,
+        own: AbortController,
+        id: number,
+    ): Promise<KeyCheckState | null> {
+        let next: KeyCheckState
+        try {
+            const result = await probeRef.current.mutateAsync({
+                projectId,
+                kind: request.kind,
+                provider: request.provider,
+                secretId: request.secret_id,
+                ...(request.secretScope ? {secretScope: request.secretScope} : {}),
+                signal: own.signal,
+            })
+            next = result
+                ? {phase: "done", signature, result}
+                : {phase: "failed", signature, error: null}
+        } catch (error) {
+            next = {phase: "failed", signature, error}
+        } finally {
+            if (controller.current === own) controller.current = null
+        }
+        if (id !== latest.current) return null
+        setState(next)
+        return next
+    }
 
     // A form that closes takes its running check with it.
     useEffect(() => () => controller.current?.abort(), [])

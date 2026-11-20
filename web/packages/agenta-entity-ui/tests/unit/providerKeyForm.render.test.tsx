@@ -406,5 +406,9 @@ describe("review fixes", () => {
         await blur(key)
 
         expect(probeMutation.mutateAsync).toHaveBeenCalledTimes(1)
+        expect(text()).not.toContain("Agenta checks the key as soon as you paste it.")
+
+        await click(button("Check again"))
+        expect(probeMutation.mutateAsync).toHaveBeenCalledTimes(2)
     })
 })

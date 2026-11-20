@@ -119,7 +119,8 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
         if (passes(checkState) || checkState.phase === "failed") return void store()
         // Not checked yet (or still checking): check, then save if the key passes. A Stop or an
         // edit meanwhile resolves to null, and nothing is saved.
-        const answer = await checkKey(provider.kind, key, true)
+        // A running check of this key is awaited, not sent twice; a stopped one starts again.
+        const answer = await checkKey(provider.kind, key, checkState.phase === "stopped")
         if (passes(answer)) await store()
     }
 
