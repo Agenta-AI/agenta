@@ -24,7 +24,7 @@ import {useChatAgeLabel} from "./useChatAgeLabel"
 export const TITLE_MENU_CHATS = 5
 
 const headerClass =
-    "flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pl-2.5 pr-2"
+    "flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pr-2"
 
 /**
  * The builder panel header: the chat title as a menu of the latest chats about this agent and
@@ -142,7 +142,10 @@ export const BuilderHeader = ({
         )
     }
     return (
-        <div className={headerClass} data-testid="builder-panel-header">
+        <div
+            className={cn(headerClass, isHistory ? "pl-1.5" : "pl-2.5")}
+            data-testid="builder-panel-header"
+        >
             {isHistory ? (
                 <>
                     {iconButton(t("builder.panel.back"), <CaretLeft aria-hidden />, onBack)}

@@ -169,7 +169,7 @@ export const BrowseIdeasDialog = ({
                                         <span className="box-border flex size-[26px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-zinc-1 text-zinc-8">
                                             <IdeaIcon aria-hidden size={14} />
                                         </span>
-                                        <span className="flex min-w-0 flex-1 flex-col">
+                                        <span className="flex min-w-0 flex-1 flex-col gap-1">
                                             <span className="text-[13px] font-medium leading-5 text-colorText">
                                                 {entry.title}
                                             </span>

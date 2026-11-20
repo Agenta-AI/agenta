@@ -24,7 +24,7 @@ import {useRouter} from "next/router"
 
 import {builderChatHref} from "../builder/builderChatHref"
 
-const titleClass = "min-w-0 flex-1 truncate text-[15px] font-semibold text-colorText"
+const titleClass = "min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-colorText"
 
 /**
  * The title of a saved builder chat and its "⋯" menu (B03). The menu holds the session actions a

@@ -66,7 +66,7 @@ export const QuickActions = ({
                                 "inline-flex cursor-pointer items-center rounded-full border-0 text-zinc-8 ring-1 ring-inset",
                                 phone
                                     ? "relative h-10 gap-1.5 px-3.5 text-sm after:absolute after:-inset-0.5 after:content-['']"
-                                    : "h-[30px] px-3 text-[13px]",
+                                    : "h-[30px] px-3 text-[13px] leading-5",
                                 open === action
                                     ? "bg-zinc-2 ring-colorBorder"
                                     : "bg-colorBgContainer ring-colorBorderSecondary hover:bg-zinc-1",
