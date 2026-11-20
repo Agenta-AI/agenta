@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {executionController, executionItemController} from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
@@ -22,11 +24,9 @@ export interface RunsPanelHeaderProps {
  * all. In the compare view (no `entityId`) Run all runs every revision, and the label does not fold:
  * the compare rows have no fold.
  */
-export const RunsPanelHeader = ({
-    entityId,
-    label = "Generations",
-    testsetMenu,
-}: RunsPanelHeaderProps) => {
+export const RunsPanelHeader = ({entityId, label, testsetMenu}: RunsPanelHeaderProps) => {
+    const t = useT(runsCatalog)
+    const shownLabel = label ?? t("playground.runs.generations")
     const {isRunning} = useAtomValue(
         entityId
             ? executionItemController.selectors.headerData(entityId)
@@ -52,7 +52,7 @@ export const RunsPanelHeader = ({
         <div className="sticky top-0 z-10 flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-0 border-b border-solid border-border bg-background px-4 py-2">
             {entityId ? (
                 <CollapsibleGroupHeader
-                    label={label}
+                    label={shownLabel}
                     isCollapsed={allCollapsed}
                     onClick={() => setAllCollapsed(!allCollapsed)}
                     iconSize={16}
@@ -68,27 +68,24 @@ export const RunsPanelHeader = ({
                     className="items-center text-base font-semibold text-nowrap max-sm:[&>span:last-child]:sr-only"
                 />
             ) : (
-                <span className="text-base font-semibold text-nowrap">{label}</span>
+                <span className="text-base font-semibold text-nowrap">{shownLabel}</span>
             )}
             <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
                 {testsetMenu}
-                <SimpleTooltip title="Clear all" side="bottom">
+                <SimpleTooltip title={t("playground.runs.clearAll")} side="bottom">
                     <Button
                         variant="outline"
                         size="sm"
                         disabled={running}
                         onClick={() => clearAll()}
                     >
-                        Clear
+                        {t("playground.runs.clear")}
                     </Button>
                 </SimpleTooltip>
                 {running ? (
                     <RunButton mode="cancel" onClick={() => cancelAll()} />
                 ) : (
-                    <SimpleTooltip
-                        title="Run the prompt on all test cases. (Ctrl+Enter / ⌘+Enter)"
-                        side="bottom"
-                    >
+                    <SimpleTooltip title={t("playground.runs.runAll")} side="bottom">
                         <RunButton
                             mode="runAll"
                             variant="default"

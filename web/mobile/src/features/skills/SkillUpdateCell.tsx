@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowCircleUp, CheckCircle} from "@phosphor-icons/react"
 
@@ -18,6 +20,7 @@ export const SkillUpdateCell = ({
     workflowId: string
     compact?: boolean
 }) => {
+    const t = useT(skillsListCatalog)
     const status = useSkillUpdateStatus(workflowId)
     const {apply} = useSkillUpdates()
 
@@ -32,8 +35,8 @@ export const SkillUpdateCell = ({
             <Button
                 size="icon-xs"
                 variant="ghost"
-                aria-label="Update to the latest version"
-                title="Update to the latest version"
+                aria-label={t("skills.list.updateToLatest")}
+                title={t("skills.list.updateToLatest")}
                 className="text-primary hover:bg-foreground/10 dark:hover:bg-foreground/15"
                 onClick={() => void apply([workflowId])}
             >
@@ -46,19 +49,19 @@ export const SkillUpdateCell = ({
                 className="h-6 px-2 text-[11.5px] font-normal"
                 onClick={() => void apply([workflowId])}
             >
-                Update
+                {t("skills.list.update")}
             </Button>
         )
     if (status === "updated")
         return compact ? (
             <span
                 className="flex size-6 items-center justify-center text-muted-foreground"
-                title="Updated"
+                title={t("skills.list.updated")}
             >
-                <CheckCircle aria-label="Updated" className="size-4" />
+                <CheckCircle aria-label={t("skills.list.updated")} className="size-4" />
             </span>
         ) : (
-            <span className="text-[12px] text-muted-foreground">Updated</span>
+            <span className="text-[12px] text-muted-foreground">{t("skills.list.updated")}</span>
         )
     return null
 }

@@ -1,0 +1,9 @@
+{
+    "showFiles": "Mostrar archivos",
+    "hideFiles": "Ocultar archivos",
+    "showFilesPane": "Mostrar el panel de archivos",
+    "hideFilesPane": "Ocultar el panel de archivos",
+    "openConversationToBrowse": "Abre una conversación para explorar los archivos.",
+    "driveId": "ID de la unidad",
+    "sessionId": "ID de la sesión"
+}

@@ -40,11 +40,14 @@ import {useDriveTreeKeyboard} from "@agenta/entities/drive"
 import {useDriveTreePane} from "@agenta/entities/drive"
 import {useDriveTreeReveal} from "@agenta/entities/drive"
 import {useDriveTreeViewport} from "@agenta/entities/drive"
-import {useDriveUploads} from "@agenta/entities/drive"
+import {canWriteAt, useDriveUploads} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -97,8 +100,8 @@ const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "html"])
 const PROSE_KINDS = new Set<DriveFileKind>(["markdown", "text"])
 
 const noop = () => undefined
-/** The rail's static root row. */
-const ROOT_NODE = {name: "All files", path: "", isFolder: true, children: []}
+/** The rail's static root row; its name is translated where it renders. */
+const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
 
 /**
  * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
@@ -161,6 +164,7 @@ export function DriveExplorer({
     treePersistKey?: string
     closeVariant?: "close" | "collapse" | "back"
 }) {
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const chrome = chromeProp ?? onClose != null
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -320,8 +324,8 @@ export function DriveExplorer({
     const selectedMountPath = selectedResolved?.path ?? selectedPath ?? ""
     const selectedFileSize = selected?.size ?? selectedNode?.size ?? undefined
 
-    // Writes share the upload gate: a writable, real mount.
-    const canWrite = canUpload
+    // Writes share the upload gate, judged at the destination: a mount backs it, not a read drive.
+    const canWrite = canUpload && canWriteAt(drive, currentFolder)
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
@@ -349,7 +353,7 @@ export function DriveExplorer({
     )
     useDrivePasteUpload({
         paneRef,
-        enabled: chrome && canUpload,
+        enabled: chrome && canWrite,
         onFiles: onPasteFiles,
         isNameTaken,
     })
@@ -447,11 +451,12 @@ export function DriveExplorer({
     )
     const startRename = useCallback(
         (path: string) => {
+            if (!writes.canChange(path)) return
             const folder = parentOf(path)
             if (selectedPath !== folder) select(folder)
             setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file"})
         },
-        [selectedPath, select, nodeByPath],
+        [writes, selectedPath, select, nodeByPath],
     )
     const nameEditView = useMemo<DriveNameEdit | null>(() => {
         if (!nameEdit) return null
@@ -468,7 +473,7 @@ export function DriveExplorer({
     }, [nameEdit, siblingsOf, commitName])
     const onDelete = useCallback(
         async (path: string, isFolder: boolean) => {
-            if (!writes.canDelete(path)) return
+            if (!writes.canChange(path)) return
             const node = nodeByPath.get(path)
             const under =
                 selectedPath != null &&
@@ -481,15 +486,17 @@ export function DriveExplorer({
         },
         [writes, nodeByPath, selectedPath, editing, discardDraft, select],
     )
+    // Each item's menu asks for its own path: a read drive's items offer no write verb.
     const itemWrites = useMemo<DriveItemWriteActions | undefined>(
         () =>
-            canWrite
+            canUpload
                 ? {
+                      canChange: writes.canChange,
                       onRename: startRename,
                       onDelete: (path, isFolder) => void onDelete(path, isFolder),
                   }
                 : undefined,
-        [canWrite, startRename, onDelete],
+        [canUpload, writes.canChange, startRename, onDelete],
     )
     const fileActions = useMemo<DriveFileActions | undefined>(
         () =>
@@ -565,7 +572,9 @@ export function DriveExplorer({
     )
 
     // Row 2's read-side actions: copy path (none at the root), download (file, folder zip, or all).
-    const onCopyCurrentPath = selectedPath ? () => copyText(selectedPath, "Path copied") : undefined
+    const onCopyCurrentPath = selectedPath
+        ? () => copyText(selectedPath, t("entityUi.driveExplorer.pathCopied"))
+        : undefined
     const copyLink = useContext(DriveLinkContext)
     const onCopyCurrentLink =
         copyLink && selectedPath != null
@@ -597,7 +606,7 @@ export function DriveExplorer({
                 mirrored={mirrored}
             />
         )
-    } else if (drive.fileCount === 0) {
+    } else if (drive.fileCount === 0 && !drive.otherDrives?.length) {
         body = <DriveEmptyState scope={scope} />
     } else {
         // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.
@@ -649,7 +658,7 @@ export function DriveExplorer({
                 path={selectedPath ?? ""}
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
-                note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
+                note={tooLargeToEdit ? t("entityUi.driveBrowser.readOnlyTooLarge") : undefined}
                 appView={
                     htmlApp
                         ? {
@@ -671,7 +680,7 @@ export function DriveExplorer({
         const contentPane =
             selectedPath == null ? (
                 <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
-                    Select a file to preview it.
+                    {t("entityUi.driveBrowser.selectFileToPreview")}
                 </div>
             ) : selectedIsFolder ? (
                 <FolderView
@@ -754,6 +763,7 @@ export function DriveExplorer({
                     path={selectedMountPath}
                     displayPath={selectedPath}
                     showOrigin={showOrigin}
+                    otherDrives={drive.otherDrives}
                     rootLabel={rootLabel}
                     touchedAt={selected?.touchedAt}
                     size={selectedFileSize}
@@ -780,7 +790,7 @@ export function DriveExplorer({
                                 size="sm"
                                 value={search}
                                 onValueChange={setSearch}
-                                placeholder="Search files"
+                                placeholder={t("entityUi.driveBrowser.searchFiles")}
                                 className="w-full"
                                 prefix={
                                     <MagnifyingGlass
@@ -802,6 +812,7 @@ export function DriveExplorer({
                             shownExpanded={shownExpanded}
                             selectedPath={selectedPath}
                             showOrigin={showOrigin}
+                            otherDrives={drive.otherDrives}
                             isDirLoading={isDirLoading}
                             scrollXFor={scrollXFor}
                             onMeasureContent={onMeasureContent}
@@ -819,7 +830,10 @@ export function DriveExplorer({
                             rootRow={
                                 chrome && !searchActive ? (
                                     <TreeRow
-                                        node={ROOT_NODE}
+                                        node={{
+                                            ...ROOT_NODE,
+                                            name: t("entityUi.driveExplorer.allFiles"),
+                                        }}
                                         depth={0}
                                         isOpen
                                         selected={selectedPath === ""}

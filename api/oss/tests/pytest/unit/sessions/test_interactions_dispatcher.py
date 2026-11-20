@@ -1314,6 +1314,39 @@ async def test_resume_is_admitted_on_the_session_and_dispatches_the_admitted_req
     assert dispatch_fn.await_args.kwargs["request"] is admitted["request"]
 
 
+@pytest.mark.parametrize("session_turn_id", ["turn-start", None])
+async def test_respond_many_sends_the_session_turn_id_in_meta(session_turn_id):
+    interaction = _make_interaction()
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    dispatch_fn = AsyncMock(return_value="run-1")
+    dispatcher = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
+        workflows_service=MagicMock(),
+        interactions_service=interactions_service,
+        dispatch_fn=dispatch_fn,
+    )
+    control_command_id = uuid4()
+    await dispatcher.respond_many(
+        project_id=interaction.project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction.id, {"value": 1})],
+        envelope=make_envelope(),
+        control_command_id=control_command_id,
+        continuation_execution_id="resume-1",
+        session_turn_id=session_turn_id,
+    )
+
+    kwargs = dispatch_fn.await_args.kwargs
+    meta = kwargs["request"].meta
+    assert kwargs["run_id"] == "resume-1"
+    assert meta["control_command_id"] == str(control_command_id)
+    if session_turn_id is None:
+        assert "session_turn_id" not in meta
+    else:
+        assert meta["session_turn_id"] == "turn-start"
+
+
 async def test_refused_resume_raises_for_the_command_delivery_and_dispatches_nothing():
     """`respond_many` (the command path) lets `AdmissionDenied` up, so the delivery
     settles the command terminally."""

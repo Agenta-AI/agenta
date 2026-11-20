@@ -3,6 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -15,10 +16,46 @@ class MountsDAOInterface(ABC):
         user_id: UUID,
         #
         mount_create: MountCreate,
+        #
+        visibility: Optional[AccessPolicy] = None,
     ) -> Mount:
         """Insert a mount. A new row stores `organization_storage_prefix(organization_id=<the
-        project's organization>, mount_id=<new id>)`, written in the same insert."""
+        project's organization>, mount_id=<new id>)`, written in the same insert. With
+        `visibility`, its `mount_visibility` row is written in the same transaction."""
         ...
+
+    @abstractmethod
+    async def create_agent_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        mount_create: MountCreate,
+        visibility: AccessPolicy,
+    ) -> Mount:
+        """Insert the agent's drive (`mount_create.agent_id`) with its visibility row, or
+        return the agent's existing row. Raises `MountSlugConflict` on a taken slug."""
+        ...
+
+    @abstractmethod
+    async def fetch_mount_by_agent_id(
+        self,
+        *,
+        project_id: UUID,
+        #
+        agent_id: str,
+        include_archived: bool = False,
+    ) -> Optional[Mount]: ...
+
+    @abstractmethod
+    async def list_slugs_with_prefix(
+        self,
+        *,
+        project_id: UUID,
+        #
+        prefix: str,
+    ) -> List[str]: ...
 
     @abstractmethod
     async def upsert_mount(

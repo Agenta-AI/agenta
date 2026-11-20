@@ -5,6 +5,8 @@ from uuid import UUID
 # policy is enforced twice against the same rows — as a SQL predicate in the Postgres DAO
 # and in Python in `MountsService` — and the two must not be able to drift apart.
 RESERVED_SLUG_PREFIX = "__ag__"
+# The reserved slug of an agent's own drive: `__ag__agent__<artifact id>__default`.
+RESERVED_AGENT_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}agent__"
 SESSION_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}session__"
 ATTACHMENTS_MOUNT_NAME = "attachments"
 ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"

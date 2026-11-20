@@ -1,7 +1,11 @@
 import {useEffect} from "react"
 
+import {createT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {defineExtension, type LexicalEditor} from "lexical"
+
+const tNow = createT(uiEditorCatalog)
 
 // ---------------------------------------------------------------------------
 // Types
@@ -121,7 +125,7 @@ export function registerPropertyClickBehavior(
 
         const fullPath = calculateJsonPath(rootElement, target)
         if (fullPath) {
-            target.setAttribute("title", `Click to drill into "${fullPath}"`)
+            target.setAttribute("title", tNow("ui.editor.clickToDrill", {path: fullPath}))
         }
     }
 

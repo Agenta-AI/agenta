@@ -1,0 +1,23 @@
+{
+    "formatBoolean": "Boolesch (wahr/falsch)",
+    "formatContinuous": "Kontinuierlich (Zahlenbereich)",
+    "formatCategorical": "Kategorisch (vordefinierte Optionen)",
+    "enterJsonSchema": "JSON-Schema eingeben...",
+    "responseFormat": "Antwortformat",
+    "responseFormatTooltip": "Wählen Sie das Format für Ihre Evaluierungsergebnisse",
+    "booleanInfo": "Der Evaluator gibt anhand der Feedback-Kriterien eine Antwort wahr (1) oder falsch (0) zurück.",
+    "minimum": "Minimum",
+    "minimumTooltip": "Der Mindestwert des numerischen Punktbereichs",
+    "maximum": "Maximum",
+    "maximumTooltip": "Der Höchstwert des numerischen Punktbereichs",
+    "categories": "Kategorien",
+    "categoriesTooltip": "Legen Sie die möglichen Kategoriewerte für die Evaluierung fest",
+    "add": "Hinzufügen",
+    "name": "Name",
+    "categoryName": "Name der Kategorie {{number}}",
+    "description": "Beschreibung",
+    "categoryDescription": "Beschreibung der Kategorie {{number}}",
+    "removeCategory": "Kategorie {{number}} entfernen",
+    "includeReasoning": "Begründung einschließen",
+    "includeReasoningTooltip": "Wenn aktiviert, gibt der Evaluator zusätzlich einen Kommentar zur Begründung der Punktzahl aus"
+}

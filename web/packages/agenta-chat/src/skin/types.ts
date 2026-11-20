@@ -138,6 +138,8 @@ export interface ResolvedToolDisplay {
     summary?: (input: unknown, output: unknown) => string | null
     /** The verb alone, in both tenses, when the sentence was built from one. */
     verb?: ToolActivity
+    /** The sentence around its object, with `{{object}}` where the object goes; set with `verb`. */
+    frame?: ToolActivity
     /** The step glyph, from the override or the kind's default. */
     icon: ActivityIcon
 }

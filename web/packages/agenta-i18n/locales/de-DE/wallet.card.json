@@ -1,0 +1,7 @@
+{
+    "balance": "Guthaben",
+    "label": "Wallet",
+    "rate": "1 Credit = {{usd}}",
+    "unit": "Credits",
+    "usage": "≈ {{usd}} Nutzungswert"
+}

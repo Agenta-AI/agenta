@@ -1,0 +1,14 @@
+{
+    "application": "Application",
+    "variant": "Variant",
+    "testSet": "Test set",
+    "evaluator": "Evaluator",
+    "environment": "Environment",
+    "slug": "Slug",
+    "id": "ID",
+    "version": "Version",
+    "revisionId": "Revision ID",
+    "copyName": "Copy name",
+    "copyField": "Copy {{name}}",
+    "deleted": "Deleted"
+}

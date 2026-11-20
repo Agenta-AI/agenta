@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import contextResolver from "@agenta/i18n/catalogs/context.resolver"
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
@@ -42,6 +44,7 @@ interface ContextResolverProps {
  * all of them from the same project list.
  */
 export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps = {}) => {
+    const t = useT(contextResolver)
     const router = useRouter()
     // useState initializer: read once, client-only (SSR renders the loading branch).
     const [stored] = useState<LastContext | null>(() =>
@@ -122,10 +125,12 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
             <ScreenScaffold>
                 <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
                     <p className="text-muted-foreground text-xs">
-                        {result?.kind === "ok" ? "No projects found." : "Something went wrong."}
+                        {result?.kind === "ok"
+                            ? t("context.resolver.noProjects")
+                            : t("context.resolver.somethingWrong")}
                     </p>
                     <Button type="button" variant="outline" onClick={() => void query.refetch()}>
-                        Retry
+                        {t("context.resolver.retry")}
                     </Button>
                 </div>
             </ScreenScaffold>

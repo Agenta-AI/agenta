@@ -1,5 +1,7 @@
 import {useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
 import {CaretUpDown} from "@phosphor-icons/react"
 
@@ -31,6 +33,7 @@ export const ProjectSwitch = ({
     panelContainer,
     className,
 }: ProjectSwitchProps) => {
+    const t = useT(navigationCatalog)
     const [open, setOpen] = useState(false)
     const close = useCallback(() => setOpen(false), [])
     return (
@@ -57,7 +60,9 @@ export const ProjectSwitch = ({
                 className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
             >
                 <div className="flex flex-col p-1">
-                    <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
+                    <div className={CAPTION_CLASS}>
+                        {t("navigation.projectMenu.projectsIn", {organization: orgLabel})}
+                    </div>
                     <EntryList entries={projects} close={close} />
                 </div>
             </PopoverContent>

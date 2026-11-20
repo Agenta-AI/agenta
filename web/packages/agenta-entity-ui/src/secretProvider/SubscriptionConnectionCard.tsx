@@ -3,6 +3,8 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {type ProviderConnection} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, Copy, WarningCircle} from "@phosphor-icons/react"
 
@@ -20,6 +22,7 @@ export interface SubscriptionConnectionCardProps {
 }
 
 const CodeBlock = ({code}: {code: string}) => {
+    const t = useT(subscriptionSignInCatalog)
     const [copied, setCopied] = useState(false)
 
     const copy = useCallback(() => {
@@ -37,9 +40,16 @@ const CodeBlock = ({code}: {code: string}) => {
             <span className="select-all font-mono text-lg tracking-[0.2em] text-colorText">
                 {code}
             </span>
-            <Button size="sm" variant="ghost" onClick={copy} aria-label="Copy the sign-in code">
+            <Button
+                size="sm"
+                variant="ghost"
+                onClick={copy}
+                aria-label={t("entityUi.subscriptionSignIn.copySignInCode")}
+            >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? "Copied" : "Copy"}
+                {copied
+                    ? t("entityUi.subscriptionSignIn.copied")
+                    : t("entityUi.subscriptionSignIn.copy")}
             </Button>
         </div>
     )
@@ -51,6 +61,7 @@ const SubscriptionConnectionCard = ({
     onRemove,
     autoStart = false,
 }: SubscriptionConnectionCardProps) => {
+    const t = useT(subscriptionSignInCatalog)
     const {
         name,
         isReady,
@@ -93,7 +104,7 @@ const SubscriptionConnectionCard = ({
                         ) : null}
                         {pending ? <Spinner className="size-3 shrink-0" /> : null}
                         <span className={pending ? "animate-pulse" : undefined}>
-                            {statusLine || "Sign in with your ChatGPT subscription to run agents."}
+                            {statusLine || t("entityUi.subscriptionSignIn.signInChatgpt")}
                         </span>
                     </span>
                 </div>
@@ -101,11 +112,13 @@ const SubscriptionConnectionCard = ({
                 {pending ? null : (
                     <div className="flex shrink-0 items-center gap-2">
                         <Button size="sm" disabled={starting} onClick={() => void connect()}>
-                            {hasSignedInBefore ? "Sign in again" : `Connect ${name}`}
+                            {hasSignedInBefore
+                                ? t("entityUi.subscriptionSignIn.signInAgain")
+                                : t("entityUi.subscriptionSignIn.connectName", {name})}
                         </Button>
                         {connection && onRemove ? (
                             <Button size="sm" variant="ghost" onClick={() => onRemove(connection)}>
-                                Remove
+                                {t("entityUi.subscriptionSignIn.remove")}
                             </Button>
                         ) : null}
                     </div>
@@ -115,7 +128,7 @@ const SubscriptionConnectionCard = ({
             {pending ? (
                 <div className="flex flex-col gap-3 rounded-md bg-colorFillQuaternary p-3">
                     <span className="text-colorTextSecondary">
-                        Open ChatGPT and enter this code. Keep this page open.
+                        {t("entityUi.subscriptionSignIn.openChatgptEnterCode")}
                     </span>
                     <CodeBlock code={pending.userCode} />
                     <div className="flex flex-wrap items-center gap-2">
@@ -125,16 +138,18 @@ const SubscriptionConnectionCard = ({
                             rel="noreferrer"
                             className="flex items-center gap-1 text-btn-link hover:text-btn-link-hover"
                         >
-                            Open ChatGPT
+                            {t("entityUi.subscriptionSignIn.openName", {name: "ChatGPT"})}
                             <ArrowSquareOut size={12} />
                         </a>
                         {pending.expiresAt ? (
                             <span className="text-colorTextTertiary">
-                                Expires in {countdownLabel(pending.expiresAt, now)}
+                                {t("entityUi.subscriptionSignIn.expiresIn", {
+                                    time: countdownLabel(pending.expiresAt, now),
+                                })}
                             </span>
                         ) : null}
                         <Button size="sm" variant="ghost" className="ml-auto" onClick={cancel}>
-                            Cancel
+                            {t("entityUi.subscriptionSignIn.cancel")}
                         </Button>
                     </div>
                 </div>
@@ -143,7 +158,7 @@ const SubscriptionConnectionCard = ({
             {lostPoll && !isReady ? (
                 <span className="flex items-center gap-1 text-colorWarning">
                     <WarningCircle size={14} />
-                    Agenta lost track of that sign-in. Check ChatGPT, then sign in again.
+                    {t("entityUi.subscriptionSignIn.lostTrack", {name: "ChatGPT"})}
                 </span>
             ) : null}
 

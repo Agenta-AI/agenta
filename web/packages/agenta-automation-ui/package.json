@@ -12,10 +12,12 @@
         "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./run-history-drawer-atom": "./src/runHistoryDrawerAtom.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
         "@agenta/sessions-ui": "workspace:../agenta-sessions-ui",
         "@agenta/shared": "workspace:../agenta-shared",

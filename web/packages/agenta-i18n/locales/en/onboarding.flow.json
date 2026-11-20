@@ -1,0 +1,13 @@
+{
+    "pageTitle": "Get started",
+    "preparing": "Preparing your workspace",
+    "mintError": "Couldn't set up your agent.",
+    "stepCounter": "Step {{current}} of {{total}}",
+    "skip": "Skip for now",
+    "dotCredits": "Credits",
+    "dotTemplates": "First agent",
+    "keyHint": "Press {{key}}",
+    "continue": "Continue",
+    "writeIn": "Tell us more",
+    "writeInPlaceholder": "One line is enough"
+}

@@ -12,6 +12,8 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
+import {createT} from "@agenta/i18n"
+import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {clearQuoteReveal, getQuotes, useQuoteReveal} from "@agenta/ui/quote-selection"
 import {atom, useAtom, useAtomValue} from "jotai"
@@ -21,7 +23,7 @@ import dynamic from "next/dynamic"
 import {type DriveLinkItem} from "./driveLink"
 
 import {DriveExplorerSkeleton} from "./index"
-import {useDriveArtifactId} from "./index"
+import {useDriveArtifactId, useDriveRevisionId} from "./index"
 import {useDriveGeneration} from "./index"
 import {driveQuickLookAtomFamily} from "./index"
 import {filesDrawerStagedAtomFamily, resolveQuickLookPath} from "./index"
@@ -39,6 +41,9 @@ export const sessionFilesPaneOpenAtomFamily = atomFamily((_scope: string) => ato
 
 // This hook mounts more than once per session; each reveal opens the file once.
 const openedReveals = new Map<string, number>()
+
+// The id labels are built in a memo; they read the language when it runs.
+const tNow = createT(filesPaneCatalog)
 
 /** The pane's open/close/toggle — one hook so the splitter host, the session bar toggle, and
  * every opener (config Files section, context rail, inspector) drive the SAME state. */
@@ -98,12 +103,14 @@ export function SessionFilesPane({
     const [quickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     const [staged, setStaged] = useAtom(filesDrawerStagedAtomFamily(sessionId))
     const artifactId = useDriveArtifactId()
+    const revisionId = useDriveRevisionId()
 
     // Summary drive (cheap) — DriveExplorer lazy-loads the rest. Gated on open (the agent-mount query
     // keys on artifactId, so a live id while collapsed would fetch the agent drive before it's shown).
     const drive = useSessionDriveSummary(
         open ? sessionId : "",
         open ? (artifactId ?? undefined) : undefined,
+        open ? (revisionId ?? undefined) : undefined,
     )
 
     // Every opener writes a fresh request, so the same path clicked twice still re-opens.
@@ -114,10 +121,16 @@ export function SessionFilesPane({
         () =>
             quickLook
                 ? quickLook.path && !quickLook.exact
-                    ? resolveQuickLookPath(drive.recents, quickLook.path)
+                    ? resolveQuickLookPath(
+                          drive.recents,
+                          quickLook.path,
+                          drive.driveEntries,
+                          drive.homeSlug,
+                          drive.homeAtRoot,
+                      )
                     : quickLook.path
                 : null,
-        [quickLook, drive.recents],
+        [quickLook, drive.recents, drive.driveEntries, drive.homeSlug, drive.homeAtRoot],
     )
 
     // Raw ids are a DEBUGGING affordance (wiring an SDK call, filing a bug), so they ride the same
@@ -129,9 +142,19 @@ export function SessionFilesPane({
                 ? []
                 : ([
                       drive.mount?.id
-                          ? {key: "mount", label: "Drive ID", value: drive.mount.id}
+                          ? {
+                                key: "mount",
+                                label: tNow("entityUi.filesPane.driveId"),
+                                value: drive.mount.id,
+                            }
                           : null,
-                      sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
+                      sessionId
+                          ? {
+                                key: "owner",
+                                label: tNow("entityUi.filesPane.sessionId"),
+                                value: sessionId,
+                            }
+                          : null,
                   ].filter(Boolean) as DriveId[]),
         [inspectorEnabled, drive.mount?.id, sessionId],
     )

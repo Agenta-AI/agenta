@@ -1,0 +1,23 @@
+{
+    "approval": "承認",
+    "archived": "アーカイブ済み",
+    "automationRuns": "自動化の実行",
+    "ended": "終了",
+    "eventSubscription": "イベントサブスクリプション",
+    "idle": "アイドル",
+    "input": "入力",
+    "missingEventSubscription": "イベントサブスクリプションが見つかりません",
+    "missingSchedule": "スケジュールが見つかりません",
+    "multiple": "複数",
+    "pinned": "ピン留め済み",
+    "pinnedCount": "ピン留め済み {{count}}",
+    "readyToResume": "再開可能",
+    "recent": "最近",
+    "running": "実行中",
+    "schedule": "スケジュール",
+    "toolCall": "ツールコール",
+    "untitledSession": "無題のセッション",
+    "waiting": "待機中",
+    "waitingForInput": "入力待ち",
+    "waitingOnYou": "あなたの対応待ち"
+}

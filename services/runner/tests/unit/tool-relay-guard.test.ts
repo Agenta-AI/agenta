@@ -42,6 +42,7 @@ import {
   RUN_TOOL_SPEC,
   SEARCH_TOOL_SPEC,
 } from "../utils/gateway.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 const RUN_CONTEXT: RunContext = {
@@ -99,7 +100,7 @@ async function relayOnce(input: {
       localRelayHost(),
       dir,
       [input.spec],
-      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      fixedToolCallback({ endpoint: ENDPOINT, authorization: "ApiKey secret" }),
       input.runContext,
       undefined,
       input.guard,

@@ -50,8 +50,11 @@ import type {
   GatewayPolicy,
   ResolvedToolSpec,
   RunContext,
-  ToolCallbackContext,
 } from "../protocol.ts";
+import {
+  RunCredentialExpiredError,
+  type ToolCallbackRuntime,
+} from "./run-credential.ts";
 import {
   filterGatewaySearchResult,
   gatewayToolUnavailableText,
@@ -181,7 +184,10 @@ export type RelayExecutionGuard = (
 export type RelayExecutionAuthorizer = (
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
-) => Promise<{ ok: true; args: unknown } | { ok: false; reason: string }>;
+) => Promise<
+  | { ok: true; args: unknown }
+  | { ok: false; reason: string }
+>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -421,13 +427,14 @@ interface GatewaySeam {
 async function executeRelayedTool(
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
-  callback: ToolCallbackContext | undefined,
+  callback: ToolCallbackRuntime | undefined,
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
   guard: RelayExecutionGuard | undefined,
   authorizer: RelayExecutionAuthorizer | undefined,
   gateway: GatewaySeam,
   log: ((msg: string) => void) | undefined,
+  signal?: AbortSignal,
 ): Promise<string | RelayRefusal | typeof PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
@@ -535,6 +542,7 @@ async function executeRelayedTool(
       gateway,
       resolved,
       log,
+      signal,
     );
   }
 
@@ -546,17 +554,21 @@ async function executeRelayedTool(
     gateway,
     resolved,
     log,
+    signal,
   );
 }
 
 async function executeAllowedRelayedTool(
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
-  callback: ToolCallbackContext | undefined,
+  callback: ToolCallbackRuntime | undefined,
   runContext: RunContext | undefined,
   gateway: GatewaySeam,
   resolved: GatewayExecution | undefined,
   log?: (msg: string) => void,
+  // The turn's abort signal. A stopped turn must not wait out a long per-tool limit (a
+  // reference tool waits up to 30 minutes), because `stop()` drains every in-flight call.
+  signal?: AbortSignal,
 ): Promise<string | RelayRefusal> {
   assertRequiredArguments(spec, req.args);
   if (spec.kind === "code") {
@@ -572,13 +584,14 @@ async function executeAllowedRelayedTool(
     try {
       text = await callAgentaTool(
         callback.endpoint,
-        callback.authorization,
+        callback.credential(),
         spec.callRef ?? "",
         req.toolCallId,
         resolved.args,
         {
           timeoutMs: spec.timeoutMs,
           runKind: runContext?.run?.kind,
+          signal,
           context: resolved.context,
           // `gateway.run` only, and only for the error envelope: the API builds close-key
           // suggestions from the whole catalog and cannot know what this agent denied.
@@ -606,6 +619,14 @@ async function executeAllowedRelayedTool(
       // one shape.
       gateway.memory.searches += 1;
       gateway.memory.offered = [];
+      // An expired run credential is the one exception: retrying cannot fix it.
+      if (err instanceof RunCredentialExpiredError) {
+        log?.(
+          `[gateway] search outcome=failed reason=run_credential_expired ` +
+            `envelope=${err.envelope.code}`,
+        );
+        return new RelayRefusal(err.message);
+      }
       log?.(
         `[gateway] search outcome=failed reason=callback_error ` +
           `envelope=${TOOL_SEARCH_UNAVAILABLE_ERROR.code}`,
@@ -687,8 +708,9 @@ async function executeAllowedRelayedTool(
     for (const name of pathParamNames(spec.call.path)) {
       deepDelete(body, name);
     }
-    return callDirect(spec.call.method, url, callback.authorization, body, {
+    return callDirect(spec.call.method, url, callback.credential(), body, {
       runKind: runContext?.run?.kind,
+      signal,
     });
   }
   // Gateway (Composio) and handler-mode platform ops: POST back through Agenta's /tools/call so
@@ -698,11 +720,11 @@ async function executeAllowedRelayedTool(
     : dispatchArgs;
   return callAgentaTool(
     callback.endpoint,
-    callback.authorization,
+    callback.credential(),
     spec.callRef ?? "",
     req.toolCallId,
     args,
-    { timeoutMs: spec.timeoutMs, runKind: runContext?.run?.kind },
+    { timeoutMs: spec.timeoutMs, runKind: runContext?.run?.kind, signal },
   );
 }
 
@@ -808,7 +830,7 @@ export function startToolRelay(
   host: RelayHost,
   relayDir: string,
   specs: ResolvedToolSpec[],
-  callback: ToolCallbackContext | undefined,
+  callback: ToolCallbackRuntime | undefined,
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,
@@ -892,6 +914,7 @@ export function startToolRelay(
         opts?.authorizer,
         gatewaySeam,
         opts?.log,
+        opts?.signal,
       );
       if (text instanceof RelayRefusal) {
         // `ok: false` is what makes every transport call this an error. The in-sandbox client

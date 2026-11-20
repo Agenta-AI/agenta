@@ -1,0 +1,13 @@
+{
+    "titleCreate": "Créer",
+    "titleSaveAs": "Enregistrer sous",
+    "titleSave": "Enregistrer",
+    "missingName": "Enregistrement impossible : nom ou type manquant",
+    "name": "Nom",
+    "namePlaceholder": "Saisissez un nom...",
+    "saveAsNewCopy": "Enregistrer comme nouvelle copie",
+    "original": "Original : <name>{{name}}</name>",
+    "saveFailed": "Échec de l’enregistrement",
+    "saved": "Enregistré avec succès",
+    "save": "Enregistrer"
+}

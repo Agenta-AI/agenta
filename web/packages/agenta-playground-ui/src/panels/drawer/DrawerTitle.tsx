@@ -1,14 +1,16 @@
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {SheetTitle} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import type {EditableRevisionDrawerKind} from "./types"
 
-const KIND_LABELS: Record<EditableRevisionDrawerKind, string> = {
-    variant: "Revision",
-    deployment: "Deployment",
-    evaluator: "Evaluator",
-}
+const KIND_LABELS = {
+    variant: "playground.panels.kindRevision",
+    deployment: "playground.panels.kindDeployment",
+    evaluator: "playground.panels.kindEvaluator",
+} as const satisfies Record<EditableRevisionDrawerKind, string>
 
 /**
  * What the drawer shows: the kind, then the variant name (an evaluator's own name) and the
@@ -21,6 +23,7 @@ export const DrawerTitle = ({
     revisionId: string
     kind: EditableRevisionDrawerKind
 }) => {
+    const t = useT(panelsCatalog)
     const revision = useAtomValue(workflowMolecule.selectors.data(revisionId))
     const ephemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(revisionId))
     // An evaluator has no variants: it shows its own name.
@@ -33,9 +36,9 @@ export const DrawerTitle = ({
     // An unsaved one made from a template is new, as /w titles it: "New App" or "New Evaluator".
     const kindLabel = ephemeral
         ? kind === "evaluator"
-            ? "New Evaluator"
-            : "New App"
-        : KIND_LABELS[kind]
+            ? t("playground.panels.newEvaluator")
+            : t("playground.panels.newApp")
+        : t(KIND_LABELS[kind])
 
     return (
         <SheetTitle className="flex min-w-0 items-baseline gap-2 text-sm">

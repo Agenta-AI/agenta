@@ -182,6 +182,7 @@ from oss.src.core.sessions.turns.types import (
 )
 from oss.src.core.sessions.dtos import SessionExpansion
 from oss.src.core.sessions.service import SessionsService
+from oss.src.core.mounts.dtos import MountScope
 from oss.src.core.mounts.types import MountNotFound
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
@@ -1170,9 +1171,9 @@ class SessionStreamsRouter:
 
         stream = watch_event_stream(
             channel=watch_channel(str(project_id), session_id),
-            # One pubsub connection per SSE connection (v1 — simplest correct
-            # teardown story; revisit with a shared listener if counts grow).
-            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            # One pubsub connection per SSE connection, from the subscriber pool
+            # (capped per process, apart from the pool that span ingest uses).
+            pubsub_factory=lambda: get_streams_engine().get_subscriber_redis().pubsub(),
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
             retry_milliseconds=env.sessions.watch_retry_milliseconds,
         )
@@ -1244,7 +1245,7 @@ class SessionStreamsRouter:
 
         stream = live_event_stream(
             channel=live_events_channel(project_id, session_id),
-            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            pubsub_factory=lambda: get_streams_engine().get_subscriber_redis().pubsub(),
             authorization_check=authorized,
             authorization_recheck_seconds=env.sessions.live_auth_recheck_seconds,
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
@@ -1300,7 +1301,7 @@ class SessionStreamsRouter:
 
         stream = watch_event_stream(
             channel=project_watch_channel(str(authorized_project_id)),
-            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            pubsub_factory=lambda: get_streams_engine().get_subscriber_redis().pubsub(),
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
             retry_milliseconds=env.sessions.watch_retry_milliseconds,
             event_filter=project_event_filter(
@@ -2428,11 +2429,10 @@ class SessionMountsRouter:
     async def _require_mount(
         self, request: Request, *, mount_id: UUID, permission: Permission
     ) -> None:
-        """A mount of a hidden session or agent answers as an unknown mount."""
-        scope = await self.mounts_service.fetch_mount_scope(
-            project_id=UUID(request.state.project_id), mount_id=mount_id
-        )
-        if not await allow_mount(request, scope=scope, permission=permission):
+        """A drive the caller may not open answers as an unknown mount."""
+        if not await allow_mount(
+            request, scope=MountScope(id=mount_id), permission=permission
+        ):
             raise MountNotFound()
 
     async def _allow_session(

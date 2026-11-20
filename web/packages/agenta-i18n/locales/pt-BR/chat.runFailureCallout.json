@@ -1,0 +1,15 @@
+{
+    "addYourKey": "Adicione sua chave",
+    "buyCredits": "Comprar créditos",
+    "messageNotSent": "Mensagem não enviada",
+    "modelUnavailable": "Este modelo não está disponível para sua organização",
+    "openAiProviders": "Abrir provedores de IA",
+    "outOfCredits": "Seus créditos acabaram",
+    "plansAndBilling": "Planos e faturamento",
+    "runFailed": "A execução do agente falhou",
+    "showLess": "Mostrar menos",
+    "showMore": "Mostrar mais",
+    "taskTookTooLong": "Esta tarefa demorou demais",
+    "tooManyTasks": "Há tarefas demais em execução ao mesmo tempo",
+    "tryAgain": "Tentar de novo"
+}

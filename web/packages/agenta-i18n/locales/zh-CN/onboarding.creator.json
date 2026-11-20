@@ -1,0 +1,7 @@
+{
+    "title": "描述你的 Agent",
+    "subtitle": "说明它该做什么、何时做。它会把这件事作为第一个任务开始处理。",
+    "starters": "消息灵感",
+    "modelMissing": "你的 Agent 需要一个模型才能运行。",
+    "modelMissingAction": "选择一个"
+}

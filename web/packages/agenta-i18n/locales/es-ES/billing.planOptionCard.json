@@ -1,0 +1,13 @@
+{
+    "current": "Actual",
+    "currentPlan": "Plan actual",
+    "custom": "Personalizado",
+    "freeForever": "gratis para siempre",
+    "fromPerMonth": "desde / mes",
+    "moveTo": "Cambiar a {{plan}}",
+    "perMonth": "/ mes",
+    "recommended": "Recomendado",
+    "talkToUs": "Habla con nosotros",
+    "upgradeTo": "Mejorar a {{plan}}",
+    "whatYouGet": "Qué obtienes:"
+}

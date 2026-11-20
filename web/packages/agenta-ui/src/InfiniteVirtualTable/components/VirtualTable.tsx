@@ -10,6 +10,9 @@ import {
     useState,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import type {
     ColumnSizingState,
     OnChangeFn,
@@ -20,6 +23,7 @@ import type {
 import {flexRender, useTable} from "@tanstack/react-table"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
+import {CollapseCaret} from "../../components/ui/collapse-caret"
 import {Spinner} from "../../components/ui/spinner"
 import {cn} from "../../utils/styles"
 import type {ColumnDef, ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
@@ -233,6 +237,7 @@ export const VirtualTable = <RecordType extends object>({
     leadingCellProps,
     renderLeadingHeader,
 }: VirtualTableProps<RecordType>) => {
+    const t = useT(uiTableCatalog, commonCatalog)
     const bodyRef = useRef<HTMLDivElement | null>(null)
     const headerScrollRef = useRef<HTMLDivElement | null>(null)
     const containerRef = useRef<HTMLDivElement | null>(null)
@@ -525,7 +530,9 @@ export const VirtualTable = <RecordType extends object>({
                                                     key="resize"
                                                     role="separator"
                                                     aria-orientation="vertical"
-                                                    aria-label={`Resize ${header.column.id}`}
+                                                    aria-label={t("ui.table.resizeColumn", {
+                                                        column: header.column.id,
+                                                    })}
                                                     data-resize-handle={header.column.id}
                                                     className={cn(
                                                         AVT.resizeHandle,
@@ -654,8 +661,8 @@ export const VirtualTable = <RecordType extends object>({
                                                             type="button"
                                                             aria-label={
                                                                 expanded
-                                                                    ? "Collapse row"
-                                                                    : "Expand row"
+                                                                    ? t("ui.table.collapseRow")
+                                                                    : t("ui.table.expandRow")
                                                             }
                                                             aria-expanded={expanded}
                                                             data-expand-toggle={row.id}
@@ -666,14 +673,10 @@ export const VirtualTable = <RecordType extends object>({
                                                                 row.toggleExpanded()
                                                             }}
                                                         >
-                                                            <span
-                                                                className={cn(
-                                                                    "transition-transform",
-                                                                    expanded && "rotate-90",
-                                                                )}
-                                                            >
-                                                                ›
-                                                            </span>
+                                                            <CollapseCaret
+                                                                open={expanded}
+                                                                size={12}
+                                                            />
                                                         </button>
                                                     ) : null}
                                                 </td>

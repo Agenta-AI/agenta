@@ -1,0 +1,13 @@
+{
+    "pageTitle": "Primeiros passos",
+    "preparing": "Preparando seu espaço de trabalho",
+    "mintError": "Não foi possível configurar seu agente.",
+    "stepCounter": "Etapa {{current}} de {{total}}",
+    "skip": "Pular por enquanto",
+    "dotCredits": "Créditos",
+    "dotTemplates": "Primeiro agente",
+    "keyHint": "Pressione {{key}}",
+    "continue": "Continuar",
+    "writeIn": "Conte mais para nós",
+    "writeInPlaceholder": "Uma linha é suficiente"
+}

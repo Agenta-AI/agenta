@@ -21,6 +21,7 @@ import {
     closeEntitySelectorAtom,
     setEntitySelectorActiveTypeAtom,
 } from "../state/modalState"
+import {tSelection} from "../text"
 import type {EntitySelectionResult, SelectableEntityType} from "../types"
 
 import {EntityPicker} from "./UnifiedEntityPicker"
@@ -224,19 +225,20 @@ export function EntitySelectorModal({
  * Format entity type as human-readable label
  */
 function formatEntityTypeLabel(type: SelectableEntityType): string {
-    const labels: Record<SelectableEntityType, string> = {
-        testset: "Testset",
-        revision: "Revision",
-        app: "App",
-        variant: "Variant",
-        appRevision: "App Revision",
-        evaluator: "Evaluator",
-        evaluatorVariant: "Evaluator Variant",
-        evaluatorRevision: "Evaluator Revision",
-        workflow: "Workflow",
-        workflowVariant: "Workflow Variant",
-        workflowRevision: "Workflow Revision",
-    }
+    const keys = {
+        testset: "entityUi.selection.typeTestset",
+        revision: "entityUi.selection.typeRevision",
+        app: "entityUi.selection.typeApp",
+        variant: "entityUi.selection.typeVariant",
+        appRevision: "entityUi.selection.typeAppRevision",
+        evaluator: "entityUi.selection.typeEvaluator",
+        evaluatorVariant: "entityUi.selection.typeEvaluatorVariant",
+        evaluatorRevision: "entityUi.selection.typeEvaluatorRevision",
+        workflow: "entityUi.selection.typeWorkflow",
+        workflowVariant: "entityUi.selection.typeWorkflowVariant",
+        workflowRevision: "entityUi.selection.typeWorkflowRevision",
+    } as const satisfies Record<SelectableEntityType, string>
 
-    return labels[type] ?? type
+    const key = keys[type] as (typeof keys)[SelectableEntityType] | undefined
+    return key ? tSelection(key) : type
 }

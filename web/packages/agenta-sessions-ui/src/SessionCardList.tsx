@@ -7,6 +7,8 @@
  */
 import {useCallback, useMemo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
 import {
     useSessionCardList,
@@ -306,6 +308,7 @@ export const SessionCardList = ({
     activeRowId,
     ...listArgs
 }: SessionCardListProps) => {
+    const t = useT(sessionsRowsCatalog)
     const compact = density === "compact"
     const list = useSessionCardList(listArgs)
     const {toggle: togglePin} = useSessionPins()
@@ -427,7 +430,7 @@ export const SessionCardList = ({
                         onClick={list.showMore}
                         className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
                     >
-                        Show more
+                        {t("sessions.rows.showMore")}
                         <ArrowRightIcon size={12} />
                     </button>
                 ) : null}

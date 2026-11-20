@@ -1,5 +1,7 @@
 import {memo} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionFilterCatalog from "@agenta/i18n/catalogs/shell.sessionFilter"
 import {sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -13,7 +15,7 @@ import {useSetAtom} from "jotai"
  * trigger — a 22px ghost square — so the pair reads as one set of buttons.
  */
 const SessionSearchButton = ({
-    label = "Search sessions",
+    label,
     shortcut,
 }: {
     /** What the button is called — the tooltip and the accessible name. A host whose search
@@ -23,14 +25,16 @@ const SessionSearchButton = ({
      * its `aria-keyshortcuts` form. Absent when the host binds none. */
     shortcut?: {faces: string[]; aria?: string}
 }) => {
+    const t = useT(sessionFilterCatalog)
     const setOpen = useSetAtom(sidebarSessionSearchOpenAtom)
+    const name = label ?? t("shell.sessionFilter.searchSessions")
     return (
-        <SimpleTooltip title={label} shortcut={shortcut?.faces}>
+        <SimpleTooltip title={name} shortcut={shortcut?.faces}>
             <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label={label}
+                aria-label={name}
                 aria-keyshortcuts={shortcut?.aria}
                 className="size-[22px] p-0 text-colorTextTertiary hover:text-colorText"
                 onClick={(event) => {

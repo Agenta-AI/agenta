@@ -1,3 +1,5 @@
+import {useT, createT} from "@agenta/i18n"
+import billingPlanSummaryCardCatalog from "@agenta/i18n/catalogs/billing.planSummaryCard"
 import type {BillingPlanOption, BillingSubscription} from "@agenta/settings-ui"
 import {Button} from "@agenta/ui/ui"
 import {Coins} from "@phosphor-icons/react"
@@ -7,15 +9,19 @@ import {formatCredits, formatDate} from "../wallet/walletFormat"
 import {CONTACT_URL, periodEnd, planName, planPrice} from "./billingFormat"
 import {creditsLine} from "./planCatalog"
 
+const tNow = createT(billingPlanSummaryCardCatalog)
+
 /** The trial's state, else when the plan renews; nothing for a plan that never renews. */
 const renewal = (subscription: BillingSubscription | null | undefined, isOnFreePlan: boolean) => {
     const end = periodEnd(subscription)
     if (!end || isOnFreePlan) return null
     if (subscription?.free_trial)
         return end > new Date()
-            ? `Trial ends ${formatDate(end.toISOString())}`
-            : `Trial ended ${formatDate(end.toISOString())}`
-    return `Renews ${formatDate(end.toISOString())}`
+            ? tNow("billing.planSummaryCard.trialEnds", {date: formatDate(end.toISOString())})
+            : tNow("billing.planSummaryCard.trialEnded", {
+                  date: formatDate(end.toISOString()),
+              })
+    return tNow("billing.planSummaryCard.renews", {date: formatDate(end.toISOString())})
 }
 
 /** The plan the organization is on, what it costs and grants, and the ways to change it. */
@@ -38,13 +44,14 @@ export const PlanSummaryCard = ({
     onChangePlan?: () => void
     onCancel?: () => void
 }) => {
+    const t = useT(billingPlanSummaryCardCatalog)
     const name = plan?.title ?? planName(subscription?.plan) ?? "—"
     const renews = renewal(subscription, isOnFreePlan)
 
     const price = planPrice(plan)
     // The wallet's live grant wins; the catalog's line covers plans the wallet does not grant.
     const credits = monthlyCreditsMusd
-        ? `${formatCredits(monthlyCreditsMusd)} credits a month`
+        ? t("billing.planSummaryCard.creditsAMonth", {credits: formatCredits(monthlyCreditsMusd)})
         : plan
           ? creditsLine(plan)
           : null
@@ -53,7 +60,9 @@ export const PlanSummaryCard = ({
     return (
         <section className="dark bg-card text-foreground ring-border box-border flex min-h-[176px] min-w-0 flex-col gap-3 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
             <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground text-[13px]">Current plan</span>
+                <span className="text-muted-foreground text-[13px]">
+                    {t("billing.planSummaryCard.currentPlan")}
+                </span>
                 {renews ? (
                     <span className="text-muted-foreground truncate text-xs">{renews}</span>
                 ) : null}
@@ -77,7 +86,7 @@ export const PlanSummaryCard = ({
                     rel="noreferrer"
                     className="text-muted-foreground hover:text-foreground mt-auto text-[13px]"
                 >
-                    Contact us about your plan
+                    {t("billing.planSummaryCard.contactUs")}
                 </a>
             ) : onChangePlan ? (
                 <div className="mt-auto flex flex-wrap items-center gap-3.5">
@@ -86,7 +95,9 @@ export const PlanSummaryCard = ({
                         className="bg-foreground text-background hover:bg-foreground/90"
                         onClick={onChangePlan}
                     >
-                        {isOnFreePlan ? "Upgrade plan" : "Change plan"}
+                        {isOnFreePlan
+                            ? t("billing.planSummaryCard.upgradePlan")
+                            : t("billing.planSummaryCard.changePlan")}
                     </Button>
                     {!isOnFreePlan && onCancel ? (
                         <button
@@ -94,7 +105,7 @@ export const PlanSummaryCard = ({
                             className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-[13px]"
                             onClick={onCancel}
                         >
-                            Cancel subscription
+                            {t("billing.planSummaryCard.cancelSubscription")}
                         </button>
                     ) : null}
                 </div>

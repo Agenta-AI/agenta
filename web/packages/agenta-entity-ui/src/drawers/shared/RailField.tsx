@@ -11,6 +11,8 @@
  */
 import {createContext, useContext, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -26,6 +28,8 @@ import {ArrowCounterClockwise, Info} from "@phosphor-icons/react"
 
 import {useChangedDetail, useChangedPath, useRevertPath} from "./ChangedPathsContext"
 import {useIsPathVisible} from "./FocusPathsContext"
+
+const tNow = createT(drawerSharedCatalog)
 
 /** How a {@link RailField} lays its label out: two-column rail, or label above the control. */
 const FieldLayoutContext = createContext<"rail" | "stacked">("rail")
@@ -77,7 +81,7 @@ export const railInfoLabel = (label: ReactNode, hint: ReactNode): ReactNode => (
 // Unpack the classifier's JSON.stringify'd scalar back to what the field shows (one rule per line),
 // naming the empty cases rather than printing wire syntax like `[]`.
 export function formatCommitted(before: string | undefined): {text: string; muted: boolean} {
-    if (before === undefined) return {text: "Not set", muted: true}
+    if (before === undefined) return {text: tNow("entityUi.drawerShared.notSet"), muted: true}
     let value: unknown = before
     try {
         value = JSON.parse(before)
@@ -87,15 +91,17 @@ export function formatCommitted(before: string | undefined): {text: string; mute
     if (Array.isArray(value)) {
         return value.length
             ? {text: value.map((entry) => String(entry)).join("\n"), muted: false}
-            : {text: "Empty", muted: true}
+            : {text: tNow("entityUi.drawerShared.empty"), muted: true}
     }
     if (value && typeof value === "object") {
         return Object.keys(value).length
             ? {text: JSON.stringify(value, null, 2), muted: false}
-            : {text: "Empty", muted: true}
+            : {text: tNow("entityUi.drawerShared.empty"), muted: true}
     }
     const text = String(value ?? "")
-    return text.trim() ? {text, muted: false} : {text: "Empty", muted: true}
+    return text.trim()
+        ? {text, muted: false}
+        : {text: tNow("entityUi.drawerShared.empty"), muted: true}
 }
 
 // The committed value ("changed from what?") and its undo on one surface: the value shown IS the
@@ -107,11 +113,12 @@ function ChangedDetail({
     before: string | undefined
     onRevert: (() => void) | null
 }) {
+    const t = useT(drawerSharedCatalog)
     const {text, muted} = formatCommitted(before)
     return (
         <div className="flex w-[200px] flex-col gap-2">
             <div className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                Committed value
+                {t("entityUi.drawerShared.committedValue")}
             </div>
             <div
                 className={`max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-1 text-xs ${
@@ -125,7 +132,9 @@ function ChangedDetail({
             {onRevert ? (
                 <Button variant="outline" onClick={onRevert} className="w-full text-xs">
                     <ArrowCounterClockwise size={13} />
-                    {before === undefined ? "Remove change" : "Restore"}
+                    {before === undefined
+                        ? t("entityUi.drawerShared.removeChange")
+                        : t("entityUi.drawerShared.restore")}
                 </Button>
             ) : null}
         </div>

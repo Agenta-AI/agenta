@@ -1,0 +1,10 @@
+{
+    "copyValue": "値をコピー",
+    "deleteField": "フィールドを削除",
+    "addItem": "項目を追加",
+    "expand": "展開",
+    "collapse": "折りたたむ",
+    "goBack": "戻る",
+    "noItems": "表示する項目がありません",
+    "itemCount_other": "{{count}} 項目"
+}

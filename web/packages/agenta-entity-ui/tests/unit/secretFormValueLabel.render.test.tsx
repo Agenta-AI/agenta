@@ -16,12 +16,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
 
-// The editor is Lexical, which does not settle under jsdom and is not what this file is
-// about: the name lives on the group around it, which is this component's own markup.
-vi.mock("@agenta/ui/shared-editor", () => ({
-    SharedEditor: () => createElement("div", {"data-testid": "shared-editor"}),
-}))
-
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: () => [],
@@ -131,6 +125,10 @@ describe("the same field in the formats it also takes", () => {
         const label = document.getElementById(group!.getAttribute("aria-labelledby")!)
         expect(label).not.toBeNull()
         expect(label?.textContent?.trim()).toBe("Content")
+
+        const editor = group!.querySelector("textarea")
+        expect(editor?.getAttribute("aria-labelledby")).toBe(group!.getAttribute("aria-labelledby"))
+        expect(editor?.value).toBe(controls.jsonText)
     })
 
     it("names the grid's value control by the key it belongs to", async () => {

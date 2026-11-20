@@ -117,7 +117,7 @@ function start(input: {
   log?: (line: string) => void;
   /** Pass one in to read it back after the pass; the publisher mutates it in place. */
   state?: SubscriptionPublishState;
-  credentialLease?: { credential: () => string; release: () => void };
+  credentialLease?: { credential: () => string; seed: string; release: () => void };
 }): SubscriptionPublisher {
   const publisher = startSubscriptionPublisher({
     plan: {
@@ -333,6 +333,7 @@ describe("the reconciliation pass", () => {
         intervalMs: 60_000,
         credentialLease: {
           credential: () => authorization,
+          seed: authorization,
           release: () => { released = true; },
         },
       });

@@ -315,7 +315,7 @@ pnpm dev-mobile   # → http://localhost:3000/m, check light+dark
   `bash ./hosting/docker-compose/run.sh --oss --gh` (or `--ee`). That first publication happened
   (the image starts at v0.111.0), so the opt-in `with-web-mobile` profile was removed in
   v0.113.0 and `web-mobile` now starts with every stack; `run.sh --no-mobile` holds it back.
-- **Design-doc staleness:** `docs/designs/sessions/**` predates the streams-merge/turns model;
+- **Design-doc staleness:** `docs/design/sessions/**` predates the streams-merge/turns model;
   don't trust it over the code. The memory file `project_agenta_mobile_discovery` (assistant
   memory) mirrors this handoff.
 - **WP5 device gate flag-flip runbook (SUPERSEDED — the gate is default-on since v0.113.0, so

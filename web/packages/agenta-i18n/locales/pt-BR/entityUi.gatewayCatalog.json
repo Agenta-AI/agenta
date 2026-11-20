@@ -1,0 +1,17 @@
+{
+    "seeLess": "ver menos",
+    "seeMore": "ver mais",
+    "viewAll": "Ver tudo…",
+    "yourConnections": "Suas conexões",
+    "orConnectNew": "Ou conecte um novo app",
+    "connectApp": "Conecte um app",
+    "integrationCount_one": "{{count}} integração",
+    "integrationCount_many": "{{count}} integrações",
+    "integrationCount_other": "{{count}} integrações",
+    "noIntegrations": "Nenhuma integração encontrada",
+    "goBack": "Voltar",
+    "connect": "Conectar",
+    "itemCount_one": "{{count}} item",
+    "itemCount_many": "{{count}} itens",
+    "itemCount_other": "{{count}} itens"
+}

@@ -1,0 +1,19 @@
+{
+    "title": "オブザーバビリティ",
+    "tracesTab": "トレース",
+    "sessionsTab": "セッション",
+    "addSelectedToQueue": "選択した {{count}} 件をキューに追加",
+    "addSelectedToQueueNone": "選択した項目をキューに追加",
+    "noSessionsTitle": "セッションはまだありません",
+    "noSessionsHint": "アプリがセッション ID でトレースをグループ化すると、セッションがここに表示されます。",
+    "noTracesTitle": "トレースはまだありません",
+    "noTracesHint": "アプリがトレースを送信すると、ここに表示されます。",
+    "nothingMatchesTitle": "これらのフィルターに一致するものはありません",
+    "nothingMatchesHint": "時間範囲を広げるか、フィルターをクリアしてください。",
+    "clearFilters": "フィルターをクリア",
+    "filterByApp": "アプリで絞り込む",
+    "allApps": "すべてのアプリ",
+    "tooManyRequests": "リクエストが多すぎます。",
+    "playgroundNoApp": "このトレースにはアプリがないため、プレイグラウンドで開けません。",
+    "playgroundSpanType": "「{{spanType}}」のスパンはプレイグラウンドで再生できません。代わりに、親のワークフロー、タスク、エージェント、またはチェーンのスパンを開いてください。"
+}

@@ -153,7 +153,7 @@ every session.
 
 What already exists and works: 13 skills under `.claude/skills/` (these *are* taken into
 account by Claude, both auto and via `/name`), `docs/packs/{hosting,testing}.md`, and
-`docs/designs/testing/README.md`. The docs/ files are only seen when something links to
+`docs/design/testing/README.md`. The docs/ files are only seen when something links to
 them and the agent follows the link. They are not auto-loaded.
 
 ## Recommended target structure

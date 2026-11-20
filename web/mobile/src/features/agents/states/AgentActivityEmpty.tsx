@@ -1,21 +1,21 @@
+import {useT} from "@agenta/i18n"
+import agentsActivity from "@agenta/i18n/catalogs/agents.activity"
 import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
 import {MessagesSquare, Zap} from "lucide-react"
 
 import type {AgentActivityTab} from "../agentActivityView"
 
-const COPY: Record<AgentActivityTab, {title: string; body: string}> = {
+const COPY = {
     sessions: {
-        title: "No sessions yet",
-        body: "Conversations with this agent will show up here. Start one from the composer above.",
+        title: "agents.activity.emptySessionsTitle",
+        body: "agents.activity.emptySessionsBody",
     },
-    runs: {
-        title: "No automation runs yet",
-        body: "Runs from automations bound to this agent will show up here.",
-    },
-}
+    runs: {title: "agents.activity.emptyRunsTitle", body: "agents.activity.emptyRunsBody"},
+} as const
 
 /** The tab's list has nothing in it — under a header row that is still true, so no frame of its own. */
 export const AgentActivityEmpty = ({tab}: {tab: AgentActivityTab}) => {
+    const t = useT(agentsActivity)
     const copy = COPY[tab]
     return (
         <Empty className="py-12">
@@ -23,8 +23,8 @@ export const AgentActivityEmpty = ({tab}: {tab: AgentActivityTab}) => {
                 <EmptyMedia variant="icon">
                     {tab === "runs" ? <Zap /> : <MessagesSquare />}
                 </EmptyMedia>
-                <EmptyTitle>{copy.title}</EmptyTitle>
-                <EmptyDescription>{copy.body}</EmptyDescription>
+                <EmptyTitle>{t(copy.title)}</EmptyTitle>
+                <EmptyDescription>{t(copy.body)}</EmptyDescription>
             </EmptyHeader>
         </Empty>
     )

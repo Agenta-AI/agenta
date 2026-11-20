@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
 import {copyToClipboard} from "@agenta/ui"
 import {
     DrillInContent,
@@ -36,9 +38,12 @@ const DEFAULT_VALUE_BY_TYPE: Record<PropertyType, unknown> = {
     array: [],
 }
 
+const tNow = createT(testcaseCatalog)
+
+// Built when a field asks, so the labels are in the active language.
 // Chat-specific view mode and chip variants are scoped for v2.
-const TESTCASE_VIEW_OPTIONS: FieldViewModeOption[] = [
-    {value: "text", label: "Text"},
+const testcaseViewOptions = (): FieldViewModeOption[] => [
+    {value: "text", label: tNow("entityUi.testcase.viewText")},
     {value: "markdown", label: "Markdown"},
     {value: "json", label: "JSON"},
     {value: "yaml", label: "YAML"},
@@ -46,14 +51,14 @@ const TESTCASE_VIEW_OPTIONS: FieldViewModeOption[] = [
 
 // Messages render as a schema-aware form, so Text/Markdown collapse to the
 // same view and are misleading. Surface only Form / JSON / YAML.
-const MESSAGES_VIEW_OPTIONS: FieldViewModeOption[] = [
-    {value: "form", label: "Form"},
+const messagesViewOptions = (): FieldViewModeOption[] => [
+    {value: "form", label: tNow("entityUi.testcase.viewForm")},
     {value: "json", label: "JSON"},
     {value: "yaml", label: "YAML"},
 ]
 
 const getTestcaseViewOptions = ({dataType}: {dataType: DataType}): FieldViewModeOption[] =>
-    dataType === "messages" ? MESSAGES_VIEW_OPTIONS : TESTCASE_VIEW_OPTIONS
+    dataType === "messages" ? messagesViewOptions() : testcaseViewOptions()
 const renderTestcaseTypeChip = (value: unknown) => <TypeChip value={value} />
 
 function FullPayloadCodeEditor({
@@ -150,7 +155,7 @@ export function TestcaseDataEditor({
     initialPath,
     onPathChange,
     className,
-    label = "Testcase Data",
+    label,
     headerSlot,
     columnOptions,
     mappedPaths,
@@ -162,6 +167,7 @@ export function TestcaseDataEditor({
     fieldOrder = "sorted",
     fieldControls = true,
 }: TestcaseDataEditorProps) {
+    const t = useT(testcaseCatalog)
     const isRootViewControlled = controlledRootViewMode !== undefined
     const [uncontrolledRootViewMode, setUncontrolledRootViewMode] = useState<RootViewMode>("text")
     const [uncontrolledCollapseSignal, setUncontrolledCollapseSignal] = useState(0)
@@ -239,7 +245,7 @@ export function TestcaseDataEditor({
         <div className={className}>
             {!isRootViewControlled && resolvedFeatures.rootViewMode && (
                 <DrillInRootToolbar
-                    label={label}
+                    label={label ?? t("entityUi.testcase.testcaseData")}
                     headerSlot={headerSlot}
                     viewMode={activeRootViewMode as RootViewMode}
                     onViewModeChange={setUncontrolledRootViewMode}
@@ -254,7 +260,7 @@ export function TestcaseDataEditor({
                 getRootItems={getRootItems}
                 FieldRenderer={TestcaseDrillInFieldRenderer}
                 valueMode="native"
-                rootTitle="Root"
+                rootTitle={t("entityUi.testcase.root")}
                 editable={editable}
                 showAddControls={editable && !columns?.length && fieldControls}
                 showDeleteControls={editable && !columns?.length && fieldControls}

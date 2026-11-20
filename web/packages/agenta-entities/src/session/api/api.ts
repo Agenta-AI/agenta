@@ -1048,6 +1048,34 @@ export async function queryAgentMounts({
     return validated?.mounts ?? null
 }
 
+/** The project's active drives named by `slugs`; a slug with no active drive is simply absent. */
+export async function queryMountsBySlugs({
+    slugs,
+    projectId,
+    abortSignal,
+}: {
+    slugs: string[]
+    projectId: string
+    abortSignal?: AbortSignal
+}): Promise<Mount[] | null> {
+    if (!projectId || !slugs.length) return null
+
+    const data = await callFern("[queryMountsBySlugs]", () =>
+        getLowPriorityMountsClient().queryMounts(
+            {mount: {slugs}},
+            projectScopedRequest(projectId, undefined, abortSignal, 1),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(
+        sessionMountsResponseSchema,
+        data,
+        "[queryMountsBySlugs]",
+    )
+    return validated?.mounts ?? null
+}
+
 export interface MountFilesParams {
     mountId: string
     projectId: string

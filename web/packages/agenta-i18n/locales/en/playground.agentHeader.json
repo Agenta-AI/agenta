@@ -1,0 +1,21 @@
+{
+    "configuration": "Configuration",
+    "commit": "Commit",
+    "agent": "Agent",
+    "notSaved": "Not saved",
+    "saving": "Saving…",
+    "draft": "Draft",
+    "saved": "Saved",
+    "tipFailed": "{{error}} — click to retry",
+    "couldNotSave": "Couldn't save changes",
+    "tipSaving": "Saving your changes",
+    "tipDraft": "Unsaved changes",
+    "statusAndHistory": "{{status}} · Version history",
+    "versionStatusOpen": "Version {{version}}, {{status}}. Open version history",
+    "versionHistory": "Version history",
+    "openVersionHistory": "Open version history",
+    "commitMessage": "Commit message",
+    "noCommitMessage": "No commit message",
+    "updateAvailable": "Update to v{{version}}",
+    "retrySaving": "Retry saving changes"
+}

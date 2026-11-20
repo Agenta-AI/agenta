@@ -19,6 +19,9 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
 import {Button} from "./ui/button"
 import {LoadingButton} from "./ui/button-composed"
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "./ui/dialog"
@@ -192,6 +195,7 @@ const mapAntButton = (p: ModalButtonProps | undefined) => {
 }
 
 export function EnhancedModal(props: EnhancedModalProps) {
+    const t = useT(commonCatalog)
     const {
         children,
         open,
@@ -354,7 +358,7 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 ) : (
                     // A titleless modal still needs a name (axe aria-dialog-name); sr-only is
                     // position:absolute so it takes no space.
-                    <DialogTitle className="sr-only">{ariaLabel ?? "Dialog"}</DialogTitle>
+                    <DialogTitle className="sr-only">{ariaLabel ?? t("common.dialog")}</DialogTitle>
                 )}
                 <div
                     data-slot="modal-body"

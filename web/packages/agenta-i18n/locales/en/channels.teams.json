@@ -1,0 +1,22 @@
+{
+    "appSection": "Teams app",
+    "connected": "Connected. Two steps left in Teams.",
+    "download": "Download Teams app",
+    "endpointBody": "In the Developer Portal, open your bot, then Configure, and paste this as the endpoint address.",
+    "endpointLabel": "Messaging endpoint",
+    "endpointTitle": "Paste the messaging endpoint",
+    "installTitle": "Install the app in Teams",
+    "loadError": "Could not load the Teams app.",
+    "noUpload": "No Upload an app option? Ask your Teams admin to allow custom apps.",
+    "pasteBody": "We check them with Microsoft, then keep the secret masked.",
+    "pasteTitle": "Paste the three values",
+    "registerBody": "In the Teams Developer Portal, open Tools, then Bot management, and select New bot.",
+    "registerLink": "Open the Developer Portal",
+    "registerTitle": "Register a bot",
+    "secretBody": "On the bot's Client secrets page, add a client secret and copy its value. The app ID is on the bot page.",
+    "secretTitle": "Add a client secret",
+    "tenantBody": "It is on the Overview page of the Microsoft Entra admin center.",
+    "tenantLink": "Open Microsoft Entra",
+    "tenantTitle": "Copy your tenant ID",
+    "upload": "In Teams, open Apps, then Manage your apps, then Upload an app, and choose the downloaded file."
+}
