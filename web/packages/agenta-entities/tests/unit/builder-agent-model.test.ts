@@ -1,15 +1,19 @@
 /**
- * The builder's model on first use (`ensureBuilderAgentModel`).
+ * The builder's default model (`commitBuilderDefaultModel` and the builder revision query).
  *
- * The builder ships with no model. When the revision a project reads has none, the web app
- * commits the new-agent default once; a revision with a model, a project with no candidate, and
- * a commit that lost to another one commit nothing more.
+ * The builder ships with no model. The builder revision query loads at once and never waits on
+ * the model sources. In the background, when the loaded builder has no model and the sources
+ * answer with a model the default rule may pick, the web app commits it once and reads the
+ * builder again. A failing source means no commit.
  */
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {QueryClient} from "@tanstack/react-query"
+import {atom, getDefaultStore} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const commitApi = vi.fn()
 const retrieveApi = vi.fn()
-const loadCandidates = vi.fn()
 
 vi.mock("../../src/workflow/api", async (importOriginal) => {
     const actual = (await importOriginal()) as Record<string, unknown>
@@ -20,13 +24,17 @@ vi.mock("../../src/workflow/api", async (importOriginal) => {
     }
 })
 
+// The model sources, as the candidates atom reports them. The real atom reads the vault, the
+// harness catalog, the built-in models and the subscription status.
+const candidatesState = atom<unknown>({status: "loading", candidates: []})
 vi.mock("../../src/workflow/state/agentModelCandidates", async (importOriginal) => {
     const actual = (await importOriginal()) as Record<string, unknown>
-    return {...actual, loadAgentModelCandidates: (...args: unknown[]) => loadCandidates(...args)}
+    return {...actual, agentModelCandidatesAtomFamily: () => candidatesState}
 })
 
 import type {Workflow} from "../../src/workflow/core"
-import {ensureBuilderAgentModel} from "../../src/workflow/state/builderAgentModel"
+import {builderAgentRevisionIdQueryAtom} from "../../src/workflow/state/builderAgent"
+import {commitBuilderDefaultModel} from "../../src/workflow/state/builderAgentModel"
 
 const CANDIDATE = {
     modelId: "openrouter/some-model",
@@ -34,15 +42,15 @@ const CANDIDATE = {
     mode: "agenta",
     slug: "openrouter",
     namespace: null,
-    harness: "pi",
+    harness: "pi_core",
     source: "connection",
     connectionKey: "conn-1",
     managed: false,
-}
+} as const
 
-const builder = (agent: Record<string, unknown>): Workflow =>
+const builder = (id: string, agent: Record<string, unknown>): Workflow =>
     ({
-        id: "catalog-revision",
+        id,
         workflow_id: "builder-artifact",
         workflow_variant_id: "builder-variant",
         data: {
@@ -61,93 +69,117 @@ const ready = (candidates: unknown[]) => ({
     error: null,
 })
 
-const run = (revision: Workflow) =>
-    ensureBuilderAgentModel({projectId: "proj-1", userId: "user-1", revision})
+const failed = (status: number) => ({
+    status: "error",
+    candidates: [],
+    connections: [],
+    capabilities: null,
+    error: Object.assign(new Error("refused"), {response: {status}}),
+})
 
 beforeEach(() => {
     commitApi.mockReset()
     retrieveApi.mockReset()
-    loadCandidates.mockReset()
 })
 
-describe("ensureBuilderAgentModel", () => {
-    it("commits the default pick on the read revision when it has no model", async () => {
-        loadCandidates.mockResolvedValue(ready([CANDIDATE]))
-        const committed = {id: "stored-revision"} as Workflow
-        commitApi.mockResolvedValue(committed)
+describe("commitBuilderDefaultModel", () => {
+    const run = () =>
+        commitBuilderDefaultModel({
+            projectId: "proj-1",
+            revision: builder("catalog-revision", {}),
+            selection: CANDIDATE as never,
+        })
 
-        const result = await run(builder({}))
+    it("commits the pick on the read revision", async () => {
+        commitApi.mockResolvedValue({id: "stored-revision"})
 
-        expect(result).toBe(committed)
-        expect(commitApi).toHaveBeenCalledTimes(1)
+        expect(await run()).toBe(true)
         const [projectId, payload] = commitApi.mock.calls[0]
         expect(projectId).toBe("proj-1")
         expect(payload.workflowId).toBe("builder-artifact")
         expect(payload.variantId).toBe("builder-variant")
         expect(payload.baseRevisionId).toBe("catalog-revision")
-        const agent = payload.data.parameters.agent
-        expect(agent.llm.model).toBe("openrouter/some-model")
-        expect(agent.harness.kind).toBe("pi")
-        expect(agent.instructions).toEqual({agents_md: "x"})
+        expect(payload.data.parameters.agent.llm.model).toBe("openrouter/some-model")
+        expect(payload.data.parameters.agent.harness.kind).toBe("pi_core")
+        expect(payload.data.parameters.agent.instructions).toEqual({agents_md: "x"})
     })
 
-    it("commits nothing when the revision already has a model", async () => {
-        const revision = builder({llm: {model: "chosen"}})
-
-        expect(await run(revision)).toBe(revision)
-        expect(loadCandidates).not.toHaveBeenCalled()
-        expect(commitApi).not.toHaveBeenCalled()
-    })
-
-    it("commits nothing when no candidate exists", async () => {
-        loadCandidates.mockResolvedValue(ready([]))
-        const revision = builder({})
-
-        expect(await run(revision)).toBe(revision)
-        expect(commitApi).not.toHaveBeenCalled()
-    })
-
-    it("never picks an organization connection on its own", async () => {
-        loadCandidates.mockResolvedValue(ready([{...CANDIDATE, scope: "organization"}]))
-
-        await run(builder({}))
-
-        expect(commitApi).not.toHaveBeenCalled()
-    })
-
-    it("commits nothing while the candidate sources are not ready", async () => {
-        loadCandidates.mockResolvedValue({...ready([CANDIDATE]), status: "error"})
-
-        await run(builder({}))
-
-        expect(commitApi).not.toHaveBeenCalled()
-    })
-
-    it("reads the current revision and does not retry when the commit loses", async () => {
-        loadCandidates.mockResolvedValue(ready([CANDIDATE]))
+    it("reports a change on a conflict, and does not commit again", async () => {
         commitApi.mockRejectedValue(Object.assign(new Error("conflict"), {response: {status: 409}}))
-        const current = {id: "someone-elses-revision"} as Workflow
-        retrieveApi.mockResolvedValue(current)
 
-        expect(await run(builder({}))).toBe(current)
+        expect(await run()).toBe(true)
         expect(commitApi).toHaveBeenCalledTimes(1)
-        expect(retrieveApi).toHaveBeenCalledWith({
-            projectId: "proj-1",
-            workflowRef: {id: "builder-artifact"},
-        })
     })
 
-    it("keeps the read revision and does not read again when the commit is refused", async () => {
-        loadCandidates.mockResolvedValue(ready([CANDIDATE]))
+    it("reports no change on any other refusal", async () => {
         commitApi.mockRejectedValue(
             Object.assign(new Error("forbidden"), {response: {status: 403}}),
         )
         const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
-        const revision = builder({})
 
-        expect(await run(revision)).toBe(revision)
-        expect(retrieveApi).not.toHaveBeenCalled()
+        expect(await run()).toBe(false)
         expect(warn).toHaveBeenCalled()
         warn.mockRestore()
+    })
+})
+
+describe("the builder revision query", () => {
+    const store = getDefaultStore()
+    let queryClient: QueryClient
+
+    beforeEach(() => {
+        queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+        store.set(queryClientAtom, queryClient)
+        store.set(projectIdAtom, `proj-${Math.random()}`)
+        store.set(sessionAtom, true)
+    })
+
+    const builderId = () => store.get(builderAgentRevisionIdQueryAtom).data ?? null
+
+    const waitFor = async (check: () => boolean) => {
+        for (let i = 0; i < 100 && !check(); i++) {
+            await new Promise((resolve) => setTimeout(resolve, 5))
+        }
+        expect(check()).toBe(true)
+    }
+
+    it.each([403, 500])(
+        "loads at once and commits nothing when a model source fails (%i)",
+        async (status) => {
+            store.set(candidatesState, {status: "loading", candidates: []})
+            retrieveApi.mockResolvedValue(builder("catalog-revision", {}))
+            const unsubscribe = store.sub(builderAgentRevisionIdQueryAtom, () => undefined)
+
+            // The sources have not answered, and the builder is already there.
+            await waitFor(() => builderId() === "catalog-revision")
+
+            store.set(candidatesState, failed(status))
+            await new Promise((resolve) => setTimeout(resolve, 20))
+            expect(builderId()).toBe("catalog-revision")
+            expect(commitApi).not.toHaveBeenCalled()
+            unsubscribe()
+        },
+    )
+
+    it("commits a usable model that arrives later once, then reads the builder again", async () => {
+        store.set(candidatesState, {status: "loading", candidates: []})
+        retrieveApi.mockResolvedValue(builder("catalog-revision", {}))
+        commitApi.mockResolvedValue({id: "stored-revision"})
+        const unsubscribe = store.sub(builderAgentRevisionIdQueryAtom, () => undefined)
+        await waitFor(() => builderId() === "catalog-revision")
+        expect(commitApi).not.toHaveBeenCalled()
+
+        retrieveApi.mockResolvedValue(builder("stored-revision", {llm: {model: "picked"}}))
+        store.set(candidatesState, ready([CANDIDATE]))
+
+        await waitFor(() => builderId() === "stored-revision")
+        expect(commitApi).toHaveBeenCalledTimes(1)
+        expect(commitApi.mock.calls[0][1].baseRevisionId).toBe("catalog-revision")
+
+        // Another candidate update after the commit changes nothing.
+        store.set(candidatesState, ready([CANDIDATE, {...CANDIDATE, connectionKey: "conn-2"}]))
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(commitApi).toHaveBeenCalledTimes(1)
+        unsubscribe()
     })
 })

@@ -8,19 +8,11 @@
  * organization connection) and commits it as the project's first builder revision. With no
  * candidate it commits nothing, and the chat shows that a model is needed.
  */
-import {getDefaultStore} from "jotai"
-
-import {resolveAgentModelSelection} from "../../secret/core"
-import {subscriptionPairModelsAtom} from "../../secret/state"
-import {commitWorkflowRevisionApi, retrieveWorkflowRevision} from "../api"
+import type {AgentModelCandidate} from "../../secret/core"
+import {commitWorkflowRevisionApi} from "../api"
 import type {Workflow} from "../core"
 
-import {
-    agentCreationPrefsAtom,
-    applyAgentModelSelection,
-    selectionFromAgentCreationPrefs,
-} from "./agentCreationPrefs"
-import {loadAgentModelCandidates} from "./agentModelCandidates"
+import {applyAgentModelSelection} from "./agentCreationPrefs"
 
 const objectAt = (value: unknown): Record<string, unknown> =>
     value && typeof value === "object" && !Array.isArray(value)
@@ -34,60 +26,42 @@ export const builderRevisionHasModel = (revision: Workflow): boolean => {
 }
 
 /**
- * The builder revision to use: `revision` itself when it has a model or no candidate exists,
- * the committed revision after a default commit, or the project's current revision when the
- * commit lost to another one (someone else opened the builder first, so their pick stands).
+ * Commit `selection` as the model of the builder `revision`, with that revision as the base.
+ *
+ * True when the project's builder changed: this commit landed, or another one landed first (a
+ * 409 conflict; its pick stands and is not retried). False when the commit was refused for
+ * another reason, for example a member without edit rights: the chat then shows that a model
+ * is needed, as with no candidate.
  */
-export async function ensureBuilderAgentModel({
+export async function commitBuilderDefaultModel({
     projectId,
-    userId,
     revision,
+    selection,
 }: {
     projectId: string
-    userId: string
     revision: Workflow
-}): Promise<Workflow> {
-    if (builderRevisionHasModel(revision)) return revision
-
-    const store = getDefaultStore()
-    const candidateState = await loadAgentModelCandidates({
-        projectId,
-        userId,
-        pairModelSelection: store.get(subscriptionPairModelsAtom),
-    })
-    if (candidateState.status !== "ready") return revision
-    const selected = resolveAgentModelSelection({
-        candidates: candidateState.candidates,
-        last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
-    })
-    if (!selected || !revision.data) return revision
-
+    selection: AgentModelCandidate
+}): Promise<boolean> {
+    if (!revision.data) return false
     const parameters = objectAt(revision.data.parameters)
-    const workflowId = revision.workflow_id ?? revision.id
     try {
-        return await commitWorkflowRevisionApi(projectId, {
-            workflowId,
+        await commitWorkflowRevisionApi(projectId, {
+            workflowId: revision.workflow_id ?? revision.id,
             variantId: revision.workflow_variant_id ?? undefined,
             baseRevisionId: revision.id,
             data: {
                 ...revision.data,
                 parameters: {
                     ...parameters,
-                    agent: applyAgentModelSelection(objectAt(parameters.agent), selected),
+                    agent: applyAgentModelSelection(objectAt(parameters.agent), selection),
                 },
             },
         })
+        return true
     } catch (error) {
-        if (!isConflict(error)) {
-            // For example a member without edit rights: the chat shows that a model is
-            // needed, as with no candidate.
-            console.warn("[builder] The default model commit failed", error)
-            return revision
-        }
-        // Another commit landed first. Read it and do not commit again.
-        return (
-            (await retrieveWorkflowRevision({projectId, workflowRef: {id: workflowId}})) ?? revision
-        )
+        if (isConflict(error)) return true
+        console.warn("[builder] The default model commit failed", error)
+        return false
     }
 }
 
