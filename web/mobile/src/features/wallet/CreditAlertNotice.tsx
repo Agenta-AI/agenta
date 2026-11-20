@@ -30,7 +30,7 @@ const ACTION_LABELS: Record<CreditAlertAction, string> = {
     buy: "Buy credits",
 }
 
-/** `aboutSwitch`: the extra line asks for "Switch model", so it goes where that is not offered. */
+/** `aboutSwitch`: the extra line asks for "Switch model", so it is dropped where that is not offered. */
 const lowCopy =
     (detail: string, aboutSwitch = false) =>
     (alert: ShownAlert, _canBuy: CanBuy, canSwitchModel: boolean) => ({

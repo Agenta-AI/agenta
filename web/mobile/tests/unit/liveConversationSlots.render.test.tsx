@@ -332,6 +332,7 @@ let root: Root
 
 beforeEach(() => {
     engine.isEmpty = true
+    stripSeen.canSwitchModel = undefined
     composerSeen.inputRef = undefined
     host = document.createElement("div")
     document.body.append(host)
