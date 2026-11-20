@@ -30,7 +30,8 @@ export const ConfigPane = ({entityId}: {entityId: string}) => {
                 operations={false}
                 stickyHeaderTop={0}
                 banner={
-                    <div className="px-4">
+                    // The alert keeps a gap under the tabs; it collapses with the banner.
+                    <div className="px-4 [&_[data-slot=alert]]:mt-3">
                         <ModelSetupBanner
                             revisionId={entityId}
                             layout="alert"
