@@ -1,14 +1,12 @@
 /**
  * "Add a provider or subscription" (F09 f1b): "Use a subscription" with ChatGPT and Claude, then
  * "Use an API key" with a search and the production catalog in production order. A picked
- * provider's form takes this view's place, so its Save goes back to the list.
+ * provider's form or sign-in takes this view's place, so its Save goes back to the list.
  */
 import {useMemo, useState} from "react"
 
 import {
     PROVIDER_CATALOG,
-    providerConnectionsAtom,
-    subscriptionConnectionFor,
     subscriptionProviderFamily,
     subscriptionProviderName,
 } from "@agenta/entities/secret"
@@ -18,12 +16,10 @@ import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {SearchInput} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {useAtomValue} from "jotai"
-
-import SubscriptionSignInDialog from "../SubscriptionSignInDialog"
 
 import {ProviderTile} from "./ProviderListBody"
 import {providerConnectionView, type ProviderAddViewParams} from "./providerViews"
+import {subscriptionViewFor} from "./subscriptionViews"
 
 const SUBSCRIPTIONS = ["chatgpt", "claude"]
 
@@ -58,10 +54,7 @@ const PickRow = ({
 const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) => {
     const t = useT(providerListCatalog, providerDrawerCatalog, settingsProvidersCatalog)
     useViewTitle(t("entityUi.providerList.add"))
-    const connections = useAtomValue(providerConnectionsAtom)
     const [search, setSearch] = useState("")
-    // The sign-in steps stay a dialog here; the subscriptions milestone makes them a view.
-    const [signIn, setSignIn] = useState<{provider: string; open: boolean} | null>(null)
 
     const matches = useMemo(() => {
         const term = search.trim().toLowerCase()
@@ -88,7 +81,13 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) =>
                         key={provider}
                         kind={subscriptionProviderFamily(provider)}
                         name={subscriptionProviderName(provider)}
-                        onPick={() => setSignIn({provider, open: true})}
+                        onPick={() =>
+                            void nav.replace(
+                                subscriptionViewFor(provider),
+                                {provider, fromAdd: true},
+                                target,
+                            )
+                        }
                     />
                 ))}
             </ul>
@@ -122,16 +121,6 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) =>
                     {t("entityUi.providerDrawer.noProviderMatches")}
                 </p>
             )}
-            {signIn ? (
-                <SubscriptionSignInDialog
-                    key={signIn.provider}
-                    open={signIn.open}
-                    onClose={() => setSignIn({...signIn, open: false})}
-                    provider={signIn.provider}
-                    connection={subscriptionConnectionFor(connections, signIn.provider)}
-                    logo={<ProviderTile kind={subscriptionProviderFamily(signIn.provider)} />}
-                />
-            ) : null}
         </div>
     )
 }
