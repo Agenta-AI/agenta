@@ -428,6 +428,8 @@ export const Composer = ({
                         </AnimatePresence>
                         <ChatComposer
                             inputRef={richInputRef}
+                            // The session and builder composer as the canvas draws it (S03, M01).
+                            surface="canvas"
                             onSubmit={submit}
                             fileMentions
                             attachments={attachments}
