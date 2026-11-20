@@ -13,6 +13,7 @@ import {
     AlertDialogTitle,
 } from "../../src/components/ui/alert-dialog"
 import {Button} from "../../src/components/ui/button"
+import {Sheet, SheetContent, SheetTitle} from "../../src/components/ui/sheet"
 import {UnsavedChangesDialog} from "../../src/view-stack/UnsavedChangesDialog"
 
 /**
@@ -159,5 +160,23 @@ describe("Confirmation dialog on the canvas scale", () => {
         const keep = screen.getByRole("button", {name: "Keep editing"})
         expect(keep.dataset.size).toBe("compact")
         expect(keep.className.split(" ")).toContain("text-colorTextSecondary")
+    })
+})
+
+describe("Sheet backdrop", () => {
+    it("is the light blurred scrim on a phone and the flat dark mask from md up", () => {
+        render(
+            <Sheet open>
+                <SheetContent>
+                    <SheetTitle>History</SheetTitle>
+                </SheetContent>
+            </Sheet>,
+        )
+        const overlay = document.querySelector("[data-slot=sheet-overlay]")
+        const cls = overlay?.className.split(" ") ?? []
+        expect(cls).toContain("bg-black/10")
+        expect(cls).toContain("supports-[backdrop-filter]:backdrop-blur-[4px]")
+        expect(cls).toContain("md:bg-black/45")
+        expect(cls).toContain("md:supports-[backdrop-filter]:backdrop-blur-none")
     })
 })

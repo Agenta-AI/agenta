@@ -36,8 +36,10 @@ function SheetOverlay({className, ...props}: React.ComponentProps<typeof SheetPr
         <SheetPrimitive.Overlay
             data-slot="sheet-overlay"
             className={cn(
-                // Same mask as Dialog.
+                // On a phone the light blurred scrim the design draws over a sheet; from md up the
+                // flat dark mask it draws behind a drawer (the version history).
                 "fixed inset-0 isolate z-40 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]",
+                "md:bg-black/45 md:supports-[backdrop-filter]:backdrop-blur-none",
                 "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
                 className,
             )}
