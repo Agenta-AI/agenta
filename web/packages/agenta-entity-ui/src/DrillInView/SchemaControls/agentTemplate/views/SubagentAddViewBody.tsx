@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
 import {useT} from "@agenta/i18n"
 import addSubagentCatalog from "@agenta/i18n/catalogs/entityUi.addSubagent"
@@ -23,15 +23,21 @@ const SubagentAddViewBody = ({target}: ViewProps<SubagentAddViewParams>) => {
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const {update} = writer
+    // The writer of the revision on screen now: auto-save can move it while a schema read runs.
+    const updateRef = useRef(update)
+    updateRef.current = update
     // Each write applies to the configuration as it is at write time, so a slow schema read
     // never replaces edits made meanwhile.
     const add = useCallback(
         async ({slug}: WorkflowReferencePayload) => {
             if (!workflowReference) return
             const reference = await buildSubagentReference(workflowReference, slug)
-            update((agent) => ({...agent, tools: addSubagentReference(toolsOf(agent), reference)}))
+            updateRef.current((agent) => ({
+                ...agent,
+                tools: addSubagentReference(toolsOf(agent), reference),
+            }))
         },
-        [workflowReference, update],
+        [workflowReference],
     )
     const remove = useCallback(
         (slug: string) =>

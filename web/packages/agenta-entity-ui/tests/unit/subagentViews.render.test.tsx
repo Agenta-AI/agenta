@@ -272,6 +272,19 @@ describe("Subagent view", () => {
         ])
     })
 
+    it("keeps its entry when a write drops the legacy name that keyed it", async () => {
+        const legacy = {...reference("lead-finder", "Finds leads"), name: "Leads"}
+        writer.agent = {tools: [legacy]}
+        await openIn(subagentView, {item: subagentItemRef(legacy, [legacy])!})
+        await findByText("", "textarea")
+        // A save of this entry elsewhere drops the copied name, so the engine key becomes the slug.
+        await act(async () =>
+            writer.update(() => ({tools: [reference("lead-finder", "Finds leads")]})),
+        )
+        expect(document.querySelector("textarea")).not.toBeNull()
+        expect(byText("This subagent is no longer in the agent.")).toBeUndefined()
+    })
+
     it("shows the removed state when the subagent left the agent", async () => {
         writer.agent = {tools: [reference("lead-finder")]}
         await openIn(subagentView, {item})

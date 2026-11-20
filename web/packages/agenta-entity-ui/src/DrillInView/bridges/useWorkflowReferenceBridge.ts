@@ -204,7 +204,9 @@ const subagentDetailQueryAtomFamily = atomFamily((slug: string) =>
                     projectId: projectId as string,
                     workflowRef: {slug},
                 })
-                return revision ? subagentDetailOf(revision) : null
+                // An unreadable revision is a failed read, so the panel offers "Try again".
+                if (!revision) throw new Error(`subagent revision not found: ${slug}`)
+                return subagentDetailOf(revision)
             },
         }
     }),
