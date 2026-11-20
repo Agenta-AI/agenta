@@ -147,7 +147,7 @@ export const ChartLegendRow = ({
                 disabled={!onToggle}
                 onClick={() => onToggle?.(item.key)}
                 className={cn(
-                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-muted-foreground max-md:min-h-11",
+                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-muted-foreground max-md:min-h-11 max-md:min-w-11",
                     onToggle && "cursor-pointer hover:text-foreground",
                     item.hidden && "line-through opacity-40",
                 )}

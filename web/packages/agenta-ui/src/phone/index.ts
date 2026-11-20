@@ -5,6 +5,7 @@ export {
     type BottomSheetMenuProps,
 } from "./BottomSheetMenu"
 export {PHONE_BUTTON_CLASS} from "./phoneButton"
+export {PHONE_HIT_AREA_CLASS} from "./phoneHitArea"
 export {PhonePrimaryAction, type PhonePrimaryActionProps} from "./PhonePrimaryAction"
 export {PhoneScreenHeader, type PhoneScreenHeaderProps} from "./PhoneScreenHeader"
 export {SIDEBAR_SHEET_WIDTH, SidebarSheet, type SidebarSheetProps} from "./SidebarSheet"

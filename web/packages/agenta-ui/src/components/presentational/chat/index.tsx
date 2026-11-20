@@ -15,6 +15,7 @@ import {ArrowDown} from "@phosphor-icons/react"
 // The tailwind-merge `cn`, NOT the clsx-only one in utils/styles: a caller's `classNames.content`
 // has to actually REPLACE the variant's padding/radius. With plain concatenation both land on the
 // element and CSS source order decides, so an override to a smaller scale silently loses.
+import {PHONE_HIT_AREA_CLASS} from "../../../phone/phoneHitArea"
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 import {cn} from "../../ui/utils"
@@ -188,6 +189,10 @@ export const ChatActionIconButton = ({
                 "flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 p-0",
                 "bg-transparent text-colorTextSecondary transition-colors",
                 "hover:bg-colorFillTertiary hover:text-colorText",
+                // A phone: a 44 px area, and 4 px more room each side so neighbours' areas do
+                // not cover each other's icon.
+                PHONE_HIT_AREA_CLASS,
+                "max-md:mx-1",
             )}
         >
             {icon}
