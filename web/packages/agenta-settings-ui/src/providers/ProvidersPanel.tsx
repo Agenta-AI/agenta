@@ -36,9 +36,9 @@ export interface ProviderRemovalState {
 
 /** Where a providers list gets its rows and what it may do with them. */
 export interface ProvidersSource {
-    /** Every connection the drawer and the subscription cards read. */
+    /** Every connection of this owner: the drawer and the sign-in read them. */
     connections: ProviderConnection[]
-    /** The rows of the Connected list. */
+    /** The rows of the group. */
     rows: ProviderConnection[]
     loading: boolean
     describe: (connection: ProviderConnection) => string
@@ -59,10 +59,10 @@ export interface ProvidersSource {
     onSaved?: () => void
 }
 
-/** One owner's group on the page: the project's, or the organization's. */
+/** One owner's group on the page (today the organization's). */
 export interface ProvidersGroup {
     key: string
-    /** The heading: the project switch, or "{org} organization". */
+    /** The heading, for example "{org} organization". */
     label: ReactNode
     source: ProvidersSource
 }
@@ -266,14 +266,12 @@ export const ProvidersPanel = ({
             <SettingsCatalog
                 groups={groups}
                 notice={
-                    <>
-                        {removeError ? (
-                            <span className="flex items-center gap-1 text-xs text-destructive">
-                                <WarningCircle size={14} />
-                                {removeError}
-                            </span>
-                        ) : null}
-                    </>
+                    removeError ? (
+                        <span className="flex items-center gap-1 text-xs text-destructive">
+                            <WarningCircle size={14} />
+                            {removeError}
+                        </span>
+                    ) : null
                 }
             />
 

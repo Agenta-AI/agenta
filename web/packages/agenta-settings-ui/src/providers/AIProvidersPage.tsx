@@ -170,16 +170,14 @@ export const AIProvidersPage = ({
                               )
                             : undefined
                     }
-                    footer={
-                        organizationGroup ? (
-                            <ProvidersPanel
-                                groups={[organizationGroup]}
-                                renderRemoveDialog={renderRemoveDialog}
-                                subscriptionDocsUrl={subscriptionDocsUrl}
-                            />
-                        ) : null
-                    }
                 />
+                {organizationGroup ? (
+                    <ProvidersPanel
+                        groups={[organizationGroup]}
+                        renderRemoveDialog={renderRemoveDialog}
+                        subscriptionDocsUrl={subscriptionDocsUrl}
+                    />
+                ) : null}
                 {views.drawer}
                 {renderRemoveDialog?.(removal.state)}
             </div>

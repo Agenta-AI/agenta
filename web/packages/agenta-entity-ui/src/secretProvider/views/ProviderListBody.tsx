@@ -36,8 +36,6 @@ export interface ProviderListBodyProps {
     onOpenBuiltin: () => void
     /** Extra actions of a row (Settings puts Delete here). */
     rowMenu?: (connection: ProviderConnection) => ReactNode
-    /** Under the project's groups, above the add button (Settings: the organization's group). */
-    footer?: ReactNode
 }
 
 /** A provider's logo in the 28 px tile the rows use. */
@@ -91,7 +89,6 @@ export const ProviderListBody = ({
     onOpenConnection,
     onOpenBuiltin,
     rowMenu,
-    footer,
 }: ProviderListBodyProps) => {
     const t = useT(providerListCatalog, settingsProvidersCatalog, commonCatalog)
     const connections = useAtomValue(providerConnectionsAtom)
@@ -188,7 +185,6 @@ export const ProviderListBody = ({
                         ) : null}
                     </>
                 )}
-                {footer}
             </div>
             <div className="shrink-0 px-4 py-3">
                 <Button className="w-full" onClick={onAdd}>

@@ -23,6 +23,7 @@ import {byText, change, click, findByText, waitFor} from "./domHelpers"
 const fixture = vi.hoisted(() => ({
     connections: [] as Record<string, unknown>[],
     saved: [] as string[],
+    failSave: false,
 }))
 
 vi.mock("@agenta/entities/secret", async (importOriginal) => {
@@ -77,20 +78,23 @@ vi.mock("../../src/secretProvider/ProviderConnectionCard", () => ({
         onSaveStateChange: (state: unknown) => void
         onSaved: (id?: string) => void
     }) => {
-        // Published once, as the card does: its submit reads the latest callback.
-        const saved = useRef(onSaved)
-        saved.current = onSaved
+        // The submit reads the latest callbacks, so the state is published once, not per render.
+        const latest = useRef({onSaved, onSaveStateChange})
+        latest.current = {onSaved, onSaveStateChange}
         useEffect(() => {
-            onSaveStateChange({
-                canSave: true,
-                saving: false,
-                error: null,
-                submit: () => {
-                    fixture.saved.push(kind)
-                    saved.current("new-id")
-                },
-            })
-        }, [kind, onSaveStateChange])
+            const publish = (error: string | null) =>
+                latest.current.onSaveStateChange({
+                    canSave: true,
+                    saving: false,
+                    error,
+                    submit: () => {
+                        if (fixture.failSave) return publish("Agenta could not save this.")
+                        fixture.saved.push(kind)
+                        latest.current.onSaved("new-id")
+                    },
+                })
+            publish(null)
+        }, [kind])
         return createElement("input", {"aria-label": `key ${kind}`})
     },
 }))
@@ -169,6 +173,7 @@ beforeEach(() => {
     document.body.append(host)
     root = createRoot(host)
     fixture.saved = []
+    fixture.failSave = false
     fixture.connections = [
         connection("ChatGPT", {
             kind: "chatgpt",
@@ -224,6 +229,19 @@ describe("Model providers list", {timeout: 30_000}, () => {
         await click(byText("Save connection"))
         await findByText("here:Model providers")
         expect(fixture.saved).toEqual(["openai"])
+    })
+
+    it("a failed save keeps the form open", async () => {
+        fixture.failSave = true
+        await openList()
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await change(await findByText("", 'input[aria-label="key openai"]'), "sk-test")
+        await click(byText("Save connection"))
+        await waitFor(() => expect(byText("here:OpenAI")).toBeTruthy())
+        expect(byText("here:Model providers")).toBeUndefined()
+        expect(fixture.saved).toEqual([])
     })
 
     it("search with no match shows the production text", async () => {
