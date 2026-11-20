@@ -145,6 +145,21 @@ class TestNormalizeRunAt:
         assert early.run_at == _RUN_AT
         assert exact.run_at == _RUN_AT
 
+    def test_a_whole_minute_in_a_repeated_hour_stays(self):
+        from zoneinfo import ZoneInfo
+
+        for fold, utc_hour in ((0, 5), (1, 6)):
+            data = TriggerScheduleData(
+                event_key="timer.fire",
+                run_at=datetime(
+                    2026, 11, 1, 1, 30, tzinfo=ZoneInfo("America/New_York"), fold=fold
+                ),
+            )
+            TriggersService._normalize_timing(data)
+            assert data.run_at == datetime(
+                2026, 11, 1, utc_hour, 30, tzinfo=timezone.utc
+            )
+
     def test_the_event_id_time_is_iso_utc_to_the_second(self):
         # The due query renders run_at in SQL as YYYY-MM-DD"T"HH24:MI:SS"+00:00";
         # this pins the Python side of the same text.
