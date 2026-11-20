@@ -143,7 +143,7 @@ export const AgentKindBadge = ({
     const badge = (
         <span
             data-testid="agent-kind-badge"
-            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-md border border-solid border-colorBorderSecondary bg-muted ${chrome.customised ? chrome.className : "text-zinc-8"}`}
+            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-muted ${chrome.customised ? chrome.className : "text-zinc-8"}`}
             style={chrome.style}
         >
             {chrome.glyph}

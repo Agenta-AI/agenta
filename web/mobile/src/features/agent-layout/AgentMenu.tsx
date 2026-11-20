@@ -125,7 +125,7 @@ export const AgentMenu = ({
                             role="button"
                             tabIndex={0}
                             aria-haspopup="dialog"
-                            className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
+                            className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
                             onKeyDown={(event) => {
                                 if (event.key !== "Enter" && event.key !== " ") return
                                 event.preventDefault()
@@ -156,7 +156,7 @@ export const AgentMenu = ({
                 <DropdownMenuTrigger asChild>
                     <Button
                         variant="ghost"
-                        className="h-[30px] min-w-0 gap-2 rounded-md px-2 text-[15px] font-semibold text-colorText"
+                        className="h-[30px] min-w-0 gap-2 rounded-[6px] px-2 text-[15px] font-semibold text-colorText"
                     >
                         <span className="truncate">{name}</span>
                         <CaretDown

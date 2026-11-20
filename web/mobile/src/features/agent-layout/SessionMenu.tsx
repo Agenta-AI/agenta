@@ -121,7 +121,7 @@ export const SessionMenu = ({
                             type="button"
                             aria-haspopup="dialog"
                             title={title}
-                            className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-lg border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm font-medium leading-5 text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
+                            className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm font-medium leading-5 text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
                         >
                             {running ? (
                                 <span aria-hidden className="flex shrink-0 text-colorTextTertiary">
@@ -180,7 +180,7 @@ export const SessionMenu = ({
             <PopoverTrigger asChild>
                 <Button
                     variant="outline"
-                    className="h-7 min-w-0 max-w-[240px] gap-2 rounded-md pl-2.5 pr-2 text-[13px] font-medium max-md:h-11"
+                    className="h-7 min-w-0 max-w-[240px] gap-2 rounded-[6px] pl-2.5 pr-2 text-[13px] font-medium max-md:h-11"
                     title={title}
                 >
                     {statusDot}

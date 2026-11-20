@@ -28,7 +28,7 @@ import {useAgentSessionOrder} from "./useAgentSessionOrder"
 
 /** The header's icon buttons: 32 px with a 16 px glyph, 44 px with a 20 px glyph on a phone. */
 const HEADER_ICON_CLASS =
-    "size-8 shrink-0 rounded-md text-colorTextSecondary max-md:size-11 max-md:rounded-lg"
+    "size-8 shrink-0 rounded-[6px] text-colorTextSecondary max-md:size-11 max-md:rounded-md"
 
 /** The session tab strip's shortcuts; this screen has no strip, so the sheet leaves them out. */
 const TAB_STRIP_SHORTCUTS = ["session.jump", "session.step", "session.close", "session.rename"]
