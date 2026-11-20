@@ -7,6 +7,10 @@ import {cn} from "@/lib/utils"
 import {builderTabKey, type BuilderTab, type BuilderTabKind} from "./builderTabs"
 import {PrivateMark} from "./PrivateMark"
 
+/** The ids that tie the active builder tab to the pane content below it. */
+export const BUILDER_TAB_ID = "builder-tab-active"
+export const BUILDER_TAB_PANEL_ID = "builder-tab-panel"
+
 /** The icon of each kind of builder tab. */
 export const BUILDER_TAB_ICONS: Record<BuilderTabKind, Icon> = {
     agent: Robot,
@@ -38,6 +42,8 @@ export const BuilderTabButton = ({
             tabIndex={active ? 0 : -1}
             title={label}
             data-tab-key={builderTabKey(tab)}
+            id={active ? BUILDER_TAB_ID : undefined}
+            aria-controls={active ? BUILDER_TAB_PANEL_ID : undefined}
             onClick={onActivate}
             onKeyDown={(event) => {
                 // Keys on the close button are the button's own.

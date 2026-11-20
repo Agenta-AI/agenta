@@ -38,6 +38,7 @@ import {
 } from "./builderLayout"
 import {BuilderPageChat} from "./BuilderPageChat"
 import {createBuilderSidebarScope} from "./builderSidebarScope"
+import {BUILDER_TAB_ID, BUILDER_TAB_PANEL_ID} from "./BuilderTabButton"
 import {BuilderTabContent} from "./BuilderTabContent"
 import {builderTabKey, type BuilderTab} from "./builderTabs"
 import {BuilderTabStrip} from "./BuilderTabStrip"
@@ -311,7 +312,12 @@ export const BuilderPage = ({
                     </Button>
                 </SimpleTooltip>
             </div>
-            <div className="min-h-0 flex-1">
+            <div
+                role="tabpanel"
+                id={BUILDER_TAB_PANEL_ID}
+                aria-labelledby={BUILDER_TAB_ID}
+                className="min-h-0 flex-1"
+            >
                 {/* Only the active tab is mounted. */}
                 <BuilderTabContent
                     key={builderTabKey(activeTab)}
