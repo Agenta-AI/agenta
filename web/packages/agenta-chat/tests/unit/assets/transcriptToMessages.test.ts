@@ -18,6 +18,7 @@ import {
     transcriptToMessages,
 } from "../../../src/assets/transcriptToMessages"
 
+import {getPendingApprovals} from "../../../src/model/approvals"
 import {readMcpServerNotice} from "../../../src/model/mcpServerNotice"
 import {buildTurnRenderItems, executedToolIdentities} from "../../../src/model/renderModel"
 
@@ -82,6 +83,27 @@ describe("transcriptToMessages", () => {
         expect(data).toBeDefined()
         expect(data.toolCallId).toBe("tool-1")
         expect(data.manifest).toEqual(manifest)
+    })
+
+    it("replays the server change preview, so the durable path gets old and new values", () => {
+        const preview = {applies: true, operations: [{index: 0, applies: true}], changes: []}
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "edit_agent_config",
+                input: {agent: "x", operations: []},
+            }),
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", preview},
+            }),
+        ])
+        const [gate] = getPendingApprovals(messages ?? [])
+        expect(gate.toolName).toBe("edit_agent_config")
+        expect(gate.changePreview).toEqual(preview)
     })
 
     it("returns null for an empty transcript", () => {
