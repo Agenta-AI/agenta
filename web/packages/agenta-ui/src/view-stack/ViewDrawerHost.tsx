@@ -4,7 +4,7 @@ import {EnhancedDrawer} from "../drawer/EnhancedDrawer"
 
 import {useViewStack} from "./context"
 import {DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"
-import type {ViewDef, ViewTarget} from "./types"
+import type {ViewDef, ViewStack, ViewTarget} from "./types"
 import {ViewStackHost} from "./ViewStackHost"
 
 /** One view to show, with the target it writes. */
@@ -34,9 +34,9 @@ export const ViewDrawerHost = <P,>({
     width?: number
 }) => {
     const [open, setOpen] = useState(true)
-    const closeAllRef = useRef<(() => Promise<boolean>) | null>(null)
+    const stackRef = useRef<ViewStack | null>(null)
     const close = useCallback(() => {
-        void closeAllRef.current?.()
+        void stackRef.current?.closeAll()
     }, [])
     const finish = useCallback(() => setOpen(false), [])
     return (
@@ -50,18 +50,30 @@ export const ViewDrawerHost = <P,>({
             placement="right"
             width={width ?? (request.view.wide ? WIDE_WIDTH : WIDTH)}
             closable={false}
-            // The stack handles Escape: back one level, then the drawer closes with the stack.
+            // Escape is the stack's: back one level (guarded), and the drawer closes with the stack.
             keyboard={false}
             styles={{body: {padding: 0, display: "flex", flexDirection: "column"}}}
         >
             <DrawerCloseContext.Provider value={close}>
-                <ViewStackHost chrome={DrawerViewChrome}>
-                    <OpenOnMount
-                        request={request as ViewRequest}
-                        closeAllRef={closeAllRef}
-                        onEmpty={finish}
-                    />
-                </ViewStackHost>
+                {/* The drawer stops Escape before the stack sees it (it marks the event handled),
+                    so the drawer's Escape goes back here. A menu open inside the view is the top
+                    layer and takes its own Escape, so the drawer never sees that one. */}
+                <div
+                    className="contents"
+                    onKeyDown={(event) => {
+                        if (event.key === "Escape" && event.defaultPrevented) {
+                            void stackRef.current?.back()
+                        }
+                    }}
+                >
+                    <ViewStackHost chrome={DrawerViewChrome}>
+                        <OpenOnMount
+                            request={request as ViewRequest}
+                            stackRef={stackRef}
+                            onEmpty={finish}
+                        />
+                    </ViewStackHost>
+                </div>
             </DrawerCloseContext.Provider>
         </EnhancedDrawer>
     )
@@ -70,15 +82,15 @@ export const ViewDrawerHost = <P,>({
 /** The stack's root: opens the requested view once, and reports when the stack is empty again. */
 const OpenOnMount = ({
     request,
-    closeAllRef,
+    stackRef,
     onEmpty,
 }: {
     request: ViewRequest
-    closeAllRef: {current: (() => Promise<boolean>) | null}
+    stackRef: {current: ViewStack | null}
     onEmpty: () => void
 }) => {
     const stack = useViewStack()
-    closeAllRef.current = stack.closeAll
+    stackRef.current = stack
     const opened = useRef(false)
     const shown = useRef(false)
     useEffect(() => {

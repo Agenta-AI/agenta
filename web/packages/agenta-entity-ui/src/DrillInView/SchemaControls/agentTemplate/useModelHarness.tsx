@@ -474,8 +474,6 @@ export function useModelHarness({
         mcpSupported,
         modelSummary,
         modelHarnessBody,
-        // One column of connection rows; it needs no more room than the plain drawer.
-        modelHarnessDrawerWidth: 560,
         hasAdvanced,
         hasExecutionGroup,
         hasPermissions: Boolean(runnerPermissionSchema),

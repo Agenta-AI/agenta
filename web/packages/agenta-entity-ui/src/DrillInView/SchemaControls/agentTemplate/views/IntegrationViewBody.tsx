@@ -15,7 +15,7 @@ import {
     UnmigratedNotice,
 } from "../IntegrationPermissionDrawer"
 import {integrationTargetOf, removeIntegrationByRef} from "../itemKinds/tool"
-import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
+import {IntegrationRemoveDialog} from "../sections/IntegrationsSection"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import {useAgentTools} from "../useAgentTools"
 
@@ -130,18 +130,13 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                     </Button>
                 </div>
             )}
-            <RemoveFromAgentDialog
-                open={confirming}
-                name={name}
-                description={
-                    // An entry with each person's own account names no project connection.
-                    row.entry?.accountSource === "user"
-                        ? t("entityUi.integrationViews.accountsStay")
-                        : t("entityUi.integrationViews.connectionStays")
-                }
-                onRemove={remove}
-                onClose={() => setConfirming(false)}
-            />
+            {confirming ? (
+                <IntegrationRemoveDialog
+                    row={row}
+                    onRemove={remove}
+                    onClose={() => setConfirming(false)}
+                />
+            ) : null}
         </div>
     )
 }

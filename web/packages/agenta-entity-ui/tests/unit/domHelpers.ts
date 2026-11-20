@@ -56,6 +56,6 @@ export const change = async (element: Element, value: string): Promise<void> => 
 
 export const keyDown = async (element: Element, key: string): Promise<void> => {
     await act(async () => {
-        element.dispatchEvent(new KeyboardEvent("keydown", {key, bubbles: true}))
+        element.dispatchEvent(new KeyboardEvent("keydown", {key, bubbles: true, cancelable: true}))
     })
 }
