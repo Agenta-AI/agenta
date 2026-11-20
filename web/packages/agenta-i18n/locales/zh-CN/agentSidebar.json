@@ -6,6 +6,7 @@
     "channels": "渠道",
     "configuration": "配置",
     "earlier": "更早",
+    "filter": "筛选",
     "loadError": "无法加载会话",
     "loading": "加载中",
     "newSession": "新会话",
@@ -13,6 +14,7 @@
     "searchAgents": "搜索 Agent",
     "seeAllSessions": "在表格中查看所有会话",
     "sessions": "会话",
+    "showOlderSessionsShort": "显示更早的会话",
     "showOlderSessions_other": "显示 {{count}} 个更早的会话",
     "today": "今天",
     "yesterday": "昨天"

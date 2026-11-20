@@ -6,6 +6,7 @@
     "channels": "Canais",
     "configuration": "Configuração",
     "earlier": "Anteriores",
+    "filter": "Filtro",
     "loadError": "Não foi possível carregar as sessões",
     "loading": "Carregando",
     "newSession": "Nova sessão",
@@ -13,8 +14,9 @@
     "searchAgents": "Buscar agentes",
     "seeAllSessions": "Ver todas as sessões em uma tabela",
     "sessions": "Sessões",
-    "showOlderSessions_one": "Mostrar {{count}} sessão mais antiga",
+    "showOlderSessionsShort": "Mostrar sessões mais antigas",
     "showOlderSessions_many": "Mostrar {{count}} sessões mais antigas",
+    "showOlderSessions_one": "Mostrar {{count}} sessão mais antiga",
     "showOlderSessions_other": "Mostrar {{count}} sessões mais antigas",
     "today": "Hoje",
     "yesterday": "Ontem"
