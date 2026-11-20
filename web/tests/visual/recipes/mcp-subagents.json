@@ -34,5 +34,41 @@
         "theme": "light",
         "selector": "[data-testid=\"agent-panel\"]",
         "ready": "text=Try again"
+    },
+    {
+        "id": "mcp-subagents-add-mcp-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--add-mcp-server",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=docs-search"
+    },
+    {
+        "id": "mcp-subagents-connect-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--connect-server",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Server URL"
+    },
+    {
+        "id": "mcp-subagents-server-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Default permission"
+    },
+    {
+        "id": "mcp-subagents-server-expired-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-sign-in-expired",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Reconnect"
     }
 ]
