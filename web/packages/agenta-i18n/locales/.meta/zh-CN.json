@@ -1,4 +1,9 @@
 {
+    "agentPages.channels": {
+        "addChannel": "075fee454655",
+        "connected": "22965568d22a",
+        "intro": "1abe269fa214"
+    },
     "agentPages.lockedFilter": {
         "agent": "11b39c93777e",
         "onlyThisAgent": "e4b153af241b"

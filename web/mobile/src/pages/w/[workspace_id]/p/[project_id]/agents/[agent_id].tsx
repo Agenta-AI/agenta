@@ -9,6 +9,9 @@ import {AgentPlaygroundRedirect} from "@/features/agents/AgentPlaygroundRedirect
 const AgentSessionsPage = dynamic(() =>
     import("@/features/sessions/SessionListScreen").then((m) => m.SessionListScreen),
 )
+const AgentChannelsPage = dynamic(() =>
+    import("@/features/agent-pages/AgentChannelsScreen").then((m) => m.AgentChannelsScreen),
+)
 const AgentAnalyticsPage = dynamic(() =>
     import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),
 )
@@ -38,6 +41,15 @@ export default function AgentOverviewPage() {
                 workspaceId={workspaceId}
                 projectId={projectId}
                 lockedAgentId={agentId}
+            />
+        )
+    if (view === "channels")
+        return (
+            <AgentChannelsPage
+                key={agentId}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                agentId={agentId}
             />
         )
     if (view === "analytics")

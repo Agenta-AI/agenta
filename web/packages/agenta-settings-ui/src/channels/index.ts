@@ -1,4 +1,5 @@
 export {ChannelsPage, type ChannelsPageProps, type ChannelsPanelRenderProps} from "./ChannelsPage"
+export {AgentChannelsView, type AgentChannelsViewProps} from "./AgentChannelsView"
 export {
     useChannelPanel,
     type ChannelsRoute,

@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {AgentPrivacyControl} from "@agenta/entity-ui/sharing"
+import {AgentPrivacyControl, AgentPrivacyPanel} from "@agenta/entity-ui/sharing"
 
 import {useAgentPrivacyProps, type AgentPrivacyHostOptions} from "./useAgentPrivacyProps"
 
@@ -24,3 +24,11 @@ export const AgentPrivacyHost = ({
         />
     )
 }
+
+/**
+ * The same privacy and owner content in place, for the Access tab of the agent: who can see it,
+ * the owner and "Transfer ownership". It reads the sharing state and the members at once.
+ */
+export const AgentAccessPanel = (options: AgentPrivacyHostOptions) => (
+    <AgentPrivacyPanel {...useAgentPrivacyProps({...options, engaged: true})} active />
+)
