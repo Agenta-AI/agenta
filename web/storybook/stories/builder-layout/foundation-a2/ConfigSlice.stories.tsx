@@ -1,7 +1,5 @@
 import {useEffect} from "react"
 
-import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
-import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 import {integrationConnectView} from "@agenta/entity-ui/gatewayTool"
 import {
     useViewStack,
@@ -12,6 +10,7 @@ import {
 } from "@agenta/ui/view-stack"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
+// Imported from source: the package barrel does not re-export the views of the slice.
 import {integrationItemRef} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemKinds/tool"
 import {instructionsView} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/views/instructionsView"
 import {integrationAddView} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/views/integrationAddView"
@@ -22,6 +21,9 @@ import {
     configSliceQueries,
     configSliceRevisionId,
 } from "../../../fixtures/builderLayout/foundation-a2"
+
+import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
+import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 
 const panel: AgentPanelApi = {
     content: "configuration",

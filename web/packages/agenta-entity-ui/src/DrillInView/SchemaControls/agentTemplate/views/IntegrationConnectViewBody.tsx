@@ -1,8 +1,10 @@
-import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {toolIntegrationDetailQueryFamily} from "@agenta/entities/gatewayTool"
 import {useT} from "@agenta/i18n"
 import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useAtomValue} from "jotai"
 
 import {useProjectName} from "../../../../accounts/useProjectName"
 import {
@@ -15,8 +17,22 @@ import {CatalogRowSkeleton} from "../CatalogRowSkeleton"
 import type {IntegrationConnectViewParams} from "./integrationConnectView"
 
 const IntegrationConnectViewBody = ({params}: ViewProps<IntegrationConnectViewParams>) => {
-    const {integration} = useToolIntegrationDetail(params.integrationKey)
+    const t = useT(integrationViewsCatalog)
+    const query = useAtomValue(toolIntegrationDetailQueryFamily(params.integrationKey))
+    const integration = query.data?.integration ?? null
     useViewTitle(integration?.name ?? params.integrationKey)
+    if (!integration && query.isError) {
+        return (
+            <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
+                <span className="text-colorTextSecondary">
+                    {t("entityUi.integrationViews.appLoadError")}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
+                    {t("entityUi.integrationViews.tryAgain")}
+                </Button>
+            </div>
+        )
+    }
     // The form starts from the app's sign-in methods, so it waits for them.
     if (!integration) {
         return (

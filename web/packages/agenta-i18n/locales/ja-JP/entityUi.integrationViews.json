@@ -1,5 +1,6 @@
 {
     "accountsStay": "各ユーザー自身のアカウントは接続されたままです。",
+    "appLoadError": "このアプリを読み込めませんでした。",
     "back": "戻る",
     "cancel": "キャンセル",
     "connectLeaveDescription": "変更を保存してこのプロジェクトでアプリを接続しますか？それとも破棄しますか？",
@@ -7,5 +8,6 @@
     "remove": "削除",
     "removeFromAgent": "エージェントから削除",
     "removeTitle": "{{name}} をこのエージェントから削除しますか？",
-    "removedState": "この連携はもうエージェントにありません。"
+    "removedState": "この連携はもうエージェントにありません。",
+    "tryAgain": "もう一度試す"
 }

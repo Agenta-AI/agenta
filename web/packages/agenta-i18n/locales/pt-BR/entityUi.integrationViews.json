@@ -1,5 +1,6 @@
 {
     "accountsStay": "A conta de cada pessoa continua conectada.",
+    "appLoadError": "Não foi possível carregar este app.",
     "back": "Voltar",
     "cancel": "Cancelar",
     "connectLeaveDescription": "Salvar suas alterações para conectar o app neste projeto ou descartá-las?",
@@ -7,5 +8,6 @@
     "remove": "Remover",
     "removeFromAgent": "Remover do agente",
     "removeTitle": "Remover {{name}} deste agente?",
-    "removedState": "Esta integração não está mais no agente."
+    "removedState": "Esta integração não está mais no agente.",
+    "tryAgain": "Tentar novamente"
 }

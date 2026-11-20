@@ -1,7 +1,7 @@
 import type {Workflow} from "@agenta/entities/workflow"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
-import {GITHUB_DETAIL, GITHUB_WORK, integrationQueries} from "../gatewayIntegration"
+import {GITHUB_DETAIL, integrationQueries} from "../gatewayIntegration"
 import {variantNameCellQueries, workflowIds, workflowRevision, type WorkflowIds} from "../workflow"
 
 import {AGENT_SCHEMA, makeAgentConfigFixture} from "./index"

@@ -15,7 +15,7 @@ import {
     type ViewTarget,
 } from "@agenta/ui/view-stack"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {createStore, Provider} from "jotai"
+import {atom, createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -29,6 +29,23 @@ import {integrationView} from "../../src/DrillInView/SchemaControls/agentTemplat
 import {modelView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/modelView"
 
 import {byText, change, click, findByText, keyDown, waitFor} from "./domHelpers"
+
+// One atom per key, as the real atom family keeps (a new atom per render would loop).
+const detailAtoms = new Map<string, ReturnType<typeof atom>>()
+const detailAtom = (key: string) => {
+    if (!detailAtoms.has(key)) {
+        const name = key === "github" ? "GitHub" : "Zendesk"
+        detailAtoms.set(
+            key,
+            atom({
+                data: {integration: {name, auth_schemes: ["oauth"]}},
+                isError: false,
+                refetch: () => undefined,
+            }),
+        )
+    }
+    return detailAtoms.get(key)!
+}
 
 const {writer, created} = vi.hoisted(() => ({
     writer: {
@@ -77,6 +94,8 @@ vi.mock(
 
 vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/gatewayTool")>()),
+    // One atom per key, as the real atom family keeps.
+    toolIntegrationDetailQueryFamily: (key: string) => detailAtom(key),
     useToolIntegrationDetail: (key: string) => ({
         integration: key
             ? {name: key === "github" ? "GitHub" : "Zendesk", auth_schemes: ["oauth"]}

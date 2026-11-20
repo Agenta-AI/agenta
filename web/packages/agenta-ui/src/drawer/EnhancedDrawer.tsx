@@ -60,10 +60,10 @@ interface DrawerSemanticClassNames {
 
 // antd v6 `styles`/`classNames` are resolvable: an object or `(info) => object`. The facade only
 // consumes the object form; the props param is loose so any antd resolver assigns here.
-type DrawerStylesProp = DrawerSemanticStyles | ((info: {props: any}) => DrawerSemanticStyles) // eslint-disable-line @typescript-eslint/no-explicit-any
+type DrawerStylesProp = DrawerSemanticStyles | ((info: {props: any}) => DrawerSemanticStyles)
 type DrawerClassNamesProp =
     | DrawerSemanticClassNames
-    | ((info: {props: any}) => DrawerSemanticClassNames) // eslint-disable-line @typescript-eslint/no-explicit-any
+    | ((info: {props: any}) => DrawerSemanticClassNames)
 
 /**
  * Local, antd-compatible `Drawer` prop surface. Reproduces the antd `DrawerProps` fields the
@@ -116,6 +116,11 @@ export interface EnhancedDrawerProps extends DrawerProps {
     panelRef?: React.Ref<HTMLDivElement>
     /** Body shown until the panel has painted; `children` mount after it. */
     bodyFallback?: React.ReactNode
+    /**
+     * Escape while the drawer is the top layer (an open menu inside takes its own Escape first).
+     * With `keyboard={false}` the drawer stays open and the host decides what Escape does.
+     */
+    onEscapeKeyDown?: (event: KeyboardEvent) => void
 }
 
 interface DrawerStyles {
@@ -131,6 +136,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         children,
         panelRef,
         bodyFallback,
+        onEscapeKeyDown,
         open,
         onClose,
         title,
@@ -273,6 +279,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                 }}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
+                    onEscapeKeyDown?.(e)
                 }}
                 onPointerDownOutside={(e) => {
                     if (!dismissOnOutside) e.preventDefault()

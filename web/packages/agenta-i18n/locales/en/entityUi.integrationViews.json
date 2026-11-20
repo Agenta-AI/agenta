@@ -1,5 +1,6 @@
 {
     "accountsStay": "Each person's own account stays connected.",
+    "appLoadError": "Couldn't load this app.",
     "back": "Back",
     "cancel": "Cancel",
     "connectLeaveDescription": "Save your changes to connect the app in this project, or discard them?",
@@ -7,5 +8,6 @@
     "remove": "Remove",
     "removeFromAgent": "Remove from agent",
     "removeTitle": "Remove {{name}} from this agent?",
-    "removedState": "This integration is no longer in the agent."
+    "removedState": "This integration is no longer in the agent.",
+    "tryAgain": "Try again"
 }
