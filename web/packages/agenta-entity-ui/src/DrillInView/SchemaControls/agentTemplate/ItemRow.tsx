@@ -7,10 +7,9 @@ import {type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import {Tag} from "@agenta/ui/components/presentational"
+import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {
-    CollapseCaret,
     PHONE_TOUCH_TARGET_CLASS,
     Tooltip,
     TooltipContent,
@@ -27,7 +26,7 @@ import {useSectionListLayout} from "./sectionListLayout"
  * border of their own, a line above each row. The card hides the first row's line.
  */
 const PAGE_ROW =
-    "rounded-none border-0 border-t border-solid border-colorBorderSecondary px-3.5 py-3"
+    "gap-3 rounded-none border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3.5 py-3"
 
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
@@ -175,7 +174,7 @@ export function ItemRow({
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
+                "group flex items-center gap-2.5 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
                 interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
@@ -201,23 +200,31 @@ export function ItemRow({
                         : undefined
                 }
                 className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity",
+                    "flex min-w-0 flex-1 items-center transition-opacity",
+                    page ? "gap-3" : "gap-2.5",
                     inactive && "opacity-50",
                 )}
             >
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-[13px] font-normal ${
-                            descriptor.monoName === false ? "" : "font-mono"
-                        }`}
+                        className={cn(
+                            "truncate font-normal leading-5",
+                            // Canvas A04: a page row's name is 14 px; a panel card's is 13 px (F01).
+                            page ? "text-sm" : "text-[13px]",
+                            descriptor.monoName !== false && "font-mono",
+                        )}
                     >
                         {descriptor.name}
                     </div>
                     <RowSubtitle
                         status={status}
                         description={descriptor.description}
-                        className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]"
+                        // The needs-setup reason is a 12/20 line (canvas F01, the integration card).
+                        className={cn(
+                            "block truncate text-[12px] text-[var(--ag-colorTextTertiary)]",
+                            status?.reason ? "leading-5" : "leading-4",
+                        )}
                     />
                 </div>
             </div>
@@ -244,12 +251,24 @@ export function ItemRow({
                         }}
                         // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
                         // 44 px tap area on a phone, the same 24 px box (PHONE_TOUCH_TARGET_CLASS).
-                        className={`${PHONE_TOUCH_TARGET_CLASS} flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100`}
+                        className={`${PHONE_TOUCH_TARGET_CLASS} flex size-6 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-danger-text)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100`}
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                {interactive ? <CollapseCaret size={12} /> : null}
+                {interactive ? (
+                    // Canvas F01: a panel card ends with an outline chevron; A04: a page row
+                    // ends with the triangle.
+                    page ? (
+                        <ConfigRowTriangle />
+                    ) : (
+                        <CaretRight
+                            aria-hidden
+                            size={12}
+                            className="shrink-0 text-colorTextTertiary"
+                        />
+                    )
+                ) : null}
             </div>
         </div>
     )
@@ -382,7 +401,8 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                "group flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-2.5 pl-3 pr-2 transition-colors",
+                // Canvas F01: 8 px around, 10 px on the left (a 54 px card).
+                "group flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-2 pl-2.5 pr-2 transition-colors",
                 !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >
@@ -390,16 +410,14 @@ export function InstructionsFileRow({
             <ItemAvatar descriptor={{...descriptor, icon: undefined}} />
             <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-2">
-                    <span className="truncate font-mono text-[13px] leading-[18px]">
-                        {filename}
-                    </span>
+                    <span className="truncate font-mono text-[13px] leading-5">{filename}</span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
                 <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
                     {line}
                 </span>
             </div>
-            <CollapseCaret size={12} />
+            <ConfigRowTriangle />
         </div>
     )
 }

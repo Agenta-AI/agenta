@@ -1,12 +1,17 @@
 import type {AgentRequirementItem} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {Cpu} from "@phosphor-icons/react"
 
 import {modelIdFromConfig} from "../../connectionUtils"
 import {needsSetupLabel} from "../needsSetupText"
 import {SectionPageAction} from "../SectionPageAction"
+import {SectionPageRow} from "../SectionPageRow"
 import {SectionTitleBadge} from "../SectionTitleBadge"
 
 import type {AgentTemplateT, ModelHarness, SectionIndicatorFor, SectionResult} from "./types"
+
+const tItems = createT(configItemsCatalog)
 
 export interface ModelSectionParams {
     t: AgentTemplateT
@@ -48,7 +53,28 @@ export const modelSection = ({
             // The row opens the Model view, which holds today's list; a pick applies at once.
             onOpen: openModel,
             pageAction: <SectionPageAction action="change" onClick={openModel} />,
+            // The page card (canvas A04): the model's readable name, then its raw id and the
+            // harness; "Change" opens the view, so the row has no caret.
+            pageContent: (
+                <SectionPageRow
+                    icon={<Cpu size={14} />}
+                    title={mh.modelCard.name ?? mh.modelCard.id ?? mh.modelSummary}
+                    summary={<ModelCardLine {...mh.modelCard} />}
+                />
+            ),
             content: null,
         }
+    )
+}
+
+/** The Model card's second line: the raw id in mono, then "via <harness>". */
+const ModelCardLine = ({id, harness}: ModelHarness["modelCard"]) => {
+    if (!id && !harness) return null
+    return (
+        <>
+            {id ? <span className="font-mono">{id}</span> : null}
+            {id && harness ? " · " : null}
+            {harness ? tItems("entityUi.configItems.modelVia", {harness}) : null}
+        </>
     )
 }

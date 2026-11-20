@@ -130,9 +130,11 @@ export function AgentaToolsSection({
         return {
             key: op,
             name,
+            // One line per tool, the name and its select (canvas F04 f10). Only a tool the build
+            // kit overrides keeps a second line, because it says the setting does not apply now.
             description: buildKitOps.has(op)
                 ? t("entityUi.buildKit.buildKitSettingApplies", {description: description ?? ""})
-                : description,
+                : undefined,
             readOnly: kind === "read",
         }
     })

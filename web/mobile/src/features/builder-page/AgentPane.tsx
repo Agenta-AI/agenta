@@ -211,7 +211,8 @@ export const AgentPane = ({
                 lastPointerDown.current = Date.now()
             }}
         >
-            <div className="flex h-12 shrink-0 items-center gap-4 border-0 border-b border-solid border-colorBorderSecondary px-4">
+            {/* 12 px on the right: the session switcher ends 12 px from the pane's edge (B04). */}
+            <div className="flex h-12 shrink-0 items-center gap-4 border-0 border-b border-solid border-colorBorderSecondary pl-4 pr-3">
                 {/* The tabs scroll in a narrow pane, so the session switcher stays in view. */}
                 <div
                     role="tablist"

@@ -43,16 +43,18 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 size="icon"
                 aria-label={label}
                 disabled={disabled}
-                // Quieter than the row title at rest; full strength on hover or while open.
-                // A bare 14 px plus in a 24 px box (canvas S02); a 44 px tap area on a phone.
+                // A bare 14 px plus in the secondary text color (canvas F01): the 24 px hover box
+                // overhangs it by 5 px on each side, so the row lays out the glyph alone. Full
+                // strength on hover or while open; a 44 px tap area on a phone.
                 className={cn(
                     PHONE_TOUCH_TARGET_CLASS,
-                    "size-6 rounded-[6px] !text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
+                    "-mx-[5px] size-6 rounded-[6px] !text-colorTextSecondary hover:!text-colorText aria-expanded:!text-colorText",
                     className,
                 )}
                 {...rest}
             >
-                <Plus size={14} />
+                {/* A size class, or the button's own glyph size (16 px) wins. */}
+                <Plus className="size-3.5" />
             </Button>
         )
         return (

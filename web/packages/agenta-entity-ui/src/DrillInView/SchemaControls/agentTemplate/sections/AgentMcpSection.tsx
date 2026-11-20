@@ -49,6 +49,7 @@ export const agentMcpSection = ({
         title: fieldTitle("mcps", t("entityUi.agentTemplate.mcpServers")),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(mcpServers.length, "server") || tNow("common.none"),
+        empty: mcpServers.length === 0,
         indicator: sectionIndicator("mcp"),
         // Add MCP server and Add subagent are read only on a phone: the list shows, no add.
         hideExtraOnPhone: true,

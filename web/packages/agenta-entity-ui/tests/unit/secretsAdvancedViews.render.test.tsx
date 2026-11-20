@@ -584,7 +584,8 @@ describe("Advanced", () => {
         await openIn(advancedView, {}, AGENT)
         await findByText("here:Advanced")
         const execution = await findByText("", '[data-testid="advanced-part-execution"]')
-        expect(execution.textContent).toContain("Sandbox: local")
+        // The schema label of the kind, as the picker names it.
+        expect(execution.textContent).toContain("Sandbox: Local")
         const tools = document.querySelector('[data-testid="advanced-part-agenta-tools"]')!
         expect(tools.textContent).toContain("Agenta tools")
         expect(tools.textContent).toContain("· 2 tools")

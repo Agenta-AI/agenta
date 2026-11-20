@@ -73,7 +73,7 @@ function MenuRow({
         <DropdownMenuItem onSelect={onSelect} className="items-start gap-2 p-2">
             <span
                 aria-hidden
-                className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:size-3.5"
+                className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:!size-3.5"
             >
                 {icon}
             </span>
