@@ -59,7 +59,12 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
     // A tab switch goes back to the rows (ConfigurationRoot closes the section).
     const sectionScreen = usePhoneSectionScreen(panel.phone)
     // A section's screen is a level of the browser back, as its back arrow.
-    useSystemBack(sectionScreen.shown ? 1 : 0, "section", sectionScreen.close)
+    // Only while the panel shows Configuration: the content stays mounted, hidden, after it closes.
+    useSystemBack(
+        panel.content === "configuration" && sectionScreen.shown ? 1 : 0,
+        "section",
+        sectionScreen.close,
+    )
     return (
         // Open agent views follow the revision on screen (auto-save replaces it) and the edit right.
         // The DrillIn bridge holds the stack, so an open view gets the same host parts (model

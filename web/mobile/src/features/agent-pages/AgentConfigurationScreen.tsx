@@ -136,6 +136,7 @@ export const AgentConfigurationScreen = ({
                 <ViewStackHost
                     chrome={DrawerViewChrome}
                     rootTitle={t("agentLayout.panel.automations")}
+                    phone={phone}
                 >
                     <PageViewStackGuard guardRef={automationsGuard} />
                     <AutomationsTab

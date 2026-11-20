@@ -147,6 +147,8 @@ const install = () => {
  * that unmounts leaves the old page's barrier where it is by itself.
  */
 export const restartSystemBack = () => {
+    // Still on the barrier's page (a move the leave guard stopped): it is still right.
+    if (barrier && barrier.page === pageOf(window.history.state)) return
     barrier = null
     update()
 }

@@ -188,6 +188,11 @@ describe("useSystemBack", () => {
         render(<Level />)
         await settle()
         expect(push).toHaveBeenCalledTimes(1)
+        // A move the leave guard stopped stays on the page: the entry is still right.
+        restartSystemBack()
+        await settle()
+        expect(push).toHaveBeenCalledTimes(1)
+        window.history.replaceState({key: "new-page"}, "")
         restartSystemBack()
         await settle()
         expect(push).toHaveBeenCalledTimes(2)
