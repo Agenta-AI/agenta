@@ -125,10 +125,10 @@ const billingOn = () => {
 
 describe("mobile TurnRow: a run that failed", () => {
     it("names the failure in the fold and shows the server's text as the message", () => {
-        const text = renderTurn(failedTurn("model authentication failed"))
+        const text = renderTurn(failedTurn("The sandbox went away."))
 
         expect(text).toContain("Run stopped")
-        expect(text).toContain("model authentication failed")
+        expect(text).toContain("The sandbox went away.")
         expect(text).not.toContain("The agent run failed")
     })
 
@@ -293,6 +293,8 @@ describe("mobile TurnRow: a run that failed", () => {
         )
 
         expect(text).toContain("The model provider rejected the OpenAI key.")
+        // The reader fixes the key, then runs the turn again.
+        expect(hasRetry()).toBe(true)
         await pressAndLoad("Update key")
         expect(shown()).toContain("[providers drawer: openai]")
     })

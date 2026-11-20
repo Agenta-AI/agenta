@@ -103,6 +103,14 @@ export const providerOf = (text: string): RunErrorProvider | null => {
     }
 }
 
+/**
+ * The runner's own sentence for a refused model credential ("pi_core: model authentication
+ * failed — add the project's OpenAI key …"). It sends it with the code `runner_error`, so the
+ * text is the only sign of a key failure. It names harness ids and the vault, so it goes to
+ * the fold, not under the headline.
+ */
+const MODEL_AUTH_FAILED = /\bmodel authentication failed\b/i
+
 /** The failures a reader can act on, in the product's words; anything else keeps the provider's sentence. */
 export type RunErrorKind = "credits" | "key" | "rate" | "outage"
 
@@ -127,14 +135,11 @@ const recognise = (
             remedy: tNow("chat.mobileRunError.creditsRemedy"),
         }
     }
-    // The runner says a refused model credential in its own words: "model authentication failed
-    // — add the project's OpenAI key …". A provider name followed by "key" is the same failure.
-    const namesProviderKey = !!provider && lower.includes(`${provider.name.toLowerCase()} key`)
     if (
         status === 401 ||
         status === 403 ||
-        /api key|unauthori[sz]ed|invalid.*key|authentication failed/.test(lower) ||
-        namesProviderKey
+        /api key|unauthori[sz]ed|invalid.*key/.test(lower) ||
+        MODEL_AUTH_FAILED.test(text)
     ) {
         return {
             kind: "key",
@@ -162,9 +167,6 @@ const recognise = (
     }
     return null
 }
-
-/** The runner's sentence for a refused model credential: "pi_core: model authentication failed …". */
-const RUNNER_AUTH_SENTENCE = /^\s*[a-z_]+: model authentication failed/i
 
 const STATUS_PREFIX = /^\s*(\d{3})\s*:\s*/
 
@@ -290,10 +292,8 @@ export const formatRunError = (
     const told = humanizeNumbers(whole || !isBig(view.message) ? view.message : view.headline)
     if (view.remedy) {
         // Recognised: our sentence and remedy, with the provider's own words between them.
-        // The runner's own refused-credential sentence names harness ids and the vault; it
-        // goes to the fold, not under the headline.
         const quote =
-            told && told !== view.headline && !RUNNER_AUTH_SENTENCE.test(reason) ? told : null
+            told && told !== view.headline && !MODEL_AUTH_FAILED.test(reason) ? told : null
         return {
             paragraphs: [view.headline, view.remedy],
             quote,

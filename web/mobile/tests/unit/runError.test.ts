@@ -73,13 +73,25 @@ describe("describeRunError", () => {
         ).toBe("key")
     })
 
+    it.each([
+        [
+            "Anthropic",
+            "pi_core: model authentication failed — add the project's Anthropic key to the project vault, or log in (OAuth).",
+        ],
+        [
+            "Gemini",
+            "pi_core: model authentication failed — add the project's Gemini key to the project vault, or log in (OAuth).",
+        ],
+    ])("reads the runner sentence for %s as a key failure", (_name, text) => {
+        expect(formatRunError(text).kind).toBe("key")
+    })
+
     it("still lets a failure that is not about a key fall through", () => {
-        const error = formatRunError("The sandbox went away before the OpenAI model answered.")
+        // A provider name and the word "key" alone are not a key failure.
+        const error = formatRunError("The sandbox went away before the OpenAI key was used.")
 
         expect(error.kind).toBeUndefined()
-        expect(error.paragraphs).toEqual([
-            "The sandbox went away before the OpenAI model answered.",
-        ])
+        expect(error.paragraphs).toEqual(["The sandbox went away before the OpenAI key was used."])
     })
 
     it("never shows an empty headline", () => {
