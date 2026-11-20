@@ -18,8 +18,16 @@ const REGISTRY = [
         name: "ticket-triage",
         description: "Decides urgency and category of a support ticket",
     },
-    {slug: "plain-writing-4k2p", name: "plain-writing", description: "Writes replies in plain words"},
-    {slug: "refund-check-7c1d", name: "refund-check", description: "Checks if a charge can be refunded"},
+    {
+        slug: "plain-writing-4k2p",
+        name: "plain-writing",
+        description: "Writes replies in plain words",
+    },
+    {
+        slug: "refund-check-7c1d",
+        name: "refund-check",
+        description: "Checks if a charge can be refunded",
+    },
     {
         slug: "pdf-reader-2b9e",
         name: "pdf-reader",
@@ -59,7 +67,10 @@ export function skillNewQueries(
     const fixture = makeAgentConfigFixture(scope)
     const agent = {
         ...fixture.value,
-        skills: [embed(REGISTRY[0].slug, "ticket-triage"), embed(REGISTRY[1].slug, "plain-writing")],
+        skills: [
+            embed(REGISTRY[0].slug, "ticket-triage"),
+            embed(REGISTRY[1].slug, "plain-writing"),
+        ],
     }
     const revision = (ids: WorkflowIds): Workflow =>
         workflowRevision(ids, {
