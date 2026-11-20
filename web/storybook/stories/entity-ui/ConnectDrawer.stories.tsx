@@ -2,7 +2,7 @@ import {ConnectDrawer} from "@agenta/entity-ui/gatewayTool"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
-import {GITHUB_WORK, integrationQueries} from "../../fixtures/gatewayIntegration"
+import {GITHUB_DETAIL, GITHUB_WORK, integrationQueries} from "../../fixtures/gatewayIntegration"
 
 /**
  * **Data-connected modal story.** Making a connection to an integration.
@@ -35,25 +35,24 @@ type Story = StoryObj
 
 const noop = () => undefined
 
-const host = (props: Partial<Parameters<typeof ConnectDrawer>[0]> = {}) => (
+const host = () => (
     <div className="min-h-[520px]">
-        <ConnectDrawer
-            open
-            integrationKey="github"
-            integrationName="GitHub"
-            integrationDescription="Repos, issues and pull requests"
-            authSchemes={["oauth", "api_key"]}
-            onClose={noop}
-            {...props}
-        />
+        <ConnectDrawer open integrationKey="github" onClose={noop} />
     </div>
 )
 
+/** GitHub offering both sign-in methods, so the form shows "Auth Method". */
+const bothSchemes = (scope: StoryScope) => [
+    ...integrationQueries(scope, {connections: []}),
+    [
+        ["tools", "catalog", "integrationDetail", "composio", "github"],
+        {integration: {...GITHUB_DETAIL, auth_schemes: ["oauth", "api_key"]}},
+    ] as [readonly unknown[], unknown],
+]
+
 /** The project's first GitHub connection: seeded "GitHub (main)". */
 export const FirstConnection: Story = {
-    parameters: {
-        agenta: {queries: (scope: StoryScope) => integrationQueries(scope, {connections: []})},
-    },
+    parameters: {agenta: {queries: bothSchemes}},
     render: () => host(),
 }
 
@@ -72,5 +71,5 @@ export const SingleAuthScheme: Story = {
     parameters: {
         agenta: {queries: (scope: StoryScope) => integrationQueries(scope, {connections: []})},
     },
-    render: () => host({authSchemes: ["oauth"]}),
+    render: () => host(),
 }

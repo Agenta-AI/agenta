@@ -188,8 +188,6 @@ export interface GatewayToolsSectionProps {
      * does not fold; absent, it stays today's "Connected".
      */
     projectSwitch?: ReactNode
-    /** The current project's name, for "Everyone in {project}" in the connect dialog. */
-    projectName?: string
     /** How many projects the person has in the organization, for the empty "Yours" note. */
     projectCount?: number
     /**
@@ -204,7 +202,6 @@ export default function GatewayToolsSection({
     readOnly,
     copy: copyOverrides,
     projectSwitch,
-    projectName,
     projectCount,
     canEdit = true,
 }: GatewayToolsSectionProps) {

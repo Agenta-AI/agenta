@@ -15,6 +15,8 @@ export interface IntegrationConnectViewParams {
      * Absent, the connection is the project's.
      */
     owners?: ConnectionOwner[]
+    /** Says why this place asks for the app (the setup card); absent, the app's own description. */
+    description?: string
     /** Tells the opener which connection Connect made, so it adds exactly that one. */
     onCreated?: (created: CreatedConnection) => void
 }

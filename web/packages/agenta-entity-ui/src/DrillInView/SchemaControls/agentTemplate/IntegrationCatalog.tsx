@@ -76,13 +76,19 @@ const connectedCollapsedAtom = atomWithStorage(
     false,
 )
 
-export interface IntegrationCatalogProps {
+/** What the catalog needs to add apps to an agent. Absent, it only browses and connects. */
+export interface IntegrationCatalogAdding {
     /** The integrations the agent already holds — the added state and the current connection. */
     integrationRows: IntegrationRow[]
     /** Add an integration, or point a configured one at another connection. One write, one entry. */
     onAddIntegration: (target: GatewayConnectionTarget, connectionSlug: string) => void
     /** Add an integration that uses each person's own account. */
     onAddPersonalIntegration: (target: GatewayConnectionTarget) => void
+}
+
+export interface IntegrationCatalogProps {
+    /** Adds apps to an agent; absent in a place with no agent (chat, playground, prompts). */
+    adding?: IntegrationCatalogAdding
     /**
      * Open the connect form of an app. The form calls `onCreated` with the connection it made,
      * and the catalog adds that one once it is valid. A cancelled form calls nothing.
@@ -168,7 +174,8 @@ function ConnectedRow({
     group: ConnectedGroup
     /** The agent's row for this integration, in EITHER format, or undefined when it holds none. */
     row: IntegrationRow | undefined
-    onAdd: (slug: string) => void
+    /** Absent where nothing is added to an agent: the row only lists the connection. */
+    onAdd?: (slug: string) => void
     handlers: ConnectionRowHandlers
 }) {
     const t = useT(integrationDrawerCatalog)
@@ -208,7 +215,7 @@ function ConnectedRow({
 
     // An added integration offers Change only when it has an entry to edit; adding a second
     // surface to one still on the legacy format is never the intent.
-    const chooserButton = multiple && (!added || swappable)
+    const chooserButton = Boolean(onAdd) && multiple && (!added || swappable)
 
     // Adding is the row's own click; only switching connections needs a visible button.
     const rowAction =
@@ -232,7 +239,7 @@ function ConnectedRow({
                       ? () => handlers.onFinish(single, name, logo)
                       : chooserButton
                         ? () => setChoosing(true)
-                        : !added && single.slug
+                        : onAdd && !added && single.slug
                           ? () => onAdd(single.slug ?? "")
                           : undefined
             }
@@ -298,7 +305,7 @@ function ConnectedRow({
                                 size="sm"
                                 disabled={!selected || selected === currentSlug}
                                 onClick={() => {
-                                    onAdd(selected)
+                                    onAdd?.(selected)
                                     setChoosing(false)
                                 }}
                             >
@@ -363,12 +370,7 @@ function CatalogRow({
 }
 
 /** The catalog: the project's connected apps, then all apps. Mounted only while it shows. */
-export function IntegrationCatalog({
-    integrationRows,
-    onAddIntegration,
-    onAddPersonalIntegration,
-    onConnect,
-}: IntegrationCatalogProps) {
+export function IntegrationCatalog({adding, onConnect}: IntegrationCatalogProps) {
     const t = useT(integrationDrawerCatalog)
     // The catalog's own box: its dialogs and the category list open inside it, so they stay in
     // a drawer host and scroll under the drawer's lock.
@@ -484,16 +486,14 @@ export function IntegrationCatalog({
         ],
     )
     const rowsByIntegration = useMemo(
-        () => new Map(integrationRows.map((row) => [groupKey(row.provider, row.integration), row])),
-        [integrationRows],
-    )
-
-    const addIntegration = useCallback(
-        (group: ConnectedGroup, slug: string) => {
-            if (!slug) return
-            onAddIntegration({provider: group.provider, integration: group.integrationKey}, slug)
-        },
-        [onAddIntegration],
+        () =>
+            new Map(
+                (adding?.integrationRows ?? []).map((row) => [
+                    groupKey(row.provider, row.integration),
+                    row,
+                ]),
+            ),
+        [adding?.integrationRows],
     )
 
     // The connect form stores the connection in the project (or the person's own) and names it.
@@ -501,32 +501,29 @@ export function IntegrationCatalog({
     // sign-in, so the add waits until the connection is valid; the row keeps its reconnect hint
     // until then.
     useEffect(() => {
-        if (!pendingConnect) return
+        if (!pendingConnect || !adding) return
         const {integrationKey, slug, owner} = pendingConnect
         const list = owner === "user" ? (personalConnections ?? []) : connections
         const made = list.find((connection) => connection.slug === slug)
         if (!made || !isConnectionValid(made)) return
         if (owner === "user") {
-            onAddPersonalIntegration({provider: "composio", integration: integrationKey})
+            adding.onAddPersonalIntegration({provider: "composio", integration: integrationKey})
         } else {
-            onAddIntegration(
+            adding.onAddIntegration(
                 {provider: made.provider_key ?? "composio", integration: integrationKey},
                 slug,
             )
         }
         setPendingConnect(null)
-    }, [
-        pendingConnect,
-        connections,
-        personalConnections,
-        onAddIntegration,
-        onAddPersonalIntegration,
-    ])
+    }, [pendingConnect, connections, personalConnections, adding])
 
     const startConnect = useCallback(
         (integrationKey: string) =>
-            onConnect(integrationKey, (created) => setPendingConnect({integrationKey, ...created})),
-        [onConnect],
+            onConnect(integrationKey, (created) => {
+                // Only a catalog that adds to an agent waits for the new connection.
+                if (adding) setPendingConnect({integrationKey, ...created})
+            }),
+        [onConnect, adding],
     )
 
     const catalogLoading = isLoading && integrations.length === 0
@@ -587,7 +584,19 @@ export function IntegrationCatalog({
                                         row={rowsByIntegration.get(
                                             groupKey(group.provider, group.integrationKey),
                                         )}
-                                        onAdd={(slug) => addIntegration(group, slug)}
+                                        onAdd={
+                                            adding
+                                                ? (slug) =>
+                                                      slug &&
+                                                      adding.onAddIntegration(
+                                                          {
+                                                              provider: group.provider,
+                                                              integration: group.integrationKey,
+                                                          },
+                                                          slug,
+                                                      )
+                                                : undefined
+                                        }
                                         handlers={rowHandlers}
                                     />
                                 ))}
