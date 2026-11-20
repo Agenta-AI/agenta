@@ -49,6 +49,12 @@ let installed = false
  * onto that same barrier then moves forward, so a forward goes past it instead of bouncing back.
  */
 let steppedOver: string | null = null
+/**
+ * The barrier on its way out: the router may rewrite it (a shallow `router.replace` right after a
+ * close) before the traversal lands under it. That rewrite is the page's current URL, so it is
+ * kept and written onto the entry the traversal lands on.
+ */
+let leaving: {run: string; rewrite?: {state: unknown; url?: string | URL | null}} | null = null
 /** The pop of the module's own step lands next; it does not end `steppedOver`. */
 let stepping = false
 // Not crypto.randomUUID: it is missing on a plain-HTTP origin.
@@ -78,9 +84,15 @@ const apply = () => {
     } else if (!open && barrier) {
         // A barrier of a page the person navigated away from stays: going back over it would
         // undo the navigation.
-        const onPage = barrier.page === pageOf(window.history.state)
+        const was = barrier
+        const onPage = was.page === pageOf(window.history.state)
         dropBarrier()
         if (onPage) {
+            // Rewritten already (no stamp): keep that URL now; otherwise watch until it lands.
+            const stamped = (window.history.state as Stamp | null)?.agSystemBackRun === was.run
+            leaving = stamped
+                ? {run: was.run}
+                : {run: was.run, rewrite: {state: window.history.state, url: window.location.href}}
             ownPops += 1
             window.history.back()
         }
@@ -111,6 +123,9 @@ const onPopState = (event: PopStateEvent) => {
     if (ownPops > 0) {
         ownPops -= 1
         event.stopImmediatePropagation()
+        const rewrite = leaving?.rewrite
+        leaving = null
+        if (rewrite) window.history.replaceState(rewrite.state, "", rewrite.url)
         return
     }
     const stamp = (event.state as Stamp | null)?.agSystemBackRun
@@ -158,6 +173,13 @@ const install = () => {
     installed = true
     // Capture: at the window it runs before the router's own listener, which it can then stop.
     window.addEventListener("popstate", onPopState, {capture: true})
+    // Watch for a rewrite of the barrier while it leaves (see `leaving`).
+    const replaceState = window.history.replaceState.bind(window.history)
+    window.history.replaceState = (state, unused, url) => {
+        const current = (window.history.state as Stamp | null)?.agSystemBackRun
+        if (leaving && current === leaving.run) leaving.rewrite = {state, url}
+        replaceState(state, unused, url)
+    }
 }
 
 /**
@@ -212,6 +234,7 @@ export const useSystemBack = (levels: number, rank: SystemBackRank, onBack: () =
 /** For tests: forget the barrier and every owner. */
 export const resetSystemBackForTests = () => {
     barrier = null
+    leaving = null
     steppedOver = null
     stepping = false
     ownPops = 0

@@ -200,6 +200,42 @@ describe("useSystemBack", () => {
         expect(onBack).toHaveBeenCalledTimes(2)
     })
 
+    it("keeps a URL the router wrote on the entry while it was leaving", async () => {
+        const replace = vi.spyOn(window.history, "replaceState")
+        const {unmount} = render(<Level />)
+        await settle()
+        unmount()
+        await settle()
+        expect(back).toHaveBeenCalledTimes(1)
+        // A shallow router.replace hits the entry before the traversal lands under it.
+        window.history.replaceState({key: null, as: "/page?tab=agent"}, "", "/page?tab=agent")
+        replace.mockClear()
+        // The traversal lands (the pop of that history.back, mocked here).
+        pop()
+        expect(replace).toHaveBeenCalledWith(
+            {key: null, as: "/page?tab=agent"},
+            "",
+            "/page?tab=agent",
+        )
+    })
+
+    it("keeps a URL the router wrote on the entry before it started to leave", async () => {
+        const replace = vi.spyOn(window.history, "replaceState")
+        const {unmount} = render(<Level />)
+        await settle()
+        // The rewrite comes first, then the close.
+        window.history.replaceState({key: null}, "", "/page?tab=agent")
+        unmount()
+        await settle()
+        replace.mockClear()
+        pop()
+        expect(replace).toHaveBeenCalledWith(
+            {key: null},
+            "",
+            expect.stringContaining("/page?tab=agent"),
+        )
+    })
+
     it("lets the router take a jump to another page's entry", async () => {
         const onBack = vi.fn()
         render(<Level onBack={onBack} />)
