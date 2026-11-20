@@ -103,27 +103,37 @@ const entrySlug = (item: unknown): string | undefined =>
     readMcpConnectionSlug((item ?? {}) as Record<string, unknown>) ?? undefined
 
 /**
+ * The prefix of a view-only address by connection slug. Engine keys are tool prefixes, which hold
+ * no "@", so a slug address can never be read as a name.
+ */
+const SLUG_REF = "@slug:"
+
+/**
  * The address of an MCP server in the agent's `mcps`: the key the change-set engine gives an
  * `mcps` entry, its `name` (the tool prefix frozen when the server was added), so a view and a
  * builder operation name the same server. When two entries share a name (the engine refuses such
- * a list), the entry is addressed by its connection slug, so the second never touches the first.
- * Null for an entry with no name.
+ * a list), the entry gets a view-only address by its connection slug, so the second never touches
+ * the first. Null for an entry with no name.
  */
 export const mcpItemRef = (item: unknown, mcps: unknown[]): ConfigItemRef | null => {
     const name = entryName(item)
     if (!name) return null
     const shared = mcps.filter((other) => entryName(other) === name).length > 1
     const slug = entrySlug(item)
-    return shared && slug ? {list: "mcps", key: slug} : {list: "mcps", key: name}
+    return shared && slug ? {list: "mcps", key: `${SLUG_REF}${slug}`} : {list: "mcps", key: name}
 }
 
-/** The index of the server `ref` names: the one entry with that name, else with that slug. */
+/**
+ * The index of the server `ref` names: the one entry with that name, or for a slug address the
+ * one entry with that slug. An address that matches more than one entry names none.
+ */
 export const findMcpIndex = (mcps: unknown[], ref: ConfigItemRef): number => {
     if (ref.list !== "mcps") return -1
-    const byName = mcps.flatMap((item, index) => (entryName(item) === ref.key ? [index] : []))
-    if (byName.length === 1) return byName[0]
-    const bySlug = mcps.flatMap((item, index) => (entrySlug(item) === ref.key ? [index] : []))
-    return bySlug.length === 1 ? bySlug[0] : -1
+    const slug = ref.key.startsWith(SLUG_REF) ? ref.key.slice(SLUG_REF.length) : null
+    const matches = mcps.flatMap((item, index) =>
+        (slug !== null ? entrySlug(item) === slug : entryName(item) === ref.key) ? [index] : [],
+    )
+    return matches.length === 1 ? matches[0] : -1
 }
 
 /** The list with the server `ref` names replaced by `next(item)`; unchanged when it is gone. */
