@@ -2,6 +2,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {orderAgentsLikeMainSidebar} from "../../src/features/agent-sidebar/agentOrder"
+import {agentSessionsNarrowing} from "../../src/features/agent-sidebar/agentSessionsQuery"
 import {agentSidebarItems} from "../../src/features/agent-sidebar/agentSidebarItems"
 import {sidebarAfterRoute} from "../../src/features/agent-sidebar/agentSidebarRoute"
 import {groupByDay} from "../../src/features/agent-sidebar/dayGroups"
@@ -253,5 +254,45 @@ describe("the slide between the main sidebar and an agent sidebar", () => {
         expect(sidebarEnterFrom(null, "agent-sidebar:a1")).toBeUndefined()
         expect(sidebarEnterFrom("mobile-main", "mobile-main")).toBeUndefined()
         expect(sidebarEnterFrom("agent-sidebar:a1", "agent-sidebar:a2")).toBeUndefined()
+    })
+})
+
+describe("the agent sidebar's filters as server predicates", () => {
+    const now = Date.parse("2026-11-20T12:00:00Z")
+    const all = {status: "all", type: "all", activity: "all"} as const
+
+    it("narrows nothing by default", () => {
+        expect(agentSessionsNarrowing(all, null, now)).toEqual({
+            flags: undefined,
+            sessionIds: undefined,
+            origins: undefined,
+            excludeOrigins: undefined,
+            activityFloor: undefined,
+        })
+    })
+
+    it("sends status, type and last activity the way the main sidebar does", () => {
+        expect(agentSessionsNarrowing({...all, status: "running"}, null, now)?.flags).toEqual({
+            is_running: true,
+        })
+        expect(agentSessionsNarrowing({...all, status: "idle"}, null, now)?.flags).toEqual({
+            is_alive: false,
+        })
+        expect(agentSessionsNarrowing({...all, type: "chat"}, null, now)?.excludeOrigins).toEqual([
+            "trigger",
+        ])
+        expect(agentSessionsNarrowing({...all, type: "automation"}, null, now)?.origins).toEqual([
+            "trigger",
+        ])
+        expect(agentSessionsNarrowing({...all, activity: "24h"}, null, now)?.activityFloor).toBe(
+            "2026-11-19T12:00:00.000Z",
+        )
+    })
+
+    it("narrows Waiting to the sessions with a pending interaction, and waits for that list", () => {
+        expect(agentSessionsNarrowing({...all, status: "waiting"}, null, now)).toBeNull()
+        expect(
+            agentSessionsNarrowing({...all, status: "waiting"}, ["s1", "s2"], now)?.sessionIds,
+        ).toEqual(["s1", "s2"])
     })
 })

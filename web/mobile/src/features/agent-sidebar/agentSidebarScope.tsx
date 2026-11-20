@@ -3,7 +3,11 @@ import {createElement, useCallback, useContext, useMemo} from "react"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {livePollInterval} from "@agenta/navigation"
+import {
+    livePollInterval,
+    setSidebarSessionFilterDefaults,
+    sidebarSessionFiltersAtomFamily,
+} from "@agenta/navigation"
 import type {
     SidebarScope,
     SidebarSection,
@@ -11,6 +15,7 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {
+    SessionFilterMenu,
     SessionSearchButton,
     SidebarBackButton,
     SidebarLayoutContext,
@@ -19,6 +24,7 @@ import {
 import {sessionRowVm} from "@agenta/sessions/row"
 import {pendingBySessionId, useActionableInteractions} from "@agenta/sessions/state"
 import {useQuery} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
@@ -31,7 +37,7 @@ import {
 } from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
-import {agentSessionsQuery} from "./agentSessionsQuery"
+import {agentSessionsNarrowing, agentSessionsQuery} from "./agentSessionsQuery"
 import {AgentSidebarHeader} from "./AgentSidebarHeader"
 import {
     agentSidebarItems,
@@ -42,20 +48,45 @@ import {ConnectedAgentSwitcher} from "./ConnectedAgentSwitcher"
 import {openMainSidebar, useSelectedSidebar} from "./selectedSidebar"
 import {SidebarNewButton} from "./SidebarNewButton"
 
+/** The filter menu's facets in the agent sidebar. */
+const AGENT_SIDEBAR_FILTER_FACETS = ["type", "status", "activity"] as const
+
 /** How many latest sessions the agent sidebar lists; "Show N older sessions" opens the rest. */
 export const AGENT_SIDEBAR_SESSION_LIMIT = 10
 
-/** The agent's latest sessions and the count of all its sessions, in one request. */
+/** The filter scope of one agent's sidebar: its own, so it never narrows the main sidebar. */
+export const agentSidebarFilterScope = (agentId: string) => `agent-sidebar:${agentId}`
+
+/**
+ * The agent's latest sessions and the count of all its sessions, in one request, narrowed by
+ * the sidebar's filter menu (Type, Status, Last activity).
+ */
 const useAgentSessions = (projectId: string, agentId: string) => {
+    const filters = useAtomValue(sidebarSessionFiltersAtomFamily(agentSidebarFilterScope(agentId)))
+    const interactions = useActionableInteractions(projectId)
+    const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
+    // Joined, so a poll that returns the same waiting sessions keeps the same query.
+    const waitingKey = pending ? [...pending.keys()].sort().join(",") : null
+    const {status: statusFilter, type, activity} = filters
+    // Computed per filter change, not per render: a floor from the clock on every render would
+    // make a new query each time.
+    const narrowing = useMemo(
+        () =>
+            agentSessionsNarrowing(
+                {status: statusFilter, type, activity},
+                waitingKey === null ? null : waitingKey.split(",").filter(Boolean),
+                Date.now(),
+            ),
+        [activity, statusFilter, type, waitingKey],
+    )
     const query = useQuery({
-        ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSION_LIMIT),
-        enabled: Boolean(projectId),
+        ...agentSessionsQuery(projectId, agentId, AGENT_SIDEBAR_SESSION_LIMIT, narrowing ?? {}),
+        // "Waiting" waits for the waiting list: without it the query would not be narrowed.
+        enabled: Boolean(projectId) && narrowing !== null,
         refetchOnWindowFocus: true,
         // The main sidebar's cadence: faster while a session runs or is alive.
         refetchInterval: (query) => livePollInterval(query.state.data?.sessions),
     })
-    const interactions = useActionableInteractions(projectId)
-    const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
     const sessions = useMemo(
         () =>
             (query.data?.sessions ?? []).map((row): AgentSidebarSession => {
@@ -93,6 +124,13 @@ export const createAgentSidebarScope = (
     agentId: string,
 ): SidebarScope => {
     const projectURL = `/w/${workspaceId}/p/${projectId}`
+    // Unfiltered by default: the list shows the agent's latest sessions of every kind and age,
+    // as before the menu existed. Reset returns here.
+    setSidebarSessionFilterDefaults(agentSidebarFilterScope(agentId), {
+        type: "all",
+        activity: "all",
+        status: "all",
+    })
 
     const useSelection = (): SidebarSelection => {
         const router = useRouter()
@@ -113,13 +151,23 @@ export const createAgentSidebarScope = (
         const {sessions, total, status, retry} = useAgentSessions(projectId, agentId)
         const tNav = useT(navigationCatalog)
         const paletteShortcut = usePaletteShortcut()
-        // The main sidebar's Sessions controls: search opens the search window.
+        // The main sidebar's Sessions controls: search opens the search window, the filter
+        // narrows this list. No Group by and no Agent: the agent is this one, and the list keeps
+        // its day groups.
         const sessionsActions = useMemo(
             () =>
-                createElement(SessionSearchButton, {
-                    label: tNav("navigation.items.search"),
-                    shortcut: paletteShortcut,
-                }),
+                createElement(
+                    "span",
+                    {className: "flex items-center gap-0.5"},
+                    createElement(SessionSearchButton, {
+                        label: tNav("navigation.items.search"),
+                        shortcut: paletteShortcut,
+                    }),
+                    createElement(SessionFilterMenu, {
+                        scopeId: agentSidebarFilterScope(agentId),
+                        facets: AGENT_SIDEBAR_FILTER_FACETS,
+                    }),
+                ),
             [paletteShortcut, tNav],
         )
 

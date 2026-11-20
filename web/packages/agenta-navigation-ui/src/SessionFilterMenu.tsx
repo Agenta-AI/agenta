@@ -12,6 +12,7 @@ import {
     sidebarSessionAgentOptionsPendingAtomFamily,
     sidebarSessionFiltersAtomFamily,
     sidebarHasAnySessionAtomFamily,
+    sidebarSessionFiltersDirtyAtomFamily,
     sidebarSessionMenuDirtyAtomFamily,
     type SidebarSessionActivityFilter,
     type SidebarSessionGroupBy,
@@ -73,7 +74,26 @@ const ACTIVITY_OPTIONS: {value: string; labelKey: FilterTextKey}[] = [
  * row, a flyout and a check mark are drawn once for the whole product. Only this surface's
  * meaning lives here.
  */
-export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
+/** The rows the menu can show, in its order. */
+export type SessionFilterFacet = "groupBy" | "type" | "agentIds" | "status" | "activity"
+
+const ALL_FACETS: readonly SessionFilterFacet[] = [
+    "groupBy",
+    "type",
+    "agentIds",
+    "status",
+    "activity",
+]
+
+export const SessionFilterMenu = ({
+    scopeId,
+    facets = ALL_FACETS,
+}: {
+    scopeId: string
+    /** The rows to show. A list that is one agent's has no Agent row and no Group by (the agent
+     * sidebar); without Group by, Reset leaves the hand arrangement of the headings alone. */
+    facets?: readonly SessionFilterFacet[]
+}) => {
     const t = useT(sessionFilterCatalog, commonCatalog)
     const withLabels = useCallback(
         (options: {value: string; labelKey: FilterTextKey}[]) =>
@@ -82,7 +102,11 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     )
     const filtersAtom = useMemo(() => sidebarSessionFiltersAtomFamily(scopeId), [scopeId])
     const [filters, setFilters] = useAtom(filtersAtom)
-    const dirty = useAtomValue(sidebarSessionMenuDirtyAtomFamily(scopeId))
+    const arranges = facets.includes("groupBy")
+    const menuDirty = useAtomValue(sidebarSessionMenuDirtyAtomFamily(scopeId))
+    const filtersDirty = useAtomValue(sidebarSessionFiltersDirtyAtomFamily(scopeId))
+    // The hand arrangement belongs to the menu that groups; another list's Reset keeps it.
+    const dirty = arranges ? menuDirty : filtersDirty
     const clearManualOrder = useSetAtom(clearSidebarManualOrderAtom)
     // Both read gated atoms: until this menu reports itself open they return empty without
     // touching the agent catalog, which is what keeps the catalog off every sidebar mount.
@@ -122,68 +146,74 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     )
 
     const sections = useMemo<FilterMenuSection[]>(
-        () => [
-            // Grouping sits with the filters rather than under the panel's sort divider: on this
-            // surface it is the first question, and the rail has no sort to divide it from.
-            {
-                key: "groupBy",
-                label: t("shell.sessionFilter.groupBy"),
-                icon: <ListBulletsIcon size={ICON} />,
-                value: filters.groupBy,
-                options: withLabels(GROUP_BY_OPTIONS),
-                onChange: (value) => setFilters({groupBy: value as SidebarSessionGroupBy}),
-            },
-            {
-                key: "type",
-                label: t("shell.sessionFilter.type"),
-                // A bolt, not the robot: the robot means AGENT throughout the rail, and an
-                // automation is a trigger that ran one — reusing it would conflate the two.
-                icon: <LightningIcon size={ICON} />,
-                value: filters.type,
-                options: withLabels(TYPE_OPTIONS),
-                onChange: (value) => setFilters({type: value as SidebarSessionTypeFilter}),
-            },
-            {
-                key: "agentIds",
-                label: t("shell.sessionFilter.agent"),
-                icon: <RobotIcon size={ICON} />,
-                // The one multi-choice row: narrowing to two teammates' agents is a real
-                // question, where two statuses or two date windows are not.
-                multi: true,
-                // Empty MEANS every agent, so the row that says so has to carry the check —
-                // otherwise the panel's only "all agents" state is the one with nothing ticked.
-                value: filters.agentIds.length ? filters.agentIds : [ALL_AGENTS],
-                valueLabel: agentLabel,
-                options: [
-                    {value: ALL_AGENTS, label: t("shell.sessionFilter.allAgents")},
-                    ...agentOptions,
-                ],
-                // The catalog only starts loading when this menu opens, so the facet is briefly
-                // empty. Say so, rather than let it read as "this project has no agents".
-                emptyText: agentOptionsPending
-                    ? t("shell.sessionFilter.loadingAgents")
-                    : t("shell.sessionFilter.noAgentsYet"),
-                wide: true,
-                onChange: toggleAgent,
-            },
-            {
-                key: "status",
-                label: t("common.status"),
-                icon: <PulseIcon size={ICON} />,
-                value: filters.status,
-                options: withLabels(STATUS_OPTIONS),
-                onChange: (value) => setFilters({status: value as SidebarSessionStatusFilter}),
-            },
-            {
-                key: "activity",
-                label: t("shell.sessionFilter.lastActivity"),
-                icon: <ClockIcon size={ICON} />,
-                value: filters.activity,
-                options: withLabels(ACTIVITY_OPTIONS),
-                onChange: (value) => setFilters({activity: value as SidebarSessionActivityFilter}),
-            },
-        ],
+        () =>
+            (
+                [
+                    // Grouping sits with the filters rather than under the panel's sort divider: on this
+                    // surface it is the first question, and the rail has no sort to divide it from.
+                    {
+                        key: "groupBy",
+                        label: t("shell.sessionFilter.groupBy"),
+                        icon: <ListBulletsIcon size={ICON} />,
+                        value: filters.groupBy,
+                        options: withLabels(GROUP_BY_OPTIONS),
+                        onChange: (value) => setFilters({groupBy: value as SidebarSessionGroupBy}),
+                    },
+                    {
+                        key: "type",
+                        label: t("shell.sessionFilter.type"),
+                        // A bolt, not the robot: the robot means AGENT throughout the rail, and an
+                        // automation is a trigger that ran one — reusing it would conflate the two.
+                        icon: <LightningIcon size={ICON} />,
+                        value: filters.type,
+                        options: withLabels(TYPE_OPTIONS),
+                        onChange: (value) => setFilters({type: value as SidebarSessionTypeFilter}),
+                    },
+                    {
+                        key: "agentIds",
+                        label: t("shell.sessionFilter.agent"),
+                        icon: <RobotIcon size={ICON} />,
+                        // The one multi-choice row: narrowing to two teammates' agents is a real
+                        // question, where two statuses or two date windows are not.
+                        multi: true,
+                        // Empty MEANS every agent, so the row that says so has to carry the check —
+                        // otherwise the panel's only "all agents" state is the one with nothing ticked.
+                        value: filters.agentIds.length ? filters.agentIds : [ALL_AGENTS],
+                        valueLabel: agentLabel,
+                        options: [
+                            {value: ALL_AGENTS, label: t("shell.sessionFilter.allAgents")},
+                            ...agentOptions,
+                        ],
+                        // The catalog only starts loading when this menu opens, so the facet is briefly
+                        // empty. Say so, rather than let it read as "this project has no agents".
+                        emptyText: agentOptionsPending
+                            ? t("shell.sessionFilter.loadingAgents")
+                            : t("shell.sessionFilter.noAgentsYet"),
+                        wide: true,
+                        onChange: toggleAgent,
+                    },
+                    {
+                        key: "status",
+                        label: t("common.status"),
+                        icon: <PulseIcon size={ICON} />,
+                        value: filters.status,
+                        options: withLabels(STATUS_OPTIONS),
+                        onChange: (value) =>
+                            setFilters({status: value as SidebarSessionStatusFilter}),
+                    },
+                    {
+                        key: "activity",
+                        label: t("shell.sessionFilter.lastActivity"),
+                        icon: <ClockIcon size={ICON} />,
+                        value: filters.activity,
+                        options: withLabels(ACTIVITY_OPTIONS),
+                        onChange: (value) =>
+                            setFilters({activity: value as SidebarSessionActivityFilter}),
+                    },
+                ] satisfies FilterMenuSection[]
+            ).filter((section) => facets.includes(section.key as SessionFilterFacet)),
         [
+            facets,
             agentLabel,
             agentOptions,
             agentOptionsPending,
@@ -202,8 +232,8 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     // Clears the arrangement alongside the filters: both are defaults this menu set.
     const onReset = useCallback(() => {
         setFilters(sidebarSessionFilterDefaults(scopeId))
-        clearManualOrder()
-    }, [clearManualOrder, setFilters])
+        if (arranges) clearManualOrder()
+    }, [arranges, clearManualOrder, scopeId, setFilters])
 
     // Below every hook, not above. Hidden only when the PROJECT holds no session at all: the
     // defaults narrow to chat within 7 days, so a rail emptied by them still needs this control
