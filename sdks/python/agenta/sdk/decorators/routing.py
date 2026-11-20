@@ -2,7 +2,7 @@
 
 import warnings
 import httpx
-from typing import Any, Callable, Optional, AsyncGenerator, Union
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
 from json import dumps
 from uuid import UUID
 from traceback import format_exception
@@ -52,6 +52,7 @@ from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workf
 from agenta.sdk.engines.running.errors import ErrorStatus
 from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
 from agenta.sdk.agents.platform.connection import PlatformConnection
+from agenta.sdk.agents.dtos import to_messages
 
 
 log = get_module_logger(__name__)
@@ -246,6 +247,121 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
                     m.to_wire() for m in vercel_messages_to_agenta_messages(_msgs)
                 ],
             }
+
+
+def _inband_approval_answers(
+    messages: Any,
+) -> List[Tuple[str, bool, str]]:
+    """The approval answers this turn carries in its messages, as ``(token, approved,
+    tool_call_id)``.
+
+    An answer is a ``tool_result`` whose output is ``{approved, interactionToken}``: what the
+    Vercel adapter makes of a ``tool-approval-response`` part or an answered tool part. Only
+    the current turn counts (from the last ``user`` message on): earlier answers are history
+    whose rows are already settled. An answer with no ``interactionToken`` names no row.
+    """
+    turn = to_messages(messages if isinstance(messages, list) else [])
+    start = 0
+    for index in range(len(turn) - 1, -1, -1):
+        if turn[index].role == "user":
+            start = index
+            break
+    answers: List[Tuple[str, bool, str]] = []
+    seen = set()
+    for message in turn[start:]:
+        if not isinstance(message.content, list):
+            continue
+        for block in message.content:
+            output = block.output if block.type == "tool_result" else None
+            if not isinstance(output, dict):
+                continue
+            approved = output.get("approved")
+            token = output.get("interactionToken")
+            if not isinstance(approved, bool) or not isinstance(token, str):
+                continue
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            answers.append((token, approved, block.tool_call_id or token))
+    return answers
+
+
+async def record_inband_approval_answers(
+    req: Request,
+    request: WorkflowInvokeRequest,
+) -> None:
+    """Record a person's in-band approval answer on its interaction row before the run.
+
+    The runner takes an approval decision only from a ``responded`` row, never from message
+    text. A caller that answers a card inside the messages (the Vercel
+    ``tool-approval-response`` input) has no row written for it, so this sends each answer
+    to the transition route first, as ``responded``, with the credential the caller
+    presented to this service, not the exchanged one. The API decides whether that
+    credential may answer; a refusal leaves the row as it was, and the run starts anyway
+    (the card then shows again). Never raises.
+
+    A delivery the API made itself (a continuation or a promoted input) is skipped: the API
+    already stored the answer before it dispatched the run.
+    """
+    if request.session_id is None or request.data is None:
+        return
+    meta = request.meta if isinstance(request.meta, dict) else {}
+    if meta.get("control_command_id") or meta.get("promoted_input_id"):
+        return
+    answers = _inband_approval_answers((request.data.inputs or {}).get("messages"))
+    if not answers:
+        return
+
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    authorization = req.headers.get("authorization")
+    if authorization:
+        headers["Authorization"] = authorization
+    access_token = req.cookies.get("sAccessToken")
+    cookies = {"sAccessToken": access_token} if access_token else None
+    if not authorization and not cookies:
+        return
+    otel = getattr(req.state, "otel", None) or {}
+    project_id = (otel.get("baggage") or {}).get("project_id") or req.query_params.get(
+        "project_id"
+    )
+    params = {"project_id": project_id} if project_id else None
+
+    connection = PlatformConnection()
+    api_base = connection.base_url()
+    if not api_base:
+        return
+    try:
+        async with httpx.AsyncClient(
+            timeout=connection.timeout, cookies=cookies
+        ) as client:
+            for token, approved, tool_call_id in answers:
+                response = await client.post(
+                    f"{api_base}/sessions/interactions/transition",
+                    headers=headers,
+                    params=params,
+                    json={
+                        "session_id": request.session_id,
+                        "token": token,
+                        "status": "responded",
+                        "resolution": {
+                            "verdict": "approved" if approved else "denied",
+                            "tool_call_id": tool_call_id,
+                        },
+                    },
+                )
+                if response.status_code >= 400:
+                    log.info(
+                        "[HITL] in-band approval answer not recorded",
+                        session_id=request.session_id,
+                        token=token,
+                        status_code=response.status_code,
+                    )
+    except httpx.HTTPError as error:
+        log.warning(
+            "[HITL] in-band approval answer not recorded",
+            session_id=request.session_id,
+            error=type(error).__name__,
+        )
 
 
 async def admit_session_input(
@@ -750,6 +866,7 @@ class route:
             apply_invoke_prelude(req, request)
 
             try:
+                await record_inband_approval_answers(req, request)
                 admission_response = await admit_session_input(
                     req, request, credentials
                 )
