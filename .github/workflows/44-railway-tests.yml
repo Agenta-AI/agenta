@@ -785,3 +785,145 @@ jobs:
             echo "| AGENTA_SERVICES_URL | \`${AGENTA_SERVICES_URL}\` | |"
             echo "| Status | \`${JOB_STATUS}\` | |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+
+  run-local-web-acceptance:
+    name: run-local-web-acceptance
+    needs: prepare
+    if: >-
+      ${{
+        contains(fromJSON('["all","web-only"]'), inputs.packages) &&
+        contains(fromJSON(needs.prepare.outputs.layers_json), 'acceptance')
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AGENTA_LICENSE: oss
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
+      - name: Prepare OSS dev environment
+        run: |
+          cp hosting/docker-compose/oss/env.oss.dev.example \
+            hosting/docker-compose/oss/.env.oss.dev
+
+          AGENTA_AUTH_KEY="${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}" \
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import secrets
+
+          path = Path("hosting/docker-compose/oss/.env.oss.dev")
+
+          values = {
+              "TRAEFIK_PORT": "10001",
+              "TRAEFIK_UI_PORT": "10002",
+              "AGENTA_MOCK_LLM_GATEWAY_PORT": "10004",
+              "AGENTA_WEB_URL": "http://localhost:10001",
+              "AGENTA_SERVICES_URL": "http://localhost:10001/services",
+              "AGENTA_API_URL": "http://localhost:10001/api",
+              "AGENTA_AUTH_KEY": os.environ["AGENTA_AUTH_KEY"],
+              "AGENTA_SERVICES_INTERNAL_KEY": secrets.token_hex(32),
+              "AGENTA_CRYPT_KEY": secrets.token_hex(32),
+              "AGENTA_RUNNER_TOKEN": secrets.token_hex(32),
+              "AGENTA_STORE_ACCESS_KEY": secrets.token_hex(16),
+              "AGENTA_STORE_SECRET_KEY": secrets.token_hex(32),
+              "PLAYWRIGHT_HOST_RESOLVER_RULES": "MAP mock-mcp-gateway 127.0.0.1",
+          }
+
+          lines = path.read_text().splitlines()
+          output = []
+          seen = set()
+
+          for line in lines:
+              if "=" in line and not line.lstrip().startswith("#"):
+                  key = line.split("=", 1)[0]
+                  if key in values:
+                      output.append(f"{key}={values[key]}")
+                      seen.add(key)
+                      continue
+              output.append(line)
+
+          for key, value in values.items():
+              if key not in seen:
+                  output.append(f"{key}={value}")
+
+          path.write_text("\n".join(output) + "\n")
+          PY
+
+      - name: Start OSS dev stack
+        run: |
+          bash ./hosting/docker-compose/run.sh --oss --dev --build
+
+      - name: Wait for web
+        run: |
+          curl --retry 30 --retry-delay 5 --retry-connrefused \
+            --fail http://localhost:10001
+
+      - name: Wait for mock MCP gateway
+        run: |
+          curl --retry 30 --retry-delay 2 --retry-connrefused \
+            --fail http://127.0.0.1:9092/health
+
+      - name: Run MCP acceptance tests
+        run: |
+          set -o pipefail
+
+          bash ./hosting/docker-compose/test.sh \
+            --oss \
+            --dev \
+            --web \
+            --acceptance \
+            -- \
+            ../oss/tests/playwright/acceptance/settings/mcp-connect.spec.ts \
+            ../oss/tests/playwright/acceptance/playground/mcp-agent-config.spec.ts \
+            2>&1 | tee mcp-acceptance.log
+
+          summary="$(grep -E '\[test\] [0-9]+ passed, [0-9]+ failed, [0-9]+ skipped$' mcp-acceptance.log | tail -1)"
+
+          if [[ -z "$summary" ]]; then
+            echo "Could not find the Playwright test summary."
+            exit 1
+          fi
+
+          if [[ "$summary" =~ \[test\]\ ([0-9]+)\ passed,\ ([0-9]+)\ failed,\ ([0-9]+)\ skipped ]]; then
+            passed="${BASH_REMATCH[1]}"
+            failed="${BASH_REMATCH[2]}"
+            skipped="${BASH_REMATCH[3]}"
+
+            if (( failed > 0 )); then
+              echo "MCP acceptance tests reported failures."
+              exit 1
+            fi
+
+            if (( skipped > 0 )); then
+              echo "MCP acceptance tests were skipped; expected the mock MCP gateway to be reachable."
+              exit 1
+            fi
+
+            if (( passed == 0 )); then
+              echo "No MCP acceptance tests executed."
+              exit 1
+            fi
+          else
+            echo "Unexpected Playwright summary: $summary"
+            exit 1
+          fi
+
+      - name: Stop OSS dev stack
+        if: always()
+        run: |
+          bash ./hosting/docker-compose/run.sh --oss --dev --down
