@@ -24,7 +24,6 @@
     "saved": "Saved",
     "savedTogether": "Saved together as v{{version}}",
     "tryAgain": "Try again",
-    "tryAgainMessage": "Read the agent again and propose the same change on its latest version.",
     "valueFromTo": "{{old}} to {{new}}",
     "view": "View",
     "waiting": "Waiting for the agent"

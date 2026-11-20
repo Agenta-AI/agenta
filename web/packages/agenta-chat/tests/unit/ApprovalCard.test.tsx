@@ -705,6 +705,23 @@ describe("the grouped card of several change calls (task 26.2)", () => {
         expect(render()).toContain('data-testid="change-conflict"')
     })
 
+    it("names the agent of each group when the calls change several agents", () => {
+        const other = call("a2", "gpt-6")
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    call("a1", "claude-opus-5.5"),
+                    {...other, input: {...other.input, agent: "Refund checker"}},
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("2 changes")
+        expect(html).toContain(">Support triage<")
+        expect(html).toContain(">Refund checker<")
+    })
+
     it("keeps the list of actions for a batch with another tool", () => {
         const html = renderToStaticMarkup(
             <ApprovalCard

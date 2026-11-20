@@ -137,7 +137,7 @@ const Row = ({block}: {block: ChangeBlock}) => {
 }
 
 /** One call: its version line, the conflict state before a click, and its rows. */
-const CallGroup = ({preview}: {preview: ApprovalPreview}) => {
+const CallGroup = ({preview, showAgent}: {preview: ApprovalPreview; showAgent: boolean}) => {
     const t = useT(chatChangeCardStatesCatalog)
     const tChange = useT(chatChangeCardCatalog)
     const {baseVersion, latestVersion} = useChangeVersions(preview.base)
@@ -146,6 +146,11 @@ const CallGroup = ({preview}: {preview: ApprovalPreview}) => {
     const blocks = groupChanges(preview.changes ?? [])
     return (
         <div className="flex min-w-0 flex-col gap-1" data-testid="change-call-group">
+            {showAgent && preview.agentName ? (
+                <span className="truncate text-xs font-semibold text-colorText">
+                    {preview.agentName}
+                </span>
+            ) : null}
             {baseVersion !== undefined ? (
                 <span className="text-xs font-medium text-colorTextSecondary">
                     {t("chat.changeCardStates.savedTogether", {version: baseVersion + 1})}
@@ -207,7 +212,7 @@ export const ChangeCallGroups = ({previews}: {previews: ApprovalPreview[]}) => {
             {/* Up to 64 changes per call: the groups scroll, the footer stays. */}
             <div className="flex max-h-[420px] min-w-0 flex-col gap-3 overflow-y-auto">
                 {previews.map((preview, index) => (
-                    <CallGroup key={index} preview={preview} />
+                    <CallGroup key={index} preview={preview} showAgent={!agent} />
                 ))}
             </div>
         </div>

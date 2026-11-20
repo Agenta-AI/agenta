@@ -28,7 +28,6 @@
     "saved": "Enregistré",
     "savedTogether": "Enregistrés ensemble en v{{version}}",
     "tryAgain": "Réessayer",
-    "tryAgainMessage": "Relis l’agent et propose la même modification sur sa dernière version.",
     "valueFromTo": "{{old}} vers {{new}}",
     "view": "Voir",
     "waiting": "En attente de l’agent"

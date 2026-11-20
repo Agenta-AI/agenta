@@ -224,6 +224,19 @@ describe("the agent's own change card (task 26.3)", () => {
         expect(preview?.base).toEqual({revisionId: "rev-4"})
     })
 
+    it("keeps the rows when an operation has no values to show (merge, replace_item)", () => {
+        const preview = describeCommitRevision(
+            ordered({
+                operation: "merge",
+                target: ["parameters", "agent", "llm"],
+                value: {model: "new-model"},
+            }),
+            undefined,
+        )
+        expect(preview?.changes).toBeUndefined()
+        expect(preview?.items.length).toBe(1)
+    })
+
     it("keeps the rows of a legacy delta", () => {
         const preview = describeCommitRevision(commit({set: {instructions: "x"}}), undefined)
         expect(preview?.changes).toBeUndefined()

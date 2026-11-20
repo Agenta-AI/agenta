@@ -20,7 +20,6 @@
     "saved": "保存済み",
     "savedTogether": "まとめて v{{version}} として保存",
     "tryAgain": "再試行",
-    "tryAgainMessage": "エージェントをもう一度読み込み、最新バージョンに対して同じ変更を提案してください。",
     "valueFromTo": "{{old}} から {{new}}",
     "view": "表示",
     "waiting": "エージェントを待っています"

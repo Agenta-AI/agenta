@@ -91,6 +91,26 @@ describe("the result rows (task 26.1)", () => {
         expect(html).toBe("")
     })
 
+    it("keeps Try again on a conflict that a later call did not recover", () => {
+        const rows = (later: Record<string, unknown>) =>
+            renderToStaticMarkup(
+                <ChangeResultRows
+                    parts={[
+                        edit("c1", "gpt-6", {state: "output-error", errorText: conflict}),
+                        later,
+                    ]}
+                    actions={{onTryAgain: () => undefined}}
+                />,
+            )
+        // A denied call after it.
+        expect(rows(edit("c2", "gpt-6", {state: "output-denied"}))).toContain("Try again")
+        // A save to another agent.
+        const other = edit("c2", "gpt-6", {state: "output-available", output: saved})
+        expect(rows({...other, input: {...other.input, agent: "Refund checker"}})).toContain(
+            "Try again",
+        )
+    })
+
     it("offers no Try again on a conflict that a later saved call of the turn recovered", () => {
         const html = renderToStaticMarkup(
             <ChangeResultRows

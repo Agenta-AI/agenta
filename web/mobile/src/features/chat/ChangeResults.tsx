@@ -5,8 +5,6 @@ import {
     type ChangeResultActions,
     type ChangeVersionRef,
 } from "@agenta/chat/components"
-import {useT} from "@agenta/i18n"
-import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
 import {
     openAgentVersionHistoryAtom,
     selectAgentVersionAtom,
@@ -14,6 +12,9 @@ import {
 import {useSetAtom} from "jotai"
 
 import {ChangeResultHostContext} from "./changeResultHost"
+
+// Sent and saved as the person's message, and read by the model: never translated.
+const TRY_AGAIN_MESSAGE = "Read the agent again and propose the same change on its latest version."
 
 /**
  * The result rows of one turn's change calls (task 26.1), with the /m actions: View opens the
@@ -32,7 +33,6 @@ export const ChangeResults = ({
     /** The last turn: only its conflict offers "Try again" (a later turn may have recovered). */
     latest: boolean
 }) => {
-    const t = useT(chatChangeCardStatesCatalog)
     const {readOnly, send} = useContext(ChangeResultHostContext)
     // One message per click: the row stops offering it once sent.
     const [retried, setRetried] = useState(false)
@@ -51,11 +51,10 @@ export const ChangeResults = ({
                 latest && finished && send && !retried
                     ? () => {
                           setRetried(true)
-                          // The person's own message, in the language they read the chat in.
-                          send(t("chat.changeCardStates.tryAgainMessage"))
+                          send(TRY_AGAIN_MESSAGE)
                       }
                     : undefined,
         }
-    }, [readOnly, send, latest, finished, retried, openHistory, selectVersion, t])
+    }, [readOnly, send, latest, finished, retried, openHistory, selectVersion])
     return <ChangeResultRows parts={parts} actions={actions} finished={finished} touch />
 }

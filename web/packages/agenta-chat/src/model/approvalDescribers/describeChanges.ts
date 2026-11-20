@@ -594,6 +594,15 @@ const operationKind = (operation: Record<string, unknown>): ChangeKind =>
           : "changed"
 
 /** The proposed values of one operation, read from the call's arguments. */
+/** The operations whose proposed values the change card can show without a server preview. */
+export const OPERATIONS_WITH_VALUES: ReadonlySet<string> = new Set([
+    "set",
+    "edit_text",
+    "add_item",
+    "remove_item",
+    "remove",
+])
+
 const operationDetail = (
     operation: Record<string, unknown>,
     location: Location,

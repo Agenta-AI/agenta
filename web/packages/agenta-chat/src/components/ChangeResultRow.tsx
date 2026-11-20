@@ -13,6 +13,7 @@ import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardSt
 import {Button} from "@agenta/ui/ui"
 import {Check, CircleNotch, Lock, Warning, X} from "@phosphor-icons/react"
 
+import {agentCallTarget} from "../model/approvalDescribers/describeAgentChanges"
 import {describeApproval} from "../model/approvalPreview"
 import {
     answeredChangeCalls,
@@ -185,20 +186,20 @@ export const ChangeResultRow = ({
 const useChangeCallSummary = (call: Pick<ChangeCall, "toolName" | "input">) => {
     const tChange = useT(chatChangeCardCatalog)
     const tStates = useT(chatChangeCardStatesCatalog)
-    return useMemo(() => {
+    const {preview, blocks} = useMemo(() => {
         const preview = describeApproval({
             approvalId: "",
             toolName: call.toolName,
             input: call.input,
         })
-        if (preview.header) return preview.header.title
-        const blocks = groupChanges(preview.changes ?? [])
-        if (blocks.length === 1) return blocks[0].title
-        if (!blocks.length) return undefined
-        return preview.agentName
-            ? tChange("chat.changeCard.changesTo", {count: blocks.length, agent: preview.agentName})
-            : tStates("chat.changeCardStates.changesCount", {count: blocks.length})
-    }, [call.toolName, call.input, tChange, tStates])
+        return {preview, blocks: groupChanges(preview.changes ?? [])}
+    }, [call.toolName, call.input])
+    if (preview.header) return preview.header.title
+    if (blocks.length === 1) return blocks[0].title
+    if (!blocks.length) return undefined
+    return preview.agentName
+        ? tChange("chat.changeCard.changesTo", {count: blocks.length, agent: preview.agentName})
+        : tStates("chat.changeCardStates.changesCount", {count: blocks.length})
 }
 
 /** A version of an agent, as the version history opens it. */
@@ -266,8 +267,15 @@ export const ChangeResultRows = ({
     className?: string
 }) => {
     const calls = useMemo(() => answeredChangeCalls(parts ?? [], {finished}), [parts, finished])
-    const retryIndex = calls.length - 1
     if (!calls.length) return null
+    // "Try again" only where the builder did not recover: a later call of the turn that saved the
+    // same agent has already made the change on the new version.
+    const recovered = (index: number) => {
+        const agent = agentCallTarget(calls[index].input)
+        return calls
+            .slice(index + 1)
+            .some((later) => later.state.kind === "saved" && agentCallTarget(later.input) === agent)
+    }
     return (
         <div
             className={`flex min-w-0 flex-col rounded-lg py-1 ${className}`}
@@ -277,11 +285,7 @@ export const ChangeResultRows = ({
                 <CallRow
                     key={call.toolCallId || index}
                     call={call}
-                    actions={
-                        // "Try again" only where the builder did not recover: a later call of the
-                        // turn that saved has already made the change on the new version.
-                        index === retryIndex ? actions : {...actions, onTryAgain: undefined}
-                    }
+                    actions={recovered(index) ? {...actions, onTryAgain: undefined} : actions}
                     touch={touch}
                 />
             ))}

@@ -13,7 +13,7 @@ import type {ApprovalPreview, ApprovalPreviewItem} from "../../skin/types"
 
 import {asSentence, oneLine} from "./approvalText"
 import {parseApprovedContentManifest} from "./approvedContentManifest"
-import {describeConfigChanges} from "./describeChanges"
+import {describeConfigChanges, OPERATIONS_WITH_VALUES} from "./describeChanges"
 import {
     operationLabel,
     parseRevisionOperations,
@@ -228,7 +228,12 @@ export const describeCommitRevision = (
     // that imports files keeps its rows: the manifest holds those changes, the operations do not.
     const ops = isRecord(commit.delta) ? commit.delta.operations : undefined
     if (manifestItems.length || !Array.isArray(ops) || !ops.length) return {sentence, items}
-    // `commit_revision` has no server preview, so the card shows the proposed values.
+    // `commit_revision` has no server preview, so the card shows the proposed values. An
+    // operation it cannot show the values of (`merge`, `replace_item`) keeps the list, which does.
+    const shown = ops.every(
+        (op) => isRecord(op) && OPERATIONS_WITH_VALUES.has(String(op.operation)),
+    )
+    if (!shown) return {sentence, items}
     const described = describeConfigChanges(ops)
     const baseRevisionId = stringField(commit, "base_revision_id")
     return {
