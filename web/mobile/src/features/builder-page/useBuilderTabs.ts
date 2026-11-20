@@ -14,7 +14,6 @@ import {
     closeBuilderTab,
     followBuilderResult,
     followBuilderResults,
-    isUntouched,
     openBuilderTab,
     parseTabParam,
     readBuilderTabs,
@@ -102,23 +101,17 @@ export const useBuilderTabs = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addressKey, onThisChat, sessionId])
 
-    // A chat with nothing stored and no tab in the address starts on the agent the browser
-    // linked it to; its messages may name a better one below.
-    useEffect(() => {
-        if (!linkedAgentId || addressKey) return
-        commit((current) =>
-            isUntouched(current)
-                ? followBuilderResult(current, {kind: "agent", id: linkedAgentId, name: ""})
-                : current,
-        )
-    }, [addressKey, commit, linkedAgentId])
-
     const onMessagesChanged = useCallback(
         (messages: UIMessage[]) =>
             commit((current) =>
-                followBuilderResults(current, agentResults(messages), latestContextAgent(messages)),
+                followBuilderResults(
+                    current,
+                    agentResults(messages),
+                    latestContextAgent(messages) ??
+                        (linkedAgentId ? {id: linkedAgentId, name: ""} : null),
+                ),
             ),
-        [commit],
+        [commit, linkedAgentId],
     )
 
     /** The first message of a new chat: its chip's agent opens a tab; the address names the chat. */

@@ -243,8 +243,11 @@ export const BuilderPage = ({
                         tabs.close(key)
                     }}
                     onOpenAgent={async (agent) => {
-                        if (!(await leaveActiveTab())) return
-                        tabs.open({kind: "agent", id: agent.id, name: agent.name})
+                        const next: BuilderTab = {kind: "agent", id: agent.id, name: agent.name}
+                        // Only a real change of the active tab asks and passes the next navigation.
+                        const changes = builderTabKey(next) !== tabs.state.active
+                        if (changes && !(await leaveActiveTab())) return
+                        tabs.open(next)
                     }}
                 />
                 {phone ? null : (

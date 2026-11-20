@@ -173,6 +173,14 @@ describe("useBuilderTabs and the address", () => {
         )
     })
 
+    it("a chat whose messages name no agent opens the agent the browser linked it to", () => {
+        const hook = renderHook(() =>
+            useBuilderTabs({...base, routeChatId: null, linkedAgentId: "linked", tab: undefined}),
+        )
+        act(() => hook.result.current.onMessagesChanged([]))
+        expect(hook.result.current.state.active).toBe("agent:linked")
+    })
+
     it("closing the last tab clears the tab from the address, so a reload does not reopen it", () => {
         writeBuilderTabs("chat-1", openBuilderTab(EMPTY_BUILDER_TABS, agent("a")))
         const hook = renderHook(() => useBuilderTabs({...base, tab: "agent:a"}))

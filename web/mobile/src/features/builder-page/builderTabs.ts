@@ -62,7 +62,7 @@ const markFollowed = (state: BuilderTabsState, ids: string[]): BuilderTabsState 
 }
 
 /** True for a chat that has never had a tab and followed nothing. */
-export const isUntouched = (state: BuilderTabsState) =>
+const isUntouched = (state: BuilderTabsState) =>
     !state.tabs.length && !state.closed.length && !state.followedToolCallIds.length
 
 export const agentTab = (agent: AgentRef): BuilderTab => ({
@@ -173,18 +173,18 @@ export const applyAddressTab = (
 
 /**
  * The chat's builder results as they stand (on load and after each change). A chat with no tab
- * yet opens one for the agent of its latest result, else of its page context, and counts every
- * result so far as followed. After that, each result not yet followed is recorded, and a saved
+ * yet opens one for the agent of its latest result, else `fallbackAgent` (the page context, else
+ * the browser link), and counts every result so far as followed. After that, each result not yet followed is recorded, and a saved
  * one opens its agent's tab with a dot (`followBuilderResult`); a result with no change, a
  * refusal or a denied call changes no tab.
  */
 export const followBuilderResults = (
     state: BuilderTabsState,
     results: readonly AgentResult[],
-    contextAgent: AgentRef | null,
+    fallbackAgent: AgentRef | null,
 ): BuilderTabsState => {
     if (isUntouched(state)) {
-        const latest = results.at(-1)?.agent ?? contextAgent
+        const latest = results.at(-1)?.agent ?? fallbackAgent
         const fresh = latest ? followBuilderResult(state, agentTab(latest)) : state
         return markFollowed(
             fresh,
