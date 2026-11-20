@@ -83,6 +83,8 @@ export interface ViewForm {
     leaveDescription: string
     /** The Save button's label when the view names its action (for example "Connect"). */
     saveLabel?: string
+    /** The Save button's label while the save runs (for example "Checking…"). */
+    savingLabel?: string
 }
 
 /** For the container's root and for the container itself. */
