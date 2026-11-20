@@ -26,7 +26,7 @@ import {useAtomValue} from "jotai"
 import {useMcpPermissionSource} from "../../../../mcpEndpoint/McpPermissionDrawer"
 import {readRunnerPermission} from "../../agentConfigPatch"
 import {McpAccountBlock} from "../accounts/McpAccountBlock"
-import {PermissionDrawerBody} from "../IntegrationPermissionDrawer"
+import {PermissionDrawerBody} from "../IntegrationPermissionList"
 import {
     findMcpIndex,
     readMcpAccountSource,
@@ -42,17 +42,10 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import {mcpConnectView} from "./mcpConnectView"
 import type {McpServerViewParams} from "./mcpServerView"
 
-const mcpsOf = (agent: Record<string, unknown>): unknown[] =>
-    Array.isArray(agent.mcps) ? (agent.mcps as unknown[]) : []
-
 /** The project's `custom` servers, the namespace an agent's connection reference names. */
 const useCustomEndpoints = (): MCPEndpoint[] => {
     const query = useAtomValue(mcpEndpointsQueryAtom)
-    return useMemo(
-        () =>
-            (query.data ?? []).filter((endpoint) => (endpoint.namespace ?? "custom") === "custom"),
-        [query.data],
-    )
+    return useMemo(() => customMcpEndpoints(query.data), [query.data])
 }
 
 /** "Reconnect" opens the reconnect step over this view; the permissions stay as they are. */
@@ -135,7 +128,7 @@ const AgentServer = ({
     const [confirming, setConfirming] = useState(false)
 
     const update = useCallback(
-        (next: (entry: Record<string, unknown>) => Record<string, unknown> | null) =>
+        (next: (entry: Record<string, unknown>) => Record<string, unknown>) =>
             writer.update((agent) => ({...agent, mcps: updateMcpByRef(mcpsOf(agent), item, next)})),
         [writer, item],
     )

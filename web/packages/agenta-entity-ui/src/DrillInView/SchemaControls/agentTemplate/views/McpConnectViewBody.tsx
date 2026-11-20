@@ -11,7 +11,11 @@ import {useMcpConnectScreens} from "../../../../mcpEndpoint/McpConnectJourney"
 
 import type {McpConnectViewParams} from "./mcpConnectView"
 
-type Connected = {id: string; slug: string; name: string}
+interface Connected {
+    id: string
+    slug: string
+    name: string
+}
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     const t = useT(mcpViewsCatalog)
