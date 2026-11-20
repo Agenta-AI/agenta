@@ -1,8 +1,11 @@
-import type {
-    KeyboardEvent as ReactKeyboardEvent,
-    PointerEvent as ReactPointerEvent,
-    ReactNode,
-    RefObject,
+import {
+    useEffect,
+    useRef,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type PointerEvent as ReactPointerEvent,
+    type ReactNode,
+    type RefObject,
 } from "react"
 
 import {useT} from "@agenta/i18n"
@@ -55,11 +58,27 @@ export const AgentPanelFrame = ({
     const tControls = useT(uiControlsCatalog)
     const clamp = (value: number) =>
         resize ? Math.min(resize.max, Math.max(resize.min, value)) : value
+    // Beside the page the panel may draw narrower than `width` (the page keeps its column). A
+    // drag and the arrow keys start from the drawn width, so the edge moves with the pointer; the
+    // width the person lets go at is the one stored.
+    const frameRef = useRef<HTMLDivElement>(null)
+    const [drawn, setDrawn] = useState<number | null>(null)
+    useEffect(() => {
+        const frame = frameRef.current
+        if (!frame || mode !== "push" || typeof ResizeObserver === "undefined") {
+            setDrawn(null)
+            return undefined
+        }
+        const observer = new ResizeObserver(() => setDrawn(Math.round(frame.offsetWidth)))
+        observer.observe(frame)
+        return () => observer.disconnect()
+    }, [mode])
+    const shownWidth = drawn !== null && drawn > 0 ? Math.min(width, drawn) : width
     const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
         if (!resize) return
         const pointerId = event.pointerId
         const startX = event.clientX
-        const startWidth = width
+        const startWidth = shownWidth
         const widthAt = (x: number) => clamp(startWidth + startX - x)
         const move = (e: PointerEvent) => {
             if (e.pointerId === pointerId) resize.onLive(widthAt(e.clientX))
@@ -92,13 +111,14 @@ export const AgentPanelFrame = ({
         const step = event.key === "ArrowLeft" ? 16 : event.key === "ArrowRight" ? -16 : 0
         if (!step) return
         event.preventDefault()
-        const next = clamp(width + step)
+        const next = clamp(shownWidth + step)
         resize.onLive(next)
         resize.onCommit(next)
     }
 
     return (
         <div
+            ref={frameRef}
             className={cn(
                 "min-h-0",
                 !open && "hidden",
@@ -137,7 +157,7 @@ export const AgentPanelFrame = ({
                     aria-orientation="vertical"
                     aria-valuemin={resize.min}
                     aria-valuemax={resize.max}
-                    aria-valuenow={width}
+                    aria-valuenow={shownWidth}
                     aria-label={tControls("ui.controls.resizePanes")}
                     tabIndex={0}
                     className="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none"

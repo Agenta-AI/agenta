@@ -33,7 +33,12 @@ describe("hostnameLabel", () => {
 describe("serverAddressLabel", () => {
     it("names the service, not the endpoint host (canvas F03: linear)", () => {
         expect(serverAddressLabel("https://mcp.linear.app/sse")).toBe("linear")
-        expect(serverAddressLabel("https://api.acme.example.com/mcp")).toBe("example")
+        expect(serverAddressLabel("https://api.acme.example.com/mcp")).toBe("acme")
+    })
+
+    it("names the server, not the platform that hosts it", () => {
+        expect(serverAddressLabel("https://my-tools.workers.dev/mcp")).toBe("my-tools")
+        expect(serverAddressLabel("https://acme-mcp.vercel.app/")).toBe("acme-mcp")
     })
 
     it("skips a second-level label under a country code", () => {

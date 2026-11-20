@@ -2,7 +2,7 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {McpServerMark} from "../../src/agent-icon/McpServerMark"
+import {McpServerMark, serverColor} from "../../src/agent-icon/McpServerMark"
 
 afterEach(cleanup)
 
@@ -25,6 +25,13 @@ describe("McpServerMark", () => {
         unmount()
         render(<McpServerMark name="linear" />)
         expect(tile()?.style.background).toBe(first)
+    })
+
+    it("gives different servers different colors, and never the red swatch", () => {
+        const names = ["linear", "github", "notion", "acme", "zendesk", "slack", "jira"]
+        const colors = new Set(names.map(serverColor))
+        expect(colors.size).toBeGreaterThan(1)
+        expect(colors.has("#D61010")).toBe(false)
     })
 
     it.each([24, 32, 44] as const)("passes size %i to the tile", (size) => {

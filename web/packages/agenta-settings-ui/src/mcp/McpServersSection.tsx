@@ -350,9 +350,8 @@ export default function McpServersSection({
                 return (
                     <>
                         <span className="flex min-w-0 items-center gap-2.5">
-                            {/* One generic glyph for every server: the registry holds arbitrary
-                            URLs, so there is no per-server branding to show. */}
-                            <McpServerMark size={28} />
+                            {/* One glyph for every server; the tile color follows the name. */}
+                            <McpServerMark size={28} name={record.name || record.slug} />
                             <InlineName
                                 value={record.name || record.slug || ""}
                                 editing={!readOnly && renamingKey === rowKey(record)}

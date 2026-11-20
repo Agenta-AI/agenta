@@ -45,9 +45,10 @@ const ENDPOINT_LABELS = new Set(["www", "mcp", "api"])
 const SECOND_LEVEL_LABELS = new Set(["co", "com", "org", "net", "gov", "ac", "edu"])
 
 /**
- * The service a URL points at: the registrable part of its host without the top-level
- * domain ("linear" for `https://mcp.linear.app/sse`). A single-label host (a container name,
- * `localhost`) and an IP address stay as they are.
+ * The service a URL points at: the first host label that does not name the endpoint, without
+ * the top-level domain ("linear" for `https://mcp.linear.app/sse`, "my-tools" for
+ * `https://my-tools.workers.dev`). A single-label host (a container name, `localhost`) and an
+ * IP address stay as they are.
  */
 export function serverAddressLabel(url: string): string {
     const host = hostnameLabel(url)
@@ -57,7 +58,7 @@ export function serverAddressLabel(url: string): string {
     labels.pop()
     if (labels.length > 1 && SECOND_LEVEL_LABELS.has(labels[labels.length - 1])) labels.pop()
     const named = labels.filter((label) => !ENDPOINT_LABELS.has(label))
-    return named[named.length - 1] ?? labels[labels.length - 1] ?? host
+    return named[0] ?? labels[labels.length - 1] ?? host
 }
 
 /**
