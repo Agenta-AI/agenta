@@ -210,7 +210,7 @@ export const SessionListTable = ({
                         aria-label={t("sessions.mobileList.newSessionWith", {
                             agent: run.label ?? "",
                         })}
-                        className="size-6 text-muted-foreground hover:text-foreground"
+                        className="size-6 text-muted-foreground hover:text-foreground max-md:relative max-md:after:absolute max-md:after:-inset-[10px] max-md:after:content-['']"
                         onClick={() => onNewSession(agentId)}
                     >
                         <Plus className="size-3.5" />
@@ -258,6 +258,7 @@ export const SessionListTable = ({
                     onOpenRow={verbs.open}
                     collapsedKeys={collapsed}
                     onToggleGroup={toggleGroup}
+                    className="max-md:[&_button[aria-expanded]:not([aria-haspopup])]:min-h-11"
                     groupActions={groupActions}
                     empty={
                         // Nothing while unsettled. An empty project gets the onboarding from the

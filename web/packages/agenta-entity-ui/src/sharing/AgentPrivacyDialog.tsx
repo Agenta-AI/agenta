@@ -202,6 +202,7 @@ export const AgentPrivacyPanel = ({
     const takeOwnershipRow = sharing?.can_take_ownership ? (
         <div className="flex flex-wrap items-center gap-2.5">
             <LoadingButton
+                className="max-md:h-11"
                 loading={writes.saving === "take"}
                 onClick={() => void writes.takeOwnership()}
             >

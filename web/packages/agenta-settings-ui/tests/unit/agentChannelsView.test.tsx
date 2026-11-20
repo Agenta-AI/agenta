@@ -9,6 +9,11 @@ import React, {act} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+const phone = vi.hoisted(() => ({value: false}))
+vi.mock("@agenta/ui/phone", async (original) => ({
+    ...(await original<object>()),
+    useIsPhone: () => phone.value,
+}))
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/lazyPanel", () => ({
     lazyPanel: () => () => (props: {connection?: {platform: string}; platform?: string}) => (
@@ -40,6 +45,7 @@ beforeEach(() => {
 afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
+    phone.value = false
 })
 
 const render = async (connections: ChannelConnections, extra = {}) => {
@@ -146,6 +152,23 @@ describe("AgentChannelsView", () => {
         ) as HTMLButtonElement
         await act(async () => crumb.click())
         expect(container.querySelector('[data-testid="agent-channels-open-view"]')).toBeNull()
+        expect(groups()).toEqual(["Connected", "Add a channel"])
+    })
+
+    it("on a phone covers the screen, keeps focus inside, and Escape goes back to the list", async () => {
+        phone.value = true
+        await render({...EMPTY_CONNECTIONS, slack: slackHere})
+        await act(async () => row("slack").querySelector("button")!.click())
+        const layer = document.querySelector<HTMLElement>(
+            '[data-testid="agent-channels-open-view-phone"]',
+        )!
+        expect(layer.getAttribute("role")).toBe("dialog")
+        expect(layer.contains(document.activeElement)).toBe(true)
+        expect(layer.querySelector('[data-testid="inner-view"]')?.textContent).toBe("slack")
+        await act(async () => {
+            layer.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        expect(document.querySelector('[data-testid="agent-channels-open-view-phone"]')).toBeNull()
         expect(groups()).toEqual(["Connected", "Add a channel"])
     })
 

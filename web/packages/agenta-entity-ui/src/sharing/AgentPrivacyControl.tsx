@@ -62,7 +62,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                                   : undefined
                         }
                         disabled={!sharing && loading}
-                        className="box-border flex h-6 w-[92px] shrink-0 cursor-pointer items-center justify-between gap-1 rounded-control-sm border border-solid border-border bg-background pl-2 pr-1.5 text-xs text-foreground [font-family:inherit] hover:bg-accent disabled:cursor-default"
+                        className="relative box-border flex h-6 w-[92px] shrink-0 cursor-pointer items-center justify-between gap-1 rounded-control-sm border border-solid border-border bg-background pl-2 pr-1.5 text-xs text-foreground [font-family:inherit] hover:bg-accent disabled:cursor-default max-md:after:absolute max-md:after:inset-x-0 max-md:after:-inset-y-[10px] max-md:after:content-['']"
                     >
                         {loadError ? (
                             <WarningCircleIcon size={12} aria-hidden />
@@ -90,7 +90,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="self-start"
+                                    className="self-start max-md:h-11"
                                     onClick={onRetry}
                                 >
                                     {copy.retry}
@@ -130,7 +130,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         <Button
                             size="sm"
                             variant="outline"
-                            className="self-start"
+                            className="self-start max-md:h-11"
                             onClick={() => {
                                 setPanelOpen(false)
                                 setDialogOpen(true)
@@ -142,7 +142,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         <>
                             <LoadingButton
                                 size="sm"
-                                className="self-start"
+                                className="self-start max-md:h-11"
                                 loading={writes.saving === "take"}
                                 onClick={() => {
                                     void writes.takeOwnership().then((ok) => {
