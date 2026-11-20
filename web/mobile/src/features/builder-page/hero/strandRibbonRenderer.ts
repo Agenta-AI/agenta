@@ -11,6 +11,7 @@ const UNIFORMS = [
     "pulse",
     "ink",
     "ink2",
+    "gain",
 ] as const
 
 /**
@@ -80,6 +81,7 @@ export function createStrandRibbonRenderer(canvas: HTMLCanvasElement): HeroRende
             gl.uniform1f(u.pulse, m.pulse)
             gl.uniform3f(u.ink, inks.ink[0] / 255, inks.ink[1] / 255, inks.ink[2] / 255)
             gl.uniform3f(u.ink2, inks.ink2[0] / 255, inks.ink2[1] / 255, inks.ink2[2] / 255)
+            gl.uniform1f(u.gain, inks.gain)
             gl.drawArrays(gl.TRIANGLES, 0, 3)
         },
         dispose() {
