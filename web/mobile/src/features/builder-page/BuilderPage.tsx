@@ -1,11 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
-import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {
     agentWorkflowsListQueryStateAtom,
     builderAgentRevisionIdQueryAtom,
 } from "@agenta/entities/workflow"
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {userAtom} from "@agenta/shared/state"

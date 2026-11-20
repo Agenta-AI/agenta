@@ -119,8 +119,7 @@ export const AgentPane = ({
         if (action === "show") {
             setTab("agent")
             setAgentDot(false)
-        }
-        else if (action === "dot") setAgentDot(true)
+        } else if (action === "dot") setAgentDot(true)
         // Only a new save is followed; the pane tab on screen is read at that moment.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [builderSaveToolCallId])

@@ -1,8 +1,7 @@
 import {isToolPart, partToolName} from "@agenta/chat/model"
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import type {ToolUIPart, UIMessage} from "ai"
-
-import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 
 import {sentContextOf} from "../builder/pageContext"
 

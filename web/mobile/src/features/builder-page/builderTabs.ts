@@ -193,9 +193,7 @@ export const clearChangedSection = (
             const {changedSections, ...rest} = held
             return {
                 ...rest,
-                ...withChangedSections(
-                    (changedSections ?? []).filter((name) => name !== section),
-                ),
+                ...withChangedSections((changedSections ?? []).filter((name) => name !== section)),
             }
         }),
     }
@@ -237,7 +235,8 @@ export const followBuilderResults = (
     for (const result of results) {
         if (next.followedToolCallIds.includes(result.toolCallId)) continue
         next = markFollowed(next, [result.toolCallId])
-        if (result.saved) next = followBuilderResult(next, agentTab(result.agent, result.changedSections))
+        if (result.saved)
+            next = followBuilderResult(next, agentTab(result.agent, result.changedSections))
     }
     return next
 }

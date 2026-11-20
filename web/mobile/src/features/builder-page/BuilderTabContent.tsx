@@ -1,9 +1,9 @@
 import {useEffect, type MutableRefObject} from "react"
 
 import {useAutomationEditor} from "@agenta/automation-ui"
-import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {agentSharingQueryAtomFamily} from "@agenta/entities/sharing"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import type {MarkableSectionKey} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {SkeletonBlock} from "@agenta/ui/ui"
