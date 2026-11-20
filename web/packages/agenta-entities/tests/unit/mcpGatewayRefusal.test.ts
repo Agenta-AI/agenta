@@ -6,6 +6,7 @@ import {
     gatewayRefusalMessage,
     isNameTakenRefusal,
     credentialRefusalStatus,
+    gatewayRefusalStatus,
     isCredentialRefusal,
 } from "../../src/mcpEndpoint/core/refusal"
 
@@ -283,5 +284,13 @@ describe("a refusal from the generated client", () => {
         expect(gatewayRefusalMessage(fernRefusal)).toBe(
             "A project admin must connect this server once first.",
         )
+    })
+
+    it("reads the status, so a refused credential mint is not read as no answer", () => {
+        expect(gatewayRefusalStatus({statusCode: 403, body: {detail: "Forbidden"}})).toBe(403)
+    })
+
+    it("knows our own unauthorised answer, so a lapsed session is not a refused credential", () => {
+        expect(isCredentialRefusal({statusCode: 401, body: {detail: "Unauthorized"}})).toBe(false)
     })
 })

@@ -329,7 +329,7 @@ const SessionListBody = ({
             </AppShell>
             {/* The trigger drawers the automation row verbs open, at screen level so one survives
                 its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
+            <SessionAutomationDrawers base={base} />
         </>
     )
 }

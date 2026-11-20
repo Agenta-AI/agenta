@@ -29,7 +29,12 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
         // An open form counts as edits: leaving it asks first.
         dirty: true,
         valid: true,
-        save: async () => Boolean(await state.create()),
+        save: async () => {
+            // Missing fields show their own errors, so the stack adds no failure line.
+            const blocked = state.blocked
+            const created = await state.create()
+            return created ? true : blocked ? "stay" : false
+        },
         leaveDescription: t("automations.screens.leaveMessage"),
         saveLabel: t("automations.screens.createAutomation"),
     })

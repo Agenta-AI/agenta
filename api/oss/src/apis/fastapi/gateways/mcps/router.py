@@ -59,6 +59,7 @@ from oss.src.middlewares.auth import (
     GATEWAY_TOKEN_AUDIENCE,
     resolve_session_user_id,
     request_run_envelope,
+    run_session_id_of_request,
     sign_secret_token,
 )
 from oss.src.utils.env import env
@@ -393,6 +394,9 @@ class MCPGatewayRouter:
                 request, envelope=envelope, workflow_id=None, item_keys=None
             ),
             envelope=envelope,
+            # This credential reaches `/tools/call` through the builtin MCP relay, so
+            # it names the caller's session as a renewal does: copied, never chosen.
+            run_session_id=run_session_id_of_request(request),
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
 
