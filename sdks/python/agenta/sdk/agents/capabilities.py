@@ -108,11 +108,15 @@ CLAUDE_MODEL_ALIASES: List[str] = [
 ]
 
 # The curated Codex model set the harness advertises under the ``openai`` family: the models the
-# pinned Codex CLI (0.156.1, via codex-acp 1.13.1) lists for both an API key and a ChatGPT login.
+# pinned Codex CLI (0.170.0, via codex-acp 2.8.0) lists, in its order (newest first).
 # The ChatGPT backend hides GPT-6 models from older Codex clients, so a new model can need a Codex
 # bump, not just an entry here. Keep this in sync with ``data/codex_models.curated.json`` and the
 # ``sync-model-catalog`` skill. See decision D-006.
 CODEX_MODELS: List[str] = [
+    "gpt-6.2-sol",
+    "gpt-6.2-astra",
+    "gpt-6.1-terra",
+    "gpt-6.1-sol",
     "gpt-6-astra",
     "gpt-6-sol",
     "gpt-6-luna",
