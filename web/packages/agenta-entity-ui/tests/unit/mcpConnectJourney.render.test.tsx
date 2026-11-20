@@ -684,6 +684,16 @@ describe("one form: the address checks itself", () => {
         await settle()
         expect(document.querySelector('[data-testid="mcp-probe-result"]')).toBeNull()
         expect(field("Server URL")!.value).toBe("https://mcp.other.test/")
+
+        // The new address gets its own check.
+        await pressEnter(field("Server URL")!)
+        await settle()
+        expect(probeMcpUrl).toHaveBeenLastCalledWith(
+            "https://mcp.other.test/",
+            expect.anything(),
+            undefined,
+            undefined,
+        )
     })
 
     it("checks when the field is left", async () => {
