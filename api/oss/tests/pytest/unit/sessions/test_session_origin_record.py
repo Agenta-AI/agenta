@@ -32,6 +32,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     map_stream_dbe_to_dto,
     map_stream_dto_to_dbe_create,
     map_stream_dto_to_dbe_edit,
+    map_stream_dto_to_dbe_header_edit,
     session_origin_tags,
 )
 from oss.tests.pytest.utils.principals import make_envelope
@@ -262,9 +263,17 @@ class _MappingDAO:
     async def fill_missing(self, **kwargs):
         return map_stream_dbe_to_dto(stream_dbe=self.dbe)
 
-    async def update_header(self, **kwargs):
+    async def update_header(self, *, project_id, user_id, session_id, header, **kw):
         # A rename of a row that does not exist matches nothing: the create arm runs.
-        return map_stream_dbe_to_dto(stream_dbe=self.dbe) if self.dbe else None
+        if self.dbe is None:
+            return None
+        map_stream_dto_to_dbe_header_edit(
+            stream_dbe=self.dbe,
+            user_id=user_id,
+            header=header,
+            name_source=kw["name_source"],
+        )
+        return map_stream_dbe_to_dto(stream_dbe=self.dbe)
 
 
 @pytest_asyncio.fixture
@@ -443,4 +452,5 @@ async def test_a_rename_does_not_change_the_origin(lock_engine):
     )
 
     stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="sent")
+    assert stream.name == "Renamed"
     assert stream.origin == SessionOrigin.api
