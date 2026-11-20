@@ -45,6 +45,8 @@ CONTRACT_FIELDS = {
     "window_spans",
     "window_evaluation_runs",
     "window_agent_turns",
+    "window_revisions",
+    "window_deployments",
     "user_domains",
 }
 
@@ -113,6 +115,12 @@ class _InstancesDAO:
 
     async def count_window_session_turns(self, *, window_start, window_end):
         return 7
+
+    async def count_window_workflow_revisions(self, *, window_start, window_end):
+        return 9
+
+    async def count_window_environment_revisions(self, *, window_start, window_end):
+        return 10
 
     async def count_window_spans(self, *, project_ids, window_start, window_end):
         return 8
@@ -187,6 +195,8 @@ async def test_payload_has_exactly_the_contract_fields(dao, posthog):
         "window_spans": 8,
         "window_evaluation_runs": 6,
         "window_agent_turns": 7,
+        "window_revisions": 9,
+        "window_deployments": 10,
         "user_domains": [
             {"domain": "example.com", "users": 3},
             {"domain": "navy.example.org", "users": 1},
@@ -382,12 +392,17 @@ async def test_ee_without_the_license_module_sends_the_plan_with_no_key(
 @pytest.mark.asyncio
 async def test_a_count_past_its_timeout_is_sent_as_null(monkeypatch, dao, posthog):
     monkeypatch.setattr(dao, "count_window_session_turns", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        dao, "count_window_workflow_revisions", AsyncMock(return_value=None)
+    )
 
     assert await heartbeat.send_heartbeat() == "sent"
 
     properties = posthog.captures[0]["properties"]
     assert properties["window_agent_turns"] is None
+    assert properties["window_revisions"] is None
     assert properties["window_evaluation_runs"] == 6
+    assert properties["window_deployments"] == 10
 
 
 def test_domains_hold_domains_only():
@@ -425,6 +440,8 @@ def test_model_refuses_more_than_100_domains_or_an_email():
         window_spans=0,
         window_evaluation_runs=0,
         window_agent_turns=0,
+        window_revisions=0,
+        window_deployments=0,
     )
 
     with pytest.raises(ValidationError):

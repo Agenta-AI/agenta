@@ -13,9 +13,17 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 
+# A new variant or environment gets an empty version 0 row. It is not a commit, so the
+# revision counts skip it with the same rule as the git DAO.
+_COMMITTED_REVISION = (
+    "(version IS DISTINCT FROM '0' OR data IS NOT NULL OR flags IS NOT NULL"
+    " OR tags IS NOT NULL OR meta IS NOT NULL)"
+)
+
 HEARTBEAT_INTERVAL = literal_column("interval '12 hours'")
-# `evaluation_runs` and `session_turns` have no index on `created_at`, so their window
-# counts scan the table. A count that runs longer is sent as null.
+# `evaluation_runs`, `session_turns`, `workflow_revisions` and `environment_revisions`
+# have no index on `created_at`, so their window counts scan the table. A count that
+# runs longer is sent as null.
 WINDOW_COUNT_TIMEOUT = text("SET LOCAL statement_timeout = '5s'")
 
 
@@ -177,6 +185,36 @@ class InstancesDAO:
             text(
                 "SELECT count(*) FROM session_turns"
                 " WHERE created_at >= :start AND created_at < :end"
+            ),
+            {"start": window_start, "end": window_end},
+        )
+
+    async def count_window_workflow_revisions(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[int]:
+        """Configuration commits: new workflow revisions in the window."""
+
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            text(
+                "SELECT count(*) FROM workflow_revisions"
+                " WHERE created_at >= :start AND created_at < :end"
+                f" AND {_COMMITTED_REVISION}"
+            ),
+            {"start": window_start, "end": window_end},
+        )
+
+    async def count_window_environment_revisions(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[int]:
+        """Deployments: new environment revisions in the window."""
+
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            text(
+                "SELECT count(*) FROM environment_revisions"
+                " WHERE created_at >= :start AND created_at < :end"
+                f" AND {_COMMITTED_REVISION}"
             ),
             {"start": window_start, "end": window_end},
         )

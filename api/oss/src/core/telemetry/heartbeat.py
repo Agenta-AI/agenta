@@ -62,6 +62,8 @@ class InstanceHeartbeat(BaseModel):
     window_spans: Optional[int]
     window_evaluation_runs: Optional[int]
     window_agent_turns: Optional[int]
+    window_revisions: Optional[int]
+    window_deployments: Optional[int]
     user_domains: List[UserDomain] = Field(max_length=MAX_USER_DOMAINS)
 
 
@@ -136,6 +138,14 @@ async def collect_heartbeat(
         window_start=window_start,
         window_end=window_end,
     )
+    window_revisions = await instances_dao.count_window_workflow_revisions(
+        window_start=window_start,
+        window_end=window_end,
+    )
+    window_deployments = await instances_dao.count_window_environment_revisions(
+        window_start=window_start,
+        window_end=window_end,
+    )
     window_spans = await instances_dao.count_window_spans(
         project_ids=project_ids,
         window_start=window_start,
@@ -161,6 +171,8 @@ async def collect_heartbeat(
         window_spans=window_spans,
         window_evaluation_runs=window_evaluation_runs,
         window_agent_turns=window_agent_turns,
+        window_revisions=window_revisions,
+        window_deployments=window_deployments,
         user_domains=user_domains_from(domain_rows),
     )
 

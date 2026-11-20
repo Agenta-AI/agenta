@@ -84,6 +84,8 @@ The distinct id is the instance id. The event has these properties and no others
 | `window_spans` | The number of trace spans that started in the period |
 | `window_evaluation_runs` | The number of evaluations started in the period |
 | `window_agent_turns` | The number of agent turns in the period |
+| `window_revisions` | The number of configuration commits (new workflow revisions) in the period |
+| `window_deployments` | The number of deployments to environments (new environment revisions) in the period |
 | `user_domains` | The 100 most common email domains of your users, each with its number of users, such as `{"domain": "example.com", "users": 3}`. Never a full email address |
 | `$groups` | `{"instance": "<instance id>"}` |
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
