@@ -378,7 +378,8 @@ export const Composer = ({
                 "bg-background shrink-0 px-3 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:px-4 md:pb-4",
                 // The builder pads 16 px on a phone too (M04).
                 builderChat && "px-4",
-                pageNewChat && "md:pb-6",
+                // B01: the ideas sit 10 px over the box, and 24 px stay under it.
+                pageNewChat && "md:pb-6 md:pt-0",
                 className,
             )}
         >
