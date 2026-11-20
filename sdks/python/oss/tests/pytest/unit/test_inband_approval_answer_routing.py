@@ -148,7 +148,7 @@ async def test_a_denial_is_recorded_as_denied():
 
 
 @pytest.mark.asyncio
-async def test_a_refused_answer_is_logged_and_the_run_still_starts():
+async def test_a_refused_answer_does_not_raise():
     # A run credential answering in-band: the API refuses it, the row stays pending, and
     # nothing raises, so the run starts and the gate shows the card again.
     captured = await _record(
@@ -383,7 +383,12 @@ async def test_one_request_records_a_bounded_number_of_answers():
         _resume(*answers),
     )
 
-    assert len(captured) == MAX_INBAND_APPROVAL_ANSWERS
+    tokens = [call["json"]["token"] for call in captured]
+    assert len(tokens) == MAX_INBAND_APPROVAL_ANSWERS
+    # The newest answer is always inside the bound, so a resent turn whose settled answers
+    # come first still records the one the person just gave.
+    assert tokens[-1] == f"tok-{MAX_INBAND_APPROVAL_ANSWERS + 9}"
+    assert "tok-0" not in tokens
 
 
 @pytest.mark.asyncio

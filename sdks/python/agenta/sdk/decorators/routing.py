@@ -248,8 +248,8 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
             }
 
 
-#: The most approval answers one request records. A turn that pauses on more gates than this
-#: shows the extra cards again.
+#: The most approval answers one request records: the newest ones. A turn that pauses on more
+#: gates than this shows the older cards again.
 MAX_INBAND_APPROVAL_ANSWERS = 32
 
 
@@ -300,9 +300,9 @@ def _inband_approval_answers(
                 continue
             seen.add(token)
             answers.append((token, approved, tool_call_id))
-            if len(answers) >= MAX_INBAND_APPROVAL_ANSWERS:
-                return answers
-    return answers
+    # The newest answers come last. A client that resends the turn keeps its settled
+    # answers in front, so the newest ones must not fall outside the bound.
+    return answers[-MAX_INBAND_APPROVAL_ANSWERS:]
 
 
 async def record_inband_approval_answers(
