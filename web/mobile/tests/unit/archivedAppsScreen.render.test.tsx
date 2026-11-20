@@ -33,7 +33,6 @@ vi.mock("@/features/context/useBindProjectContext", () => ({useBindProjectContex
 vi.mock("@/features/context/useProjectPermission", () => ({useProjectPermission: () => true}))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import ArchivedAppsPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/archived"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -84,8 +83,7 @@ afterEach(() => {
 })
 
 describe("archived apps route", () => {
-    it("Archived apps route shows not found until the user turns the view on", async () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "archived-apps")?.stage).toBe("preview")
+    it("Archived apps route shows not found without beta developer mode", async () => {
         await mount()
         expect(document.querySelector('[data-testid="not-found"]')).not.toBeNull()
         expect(host.textContent).not.toContain("Archived Apps")

@@ -143,7 +143,7 @@ describe("Test set page", () => {
         host.remove()
     })
 
-    it("Testset detail route shows not found while the view is hidden", () => {
+    it("Testset detail route shows not found without beta developer mode", () => {
         state.viewEnabled = false
         render()
         expect(testId("not-found")).not.toBeNull()

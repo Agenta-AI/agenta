@@ -75,9 +75,8 @@ afterEach(async () => {
 })
 
 describe("add to test set entry points", () => {
-    it("The view is registered as a hidden feature gate", () => {
+    it("The view is registered as a feature gate", () => {
         const view = DEVELOPER_VIEWS.find((item) => item.id === "observability-actions")
-        expect(view?.stage).toBe("hidden")
         expect(view?.routes).toBeUndefined()
     })
 
@@ -116,7 +115,7 @@ describe("add to test set entry points", () => {
         expect(host.querySelector("button")?.disabled).toBe(true)
     })
 
-    it("Both entry points are hidden while the view is hidden", async () => {
+    it("Both entry points are hidden without beta developer mode", async () => {
         fixture.viewEnabled = false
         await render(
             <>
