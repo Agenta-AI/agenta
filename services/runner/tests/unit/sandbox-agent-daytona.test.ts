@@ -12,12 +12,17 @@ import {
   DAYTONA_PI_DIR,
   DAYTONA_PI_INSTALL_DIR,
   PINNED_PI_VERSION,
-  createCookieFetch,
+  createDaytonaFetch,
   daytonaEnvVars,
   ensurePiInSandbox,
   removePiModelsConfigFromSandbox,
   uploadPiModelsConfigToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
+import {
+  PREVIEW_TOKEN_HEADER,
+  daytonaWithLifecycle,
+  type PreviewToken,
+} from "../../src/engines/sandbox_agent/daytona-provider.ts";
 import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 import {
   PI_CLI_ANCHOR,
@@ -313,23 +318,113 @@ describe("removePiModelsConfigFromSandbox", () => {
   });
 });
 
-describe("createCookieFetch", () => {
-  it("persists Daytona preview cookies per host", async () => {
-    const seenCookies: Array<string | null> = [];
-    const innerFetch = (async (_input: any, init?: any) => {
-      seenCookies.push(new Headers(init?.headers).get("cookie"));
-      return new Response("ok", {
-        headers: { "set-cookie": "session=abc; Path=/" },
-      });
+describe("createDaytonaFetch", () => {
+  /** A token source with one host whose refresh hands out `fresh`. */
+  function tokenFor(host: string, value: string, fresh = "fresh") {
+    const refreshes: string[] = [];
+    const token: PreviewToken & { current: string } = {
+      current: value,
+      get value() {
+        return this.current;
+      },
+      async refresh(stale: string) {
+        refreshes.push(stale);
+        this.current = fresh;
+        return fresh;
+      },
+    };
+    return { refreshes, source: (h: string) => (h === host ? token : undefined) };
+  }
+
+  /** An inner fetch that records the token header of each request and answers from `statuses`. */
+  function recordingFetch(statuses: number[]) {
+    const seen: Array<string | null> = [];
+    const inner = (async (_input: any, init?: any) => {
+      seen.push(new Headers(init?.headers).get(PREVIEW_TOKEN_HEADER));
+      return new Response("body", { status: statuses.shift() ?? 200 });
     }) as typeof fetch;
-    const cookieFetch = createCookieFetch(innerFetch);
+    return { seen, inner };
+  }
 
-    await cookieFetch("https://sandbox.example.test/first");
-    await cookieFetch("https://sandbox.example.test/second", {
-      headers: { cookie: "existing=1" },
+  it("sends the preview token of the request's host, and none to another host", async () => {
+    const { source } = tokenFor("3000-sb.proxy.test", "token-1");
+    const { seen, inner } = recordingFetch([]);
+    const daemonFetch = createDaytonaFetch(inner, {}, source);
+
+    await daemonFetch("https://3000-sb.proxy.test/v1/health");
+    await daemonFetch("https://other.proxy.test/v1/health");
+
+    assert.deepEqual(seen, ["token-1", null]);
+  });
+
+  it("on a 401 gets a new token once and sends the request again", async () => {
+    const { source, refreshes } = tokenFor("3000-sb.proxy.test", "old");
+    const { seen, inner } = recordingFetch([401, 200]);
+    const daemonFetch = createDaytonaFetch(inner, {}, source);
+
+    const response = await daemonFetch("https://3000-sb.proxy.test/v1/fs/file", {
+      method: "PUT",
+      body: "content",
     });
-    await cookieFetch("https://other.example.test/first");
 
-    assert.deepEqual(seenCookies, [null, "existing=1; session=abc", null]);
+    assert.equal(response.status, 200);
+    assert.deepEqual(seen, ["old", "fresh"]);
+    assert.deepEqual(refreshes, ["old"]);
+  });
+
+  it("returns a second 401 instead of retrying again", async () => {
+    const { source, refreshes } = tokenFor("3000-sb.proxy.test", "old");
+    const { seen, inner } = recordingFetch([401, 401]);
+    const daemonFetch = createDaytonaFetch(inner, {}, source);
+
+    const response = await daemonFetch("https://3000-sb.proxy.test/v1/health");
+
+    assert.equal(response.status, 401);
+    assert.equal(seen.length, 2);
+    assert.equal(refreshes.length, 1);
+  });
+
+  it("does not resend a body it cannot send twice", async () => {
+    const { source, refreshes } = tokenFor("3000-sb.proxy.test", "old");
+    const { seen, inner } = recordingFetch([401]);
+    const daemonFetch = createDaytonaFetch(inner, {}, source);
+
+    const response = await daemonFetch("https://3000-sb.proxy.test/v1/fs/file", {
+      method: "PUT",
+      body: new Uint8Array([1, 2, 3]),
+    });
+
+    assert.equal(response.status, 401);
+    assert.equal(seen.length, 1);
+    assert.equal(refreshes.length, 0);
+  });
+
+  it("fetches one new preview link for many requests refused at the same time", async () => {
+    let links = 0;
+    const sandbox = {
+      async getPreviewLink() {
+        links += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return { url: "https://3000-sb.proxy.test", token: `token-${links}` };
+      },
+    };
+    const provider = daytonaWithLifecycle({}, { client: { get: async () => sandbox } as any });
+    await provider.getUrl("sb");
+    // The daemon accepts only the newest token, as Daytona does after a start.
+    const seen: Array<string | null> = [];
+    const inner = (async (_input: any, init?: any) => {
+      const sent = new Headers(init?.headers).get(PREVIEW_TOKEN_HEADER);
+      seen.push(sent);
+      return new Response("body", { status: sent === "token-2" ? 200 : 401 });
+    }) as typeof fetch;
+    const daemonFetch = createDaytonaFetch(inner, {}, (host) => provider.previewToken(host));
+
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => daemonFetch(`https://3000-sb.proxy.test/v1/fs/file?n=${i}`)),
+    );
+
+    assert.deepEqual(responses.map((r) => r.status), Array(8).fill(200));
+    assert.equal(links, 2, "one link at getUrl, one shared refresh");
+    assert.equal(seen.filter((t) => t === "token-2").length, 8);
   });
 });
