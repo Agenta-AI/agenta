@@ -1,4 +1,4 @@
-import {createContext, useContext, useMemo, useState} from "react"
+import {createContext, useCallback, useContext, useMemo, useState} from "react"
 
 /** A section shown as its own screen on a phone. */
 export interface PhoneSection {
@@ -30,12 +30,12 @@ export const usePhoneSections = (): PhoneSectionsApi | null => useContext(PhoneS
  */
 export const usePhoneSectionScreen = (phone: boolean) => {
     const [shown, setShown] = useState<PhoneSection | null>(null)
+    // Stable, so a caller can depend on it.
+    const show = useCallback((key: string, title: string) => setShown({key, title}), [])
+    const close = useCallback(() => setShown(null), [])
     const api = useMemo<PhoneSectionsApi | null>(
-        () =>
-            phone
-                ? {shownKey: shown?.key ?? null, show: (key, title) => setShown({key, title})}
-                : null,
-        [phone, shown],
+        () => (phone ? {shownKey: shown?.key ?? null, show} : null),
+        [phone, shown, show],
     )
-    return {shown: phone ? shown : null, api, close: () => setShown(null)}
+    return {shown: phone ? shown : null, api, close}
 }

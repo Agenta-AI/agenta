@@ -1,10 +1,10 @@
-import {useMemo, useState, type ReactNode} from "react"
+import {useEffect, type ReactNode} from "react"
 
 import {
     AgentTemplateSectionList,
     PhoneSectionsContext,
+    usePhoneSectionScreen,
     type AgentTemplateSectionDescriptor,
-    type PhoneSectionsApi,
 } from "@agenta/entity-ui/drill-in"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {
@@ -47,14 +47,15 @@ const Phone = ({children}: {children: ReactNode}) => (
 )
 
 /** M07: the Configuration screen of a session on a phone, with a row per section. */
-const Configuration = ({openKey = null}: {openKey?: string | null}) => {
-    const [open, setOpen] = useState<{key: string; title: string} | null>(
-        openKey ? {key: openKey, title: M07_SECTIONS.find((s) => s.key === openKey)!.title} : null,
-    )
-    const phone = useMemo<PhoneSectionsApi>(
-        () => ({openKey: open?.key ?? null, open: (key, title) => setOpen({key, title})}),
-        [open],
-    )
+const Configuration = ({shownKey}: {shownKey?: string}) => {
+    const sectionScreen = usePhoneSectionScreen(true)
+    const show = sectionScreen.api?.show
+    // A story that starts on a section screen opens it once, as a tap would.
+    useEffect(() => {
+        const preset = M07_SECTIONS.find((s) => s.key === shownKey)
+        if (preset) show?.(preset.key, preset.title)
+    }, [shownKey, show])
+    const shown = sectionScreen.shown
     const sections: AgentTemplateSectionDescriptor[] = M07_SECTIONS.map((s) => ({
         ...s,
         icon: ICONS[s.key],
@@ -62,11 +63,11 @@ const Configuration = ({openKey = null}: {openKey?: string | null}) => {
     }))
     return (
         <Phone>
-            {open ? (
+            {shown ? (
                 <PhoneScreenHeader
-                    title={open.title}
+                    title={shown.title}
                     backTitle="Configuration"
-                    onBack={() => setOpen(null)}
+                    onBack={sectionScreen.close}
                 />
             ) : (
                 <>
@@ -104,7 +105,7 @@ const Configuration = ({openKey = null}: {openKey?: string | null}) => {
                 </>
             )}
             <div className="min-h-0 flex-1 overflow-y-auto px-4">
-                <PhoneSectionsContext.Provider value={phone}>
+                <PhoneSectionsContext.Provider value={sectionScreen.api}>
                     <AgentTemplateSectionList sections={sections} />
                 </PhoneSectionsContext.Provider>
             </div>
@@ -129,4 +130,4 @@ export const AgentTabDark: Story = {
 }
 
 /** A section opened from its row: its own screen with "Back to Configuration". */
-export const SectionScreen: Story = {render: () => <Configuration openKey="skills" />}
+export const SectionScreen: Story = {render: () => <Configuration shownKey="skills" />}
