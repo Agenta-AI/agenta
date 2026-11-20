@@ -2,10 +2,9 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
     adoptInstanceIdentity,
-    analyticsIdentity,
+    analyticsPersonProperties,
     captureFirstAgentIntent,
     classifyAgentIntent,
-    generateOrRetrieveDistinctId,
     isCloudTelemetry,
     parseInstanceTelemetry,
     stripInstanceUrl,
@@ -14,39 +13,11 @@ import {
 afterEach(() => vi.unstubAllGlobals())
 
 describe("shared desktop and mobile analytics", () => {
-    it("reads the existing desktop visitor ID", () => {
-        vi.stubGlobal("localStorage", {getItem: () => "existing-desktop-id"})
-        expect(generateOrRetrieveDistinctId()).toBe("existing-desktop-id")
-    })
-
-    it("stores a new visitor ID under the same key", () => {
-        const setItem = vi.fn()
-        vi.stubGlobal("localStorage", {getItem: () => null, setItem})
-        const id = generateOrRetrieveDistinctId()
-        expect(setItem).toHaveBeenCalledWith("posthog_distinct_id", id)
-        expect(id).toMatch(/^[a-f0-9-]{36}$/)
-    })
-
-    it("survives unavailable browser storage with a stable in-memory ID", () => {
-        vi.stubGlobal("localStorage", {
-            getItem: () => {
-                throw new Error("denied")
-            },
-        })
-        expect(generateOrRetrieveDistinctId()).toBe(generateOrRetrieveDistinctId())
-    })
-
-    it("uses email and person properties on cloud, and the API's id alone when self-hosted", () => {
+    it("sends email and username as person properties on cloud only", () => {
         const user = {email: "person@example.test", username: "Person"}
-        expect(analyticsIdentity(user, true, "visitor")).toEqual({id: user.email, properties: user})
-        expect(analyticsIdentity(user, false, "instance:user")).toEqual({
-            id: "instance:user",
-            properties: undefined,
-        })
-        expect(analyticsIdentity(null, true, "visitor")).toEqual({
-            id: "visitor",
-            properties: undefined,
-        })
+        expect(analyticsPersonProperties(user, true)).toEqual(user)
+        expect(analyticsPersonProperties(user, false)).toBeUndefined()
+        expect(analyticsPersonProperties(null, true)).toBeUndefined()
     })
 
     it("removes every address and referrer posthog-js adds on a self-hosted event", () => {
@@ -106,23 +77,74 @@ describe("shared desktop and mobile analytics", () => {
             enabled: false,
             distinct_id: null,
             groups: null,
+            properties: null,
         })
     })
 
-    it("starts over before it identifies a browser that holds another id", () => {
+    it("reads the cloud event properties and drops values that are not text", () => {
+        expect(
+            parseInstanceTelemetry({
+                enabled: true,
+                distinct_id: "user-1",
+                groups: null,
+                properties: {cloud_region: "EU", cloud_url: "https://eu.cloud.agenta.ai", n: 1},
+            }).properties,
+        ).toEqual({cloud_region: "EU", cloud_url: "https://eu.cloud.agenta.ai"})
+    })
+
+    const recordingClient = (distinctId: string) => {
         const calls: string[] = []
         const client = {
-            get_distinct_id: () => "person@example.test",
+            get_distinct_id: () => distinctId,
             reset: () => calls.push("reset"),
-            identify: (id: string) => calls.push(`identify ${id}`),
+            identify: (id: string, properties?: Record<string, unknown>) =>
+                calls.push(`identify ${id}${properties ? ` ${JSON.stringify(properties)}` : ""}`),
             group: (type: string, key: string) => calls.push(`group ${type} ${key}`),
+            register: (properties: Record<string, string>) =>
+                calls.push(`register ${JSON.stringify(properties)}`),
         }
+        return {client, calls}
+    }
+
+    it("starts over before it identifies a browser that holds another id", () => {
+        const {client, calls} = recordingClient("person@example.test")
         adoptInstanceIdentity(client, {
             enabled: true,
             distinct_id: "instance-1:user-1",
             groups: {instance: "instance-1"},
+            properties: null,
         })
         expect(calls).toEqual(["reset", "identify instance-1:user-1", "group instance instance-1"])
+    })
+
+    it("identifies a cloud browser by user id, with no alias, and tags its events", () => {
+        const {client, calls} = recordingClient("old-device-id")
+        adoptInstanceIdentity(
+            client,
+            {
+                enabled: true,
+                distinct_id: "user-1",
+                groups: null,
+                properties: {cloud_region: "US", cloud_url: "https://us.cloud.agenta.ai"},
+            },
+            {email: "person@example.test"},
+        )
+        expect(calls).toEqual([
+            "reset",
+            'identify user-1 {"email":"person@example.test"}',
+            'register {"cloud_region":"US","cloud_url":"https://us.cloud.agenta.ai"}',
+        ])
+    })
+
+    it("does not start over when the browser already holds the user id", () => {
+        const {client, calls} = recordingClient("user-1")
+        adoptInstanceIdentity(client, {
+            enabled: true,
+            distinct_id: "user-1",
+            groups: null,
+            properties: null,
+        })
+        expect(calls).toEqual(["identify user-1"])
     })
 
     it("classifies text without sending it as an event property", () => {

@@ -3,7 +3,6 @@ import {
     POSTHOG_CONFIG,
     SELF_HOSTED_CONFIG,
     captureFirstAgentIntent,
-    generateOrRetrieveDistinctId,
     isCloudTelemetry,
     parseInstanceTelemetry,
     type FirstAgentIntentPayload,
@@ -45,13 +44,7 @@ export function loadPostHog(cloud: boolean): Promise<PostHog | null> {
                         ...(cloud ? CLOUD_CONFIG : SELF_HOSTED_CONFIG),
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
-                            if (cloud) {
-                                try {
-                                    client.identify(generateOrRetrieveDistinctId())
-                                } catch {
-                                    // Identification must not prevent initialization from settling.
-                                }
-                            }
+                            // Analytics identifies the browser with the API's id once it loads.
                             resolve(client as PostHog)
                         },
                     })

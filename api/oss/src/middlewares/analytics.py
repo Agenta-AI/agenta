@@ -5,7 +5,7 @@ from typing import Callable, Optional
 from uuid import UUID
 
 from fastapi import Request
-from oss.src.core.telemetry.service import distinct_id_for
+from oss.src.core.telemetry.service import cloud_event_properties, distinct_id_for
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -91,7 +91,8 @@ async def _set_activation_property(
             properties={
                 "$set_once": {
                     property_name: True,
-                }
+                },
+                **cloud_event_properties(),
             },
         )
 
@@ -171,6 +172,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
             ):
                 properties["organization_name"] = request.state.organization_name
 
+            properties.update(cloud_event_properties())
+
             # Check daily limits if the event is one of those to be limited per auth method
             _project_id = getattr(request.state, "project_id", None)
             _user_id = getattr(request.state, "user_id", None)
@@ -219,7 +222,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 posthog = await _load_posthog()
                 if posthog is not None:
                     if env.stripe.enabled:
-                        properties["$set"] = {"email": distinct_id}
+                        properties["$set"] = {"email": request.state.user_email}
 
                     posthog.capture(
                         distinct_id=distinct_id,
@@ -255,17 +258,13 @@ async def analytics_middleware(request: Request, call_next: Callable):
 
 
 async def _request_distinct_id(request: Request) -> Optional[str]:
-    """Cloud: the email. Self-hosted: `<instance_id>:<user_id>`, never the email."""
+    """Cloud: the user id. Self-hosted: `<instance_id>:<user_id>`, never the email."""
 
     email = getattr(request.state, "user_email", None)
-    if not email:
-        return None
-    if env.stripe.enabled:
-        return email
     user_id = getattr(request.state, "user_id", None)
-    if not user_id:
+    if not email or not user_id:
         return None
-    return await distinct_id_for(UUID(str(user_id)), email)
+    return await distinct_id_for(UUID(str(user_id)))
 
 
 def _get_event_name_from_path(

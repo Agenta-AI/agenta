@@ -12,3 +12,5 @@ class InstanceTelemetry(BaseModel):
     enabled: bool
     distinct_id: Optional[str] = None
     groups: Optional[Dict[str, str]] = None
+    # Cloud only: properties the browser adds to every event (region and deployment).
+    properties: Optional[Dict[str, str]] = None

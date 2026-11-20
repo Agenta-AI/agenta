@@ -29,5 +29,5 @@ class TelemetryRouter:
         email = getattr(request.state, "user_email", None)
         if not user_id or not email:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-        telemetry = await instance_telemetry_for(UUID(str(user_id)), email)
+        telemetry = await instance_telemetry_for(UUID(str(user_id)))
         return InstanceTelemetryResponse(**telemetry.model_dump())
