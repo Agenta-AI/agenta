@@ -154,8 +154,10 @@ const PhoneSectionList = ({
     const shown = sections.find((s) => s.key === phoneSections.shownKey && !s.onOpen)
     if (shown) {
         return (
-            // The column fills the screen, so the primary action sits at its bottom.
-            <div data-config-section={shown.key} className="flex min-h-full flex-col gap-3 pt-3">
+            <div
+                data-config-section={shown.key}
+                className={`flex flex-col gap-3 pt-3 ${shown.phoneAction ? "" : "pb-6"}`}
+            >
                 {shown.extra && !shown.phoneAction && !shown.hideExtraOnPhone ? (
                     <div className="flex justify-end">{shown.extra}</div>
                 ) : null}
@@ -168,9 +170,7 @@ const PhoneSectionList = ({
                     >
                         {shown.phoneAction.label}
                     </PhonePrimaryAction>
-                ) : (
-                    <div className="pb-3" />
-                )}
+                ) : null}
             </div>
         )
     }
