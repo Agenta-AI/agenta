@@ -91,6 +91,8 @@ def test_catalog_ships_platform_builder_ops():
         "send_session_message",
         "wait_for_sessions",
         "cancel_session",
+        "list_agent_drives",
+        "read_drive",
     }
 
 
