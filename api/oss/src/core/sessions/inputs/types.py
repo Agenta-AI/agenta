@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 class SessionInputError(Exception):
@@ -61,6 +61,45 @@ class SessionInputKeyReserved(SessionInputError):
         super().__init__(
             f"Idempotency keys that start with '{RESERVED_KEY_PREFIX}' are reserved."
         )
+
+
+# Vercel UI tool-part states that hold a person's approval answer inline.
+_ANSWERED_TOOL_PART_STATES = frozenset({"approval-responded", "output-denied"})
+
+
+def _is_approval_answer(block: Dict[str, Any]) -> bool:
+    kind = block.get("type")
+    if kind == "tool_result":
+        output = block.get("output")
+        return isinstance(output, dict) and isinstance(output.get("approved"), bool)
+    if kind == "tool-approval-response":
+        return True
+    if isinstance(kind, str) and (kind.startswith("tool-") or kind == "dynamic-tool"):
+        approval = block.get("approval")
+        return block.get("state") in _ANSWERED_TOOL_PART_STATES or (
+            isinstance(approval, dict) and isinstance(approval.get("approved"), bool)
+        )
+    return False
+
+
+def carries_approval_answer(content: Any) -> bool:
+    """True when `content` holds a block that the runner reads as an approval answer
+    anywhere inside it: a `tool_result` whose `output` has a boolean `approved`, a
+    `tool-approval-response` part, or a tool part answered inline
+    (`approval-responded`, `output-denied`, or `approval.approved`). Approval answers
+    come only from a person through the approval routes, never from server code."""
+    if isinstance(content, dict):
+        return _is_approval_answer(content) or any(
+            carries_approval_answer(value) for value in content.values()
+        )
+    if isinstance(content, list):
+        return any(carries_approval_answer(item) for item in content)
+    return False
+
+
+class SessionInputCarriesApprovalAnswer(SessionInputError):
+    def __init__(self):
+        super().__init__("A server input cannot carry an approval answer.")
 
 
 class SessionInputEditRefused(SessionInputError):
