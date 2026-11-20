@@ -2,8 +2,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {Hammer} from "@phosphor-icons/react"
 
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -45,12 +45,13 @@ export const AgentPagesHeader = ({
                 <SimpleTooltip title={t("agentLayout.header.builder")}>
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-compact"
                         aria-label={t("agentLayout.header.builder")}
-                        className="size-8 shrink-0 text-muted-foreground"
+                        // The header's icon buttons are 32 px (A04).
+                        className="size-8 shrink-0"
                         onClick={onOpenBuilder}
                     >
-                        <Hammer size={16} />
+                        <BuilderIcon />
                     </Button>
                 </SimpleTooltip>
             ) : null}
