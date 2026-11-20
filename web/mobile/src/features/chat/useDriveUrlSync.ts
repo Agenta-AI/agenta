@@ -52,10 +52,18 @@ export const useDriveUrlSync = ({
         wasOpenRef.current = open
     }, [enabled, open])
 
-    const onSelectionChange = useCallback(
-        (item: DriveLinkItem) => replaceQueryParam(DRIVE_QUERY_PARAM, driveParam(item)),
-        [],
-    )
+    const openRef = useRef(open)
+    openRef.current = open
+    // Written a task later: on a phone the open pane's back entry is pushed in a microtask after
+    // the pane mounts, and the explorer reports its first selection before that. Written at once,
+    // the link would land on the page entry under the back entry. A pane that closed meanwhile
+    // writes nothing (its close cleared the link).
+    const onSelectionChange = useCallback((item: DriveLinkItem) => {
+        const value = driveParam(item)
+        setTimeout(() => {
+            if (openRef.current) replaceQueryParam(DRIVE_QUERY_PARAM, value)
+        }, 0)
+    }, [])
 
     const copy = useCopyText()
     const copyLink = useCallback(

@@ -129,12 +129,12 @@ const Row = ({block}: {block: ChangeBlock}) => {
             </button>
             {phone ? (
                 <PhoneDetailScreen open={open} onOpenChange={setOpen} title={label}>
-                    <Block block={block} small={false} pathPrefix={[]} />
+                    <Block block={block} small={false} />
                 </PhoneDetailScreen>
             ) : null}
             {open && !phone ? (
                 <div className="py-2 pl-6">
-                    <Block block={block} small pathPrefix={[]} />
+                    <Block block={block} small />
                 </div>
             ) : (
                 // A closed row still says its risk: "Approve all" never hides a warning line.
@@ -152,16 +152,16 @@ const Row = ({block}: {block: ChangeBlock}) => {
 const CallGroup = ({preview, showAgent}: {preview: ApprovalPreview; showAgent: boolean}) => {
     const t = useT(chatChangeCardStatesCatalog)
     const tChange = useT(chatChangeCardCatalog)
-    const {baseVersion, latestVersion, agentName} = useChangeVersions(preview.base)
+    const versions = useChangeVersions(preview.base)
+    const {baseVersion, latestVersion} = versions
+    const agentName = versions.agentName ?? preview.agentName
     const conflict =
         baseVersion !== undefined && latestVersion !== undefined && latestVersion > baseVersion
     const blocks = groupChanges(preview.changes ?? [])
     return (
         <div className="flex min-w-0 flex-col gap-1" data-testid="change-call-group">
-            {showAgent && (agentName ?? preview.agentName) ? (
-                <span className="truncate text-xs font-semibold text-colorText">
-                    {agentName ?? preview.agentName}
-                </span>
+            {showAgent && agentName ? (
+                <span className="truncate text-xs font-semibold text-colorText">{agentName}</span>
             ) : null}
             {baseVersion !== undefined ? (
                 <span className="text-xs font-medium text-colorTextSecondary">

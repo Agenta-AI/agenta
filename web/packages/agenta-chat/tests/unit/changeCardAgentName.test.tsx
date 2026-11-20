@@ -1,6 +1,8 @@
 /**
- * The change card names the agent it changes. The builder may pass the agent by its id, so the
- * card reads the agent's name off the base revision's agent, not off the call.
+ * The change card and the agent it changes. The builder may pass the agent by its id. A card with
+ * one change starts its path at the section, as the C01 and M05 frames draw it, so no id shows. A
+ * grouped card names the agent in its header ("2 changes to Support triage"), read off the base
+ * revision's agent, not off the call.
  */
 import {act} from "react"
 
@@ -80,18 +82,19 @@ const render = async (approvals: unknown[]) => {
 }
 
 describe("the change card's agent", () => {
-    it("shows the agent's name in the path when the call names the agent by id", async () => {
+    it("starts a single change's path at the section, with no agent id", async () => {
         await render([call("a1", ["parameters", "agent", "llm", "model"], "gpt-6")])
-        expect(host.textContent).toContain("Support triage")
+        expect(host.textContent).toContain("Model")
         expect(host.textContent).not.toContain(AGENT_ID.slice(0, 8))
+        expect(host.textContent).not.toContain("Support triage ›")
     })
 
-    it("shows the agent's name on a grouped card", async () => {
+    it("names the agent in a grouped card's header", async () => {
         await render([
             call("a1", ["parameters", "agent", "llm", "model"], "gpt-6"),
             call("a2", ["parameters", "agent", "llm", "reasoning_effort"], "high"),
         ])
-        expect(host.textContent).toContain("Support triage")
+        expect(host.textContent).toContain("2 changes to Support triage")
         expect(host.textContent).not.toContain(AGENT_ID.slice(0, 8))
     })
 })
