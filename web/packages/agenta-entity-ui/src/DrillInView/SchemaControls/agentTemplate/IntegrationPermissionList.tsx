@@ -807,8 +807,10 @@ export function IntegrationTitle({
 }) {
     const tCommon = useT(commonCatalog)
     const {integration} = useToolIntegrationDetail(target.integration)
-    const {connections} = useToolConnectionsQuery()
+    const {connections, isLoading} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
+    // A saved shared connection that the project no longer has needs attention too.
+    const missing = Boolean(connectionSlug) && !isLoading && !connection
     const displayName = integration?.name || target.integration
     const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
     // A healthy connection shows no tag.
@@ -836,7 +838,7 @@ export function IntegrationTitle({
                     </span>
                 ) : null}
             </div>
-            {notConnected ? (
+            {notConnected || missing ? (
                 <span className="shrink-0 text-xs font-normal">
                     <StatusIndicator tone="default" label={tCommon("common.notConnected")} />
                 </span>

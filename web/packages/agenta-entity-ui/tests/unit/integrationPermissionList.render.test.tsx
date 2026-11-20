@@ -53,7 +53,7 @@ describe("integration permission list", () => {
     it("reads one per-tool rule as Custom with its count", async () => {
         await render({default: "allow_reads", tools: {write_1: "allow"}})
         const trigger = host.querySelector('[aria-label="Default permission"]')
-        expect(trigger?.textContent).toContain("1 override")
+        expect(trigger?.textContent).toContain("Custom · 1 override")
         expect(host.textContent).toContain("Picking a preset resets them.")
     })
 
@@ -71,6 +71,9 @@ describe("integration permission list", () => {
     it("draws a denied tool with the error colour", async () => {
         await render({default: "allow", tools: {write_0: "deny"}})
         const denied = host.querySelector('[aria-label="Permission for write_0"]')
+        expect(denied?.textContent).toContain("Deny")
         expect(denied?.className).toContain("colorErrorBg")
+        const allowed = host.querySelector('[aria-label="Permission for write_1"]')
+        expect(allowed?.className).not.toContain("colorErrorBg")
     })
 })
