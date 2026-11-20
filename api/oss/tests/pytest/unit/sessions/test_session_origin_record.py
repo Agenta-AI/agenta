@@ -1,15 +1,18 @@
 """The session origin record: one mapping from the creating run's origin to the
 session origin, the calling session record, and how both read back."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
 
+from oss.src.core.access.context import _request_memo
 from oss.src.core.access.dtos import RunOrigin
 from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
+    SessionStreamCommandRequest,
+    SessionStreamHeaderEdit,
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
@@ -22,6 +25,7 @@ from oss.src.core.sessions.types import (
     SessionTriggerKind,
 )
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.src.core.sharing.service import _note_missing_session
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_RESERVED_TAG_KEYS,
@@ -254,6 +258,10 @@ class _MappingDAO:
     async def fill_missing(self, **kwargs):
         return map_stream_dbe_to_dto(stream_dbe=self.dbe)
 
+    async def update_header(self, **kwargs):
+        # A rename of a row that does not exist matches nothing: the create arm runs.
+        return map_stream_dbe_to_dto(stream_dbe=self.dbe) if self.dbe else None
+
 
 @pytest_asyncio.fixture
 async def lock_engine():
@@ -302,3 +310,133 @@ async def test_the_heartbeat_that_creates_the_row_records_its_origin_and_keeps_i
 
     stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="beaten")
     assert stream.origin == origin
+
+
+# The command route (`POST /sessions/streams/`) and the header route
+# (`/sessions/streams/header`) create the row with the request's envelope
+# (`request_run_envelope`): a person's token gives `web`, an API key `api`, and a run's
+# secret token its own run origin.
+_REQUEST_ROWS = [
+    ("web", SessionOrigin.manual),
+    ("api", SessionOrigin.api),
+    ("installation", SessionOrigin.channel),
+]
+
+
+@pytest.fixture
+def request_memo():
+    token = _request_memo.set({})
+    yield
+    _request_memo.reset(token)
+
+
+def _request_service(dao, lock_engine) -> SessionStreamsService:
+    service = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+    service._publish_changed = AsyncMock()
+    service._publish_lifecycle = AsyncMock()
+    return service
+
+
+async def _send(service, *, envelope, recheck=None):
+    await service.command(
+        project_id=_PROJECT,
+        user_id=uuid4(),
+        request=SessionStreamCommandRequest(
+            session_id="sent", data={"inputs": {"messages": []}}
+        ),
+        access=OWNERLESS_PROJECT_POLICY,
+        envelope=envelope,
+        arrived_at_ms=1,
+        recheck=recheck,
+    )
+
+
+@pytest.mark.parametrize("run_origin, origin", _REQUEST_ROWS)
+async def test_a_send_that_creates_the_row_records_its_origin(
+    lock_engine, run_origin, origin
+):
+    # The route found the row: `_start_turn` creates it.
+    dao = _MappingDAO()
+    service = _request_service(dao, lock_engine)
+
+    await _send(service, envelope=make_envelope(origin=run_origin))
+
+    stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="sent")
+    assert stream.origin == origin
+
+
+@pytest.mark.parametrize("run_origin, origin", _REQUEST_ROWS)
+async def test_a_send_on_an_unchecked_id_records_its_origin(
+    lock_engine, request_memo, run_origin, origin
+):
+    # The route found no row: the command inserts it before `_start_turn`.
+    dao = _MappingDAO()
+    service = _request_service(dao, lock_engine)
+    _note_missing_session(project_id=_PROJECT, session_id="sent")
+
+    await _send(service, envelope=make_envelope(origin=run_origin), recheck=AsyncMock())
+
+    stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="sent")
+    assert stream.origin == origin
+
+
+async def test_a_later_send_does_not_change_the_origin(lock_engine):
+    dao = _MappingDAO()
+    service = _request_service(dao, lock_engine)
+    await _send(service, envelope=make_envelope(origin="api"))
+    await service._release_turn_locks(
+        project_id=_PROJECT,
+        session_id="sent",
+        turn_id=dao.dbe.turn_id,
+    )
+
+    await _send(service, envelope=make_envelope(origin="web"))
+
+    stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="sent")
+    assert stream.origin == SessionOrigin.api
+
+
+@pytest.mark.parametrize("run_origin, origin", _REQUEST_ROWS)
+@pytest.mark.parametrize(
+    "header",
+    [
+        SessionStreamHeaderEdit(name="Weekly report"),
+        # No header field: the pre-create of a new chat (`_create_header_row`).
+        SessionStreamHeaderEdit(),
+    ],
+)
+async def test_a_header_call_that_creates_the_row_records_its_origin(
+    lock_engine, header, run_origin, origin
+):
+    dao = _MappingDAO()
+    service = _request_service(dao, lock_engine)
+
+    await service.set_header(
+        project_id=_PROJECT,
+        user_id=uuid4(),
+        session_id="named",
+        header=header,
+        access=OWNERLESS_PROJECT_POLICY,
+        envelope=make_envelope(origin=run_origin),
+    )
+
+    stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="named")
+    assert stream.origin == origin
+
+
+async def test_a_rename_does_not_change_the_origin(lock_engine):
+    dao = _MappingDAO()
+    service = _request_service(dao, lock_engine)
+    await _send(service, envelope=make_envelope(origin="api"))
+
+    await service.set_header(
+        project_id=_PROJECT,
+        user_id=uuid4(),
+        session_id="sent",
+        header=SessionStreamHeaderEdit(name="Renamed"),
+        access=OWNERLESS_PROJECT_POLICY,
+        envelope=make_envelope(origin="web"),
+    )
+
+    stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="sent")
+    assert stream.origin == SessionOrigin.api

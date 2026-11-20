@@ -88,6 +88,7 @@ async def test_resume_after_kill_revives_the_tombstone_row(lock_engine):
     svc = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -155,6 +156,7 @@ async def test_new_activity_on_archived_session_clears_archived_at(lock_engine):
     svc = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
