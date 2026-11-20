@@ -43,22 +43,19 @@ const {writer, listeners, endpoints} = vi.hoisted(() => ({
 }))
 
 // A writer that renders again on each write, as the real draft atom does.
-vi.mock(
-    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
-    async () => {
-        const {useSyncExternalStore} = await import("react")
-        const subscribe = (listener: () => void) => {
-            listeners.add(listener)
-            return () => void listeners.delete(listener)
-        }
-        return {
-            useAgentConfigWriter: () => {
-                useSyncExternalStore(subscribe, () => writer.agent)
-                return writer
-            },
-        }
-    },
-)
+vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", async () => {
+    const {useSyncExternalStore} = await import("react")
+    const subscribe = (listener: () => void) => {
+        listeners.add(listener)
+        return () => void listeners.delete(listener)
+    }
+    return {
+        useAgentConfigWriter: () => {
+            useSyncExternalStore(subscribe, () => writer.agent)
+            return writer
+        },
+    }
+})
 
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     const original = await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()
@@ -81,16 +78,13 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
 }))
 
 // The connect step stands in for itself and records what it was opened with.
-vi.mock(
-    "../../src/DrillInView/SchemaControls/agentTemplate/views/McpConnectViewBody",
-    async () => {
-        const {createElement: h} = await import("react")
-        return {
-            default: ({params}: {params: {reconnect?: {slug: string} | null}}) =>
-                h("div", null, `connect step: ${params.reconnect?.slug ?? "new"}`),
-        }
-    },
-)
+vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/views/McpConnectViewBody", async () => {
+    const {createElement: h} = await import("react")
+    return {
+        default: ({params}: {params: {reconnect?: {slug: string} | null}}) =>
+            h("div", null, `connect step: ${params.reconnect?.slug ?? "new"}`),
+    }
+})
 
 const AGENT: ViewTarget = {kind: "agent_draft", revisionId: "rev-1"}
 
@@ -176,7 +170,7 @@ describe("Add MCP server view", () => {
         await findByText("crumb:Add MCP server")
         expect(byText("Added")).toBeTruthy()
         await click(await findByText("docs-search", "div"))
-        expect(mcps().map((item) => item.name)).toEqual(["linear", "docs-search"])
+        expect(mcps().map((item) => item.name)).toEqual(["linear", "docs_search"])
         await findByText("crumb:docs-search")
         expect(byText("crumb:Add MCP server")).toBeUndefined()
     })
@@ -217,7 +211,7 @@ describe("MCP server view", () => {
         const dialog = await findByText("", '[data-testid="remove-from-agent-dialog"]')
         expect(dialog.textContent).toContain("The connection stays in the project.")
         await click(byText("Remove"))
-        expect(mcps().map((item) => item.name)).toEqual(["docs-search"])
+        expect(mcps().map((item) => item.name)).toEqual(["docs_search"])
     })
 
     it("shows the removed state when the server left the agent", async () => {

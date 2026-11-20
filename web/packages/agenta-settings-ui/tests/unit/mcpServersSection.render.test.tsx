@@ -43,23 +43,12 @@ vi.mock("@agenta/entities/secret", () => ({
     personalAccountsAccessAtom: {toString: () => "personalAccessAtom"},
 }))
 
-// The connect journey is a 566-line state machine over the network; the drawer reads the tool
-// list. Neither is this file's subject, so both are stubbed. The drawer stub reports the state
-// of whatever endpoint it is handed, which is what the by-key case asserts on.
+// The connect step and the server view are views of @agenta/entity-ui, opened here in a drawer
+// (`ViewDrawerHost`). Neither is this file's subject: the drawer host stands in for itself and
+// draws what it was asked to open, which is what these cases assert on.
 vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
-    // Records what it is handed, so a case can assert the reconnect reaches it. A journey
-    // opened without one is a blank sheet at address entry, which repairs nothing and invites
-    // a second connection (D131's remainder, after D132).
-    McpConnectJourney: ({
-        open,
-        reconnect,
-    }: {
-        open: boolean
-        reconnect?: {slug?: string; name?: string} | null
-    }) => {
-        if (open) opened.push(reconnect ?? null)
-        return open ? <div data-testid="mcp-connect-journey" /> : null
-    },
+    mcpConnectView: {id: "mcp.connect"},
+    mcpServerView: {id: "mcp.server"},
     McpConnectionDetail: ({
         endpoint,
         readOnly,
@@ -79,30 +68,33 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
         ) : null,
-    // The drawer itself is WP4's and has its own suite; what this file pins is how Settings
-    // opens it, which is the read-only mode and no agent to remove the server from.
-    McpPermissionDrawer: ({
-        open,
-        slug,
-        status,
-        readOnly,
-        onRemove,
+}))
+
+vi.mock("@agenta/ui/view-stack", () => ({
+    ViewDrawerHost: ({
+        request,
     }: {
-        open: boolean
-        slug?: string
-        status?: string
-        readOnly?: boolean
-        onRemove?: () => void
-    }) =>
-        open ? (
+        request: {
+            view: {id: string}
+            params: {reconnect?: {slug?: string; name?: string} | null; connection?: string}
+            target: {kind: string}
+        }
+    }) => {
+        if (request.view.id === "mcp.connect") {
+            // Records what it is handed, so a case can assert the reconnect reaches it. A step
+            // opened without one starts at address entry, which repairs nothing and invites a
+            // second connection (D131's remainder, after D132).
+            opened.push(request.params.reconnect ?? null)
+            return <div data-testid="mcp-connect-journey" data-target={request.target.kind} />
+        }
+        return (
             <div
                 data-testid="mcp-permission-drawer"
-                data-slug={slug}
-                data-status={status ?? "unset"}
-                data-readonly={String(Boolean(readOnly))}
-                data-has-remove={String(onRemove !== undefined)}
+                data-slug={request.params.connection}
+                data-target={request.target.kind}
             />
-        ) : null,
+        )
+    },
 }))
 
 const setters = vi.hoisted(() => ({remove: vi.fn(), refresh: vi.fn(), disconnect: vi.fn()}))
@@ -440,24 +432,22 @@ describe("viewing a connection's tools", () => {
         })
         const drawer = screen.getByTestId("mcp-permission-drawer")
         expect(drawer.getAttribute("data-slug")).toBe("linear")
-        expect(drawer.getAttribute("data-readonly")).toBe("true")
-        // A Settings row belongs to no agent, so there is nothing to detach it from and the
-        // footer's "Remove from agent" link must not be offered.
-        expect(drawer.getAttribute("data-has-remove")).toBe("false")
+        // A Settings row belongs to no agent: the server view opens on the project's connection,
+        // read-only, with no agent to remove it from.
+        expect(drawer.getAttribute("data-target")).toBe("project")
     })
 
-    it("tells the drawer the connection's health rather than letting it assume", () => {
-        // The drawer defaults its health to connected, so a lapsed row would open a header
-        // claiming the server works.
-        // Two rows, and the second is the one asked about: a section that hands over whichever
-        // row it finds first passes every single-row fixture ever written (D154).
+    it("opens the server view on the row it was asked about", () => {
+        // The view reads the connection's health itself from the list. Two rows, and the second
+        // is the one asked about: a section that hands over whichever row it finds first passes
+        // every single-row fixture ever written (D154).
         show([LINEAR, OCTOLENS])
         openRowMenu("Octolens")
         act(() => {
             fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
         })
-        expect(screen.getByTestId("mcp-permission-drawer").getAttribute("data-status")).toBe(
-            "login_expired",
+        expect(screen.getByTestId("mcp-permission-drawer").getAttribute("data-slug")).toBe(
+            "octolens",
         )
     })
 

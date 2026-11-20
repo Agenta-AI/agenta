@@ -17,10 +17,7 @@ import {createPortal} from "react-dom"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {
-    McpAddServerList,
-    type McpConnectionOption,
-} from "../../src/mcpEndpoint/McpAddServerList"
+import {McpAddServerList, type McpConnectionOption} from "../../src/mcpEndpoint/McpAddServerList"
 
 const OPTIONS: McpConnectionOption[] = [
     {slug: "acme", name: "Acme", host: "mcp.example.test", status: "connected"},
@@ -135,8 +132,8 @@ describe("McpAddServerList", () => {
 
         // The journey's own dialog title, which would be on the page if it were here. The
         // string this used to name was retired with the scope checklist, so the assertion
-        // passed whatever the drawer mounted.
+        // passed whatever the list mounted. The list has no shell of its own, so no dialog at all.
         expect(document.body.textContent).not.toContain("Connect MCP server")
-        expect(document.querySelectorAll("[role='dialog']")).toHaveLength(1)
+        expect(document.querySelectorAll("[role='dialog']")).toHaveLength(0)
     })
 })

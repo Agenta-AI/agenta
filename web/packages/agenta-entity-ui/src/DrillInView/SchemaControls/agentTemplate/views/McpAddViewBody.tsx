@@ -14,7 +14,7 @@ import {
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {useViewStack, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {McpAddServerList, type McpConnectionOption} from "../../../../mcpEndpoint/McpAddServerList"
@@ -31,7 +31,6 @@ const mcpsOf = (agent: Record<string, unknown>): unknown[] =>
 const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
     const t = useT(mcpConnectCatalog)
     useViewTitle(t("entityUi.mcpConnect.addMcpServer"))
-    const stack = useViewStack()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
@@ -73,18 +72,18 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
         [endpoints, addedSlugs],
     )
 
+    const {push, replace} = nav
     /** Add the server to the agent, then open its server view in place of this one. */
     const add = useCallback(
         (option: {slug: string; name: string}) => {
             const item = buildMcpAgentItem(option)
             writer.update((agent) => ({...agent, mcps: [...mcpsOf(agent), item]}))
             const ref = mcpItemRef(item)
-            if (ref) void stack.open(mcpServerView, {item: ref}, target)
+            if (ref) void replace(mcpServerView, {item: ref}, target)
         },
-        [writer, stack, target],
+        [writer, replace, target],
     )
 
-    const {push} = nav
     const connect = useCallback(() => {
         void push?.(mcpConnectView, {onConnected: add}, {kind: "project"})
     }, [push, add])

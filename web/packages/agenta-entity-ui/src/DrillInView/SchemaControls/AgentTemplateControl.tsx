@@ -75,8 +75,8 @@ import {
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {integrationItemRef, removeIntegrationByRef} from "./agentTemplate/itemKinds/tool"
 import type {ItemRowStatus} from "./agentTemplate/ItemRow"
-import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
 import {removeMcpByRef} from "./agentTemplate/mcpRail"
+import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
 import {modelNeedsSetupMessage, needsSetupLabel} from "./agentTemplate/needsSetupText"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
