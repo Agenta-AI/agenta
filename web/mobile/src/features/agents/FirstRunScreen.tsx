@@ -9,6 +9,8 @@ import {
     UNAVAILABLE_TEMPLATE_MESSAGE,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import {classifyAgentIntent} from "@agenta/shared/analytics"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -21,7 +23,6 @@ import {newId} from "@/lib/ids"
 import {SessionWorkspace} from "../chat/SessionWorkspace"
 
 import {FirstRunComposer} from "./FirstRunComposer"
-import {FIRST_RUN_COPY} from "./firstRunCopy"
 import {FirstRunTemplates} from "./FirstRunTemplates"
 import {FirstRunHeroSkeleton} from "./states/FirstRunHeroSkeleton"
 import {useEphemeralAgent} from "./useEphemeralAgent"
@@ -55,6 +56,7 @@ export const FirstRunScreen = ({
     /** A pick made on another page (`?template=`): the agent is created on landing. */
     templateKey?: string
 }) => {
+    const t = useT(agentsFirstRun)
     const newAgent = useNewAgentAction(base)
     const router = useRouter()
     const {entityId, error: mintError, retry} = useEphemeralAgent(true)
@@ -198,15 +200,15 @@ export const FirstRunScreen = ({
                         <>
                             <h1 className="m-0 text-2xl font-semibold leading-tight lg:text-[32px]">
                                 {template
-                                    ? FIRST_RUN_COPY.templateTitle(template.name)
-                                    : FIRST_RUN_COPY.title}
+                                    ? t("agents.firstRun.templateTitle", {name: template.name})
+                                    : t("agents.firstRun.title")}
                             </h1>
                             {/* A template hero DESCRIBES ("Reviews PRs, comments inline…"), it
                                 does not repeat the build prompt — that sits in the editor below.
                                 `description` is the card's one-liner; the clamp guards a template
                                 that overruns it. */}
                             <p className="text-muted-foreground m-0 line-clamp-2 text-sm lg:text-base">
-                                {template ? template.description : FIRST_RUN_COPY.subtitle}
+                                {template ? template.description : t("agents.firstRun.subtitle")}
                             </p>
                         </>
                     )}
@@ -244,19 +246,19 @@ export const FirstRunScreen = ({
                             onClick={retry}
                             className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline"
                         >
-                            Try again
+                            {t("agents.firstRun.tryAgain")}
                         </button>
                     </p>
                 ) : null}
                 {!template && arrivalUnresolved && arrivalLookup.status === "error" ? (
                     <p className="text-destructive m-0 text-xs">
-                        {FIRST_RUN_COPY.templateLoadError}{" "}
+                        {t("agents.firstRun.templateLoadError")}{" "}
                         <button
                             type="button"
                             onClick={() => refetchTemplates()}
                             className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline"
                         >
-                            Try again
+                            {t("agents.firstRun.tryAgain")}
                         </button>
                     </p>
                 ) : null}

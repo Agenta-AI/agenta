@@ -1,6 +1,11 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createHarnessTracePort } from "../../src/engines/sandbox_agent/harness-trace-port.ts";
+import type { SessionEnvironment } from "../../src/engines/sandbox_agent/runtime-contracts.ts";
+import type { AgentRunRequest } from "../../src/protocol.ts";
 import { Redactor } from "../../src/redaction.ts";
 import { createPiTraceTurnExport } from "../../src/tracing/pi-trace-turn-export.ts";
 import {
@@ -242,5 +247,65 @@ describe("createPiTraceTurnExport", () => {
     await turn.emitMissingBatchFallback("duplicate");
     expect(fallback).toEqual(["missing"]);
     await turn.teardown();
+  });
+});
+
+describe("Pi turn control file", () => {
+  /** Open a Pi turn channel on a local telemetry dir and return the control file it wrote. */
+  async function publishedControl(
+    request: AgentRunRequest,
+  ): Promise<Record<string, unknown>> {
+    const dir = await mkdtemp(join(tmpdir(), "pi-trace-control-"));
+    const env = {
+      plan: {
+        isPi: true,
+        isDaytona: false,
+        workspace: { telemetryDir: dir, skillDirs: [], skillsDropped: [] },
+      },
+      logger: () => {},
+      sessionId: "sess-1",
+    } as unknown as SessionEnvironment;
+    const port = createHarnessTracePort({
+      env,
+      request: () => request,
+      target: {
+        endpoint: "http://collector.example/v1/traces",
+        authorization: () => "Secret test",
+        authorizationSource: "platform",
+      },
+      resume: false,
+    });
+    try {
+      await port.start(
+        { traceId: () => undefined } as never,
+        new Redactor({ mode: "known" }),
+      );
+      return JSON.parse(
+        await readFile(join(dir, PI_TRACE_CONTROL_FILE), "utf8"),
+      ) as Record<string, unknown>;
+    } finally {
+      await env.piTraceExport?.teardown();
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("carries the session turn id when the request sets one", async () => {
+    const control = await publishedControl({
+      sessionId: "sess-1",
+      turnId: "execution-2",
+      sessionTurnId: "turn-1",
+    });
+    expect(control.sessionTurnId).toBe("turn-1");
+    expect(control.sessionId).toBe("sess-1");
+  });
+
+  it("carries the execution's turn id on a fresh turn", async () => {
+    const control = await publishedControl({ sessionId: "sess-1", turnId: "turn-1" });
+    expect(control.sessionTurnId).toBe("turn-1");
+  });
+
+  it("carries no turn id on a run with no session", async () => {
+    const control = await publishedControl({ turnId: "execution-1" });
+    expect(control.sessionTurnId).toBeUndefined();
   });
 });

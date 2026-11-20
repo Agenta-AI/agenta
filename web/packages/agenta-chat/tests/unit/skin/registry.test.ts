@@ -121,6 +121,7 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             detail: undefined,
             summary: undefined,
             verb: {running: "Adding", done: "Added"},
+            frame: {running: "Adding {{object}}", done: "Added {{object}}"},
             icon: "gateway",
         })
     })
@@ -139,6 +140,7 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             detail: undefined,
             summary: undefined,
             verb: {running: "Searching", done: "Searched"},
+            frame: {running: "Searching {{object}}", done: "Searched {{object}}"},
             icon: "mcp",
         })
     })
@@ -155,6 +157,7 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             detail: undefined,
             summary: undefined,
             verb: undefined,
+            frame: undefined,
             icon: "platform",
         })
     })

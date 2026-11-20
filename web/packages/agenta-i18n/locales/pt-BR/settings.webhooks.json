@@ -1,0 +1,13 @@
+{
+    "emptyDescription": "Inscreva um endpoint para receber eventos de fluxos de trabalho como requisições HTTP assinadas.",
+    "emptyTitle": "Nenhum webhook ainda",
+    "events": "Eventos",
+    "paused": "Webhook pausado",
+    "pausedStatus": "Pausado",
+    "resumed": "Webhook retomado",
+    "subscribe": "Inscrever",
+    "target": "Destino",
+    "test": "Testar",
+    "updateFailed": "Falha ao atualizar o webhook",
+    "webhookActions": "Ações do webhook"
+}

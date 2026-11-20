@@ -1,0 +1,22 @@
+{
+    "codeHeading": "Confira sua caixa de entrada",
+    "codeSubheading": "Digite o código de 6 caracteres que enviamos para o seu e-mail.",
+    "continueWithSso": "Continuar com SSO ({{provider}})",
+    "headingNew": "Boas-vindas ao Agenta",
+    "headingReturning": "Bem-vindo de volta",
+    "noAuthMethods": "Nenhum método de login está habilitado nesta implantação. Entre em contato com o administrador.",
+    "noMethodForEmail": "Este e-mail não tem nenhum método de login aqui. Tente outro endereço.",
+    "otpHeading": "Receba um código de login",
+    "otpSubheading": "Enviaremos um código de uso único para este endereço.",
+    "passwordHeading": "Digite sua senha",
+    "passwordSubheading": "Novo no Agenta? A senha que você escolher aqui cria a sua conta.",
+    "providerUnreachable": "Não foi possível acessar esse provedor. Tente novamente.",
+    "redirectingTo": "Redirecionando para {{provider}}…",
+    "signedInButAppFailed": "Login feito, mas o app não pôde ser aberto. Tente novamente.",
+    "ssoHeading": "Faça login com SSO",
+    "ssoSubheading": "Sua organização gerencia o login deste e-mail.",
+    "subheadingNew": "Faça login ou crie uma conta.",
+    "subheadingReturning": "Faça login para continuar no seu espaço de trabalho.",
+    "termsNotice": "Ao continuar, você concorda com os <terms>Termos de Serviço</terms> e a <privacy>Política de Privacidade</privacy> do Agenta.",
+    "or": "ou"
+}

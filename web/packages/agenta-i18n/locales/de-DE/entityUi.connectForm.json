@@ -1,0 +1,17 @@
+{
+    "popupBlocked": "Pop-up blockiert. Weiterleitung in diesem Tab.",
+    "onlyMe": "Nur ich",
+    "onlyMeNote": "Wird verwendet, wenn Sie einen Agent ausführen, der das eigene {{name}} jeder Person nutzt. Ihr erstes {{name}}-Konto wird Ihr Standard.",
+    "everyoneInProject": "Alle in {{project}}",
+    "everyoneInThisProject": "Alle in diesem Projekt",
+    "everyoneNote": "Ein Agent in diesem Projekt kann es als Konto des Agents verwenden, für jede Person, die ihn ausführt.",
+    "connectName": "{{name}} verbinden",
+    "name": "Name",
+    "required": "Erforderlich",
+    "namePlaceholder": "z. B. Mein {{name}}-Konto",
+    "whoCanUseIt": "Wer es nutzen kann",
+    "authMethod": "Authentifizierungsmethode",
+    "apiKey": "API-Schlüssel",
+    "submitFailed": "Die Verbindung konnte nicht gestartet werden, der Server hat sie abgelehnt. Versuchen Sie es erneut. Wenn es weiter fehlschlägt, ist der Verbindungsanbieter dieser Installation nicht konfiguriert.",
+    "connect": "Verbinden"
+}

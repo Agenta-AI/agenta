@@ -1,0 +1,17 @@
+{
+    "chooseAnEvent": "选择事件",
+    "addAppTrigger": "添加应用触发器",
+    "searchIntegrations": "搜索集成…",
+    "searchEvents": "搜索事件…",
+    "connectionsHint": "选择一个事件即可创建触发器，无需设置。",
+    "noTriggers": "此应用没有触发器",
+    "popupBlocked": "弹出窗口被拦截。正在当前标签页中跳转。",
+    "connectTo": "连接到 {{name}}",
+    "name": "名称",
+    "nameTip": "此连接的显示名称",
+    "required": "必填",
+    "namePlaceholder": "例如：我的 {{name}} 账户",
+    "authMethod": "认证方式",
+    "apiKey": "API 密钥",
+    "connect": "连接"
+}

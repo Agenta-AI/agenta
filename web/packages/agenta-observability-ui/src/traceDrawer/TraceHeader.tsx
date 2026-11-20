@@ -7,6 +7,8 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@agenta/entities/trace"
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import {buildTraceUrlParams as buildTraceQueryParams} from "@agenta/observability"
 import {observabilityScopeAtom, useObservability} from "@agenta/observability"
@@ -47,6 +49,7 @@ const TraceHeader = ({
     activeTraceIndex: _activeTraceIndex,
     setSelected,
 }: TraceHeaderProps) => {
+    const t = useT(drawerCatalog)
     const {traces: tableTracesRaw, hasMoreTraces, fetchMoreTraces} = useObservability()
     // `selectedAppIdAtom` in the app; the package reads the same value through its host seam.
     const appId = useAtomValue(observabilityScopeAtom).appId
@@ -496,8 +499,13 @@ const TraceHeader = ({
                         </div>
                     )}
 
-                    <span className="shrink-0 text-sm font-medium">Trace</span>
-                    <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
+                    <span className="shrink-0 text-sm font-medium">
+                        {t("observabilityUi.traceDrawer.trace")}
+                    </span>
+                    <TooltipWithCopyAction
+                        copyText={displayTraceId}
+                        title={t("observabilityUi.traceDrawer.copyTraceId")}
+                    >
                         {/* min-w-0 + truncate: a 32-char id ends in an ellipsis on a narrow
                             panel rather than widening the row. */}
                         <Tag
@@ -512,7 +520,7 @@ const TraceHeader = ({
                     disabled={!activeTraceKey}
                 >
                     <EnhancedButton size="small" disabled={!activeTraceKey}>
-                        Add annotation queue
+                        {t("observabilityUi.traceDrawer.addAnnotationQueue")}
                     </EnhancedButton>
                 </AddToQueuePopover>
             </div>

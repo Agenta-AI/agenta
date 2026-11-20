@@ -1,6 +1,8 @@
 import {addSimpleQueueTraces, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {addAllMatchingTracesToQueue, BatchFlushError} from "@agenta/entities/simpleQueue/etl"
 import {inferQueueMaxFromPlan} from "@agenta/entities/trace/etl"
+import {createT, formatNumber} from "@agenta/i18n"
+import queueAllCatalog from "@agenta/i18n/catalogs/observability.queueAll"
 import {
     buildTraceQueryParams,
     createAdaptiveTracePageFetcher,
@@ -11,6 +13,8 @@ import {
 import {axios, getAgentaApiUrl, getHostQueryClient, isBillingEnabled} from "@agenta/shared/api"
 import {message, modal} from "@agenta/ui/app-message"
 import type {NoticeType} from "@agenta/ui/app-message"
+
+const tNow = createT(queueAllCatalog)
 
 export interface AddAllMatchingInput {
     queue: Pick<SimpleQueue, "id" | "name">
@@ -31,10 +35,10 @@ export interface AddAllMatchingInput {
 export const confirmEveryTrace = () =>
     new Promise<boolean>((resolve) => {
         modal.confirm({
-            title: "Add every trace to the queue?",
-            content: "No filter is active. This will queue every trace in the project. Continue?",
-            okText: "Continue",
-            cancelText: "Cancel",
+            title: tNow("observability.queueAll.confirmTitle"),
+            content: tNow("observability.queueAll.confirmContent"),
+            okText: tNow("observability.queueAll.continue"),
+            cancelText: tNow("observability.queueAll.cancel"),
             onOk: () => resolve(true),
             onCancel: () => resolve(false),
         })
@@ -58,7 +62,7 @@ const readQueueCap = async (projectId: string): Promise<number> => {
     return inferQueueMaxFromPlan(subscription?.plan)
 }
 
-const count = (value: number) => value.toLocaleString()
+const count = (value: number) => formatNumber(value)
 
 /**
  * Marks the queue's cached data stale, so its pages show the new items. The keys are the ones the
@@ -102,7 +106,7 @@ const scan = async (
     const owned = () => current === controller && !pageSignal.aborted
     const query = buildTraceQueryParams(input.filters, input.sort, input.traceTabs)
     const addedBefore = added.size
-    const queueName = queue.name || "queue"
+    const queueName = queue.name || tNow("observability.queueAll.queueFallbackName")
     const maxItems = await readQueueCap(projectId)
     const max = count(maxItems)
     if (!owned()) return
@@ -116,12 +120,15 @@ const scan = async (
             action,
             content: <QueueToast title={title} description={description} />,
         })
-    const cancel = {label: "Cancel", onClick: () => controller.abort()}
+    const cancel = {label: tNow("observability.queueAll.cancel"), onClick: () => controller.abort()}
     const showRunning = () =>
         show({
             type: "loading",
-            title: `Queuing traces to "${queueName}"`,
-            description: `Queued ${count(added.size)} of up to ${max} traces…`,
+            title: tNow("observability.queueAll.runningTitle", {queue: queueName}),
+            description: tNow("observability.queueAll.runningDescription", {
+                added: count(added.size),
+                max,
+            }),
             duration: 0,
             action: cancel,
         })
@@ -129,10 +136,12 @@ const scan = async (
         if (!owned()) return
         show({
             type: "loading",
-            title: "Rate limited, pausing",
-            description:
-                `Queued ${count(added.size)} of up to ${max} traces. The server is throttling ` +
-                `requests; retrying in ${Math.ceil(delayMs / 1000)}s…`,
+            title: tNow("observability.queueAll.rateLimitedTitle"),
+            description: tNow("observability.queueAll.rateLimitedDescription", {
+                added: count(added.size),
+                max,
+                seconds: Math.ceil(delayMs / 1000),
+            }),
             duration: 0,
             action: cancel,
         })
@@ -184,8 +193,11 @@ const scan = async (
         if (result.stoppedBy === "cancelled") {
             show({
                 type: "warning",
-                title: "Cancelled",
-                description: `${count(added.size)} traces queued to "${queueName}" before you stopped.`,
+                title: tNow("observability.queueAll.cancelledTitle"),
+                description: tNow("observability.queueAll.cancelledDescription", {
+                    added: count(added.size),
+                    queue: queueName,
+                }),
                 duration: 6,
             })
             return
@@ -193,24 +205,23 @@ const scan = async (
         if (added.size === 0) {
             show({
                 type: "info",
-                title: "Nothing queued",
-                description: "No traces match this filter, so nothing was queued.",
+                title: tNow("observability.queueAll.nothingQueuedTitle"),
+                description: tNow("observability.queueAll.nothingQueuedDescription"),
                 duration: 6,
             })
             return
         }
         show({
             type: "success",
-            title: `Queued ${count(added.size)} traces`,
+            title: tNow("observability.queueAll.queuedTitle", {added: count(added.size)}),
             description:
                 result.stoppedBy === "cap"
-                    ? `Queued to "${queueName}". Hit the ${max}-trace limit for one run. ` +
-                      `Narrow the filter to queue the rest. They'll appear as the queue processes.`
-                    : `Queued to "${queueName}". They'll appear as the queue processes.`,
+                    ? tNow("observability.queueAll.queuedCapped", {queue: queueName, max})
+                    : tNow("observability.queueAll.queuedDescription", {queue: queueName}),
             duration: 6,
             action: onViewQueue
                 ? {
-                      label: "View queue",
+                      label: tNow("observability.queueAll.viewQueue"),
                       onClick: () => onViewQueue(queue.id),
                   }
                 : undefined,
@@ -218,12 +229,18 @@ const scan = async (
     } catch (error) {
         if (added.size > addedBefore) refreshQueueCaches(queue.id)
         if (!owned()) return
-        const retry = {label: "Retry", onClick: () => void start(input, added)}
+        const retry = {
+            label: tNow("observability.queueAll.retry"),
+            onClick: () => void start(input, added),
+        }
         if (error instanceof BatchFlushError) {
             show({
                 type: "error",
-                title: "Queue add incomplete",
-                description: `Queued ${count(added.size)} traces; ${count(error.failedCount)} failed to queue.`,
+                title: tNow("observability.queueAll.incompleteTitle"),
+                description: tNow("observability.queueAll.incompleteDescription", {
+                    added: count(added.size),
+                    failed: count(error.failedCount),
+                }),
                 duration: 0,
                 action: retry,
             })
@@ -233,10 +250,12 @@ const scan = async (
         const partial = added.size > 0
         show({
             type: "error",
-            title: partial ? "Queue add incomplete" : "Queue add failed",
+            title: partial
+                ? tNow("observability.queueAll.incompleteTitle")
+                : tNow("observability.queueAll.failedTitle"),
             description: partial
-                ? `Queued ${count(added.size)} traces before the scan stopped. Try again to queue the rest.`
-                : "Something went wrong. Try again.",
+                ? tNow("observability.queueAll.partialDescription", {added: count(added.size)})
+                : tNow("observability.queueAll.genericError"),
             duration: 0,
             action: retry,
         })

@@ -1,5 +1,8 @@
 import {useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import columnsCatalog from "@agenta/i18n/catalogs/observabilityUi.columns"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {
     LinkedSpanRow,
     linkedSpansAtom,
@@ -55,6 +58,7 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceWithEvaluatorMetrics[]) =>
 }
 
 const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
+    const t = useT(drawerCatalog, columnsCatalog)
     const linkTargets = useAtomValue(linkedSpanTargetsAtom)
     const linkedSpans = useAtomValue(linkedSpansAtom)
     const linkedSpansQuery = useAtomValue(linkedSpanTracesQueryAtom)
@@ -70,8 +74,8 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
     )
 
     const baseColumns = useMemo<ColumnDefs<LinkedSpanTableRow>>(
-        () => getObservabilityColumns({evaluatorSlugs}) as ColumnDefs<LinkedSpanTableRow>,
-        [evaluatorSlugs],
+        () => getObservabilityColumns({evaluatorSlugs, t}) as ColumnDefs<LinkedSpanTableRow>,
+        [evaluatorSlugs, t],
     )
 
     const navigateToLink = useCallback(
@@ -112,7 +116,10 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
                 const spanId = record.span_id || ""
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
-                    <EnhancedTooltip copyText={spanId} title="Copy span id">
+                    <EnhancedTooltip
+                        copyText={spanId}
+                        title={t("observabilityUi.traceDrawer.copySpanId")}
+                    >
                         <Tag
                             className="font-mono bg-[var(--ag-c-0517290F)]"
                             onClick={() => navigateToLink(record)}
@@ -133,7 +140,7 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
                 column.title !== "ID",
         )
         return [idColumn, ...filtered]
-    }, [baseColumns, navigateToLink])
+    }, [baseColumns, navigateToLink, t])
 
     const loadMore = useCallback(() => {}, [])
 
@@ -143,7 +150,9 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
     if (!hasLinks) {
         return (
             <div className="flex items-center justify-center">
-                <span className="text-colorTextSecondary">No linked spans found.</span>
+                <span className="text-colorTextSecondary">
+                    {t("observabilityUi.traceDrawer.noLinkedSpans")}
+                </span>
             </div>
         )
     }

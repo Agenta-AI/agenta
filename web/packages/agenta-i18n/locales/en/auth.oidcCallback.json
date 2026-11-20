@@ -1,0 +1,6 @@
+{
+    "backToSignIn": "Back to sign in",
+    "codeUsed": "This sign-in link was already used. Sign in again.",
+    "securityCheckFailed": "Security check failed. Try again.",
+    "signedInButAppFailed": "Signed in, but the app could not open. Try again."
+}

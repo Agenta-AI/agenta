@@ -1,12 +1,16 @@
 // Add-skills picker: the home page's agent rows, each a toggle that follows the latest version.
 import {useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import {SkillMark} from "@agenta/ui/agent-icon"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, SearchInput} from "@agenta/ui/ui"
-import {Check, Lightning, Plus} from "@phosphor-icons/react"
+import {Check, Plus} from "@phosphor-icons/react"
 
-import {SkillAvatar} from "./SkillCard"
+import {filterSkillOptions} from "./pickerOptions"
+import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
 export interface SkillAddChoice {
@@ -50,33 +54,29 @@ function SkillRow({
     onAdd: () => void
     onRemove: () => void
 }) {
+    const t = useT(skillsGalleryCatalog)
     return (
         <button
             type="button"
             disabled={busy}
             onClick={option.added ? onRemove : onAdd}
             aria-pressed={Boolean(option.added)}
-            aria-label={`${option.added ? "Remove" : "Add"} ${option.slug}`}
+            aria-label={`${option.added ? "Remove" : "Add"} ${skillTitle(option)}`}
             className={cn(ROW, option.added && "bg-accent")}
         >
-            <SkillAvatar
-                origin={option.origin}
-                slug={option.slug}
-                className="size-[34px] rounded-[10px] text-[13px]"
-            />
+            <SkillMark size={32} />
             {/* The description line renders even when empty, so rows keep one height. */}
             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="truncate font-mono text-sm leading-[1.45] text-foreground">
-                    {option.name || option.slug}
+                <span className="truncate text-sm leading-[1.45] text-foreground">
+                    {skillTitle(option)}
                 </span>
                 <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
-                    {option.description?.trim() || "No description"}
+                    {option.description?.trim() || t("skills.gallery.noDescription")}
                 </span>
             </span>
             {option.origin === "builtin" ? (
-                <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[10px] text-muted-foreground">
-                    <Lightning size={10} weight="fill" />
-                    Agenta
+                <span className="shrink-0 pl-2 text-[10px] text-muted-foreground">
+                    {t("skills.gallery.agentaBadge")}
                 </span>
             ) : option.source ? (
                 <span className="hidden max-w-32 shrink-0 truncate rounded bg-muted px-1.5 py-px font-mono text-[10px] text-muted-foreground sm:block">
@@ -86,7 +86,9 @@ function SkillRow({
             {option.added ? (
                 <Check aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
             ) : (
-                <span className="ml-2 shrink-0 text-[13px] text-muted-foreground">Add</span>
+                <span className="ml-2 shrink-0 text-[13px] text-muted-foreground">
+                    {t("skills.gallery.add")}
+                </span>
             )}
         </button>
     )
@@ -102,6 +104,7 @@ export function SkillPickerDrawer({
     onNewSkill,
     width = 480,
 }: SkillPickerDrawerProps) {
+    const t = useT(skillsGalleryCatalog)
     const [search, setSearch] = useState("")
     const [busy, setBusy] = useState(false)
     // Done is inert until a tap has changed the agent: with nothing done, it is only Close.
@@ -124,16 +127,7 @@ export function SkillPickerDrawer({
         }
     }, [open])
 
-    const visible = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        if (!q) return options
-        return options.filter(
-            (o) =>
-                o.slug.toLowerCase().includes(q) ||
-                o.name.toLowerCase().includes(q) ||
-                (o.description ?? "").toLowerCase().includes(q),
-        )
-    }, [options, search])
+    const visible = useMemo(() => filterSkillOptions(options, search), [options, search])
 
     return (
         <EnhancedDrawer
@@ -145,9 +139,9 @@ export function SkillPickerDrawer({
             destroyOnClose
             title={
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">Add skills</span>
+                    <span className="text-sm font-medium">{t("skills.gallery.addSkills")}</span>
                     <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        Reference registry skills from this agent.
+                        {t("skills.gallery.addSkillsHint")}
                     </span>
                 </div>
             }
@@ -156,7 +150,7 @@ export function SkillPickerDrawer({
             }}
             footer={
                 <Button variant="default" onClick={onClose} disabled={!changed || busy}>
-                    Done
+                    {t("skills.gallery.done")}
                 </Button>
             }
         >
@@ -165,8 +159,8 @@ export function SkillPickerDrawer({
                     ways in, side by side. */}
                 <div className="flex items-center gap-2">
                     <SearchInput
-                        placeholder="Search skills..."
-                        aria-label="Search skills"
+                        placeholder={t("skills.gallery.searchPlaceholder")}
+                        aria-label={t("skills.gallery.searchAria")}
                         value={search}
                         onValueChange={setSearch}
                     />
@@ -180,7 +174,7 @@ export function SkillPickerDrawer({
                         className="shrink-0 gap-1.5"
                     >
                         <Plus size={14} />
-                        New skill
+                        {t("skills.gallery.newSkill")}
                     </Button>
                 </div>
 
@@ -192,13 +186,13 @@ export function SkillPickerDrawer({
                             <span className="flex flex-col gap-1 text-xs">
                                 <span className="font-medium text-[var(--ag-colorText)]">
                                     {search.trim()
-                                        ? "No skills match your search"
-                                        : "No skills yet"}
+                                        ? t("skills.gallery.noMatchTitle")
+                                        : t("skills.gallery.noSkillsTitle")}
                                 </span>
                                 <span>
                                     {search.trim()
-                                        ? "Try a different name."
-                                        : "Create one below — it lands in the registry and on this agent."}
+                                        ? t("skills.gallery.noMatchName")
+                                        : t("skills.gallery.createBelow")}
                                 </span>
                             </span>
                         }

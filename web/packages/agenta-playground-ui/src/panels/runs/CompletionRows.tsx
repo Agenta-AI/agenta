@@ -2,6 +2,8 @@ import {useMemo, type ReactNode} from "react"
 
 import {resolveTemplateFormat} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {executionItemController} from "@agenta/playground"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
@@ -28,6 +30,7 @@ export interface CompletionRowsProps {
 
 /** The test case rows of a completion app, in order, with the button that adds one. */
 export const CompletionRows = ({entityId, renderTraceFooter}: CompletionRowsProps) => {
+    const t = useT(runsCatalog)
     const rowIds = useAtomValue(
         useMemo(() => executionItemController.selectors.rowIdsForEntity(entityId), [entityId]),
     )
@@ -54,7 +57,7 @@ export const CompletionRows = ({entityId, renderTraceFooter}: CompletionRowsProp
             <div className="px-4 py-3">
                 <Button variant="outline" size="sm" onClick={() => addRow()}>
                     <Plus />
-                    Test case
+                    {t("playground.runs.testCase")}
                 </Button>
             </div>
         </div>

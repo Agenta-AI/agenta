@@ -1,0 +1,8 @@
+{
+    "deleteBody": "Löscht {{name}} dauerhaft, einschließlich aller Agents, Datensätze und Bereitstellungen.",
+    "deleteTitle": "Projekt löschen",
+    "deleting": "Wird gelöscht…",
+    "namePlaceholder": "Projektname",
+    "newDescription": "Projekte fassen Ihre Agents, Datensätze und Bereitstellungen zusammen.",
+    "newTitle": "Neues Projekt"
+}

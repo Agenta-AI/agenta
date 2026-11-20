@@ -738,3 +738,53 @@ async def test_a_cursor_of_another_session_is_invalid(dao, project_and_stream):
         windowing=Windowing(order="descending", next=bob_turns[5].id),
     )
     assert [t.turn_index for t in page] == [4, 3, 2, 1, 0]
+
+
+async def test_find_turn_by_turn_id_or_trace_id(dao, project_and_stream):
+    """find_turn matches the `turn_id` column (not the row key) or the trace id."""
+    project_id = project_and_stream["project_id"]
+    stream_id = project_and_stream["stream_id"]
+    session_id = project_and_stream["session_id"]
+    user_id = project_and_stream["user_id"]
+
+    turn_ids = [uuid.uuid4(), uuid.uuid4()]
+    trace_ids = [uuid.uuid4(), uuid.uuid4()]
+    rows = []
+    for index in range(2):
+        rows.append(
+            await dao.append(
+                project_id=project_id,
+                user_id=user_id,
+                turn=SessionTurnCreate(
+                    session_id=session_id,
+                    turn_id=turn_ids[index],
+                    stream_id=stream_id,
+                    turn_index=index,
+                    harness_kind=HarnessKind.PI,
+                    trace_id=trace_ids[index],
+                    span_id=uuid.uuid4().hex[:16],
+                    start_time=datetime.now(timezone.utc),
+                ),
+            )
+        )
+
+    by_turn = await dao.find_turn(
+        project_id=project_id, session_id=session_id, turn_id=turn_ids[0]
+    )
+    assert by_turn is not None and by_turn.id == rows[0].id
+
+    by_trace = await dao.find_turn(project_id=project_id, trace_id=trace_ids[1])
+    assert by_trace is not None and by_trace.id == rows[1].id
+
+    by_session = await dao.find_turn(project_id=project_id, session_id=session_id)
+    assert by_session is not None and by_session.turn_index == 1
+
+    # The row key is not a turn id.
+    assert (
+        await dao.find_turn(
+            project_id=project_id, session_id=session_id, turn_id=rows[0].id
+        )
+        is None
+    )
+    assert await dao.find_turn(project_id=project_id) is None
+    assert await dao.find_turn(project_id=uuid.uuid4(), trace_id=trace_ids[0]) is None

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {
     Button,
     Empty,
@@ -17,25 +19,30 @@ export const AgentsNoMatch = ({
     /** The search that matched nothing. Absent ⇒ the filters are what narrowed it. */
     term?: string
     onClear?: () => void
-}) => (
-    <Empty className="py-14">
-        <EmptyHeader>
-            <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
-            <EmptyTitle>
-                {term ? `Nothing matches “${term}”` : "No agents match these filters"}
-            </EmptyTitle>
-            <EmptyDescription>
-                {term
-                    ? "Try a shorter search, or check the filters — they narrow this list too."
-                    : "Try widening the filters, or including archived agents."}
-            </EmptyDescription>
-        </EmptyHeader>
-        {onClear ? (
-            <EmptyContent>
-                <Button size="sm" variant="outline" onClick={onClear}>
-                    {term ? "Clear search" : "Clear filters"}
-                </Button>
-            </EmptyContent>
-        ) : null}
-    </Empty>
-)
+}) => {
+    const t = useT(agentsList)
+    return (
+        <Empty className="py-14">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
+                <EmptyTitle>
+                    {term
+                        ? t("agents.list.noMatchSearchTitle", {term})
+                        : t("agents.list.noMatchFiltersTitle")}
+                </EmptyTitle>
+                <EmptyDescription>
+                    {term
+                        ? t("agents.list.noMatchSearchBody")
+                        : t("agents.list.noMatchFiltersBody")}
+                </EmptyDescription>
+            </EmptyHeader>
+            {onClear ? (
+                <EmptyContent>
+                    <Button size="sm" variant="outline" onClick={onClear}>
+                        {term ? t("agents.list.clearSearch") : t("agents.list.clearFilters")}
+                    </Button>
+                </EmptyContent>
+            ) : null}
+        </Empty>
+    )
+}

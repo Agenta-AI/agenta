@@ -1,0 +1,18 @@
+{
+    "attachmentsLabel": "{{count}} Anhänge",
+    "attachmentsOnly": "(nur Anhänge)",
+    "cancel": "Abbrechen",
+    "cancelEditing": "Bearbeitung abbrechen",
+    "editQueued": "Nachricht in der Warteschlange bearbeiten",
+    "emptyMessage": "(leere Nachricht)",
+    "noLongerQueued": "Diese Nachricht befindet sich nicht mehr in der Warteschlange.",
+    "queuedCount_one": "{{count}} Nachricht in der Warteschlange",
+    "queuedCount_other": "{{count}} Nachrichten in der Warteschlange",
+    "quotesLabel_one": "{{count}} Zitat",
+    "quotesLabel_other": "{{count}} Zitate",
+    "removeQueued": "Nachricht aus der Warteschlange entfernen",
+    "sendBlocked": "Zuerst wird eine andere Nachricht gesendet",
+    "sendNow": "Jetzt senden",
+    "sending": "Wird gesendet",
+    "waitsForAnswer": " · wartet auf Ihre Antwort"
+}

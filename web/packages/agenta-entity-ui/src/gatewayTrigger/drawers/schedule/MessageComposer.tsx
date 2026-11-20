@@ -1,5 +1,7 @@
 /** The schedule drawer's "Message" field — what the agent is told on each run. */
 import {getScheduleMessage, setScheduleMessage} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
 import {AutosizeTextarea} from "@agenta/ui/ui"
 
 // ---------------------------------------------------------------------------
@@ -22,6 +24,7 @@ export function MessageComposer({
     primaryKey: string
     disabled?: boolean
 }) {
+    const t = useT(triggerScheduleCatalog)
     const message = getScheduleMessage(inputsText, isChat, primaryKey)
     // The composer writes a single user message, so anything richer would be lost on edit.
     const wouldReplace = !message && !!inputsText.trim() && inputsText.trim() !== "{}"
@@ -29,7 +32,7 @@ export function MessageComposer({
     return (
         <div className="flex flex-col gap-1.5">
             <AutosizeTextarea
-                placeholder="Summarize yesterday's support tickets and post the digest to #ops."
+                placeholder={t("entityUi.triggerSchedule.messagePlaceholder")}
                 value={message}
                 onChange={(e) =>
                     onChange(setScheduleMessage(inputsText, e.target.value, isChat, primaryKey))
@@ -45,8 +48,8 @@ export function MessageComposer({
                 }`}
             >
                 {wouldReplace
-                    ? "This schedule sends a richer set of inputs than one message — typing here replaces them."
-                    : "Sent to the agent on every run."}
+                    ? t("entityUi.triggerSchedule.richerInputsSchedule")
+                    : t("entityUi.triggerSchedule.sentEveryRun")}
             </span>
         </div>
     )

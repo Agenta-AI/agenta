@@ -1,0 +1,14 @@
+{
+    "title": "Modelos",
+    "subtitle": "Comece com um agente já testado: veja o que ele faz, conecte o que ele precisa e abra o playground.",
+    "searchPlaceholder": "Buscar modelos…",
+    "all": "Todos",
+    "loadError": "Não foi possível carregar os modelos",
+    "sectionCount_one": "{{count}} modelo",
+    "sectionCount_many": "{{count}} modelos",
+    "sectionCount_other": "{{count}} modelos",
+    "noMatch": "Nenhum modelo corresponde a \"{{query}}\".",
+    "noneInCategory": "Não há modelos em {{category}}.",
+    "clearSearch": "Limpar pesquisa",
+    "showAll": "Mostrar todos os modelos"
+}

@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Search, X} from "lucide-react"
 
 import {
@@ -34,31 +36,34 @@ export const ListTableToolbar = ({
     searchAriaLabel?: string
     actions?: ReactNode
     className?: string
-}) => (
-    <div className={cn("mb-3 flex items-center gap-2", className)}>
-        <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
-            <InputGroupAddon>
-                <Search size={14} aria-hidden />
-            </InputGroupAddon>
-            <InputGroupInput
-                value={search}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder={searchPlaceholder}
-                aria-label={searchAriaLabel ?? searchPlaceholder}
-                className="text-[13px] md:text-[13px]"
-            />
-            {search ? (
-                <InputGroupAddon align="inline-end">
-                    <InputGroupButton
-                        size="icon-xs"
-                        aria-label="Clear search"
-                        onClick={() => onSearchChange("")}
-                    >
-                        <X size={14} aria-hidden />
-                    </InputGroupButton>
+}) => {
+    const t = useT(commonCatalog)
+    return (
+        <div className={cn("mb-3 flex items-center gap-2", className)}>
+            <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
+                <InputGroupAddon>
+                    <Search size={14} aria-hidden />
                 </InputGroupAddon>
-            ) : null}
-        </InputGroup>
-        {actions}
-    </div>
-)
+                <InputGroupInput
+                    value={search}
+                    onChange={(event) => onSearchChange(event.target.value)}
+                    placeholder={searchPlaceholder}
+                    aria-label={searchAriaLabel ?? searchPlaceholder}
+                    className="text-[13px] md:text-[13px]"
+                />
+                {search ? (
+                    <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                            size="icon-xs"
+                            aria-label={t("common.clearSearch")}
+                            onClick={() => onSearchChange("")}
+                        >
+                            <X size={14} aria-hidden />
+                        </InputGroupButton>
+                    </InputGroupAddon>
+                ) : null}
+            </InputGroup>
+            {actions}
+        </div>
+    )
+}

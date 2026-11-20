@@ -1,0 +1,14 @@
+{
+    "back": "Atrás",
+    "bodyAgent": "Todos en {{project}} podrán ejecutar este agente y hacer que use sus cuentas conectadas: {{accounts}}.",
+    "bodyAgentNoAccounts": "Todos en {{project}} podrán ver y ejecutar este agente.",
+    "bodySession": "Verán todo lo de este chat, y cualquiera que pueda enviar puede hacer que el agente use sus cuentas conectadas: {{accounts}}.",
+    "bodySessionNoAccounts": "Verán todo lo de este chat.",
+    "cancel": "Cancelar",
+    "personalAccount": "La cuenta de {{account}} de cada persona",
+    "share": "Compartir",
+    "shareWithProject": "Compartir con el proyecto",
+    "titleAgent": "¿Compartir {{agent}} con el proyecto?",
+    "titlePeople": "¿Compartir con {{names}}?",
+    "titleProject": "¿Compartir con todos en {{project}}?"
+}

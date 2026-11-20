@@ -2,6 +2,9 @@ import {useCallback, useMemo, useState} from "react"
 
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProjectsCatalog from "@agenta/i18n/catalogs/settings.projects"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
@@ -41,13 +44,27 @@ interface ProjectRow extends ProjectsResponse {
     key: string
 }
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "project_name", label: "Project", width: "minmax(0,2fr)"},
-    {key: "status", label: "Status", width: "minmax(0,1fr)"},
-    {key: "user_role", label: "Your role", width: "minmax(0,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
+    {key: "project_name", label: t("common.project"), width: "minmax(0,2fr)"},
+    {key: "status", label: t("common.status"), width: "minmax(0,1fr)"},
+    {key: "user_role", label: t("common.yourRole"), width: "minmax(0,1fr)"},
+    {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["project_name", "status", "actions"]
+
+/** Display names of the stored roles. English shows the stored value, as before. */
+const ROLE_KEYS = {
+    owner: "settings.projects.roleOwner",
+    admin: "settings.projects.roleAdmin",
+    editor: "settings.projects.roleEditor",
+    viewer: "settings.projects.roleViewer",
+    developer: "settings.projects.roleDeveloper",
+    annotator: "settings.projects.roleAnnotator",
+    member: "settings.projects.roleMember",
+} as const
+
+const roleLabel = (role: string, t: (key: (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS]) => string) =>
+    Object.hasOwn(ROLE_KEYS, role) ? t(ROLE_KEYS[role as keyof typeof ROLE_KEYS]) : role
 
 export interface ProjectDialogState<T> {
     open: boolean
@@ -98,6 +115,7 @@ export const ProjectsPage = ({
     canDelete,
     onChanged,
 }: ProjectsPageProps) => {
+    const t = useT(commonCatalog, settingsProjectsCatalog)
     const queryClient = useQueryClient()
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
@@ -123,7 +141,10 @@ export const ProjectsPage = ({
     const showDelete = (canDelete ?? hasDialogs) && Boolean(renderDeleteDialog)
     const canDeleteProjects = scopedProjects.length > 1
 
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const {columns, shows} = usePhoneColumns(
+        useMemo(() => columnsFor(t), [t]),
+        PHONE_KEYS,
+    )
 
     const rows = useMemo<ProjectRow[]>(() => {
         return scopedProjects.map((project) => ({...project, key: project.project_id}))
@@ -139,12 +160,12 @@ export const ProjectsPage = ({
         // the project in the caller's default (often personal) organization.
         mutationFn: (payload: ProjectFormValues) => createProject(payload, workspaceId),
         onSuccess: () => {
-            message.success("Project created")
+            message.success(t("settings.projects.created"))
             void invalidateProjects()
             setCreateModalOpen(false)
         },
         onError: (error) => {
-            message.error(errorDetail(error, "Unable to create project"))
+            message.error(errorDetail(error, t("settings.projects.createFailed")))
         },
     })
 
@@ -159,11 +180,11 @@ export const ProjectsPage = ({
     const defaultMutation = useMutation({
         mutationFn: (projectId: string) => patchProject(projectId, {make_default: true}),
         onSuccess: () => {
-            message.success("Default project updated")
+            message.success(t("settings.projects.defaultUpdated"))
             void invalidateProjects()
         },
         onError: (error) => {
-            message.error(errorDetail(error, "Unable to set default"))
+            message.error(errorDetail(error, t("settings.projects.setDefaultFailed")))
         },
     })
 
@@ -173,11 +194,11 @@ export const ProjectsPage = ({
         mutationFn: (project: ProjectsResponse) =>
             deleteProject(project.project_id, project.workspace_id ?? workspaceId),
         onSuccess: () => {
-            message.success("Project deleted")
+            message.success(t("settings.projects.deleted"))
             void invalidateProjects()
         },
         onError: (error) => {
-            message.error(errorDetail(error, "Unable to delete project"))
+            message.error(errorDetail(error, t("settings.projects.deleteFailed")))
         },
     })
 
@@ -202,7 +223,7 @@ export const ProjectsPage = ({
     const newProject = showCreate ? (
         <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
             <Plus size={14} />
-            New project
+            {t("settings.projects.newProject")}
         </Button>
     ) : null
 
@@ -228,8 +249,8 @@ export const ProjectsPage = ({
                 empty={
                     <SettingsEmpty
                         icon={getSettingsSidebarIcon("projects")}
-                        title="No projects in this workspace yet"
-                        description="Create a project to organize your agents, datasets, and deployments."
+                        title={t("settings.projects.emptyTitle")}
+                        description={t("settings.projects.emptyDescription")}
                         action={newProject}
                     />
                 }
@@ -242,27 +263,33 @@ export const ProjectsPage = ({
                             <InlineName
                                 value={record.project_name}
                                 editing={canEdit && renamingId === record.project_id}
-                                ariaLabel="Project name"
+                                ariaLabel={t("settings.projects.projectName")}
                                 onDone={() => setRenamingId(null)}
                                 onSave={(name) =>
                                     renameMutation
                                         .mutateAsync({projectId: record.project_id, name})
                                         .catch((error) => {
                                             throw new Error(
-                                                errorDetail(error, "Unable to rename project"),
+                                                errorDetail(
+                                                    error,
+                                                    t("settings.projects.renameFailed"),
+                                                ),
                                             )
                                         })
                                 }
                             />
                             {record.is_default_project ? (
-                                <Tag className="m-0 shrink-0" label="Default" />
+                                <Tag
+                                    className="m-0 shrink-0"
+                                    label={t("settings.projects.default")}
+                                />
                             ) : null}
                         </span>
                         <span className="flex min-w-0 items-center gap-2">
                             {record.project_id === currentProjectId ? (
                                 <StatusIndicator
                                     tone="success"
-                                    label="Current"
+                                    label={t("settings.projects.current")}
                                     className="text-[13px]"
                                 />
                             ) : (
@@ -272,25 +299,25 @@ export const ProjectsPage = ({
                         {shows("user_role") ? (
                             <span className="flex min-w-0">
                                 {record.user_role ? (
-                                    <Tag className="m-0" label={record.user_role} />
+                                    <Tag className="m-0" label={roleLabel(record.user_role, t)} />
                                 ) : (
                                     <span className="text-muted-foreground">—</span>
                                 )}
                             </span>
                         ) : null}
                         <SettingsRowMenu
-                            label="Project actions"
+                            label={t("settings.projects.projectActions")}
                             items={[
                                 {
                                     key: "switch",
-                                    label: "Switch to this project",
+                                    label: t("settings.projects.switchTo"),
                                     icon: <ArrowsLeftRight size={14} />,
                                     hidden: !onSwitch || record.project_id === currentProjectId,
                                     onClick: () => onSwitch?.(record),
                                 },
                                 {
                                     key: "rename",
-                                    label: "Rename",
+                                    label: t("common.rename"),
                                     icon: <PencilSimpleLine size={14} />,
                                     hidden: !canEdit,
                                     deferred: true,
@@ -298,18 +325,18 @@ export const ProjectsPage = ({
                                 },
                                 {
                                     key: "copy-id",
-                                    label: "Copy project ID",
+                                    label: t("settings.projects.copyId"),
                                     icon: <Copy size={14} />,
                                     onClick: () =>
                                         void copyWithMessage(
                                             record.project_id,
-                                            "Project ID copied",
-                                            "Couldn't copy the project ID",
+                                            t("settings.projects.idCopied"),
+                                            t("settings.projects.copyIdFailed"),
                                         ),
                                 },
                                 {
                                     key: "default",
-                                    label: "Set as default",
+                                    label: t("settings.projects.setAsDefault"),
                                     icon: <CheckCircle size={14} />,
                                     hidden: !canSetDefault || Boolean(record.is_default_project),
                                     disabled: defaultMutation.isPending,
@@ -318,7 +345,7 @@ export const ProjectsPage = ({
                                 {type: "divider"},
                                 {
                                     key: "delete",
-                                    label: "Delete project",
+                                    label: t("settings.projects.deleteProject"),
                                     icon: <Trash size={14} />,
                                     danger: true,
                                     hidden: !showDelete,

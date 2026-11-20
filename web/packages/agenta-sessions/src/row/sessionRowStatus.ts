@@ -3,6 +3,10 @@ import {
     type SessionRowStatus,
     type SessionStream,
 } from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import sessionsStatusCatalog from "@agenta/i18n/catalogs/sessions.status"
+
+const tNow = createT(sessionsStatusCatalog)
 
 export type {SessionRowStatus}
 
@@ -34,15 +38,21 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
     // A blocked session is the only row that costs you something to miss, so it is the only one
     // that gets words — a 8px dot is not a call to action.
     waiting: {
-        label: "Waiting on you",
+        get label() {
+            return tNow("sessions.status.waitingOnYou")
+        },
         dotClassName: "bg-[var(--ag-run-status-warning)]",
         textClassName: "text-colorWarningText",
         pulse: true,
-        chipLabel: "Waiting",
+        get chipLabel() {
+            return tNow("sessions.status.waiting")
+        },
         chipClassName: "bg-colorWarningBg text-colorWarningText",
     },
     running: {
-        label: "Running",
+        get label() {
+            return tNow("sessions.status.running")
+        },
         // The deep semantic green, not the run-status mint: the pulse dims the dot to half, and at
         // 6px the mint's low half read as washed out rather than live.
         dotClassName: "bg-colorSuccess",
@@ -51,7 +61,9 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
     },
     // The rest are states, not calls to action, so they read as muted as the timestamp beside them.
     alive: {
-        label: "Ready to resume",
+        get label() {
+            return tNow("sessions.status.readyToResume")
+        },
         // Ink, as the nav rail paints it (a FILLED dot in the row's own colour): a warm sandbox
         // is "there", not a colour-coded event. The old info-blue read as a stray tint.
         dotClassName: "bg-colorText",
@@ -59,19 +71,25 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
         pulse: false,
     },
     ended: {
-        label: "Ended",
+        get label() {
+            return tNow("sessions.status.ended")
+        },
         dotClassName: "bg-colorTextQuaternary",
         textClassName: "text-muted-foreground",
         pulse: false,
     },
     archived: {
-        label: "Archived",
+        get label() {
+            return tNow("sessions.status.archived")
+        },
         dotClassName: "bg-colorTextQuaternary",
         textClassName: "text-muted-foreground",
         pulse: false,
     },
     idle: {
-        label: "Idle",
+        get label() {
+            return tNow("sessions.status.idle")
+        },
         dotClassName: "bg-colorBorder",
         textClassName: "text-muted-foreground",
         pulse: false,
@@ -102,16 +120,16 @@ export function sessionRowStatusMeta(status: SessionRowStatus): SessionRowStatus
  * decision on the surface that shows what is being decided.
  */
 export function pendingGateLabel(kinds: string[] | undefined): string {
-    if (!kinds?.length) return "Waiting"
-    if (kinds.length > 1) return "Multiple"
+    if (!kinds?.length) return tNow("sessions.status.waiting")
+    if (kinds.length > 1) return tNow("sessions.status.multiple")
     switch (kinds[0]) {
         case "user_approval":
-            return "Approval"
+            return tNow("sessions.status.approval")
         case "user_input":
-            return "Input"
+            return tNow("sessions.status.input")
         case "client_tool":
-            return "Tool call"
+            return tNow("sessions.status.toolCall")
         default:
-            return "Waiting"
+            return tNow("sessions.status.waiting")
     }
 }

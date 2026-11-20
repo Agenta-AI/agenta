@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 
 import type {SessionStats} from "./sessionTurns"
@@ -12,16 +14,33 @@ const Pill = ({label, value}: {label: string; value: string}) => (
 )
 
 /** Totals for the whole session. The models pill is left out when no trace names a model. */
-export const SessionSummary = ({stats}: {stats: SessionStats}) => (
-    <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">Summary</span>
-        <div className="flex items-center gap-2 overflow-x-auto">
-            <Pill label="Cost" value={formatCurrency(stats.cost)} />
-            <Pill label="Tokens" value={formatTokenUsage(stats.tokens)} />
-            <Pill label="Latency" value={formatLatency(stats.latency / 1000)} />
-            {stats.models.length > 0 ? (
-                <Pill label="Models" value={stats.models.join(", ")} />
-            ) : null}
+export const SessionSummary = ({stats}: {stats: SessionStats}) => {
+    const t = useT(sessionCatalog)
+    return (
+        <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-foreground">
+                {t("observability.sessionDrawer.summary")}
+            </span>
+            <div className="flex items-center gap-2 overflow-x-auto">
+                <Pill
+                    label={t("observability.sessionDrawer.cost")}
+                    value={formatCurrency(stats.cost)}
+                />
+                <Pill
+                    label={t("observability.sessionDrawer.tokens")}
+                    value={formatTokenUsage(stats.tokens)}
+                />
+                <Pill
+                    label={t("observability.sessionDrawer.latency")}
+                    value={formatLatency(stats.latency / 1000)}
+                />
+                {stats.models.length > 0 ? (
+                    <Pill
+                        label={t("observability.sessionDrawer.models")}
+                        value={stats.models.join(", ")}
+                    />
+                ) : null}
+            </div>
         </div>
-    </div>
-)
+    )
+}

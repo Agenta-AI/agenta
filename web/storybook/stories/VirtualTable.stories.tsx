@@ -9,15 +9,13 @@ import {
     type VirtualTableHandle,
 } from "@agenta/ui/table"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Table as AntTable} from "antd"
 
 /**
- * VirtualTable — the antd-free render leaf that replaces `<Table virtual>`.
+ * VirtualTable — the antd-free table render leaf.
  *
  * The app it was built for has three rows of data, so every behaviour that only shows up at
  * scale or in a corner (windowing, pinned columns, merged cells, selection) is exercised here
- * instead. The antd story renders the SAME columns through `<Table virtual>` for a like-for-like
- * comparison.
+ * instead.
  *
  * Stories that need state are components, not `render` arrows: hooks in a story arrow break
  * rules-of-hooks.
@@ -30,7 +28,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Plain table DOM plus row windowing. Replaces antd `<Table virtual>` so `/m` — which replaces web/oss and web/ee — can render the real table without antd in the bundle.",
+                    "Plain table DOM plus row windowing, so `/m` can render a real table without antd in the bundle.",
             },
         },
     },
@@ -623,84 +621,6 @@ export const Empty: Story = {
 }
 
 /**
- * The same columns and rows through antd's `<Table virtual>`, for a like-for-like read on
- * geometry and behaviour. This is the thing being replaced.
- */
-const AntdComparisonDemo = () => {
-    const rows = useMemo(() => makeRows(200), [])
-    return (
-        <div className="flex flex-col gap-6">
-            <div>
-                <p className="m-0 mb-2 text-xs font-medium">@agenta/ui VirtualTable</p>
-                <Frame>
-                    <VirtualTable<Row>
-                        columns={baseColumns}
-                        dataSource={rows}
-                        rowKey={(row) => row.key}
-                        rowHeight={48}
-                        height={420}
-                    />
-                </Frame>
-            </div>
-            <div>
-                <p className="m-0 mb-2 text-xs font-medium">antd Table virtual</p>
-                <div className="h-[420px]">
-                    <AntTable
-                        virtual
-                        size="small"
-                        columns={baseColumns as never}
-                        dataSource={rows}
-                        rowKey="key"
-                        pagination={false}
-                        scroll={{y: 380, x: 1160}}
-                    />
-                </div>
-            </div>
-        </div>
-    )
-}
-
-export const AntdComparison: Story = {render: () => <AntdComparisonDemo />}
-
-/**
- * The wrapper swap: the SAME `InfiniteVirtualTable` API, rendered by each engine.
- *
- * `engine="tanstack"` puts VirtualTable behind the public component, so the ~80 existing call
- * sites move over one at a time by flipping one prop rather than being rewritten. Both tables
- * below get identical props; differences here are regressions.
- */
-const EngineSwapDemo = () => {
-    const rows = useMemo(() => makeRows(12), [])
-    const [clicked, setClicked] = useState("none")
-    const common = {
-        columns: baseColumns,
-        dataSource: rows,
-        rowKey: "key" as const,
-        bodyHeight: 300,
-        // Row clicks must survive the engine swap; they were the one silent loss.
-        tableProps: {
-            onRow: (record: Row) => ({onClick: () => setClicked(record.id)}),
-        },
-    }
-    return (
-        <div className="flex flex-col gap-4">
-            <Note>
-                Top: engine=&quot;antd&quot; (shipping). Bottom: engine=&quot;tanstack&quot;. Last
-                row clicked: <span data-clicked>{clicked}</span>
-            </Note>
-            <div data-engine="antd" className="h-[340px]">
-                <InfiniteVirtualTable<Row> {...common} engine="antd" />
-            </div>
-            <div data-engine="tanstack" className="h-[340px]">
-                <InfiniteVirtualTable<Row> {...common} engine="tanstack" />
-            </div>
-        </div>
-    )
-}
-
-export const EngineSwap: Story = {render: () => <EngineSwapDemo />}
-
-/**
  * The imperative handle. `tableRef.current.scrollTo({index, align})` is the whole surface
  * InfiniteVirtualTable exposes, mapped onto the virtualizer. antd's align vocabulary
  * (top/bottom/auto) differs from the virtualizer's (start/end/auto), so it is translated.
@@ -741,9 +661,9 @@ const ScrollToDemo = () => {
 export const ScrollTo: Story = {render: () => <ScrollToDemo />}
 
 /**
- * Everything at once, through the public `InfiniteVirtualTable` API on the tanstack engine.
+ * Everything at once, through the public `InfiniteVirtualTable` API.
  *
- * This is the "is the swap actually complete" test: selection, resizing, row clicks,
+ * This is the full-surface test: selection, resizing, row clicks,
  * infinite loading, an imperative scrollTo, and a full-width expanded panel, all driven by
  * the props real call sites pass. It should render with no console warnings.
  */
@@ -770,7 +690,6 @@ const KitchenSinkDemo = () => {
             </button>
             <div className="h-[340px]">
                 <InfiniteVirtualTable<Row>
-                    engine="tanstack"
                     columns={baseColumns}
                     dataSource={rows}
                     rowKey="key"
@@ -797,9 +716,7 @@ const KitchenSinkDemo = () => {
 export const KitchenSink: Story = {render: () => <KitchenSinkDemo />}
 
 /**
- * `typeChips` on both engines. It rewrites each column's `title` to carry a type chip, and
- * that rewrite happens on the shared columns before either engine renders, so both should
- * show the same chips. This story is the check on that reasoning.
+ * `typeChips` rewrites each column's `title` to carry a type chip.
  */
 const TypeChipsDemo = () => {
     const rows = useMemo(() => makeRows(10), [])
@@ -808,21 +725,17 @@ const TypeChipsDemo = () => {
             (record as unknown as Record<string, unknown>)[columnKey],
         [],
     )
-    const common = {
-        columns: baseColumns,
-        dataSource: rows,
-        rowKey: "key" as const,
-        bodyHeight: 240,
-        typeChips: {getRowValue},
-    }
     return (
         <div className="flex flex-col gap-4">
-            <Note>Both engines should render the same type chips in their headers.</Note>
-            <div data-engine="antd" className="h-[280px]">
-                <InfiniteVirtualTable<Row> {...common} engine="antd" />
-            </div>
-            <div data-engine="tanstack" className="h-[280px]">
-                <InfiniteVirtualTable<Row> {...common} engine="tanstack" />
+            <Note>The headers carry type chips.</Note>
+            <div className="h-[280px]">
+                <InfiniteVirtualTable<Row>
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey="key"
+                    bodyHeight={240}
+                    typeChips={{getRowValue}}
+                />
             </div>
         </div>
     )
@@ -831,41 +744,26 @@ const TypeChipsDemo = () => {
 export const TypeChips: Story = {render: () => <TypeChipsDemo />}
 
 /**
- * `size` and `bordered`, the last two antd props the tanstack engine did not implement.
- * They are what blocked the observability tables from swapping, so both engines render
- * them here side by side.
+ * `size` and `bordered`. The observability tables pass `bordered` with no size, so the default
+ * size is shown too.
  */
 const DensityDemo = () => {
     const rows = useMemo(() => makeRows(8), [])
-    const common = {
-        columns: baseColumns.slice(0, 3),
-        dataSource: rows,
-        rowKey: "key" as const,
-        bodyHeight: 200,
-    }
-    // The observability tables pass `bordered` with no size, so the DEFAULT has to match too.
     const sizes = [undefined, "small", "middle", "large"] as const
     return (
         <div className="flex flex-col gap-4">
-            <Note>Each size, both engines, bordered. Heights should match per row.</Note>
+            <Note>Each size, bordered.</Note>
             {sizes.map((size) => (
                 <div key={String(size)} className="flex flex-col gap-1">
                     <span className="text-xs text-colorTextSecondary">size={String(size)}</span>
-                    <div data-size={String(size)} className="flex gap-2">
-                        <div data-engine="antd" className="h-[200px] flex-1">
-                            <InfiniteVirtualTable<Row>
-                                {...common}
-                                tableProps={{size, bordered: true}}
-                                engine="antd"
-                            />
-                        </div>
-                        <div data-engine="tanstack" className="h-[200px] flex-1">
-                            <InfiniteVirtualTable<Row>
-                                {...common}
-                                tableProps={{size, bordered: true}}
-                                engine="tanstack"
-                            />
-                        </div>
+                    <div data-size={String(size)} className="h-[200px]">
+                        <InfiniteVirtualTable<Row>
+                            columns={baseColumns.slice(0, 3)}
+                            dataSource={rows}
+                            rowKey="key"
+                            bodyHeight={200}
+                            tableProps={{size, bordered: true}}
+                        />
                     </div>
                 </div>
             ))}
@@ -877,16 +775,14 @@ export const Density: Story = {render: () => <DensityDemo />}
 
 /**
  * `loading` and `style`, both passed through `tableProps` by real call sites. The
- * observability table uses `loading` on every refetch, so flipping engines without it
- * would have silently removed the spinner.
+ * observability table uses `loading` on every refetch.
  */
 export const Loading: Story = {
     render: () => (
         <div className="flex flex-col gap-4">
-            <Note>Left: loading. Right: idle. Both engines share the prop path.</Note>
-            <div data-engine="tanstack" className="h-[240px]">
+            <Note>Loading state.</Note>
+            <div className="h-[240px]">
                 <InfiniteVirtualTable<Row>
-                    engine="tanstack"
                     columns={baseColumns.slice(0, 3)}
                     dataSource={makeRows(6)}
                     rowKey="key"

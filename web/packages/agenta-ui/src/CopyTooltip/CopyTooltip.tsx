@@ -1,6 +1,8 @@
 import {cloneElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {MouseEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {CheckCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -34,6 +36,7 @@ const CopyTooltip = ({
     tooltipProps,
     duration = 1500,
 }: CopyTooltipProps) => {
+    const t = useT(commonCatalog)
     const [isCopied, setIsCopied] = useState(false)
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -62,7 +65,7 @@ const CopyTooltip = ({
     const tooltipDisplay = isCopied ? (
         <div className="flex items-center gap-1">
             <CheckCircle size={14} weight="fill" className="text-colorSuccess" />
-            <span>Copied to clipboard</span>
+            <span>{t("common.copiedToClipboard")}</span>
         </div>
     ) : (
         title

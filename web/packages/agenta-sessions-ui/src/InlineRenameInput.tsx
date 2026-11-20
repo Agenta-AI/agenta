@@ -1,5 +1,8 @@
 import type {RefObject} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
+
 import type {InlineRename} from "./useInlineRename"
 
 /**
@@ -10,7 +13,7 @@ import type {InlineRename} from "./useInlineRename"
  */
 const InlineRenameInput = ({
     rename,
-    ariaLabel = "Session name",
+    ariaLabel,
     className,
     inputRef,
 }: {
@@ -20,23 +23,26 @@ const InlineRenameInput = ({
     className?: string
     /** For a host that has to re-claim focus after the input mounts (see the nav rail). */
     inputRef?: RefObject<HTMLInputElement | null>
-}) => (
-    <input
-        ref={inputRef}
-        autoFocus
-        value={rename.draft}
-        aria-label={ariaLabel}
-        onChange={(event) => rename.setDraft(event.target.value)}
-        onBlur={() => void rename.commit()}
-        onKeyDown={(event) => {
-            if (event.key === "Enter") void rename.commit()
-            if (event.key === "Escape") rename.cancel()
-        }}
-        className={
-            className ??
-            "h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-[13px] leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
-        }
-    />
-)
+}) => {
+    const t = useT(sessionsRowsCatalog)
+    return (
+        <input
+            ref={inputRef}
+            autoFocus
+            value={rename.draft}
+            aria-label={ariaLabel ?? t("sessions.rows.sessionName")}
+            onChange={(event) => rename.setDraft(event.target.value)}
+            onBlur={() => void rename.commit()}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") void rename.commit()
+                if (event.key === "Escape") rename.cancel()
+            }}
+            className={
+                className ??
+                "h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-[13px] leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+            }
+        />
+    )
+}
 
 export default InlineRenameInput

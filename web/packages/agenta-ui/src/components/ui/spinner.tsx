@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {cva, type VariantProps} from "class-variance-authority"
 import {LoaderCircle} from "lucide-react"
 
@@ -37,9 +39,11 @@ export function Spinner({
     className,
     size = "default",
     tip,
-    "aria-label": ariaLabel = "Loading",
+    "aria-label": ariaLabelProp,
     ...props
 }: SpinnerProps) {
+    const t = useT(commonCatalog)
+    const ariaLabel = ariaLabelProp ?? t("common.loading")
     const icon = (
         <LoaderCircle
             data-slot="spinner"

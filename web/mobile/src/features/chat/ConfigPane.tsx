@@ -1,10 +1,12 @@
 import {useCallback} from "react"
 
-import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
+import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {ModelSetupBanner} from "@agenta/chat/components"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
+import {useT} from "@agenta/i18n"
+import chatMobileConfigCatalog from "@agenta/i18n/catalogs/chat.mobileConfig"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {shortcutAria} from "@agenta/shared/utils"
@@ -41,6 +43,7 @@ export const ConfigPane = ({
     filesScope: string
     projectId: string
 }) => {
+    const t = useT(chatMobileConfigCatalog)
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const openModelSetup = useOpenModelSetup()
     // A commit made here pins the new revision to this session.
@@ -104,7 +107,7 @@ export const ConfigPane = ({
                                 <SimpleTooltip
                                     title={
                                         <span className="flex items-center gap-1.5">
-                                            Hide configuration{" "}
+                                            {t("chat.mobileConfig.hideConfiguration")}{" "}
                                             <ShortcutKeys id="panel.config" tone="inverse" />
                                         </span>
                                     }
@@ -112,7 +115,7 @@ export const ConfigPane = ({
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Hide configuration"
+                                        aria-label={t("chat.mobileConfig.hideConfiguration")}
                                         aria-keyshortcuts={shortcutAria("panel.config")}
                                         onClick={() => setConfigCollapsed(true)}
                                         className="h-7 w-7 shrink-0 p-0"

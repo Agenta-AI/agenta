@@ -1,5 +1,5 @@
 import type {ActivityStep} from "@agenta/chat/model"
-import {AGENT_FILES_DIR} from "@agenta/entities/drive"
+import {presentToolPath} from "@agenta/entities/drive"
 import {drivePathFromToolPath, type FileActivity} from "@agenta/entities/session"
 import {decodeDriveHref, isExternalHref, isProtocolRelativeHref} from "@agenta/entity-ui/drive"
 
@@ -34,16 +34,17 @@ export const answerLinkedPaths = (texts: readonly string[]): string[] => {
 }
 
 /** The path as the drive presents it, so a tool path and a link to one file compare equal. */
-const presentedPath = (toolPath: string): string | null => {
+const presentedPath = (toolPath: string, homeSlug: string | null): string | null => {
     const drivePath = drivePathFromToolPath(toolPath)
-    if (!drivePath) return null
-    return drivePath.origin === "agent" ? `${AGENT_FILES_DIR}/${drivePath.path}` : drivePath.path
+    return drivePath ? presentToolPath(drivePath, homeSlug) : null
 }
 
 /** A turn's written files in first-seen order (a created file stays created), then answer links. */
 export const turnFiles = (
     steps: readonly ActivityStep[],
     answers: readonly string[] = [],
+    /** The home drive's slug: a write under its mount presents under `agent-files/`. */
+    homeSlug: string | null = null,
 ): TurnFile[] => {
     const byPath = new Map<string, FileActivity>()
     for (const step of steps) {
@@ -54,10 +55,10 @@ export const turnFiles = (
         }
     }
     // Seeded with the written paths, so a link adds a card only for a file no step wrote.
-    const seen = new Set([...byPath.keys()].map(presentedPath).filter(Boolean))
+    const seen = new Set([...byPath.keys()].map((p) => presentedPath(p, homeSlug)).filter(Boolean))
     const linked: LinkedFile[] = []
     for (const link of answerLinkedPaths(answers)) {
-        const path = presentedPath(link)
+        const path = presentedPath(link, homeSlug)
         if (!path || seen.has(path)) continue
         seen.add(path)
         linked.push({op: "link", path})

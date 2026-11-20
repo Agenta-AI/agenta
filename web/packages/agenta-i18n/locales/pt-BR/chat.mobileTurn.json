@@ -1,0 +1,11 @@
+{
+    "agentReply": "Resposta do agente",
+    "attachment": "Anexo",
+    "messageNotSent": "Mensagem não enviada",
+    "noResponse": "Sem resposta: o agente encerrou o turno sem responder.",
+    "retryMessage": "Tentar enviar de novo",
+    "savedAttachments": "Anexos salvos",
+    "somethingWentWrong": "Algo deu errado.",
+    "stopped": "Parado",
+    "textSaved": "Seu texto e seus anexos foram salvos."
+}

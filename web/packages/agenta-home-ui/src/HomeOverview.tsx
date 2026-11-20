@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import overviewCatalog from "@agenta/i18n/catalogs/home.overview"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import type {SessionMenuEntry} from "@agenta/sessions-ui"
 import {SessionListPanel} from "@agenta/sessions-ui"
@@ -68,95 +70,98 @@ export const HomeOverview = ({
     triggersPanel,
     usagePanel,
     className,
-}: HomeOverviewProps) => (
-    <div
-        className={`flex min-h-0 w-full flex-1 flex-col gap-10 overflow-y-auto lg:flex-row lg:overflow-hidden ${className ?? ""}`}
-    >
-        {/* `min-w-0` or a wide card would push the column past its share. Below `lg` the box above
+}: HomeOverviewProps) => {
+    const t = useT(overviewCatalog)
+    return (
+        <div
+            className={`flex min-h-0 w-full flex-1 flex-col gap-10 overflow-y-auto lg:flex-row lg:overflow-hidden ${className ?? ""}`}
+        >
+            {/* `min-w-0` or a wide card would push the column past its share. Below `lg` the box above
             is the scroller, so the top inset is this CONTENT's: a scroll container's padding-top
             pushes its `sticky top-0` children down by that much and rows bleed through the band. */}
-        <div className="box-border flex min-w-0 flex-1 flex-col gap-14 pt-6 lg:overflow-y-auto lg:pr-4 lg:pt-0">
-            <div className="flex w-full flex-col">
-                {/* The hero line carries the page's standing action. On its own row above
+            <div className="box-border flex min-w-0 flex-1 flex-col gap-14 pt-6 lg:overflow-y-auto lg:pr-4 lg:pt-0">
+                <div className="flex w-full flex-col">
+                    {/* The hero line carries the page's standing action. On its own row above
                     everything it cost a full band of empty width and pushed the question it
                     belongs beside downward. */}
-                <div className="flex items-center justify-between gap-4">
-                    {/* From `sm`, the page-title rung (antd heading 3, 24px/1.3333 — the same
+                    <div className="flex items-center justify-between gap-4">
+                        {/* From `sm`, the page-title rung (antd heading 3, 24px/1.3333 — the same
                         tokens `PageLayout` sizes every other page title from), not a hardcoded
                         size: a 20px hero read a rung below every page it sits next to. The
                         literals are the fallback for a host without antd (mobile), which
                         generates no `--ant-*` vars at all. Below `sm` it drops to the 16px body
                         ramp, like every other page title on a phone — classes rather than the
                         old inline style, which no breakpoint can override. */}
-                    <h1 className="m-0 font-semibold text-colorText text-[16px] leading-[1.5] sm:text-[length:var(--ant-font-size-heading-3,24px)] sm:leading-[var(--ant-line-height-heading-3,1.3333333333333333)]">
-                        {title}
-                    </h1>
-                    {action}
+                        <h1 className="m-0 font-semibold text-colorText text-[16px] leading-[1.5] sm:text-[length:var(--ant-font-size-heading-3,24px)] sm:leading-[var(--ant-line-height-heading-3,1.3333333333333333)]">
+                            {title}
+                        </h1>
+                        {action}
+                    </div>
+
+                    {composer ? (
+                        <div className="relative mt-8 flex flex-col items-stretch">{composer}</div>
+                    ) : null}
                 </div>
 
-                {composer ? (
-                    <div className="relative mt-8 flex flex-col items-stretch">{composer}</div>
-                ) : null}
-            </div>
-
-            {/* Bare, on the page background: the rail is the page's one defined object, and a
+                {/* Bare, on the page background: the rail is the page's one defined object, and a
                 second sheet opposite it made both read as equal weight. */}
-            <div className="flex flex-col gap-10">
-                <SessionListPanel
-                    withPinned
-                    title="Sessions"
-                    limit={SESSIONS_LIMIT}
-                    minHeightClassName="min-h-[220px]"
-                    emptyText="Your conversations will show up here."
-                    viewAllHref={sessionsHref}
-                    onOpenRow={onOpenSession}
-                    menuFor={sessionMenuFor}
-                    onMenuSelect={onSessionMenuSelect}
-                    onRenameRow={onSessionRenameRow}
-                    alwaysShowPin={alwaysShowPin}
-                />
-                {/*
-                 * What the automations actually did — the sessions they produced, not a schedule
-                 * of what's next. A completed run can need attention; an upcoming one never does.
-                 *
-                 * Pinned runs lead here too. The pinned query carries `origin`, so it stays this
-                 * card's own set — the Sessions card still excludes trigger-origin sessions.
-                 *
-                 * The min-height sits barely above the empty state's own: a taller floor on a
-                 * one-row card leaves dead space that reads as a rendering failure.
-                 */}
-                <SessionListPanel
-                    withPinned
-                    origin="trigger"
-                    title="Automation runs"
-                    limit={AUTOMATIONS_LIMIT}
-                    minHeightClassName="min-h-[100px]"
-                    emptyText="Runs from your automations will show up here."
-                    viewAllHref={sessionsHref}
-                    onOpenRow={onOpenSession}
-                    menuFor={sessionMenuFor}
-                    onMenuSelect={onSessionMenuSelect}
-                    onRenameRow={onSessionRenameRow}
-                    alwaysShowPin={alwaysShowPin}
-                />
+                <div className="flex flex-col gap-10">
+                    <SessionListPanel
+                        withPinned
+                        title={t("home.overview.sessions")}
+                        limit={SESSIONS_LIMIT}
+                        minHeightClassName="min-h-[220px]"
+                        emptyText={t("home.overview.sessionsEmpty")}
+                        viewAllHref={sessionsHref}
+                        onOpenRow={onOpenSession}
+                        menuFor={sessionMenuFor}
+                        onMenuSelect={onSessionMenuSelect}
+                        onRenameRow={onSessionRenameRow}
+                        alwaysShowPin={alwaysShowPin}
+                    />
+                    {/*
+                     * What the automations actually did — the sessions they produced, not a schedule
+                     * of what's next. A completed run can need attention; an upcoming one never does.
+                     *
+                     * Pinned runs lead here too. The pinned query carries `origin`, so it stays this
+                     * card's own set — the Sessions card still excludes trigger-origin sessions.
+                     *
+                     * The min-height sits barely above the empty state's own: a taller floor on a
+                     * one-row card leaves dead space that reads as a rendering failure.
+                     */}
+                    <SessionListPanel
+                        withPinned
+                        origin="trigger"
+                        title={t("home.overview.automationRuns")}
+                        limit={AUTOMATIONS_LIMIT}
+                        minHeightClassName="min-h-[100px]"
+                        emptyText={t("home.overview.automationRunsEmpty")}
+                        viewAllHref={sessionsHref}
+                        onOpenRow={onOpenSession}
+                        menuFor={sessionMenuFor}
+                        onMenuSelect={onSessionMenuSelect}
+                        onRenameRow={onSessionRenameRow}
+                        alwaysShowPin={alwaysShowPin}
+                    />
+                </div>
             </div>
-        </div>
 
-        {agentsPanel || triggersPanel || usagePanel ? (
-            <div className="box-border flex min-h-0 w-full shrink-0 grow-0 flex-col lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1">
-                <PanelSurface className="flex max-h-full min-h-0 flex-col">
-                    <PanelScroll>
-                        {agentsPanel}
-                        {/* Forward-looking, unlike the automation RUNS in the main column: a
+            {agentsPanel || triggersPanel || usagePanel ? (
+                <div className="box-border flex min-h-0 w-full shrink-0 grow-0 flex-col lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1">
+                    <PanelSurface className="flex max-h-full min-h-0 flex-col">
+                        <PanelScroll>
+                            {agentsPanel}
+                            {/* Forward-looking, unlike the automation RUNS in the main column: a
                             schedule that stopped firing is invisible in a list of things that
                             already happened. */}
-                        {triggersPanel}
-                        {/* Usage sits with what you could start, not with what is in flight — it
+                            {triggersPanel}
+                            {/* Usage sits with what you could start, not with what is in flight — it
                             is the column you glance at, not work from. */}
-                        {usagePanel}
-                    </PanelScroll>
-                </PanelSurface>
-            </div>
-        ) : null}
-    </div>
-)
+                            {usagePanel}
+                        </PanelScroll>
+                    </PanelSurface>
+                </div>
+            ) : null}
+        </div>
+    )
+}

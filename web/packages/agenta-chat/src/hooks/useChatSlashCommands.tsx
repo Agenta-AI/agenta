@@ -33,11 +33,14 @@ import {
     type PermissionPolicy,
 } from "@agenta/entity-ui/drill-in"
 import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
+import {createT, useT} from "@agenta/i18n"
+import chatSlashCommandsCatalog from "@agenta/i18n/catalogs/chat.slashCommands"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
+import {skillDisplayName} from "@agenta/shared/utils"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
-import {ChatCircleDots, Cpu, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {ChatCircleDots, Cpu, Compass, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 /** Which picker the palette drilled into, or null when the palette is just a list. */
@@ -52,6 +55,8 @@ export type SlashPicker = "model" | "permissions" | null
  * request carries text and file parts only, so an inserted name is a hint the agent usually
  * follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
+const tNow = createT(chatSlashCommandsCatalog)
+
 export function useChatSlashCommands({
     entityId,
     /** Onboarding runs on an uncommitted agent with a different Enter — no palette there. */
@@ -69,6 +74,7 @@ export function useChatSlashCommands({
     newSessionLocked?: boolean
     onNewSession?: () => void
 }) {
+    const t = useT(chatSlashCommandsCatalog)
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -102,7 +108,8 @@ export function useChatSlashCommands({
     const currentHarness = readHarnessKind(config)
     const currentPermission = readRunnerPermission(config)
     const currentPermissionLabel =
-        permissionPolicyLabel(currentPermission ?? DEFAULT_PERMISSION_POLICY) ?? "Allow reads"
+        permissionPolicyLabel(currentPermission ?? DEFAULT_PERMISSION_POLICY) ??
+        t("chat.slashCommands.allowReads")
     const currentModelLabel = modelDisplayName(capabilities, currentHarness, currentModel)
 
     /**
@@ -218,8 +225,11 @@ export function useChatSlashCommands({
                     namespace: selection.namespace,
                 }),
                 selection.harness && selection.harness !== currentHarness
-                    ? `Model set to ${label} · ${harnessMetaFor(selection.harness).label}`
-                    : `Model set to ${label}`,
+                    ? tNow("chat.slashCommands.modelSetToHarness", {
+                          label,
+                          harness: harnessMetaFor(selection.harness).label,
+                      })
+                    : tNow("chat.slashCommands.modelSetTo", {label}),
             )
             setPicker(null)
         },
@@ -229,9 +239,11 @@ export function useChatSlashCommands({
     const applyPermission = useCallback(
         (policy: PermissionPolicy) => {
             const label = permissionPolicyLabel(policy) ?? policy
-            write(withRunnerPermission(config, policy), `Permissions set to ${label}`, [
-                "permissions",
-            ])
+            write(
+                withRunnerPermission(config, policy),
+                tNow("chat.slashCommands.permissionsSetTo", {label}),
+                ["permissions"],
+            )
             setPicker(null)
         },
         [config, write],
@@ -257,19 +269,21 @@ export function useChatSlashCommands({
             return {
                 key: `${prefix}-${token}-${index}`,
                 label: `/${token}`,
-                // The descriptor's prose name is worth showing when it differs from the token.
+                // The descriptor's prose name is worth showing when it says more than the token.
                 description:
                     descriptor.description ??
-                    (descriptor.name === token ? undefined : descriptor.name),
+                    (descriptor.name === token || descriptor.name === skillDisplayName(token)
+                        ? undefined
+                        : descriptor.name),
                 tail:
                     typeof descriptor.tags[0] === "string"
                         ? descriptor.tags[0]
                         : descriptor.tags[0]?.label,
                 icon:
                     prefix === "skill" ? (
-                        <GraduationCap size={14} />
+                        <Compass size={14} />
                     ) : prefix === "mcp" ? (
-                        <Plugs size={14} />
+                        <HardDrives size={14} />
                     ) : (
                         <Wrench size={14} />
                     ),
@@ -314,7 +328,7 @@ export function useChatSlashCommands({
                 ? {
                       key: "model",
                       label: "/model",
-                      description: "Switch the model for this agent",
+                      description: t("chat.slashCommands.modelDescription"),
                       tail: currentModelLabel ? `${currentModelLabel} ›` : "›",
                       icon: <Cpu size={14} />,
                       kind: "open" as const,
@@ -325,7 +339,7 @@ export function useChatSlashCommands({
                 ? {
                       key: "permissions",
                       label: "/permissions",
-                      description: "Set what the agent may do before it must ask",
+                      description: t("chat.slashCommands.permissionsDescription"),
                       tail: `${currentPermissionLabel} ›`,
                       icon: <ShieldCheck size={14} />,
                       kind: "open" as const,
@@ -338,7 +352,7 @@ export function useChatSlashCommands({
                 ? {
                       key: "new",
                       label: "/new",
-                      description: "Start a fresh session with this agent",
+                      description: t("chat.slashCommands.newDescription"),
                       icon: <ChatCircleDots size={14} />,
                       kind: "action" as const,
                       onSelect: () => onNewSession(),
@@ -372,9 +386,11 @@ export function useChatSlashCommands({
         ])
 
         return [
-            {key: "commands", title: "Commands", items: commandItems},
-            {key: "skills", title: "Skills", items: skillItems},
-            ...(SHOW_TOOLS ? [{key: "tools", title: "Tools", items: toolItems}] : []),
+            {key: "commands", title: t("chat.slashCommands.commands"), items: commandItems},
+            {key: "skills", title: t("chat.slashCommands.skills"), items: skillItems},
+            ...(SHOW_TOOLS
+                ? [{key: "tools", title: t("chat.slashCommands.tools"), items: toolItems}]
+                : []),
         ].filter((section) => section.items.length > 0)
     }, [
         config,
@@ -387,12 +403,14 @@ export function useChatSlashCommands({
         openPicker,
         permissionsAvailable,
         suspended,
+        t,
     ])
 
     return {
         sections,
         picker,
         closePicker: useCallback(() => setPicker(null), []),
+        openModelPicker: useCallback(() => openPicker("model"), [openPicker]),
         modelGroups,
         currentModel,
         currentModelKey,

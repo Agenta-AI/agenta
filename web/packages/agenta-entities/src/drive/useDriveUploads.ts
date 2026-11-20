@@ -11,6 +11,8 @@
  */
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
+import {message} from "@agenta/ui/app-message"
+
 import {type MountFile} from "@agenta/entities/session"
 
 import {type StagedTileItem} from "./driveTypes"
@@ -22,8 +24,28 @@ import {type SessionDriveData} from "./useSessionDrive"
 
 const NO_FILES: DroppedFile[] = []
 
+/** The pane's one refusal for a write it cannot make. */
+export const DRIVE_NOT_WRITABLE = "This location can't be written to"
+
+/** Can the drive write into this presented folder: a mount backs it and it is not a read drive. */
+export const canWriteAt = (drive: Pick<SessionDriveData, "resolveMount">, folder: string) => {
+    const target = drive.resolveMount(folder)
+    return Boolean(target) && !target?.readOnly
+}
+
 /** The staged tile's id — stable per position + destination path, and the handle removeStaged uses. */
 const stagedId = (dropped: DroppedFile, index: number) => `${index}-${dropped.relativePath}`
+
+/** Refuse a write into a folder the drive cannot write (a read drive, no mount), with the pane's
+ * one refusal message; answers whether the write may go ahead. */
+export const ensureWritable = (
+    drive: Pick<SessionDriveData, "resolveMount">,
+    folder: string,
+): boolean => {
+    if (canWriteAt(drive, folder)) return true
+    void message.error(DRIVE_NOT_WRITABLE)
+    return false
+}
 
 export function useDriveUploads({
     drive,
@@ -71,9 +93,11 @@ export function useDriveUploads({
     // The single switch for every upload affordance here: header button, drop-to-upload on folders
     // and panes, and the staged-files inbox.
     const uploadInputRef = useRef<HTMLInputElement>(null)
-    const canUpload = !explicitFiles && !!drive.mount
+    // A session whose only writable drive is a drive under `drives/` has no primary mount.
+    const canUpload = !explicitFiles && (!!drive.mount || Boolean(drive.otherDrives?.length))
     const uploadIntoFolder = useCallback(
         (picked: DroppedFile[], folder: string) => {
+            if (!ensureWritable(drive, folder)) return
             const resolved = drive.resolveMount(folder)
             if (!resolved) return
             mountUpload.upload(picked, {
@@ -93,8 +117,10 @@ export function useDriveUploads({
     )
     // Drag-and-drop uploads: highlight + spring-load into folders, drop to upload. Disabled in the
     // local-file preview (no mount to write to).
+    const canDropAt = useCallback((folder: string) => canWriteAt(drive, folder), [drive])
     const drop = useDriveDrop({
         enabled: canUpload,
+        canDropAt,
         onUpload: canUpload ? uploadIntoFolder : () => {},
         onNavigate: select,
     })

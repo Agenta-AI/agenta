@@ -7,9 +7,15 @@ import {
     nextCronRuns,
     type TriggerSchedule,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {Clock} from "@phosphor-icons/react"
 
+import {scheduleTextNow} from "../../../gatewayTrigger/scheduleText"
+
 import {TriggerRow} from "./TriggerRow"
+
+const tNow = createT(triggersCatalog)
 
 /** "next in 14h" — the coarse time until the next UTC fire, or null if none upcoming. */
 function formatCountdown(cron?: string): string | null {
@@ -18,11 +24,11 @@ function formatCountdown(cron?: string): string | null {
     if (!next) return null
     const mins = Math.floor((next.getTime() - Date.now()) / 60000)
     if (mins <= 0) return null
-    if (mins < 60) return `next in ${mins}m`
+    if (mins < 60) return tNow("entityUi.triggers.nextInMinutes", {value: mins})
     // Floor, not round: 90 minutes is "next in 1h", never "2h" — the value must not overstate.
     const hours = Math.floor(mins / 60)
-    if (hours < 24) return `next in ${hours}h`
-    return `next in ${Math.floor(hours / 24)}d`
+    if (hours < 24) return tNow("entityUi.triggers.nextInHours", {value: hours})
+    return tNow("entityUi.triggers.nextInDays", {value: Math.floor(hours / 24)})
 }
 
 export function ScheduleTriggerRow({
@@ -36,17 +42,23 @@ export function ScheduleTriggerRow({
     onOpen: () => void
     menu: ReactNode
 }) {
+    const t = useT(triggersCatalog)
     const cron = record.data?.schedule
     const named = !!record.name?.trim()
     // Subtitle answers "when does this run?" — the cadence plus the next fire. Both parse the
     // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
-    const cadence = useMemo(() => (cron ? describeCron(cron) : "No schedule set"), [cron])
+    const cadence = useMemo(
+        () =>
+            cron ? describeCron(cron, scheduleTextNow()) : tNow("entityUi.triggers.noScheduleSet"),
+        // `t` re-words the cadence when the language changes.
+        [cron, t],
+    )
     // The section stays mounted for long sessions, so a mount-time countdown goes stale and can
     // claim a run is upcoming after it already fired. One coarse tick per minute keeps it honest.
     const [tick, setTick] = useState(0)
     useEffect(() => {
         if (!cron) return undefined
-        const id = setInterval(() => setTick((t) => t + 1), 60_000)
+        const id = setInterval(() => setTick((count) => count + 1), 60_000)
         return () => clearInterval(id)
     }, [cron])
     const next = useMemo(() => formatCountdown(cron), [cron, tick])
@@ -54,7 +66,7 @@ export function ScheduleTriggerRow({
     return (
         <TriggerRow
             icon={<Clock size={15} />}
-            name={named ? (record.name as string) : "Untitled schedule"}
+            name={named ? (record.name as string) : t("entityUi.triggers.untitledSchedule")}
             nameMuted={!named}
             subtitle={next ? `${cadence} · ${next}` : cadence}
             active={isEntityActive(record)}

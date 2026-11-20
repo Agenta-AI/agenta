@@ -31,6 +31,7 @@
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
     "@earendil-works/pi-ai": "0.80.6",
     "@earendil-works/pi-coding-agent": "0.99.1",
+    "@modelcontextprotocol/sdk": "~1.32.0",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/core": "2.8.0",
     "@opentelemetry/exporter-trace-otlp-proto": "0.220.0",
@@ -50,11 +51,12 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/proper-lockfile": "4.1.4",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "esbuild": "0.28.1",
     "tsx": "4.23.15",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vite": "8.1.6",
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -75,15 +77,17 @@
     "overrides": {
       "@grpc/grpc-js": "1.14.5",
       "@hono/node-server": "1.19.15",
-      "@modelcontextprotocol/sdk@<1.31.0": "~1.31.0",
+      "@modelcontextprotocol/sdk@<1.32.0": "~1.32.0",
       "@opentelemetry/propagator-jaeger": "2.9.0",
       "axios": "1.20.0",
       "brace-expansion": "5.0.12",
       "body-parser@<2.4.0": "2.4.0",
       "fast-uri": "3.1.9",
+      "fast-xml-parser@>=5 <5.12.0": "5.12.0",
       "follow-redirects": "1.16.2",
       "hono": "4.13.11",
       "ip-address": "10.7.4",
+      "minimatch@>=7 <11.0.1": "11.0.1",
       "postcss": "8.5.23",
       "protobufjs": "7.6.5",
       "proxy-addr@<2.0.8": "^2.0.8",

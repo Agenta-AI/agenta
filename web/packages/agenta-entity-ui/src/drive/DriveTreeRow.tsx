@@ -3,6 +3,8 @@ import {useEffect, useRef} from "react"
 import {isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {CaretDown, CaretRight, CircleNotch} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "./DriveFileRow"
@@ -21,6 +23,7 @@ export const TreeRow = ({
     isOpen,
     selected,
     showOrigin,
+    otherDrives,
     parent,
     scrollX,
     loading,
@@ -39,6 +42,8 @@ export const TreeRow = ({
     loading?: boolean
     /** Tag top-level nodes with their origin (agent-files vs session) — only when mixed. */
     showOrigin?: boolean
+    /** The session's drives other than the home: they tell a drive file from a session file. */
+    otherDrives?: readonly {slug: string}[]
     /** The parent folder path — the horizontal-scroll GROUP key (siblings share one offset). */
     parent: string
     /** This group's current horizontal offset, applied as a transform to the row's content. */
@@ -52,6 +57,7 @@ export const TreeRow = ({
     onToggle: (path: string) => void
     onSelect: (path: string) => void
 }) => {
+    const t = useT(driveBrowserCatalog)
     // Dot-prefixed (hidden) entries surface but dimmed, like a file browser greys .git/.claude.
     const hidden = isHiddenPath(node.path)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -104,7 +110,11 @@ export const TreeRow = ({
                         // Not a tab stop — the row's main button is the single stop; arrow keys drive
                         // the rest. The caret stays mouse-clickable for expand/collapse.
                         tabIndex={-1}
-                        aria-label={isOpen ? "Collapse folder" : "Expand folder"}
+                        aria-label={
+                            isOpen
+                                ? t("entityUi.driveBrowser.collapseFolder")
+                                : t("entityUi.driveBrowser.expandFolder")
+                        }
                         onClick={(e) => {
                             e.stopPropagation()
                             onToggle(node.path)
@@ -134,7 +144,7 @@ export const TreeRow = ({
                     {/* Only the top-level items carry the tag; nested rows inherit it from their
                         (already-tagged) agent-files folder, so the tree stays quiet. */}
                     {showOrigin && depth === 0 ? (
-                        <OriginTag origin={fileOrigin(node.path)} />
+                        <OriginTag origin={fileOrigin(node.path, otherDrives)} />
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (
@@ -145,7 +155,9 @@ export const TreeRow = ({
                     ) : null}
                     {pending?.error ? (
                         <span className="flex shrink-0 items-center gap-1.5 text-xs">
-                            <span className="text-colorError">Failed</span>
+                            <span className="text-colorError">
+                                {t("entityUi.driveBrowser.failed")}
+                            </span>
                             {onRetryUpload ? (
                                 <button
                                     type="button"
@@ -155,7 +167,7 @@ export const TreeRow = ({
                                     }}
                                     className="cursor-pointer border-0 bg-transparent p-0 text-colorPrimary hover:underline"
                                 >
-                                    Retry
+                                    {t("entityUi.driveBrowser.retry")}
                                 </button>
                             ) : null}
                             {onDismissUpload ? (
@@ -167,7 +179,7 @@ export const TreeRow = ({
                                     }}
                                     className="cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary hover:underline"
                                 >
-                                    Dismiss
+                                    {t("entityUi.driveBrowser.dismiss")}
                                 </button>
                             ) : null}
                         </span>

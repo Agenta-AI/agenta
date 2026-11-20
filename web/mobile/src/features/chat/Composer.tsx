@@ -17,6 +17,8 @@ import {
     type ComposerAttachment,
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
+import {useT} from "@agenta/i18n"
+import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -55,6 +57,7 @@ export const Composer = ({
     onStop,
     inputBusy = streaming,
     inputRef,
+    modelPickerRef,
     placeholder,
     hasTurns,
     onNewSession,
@@ -91,6 +94,8 @@ export const Composer = ({
     inputBusy?: boolean
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
+    /** Lets the host open the `/model` picker, as the low-credit strip's "Switch model" does. */
+    modelPickerRef?: MutableRefObject<(() => void) | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
     /** The session already has turns: the key hints move from chips into the placeholder. */
@@ -98,6 +103,7 @@ export const Composer = ({
     /** Starts a fresh session — the palette offers no /new row without it. */
     onNewSession?: () => void
 }) => {
+    const t = useT(chatMobileComposerCatalog)
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const richInputRef = inputRef ?? ownInputRef
     // A tab switch is a route change here, so the whole composer unmounts — the per-session
@@ -120,6 +126,14 @@ export const Composer = ({
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
+    const openModelPicker = slash.openModelPicker
+    useEffect(() => {
+        if (!modelPickerRef) return
+        modelPickerRef.current = openModelPicker
+        return () => {
+            modelPickerRef.current = null
+        }
+    }, [modelPickerRef, openModelPicker])
     // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
     // the still-focused panel leaves the DOM.
     const hadPickerRef = useRef(slash.picker)
@@ -305,7 +319,9 @@ export const Composer = ({
                         atMax={attachments.atMax}
                         hint={
                             attachments.atMax
-                                ? `Remove one to add another (${attachments.limits.maxCount} max)`
+                                ? t("chat.mobileComposer.removeOneToAdd", {
+                                      count: attachments.limits.maxCount,
+                                  })
                                 : describeAccepted(attachments.limits)
                         }
                     />
@@ -344,7 +360,7 @@ export const Composer = ({
                             hideTrigger
                             showGroup
                             showSearch
-                            searchPlaceholder="Search models"
+                            searchPlaceholder={t("chat.mobileComposer.searchModels")}
                             sectionTooltip={<HarnessTooltip />}
                             options={slash.modelGroups}
                             value={slash.currentModel}
@@ -352,13 +368,13 @@ export const Composer = ({
                             searchSuffix="/model"
                             panelFooter={
                                 <div className="text-muted-foreground flex items-center gap-1.5 text-[10.5px]">
-                                    <span>Changes this agent&apos;s draft config.</span>
+                                    <span>{t("chat.mobileComposer.changesDraft")}</span>
                                     <button
                                         type="button"
                                         onClick={backToCommands}
                                         className="text-muted-foreground ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px]"
                                     >
-                                        ← back to commands
+                                        {t("chat.mobileComposer.backToCommands")}
                                     </button>
                                 </div>
                             }

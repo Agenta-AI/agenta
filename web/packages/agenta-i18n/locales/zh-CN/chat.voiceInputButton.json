@@ -1,0 +1,13 @@
+{
+    "cannotListen": "此模型无法收听音频",
+    "hintAudio": "录制语音消息",
+    "hintTranscribe": "口述输入消息",
+    "holdToDictate": "按住 {{key}} 口述",
+    "limitReached": "已达到附件上限：请移除一个文件后再录制语音消息",
+    "modeAudio": "语音消息",
+    "modeTranscribe": "语音转文字",
+    "stopDictation": "停止口述",
+    "stopVoiceInput": "停止语音输入",
+    "voiceInputMode": "语音输入模式",
+    "waitingPrompt": "正在等待浏览器的麦克风提示…"
+}

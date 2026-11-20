@@ -9,6 +9,8 @@
  * in an agent's configuration, so the two behave alike wherever a person meets them.
  */
 import {TOOL_FILTER_THRESHOLD} from "@agenta/entities/mcpEndpoint"
+import {useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {Input} from "@agenta/ui/ui"
 
 export interface ToolFilterInputProps {
@@ -19,12 +21,13 @@ export interface ToolFilterInputProps {
 }
 
 export const ToolFilterInput = ({total, value, onChange}: ToolFilterInputProps) => {
+    const t = useT(mcpConnectCatalog)
     if (total < TOOL_FILTER_THRESHOLD) return null
     return (
         <Input
             value={value}
-            aria-label="Filter tools"
-            placeholder={`Filter ${total} tools`}
+            aria-label={t("entityUi.mcpConnect.filterTools")}
+            placeholder={t("entityUi.mcpConnect.filterCountTools", {count: total})}
             onChange={(event) => onChange(event.target.value)}
         />
     )

@@ -1,0 +1,22 @@
+{
+    "pickProjects": "选择项目",
+    "searchProjects": "搜索项目",
+    "noProjectsMatch": "没有与“{{search}}”匹配的项目。",
+    "projectsThatCanUse": "可以使用它的项目",
+    "everyProjectIn": "{{organization}} 中的所有项目。",
+    "allProjects": "所有项目",
+    "everyProjectInIncludingNew": "{{organization}} 中的所有项目，包括新项目。",
+    "selectedProjects": "所选项目",
+    "onlyProjectsYouPick": "仅限你选择的项目。",
+    "choosingProjectsPlan": "选择项目功能仅适用于 Business 和 Enterprise 套餐。",
+    "seePlans": "查看套餐",
+    "removeProject": "移除 {{project}}",
+    "noProjectUntilPick": "在你选择项目之前，任何项目都无法使用此连接。",
+    "projectLosesAccess": "保存后，{{project}} 将无法再使用此连接。{{project}} 中使用它的 Agent 需要重新配置。",
+    "savedEveryProject": "{{name}} 已保存。所有项目均可使用。",
+    "savedProjectsCount_other": "{{name}} 已保存。{{count}} 个项目可以使用。",
+    "noLongerOwner": "你已不再是 {{organization}} 的所有者或管理员，因此无法更改组织连接。",
+    "projectNotInOrg": "所选项目中有一个已不在 {{organization}} 中。请重新加载页面后再次选择。",
+    "nameTaken": "{{organization}} 中已有名为 {{name}} 的连接。请换一个名称。",
+    "couldNotSave": "Agenta 无法保存此 {{name}} 连接，请重试。"
+}

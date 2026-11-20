@@ -1,0 +1,23 @@
+{
+    "formatBoolean": "Boolean (True/False)",
+    "formatContinuous": "Continuous (Numeric Range)",
+    "formatCategorical": "Categorical (Predefined Options)",
+    "enterJsonSchema": "Enter JSON schema...",
+    "responseFormat": "Response Format",
+    "responseFormatTooltip": "Choose the format for your evaluation results",
+    "booleanInfo": "The evaluator will provide a true (1) or false (0) response based on the feedback criteria.",
+    "minimum": "Minimum",
+    "minimumTooltip": "The minimum value for the numeric score range",
+    "maximum": "Maximum",
+    "maximumTooltip": "The maximum value for the numeric score range",
+    "categories": "Categories",
+    "categoriesTooltip": "Define the possible category values for the evaluation",
+    "add": "Add",
+    "name": "Name",
+    "categoryName": "Category {{number}} name",
+    "description": "Description",
+    "categoryDescription": "Category {{number}} description",
+    "removeCategory": "Remove category {{number}}",
+    "includeReasoning": "Include reasoning",
+    "includeReasoningTooltip": "When enabled, the evaluator will also provide a comment explaining the score"
+}

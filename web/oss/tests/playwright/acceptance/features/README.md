@@ -3,7 +3,7 @@
 This directory contains Gherkin-format feature files that describe the acceptance test scenarios
 for the Agenta OSS frontend. Each feature file maps to one or more Playwright test files and
 to the RTM entries in
-`docs/designs/testing/rtm/web-acceptance-rtm.md`.
+`docs/design/testing/rtm/web-acceptance-rtm.md`.
 
 ## Feature-to-Test Mapping
 

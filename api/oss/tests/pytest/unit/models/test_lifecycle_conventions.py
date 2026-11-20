@@ -2,7 +2,7 @@
 
 Every table with lifecycle columns has all six, fully nullable, and the
 actor (*_by_id) columns never carry FKs. See
-docs/designs/oss-ee-convergence/db-integrity-audit.md.
+docs/design/oss-ee-convergence/db-integrity-audit.md.
 """
 
 import importlib

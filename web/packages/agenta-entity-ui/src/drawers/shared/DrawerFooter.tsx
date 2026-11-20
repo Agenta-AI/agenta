@@ -1,5 +1,7 @@
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {Button, Divider, LoadingButton} from "@agenta/ui/ui"
 
 /**
@@ -24,6 +26,7 @@ export function DrawerFooter({
     /** `ghost` draws Cancel as text, for footers where only the primary action carries a box. */
     cancelVariant?: "outline" | "ghost"
 }) {
+    const t = useT(drawerSharedCatalog)
     return (
         <>
             <Divider className="m-0" />
@@ -31,7 +34,7 @@ export function DrawerFooter({
                 <div className="flex items-center gap-2">{left}</div>
                 <div className="flex items-center gap-2">
                     <Button variant={cancelVariant} onClick={onCancel}>
-                        Cancel
+                        {t("entityUi.drawerShared.cancel")}
                     </Button>
                     <LoadingButton
                         variant="default"

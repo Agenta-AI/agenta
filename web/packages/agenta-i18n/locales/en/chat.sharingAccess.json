@@ -1,0 +1,20 @@
+{
+    "composerViewer": "You can view this chat, but you cannot send to it. Ask {{owner}} for \"Can send\" access.",
+    "composerPrivateAgent": "The agent of this chat is private. You can read the history, but you cannot send.",
+    "composerNoOwner": "An API key or an automation started this chat. You can read it, but you cannot send to it here.",
+    "composerOwnerLeft": "{{owner}} left this project, so no one can send to this chat.",
+    "ownerFallback": "the owner",
+    "privateAgent": "Private agent",
+    "refusedSubject": "This message",
+    "refusedNoAgentAccess": "did not run. You no longer have access to the agent of this chat.",
+    "accessRemovedTitle": "You no longer have access to this chat",
+    "accessRemovedBody": "The owner changed who can see it.",
+    "backToSessions": "Back to sessions",
+    "backToAgents": "Back to agents",
+    "chatNotFound": "This chat does not exist, or you do not have access to it.",
+    "chatNotFoundAskOwner": "If someone sent you this link, ask them to add you from Share.",
+    "agentNotFound": "This agent does not exist, or you do not have access to it.",
+    "approvalWaiting": "Waiting for {{owner}} or someone who can send in this chat.",
+    "rowMenuNotOwner": "Only {{owner}} can rename, share, archive or delete this chat.",
+    "agentPrivateMarker": "Only you can see and use it in Agenta."
+}

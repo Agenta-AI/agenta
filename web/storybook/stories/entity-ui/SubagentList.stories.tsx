@@ -75,12 +75,7 @@ const listArgs = (entries: typeof ENTRIES) => ({
     closeEditor: noop,
 })
 
-// Showcase, not an antd parity pair. `data-vrt-subject` is the harness's readiness marker.
-const Frame = (children: React.ReactNode) => (
-    <div data-vrt-subject className="w-[520px]">
-        {children}
-    </div>
-)
+const Frame = (children: React.ReactNode) => <div className="w-[520px]">{children}</div>
 
 /** Both axes side by side, so a variant row and an environment row can be read against each other. */
 export const RowStates: Story = {
