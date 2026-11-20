@@ -382,7 +382,6 @@ export {
     AutomationDeleteDialog,
 } from "./SchemaControls/TriggerManagementSection"
 export type {
-    AutomationAddKind,
     TriggerManagementSectionProps,
     TriggerOwnerRef,
 } from "./SchemaControls/TriggerManagementSection"
@@ -479,7 +478,10 @@ export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
 // Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.
 export {CreateWithAIAddMenu} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
-export type {CreateWithAIAddMenuProps} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
+export type {
+    CreateWithAIAddMenuProps,
+    CreateWithAIMenuItem,
+} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
 export type {
     SectionTitleBadgeProps,

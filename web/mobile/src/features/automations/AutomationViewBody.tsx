@@ -3,7 +3,6 @@ import {useCallback, useState} from "react"
 import {
     AutomationDetailBody,
     AutomationDetailSkeleton,
-    AutomationTriggerDrawers,
     useAutomation,
     useAutomationEditor,
 } from "@agenta/automation-ui"
@@ -46,11 +45,13 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     workspaceId: params.workspaceId,
                     projectId: params.projectId,
                     runId,
+                    // The settings are covered while the history is open, so this stays true.
+                    unsavedSettings: editor.dirty,
                 },
                 target,
             )
         },
-        [nav, params, target],
+        [editor.dirty, nav, params, target],
     )
 
     // Deleted: nothing is left to save, so the view leaves without asking.
@@ -115,7 +116,6 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                 onDelete={onDelete}
                 onClose={() => setConfirmDelete(false)}
             />
-            <AutomationTriggerDrawers />
         </div>
     )
 }

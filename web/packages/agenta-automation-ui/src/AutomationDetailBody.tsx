@@ -9,7 +9,7 @@ import {AutomationInstructionField} from "./AutomationInstructionField"
 import {AutomationMetaRow} from "./AutomationMetaRow"
 import type {Automation} from "./automationModel"
 import {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
-import {AutomationGroup, AutomationRunsGroup} from "./AutomationRunsGroup"
+import {AutomationRunsSection, AutomationViewSection} from "./AutomationRunsSection"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationSaveBar} from "./AutomationSaveBar"
 import {AutomationTitle} from "./AutomationTitle"
@@ -151,14 +151,14 @@ export const AutomationDetailBody = ({
             />
             {onOpenRunHistory ? (
                 <div className="mt-[26px] flex flex-col gap-[26px]">
-                    <AutomationRunsGroup
+                    <AutomationRunsSection
                         automation={automation}
                         runNow={runNow}
                         onOpenRunHistory={onOpenRunHistory}
                     />
-                    <AutomationGroup title={t("automations.panel.settings")}>
+                    <AutomationViewSection title={t("automations.panel.settings")}>
                         {fields}
-                    </AutomationGroup>
+                    </AutomationViewSection>
                 </div>
             ) : (
                 <>

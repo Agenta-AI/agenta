@@ -13,6 +13,18 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const triggers = vi.hoisted(() => ({
     schedules: [] as unknown[],
     subscriptions: [] as unknown[],
+    removeSchedule: vi.fn(),
+}))
+
+vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/gatewayTrigger")>()),
+    useTriggerSchedule: () => ({remove: triggers.removeSchedule, setActive: vi.fn()}),
+    useTriggerSubscription: () => ({
+        remove: vi.fn(),
+        refresh: vi.fn(),
+        revoke: vi.fn(),
+        setActive: vi.fn(),
+    }),
 }))
 
 vi.mock(
@@ -53,6 +65,7 @@ beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     triggers.schedules = []
     triggers.subscriptions = []
+    triggers.removeSchedule.mockReset()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -63,12 +76,31 @@ afterEach(() => {
     container.remove()
 })
 
-const renderSection = () =>
+const renderSection = (props: Record<string, unknown> = {}) =>
     act(() =>
         root.render(
-            createElement(TriggerManagementSection, {entityId: "rev-1", automationDrawer: null}),
+            createElement(TriggerManagementSection, {
+                entityId: "rev-1",
+                automationDrawer: null,
+                ...props,
+            }),
         ),
     )
+
+const flush = () => act(async () => await new Promise((resolve) => setTimeout(resolve, 0)))
+
+/** Opens the first row's "⋯" menu and returns its items once they render. */
+const openRowMenu = async () => {
+    const trigger = container.querySelector("[aria-haspopup=menu]") as HTMLButtonElement
+    act(() => {
+        trigger.focus()
+        trigger.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+    })
+    await flush()
+    return [...document.querySelectorAll("[role=menuitem]")] as HTMLElement[]
+}
+const item = (items: HTMLElement[], text: string) =>
+    items.find((element) => element.textContent === text) as HTMLElement
 const headings = () => [...container.querySelectorAll("h3")].map((h) => h.textContent)
 
 describe("Automations tab list", () => {
@@ -88,6 +120,48 @@ describe("Automations tab list", () => {
     it("says No automations yet with none", () => {
         renderSection()
         expect(container.textContent).toContain("No automations yet")
+    })
+})
+
+describe("Row menu", () => {
+    it("deletes the row's automation only after the question", async () => {
+        triggers.schedules = [schedule]
+        triggers.removeSchedule.mockResolvedValue(undefined)
+        renderSection()
+        const items = await openRowMenu()
+        act(() => item(items, "Delete").click())
+        // The dialog mounts after the menu closes.
+        await flush()
+        expect(triggers.removeSchedule).not.toHaveBeenCalled()
+        const dialog = document.querySelector("[data-testid=automation-delete-dialog]")
+        expect(dialog?.textContent).toContain("“Daily summary” stops running")
+        const confirm = [...(dialog?.querySelectorAll("button") ?? [])].find(
+            (b) => b.textContent === "Delete",
+        ) as HTMLButtonElement
+        await act(async () => confirm.click())
+        expect(triggers.removeSchedule).toHaveBeenCalledWith("sch-1")
+    })
+
+    it("opens the automation in the host from Edit", async () => {
+        triggers.schedules = [schedule]
+        const onOpenAutomation = vi.fn()
+        renderSection({onOpenAutomation, onOpenRunHistory: vi.fn()})
+        const items = await openRowMenu()
+        expect(items.map((element) => element.textContent)).toEqual([
+            "Run now",
+            "Run history",
+            "Edit",
+            "Deactivate",
+            "Delete",
+        ])
+        act(() => item(items, "Edit").click())
+        expect(onOpenAutomation).toHaveBeenCalledWith({kind: "schedule", id: "sch-1"})
+    })
+
+    it("offers a viewer Run history only", async () => {
+        triggers.schedules = [schedule]
+        renderSection({disabled: true, onOpenRunHistory: vi.fn()})
+        expect((await openRowMenu()).map((element) => element.textContent)).toEqual(["Run history"])
     })
 })
 

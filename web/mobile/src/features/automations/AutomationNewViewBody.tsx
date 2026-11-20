@@ -1,8 +1,4 @@
-import {
-    AutomationCreateBody,
-    AutomationTriggerDrawers,
-    useAutomationCreate,
-} from "@agenta/automation-ui"
+import {AutomationCreateBody, useAutomationCreate} from "@agenta/automation-ui"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
@@ -23,8 +19,8 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
     const agentName = useAtomValue(workflowMolecule.selectors.artifactName(params.revisionId))
     const state = useAutomationCreate({
         defaultKind: params.kind,
-        // The draft needs the agent's own id; the panel knows its revision id.
-        defaultAgentId: params.references.application?.id ?? params.revisionId,
+        // The draft needs the agent's own id, from the references the panel resolved.
+        defaultAgentId: params.references.application?.id ?? null,
         defaultAgentName: agentName ?? undefined,
         defaultReferences: params.references,
     })
@@ -39,7 +35,6 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
     return (
         <div className="ag-scroll-no-bar h-full min-h-0 overflow-y-auto px-4 pb-6 pt-2">
             <AutomationCreateBody state={state} showAgentField={false} fixedKind />
-            <AutomationTriggerDrawers />
         </div>
     )
 }

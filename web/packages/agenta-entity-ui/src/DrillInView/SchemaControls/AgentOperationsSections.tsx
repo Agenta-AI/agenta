@@ -25,7 +25,6 @@ import {
     AddTriggerDropdown,
     TriggerManagementSection,
     useAgentTriggers,
-    type AutomationAddKind,
     type TriggerOwnerRef,
 } from "./TriggerManagementSection"
 
@@ -130,7 +129,7 @@ export function AgentOperationsSections({
     onOpenAutomation?: (owner: TriggerOwnerRef) => void
     /** Where "Add automation" opens the chosen form; absent, the automation drawer. */
     onAddAutomation?: (
-        kind: AutomationAddKind,
+        kind: TriggerOwnerRef["kind"],
         references: Record<string, {id?: string; slug?: string}>,
     ) => void
 }) {

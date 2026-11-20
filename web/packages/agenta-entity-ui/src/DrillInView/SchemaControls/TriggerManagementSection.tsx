@@ -54,7 +54,7 @@ import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 const tNow = createT(triggersCatalog)
 const tScreens = createT(automationsScreensCatalog)
 
-export {AddTriggerDropdown, type AutomationAddKind} from "./triggerManagement/AddTriggerDropdown"
+export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
 export {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
@@ -107,7 +107,9 @@ export function TriggerManagementSection({
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
-    // "Delete" asks first (F06 f4); the dialog runs the delete and reports a failure.
+    // "Delete" asks first (F06 f4); the dialog runs the delete and reports a failure. The
+    // automation stays set while the dialog closes, so its name stays in the closing text.
+    const [deleteOpen, setDeleteOpen] = useState(false)
     const [pendingDelete, setPendingDelete] = useState<{
         name: string
         remove: () => Promise<void>
@@ -204,7 +206,13 @@ export function TriggerManagementSection({
         )
 
     const deleteItem = (name: string, remove: () => Promise<void>) => (
-        <DropdownMenuItem variant="destructive" onSelect={() => setPendingDelete({name, remove})}>
+        <DropdownMenuItem
+            variant="destructive"
+            onSelect={() => {
+                setPendingDelete({name, remove})
+                setDeleteOpen(true)
+            }}
+        >
             <Trash size={16} />
             {tNow("entityUi.triggers.delete")}
         </DropdownMenuItem>
@@ -361,12 +369,12 @@ export function TriggerManagementSection({
                 bound to this agent. */}
             {automationDrawer}
             <AutomationDeleteDialog
-                open={Boolean(pendingDelete)}
+                open={deleteOpen}
                 name={pendingDelete?.name ?? ""}
                 onDelete={async () => {
                     await pendingDelete?.remove()
                 }}
-                onClose={() => setPendingDelete(null)}
+                onClose={() => setDeleteOpen(false)}
             />
         </div>
     )

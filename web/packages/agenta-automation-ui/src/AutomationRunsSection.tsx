@@ -1,4 +1,4 @@
-import {useMemo, type ReactNode} from "react"
+import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {formatNextRun} from "@agenta/entities/gatewayTrigger"
 import {scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
@@ -19,8 +19,8 @@ const GroupTitle = ({title, action}: {title: string; action?: ReactNode}) => (
     </div>
 )
 
-/** A group of the automation view: "Runs" or "Settings", with its title and its own action. */
-export const AutomationGroup = ({
+/** A section of the automation view: "Runs" or "Settings", with its title and its own action. */
+export const AutomationViewSection = ({
     title,
     action,
     children,
@@ -40,7 +40,7 @@ export const AutomationGroup = ({
  * has no planned time), the last run with its result (a click opens that run), and the history.
  * Its one action, "Run now", sits in the title.
  */
-export const AutomationRunsGroup = ({
+export const AutomationRunsSection = ({
     automation,
     runNow,
     onOpenRunHistory,
@@ -53,17 +53,24 @@ export const AutomationRunsGroup = ({
     const t = useT(automationsPanelCatalog)
     const {runs, caption} = useRecentAutomationRuns(automation)
     const newest = runs[0]
+    // "Next run" and its "in 14h" are read from the clock: a tick per minute keeps them true
+    // while the view stays open, as the schedule row does.
+    const [tick, setTick] = useState(0)
+    useEffect(() => {
+        const id = setInterval(() => setTick((count) => count + 1), 60_000)
+        return () => clearInterval(id)
+    }, [])
     const nextRun = useMemo(
         () =>
             automation.kind === "schedule" && automation.isActive && automation.cron
                 ? formatNextRun(automation.cron, scheduleTextNow())
                 : "",
-        [automation.cron, automation.isActive, automation.kind],
+        [automation.cron, automation.isActive, automation.kind, tick],
     )
     const lastRunFailed = newest ? deliveryOutcome(newest) === "bad" : false
 
     return (
-        <AutomationGroup title={t("automations.panel.runs")} action={runNow}>
+        <AutomationViewSection title={t("automations.panel.runs")} action={runNow}>
             <div className="flex flex-col rounded-lg border border-solid border-border">
                 {nextRun ? (
                     <div className="px-3.5 py-2.5 text-[13px] text-foreground">{nextRun}</div>
@@ -119,6 +126,6 @@ export const AutomationRunsGroup = ({
                     </span>
                 </button>
             </div>
-        </AutomationGroup>
+        </AutomationViewSection>
     )
 }

@@ -9,6 +9,8 @@ export interface AutomationRunHistoryViewParams {
     projectId: string
     /** Open this run first (the automation view's "Last run"). */
     runId?: string
+    /** The automation view under it has unsaved settings: "Run now" waits for a save. */
+    unsavedSettings?: boolean
 }
 
 /**
