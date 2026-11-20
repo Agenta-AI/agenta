@@ -16,6 +16,7 @@ import {
     findSubagentIndex,
     removeSubagentByRef,
     setSubagentDescription,
+    subagentSlugRef,
     toolsOf,
 } from "../subagentReference"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
@@ -37,7 +38,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const tools = toolsOf(writer.agent)
-    // Saving the description drops a legacy copied `name`, which changes the entry's key; the
+    // A write made elsewhere can drop a legacy copied `name`, which changes the entry's key; the
     // view keeps finding its entry by the slug it opened on.
     const [openedSlug] = useState(() => {
         const opened = findSubagentIndex(tools, params.item)
@@ -45,7 +46,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     })
     const itemRef: ConfigItemRef =
         findSubagentIndex(tools, params.item) < 0 && openedSlug
-            ? {list: "tools", key: openedSlug}
+            ? subagentSlugRef(openedSlug)
             : params.item
     const index = findSubagentIndex(tools, itemRef)
     const entry = index < 0 ? null : (tools[index] as Record<string, unknown>)
@@ -71,7 +72,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     if (!entry) {
         return (
             <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
-                <ViewTitle title={params.item.key} />
+                <ViewTitle title={params.item.key.replace(/^@slug:/, "")} />
                 <span className="text-colorTextSecondary">
                     {t("entityUi.subagentViews.removedState")}
                 </span>
