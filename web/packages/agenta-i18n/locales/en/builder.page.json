@@ -24,6 +24,7 @@
     "searchAgents": "Search agents…",
     "noAgents": "There is no agent in this project yet.",
     "noAgentMatches": "No agent matches your search.",
+    "agentsFailed": "The agents could not be loaded.",
     "searchIdeas": "Search ideas…",
     "noIdeaMatches": "No idea matches your search.",
     "catAll": "All",

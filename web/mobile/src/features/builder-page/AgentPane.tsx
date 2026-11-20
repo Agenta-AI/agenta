@@ -1,14 +1,19 @@
-import {useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
-import {SessionFilesPane} from "@agenta/entity-ui/drive"
+import {
+    DriveSessionProvider,
+    SessionFilesPane,
+    sessionFilesPaneOpenAtomFamily,
+} from "@agenta/entity-ui/drive"
 import {formatNumber, useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
-import {DrawerViewChrome, ViewStackHost} from "@agenta/ui/view-stack"
+import {DrawerViewChrome, useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
+import {useSetAtom} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -19,6 +24,8 @@ import {PageViewStackGuard, type PageViewStackGuardApi} from "../agent-pages/Pag
 import {useConfigurationRevision} from "../agent-pages/useConfigurationRevision"
 import {ConfigPane} from "../chat/ConfigPane"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
+import {useTriggerTestRun} from "../chat/useTriggerTestRun"
+import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {PaneSessions, usePaneSessions} from "./PaneSessions"
@@ -63,11 +70,13 @@ export const AgentPane = ({
     )
     const sessions = usePaneSessions(projectId, agentId)
     const sessionCount = sessions.data?.total ?? sessions.data?.sessions?.length ?? 0
+    // An automation's "Run now" starts a new session of this agent, as from the panel.
+    useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     // The open pane tab's views: an open form with edits asks before a switch.
-    const guard = useRef<PageViewStackGuardApi | null>(null)
+    const guardRef = useRef<PageViewStackGuardApi | null>(null)
     const openTab = async (next: PaneTab) => {
         if (next === tab) return
-        if (guard.current && !(await guard.current.stack.closeAll())) return
+        if (guardRef.current && !(await guardRef.current.stack.closeAll())) return
         setTab(next)
     }
 
@@ -104,7 +113,13 @@ export const AgentPane = ({
     else if (tab === "access")
         body = <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
     else if (tab === "drives")
-        body = <SessionFilesPane scope={agentId} sessionId={builderSessionId} closeControl="none" />
+        body = (
+            <PaneDrives
+                agentId={agentId}
+                revisionId={revisionId}
+                builderSessionId={builderSessionId}
+            />
+        )
     else body = <PaneSessions agentId={agentId} projectId={projectId} workspaceId={workspaceId} />
 
     const label = (key: PaneTab) =>
@@ -147,12 +162,51 @@ export const AgentPane = ({
                 <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pin}>
                     <AgentEditorContext.Provider value={editor}>
                         <ViewStackHost key={tab} chrome={DrawerViewChrome} rootTitle={label(tab)}>
-                            <PageViewStackGuard guardRef={guard} />
+                            <PageViewStackGuard guardRef={guardRef} />
+                            <PublishFormDirty />
                             {body}
                         </ViewStackHost>
                     </AgentEditorContext.Provider>
                 </DrillInBridgeProvider>
             </div>
         </div>
+    )
+}
+
+/** Tells the builder chat that a pane form has edits (`has_unsaved_draft` in its context line). */
+const PublishFormDirty = () => {
+    const stack = useViewStack()
+    const setViewFormDirty = useSetAtom(viewFormDirtyAtom)
+    useEffect(() => {
+        setViewFormDirty(stack.dirty)
+    }, [stack.dirty, setViewFormDirty])
+    useEffect(() => () => setViewFormDirty(false), [setViewFormDirty])
+    return null
+}
+
+/**
+ * The Drives pane tab: the agent's drives in the Files pane. Its open state is the page's own
+ * (`builder-page:<agent>`), so opening it here does not open the Files pane on the agent's pages.
+ */
+const PaneDrives = ({
+    agentId,
+    revisionId,
+    builderSessionId,
+}: {
+    agentId: string
+    revisionId: string | null
+    builderSessionId: string
+}) => {
+    const scope = `builder-page:${agentId}`
+    const setOpen = useSetAtom(sessionFilesPaneOpenAtomFamily(scope))
+    useEffect(() => setOpen(true), [setOpen])
+    return (
+        <DriveSessionProvider
+            sessionId={builderSessionId}
+            artifactId={agentId}
+            revisionId={revisionId}
+        >
+            <SessionFilesPane scope={scope} sessionId={builderSessionId} closeControl="none" />
+        </DriveSessionProvider>
     )
 }

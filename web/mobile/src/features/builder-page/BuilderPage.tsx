@@ -8,6 +8,7 @@ import {
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {userAtom} from "@agenta/shared/state"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {Button, SimpleTooltip, SplitPane} from "@agenta/ui/ui"
 import {
     ArrowsInSimple,
@@ -211,7 +212,12 @@ export const BuilderPage = ({
             />
         )
 
-    const showPane = Boolean(agentId) && !layout.hidden
+    // Below 768 px the pane and the chat do not fit side by side: the pane shows only full screen.
+    const phone = !useMediaQuery("(min-width: 768px)")
+    const paneOpen = Boolean(agentId) && !layout.hidden && (!phone || layout.fullScreen)
+    const paneFull = paneOpen && layout.fullScreen
+    // Live width while the divider moves; stored when the drag ends.
+    const [dragWidth, setDragWidth] = useState<number | null>(null)
     const chatColumn = (
         <section aria-label={title} className="flex h-full min-h-0 min-w-0 flex-col">
             <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
@@ -223,13 +229,17 @@ export const BuilderPage = ({
                 <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-colorText">
                     {title}
                 </span>
-                {agentId && layout.hidden ? (
+                {agentId && !paneOpen ? (
                     <SimpleTooltip title={t("builder.page.openItems")}>
                         <Button
                             variant="ghost"
                             size="icon-sm"
                             aria-label={t("builder.page.openItems")}
-                            onClick={() => setLayout({hidden: false})}
+                            onClick={() =>
+                                setLayout(
+                                    phone ? {hidden: false, fullScreen: true} : {hidden: false},
+                                )
+                            }
                         >
                             <SidebarSimple size={16} className="-scale-x-100" />
                         </Button>
@@ -240,36 +250,39 @@ export const BuilderPage = ({
         </section>
     )
 
-    const pane =
-        showPane && agentId ? (
-            <section
-                aria-label={t("builder.page.openItems")}
-                className="flex h-full min-h-0 min-w-0 flex-col border-0 border-l border-solid border-colorBorderSecondary bg-colorBgContainer"
-            >
-                <PaneHeader
-                    agentId={agentId}
-                    name={agentName}
-                    fullScreen={layout.fullScreen}
-                    onFullScreen={() => setLayout({fullScreen: !layout.fullScreen})}
-                    onHide={() => setLayout({hidden: true, fullScreen: false})}
-                />
-                <div className="min-h-0 flex-1">
-                    {noAccess ? (
-                        <p className="m-0 p-4 text-[13px] text-colorTextSecondary">
-                            {t("builder.page.noAccess")}
-                        </p>
-                    ) : (
-                        <AgentPane
-                            key={agentId}
-                            agentId={agentId}
-                            builderSessionId={sessionId}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                        />
-                    )}
-                </div>
-            </section>
-        ) : null
+    // The pane stays mounted while it is hidden or the chat is full screen, so neither an open
+    // form in the pane nor a running answer in the chat is lost by a layout change.
+    const pane = agentId ? (
+        <section
+            aria-label={t("builder.page.openItems")}
+            className="flex h-full min-h-0 min-w-0 flex-col border-0 border-l border-solid border-colorBorderSecondary bg-colorBgContainer"
+        >
+            <PaneHeader
+                agentId={agentId}
+                name={agentName}
+                fullScreen={layout.fullScreen}
+                onFullScreen={() =>
+                    setLayout(phone ? {fullScreen: false} : {fullScreen: !layout.fullScreen})
+                }
+                onHide={() => setLayout({hidden: true, fullScreen: false})}
+            />
+            <div className="min-h-0 flex-1">
+                {noAccess ? (
+                    <p className="m-0 p-4 text-[13px] text-colorTextSecondary">
+                        {t("builder.page.noAccess")}
+                    </p>
+                ) : (
+                    <AgentPane
+                        key={agentId}
+                        agentId={agentId}
+                        builderSessionId={sessionId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                    />
+                )}
+            </div>
+        </section>
+    ) : null
 
     return (
         <>
@@ -280,23 +293,27 @@ export const BuilderPage = ({
                 scope={builderSidebar ? scope : undefined}
             >
                 <div className="h-full min-h-0" data-testid="builder-page">
-                    {!pane ? (
-                        chatColumn
-                    ) : layout.fullScreen ? (
-                        pane
-                    ) : (
-                        <SplitPane
-                            className="h-full"
-                            paneSide="end"
-                            paneSize={layout.width}
-                            paneMin={PANE_MIN_WIDTH}
-                            paneMax={PANE_MAX_WIDTH}
-                            resizable
-                            onResizeEnd={(size) => setLayout({width: size})}
-                            pane={pane}
-                            fill={chatColumn}
-                        />
-                    )}
+                    {/* One tree for every layout: a change of layout never remounts the chat. */}
+                    <SplitPane
+                        className="h-full"
+                        paneSide="end"
+                        paneSize={paneOpen ? (dragWidth ?? layout.width) : 0}
+                        paneMin={paneOpen && !paneFull ? PANE_MIN_WIDTH : 0}
+                        paneMax={PANE_MAX_WIDTH}
+                        fillMin={paneOpen && !paneFull ? 320 : 0}
+                        resizable={paneOpen && !paneFull}
+                        barHidden={!paneOpen || paneFull}
+                        paneGrow={paneFull}
+                        onResize={(size) => setDragWidth(size)}
+                        onResizeEnd={(size) => {
+                            setDragWidth(null)
+                            setLayout({width: size})
+                        }}
+                        pane={pane}
+                        paneClassName={paneOpen ? undefined : "hidden"}
+                        fill={chatColumn}
+                        fillClassName={paneFull ? "hidden" : undefined}
+                    />
                 </div>
             </AppShell>
             {/* The automation, catalog and run history drawers the pane's views open. */}

@@ -1,9 +1,19 @@
 import {useMemo, useState, type ReactNode} from "react"
 
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {
+    agentWorkflowsListQueryStateAtom,
+    invalidateWorkflowsListCache,
+} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import {Popover, PopoverContent, PopoverTrigger, SearchInput, SkeletonRows} from "@agenta/ui/ui"
+import {
+    Button,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SearchInput,
+    SkeletonRows,
+} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -30,7 +40,8 @@ export const AgentPicker = ({
             .map((agent) => ({id: agent.id, name: agent.name || agent.slug || ""}))
             .filter((agent) => !query || agent.name.toLowerCase().includes(query))
     }, [agents.data, search])
-    const none = !agents.isPending && (agents.data ?? []).length === 0
+    const failed = agents.isError && (agents.data ?? []).length === 0
+    const none = !agents.isPending && !failed && (agents.data ?? []).length === 0
 
     return (
         <Popover
@@ -49,7 +60,7 @@ export const AgentPicker = ({
                 <p className="m-0 px-1 pb-1 text-xs font-medium text-colorTextSecondary">
                     {t("builder.page.pickAgent")}
                 </p>
-                {none ? null : (
+                {none || failed ? null : (
                     <SearchInput
                         aria-label={t("builder.page.searchAgents")}
                         placeholder={t("builder.page.searchAgents")}
@@ -60,6 +71,19 @@ export const AgentPicker = ({
                 <div className="flex max-h-64 flex-col overflow-y-auto">
                     {agents.isPending ? (
                         <SkeletonRows count={3} />
+                    ) : failed ? (
+                        <div className="flex flex-col items-start gap-1 px-1 py-2">
+                            <p className="m-0 text-[13px] text-colorTextSecondary">
+                                {t("builder.page.agentsFailed")}
+                            </p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => invalidateWorkflowsListCache()}
+                            >
+                                {t("builder.page.retry")}
+                            </Button>
+                        </div>
                     ) : none ? (
                         <p className="m-0 px-1 py-2 text-[13px] text-colorTextSecondary">
                             {t("builder.page.noAgents")}

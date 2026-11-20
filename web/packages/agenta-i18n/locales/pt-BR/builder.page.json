@@ -24,6 +24,7 @@
     "searchAgents": "Buscar agentes…",
     "noAgents": "Ainda não há nenhum agente neste projeto.",
     "noAgentMatches": "Nenhum agente corresponde à sua busca.",
+    "agentsFailed": "Não foi possível carregar os agentes.",
     "searchIdeas": "Buscar ideias…",
     "noIdeaMatches": "Nenhuma ideia corresponde à sua busca.",
     "catAll": "Todas",

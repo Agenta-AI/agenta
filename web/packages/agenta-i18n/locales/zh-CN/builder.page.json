@@ -24,6 +24,7 @@
     "searchAgents": "搜索 Agent…",
     "noAgents": "这个项目还没有 Agent。",
     "noAgentMatches": "没有与搜索匹配的 Agent。",
+    "agentsFailed": "无法加载 Agent。",
     "searchIdeas": "搜索创意…",
     "noIdeaMatches": "没有与搜索匹配的创意。",
     "catAll": "全部",

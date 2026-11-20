@@ -24,6 +24,7 @@
     "searchAgents": "エージェントを検索…",
     "noAgents": "このプロジェクトにはまだエージェントがありません。",
     "noAgentMatches": "検索に一致するエージェントはありません。",
+    "agentsFailed": "エージェントを読み込めませんでした。",
     "searchIdeas": "アイデアを検索…",
     "noIdeaMatches": "検索に一致するアイデアはありません。",
     "catAll": "すべて",
