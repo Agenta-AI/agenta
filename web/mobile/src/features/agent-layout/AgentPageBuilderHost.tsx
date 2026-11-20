@@ -137,6 +137,9 @@ export const AgentPageBuilderHost = ({
                                       },
                                   }
                         }
+                        // Under 1100 px the panel lies over the page, below its header: the
+                        // header's Builder icon stays in reach.
+                        overlayTop={pushWidth ? undefined : "top-12"}
                         panelRef={panelRef}
                         onClose={() => void close()}
                     >

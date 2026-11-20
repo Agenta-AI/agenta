@@ -117,6 +117,25 @@ describe("the builder panel on an agent page", () => {
         expect(q("page")?.parentElement?.hasAttribute("inert")).toBe(true)
     })
 
+    it("lies over the page below its header under 1100 px", async () => {
+        localStorage.setItem(KEY, JSON.stringify({content: "builder"}))
+        media.width = 1000
+        await render()
+        expect(frame().className).toContain("absolute")
+        expect(frame().className).toContain("top-12")
+    })
+
+    it("closes on Escape from the resize edge too", async () => {
+        localStorage.setItem(KEY, JSON.stringify({content: "builder"}))
+        await render()
+        await act(async () => {
+            host.querySelector("[role=separator]")?.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Escape", bubbles: true}),
+            )
+        })
+        expect(frame().className).toContain("hidden")
+    })
+
     it("closes on Escape", async () => {
         localStorage.setItem(KEY, JSON.stringify({content: "builder"}))
         await render()

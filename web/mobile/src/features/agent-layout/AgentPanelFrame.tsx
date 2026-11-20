@@ -109,6 +109,17 @@ export const AgentPanelFrame = ({
                 mode !== "full" && "border-0 border-l border-solid border-colorBorderSecondary",
             )}
             style={mode === "full" ? undefined : {width}}
+            onKeyDown={(event) => {
+                // A view goes back first (the view stack handles it); a menu or dialog closes itself.
+                // What is left closes the panel, also from the resize edge.
+                if (event.key !== "Escape" || event.defaultPrevented) return
+                const layer = (event.target as HTMLElement).closest?.(
+                    '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
+                )
+                if (layer && layer !== event.currentTarget) return
+                event.preventDefault()
+                onClose()
+            }}
         >
             {mode !== "full" && resize ? (
                 <div
@@ -129,17 +140,6 @@ export const AgentPanelFrame = ({
                 tabIndex={-1}
                 data-testid="agent-panel"
                 className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
-                onKeyDown={(event) => {
-                    // A view goes back first (the view stack handles it); a menu or dialog closes
-                    // itself. What is left closes the panel.
-                    if (event.key !== "Escape" || event.defaultPrevented) return
-                    const layer = (event.target as HTMLElement).closest?.(
-                        '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
-                    )
-                    if (layer && layer !== event.currentTarget) return
-                    event.preventDefault()
-                    onClose()
-                }}
             >
                 {children}
             </div>

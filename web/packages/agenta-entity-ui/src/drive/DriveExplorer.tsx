@@ -652,6 +652,8 @@ export function DriveExplorer({
         retrying: drive.isFetching,
     }
     let headerInToolbar = false
+    // On a phone a folder's one row spans the tree and the content, as row 1 does elsewhere.
+    let phoneRow: ReactNode = null
     let body: ReactNode
     if (drive.errored && drive.fileCount === 0) {
         body = <DriveErrorState drive={drive} />
@@ -759,12 +761,12 @@ export function DriveExplorer({
             />
         )
 
-        const shownContentHeader =
-            touch && contentHeader && !headerInToolbar ? (
-                <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
-            ) : (
-                contentHeader
-            )
+        if (headerInToolbar) phoneRow = contentHeader
+        const shownContentHeader = headerInToolbar ? null : touch && contentHeader ? (
+            <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
+        ) : (
+            contentHeader
+        )
 
         // The content column: the folder's children, an editor, or a preview.
         const contentPane =
@@ -950,9 +952,13 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    <div className={touch ? TOUCH_HEADER : "contents"}>
-                        {headerInToolbar ? null : <DriveHeader {...headerProps} />}
-                    </div>
+                    {headerInToolbar ? (
+                        phoneRow
+                    ) : (
+                        <div className={touch ? TOUCH_HEADER : "contents"}>
+                            <DriveHeader {...headerProps} />
+                        </div>
+                    )}
                     <input
                         ref={uploadInputRef}
                         type="file"

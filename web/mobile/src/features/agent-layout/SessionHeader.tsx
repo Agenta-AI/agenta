@@ -228,7 +228,7 @@ export const SessionHeader = ({
                     {sharingCopy.privateAgent}
                 </span>
             ) : agentId ? (
-                <div className="flex min-w-0 items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2 overflow-hidden">
                     <AgentMenu
                         agentId={agentId}
                         name={name}
@@ -241,7 +241,11 @@ export const SessionHeader = ({
             ) : (
                 <span className="truncate text-[15px] font-semibold">{name}</span>
             )}
-            {revisionStatus}
+            {/* A narrow column (a wide panel) shrinks the name, the version and the session
+                button first, so the icons stay in the row. */}
+            {revisionStatus ? (
+                <span className="flex min-w-0 overflow-hidden">{revisionStatus}</span>
+            ) : null}
             <div className="flex-1" />
             {agentId ? (
                 <SessionMenu

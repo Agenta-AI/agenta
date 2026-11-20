@@ -497,7 +497,10 @@ export function DriveToolbar(props: DriveToolbarProps) {
         if (phone)
             return (
                 <div className="box-border flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-3 pr-1">
-                    <div className="flex min-w-0 flex-1 items-center">{phone.crumb}</div>
+                    {/* The crumb parts and Retry keep a 44 px tap target, as row 1 gives them. */}
+                    <div className="flex min-w-0 flex-1 items-center [&_button]:min-h-11 [&_button]:min-w-11">
+                        {phone.crumb}
+                    </div>
                     {controls}
                     {more}
                 </div>
