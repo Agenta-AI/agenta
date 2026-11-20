@@ -64,6 +64,16 @@ For every changelog announcement, you write one entry and regenerate the in-app 
 - The generator groups entries by their version tag into one release, keeps the newest 10
   versions, and takes each entry's `<Summary>`, its first `<Stream src="...">` clip, and its
   `improvements` and `fixes` lists. An entry without a `vX.Y.Z` tag is skipped.
+- Commit the regenerated `changelog.json` in the same PR as the entry. CI runs
+  `pnpm --filter @agenta/navigation check:releases` and fails when the file does not match the
+  entries.
+- The same file is the release feed. The website publishes it as
+  `https://agenta.ai/releases.json`, and self-hosted instances download it to show newer
+  releases, security warnings and notices.
+- **Security releases.** Add the tag `security` next to the version only when the release
+  fixes a security issue: `tags: [vX.Y.Z, security]`. Self-hosted instances below that version
+  then show owners and admins a security warning. The feed always keeps the newest security
+  release, even when it is older than the newest 10.
 
 ### 2. **Information Gathering**
 
@@ -177,7 +187,8 @@ fixes:
 Before finalizing, verify:
 - [ ] Version number present and correct
 - [ ] Entry created, with `improvements`/`fixes` frontmatter if the release has them
-- [ ] `pnpm --filter @agenta/navigation generate:releases` run and `changelog.json` updated
+- [ ] `pnpm --filter @agenta/navigation generate:releases` run, `changelog.json` committed in the same PR, `check:releases` passes
+- [ ] `security` tag added only if the release fixes a security issue
 - [ ] Curated summary wrapped in `<Summary>`, then `{/* truncate */}`, then the full write-up
 - [ ] Active voice used where possible
 - [ ] No em dashes present
@@ -296,8 +307,10 @@ From `web/`:
 pnpm --filter @agenta/navigation generate:releases
 ```
 
+Run it after every change to an entry, also after a small edit to an existing one.
 Check that the printed version list contains your version and the feature count you expect.
-Commit the updated `changelog.json` with the entry.
+Commit the updated `changelog.json` in the same PR as the entry. Then run
+`pnpm --filter @agenta/navigation check:releases`; it must pass, as it does in CI.
 
 ### Step 6: Update Roadmap
 Update `/docs/src/data/roadmap.ts`:

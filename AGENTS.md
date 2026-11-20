@@ -147,7 +147,7 @@ Codex, Cursor) read this structure.
 
 - **Root `AGENTS.md`** (this file): cross-cutting facts only. `CLAUDE.md` re-imports it so
   Claude Code reads the same content.
-- **Nested `<dir>/AGENTS.md`** (`web/`, `web/mobile/`, `web/website/`, `api/`, `hosting/`):
+- **Nested `<dir>/AGENTS.md`** (`web/`, `web/mobile/`, `web/website/`, `api/`, `hosting/`, `docs/`):
   area conventions, loaded only when working in that directory. Each has a `CLAUDE.md`
   symlink so Claude loads it too.
 - **Skills** (`.agents/skills/`, symlinked into `.claude/skills/`): procedures and heavy

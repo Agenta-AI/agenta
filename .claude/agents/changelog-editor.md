@@ -28,6 +28,13 @@ You are an expert technical documentation editor specializing in Docusaurus chan
    After you add or edit an entry, run `pnpm --filter @agenta/navigation generate:releases`
    from `web/`. It regenerates the in-app What's New data
    (`web/packages/agenta-navigation/src/releases/changelog.json`). Never edit that file by hand.
+   Commit the regenerated file in the same PR as the entry. CI runs `check:releases` and fails
+   when the file does not match the entries. The website publishes the same data as
+   `https://agenta.ai/releases.json`, which self-hosted instances download.
+
+   Add the tag `security` next to the version (`tags: [vX.Y.Z, security]`) only when the
+   release fixes a security issue. Self-hosted instances below that version then show a
+   security warning to owners and admins.
 
 2. **Version Management**: Before creating any entry, determine the version number. If unclear from context, ask the user: "Which version is this changelog entry for?" Never proceed without a clear version identifier.
 
@@ -78,7 +85,8 @@ You are an expert technical documentation editor specializing in Docusaurus chan
 **Quality Control Checklist (apply to every entry):**
 - [ ] Version number present and correct
 - [ ] Entry created in `docs/blog/entries/`
-- [ ] `generate:releases` run and `changelog.json` updated
+- [ ] `generate:releases` run, `changelog.json` committed in the same PR, `check:releases` passes
+- [ ] `security` tag added only if the release fixes a security issue
 - [ ] Curated summary in `<Summary>`, then `{/* truncate */}`, then the full write-up
 - [ ] Active voice used where possible
 - [ ] No em dashes present
