@@ -57,15 +57,15 @@ vi.mock("@agenta/entity-ui/drill-in", () => ({
     SkillFormView: ({
         value,
         onChange,
-        readOnly,
+        valuesAsText,
     }: {
         value: Record<string, unknown>
         onChange: (next: Record<string, unknown>) => void
-        readOnly?: boolean
+        valuesAsText?: boolean
     }) =>
         createElement("textarea", {
             "aria-label": "Description",
-            "data-read-only": String(Boolean(readOnly)),
+            "data-read-only": String(Boolean(valuesAsText)),
             value: String(value.description ?? ""),
             onChange: (e: {target: {value: string}}) =>
                 onChange({...value, description: e.target.value}),

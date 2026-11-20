@@ -95,9 +95,9 @@ export interface SkillFormViewProps {
     downloadable?: boolean
     /**
      * A read-only view (a phone): Name, Description, a file's path and the switches show as text
-     * rows, and the editors show their text without a toolbar. Implies `disabled`.
+     * rows, and the editors show their text without a toolbar. Pass `disabled` with it.
      */
-    readOnly?: boolean
+    valuesAsText?: boolean
 }
 
 const tNow = createT(skillCatalog)
@@ -127,7 +127,7 @@ function SwitchRow({
     checked,
     onChange,
     disabled,
-    readOnly,
+    valuesAsText,
 }: {
     label: string
     hint: string
@@ -135,7 +135,7 @@ function SwitchRow({
     onChange: (value: boolean) => void
     disabled?: boolean
     /** The value as text ("On" or "Off"), with no switch. */
-    readOnly?: boolean
+    valuesAsText?: boolean
 }) {
     const t = useT(commitDiffCatalog)
     return (
@@ -144,7 +144,7 @@ function SwitchRow({
                 <span className="text-xs font-medium">{label}</span>
                 <span className="text-xs text-muted-foreground">{hint}</span>
             </span>
-            {readOnly ? (
+            {valuesAsText ? (
                 <span className="shrink-0 text-sm text-colorText">
                     {checked ? t("entityUi.commitDiff.on") : t("entityUi.commitDiff.off")}
                 </span>
@@ -180,15 +180,14 @@ function ReadOnlyText({text, mono = false}: {text: string; mono?: boolean}) {
 export function SkillFormView({
     value,
     onChange,
-    disabled: disabledProp,
-    readOnly = false,
+    disabled,
+    valuesAsText = false,
     baseline: baselineProp,
     autoFocusName = false,
     showMissing = false,
     downloadable = false,
 }: SkillFormViewProps) {
     const t = useT(skillCatalog, skillViewCatalog, skillsGalleryCatalog, schemaControlsCatalog)
-    const disabled = disabledProp || readOnly
     const skill = (value ?? {}) as Record<string, unknown>
     const [mountValue] = useState(skill)
     const baseline = baselineProp ?? mountValue
@@ -525,7 +524,7 @@ export function SkillFormView({
                                         ) : undefined
                                     }
                                 >
-                                    {readOnly ? (
+                                    {valuesAsText ? (
                                         <ReadOnlyText text={name} mono />
                                     ) : (
                                         <Input
@@ -551,7 +550,7 @@ export function SkillFormView({
                                     description={t("entityUi.skillForm.descriptionTooltip")}
                                     error={descriptionError}
                                 >
-                                    {readOnly ? (
+                                    {valuesAsText ? (
                                         <ReadOnlyText text={description} />
                                     ) : (
                                         <AutosizeTextarea
@@ -612,7 +611,7 @@ export function SkillFormView({
                                         onChange={(next) => set("body", next)}
                                         placeholder={t("entityUi.skillForm.bodyPlaceholder")}
                                         disabled={disabled}
-                                        showToolbar={!readOnly}
+                                        showToolbar={!valuesAsText}
                                         toolbarContainer={toolbarHost}
                                         view={bodyView}
                                         onViewChange={setBodyView}
@@ -657,7 +656,7 @@ export function SkillFormView({
                                             checked={Boolean(skill.disable_model_invocation)}
                                             onChange={(on) => set("disable_model_invocation", on)}
                                             disabled={disabled}
-                                            readOnly={readOnly}
+                                            valuesAsText={valuesAsText}
                                         />
                                         <SwitchRow
                                             label={t("entityUi.skillForm.allowExecutable")}
@@ -665,7 +664,7 @@ export function SkillFormView({
                                             checked={Boolean(skill.allow_executable_files)}
                                             onChange={(on) => set("allow_executable_files", on)}
                                             disabled={disabled}
-                                            readOnly={readOnly}
+                                            valuesAsText={valuesAsText}
                                         />
                                     </div>
                                 </HeightCollapse>
@@ -690,7 +689,7 @@ export function SkillFormView({
                                             : undefined
                                     }
                                 >
-                                    {readOnly ? (
+                                    {valuesAsText ? (
                                         <ReadOnlyText text={activePath} mono />
                                     ) : (
                                         <Input
@@ -719,7 +718,7 @@ export function SkillFormView({
                                     }
                                     // A file runs only when the skill allows executable files.
                                     disabled={disabled || !skill.allow_executable_files}
-                                    readOnly={readOnly}
+                                    valuesAsText={valuesAsText}
                                 />
                             </>
                         ) : null}

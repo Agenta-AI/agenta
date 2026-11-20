@@ -53,7 +53,7 @@ const body = () => host.querySelector<HTMLElement>('[data-testid="body"]')!
 
 describe("SkillFormView read only", () => {
     it("shows Name, Description and the switches as text, with no field", () => {
-        render(<SkillFormView value={skill} onChange={() => undefined} readOnly />)
+        render(<SkillFormView value={skill} onChange={() => undefined} disabled valuesAsText />)
         expect(host.querySelector("input, textarea")).toBeNull()
         expect(byText("plain-writing")).toHaveLength(1)
         expect(byText("Writes replies in plain words")).toHaveLength(1)

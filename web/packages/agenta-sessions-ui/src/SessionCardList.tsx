@@ -427,8 +427,6 @@ export const SessionCardList = ({
                     </p>
                 ) : null}
                 {list.canShowMore ? (
-                    // 44 px high on a phone. A row needs no area of its own: the whole row
-                    // opens on a tap and is taller than 44 px.
                     <button
                         type="button"
                         onClick={list.showMore}
