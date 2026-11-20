@@ -64,7 +64,9 @@ class TestWorkspaceMembers:
                 f"/organizations/{organization_id}/workspaces/{workspace_id}/invite",
                 params={"project_id": project_id},
                 headers=headers,
-                json=[{"email": invite_email, "roles": ["viewer"]}],
+                # `member` is offered on every plan; `viewer` needs the RBAC
+                # entitlement, which the default plan does not have.
+                json=[{"email": invite_email, "roles": ["member"]}],
             )
             assert invite_resp.status_code == 200, invite_resp.text
 
