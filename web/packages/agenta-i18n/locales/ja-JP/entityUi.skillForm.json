@@ -24,7 +24,7 @@
     "fileContent": "ファイルの内容",
     "advanced": "詳細設定",
     "hideFromPrompt": "プロンプトから隠す",
-    "hideFromPromptHint": "エージェントはこのスキルを自分では選びません。/skill:name で自分で実行します。",
+    "hideFromPromptHint": "エージェントはこのスキルを自分では選びません。/skill:{{name}} で自分で実行します。",
     "allowExecutable": "実行可能ファイルを許可",
     "allowExecutableHint": "このスキル内のファイルをプログラムとして実行できるようにします。サンドボックスの設定でも許可されている必要があります。"
 }

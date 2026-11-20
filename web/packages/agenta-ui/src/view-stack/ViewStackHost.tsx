@@ -379,14 +379,15 @@ export const ViewStackHost = ({
                         apply={top.view.apply}
                         readOnly={
                             (phone && Boolean(top.view.readOnlyOnPhone)) ||
-                            top.view.actionRow === false
+                            top.view.actionRow === false ||
+                            topForm?.actionRow === false
                         }
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
                         footerStartRef={setFooterStart}
                         onBack={() => void back()}
-                        onCancel={cancel}
+                        onCancel={topForm?.cancel ?? cancel}
                         onSave={() => void save()}
                     >
                         {entries.map((entry, index) => (

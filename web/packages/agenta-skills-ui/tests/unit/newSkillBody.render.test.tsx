@@ -282,7 +282,7 @@ describe("new skill", () => {
         await click(byText("Import 1 skill"))
         await waitFor(() =>
             expect(
-                byText("Imported to the skill registry, but not added to this agent: PDF Reader."),
+                byText("Imported to the skill registry, but not added to this agent: pdf-reader."),
             ).toBeTruthy(),
         )
         expect(onCreated).not.toHaveBeenCalled()

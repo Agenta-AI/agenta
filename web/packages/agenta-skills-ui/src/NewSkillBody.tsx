@@ -8,16 +8,18 @@ import {
     skillFilesOf,
     SkillFormView,
     SkillViewHeader,
+    useSkillViewForm,
     type SkillScanCandidate,
     type SkillUploadScan,
 } from "@agenta/entity-ui/drill-in"
 import {createT, richText, useT} from "@agenta/i18n"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
 import skillTemplateCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
+import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import repoImportCatalog from "@agenta/i18n/catalogs/ui.repoImport"
 import {projectIdAtom} from "@agenta/shared/state"
-import {extractApiErrorMessage, skillDisplayName} from "@agenta/shared/utils"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {
     buildSkillEmbedEntry,
     createSkillWorkflow,
@@ -30,8 +32,14 @@ import {invalidateSkillsListCache} from "@agenta/skills/state"
 import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
-import {useViewForm, useViewTitle} from "@agenta/ui/view-stack"
-import {GithubLogo, PencilSimple, UploadSimple, WarningCircle} from "@phosphor-icons/react"
+import {useViewTitle} from "@agenta/ui/view-stack"
+import {
+    CaretRight,
+    GithubLogo,
+    PencilSimple,
+    UploadSimple,
+    WarningCircle,
+} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 type Skill = Record<string, unknown>
@@ -89,7 +97,13 @@ interface RepoCandidate {
 const ROW = "box-border flex items-start gap-2.5 rounded-md border border-solid p-2.5"
 
 export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBodyProps) {
-    const t = useT(skillNewCatalog, skillsGalleryCatalog, skillTemplateCatalog, repoImportCatalog)
+    const t = useT(
+        skillNewCatalog,
+        skillsGalleryCatalog,
+        skillTemplateCatalog,
+        repoImportCatalog,
+        skillViewCatalog,
+    )
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const [step, setStep] = useState<Step>(start.step)
     const [error, setError] = useState<string | null>(null)
@@ -256,7 +270,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                 const imported = already.has(c.path_in_repo)
                 return {
                     path: c.path_in_repo,
-                    name: c.skill?.name ? skillDisplayName(c.skill.name) : c.path_in_repo,
+                    name: c.skill?.name || c.path_in_repo,
                     description: c.skill?.description,
                     imported,
                     unavailable: imported
@@ -290,7 +304,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         const missed: string[] = []
         for (const item of imported) {
             if (!item.workflow_slug) {
-                missed.push(item.name ? skillDisplayName(item.name) : item.path_in_repo)
+                missed.push(item.name || item.path_in_repo)
                 continue
             }
             entries.push(
@@ -392,13 +406,18 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                       label: t("skills.gallery.createSkill"),
                       save: async () => false,
                   }
-    useViewForm({
-        dirty: form.dirty,
-        valid: form.valid,
-        saveLabel: form.label,
-        leaveDescription: t("entityUi.skillNew.leaveDescription"),
-        save: form.save,
-    })
+    const {onUploadControl} = useSkillViewForm(
+        {
+            dirty: form.dirty,
+            valid: form.valid,
+            saveLabel: form.label,
+            leaveDescription: t("entityUi.skillNew.leaveDescription"),
+            save: form.save,
+            // "Choose how" has no action row: a card click goes on (F07 f12).
+            ...(step === "choose" ? {actionRow: false as const} : {}),
+        },
+        t("entityUi.skillView.upload"),
+    )
 
     const stepLabel: Record<Step, string> = {
         choose: "",
@@ -441,6 +460,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                         baseline={baseline}
                         autoFocusName={parsedCount == null}
                         showMissing={writeDirty && !writeValid}
+                        onUploadControl={onUploadControl}
                     />
                 </div>
             </div>
@@ -624,19 +644,19 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
             ) : null}
             <div className="flex flex-col gap-2">
                 <WayRow
-                    icon={<PencilSimple size={16} />}
+                    icon={<PencilSimple size={14} />}
                     title={t("skills.gallery.menuWriteTitle")}
                     hint={t("skills.gallery.menuWriteHint")}
                     onSelect={() => openWrite(EMPTY_SKILL, null)}
                 />
                 <WayRow
-                    icon={<UploadSimple size={16} />}
+                    icon={<UploadSimple size={14} />}
                     title={t("skills.gallery.menuUploadTitle")}
                     hint={t("skills.gallery.menuUploadHint")}
                     onSelect={() => setStep("upload")}
                 />
                 <WayRow
-                    icon={<GithubLogo size={16} />}
+                    icon={<GithubLogo size={14} />}
                     title={t("skills.gallery.menuImportTitle")}
                     hint={t("skills.gallery.menuImportHint")}
                     onSelect={() => setStep("import")}
@@ -661,13 +681,17 @@ function WayRow({
         <button
             type="button"
             onClick={onSelect}
-            className="box-border flex w-full cursor-pointer appearance-none items-start gap-3 rounded-lg border border-solid border-colorBorderSecondary bg-transparent p-3 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+            className="box-border flex w-full cursor-pointer appearance-none items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary bg-transparent p-3 text-left font-[inherit] outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
         >
-            <span className="mt-0.5 shrink-0 text-colorTextSecondary">{icon}</span>
-            <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm font-medium text-foreground">{title}</span>
-                <span className="text-xs text-muted-foreground">{hint}</span>
+            {/* An icon tile and a chevron: a click goes on to that way (F07 f12). */}
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-colorFillQuaternary text-colorText">
+                {icon}
             </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-sm font-medium text-colorText">{title}</span>
+                <span className="text-[12px] leading-4 text-colorTextSecondary">{hint}</span>
+            </span>
+            <CaretRight aria-hidden size={14} className="shrink-0 text-colorTextTertiary" />
         </button>
     )
 }

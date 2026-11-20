@@ -24,7 +24,7 @@
     "fileContent": "File content",
     "advanced": "Advanced",
     "hideFromPrompt": "Hide from prompt",
-    "hideFromPromptHint": "The agent won't pick this skill on its own. You run it yourself with /skill:name.",
+    "hideFromPromptHint": "The agent won't pick this skill on its own. You run it yourself with /skill:{{name}}.",
     "allowExecutable": "Allow executable files",
     "allowExecutableHint": "Let the files in this skill run as programs. Your sandbox settings must allow it too."
 }

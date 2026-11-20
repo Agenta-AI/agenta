@@ -5,7 +5,7 @@
  */
 import {createT} from "@agenta/i18n"
 import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
-import {humanizeActionKey, skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
+import {humanizeActionKey, stripStaticSkillPrefix} from "@agenta/shared/utils"
 import {McpServerMark, SkillMark} from "@agenta/ui/agent-icon"
 import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
@@ -359,9 +359,8 @@ const SKILL_MARK = {
     monoName: false,
 }
 
-/** A skill title from a name or slug, without the reserved `__ag__` prefix a built-in carries. */
-const titleOf = (value: string | undefined) =>
-    value ? skillDisplayName(stripStaticSkillPrefix(value)) : undefined
+/** A skill's one name (its slug, as written), without the reserved `__ag__` prefix a built-in carries. */
+const titleOf = (value: string | undefined) => (value ? stripStaticSkillPrefix(value) : undefined)
 
 /** Classify a skill into its row avatar / name / description / type tags. */
 export function describeSkill(skill: unknown): ItemDescriptor {

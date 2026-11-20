@@ -34,7 +34,7 @@ const AgentaToolsViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
     })
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
+        <div className="flex min-h-0 flex-1 flex-col px-4 py-3.5">
             {data.status === "error" ? (
                 <span className="text-xs text-colorError">
                     {t("entityUi.buildKit.couldNotLoadAgentaTools")}

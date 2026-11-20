@@ -86,6 +86,12 @@ describe("Agenta tools section", () => {
         expect(preset().value).toBe("custom")
     })
 
+    it("starts at the description, without repeating the view title", async () => {
+        await act(async () => root.render(<Harness initial={defaults} />))
+        expect(host.textContent).not.toContain("Agenta tools")
+        expect(host.textContent?.startsWith("Tools your agent can use")).toBe(true)
+    })
+
     it("marks the tools the build kit also carries", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         expect(host.textContent).toContain("In the playground, the Build kit setting applies.")

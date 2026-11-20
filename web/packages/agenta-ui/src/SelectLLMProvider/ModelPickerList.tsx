@@ -86,24 +86,26 @@ const ModelPickerList = ({
                     aria-pressed={selected}
                     disabled={disabled}
                     onClick={() => onChange(option.value, option)}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left hover:bg-accent aria-pressed:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-[5px] text-left font-[inherit] hover:bg-accent aria-pressed:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate text-sm text-colorText">{option.label}</span>
+                            <span className="truncate text-[13px] leading-5 text-colorText">
+                                {option.label}
+                            </span>
                             {option.hint ? (
-                                <span className="shrink-0 text-xs text-colorTextTertiary">
+                                <span className="shrink-0 text-[12px] text-colorTextTertiary">
                                     {option.hint}
                                 </span>
                             ) : null}
                         </span>
                         {option.label !== option.value ? (
-                            <span className="truncate font-mono text-xs text-colorTextTertiary">
+                            <span className="truncate font-mono text-[11px] leading-5 text-colorTextTertiary">
                                 {option.value}
                             </span>
                         ) : null}
                         {option.caption ? (
-                            <span className="truncate text-xs text-colorTextTertiary">
+                            <span className="truncate text-[12px] leading-4 text-colorTextTertiary">
                                 {option.caption}
                             </span>
                         ) : null}
@@ -119,7 +121,7 @@ const ModelPickerList = ({
         return (
             <div key={section.key} className="flex flex-col">
                 {section.label ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-colorTextTertiary">
+                    <div className="flex items-center gap-1.5 px-2 pb-1 text-[12px] leading-4 text-colorTextTertiary">
                         {single ? <span>{t("ui.llmProvider.via")}</span> : null}
                         {Icon ? <Icon className="size-3 shrink-0" /> : null}
                         <span>{section.label}</span>
@@ -136,36 +138,33 @@ const ModelPickerList = ({
         const Icon = getProviderIcon(group.iconKey ?? group.label ?? "")
         const sections = group.sections ?? [{key: "", label: "", options: group.options}]
         return (
-            <section
-                key={group.key ?? group.label ?? ""}
-                className="flex flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary py-2 last:border-b-0"
-            >
-                <div className="flex items-center gap-2 px-3 py-1">
+            <section key={group.key ?? group.label ?? ""} className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-2.5">
                     {Icon ? <Icon className="size-4 shrink-0" /> : null}
-                    <span className="truncate text-sm font-medium text-colorText">
+                    <span className="truncate text-[12px] font-semibold leading-5 text-zinc-8">
                         {group.label}
                     </span>
                     {group.tag ? (
                         <span
                             className={clsx(
-                                "shrink-0 rounded-control-sm px-1.5 text-[11px]",
+                                "inline-flex h-5 shrink-0 items-center rounded px-[7px] text-[12px] leading-4",
                                 group.tagTone === "olive"
                                     ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
-                                    : "bg-muted text-colorTextSecondary",
+                                    : "bg-colorBgContainer text-colorTextSecondary shadow-[inset_0_0_0_1px_var(--colorBorderSecondary)]",
                             )}
                         >
                             {group.tag}
                         </span>
                     ) : null}
                     {group.caption && !group.disabled ? (
-                        <span className="min-w-0 truncate text-xs text-colorTextTertiary">
+                        <span className="min-w-0 truncate text-[12px] text-colorTextTertiary">
                             {group.caption}
                         </span>
                     ) : null}
                 </div>
                 {group.disabled ? (
-                    <div className="flex items-center justify-between gap-2 px-3 py-1">
-                        <span className="text-xs text-colorWarning">{group.caption}</span>
+                    <div className="flex items-center justify-between gap-2 px-2 py-1">
+                        <span className="text-[12px] text-colorWarning">{group.caption}</span>
                         {disabledGroupAction ? (
                             <Button
                                 variant="outline"

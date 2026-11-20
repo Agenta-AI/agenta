@@ -3,7 +3,7 @@
  * menu "Skill actions". The registry skill view (skills-ui) and the agent-only skill view
  * (entity-ui) both use it.
  */
-import {useState, type ReactNode} from "react"
+import {Fragment, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
@@ -11,13 +11,13 @@ import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {SkillMark} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
-import {DotsThreeVertical, DownloadSimple} from "@phosphor-icons/react"
+import {DotsThree, DownloadSimple} from "@phosphor-icons/react"
 
 import {downloadSkill, skillDownloadKind} from "./skillDownload"
 
 /** A row of the actions menu: icon, label, full width. */
 export const SKILL_ACTION_ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:opacity-50"
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-colorText outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-default disabled:opacity-50 max-md:min-h-11"
 
 export interface SkillAction {
     key: string
@@ -83,18 +83,23 @@ export function SkillViewHeader({
     // The menu renders inside the header, so a modal drawer around it keeps it scrollable.
     const [headerRoot, setHeaderRoot] = useState<HTMLDivElement | null>(null)
     return (
-        <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 pb-3 pt-3">
-            <div className="flex min-w-0 items-start gap-2">
-                <SkillMark size={24} />
+        <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2">
+                <SkillMark size={28} />
                 <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex min-w-0 items-center gap-2">
-                        <span title={name} className="min-w-0 truncate text-sm font-medium">
+                        <span
+                            title={name}
+                            className="min-w-0 truncate text-[13px] font-semibold leading-5 text-colorText"
+                        >
                             {name}
                         </span>
                         {extra}
                     </div>
                     {status ? (
-                        <span className="text-xs text-muted-foreground">{status}</span>
+                        <span className="text-[12px] leading-4 text-colorTextSecondary">
+                            {status}
+                        </span>
                     ) : null}
                 </div>
                 {hasMenu ? (
@@ -102,12 +107,12 @@ export function SkillViewHeader({
                         <PopoverTrigger asChild>
                             <Button
                                 variant="ghost"
-                                size="icon"
+                                size="icon-compact"
                                 aria-label={t("skills.gallery.skillActions")}
                                 disabled={busy}
-                                className="-my-1 shrink-0"
+                                className="shrink-0"
                             >
-                                <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
+                                <DotsThree aria-hidden weight="bold" />
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent
@@ -117,23 +122,31 @@ export function SkillViewHeader({
                             className="flex w-[220px] flex-col p-1"
                         >
                             {menuTop}
-                            {actions.map((action) => (
-                                <button
-                                    key={action.key}
-                                    type="button"
-                                    disabled={action.disabled}
-                                    onClick={() => {
-                                        setOpen(false)
-                                        action.onSelect()
-                                    }}
-                                    className={cn(
-                                        SKILL_ACTION_ROW,
-                                        action.danger && "text-[var(--ag-colorError)]",
-                                    )}
-                                >
-                                    {action.icon}
-                                    <span className="flex-1">{action.label}</span>
-                                </button>
+                            {actions.map((action, index) => (
+                                <Fragment key={action.key}>
+                                    {/* A line before the first danger action (F07 f10: before Archive). */}
+                                    {action.danger && index > 0 && !actions[index - 1].danger ? (
+                                        <span
+                                            role="separator"
+                                            className="mx-1 my-1 h-px shrink-0 bg-colorBorderSecondary"
+                                        />
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        disabled={action.disabled}
+                                        onClick={() => {
+                                            setOpen(false)
+                                            action.onSelect()
+                                        }}
+                                        className={cn(
+                                            SKILL_ACTION_ROW,
+                                            action.danger && "text-[var(--ag-colorError)]",
+                                        )}
+                                    >
+                                        {action.icon}
+                                        <span className="flex-1">{action.label}</span>
+                                    </button>
+                                </Fragment>
                             ))}
                         </PopoverContent>
                     </Popover>

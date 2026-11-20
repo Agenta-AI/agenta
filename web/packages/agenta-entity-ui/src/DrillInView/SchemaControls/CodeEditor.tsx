@@ -29,6 +29,9 @@ export interface CodeEditorProps {
     /** Fill the height the flex parent gives it, scrolling inside. Parent must be a `min-h-0`
      * flex column. @default false (content-sized) */
     grow?: boolean
+    /** Plain text with no line numbers and no frame of its own; the host draws the frame (the
+     * skill file view, F07 f4). @default false */
+    plain?: boolean
 }
 
 /** Best-effort highlight language from a file path's extension, for bundled-file editing. */
@@ -62,6 +65,7 @@ export function CodeEditor({
     disabled,
     disableDebounce = false,
     grow = false,
+    plain = false,
 }: CodeEditorProps) {
     const [text, setText] = useState(value ?? "")
     const lastExternal = useRef(value ?? "")
@@ -86,13 +90,13 @@ export function CodeEditor({
             // `!min-h-full`: fills the scroll box (beating the component's own `min-h-[70px]`)
             // while still growing past it, so the border spans the pane AND long files scroll.
             className={grow ? "!min-h-full" : undefined}
-            editorType="border"
+            editorType={plain ? "borderless" : "border"}
             initialValue={text}
             value={text}
             handleChange={handleChange}
             disabled={disabled}
             placeholder={placeholder}
-            editorProps={{codeOnly: true, language}}
+            editorProps={{codeOnly: true, language, showLineNumbers: !plain}}
             syncWithInitialValueChanges
             disableDebounce={disableDebounce}
         />
