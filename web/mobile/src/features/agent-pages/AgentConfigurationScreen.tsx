@@ -1,15 +1,12 @@
-import {useEffect, useMemo, useState} from "react"
+import {useMemo} from "react"
 
-import {workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
-import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {cn} from "@agenta/ui/styles"
 import {SkeletonBlock} from "@agenta/ui/ui"
-import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -28,24 +25,7 @@ import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 import {ConfigurationAgentTab} from "./ConfigurationAgentTab"
 import {ConfigurationAutomationsTab} from "./ConfigurationAutomationsTab"
 import {CONFIGURATION_TABS, type ConfigurationTab} from "./configurationTabs"
-
-/**
- * The agent's latest revision, pinned to the one an auto-save made from it: the latest-revision
- * query is stale for a beat after a commit, and the page must not step back to the old one.
- */
-const useConfigurationRevision = (agentId: string) => {
-    const latest = useAtomValue(workflowLatestRevisionIdAtomFamily(agentId))
-    const [pinned, setPinned] = useState<string | null>(null)
-    const revisionId = pinned ?? latest
-    useEffect(
-        () =>
-            registerAgentAutoCommitHandler(`configuration-page:${agentId}`, (from, to) => {
-                if (from === revisionId) setPinned(to)
-            }),
-        [agentId, revisionId],
-    )
-    return {revisionId, pin: setPinned}
-}
+import {useConfigurationRevision} from "./useConfigurationRevision"
 
 /**
  * The Configuration page of one agent (`?view=configuration&tab=<tab>`): the tabs Agent,
@@ -119,10 +99,9 @@ export const AgentConfigurationScreen = ({
                                     <AgentRevisionStatus
                                         revisionId={revisionId}
                                         historyWorkflowId={agentId}
-                                        // Follows a version saved elsewhere, unless a view form
-                                        // here has edits (the status then offers the update).
+                                        // A version saved elsewhere is offered ("Update to vN"),
+                                        // not adopted on its own: a drawer form here may hold edits.
                                         onUpdate={pin}
-                                        autoUpdate
                                     />
                                 ) : null}
                             </div>

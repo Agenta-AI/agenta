@@ -7,18 +7,13 @@ interface SectionAnchor {
     title: string
 }
 
-/** The sections the configuration renders, in order, read from their anchors. */
-const readAnchors = (root: HTMLElement): SectionAnchor[] =>
+/** The titled section anchors the configuration renders, in document order. */
+const readAnchors = (root: HTMLElement): (SectionAnchor & {el: HTMLElement})[] =>
     [...root.querySelectorAll<HTMLElement>("[data-config-section]")].flatMap((el) => {
         const key = el.dataset.configSection
         const title = el.dataset.configSectionTitle
-        return key && title ? [{key, title}] : []
+        return key && title ? [{key, title, el}] : []
     })
-
-const anchorOf = (root: HTMLElement, key: string) =>
-    [...root.querySelectorAll<HTMLElement>("[data-config-section]")].find(
-        (el) => el.dataset.configSection === key,
-    ) ?? null
 
 /**
  * The list of the configuration's sections beside it. A click scrolls to that section; the
@@ -40,7 +35,7 @@ export const ConfigurationSectionNav = ({
         if (!root) return
         const update = () =>
             setSections((before) => {
-                const next = readAnchors(root)
+                const next = readAnchors(root).map(({key, title}) => ({key, title}))
                 const same =
                     before.length === next.length &&
                     before.every((s, i) => s.key === next[i].key && s.title === next[i].title)
@@ -63,11 +58,8 @@ export const ConfigurationSectionNav = ({
         const mark = () => {
             const top = root.getBoundingClientRect().top + 8
             let inView = sections[0].key
-            // One scan per scroll: the anchors in document order.
-            for (const el of root.querySelectorAll<HTMLElement>("[data-config-section]")) {
-                const key = el.dataset.configSection
-                if (key && el.dataset.configSectionTitle && el.getBoundingClientRect().top <= top)
-                    inView = key
+            for (const {key, el} of readAnchors(root)) {
+                if (el.getBoundingClientRect().top <= top) inView = key
             }
             setCurrent(inView)
         }
@@ -92,7 +84,7 @@ export const ConfigurationSectionNav = ({
                     )}
                     onClick={() => {
                         const root = contentRef.current
-                        const el = root && anchorOf(root, section.key)
+                        const el = root && readAnchors(root).find((a) => a.key === section.key)?.el
                         if (!root || !el) return
                         root.scrollTo({
                             top:
