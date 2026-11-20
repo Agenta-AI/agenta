@@ -97,6 +97,7 @@
         "@lexical/rich-text": "^0.46.0",
         "@lexical/table": "^0.46.0",
         "@lexical/utils": "^0.46.0",
+        "@tanstack/query-core": "5.100.9",
         "@tanstack/react-virtual": "^3.13.2",
         "@types/js-yaml": "^4.0.9",
         "@types/json-schema": "^7.0.15",

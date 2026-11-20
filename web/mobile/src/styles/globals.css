@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 
 /* Palette-derived shadcn variables (light + dark), GENERATED from
-   web/oss/src/styles/theme/palette.ts — do not edit by hand.
+   web/packages/agenta-ui/src/styles/theme/palette.ts — do not edit by hand.
    Regenerate: pnpm --filter @agenta/mobile generate:tokens */
 @import "./theme.generated.css";
 @import "@agenta/auth-ui/auth.css";
@@ -201,11 +201,11 @@
     /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
        scope. Mobile has no custom face, so that is the default sans stack. */
     --font-portal: var(--font-sans);
-    /* The project code face. Same literals as oss/src/styles/theme/controlScale.ts, which
+    /* The project code face. Same literals as @agenta/ui controlScale.ts, which
        `pnpm tokens:check` compares against. */
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
     /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). Literals are
-       copied from oss/src/styles/theme/controlScale.ts and verified by `pnpm tokens:check`. */
+       copied from @agenta/ui controlScale.ts and verified by `pnpm tokens:check`. */
     --spacing-control-check: 16px;
     --spacing-control-check-dash: 7px;
     --spacing-control-xs: 24px;
@@ -258,15 +258,14 @@
     --text-field-md--line-height: 1.4285714285714286;
     --text-field-lg: 16px;
     --text-field-lg--line-height: 1.5;
-    /* The `secondary` step of the type scale, same literals as oss/tailwind.config.ts. Leaving it
-       undeclared did not inherit the scale — it fell through to Tailwind's stock 12px/16px, so
-       every shared @agenta/* component's secondary text rendered a step smaller here than in
-       oss/ee. `sm` stays stock 14/20 (`body`) in both, so only this step needs stating. */
+    /* The `secondary` step of the type scale. Left undeclared, it falls through to Tailwind's
+       stock 12px/16px and shared @agenta/* secondary text renders a step too small. `sm` stays
+       stock 14/20 (`body`), so only this step needs stating. */
     --text-xs: 13px;
     --text-xs--line-height: 18px;
     /* The kit Badge's own step. Omitting it did not fall back to anything — `text-badge-md`
        simply generated no rule here, so the shared Badge lost both its size and the line-height
-       the step bundles. Same literals as oss/src/styles/theme/controlScale.ts. */
+       the step bundles. Same literals as @agenta/ui controlScale.ts. */
     --text-badge-md: 12px;
     --text-badge-md--line-height: 1.8666666666666667;
     --shadow-switch-handle: var(--switch-handle-shadow);
@@ -327,7 +326,7 @@
        (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live in the desktop's
        Tailwind config. Tailwind only emits a utility it can resolve, so without these the shared
        drawers opened with no slide and no mask — the components were right, the keyframes simply
-       did not exist here. Values mirror oss/tailwind.config.ts (antd's own durations/easings). */
+       did not exist here. Values follow antd's own durations and easings. */
     --animate-overlay-in: overlay-in 0.2s ease;
     --animate-overlay-out: overlay-out 0.2s ease;
     --animate-dialog-in: dialog-in 0.2s cubic-bezier(0.08, 0.82, 0.17, 1);

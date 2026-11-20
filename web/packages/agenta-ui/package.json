@@ -54,6 +54,7 @@
         "./surfaces.css": "./src/styles/surfaces.css",
         "./table": "./src/InfiniteVirtualTable/index.ts",
         "./theme": "./src/theme/index.ts",
+        "./theme-tokens": "./src/styles/theme/index.ts",
         "./theme-variables.css": "./src/styles/theme-variables.css",
         "./type-chip": "./src/type-chip/index.ts",
         "./ui": "./src/components/ui/index.ts",

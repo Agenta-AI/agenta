@@ -32,8 +32,11 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@tailwindcss/container-queries": "0.1.1",
+    "@tailwindcss/forms": "0.5.11",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "tailwind-scrollbar": "3.1.0",
     "tailwindcss": "3.4.19",
     "vitest": "^4.1.11",
     "wrangler": "4.131.1"
