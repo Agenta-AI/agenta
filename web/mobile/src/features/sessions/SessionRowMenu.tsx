@@ -12,7 +12,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {DotsThreeVertical} from "@phosphor-icons/react"
+import {DotsThree} from "@phosphor-icons/react"
 
 /**
  * A session row's kebab — the shared verbs (rename, pin, archive, delete, and an automation
@@ -51,7 +51,7 @@ export const SessionRowMenu = ({
                         `[&_svg:not([class*='size-'])]:size-3` wins over the attribute, so the prop
                         silently rendered 12px. Three dots also read smaller than a glyph that
                         fills its box, so 14 is what matches by eye. */}
-                    <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                    <DotsThree aria-hidden className="size-3.5" weight="bold" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onCloseAutoFocus={handleCloseAutoFocus}>
