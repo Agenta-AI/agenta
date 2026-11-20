@@ -24,6 +24,7 @@ const fixture = vi.hoisted(() => ({
     connections: [] as Record<string, unknown>[],
     saved: [] as string[],
     failSave: false,
+    refreshed: 0,
 }))
 
 vi.mock("@agenta/entities/secret", async (importOriginal) => {
@@ -31,6 +32,9 @@ vi.mock("@agenta/entities/secret", async (importOriginal) => {
     return {
         ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
         providerConnectionsAtom: atom(() => fixture.connections),
+        refreshVaultSecretsAtom: atom(null, async () => {
+            fixture.refreshed += 1
+        }),
         vaultSecretsQueryAtom: atom(() => ({
             isPending: false,
             isError: false,
@@ -174,6 +178,7 @@ beforeEach(() => {
     root = createRoot(host)
     fixture.saved = []
     fixture.failSave = false
+    fixture.refreshed = 0
     fixture.connections = [
         connection("ChatGPT", {
             kind: "chatgpt",
@@ -229,6 +234,8 @@ describe("Model providers list", {timeout: 30_000}, () => {
         await click(byText("Save connection"))
         await findByText("here:Model providers")
         expect(fixture.saved).toEqual(["openai"])
+        // The list and the picker read the vault, so the save refreshes it.
+        expect(fixture.refreshed).toBe(1)
     })
 
     it("a failed save keeps the form open", async () => {

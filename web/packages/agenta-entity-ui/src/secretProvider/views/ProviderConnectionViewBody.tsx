@@ -17,12 +17,13 @@ import {
     isOrganizationConnection,
     providerConnectionsAtom,
     providerTitleForKind,
+    refreshVaultSecretsAtom,
 } from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import ProviderConnectionCard, {type ProviderCardSaveState} from "../ProviderConnectionCard"
 import {providerDisplayTitle} from "../providerFieldText"
@@ -30,8 +31,13 @@ import {providerDisplayTitle} from "../providerFieldText"
 import {ProviderOwnerChoiceContext} from "./providerOwnerChoice"
 import type {ProviderConnectionViewParams} from "./providerViews"
 
-/** Controls whose click changes the form without an input event. */
-const TOGGLE_SELECTOR = '[role="checkbox"],[role="switch"],[role="radio"],[role="option"]'
+/**
+ * Controls whose click can change the form without an input event: toggles, options, and the
+ * card's buttons ("Select all", "Clear"). A click that changes nothing (opening "Harnesses")
+ * also counts, so leaving may ask once more than needed until the card reports its own edits.
+ */
+const TOGGLE_SELECTOR =
+    '[role="checkbox"],[role="switch"],[role="radio"],[role="option"],button,[role="button"]'
 
 const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionViewParams>) => {
     const t = useT(providerListCatalog)
@@ -44,6 +50,7 @@ const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionViewPa
         ? (own.find((candidate) => candidate.id === params.connectionId) ?? null)
         : null
     const ownerChoiceFor = useContext(ProviderOwnerChoiceContext)
+    const refreshVault = useSetAtom(refreshVaultSecretsAtom)
     useViewTitle(
         connection?.name ?? providerDisplayTitle(params.kind, providerTitleForKind(params.kind)),
     )
@@ -95,9 +102,10 @@ const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionViewPa
                 ownerChoice={connection ? undefined : (ownerChoiceFor?.(params.kind) ?? undefined)}
                 onSaveStateChange={setCard}
                 onSaved={() => {
-                    // A new key can fix an agent that needs setup, without a new version.
+                    // A project save does not refresh the vault by itself; the list and the
+                    // picker read it. A new key can also fix an agent that needs setup.
                     void invalidateAgentRequirements()
-                    settle(true)
+                    void refreshVault().finally(() => settle(true))
                 }}
             />
         </div>
