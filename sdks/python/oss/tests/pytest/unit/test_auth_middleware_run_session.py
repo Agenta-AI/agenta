@@ -120,3 +120,27 @@ async def test_each_session_gets_its_own_cached_credential(exchange):
             _Request({"session_id": session_id}), "http://agenta.test"
         )
     assert [call["session_id"] for call in exchange.calls] == ["sess-1", "sess-2"]
+
+
+async def test_a_body_without_a_content_type_still_names_the_session(exchange):
+    """The invoke route reads such a body as JSON, so the exchange reads it too."""
+    request = _Request(
+        {"session_id": "body-1"}, headers={"x-ag-session-id": "header-1"}
+    )
+    del request.headers["content-type"]
+    assert (await _params(exchange, request))["session_id"] == "body-1"
+
+
+async def test_a_set_body_session_never_falls_back_to_the_header(exchange):
+    """The invoke prelude keeps a body session that is set, even an empty one (the turn
+    then fails), so the credential never names the header's session instead."""
+    request = _Request({"session_id": ""}, headers={"x-ag-session-id": "header-1"})
+    assert "session_id" not in await _params(exchange, request)
+
+
+async def test_any_content_type_spelling_reads_the_body(exchange):
+    request = _Request(
+        {"session_id": "body-1"},
+        headers={"content-type": "Application/JSON", "x-ag-session-id": "header-1"},
+    )
+    assert (await _params(exchange, request))["session_id"] == "body-1"

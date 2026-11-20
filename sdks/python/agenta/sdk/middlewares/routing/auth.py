@@ -15,7 +15,7 @@ from agenta.sdk.utils.exceptions import display_exception
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.agents.accounts import read_user_items
-from agenta.sdk.middlewares.routing.otel import baggage_value
+from agenta.sdk.middlewares.routing.otel import header_session_id
 
 import agenta as ag
 
@@ -127,23 +127,32 @@ def _structured_denial(response) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _is_turn(request: Request) -> bool:
+    """Whether the request is a turn (`POST .../invoke`)."""
+    url = getattr(request, "url", None)
+    return getattr(request, "method", None) == "POST" and str(
+        getattr(url, "path", "")
+    ).endswith("/invoke")
+
+
+async def _turn_body(request: Request) -> Optional[Dict[str, Any]]:
+    """The JSON object body of a turn, or None. Parsed whatever the content type says,
+    as the invoke route accepts it: a body that is not JSON fails the turn anyway."""
+    if not _is_turn(request):
+        return None
+    try:
+        body = await request.json()
+    except Exception:  # pylint: disable=broad-except
+        return None
+    return body if isinstance(body, dict) else None
+
+
 async def _run_accounts_params(request: Request) -> Dict[str, Any]:
     """The agent and the "user" item keys of the configuration a turn runs, read from the
     request body (`data.parameters`, and the agent from `references`). Empty when the
     body is not a turn, or names no agent and has no "user" items."""
-    # Only a turn (`.../invoke`) with a JSON body carries an agent configuration.
-    url = getattr(request, "url", None)
-    if getattr(request, "method", None) != "POST" or not str(
-        getattr(url, "path", "")
-    ).endswith("/invoke"):
-        return {}
-    if "json" not in (request.headers.get("content-type") or ""):
-        return {}
-    try:
-        body = await request.json()
-    except Exception:  # pylint: disable=broad-except
-        return {}
-    if not isinstance(body, dict):
+    body = await _turn_body(request)
+    if body is None:
         return {}
     data = body.get("data")
     parameters = data.get("parameters") if isinstance(data, dict) else None
@@ -175,30 +184,18 @@ async def _run_accounts_params(request: Request) -> Dict[str, Any]:
 
 async def _run_session_params(request: Request) -> Dict[str, Any]:
     """The session of a turn (`.../invoke`), for the credential's `run_session_id`
-    claim. Read where the invoke prelude reads it (`apply_invoke_prelude`): the body's
-    `session_id`, else the `x-ag-session-id` header, else the `ag.session.id` baggage.
-    Empty when the request is not a turn or names no session: the credential then names
-    no session, also when the running normalizer mints one for the turn later."""
-    url = getattr(request, "url", None)
-    if getattr(request, "method", None) != "POST" or not str(
-        getattr(url, "path", "")
-    ).endswith("/invoke"):
+    claim, chosen as the invoke prelude chooses it (`apply_invoke_prelude`): the body's
+    `session_id` when it is set, else `header_session_id`. Empty when the request is
+    not a turn or names no session: the credential then names no session, also when
+    the running normalizer mints one for the turn later."""
+    if not _is_turn(request):
         return {}
-    session_id = None
-    if "json" in (request.headers.get("content-type") or ""):
-        try:
-            body = await request.json()
-        except Exception:  # pylint: disable=broad-except
-            body = None
-        if isinstance(body, dict) and isinstance(body.get("session_id"), str):
-            session_id = body["session_id"]
-    if not session_id:
-        otel = getattr(request.state, "otel", None) or {}
-        session_id = (
-            request.headers.get("x-ag-session-id")
-            or (otel.get("baggage") or {}).get("ag.session.id")
-            or baggage_value(request.headers.get("baggage"), "ag.session.id")
-        )
+    body = await _turn_body(request)
+    body_session_id = body.get("session_id") if body is not None else None
+    if body_session_id is not None:
+        session_id = body_session_id if isinstance(body_session_id, str) else None
+    else:
+        session_id = header_session_id(request)
     return {"session_id": session_id} if session_id else {}
 
 

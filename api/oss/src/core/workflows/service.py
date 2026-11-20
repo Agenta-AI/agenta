@@ -4973,7 +4973,7 @@ class WorkflowsService:
             # The session the run belongs to, when the run authority may run it.
             run_session_id=await bind_run_session(
                 envelope=envelope,
-                session_id=getattr(request, "session_id", None),
+                session_id=request.session_id,
             ),
         )
 
