@@ -70,6 +70,7 @@ const FormBody = ({params, target, nav}: ViewProps<{name: string}>) => {
                 {`field ${params.name}`}
                 <input value={value} onChange={(e) => setValue(e.target.value)} />
             </label>
+            <button onClick={nav.cancel}>leave by itself</button>
             {nav.push ? (
                 <>
                     <button onClick={() => void nav.push!(pickerView, {name: "picker"}, target)}>
@@ -369,6 +370,20 @@ describe("ViewStackHost", () => {
         expect(screen.getByLabelText("field skill")).toBeTruthy()
         result = true
         answer("Save")
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it("a view that leaves by itself while the dialog asks leaves once the question ends", async () => {
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        // The view's step ends (for example the sign-in window reports back) under the dialog.
+        fireEvent.click(screen.getByText("leave by itself"))
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        answer("Keep editing")
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
     })
 
