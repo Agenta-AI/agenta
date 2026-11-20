@@ -21,7 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -184,9 +184,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Rows and "+" open views: in the container's stack, or, in a host with none, in a drawer.
     const views = useViewOpener()
     const openView = views.open
+    // The host's editor says whether the agent answers in a channel; a view in this drawer reads
+    // it the same way as a view in the host's own stack.
+    const hasChannel = useContext(AgentEditorContext)?.hasChannel
     const editor = useMemo<AgentEditor | null>(
-        () => (revisionId ? {revisionId, readOnly: Boolean(disabled)} : null),
-        [revisionId, disabled],
+        () => (revisionId ? {revisionId, readOnly: Boolean(disabled), hasChannel} : null),
+        [revisionId, disabled, hasChannel],
     )
     const viewTarget = useMemo<ViewTarget | null>(
         () => (revisionId ? {kind: "agent_draft", revisionId} : null),
