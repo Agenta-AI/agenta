@@ -1,5 +1,5 @@
 // This domain uses the shared Axios client the host configures. The person's own sign-in calls
-// (`owner_kind=user`) use the generated client.
+// (`owner_kind=user`) and the gateway credential use the generated client.
 import {getGatewayClient, getGatewayMcpClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 

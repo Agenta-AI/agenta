@@ -386,7 +386,7 @@ export const BuilderPage = ({
                     />
                 </div>
             </AppShell>
-            {/* The automation, catalog and run history drawers the pane's views open. */}
+            {/* The automation and catalog drawers the pane's views open. */}
             <SessionWorkspaceDrawers />
         </>
     )

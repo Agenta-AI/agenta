@@ -292,7 +292,7 @@ export const AgentConfigurationScreen = ({
                     </ScreenScaffold>
                 </Tabs>
             </AppShell>
-            {/* The automation, catalog and run history drawers the tabs open. */}
+            {/* The automation and catalog drawers the tabs open. */}
             <SessionWorkspaceDrawers />
         </>
     )
