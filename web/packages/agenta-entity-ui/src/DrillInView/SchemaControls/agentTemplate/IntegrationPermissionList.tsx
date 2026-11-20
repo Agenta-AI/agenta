@@ -197,6 +197,11 @@ export interface PermissionDrawerSource {
     footerStart?: ReactNode
     /** Read-only ("View tools"): rows without selects, no footer, no destructive link. */
     readOnly?: boolean
+    /**
+     * A read-only view on a phone: the default permission and each tool's permission show as
+     * text, with no select and no footer. The search stays. Off, nothing changes.
+     */
+    valuesAsText?: boolean
 }
 
 /** What the Composio list of one integration needs. */
@@ -258,6 +263,7 @@ const ToolRow = memo(function ToolRow({
     lockedReason,
     triggerTitle,
     readOnly,
+    valuesAsText,
     staleLabel,
     phone,
 }: {
@@ -269,6 +275,7 @@ const ToolRow = memo(function ToolRow({
     lockedReason?: string | null
     triggerTitle?: string
     readOnly?: boolean
+    valuesAsText?: boolean
     staleLabel: string
     /** On a phone the select takes its own line, so the name is never cut (M09). */
     phone?: boolean
@@ -319,7 +326,13 @@ const ToolRow = memo(function ToolRow({
                         />
                     )}
                 </div>
-                {readOnly ? null : (
+                {readOnly ? null : valuesAsText ? (
+                    <span className="shrink-0 text-sm text-colorTextSecondary">
+                        {triggerTitle ??
+                            options.find((option) => option.value === permission)?.title ??
+                            permission}
+                    </span>
+                ) : (
                     <PermissionPolicySelect
                         value={permission}
                         onChange={(value) => onChange(tool.key, value as GatewayPermission)}
@@ -368,6 +381,7 @@ function ToolGroup({
     lockedTool,
     rowValue,
     readOnly,
+    valuesAsText,
     staleLabel,
     phone,
 }: {
@@ -383,6 +397,7 @@ function ToolGroup({
     lockedTool?: (toolKey: string) => string | null
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     readOnly?: boolean
+    valuesAsText?: boolean
     staleLabel: string
     phone?: boolean
 }) {
@@ -461,6 +476,7 @@ function ToolGroup({
                                 lockedReason={lockedTool?.(tool.key)}
                                 triggerTitle={shownValue?.triggerTitle}
                                 readOnly={readOnly}
+                                valuesAsText={valuesAsText}
                                 staleLabel={staleLabel}
                                 phone={phone}
                             />
@@ -506,6 +522,7 @@ export function PermissionDrawerBody({
     controlsDisabled,
     footNote,
     readOnly,
+    valuesAsText,
     account,
     flush = false,
 }: {
@@ -617,7 +634,12 @@ export function PermissionDrawerBody({
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                             {t("entityUi.permissionDrawer.defaultPermission")}
                         </span>
-                        {presets?.pending ? (
+                        {valuesAsText ? (
+                            <span className="text-sm text-colorText">
+                                {presetOptions.find((option) => option.value === preset)?.title ??
+                                    preset}
+                            </span>
+                        ) : presets?.pending ? (
                             // One bar at the select's own height, so the row keeps its shape while
                             // the answer is on the way. Decorative, like the list's rows.
                             <SkeletonRows count={1} rowClassName="h-9" />
@@ -703,6 +725,7 @@ export function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
+                            valuesAsText={valuesAsText}
                             staleLabel={stale}
                             phone={phone}
                         />
@@ -719,6 +742,7 @@ export function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
+                            valuesAsText={valuesAsText}
                             staleLabel={stale}
                             phone={phone}
                         />
@@ -727,7 +751,7 @@ export function PermissionDrawerBody({
 
                 {footNote}
 
-                {readOnly ? null : (
+                {readOnly || valuesAsText ? null : (
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                         {t("entityUi.permissionDrawer.customSwitchNote")}
                         {preset === "custom"

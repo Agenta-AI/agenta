@@ -19,7 +19,6 @@ import {
 import {
     ArrowsIn,
     ArrowsOut,
-    CaretDoubleLeft,
     CaretDoubleRight,
     CaretLeft,
     CaretRight,
@@ -95,9 +94,7 @@ export const DriveHeader = ({
     onToggleTree: () => void
     /** For hosts whose close lives in this row. */
     onClose?: () => void
-    /** `back` is the phone's: the pane has the whole screen, so its leave control sits where a
-     * back control does — first in the row, pointing back. */
-    closeVariant?: "close" | "collapse" | "back"
+    closeVariant?: "close" | "collapse"
     expanded?: boolean
     onToggleExpand?: () => void
     expandPlacement?: "leading" | "before-options"
@@ -143,18 +140,6 @@ export const DriveHeader = ({
                         <X size={15} />
                     </Button>
                 </Tooltip>
-            ) : null}
-            {onClose && closeVariant === "back" ? (
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-keyshortcuts={shortcutAria("panel.files")}
-                    aria-label={t("entityUi.driveExplorer.closeFilesPane")}
-                    onClick={onClose}
-                    className={ROW_ICON_BTN}
-                >
-                    <CaretDoubleLeft size={15} />
-                </Button>
             ) : null}
             {expandPlacement === "leading" ? expandButton : null}
             <Button

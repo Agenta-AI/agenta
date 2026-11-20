@@ -124,6 +124,7 @@ const AgentOnlySkillBody = ({
                     baseline={original}
                     downloadable
                     disabled={readOnly || publishing}
+                    readOnly={writer.readOnly}
                     // Save is off while the draft is invalid, so there is no press to wait for: an
                     // edited draft that misses a required field says so in the fields.
                     showMissing={dirty && invalid}

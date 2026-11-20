@@ -492,6 +492,7 @@ const RegistrySkillEditor = ({
                         baseline={headValue}
                         downloadable
                         disabled={readOnly}
+                        readOnly={viewReadOnly}
                         showMissing={dirty && !valid}
                     />
                 )}

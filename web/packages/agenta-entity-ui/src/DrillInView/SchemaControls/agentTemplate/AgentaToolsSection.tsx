@@ -110,7 +110,8 @@ export interface AgentaToolsSectionProps {
     access: Record<string, "read" | "write">
     /** The tools the playground build kit adds to runs right now. */
     buildKitOps: Set<string>
-    disabled?: boolean
+    /** A read-only view (a phone): the permissions show as text. */
+    readOnly?: boolean
 }
 
 export function AgentaToolsSection({
@@ -118,7 +119,7 @@ export function AgentaToolsSection({
     onChange,
     access,
     buildKitOps,
-    disabled,
+    readOnly,
 }: AgentaToolsSectionProps) {
     const t = useT(buildKitCatalog)
     const rows = Object.entries(access).map(([op, kind]) => {
@@ -177,7 +178,7 @@ export function AgentaToolsSection({
                         onChange(next)
                     },
                 }}
-                disabled={disabled}
+                valuesAsText={readOnly}
                 toolOptions={buildKitToolOptions}
                 writeLabel={t("entityUi.buildKit.writeGroup")}
                 readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}
