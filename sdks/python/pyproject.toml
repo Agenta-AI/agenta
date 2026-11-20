@@ -24,7 +24,7 @@ dependencies = [
     "structlog>=26,<27",
     "opentelemetry-api>=1,<2",
     "opentelemetry-sdk>=1,<2",
-    "opentelemetry-instrumentation>=0.64b0,<0.65",
+    "opentelemetry-instrumentation>=0.66b0,<0.67",
     "opentelemetry-exporter-otlp-proto-http>=1,<2",
     "fastapi>=0.139,<0.140",
     "pyyaml>=6,<7",
@@ -41,11 +41,11 @@ dependencies = [
 [project.optional-dependencies]
 # What agenta.sdk.engines.tracing.server instruments (the Agenta api and services).
 server-tracing = [
-    "opentelemetry-instrumentation-fastapi>=0.64b0,<0.65",
-    "opentelemetry-instrumentation-httpx>=0.64b0,<0.65",
-    "opentelemetry-instrumentation-aiohttp-client>=0.64b0,<0.65",
-    "opentelemetry-instrumentation-redis>=0.64b0,<0.65",
-    "opentelemetry-instrumentation-sqlalchemy>=0.64b0,<0.65",
+    "opentelemetry-instrumentation-fastapi>=0.66b0,<0.67",
+    "opentelemetry-instrumentation-httpx>=0.66b0,<0.67",
+    "opentelemetry-instrumentation-aiohttp-client>=0.66b0,<0.67",
+    "opentelemetry-instrumentation-redis>=0.66b0,<0.67",
+    "opentelemetry-instrumentation-sqlalchemy>=0.66b0,<0.67",
 ]
 
 [project.urls]
