@@ -30,6 +30,7 @@
     "titleAddIntegration": "インテグレーションを追加",
     "titleAddMcp": "MCP サーバーを追加",
     "titleAddSkill": "スキルを追加",
+    "titleAddSkillFile": "スキルのファイルを追加",
     "titleAddTool": "ツールを追加",
     "titleChangeIntegration": "インテグレーションを変更",
     "titleChangeMcp": "MCP サーバーを変更",
@@ -45,6 +46,7 @@
     "titleRemoveIntegration": "インテグレーションを削除",
     "titleRemoveMcp": "MCP サーバーを削除",
     "titleRemoveSkill": "スキルを削除",
+    "titleRemoveSkillFile": "スキルのファイルを削除",
     "titleRemoveTool": "ツールを削除",
     "viewFullDiff_other": "差分をすべて表示 · {{count}} 行"
 }

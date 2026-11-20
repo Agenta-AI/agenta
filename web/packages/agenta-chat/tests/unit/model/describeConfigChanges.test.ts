@@ -278,7 +278,7 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
         ]
         const {changes} = describeConfigChanges([{operation: "remove_item", target: file}])
         expect(changes[0]).toMatchObject({
-            title: "Edit a skill file",
+            title: "Remove a skill file",
             path: ["Skills", "release-qa", "scripts/check.py"],
             detail: {kind: "item", change: "removed", name: "scripts/check.py"},
         })
@@ -306,6 +306,25 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
         ])
         expect(changes[0].detail).toBeUndefined()
         expect(changes[0]).toMatchObject({title: "Change the model", path: ["Model"]})
+    })
+
+    it("names a removed field when the preview is missing", () => {
+        const {changes} = describeConfigChanges([
+            {operation: "remove", target: [...T, "llm", "extras"]},
+        ])
+        expect(changes[0]).toMatchObject({
+            title: "Change the model",
+            path: ["Model"],
+            detail: {kind: "item", change: "removed", name: "Extras"},
+        })
+    })
+
+    it("keeps the field in the path of a change with no detail", () => {
+        const {changes} = describeConfigChanges([
+            {operation: "merge", target: [...T, "harness", "permissions"], value: {a: 1}},
+        ])
+        expect(changes[0].detail).toBeUndefined()
+        expect(changes[0].path).toEqual(["Permissions", "Harness › permissions"])
     })
 
     it("names an unknown setting by its path", () => {

@@ -31,6 +31,7 @@
     "titleAddIntegration": "Add an integration",
     "titleAddMcp": "Add an MCP server",
     "titleAddSkill": "Add a skill",
+    "titleAddSkillFile": "Add a skill file",
     "titleAddTool": "Add a tool",
     "titleChangeIntegration": "Change an integration",
     "titleChangeMcp": "Change an MCP server",
@@ -46,6 +47,7 @@
     "titleRemoveIntegration": "Remove an integration",
     "titleRemoveMcp": "Remove an MCP server",
     "titleRemoveSkill": "Remove a skill",
+    "titleRemoveSkillFile": "Remove a skill file",
     "titleRemoveTool": "Remove a tool",
     "viewFullDiff_one": "View full diff · {{count}} line",
     "viewFullDiff_other": "View full diff · {{count}} lines"

@@ -321,12 +321,29 @@ const headerPath = (location: Location, kind: ChangeKind): string[] =>
         ? location.path.slice(0, 1)
         : location.path
 
+/** A change with no detail to show still names its field, at the end of its path. */
+const withField = (
+    path: string[],
+    location: Location,
+    detail: ApprovalChangeDetail | undefined,
+): string[] =>
+    !detail && location.label && path[path.length - 1] !== location.label
+        ? [...path, location.label]
+        : path
+
 const changeTitle = (location: Location, kind: ChangeKind): string => {
     // A whole item comes and goes; a field inside one only changes.
     const itemKind: ChangeKind = location.wholeItem ? kind : "changed"
     if (location.permission && location.section !== "permissions")
         return t("chat.changeCard.titleChangePermission")
-    if (location.file) return t("chat.changeCard.titleEditSkillFile")
+    if (location.file)
+        return t(
+            itemKind === "added"
+                ? "chat.changeCard.titleAddSkillFile"
+                : itemKind === "removed"
+                  ? "chat.changeCard.titleRemoveSkillFile"
+                  : "chat.changeCard.titleEditSkillFile",
+        )
     const key = TITLES[location.section][itemKind] ?? TITLES[location.section].changed
     return key ? t(key) : t("chat.changeCard.titleChangeSetting")
 }
@@ -514,6 +531,13 @@ const operationDetail = (
             return itemDetail("added", location, value)
         case "remove_item":
             return itemDetail("removed", location, undefined)
+        // A field that goes away reads as a removed entry named by the field.
+        case "remove":
+            return {
+                kind: "item",
+                change: "removed",
+                name: location.label ?? location.path[location.path.length - 1] ?? "",
+            }
         default:
             return undefined
     }
@@ -561,7 +585,7 @@ export const describeConfigChanges = (
             const detail = previewDetail(change, location)
             return {
                 title: changeTitle(location, change.kind),
-                path: headerPath(location, change.kind),
+                path: withField(headerPath(location, change.kind), location, detail),
                 section: location.section,
                 ...(detail ? {detail} : {}),
                 effect,
@@ -587,7 +611,7 @@ export const describeConfigChanges = (
         const detail = operationDetail(operation, location)
         return {
             title: changeTitle(location, kind),
-            path: headerPath(location, kind),
+            path: withField(headerPath(location, kind), location, detail),
             section: location.section,
             ...(detail ? {detail} : {}),
             effect,

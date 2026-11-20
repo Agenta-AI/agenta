@@ -30,6 +30,7 @@
     "titleAddIntegration": "添加集成",
     "titleAddMcp": "添加 MCP 服务器",
     "titleAddSkill": "添加 Skill",
+    "titleAddSkillFile": "添加 Skill 文件",
     "titleAddTool": "添加工具",
     "titleChangeIntegration": "更改集成",
     "titleChangeMcp": "更改 MCP 服务器",
@@ -45,6 +46,7 @@
     "titleRemoveIntegration": "移除集成",
     "titleRemoveMcp": "移除 MCP 服务器",
     "titleRemoveSkill": "移除 Skill",
+    "titleRemoveSkillFile": "移除 Skill 文件",
     "titleRemoveTool": "移除工具",
     "viewFullDiff_other": "查看完整差异 · {{count}} 行"
 }

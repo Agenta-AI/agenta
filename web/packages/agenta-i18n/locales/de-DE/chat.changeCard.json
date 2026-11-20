@@ -31,6 +31,7 @@
     "titleAddIntegration": "Integration hinzufügen",
     "titleAddMcp": "MCP-Server hinzufügen",
     "titleAddSkill": "Skill hinzufügen",
+    "titleAddSkillFile": "Skill-Datei hinzufügen",
     "titleAddTool": "Werkzeug hinzufügen",
     "titleChangeIntegration": "Integration ändern",
     "titleChangeMcp": "MCP-Server ändern",
@@ -46,6 +47,7 @@
     "titleRemoveIntegration": "Integration entfernen",
     "titleRemoveMcp": "MCP-Server entfernen",
     "titleRemoveSkill": "Skill entfernen",
+    "titleRemoveSkillFile": "Skill-Datei entfernen",
     "titleRemoveTool": "Werkzeug entfernen",
     "viewFullDiff_one": "Ganzen Diff anzeigen · {{count}} Zeile",
     "viewFullDiff_other": "Ganzen Diff anzeigen · {{count}} Zeilen"

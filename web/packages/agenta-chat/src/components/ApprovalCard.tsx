@@ -257,7 +257,7 @@ export const ApprovalCard = ({
         <div
             ref={rootRef}
             className={`flex flex-col rounded-lg ${className} ${
-                risky ? "!border-[var(--ag-colorWarningBorder)]" : ""
+                risky ? "!border-colorWarningBorder" : ""
             }`}
         >
             {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. A change card's

@@ -1252,6 +1252,7 @@
         "titleAddIntegration": "c8f6c64726f7",
         "titleAddMcp": "6f731aa53907",
         "titleAddSkill": "132fe0304136",
+        "titleAddSkillFile": "28b921dca007",
         "titleAddTool": "3372f76f592c",
         "titleChangeIntegration": "84c0fd479cd2",
         "titleChangeMcp": "bcf13af510e0",
@@ -1267,6 +1268,7 @@
         "titleRemoveIntegration": "037b3a47b867",
         "titleRemoveMcp": "0aad65fbc78c",
         "titleRemoveSkill": "eec6b682b888",
+        "titleRemoveSkillFile": "734da54ec701",
         "titleRemoveTool": "4a2eec8fe1ff",
         "viewFullDiff_other": "cba3c1438b08"
     },

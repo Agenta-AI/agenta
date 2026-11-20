@@ -630,6 +630,6 @@ describe("the change card of a builder edit (task 8.2)", () => {
         )
         expect(html).toContain('data-testid="change-risk"')
         expect(html).toContain("The agent will use Close ticket without asking you.")
-        expect(html).toContain("colorWarningBorder")
+        expect(html).toContain("!border-colorWarningBorder")
     })
 })

@@ -348,7 +348,7 @@ const ChangeHeader = ({
 export const RiskLine = ({children}: {children: ReactNode}) => (
     <div
         role="note"
-        className="flex items-start gap-2 rounded-lg bg-[var(--ag-colorWarningBg)] px-2.5 py-2 text-xs leading-4 text-[var(--ag-colorWarningText)]"
+        className="flex items-start gap-2 rounded-lg bg-colorWarningBg px-2.5 py-2 text-xs leading-4 text-colorWarningText"
         data-testid="change-risk"
     >
         <Warning size={14} aria-hidden className="mt-px shrink-0" />
