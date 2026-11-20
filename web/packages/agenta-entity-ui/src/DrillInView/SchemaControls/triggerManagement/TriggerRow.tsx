@@ -69,7 +69,7 @@ export function TriggerRow({
                             open()
                         }
                     }}
-                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3" : "gap-2.5"}`}
+                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : "gap-2.5"}`}
                 >
                     <Tooltip>
                         <TooltipTrigger asChild>
