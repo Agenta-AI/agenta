@@ -97,7 +97,9 @@ export const SessionHeader = ({
     return (
         <header
             data-testid="session-header"
-            className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3"
+            // On a phone the row wraps instead of running off the screen (the layout clips sideways
+            // overflow), so every icon stays reachable until the two-row phone header lands.
+            className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 max-md:h-auto max-md:min-h-12 max-md:flex-wrap max-md:py-1"
         >
             <PageTitle title={session.data?.name} />
             <KeyboardShortcutsSheet
