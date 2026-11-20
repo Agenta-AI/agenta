@@ -7,9 +7,9 @@ import {projectIdAtom, sessionAtom, userAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {vaultSecretsQueryAtom} from "../../secret/state"
 import {retrieveWorkflowRevision} from "../api"
 
+import {agentModelCandidatesAtomFamily} from "./agentModelCandidates"
 import {ensureBuilderAgentModel} from "./builderAgentModel"
 import {primeWorkflowRevisionDetailCacheImperative} from "./store"
 
@@ -22,18 +22,21 @@ const BUILDER_AGENT_REVISION_KEY = ["workflows", "builder-agent-revision"] as co
  * commits the builder's model, and the revision it reads is the code version with that commit
  * on top. When it has no model yet, the first read commits the new-agent default
  * (`ensureBuilderAgentModel`), so both builder chats get it from this one place. The key holds
- * whether the project has a connection, so the first connection, added from the chat's
- * "connect a model" strip, reads again and commits the default then. (Each form that adds a
- * connection would otherwise have to invalidate this query itself.) A read that finds a model
- * commits nothing; two reads that both commit end in one conflict, and the second one reads
- * the first's commit.
+ * whether the project has a model the default rule may pick (a connection with models, a
+ * built-in model, a ready subscription sign-in; never an organization connection), so the first
+ * one, added from the chat's "connect a model" strip or by a finished sign-in, reads again and
+ * commits the default then. The query waits until those sources have answered, so the first
+ * open reads once.
  */
 export const builderAgentRevisionIdQueryAtom = atomWithQuery<string | null>((get) => {
     const projectId = get(projectIdAtom)
     const userId = get(userAtom)?.id ?? null
-    const hasConnection = (get(vaultSecretsQueryAtom).data?.length ?? 0) > 0
+    const candidates = get(agentModelCandidatesAtomFamily(true))
+    const hasCandidate = candidates.candidates.some(
+        (candidate) => candidate.scope !== "organization",
+    )
     return {
-        queryKey: [...BUILDER_AGENT_REVISION_KEY, projectId, hasConnection],
+        queryKey: [...BUILDER_AGENT_REVISION_KEY, projectId, hasCandidate],
         queryFn: async () => {
             if (!projectId || !userId) return null
             const read = await retrieveWorkflowRevision({
@@ -45,7 +48,7 @@ export const builderAgentRevisionIdQueryAtom = atomWithQuery<string | null>((get
             primeWorkflowRevisionDetailCacheImperative(revision, {projectId})
             return revision.id
         },
-        enabled: get(sessionAtom) && !!projectId && !!userId,
+        enabled: get(sessionAtom) && !!projectId && !!userId && candidates.status !== "loading",
         // A new key keeps showing the last id while it reads again.
         placeholderData: (previous: string | null | undefined) => previous,
         // The code version changes only with a deploy; a commit invalidates it.

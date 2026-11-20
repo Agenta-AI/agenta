@@ -371,6 +371,7 @@ async def test_the_agent_commit_tool_answers_the_coded_refusal(service, store):
 
     assert caught.value.error.code == "static_workflow_read_only"
     assert caught.value.error.details == {"slug": BUILDER_AGENT_SLUG}
+    assert caught.value.error.next_step == StaticWorkflowReadOnly.AGENT_NEXT_STEP
 
 
 @pytest.mark.asyncio
@@ -898,3 +899,49 @@ async def test_a_variant_on_the_builder_is_refused_with_a_coded_error(service):
     assert detail["code"] == "static_workflow_read_only"
     assert detail["details"] == {"slug": BUILDER_AGENT_SLUG}
     assert "Choose a different slug" not in detail["message"]
+
+
+@pytest.mark.asyncio
+async def test_a_stored_id_with_a_version_that_disagrees_is_refused(service, store):
+    """As for any revision (`validate_retrieve_refs_consistent`)."""
+    from oss.src.core.git.types import RetrieveRefsInconsistent
+
+    project_id = uuid4()
+    stored_id = await _committed(service, project_id)
+
+    matching = await _read(
+        service,
+        project_id,
+        workflow_revision_ref=Reference(
+            id=stored_id, slug=BUILDER_AGENT_SLUG, version="0"
+        ),
+    )
+    assert matching.id == stored_id
+    with pytest.raises(RetrieveRefsInconsistent):
+        await _read(
+            service,
+            project_id,
+            workflow_revision_ref=Reference(
+                id=stored_id, slug=BUILDER_AGENT_SLUG, version="3"
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_an_agent_commit_with_mixed_builder_ids_gets_the_agent_hint(service):
+    from oss.src.core.tools import platform_handlers
+
+    commit = _delta_commit(["parameters", "agent", "llm"], LLM, CODE.id).model_copy(
+        update={"workflow_variant_id": uuid4()}
+    )
+
+    with pytest.raises(platform_handlers._Refusal) as caught:
+        await platform_handlers._commit_as_agent(
+            workflows_service=service,
+            project_id=uuid4(),
+            user_id=uuid4(),
+            commit=commit,
+        )
+
+    assert caught.value.error.code == "static_workflow_read_only"
+    assert caught.value.error.next_step == StaticWorkflowReadOnly.AGENT_NEXT_STEP

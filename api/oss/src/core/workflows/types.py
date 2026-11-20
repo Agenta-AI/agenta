@@ -77,6 +77,11 @@ class StaticWorkflowReadOnly(WorkflowError):
         "Commit only the workflow's editable fields through the commit endpoint, or "
         "leave this workflow unchanged."
     )
+    # For an agent's commit tool, which may never change a static workflow.
+    AGENT_NEXT_STEP = (
+        "An agent's tools cannot change this workflow. Leave it unchanged and do not "
+        "send this change again."
+    )
 
     def __init__(self, slug: str, *, next_step: Optional[str] = None):
         self.slug = slug

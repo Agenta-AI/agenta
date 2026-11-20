@@ -2225,9 +2225,20 @@ class WorkflowsService:
 
         revision_id = workflow_revision_ref.id if workflow_revision_ref else None
         if revision_id is not None and revision_id != code.id:
-            return await self._merged_static_revision_by_id(
+            revision = await self._merged_static_revision_by_id(
                 project_id=project_id, code=code, revision_id=revision_id
             )
+            # As for any revision: an id with a version that disagrees is refused.
+            validate_retrieve_refs_consistent(
+                artifact_ref=None,
+                variant_ref=None,
+                revision_ref=Reference(version=workflow_revision_ref.version),
+                resolved_revision_ref=(
+                    Reference(version=revision.version) if revision else None
+                ),
+                entity_type="workflow",
+            )
+            return revision
 
         version = next(
             (
@@ -3932,10 +3943,7 @@ class WorkflowsService:
             if scope_policy is not None:
                 raise StaticWorkflowReadOnly(
                     static_revision.slug,
-                    next_step=(
-                        "An agent's tools cannot change this workflow. Leave it "
-                        "unchanged and do not send this change again."
-                    ),
+                    next_step=StaticWorkflowReadOnly.AGENT_NEXT_STEP,
                 )
             return await self._commit_static_revision(
                 project_id=project_id,

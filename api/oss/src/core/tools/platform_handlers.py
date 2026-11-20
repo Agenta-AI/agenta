@@ -968,7 +968,11 @@ async def _commit_as_agent(
             )
         ) from e
     except StaticWorkflowReadOnly as e:
-        raise _Refusal(AgentError(**e.to_detail())) from e
+        raise _Refusal(
+            AgentError(
+                **{**e.to_detail(), "next_step": StaticWorkflowReadOnly.AGENT_NEXT_STEP}
+            )
+        ) from e
     except StaticWorkflowSlug as e:
         raise _Refusal(
             AgentError(
