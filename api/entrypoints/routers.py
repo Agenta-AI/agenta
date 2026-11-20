@@ -1694,6 +1694,8 @@ session_starts_service = SessionStartsService(
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
 )
+# A schedule's fire into an existing session puts its input on the session queue.
+_triggers_dispatcher.session_starts_service = session_starts_service
 agent_template_catalog_path = (
     Path(__file__).resolve().parents[1]
     / "oss"
