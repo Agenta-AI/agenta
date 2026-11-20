@@ -242,14 +242,23 @@ describe("builder tab storage", () => {
             }),
         ]
         const store = createStore()
-        store.set(builderTabsAtomFamily("chat-blocked"), state)
-        expect(store.get(builderTabsAtomFamily("chat-other"))).toEqual(EMPTY_BUILDER_TABS)
-        expect(store.get(builderTabsAtomFamily("chat-blocked"))).toEqual(state)
+        const tabsAtom = builderTabsAtomFamily("chat-blocked")
+        // Mounted, then another chat, then back: the atom reads storage again on each mount.
+        let stop = store.sub(tabsAtom, () => {})
+        store.set(tabsAtom, state)
+        stop()
+        stop = store.sub(tabsAtom, () => {})
+        expect(store.get(tabsAtom)).toEqual(state)
+        stop()
         refuse.forEach((spy) => spy.mockRestore())
     })
 
     it("reads a broken value as no tabs", () => {
-        expect(parseBuilderTabs("{not json")).toEqual(EMPTY_BUILDER_TABS)
+        window.localStorage.setItem(builderTabsStorageKey("chat-broken"), "{not json")
+        const store = createStore()
+        const stop = store.sub(builderTabsAtomFamily("chat-broken"), () => {})
+        expect(store.get(builderTabsAtomFamily("chat-broken"))).toEqual(EMPTY_BUILDER_TABS)
+        stop()
         const read = parseBuilderTabs({
             tabs: [
                 {kind: "thing", id: "x"},

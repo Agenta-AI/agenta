@@ -245,12 +245,18 @@ export const parseBuilderTabs = (raw: unknown): BuilderTabsState => {
     }
 }
 
+/** Tabs whose last write the browser refused, kept for this visit. */
+const unsavedTabs = new Map<string, BuilderTabsState>()
+
 /**
- * Browser storage for the tabs: a value that cannot be read is no tabs, and a refused write
- * leaves the tabs in the atom for this visit.
+ * Browser storage for the tabs: a value that cannot be read is no tabs, and tabs whose write the
+ * browser refused are read from memory for the rest of the visit (the atom reads storage again
+ * each time a chat mounts).
  */
 const builderTabsStorage = {
     getItem: (key: string, initial: BuilderTabsState): BuilderTabsState => {
+        const unsaved = unsavedTabs.get(key)
+        if (unsaved) return unsaved
         try {
             const stored = window.localStorage.getItem(key)
             return stored === null ? initial : parseBuilderTabs(JSON.parse(stored))
@@ -261,15 +267,17 @@ const builderTabsStorage = {
     setItem: (key: string, value: BuilderTabsState) => {
         try {
             window.localStorage.setItem(key, JSON.stringify(value))
+            unsavedTabs.delete(key)
         } catch {
-            // Storage refused: the atom keeps the tabs for this visit.
+            unsavedTabs.set(key, value)
         }
     },
     removeItem: (key: string) => {
+        unsavedTabs.delete(key)
         try {
             window.localStorage.removeItem(key)
         } catch {
-            // Nothing stored to remove.
+            // Storage refused the removal; nothing else holds the tabs.
         }
     },
 }
