@@ -1,6 +1,5 @@
 import {useCallback, useMemo} from "react"
 
-import {sessionListQueryOptions} from "@agenta/entities/session"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -8,26 +7,11 @@ import Router, {useRouter} from "next/router"
 
 import {startBlankSession} from "../chat/useStartBlankSession"
 
-import {orderAgentsLikeMainSidebar, useMainSidebarChatCounts} from "./agentOrder"
+import {orderAgentsLikeMainSidebar, useMainSidebarAgentOrder} from "./agentOrder"
+import {agentSessionsQuery} from "./agentSessionsQuery"
 import {AgentSidebarSwitcher, type SwitcherCurrent} from "./AgentSidebarSwitcher"
 import {currentSidebar, openAgentSidebar, useSelectedSidebar} from "./selectedSidebar"
 import {switchTarget} from "./switchAgent"
-
-/** The first page of one agent's session list, with the total. Under the list's own key prefix,
- * so renames, archives and new turns refresh it too. */
-export const agentSessionsQuery = (projectId: string, agentId: string, limit: number) => {
-    const options = sessionListQueryOptions({projectId, agentId, includeTotal: true, limit})
-    return {
-        queryKey: [...options.queryKey, "first-page"],
-        queryFn: async ({signal}: {signal?: AbortSignal}) => {
-            const page = await options.queryFn({pageParam: null, signal})
-            // An error, not an empty list: a failed refresh keeps the rows it had.
-            if (!page) throw new Error("The session list did not load")
-            return page
-        },
-        staleTime: 30_000,
-    }
-}
 
 /**
  * The switcher, connected: the agents the person can see, in the main sidebar's order, and a
@@ -49,10 +33,10 @@ export const ConnectedAgentSwitcher = ({
     const queryClient = useQueryClient()
     const selected = useSelectedSidebar()
     const catalog = useAtomValue(agentWorkflowsListQueryStateAtom).data
-    const chatCounts = useMainSidebarChatCounts()
+    const {chatCounts, manualOrder} = useMainSidebarAgentOrder()
     const agents = useMemo(
-        () => orderAgentsLikeMainSidebar(catalog, chatCounts),
-        [catalog, chatCounts],
+        () => orderAgentsLikeMainSidebar(catalog, chatCounts, manualOrder),
+        [catalog, chatCounts, manualOrder],
     )
     const onPick = useCallback(
         async (pickedAgentId: string) => {

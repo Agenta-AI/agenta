@@ -21,13 +21,14 @@ import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems, useRailSessionRowWrapper} from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
+import {agentSessionsQuery} from "./agentSessionsQuery"
 import {AgentSidebarHeader} from "./AgentSidebarHeader"
 import {
     agentSidebarItems,
     agentSidebarSelectedKey,
     type AgentSidebarSession,
 } from "./agentSidebarItems"
-import {agentSessionsQuery, ConnectedAgentSwitcher} from "./ConnectedAgentSwitcher"
+import {ConnectedAgentSwitcher} from "./ConnectedAgentSwitcher"
 import {openMainSidebar, useSelectedSidebar} from "./selectedSidebar"
 import {SidebarNewButton} from "./SidebarNewButton"
 

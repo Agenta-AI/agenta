@@ -16,7 +16,9 @@ export const BuilderChatSearchButton = ({onOpen}: {onOpen: () => void}) => {
             title={t("common.search")}
             data-testid="builder-chats-search"
             onClick={onOpen}
-            className={ICON_BUTTON}
+            // The glyph sits where the design puts it (12 px from the row's end), and the 24 px
+            // target does not make the 20 px heading taller.
+            className={`${ICON_BUTTON} -my-0.5 -mr-[5px]`}
         >
             <MagnifyingGlassIcon size={14} />
         </button>

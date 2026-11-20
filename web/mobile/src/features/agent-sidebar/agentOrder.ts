@@ -1,4 +1,9 @@
-import {sidebarAgentCountsAtomFamily} from "@agenta/navigation"
+import {
+    applyManualOrder,
+    SIDEBAR_AGENT_GROUP_ZONE,
+    sidebarAgentCountsAtomFamily,
+    sidebarManualOrderAtomFamily,
+} from "@agenta/navigation"
 import {useAtomValue} from "jotai"
 
 import {MOBILE_NAV_SCOPE_ID} from "../nav/useMobileNavItems"
@@ -6,35 +11,42 @@ import {MOBILE_NAV_SCOPE_ID} from "../nav/useMobileNavItems"
 interface NamedAgent {
     id: string
     name?: string | null
-    slug?: string | null
 }
 
-const agentLabel = (agent: NamedAgent) => agent.name || agent.slug || ""
+/** The heading label the main sidebar sorts ties on. */
+const headingLabel = (agent: NamedAgent) => agent.name?.trim() || "Agent"
 
 /**
  * The agents in the main sidebar's order: agents with chats first, the most chats first and the
- * name on a tie (as the main sidebar sorts its agent headings), then the agents with no chat in
- * catalog order.
+ * heading label on a tie (the main sidebar's default order for its agent headings), then the
+ * agents with no chat in catalog order. The person's hand arrangement of the agent headings
+ * (`manualOrder`, `agent:<id>` keys) goes over that, as in the main sidebar.
  */
 export const orderAgentsLikeMainSidebar = <T extends NamedAgent>(
     agents: readonly T[],
     chatCounts: ReadonlyMap<string, number>,
+    manualOrder: readonly string[] = [],
 ): T[] => {
+    const count = (agent: T) => chatCounts.get(agent.id) ?? 0
     const ranked = agents
-        .filter((agent) => (chatCounts.get(agent.id) ?? 0) > 0)
-        .sort(
-            (a, b) =>
-                (chatCounts.get(b.id) ?? 0) - (chatCounts.get(a.id) ?? 0) ||
-                agentLabel(a).localeCompare(agentLabel(b)),
-        )
-    const rest = agents.filter((agent) => (chatCounts.get(agent.id) ?? 0) === 0)
-    return [...ranked, ...rest]
+        .filter((agent) => count(agent) > 0)
+        .sort((a, b) => count(b) - count(a) || headingLabel(a).localeCompare(headingLabel(b)))
+    const rest = agents.filter((agent) => count(agent) === 0)
+    return applyManualOrder(
+        [...ranked, ...rest],
+        (agent) => `agent:${agent.id}`,
+        manualOrder,
+        "trail",
+    )
 }
 
 /**
- * The main sidebar's chat counts, from the query it already loads. The query is gated on the
- * main sidebar's Sessions group, so this read sends no request of its own: until the main
- * sidebar loads the counts, the agents keep catalog order.
+ * What the main sidebar orders its agent headings by: the chat counts, from the query it already
+ * loads, and the hand arrangement, kept in the browser. The counts query is gated on the main
+ * sidebar's Sessions group, so this read sends no request of its own: until the main sidebar
+ * loads the counts, the agents keep catalog order under the hand arrangement.
  */
-export const useMainSidebarChatCounts = (): ReadonlyMap<string, number> =>
-    useAtomValue(sidebarAgentCountsAtomFamily(MOBILE_NAV_SCOPE_ID))
+export const useMainSidebarAgentOrder = () => ({
+    chatCounts: useAtomValue(sidebarAgentCountsAtomFamily(MOBILE_NAV_SCOPE_ID)),
+    manualOrder: useAtomValue(sidebarManualOrderAtomFamily(SIDEBAR_AGENT_GROUP_ZONE)),
+})

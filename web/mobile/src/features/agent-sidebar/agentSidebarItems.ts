@@ -48,7 +48,8 @@ export type AgentSidebarText = (
 
 export const AGENT_SIDEBAR_SESSIONS_KEY = "agent-sidebar-sessions"
 
-/** The Sessions page query that opens its filter menu on arrival (the page reads it). */
+/** The query that asks the agent's Sessions page to open its filter menu on arrival. The
+ * Sessions page reads `filters=open`. */
 export const SESSIONS_FILTERS_OPEN = "filters=open"
 export const agentSidebarSessionKey = (sessionId: string) => `agent-sidebar-session-${sessionId}`
 

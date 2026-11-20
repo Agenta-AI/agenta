@@ -56,7 +56,7 @@ export const createBuilderSidebarScope = (
         const bottomItems = useMobileBottomNavItems(projectURL)
         const [searchOpen, setSearchOpen] = useState(false)
         const [term, setTerm] = useState("")
-        const chats = useBuilderChats(searchOpen ? term : "")
+        const chats = useBuilderChats(term)
         return useMemo(() => {
             const closeSearch = () => {
                 setSearchOpen(false)

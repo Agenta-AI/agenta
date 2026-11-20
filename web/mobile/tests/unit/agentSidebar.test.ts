@@ -220,6 +220,18 @@ describe("the switcher's agent order", () => {
         ])
     })
 
+    it("puts the person's hand arrangement of the main sidebar's agent headings first", () => {
+        const counts = new Map([
+            ["c", 5],
+            ["b", 2],
+        ])
+        expect(
+            orderAgentsLikeMainSidebar(agents, counts, ["agent:d", "agent:b"]).map(
+                (agent) => agent.id,
+            ),
+        ).toEqual(["d", "b", "c", "a"])
+    })
+
     it("keeps catalog order until the main sidebar loads the counts", () => {
         expect(orderAgentsLikeMainSidebar(agents, new Map()).map((agent) => agent.id)).toEqual([
             "a",
