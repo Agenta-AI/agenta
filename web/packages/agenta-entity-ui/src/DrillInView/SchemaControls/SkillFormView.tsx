@@ -383,7 +383,7 @@ export function SkillFormView({
         entry === "skill" ? skillMdEdited(skill, baseline) : fileEdited(files, entry, baselineFiles)
     // A file just added and still empty is not an edit yet (canvas F07 f6: "15 files").
     const freshUntouched = freshFile !== null && !files[freshFile]?.content
-    const editedCount = editedFileCount(skill, baseline) - (freshUntouched ? 1 : 0)
+    const editedCount = Math.max(0, editedFileCount(skill, baseline) - (freshUntouched ? 1 : 0))
     const fileCount = files.length + 1
     const countLine = editedCount
         ? `${t("entityUi.skillView.files", {count: fileCount})} · ${t("entityUi.skillView.edited", {count: editedCount})}`
@@ -492,8 +492,8 @@ export function SkillFormView({
                         />
                     </PopoverContent>
                 </Popover>
-                {/* A file being added has no bin: Cancel drops it (canvas F07 f6). */}
-                {activeIndex !== null && !disabled && !uploading && !newFile ? (
+                {/* A file just added has no bin yet (canvas F07 f6). */}
+                {activeIndex !== null && activeIndex !== freshFile && !disabled && !uploading ? (
                     <button
                         type="button"
                         aria-label={t("entityUi.skillView.deleteFile")}

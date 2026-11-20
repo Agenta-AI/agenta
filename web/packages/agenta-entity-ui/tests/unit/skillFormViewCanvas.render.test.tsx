@@ -126,6 +126,15 @@ describe("SkillFormView, canvas F07", () => {
         await findByText("Required.")
     })
 
+    it("a file just added shows no bin and is not counted as an edit (F07 f6)", async () => {
+        await mount()
+        await openMenu()
+        await click((await findByText("Add a file")) as HTMLElement)
+        await findByText("", 'input[placeholder="scripts/foo.py"]')
+        expect(document.querySelector('[aria-label="Delete this file"]')).toBeNull()
+        expect(document.body.textContent).not.toMatch(/edited/)
+    })
+
     it("the Advanced help names the skill's own command", async () => {
         await mount()
         await click(byText("Advanced") as HTMLElement)
