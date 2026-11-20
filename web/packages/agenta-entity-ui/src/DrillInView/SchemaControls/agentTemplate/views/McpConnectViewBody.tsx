@@ -17,6 +17,14 @@ interface Connected {
     name: string
 }
 
+/** Whether this code runs inside a press the browser still counts (it then allows a window). */
+const hasUserActivation = (): boolean => {
+    const activation = (navigator as Navigator & {userActivation?: {isActive: boolean}})
+        .userActivation
+    // Without the API, assume a press: the journey's own window fallback still applies.
+    return activation ? activation.isActive : true
+}
+
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     const t = useT(mcpViewsCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
@@ -48,6 +56,10 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
         // Each press runs the screen's action inside the press, so the provider's window can
         // open. The step stays on this view; the journey shows what happens next.
         save: async () => {
+            // A step that opens the provider's window needs the press itself: from the
+            // unsaved-changes dialog (after awaits) the browser would refuse the window and the
+            // journey would send the whole tab to the provider. The person stays on the step.
+            if (screens.confirmOpensWindow && !hasUserActivation()) return "stay"
             screens.confirm()
             return "stay"
         },
