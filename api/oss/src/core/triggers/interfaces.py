@@ -447,7 +447,7 @@ class TriggersDAOInterface(ABC):
     ) -> List[TriggerSchedule]: ...
 
     @abstractmethod
-    async def fetch_active_schedules_with_project(
+    async def fetch_active_recurring_schedules_with_project(
         self,
         *,
         project_id: Optional[UUID] = None,

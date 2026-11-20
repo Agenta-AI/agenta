@@ -2358,8 +2358,10 @@ class TriggersConfig(BaseModel):
     # The most one-time schedules (`data.run_at`) that one schedule tick fires,
     # earliest `run_at` first; the rest fire in the next tick. A total over all
     # projects: there is no limit per project.
-    one_time_schedules_per_tick: int = (
-        _parse_optional_positive_int_env("AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_PER_TICK")
+    one_time_schedules_max_per_tick: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_MAX_PER_TICK"
+        )
         or 2000
     )
 

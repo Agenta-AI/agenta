@@ -47,7 +47,7 @@ def _make_schedule(*, expr="* * * * *", is_active=True, start_time=None, end_tim
 
 def _service(*, schedules=None, seen=False, with_task=True):
     dao = MagicMock()
-    dao.fetch_active_schedules_with_project = AsyncMock(
+    dao.fetch_active_recurring_schedules_with_project = AsyncMock(
         return_value=[(uuid4(), s) for s in (schedules or [])]
     )
     dao.dedup_seen_schedule = AsyncMock(return_value=seen)

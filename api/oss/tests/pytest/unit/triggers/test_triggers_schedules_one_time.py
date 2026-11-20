@@ -32,7 +32,7 @@ from oss.src.core.triggers.dtos import (
     TriggerScheduleEdit,
     TriggerScheduleFlags,
 )
-from oss.src.core.triggers.service import TriggersService
+from oss.src.core.triggers.service import TriggersService, _one_time_run_at_text
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.dbs.postgres.triggers.dbes import TriggerScheduleDBE
 from oss.src.dbs.postgres.triggers.mappings import (
@@ -58,7 +58,7 @@ def _one_time(*, run_at=_RUN_AT, is_active=True):
 
 def _service(*, recurring=None, due=None):
     dao = MagicMock()
-    dao.fetch_active_schedules_with_project = AsyncMock(
+    dao.fetch_active_recurring_schedules_with_project = AsyncMock(
         return_value=[(uuid4(), s) for s in (recurring or [])]
     )
     dao.dedup_seen_schedule = AsyncMock(return_value=False)
@@ -131,6 +131,15 @@ class TestNormalizeRunAt:
         assert plus_two.run_at == _RUN_AT
         assert plus_two.run_at.isoformat() == "2026-06-22T10:30:00+00:00"
 
+    def test_the_event_id_time_is_iso_utc_to_the_second(self):
+        # The due query renders run_at in SQL as YYYY-MM-DD"T"HH24:MI:SS"+00:00";
+        # this pins the Python side of the same text.
+        plus_two = datetime(
+            2026, 6, 22, 12, 30, 5, 123, tzinfo=timezone(timedelta(hours=2))
+        )
+        assert _one_time_run_at_text(plus_two) == "2026-06-22T10:30:05+00:00"
+        assert _one_time_run_at_text(_RUN_AT) == _RUN_AT.isoformat()
+
     def test_a_cron_schedule_is_still_validated(self):
         from oss.src.core.triggers.exceptions import TriggerScheduleInvalid
 
@@ -180,7 +189,7 @@ class TestOneTimePass:
         assert before <= due_by <= after
 
     async def test_the_limit_per_tick_comes_from_env(self, monkeypatch):
-        monkeypatch.setattr(env.triggers, "one_time_schedules_per_tick", 2000)
+        monkeypatch.setattr(env.triggers, "one_time_schedules_max_per_tick", 2000)
         service, dao = _service()
 
         await service.refresh_schedules(timestamp=_RUN_AT, interval=1)
@@ -304,7 +313,9 @@ def _compiled(statement):
 class TestDaoFilters:
     async def test_the_recurring_scan_leaves_out_one_time_schedules(self):
         capture = _Capture()
-        await TriggersDAO(engine=_engine(capture)).fetch_active_schedules_with_project()
+        await TriggersDAO(
+            engine=_engine(capture)
+        ).fetch_active_recurring_schedules_with_project()
         assert "trigger_schedules.run_at IS NULL" in str(
             _compiled(capture.statements[0])
         )
@@ -321,6 +332,10 @@ class TestDaoFilters:
         assert compiled.params["run_at_1"] == _RUN_AT
         assert "trigger_schedules.deleted_at IS NULL" in sql
         assert "NOT (EXISTS (SELECT trigger_deliveries.id" in sql
+        assert 'YYYY-MM-DD"T"HH24:MI:SS"+00:00"' in compiled.params.values()
+        # A retryable delivery does not count as fired.
+        assert "coalesce((trigger_deliveries.status ->> %(status_1)s)" in sql
+        assert "500" in compiled.params.values()
         assert "ORDER BY trigger_schedules.run_at" in sql
         assert compiled.params["param_1"] == 2000
 

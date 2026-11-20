@@ -1,4 +1,4 @@
-"""Pins per-row error isolation in ``fetch_active_schedules_with_project``.
+"""Pins per-row error isolation in ``fetch_active_recurring_schedules_with_project``.
 
 Regression coverage for a real incident: a schedule row with malformed
 ``data`` (missing the required ``event_key``/``schedule`` fields) raised a
@@ -65,7 +65,9 @@ async def test_fetch_active_schedules_skips_malformed_row_instead_of_raising():
     bad = _schedule_dbe(project_id=bad_project, data={"cron": "0 6 * * *"})
     engine = _Engine([bad, good])
 
-    result = await TriggersDAO(engine=engine).fetch_active_schedules_with_project()
+    result = await TriggersDAO(
+        engine=engine
+    ).fetch_active_recurring_schedules_with_project()
 
     assert [project_id for project_id, _ in result] == [good_project]
     assert result[0][1].id == good.id
@@ -79,7 +81,9 @@ async def test_fetch_active_schedules_returns_all_rows_when_none_are_malformed()
     )
     engine = _Engine([good])
 
-    result = await TriggersDAO(engine=engine).fetch_active_schedules_with_project()
+    result = await TriggersDAO(
+        engine=engine
+    ).fetch_active_recurring_schedules_with_project()
 
     assert [project_id for project_id, _ in result] == [project_id]
 
@@ -95,7 +99,7 @@ async def test_malformed_row_log_never_includes_the_payload(monkeypatch):
     mock_error = MagicMock()
     monkeypatch.setattr(dao_module.log, "error", mock_error)
 
-    await TriggersDAO(engine=engine).fetch_active_schedules_with_project()
+    await TriggersDAO(engine=engine).fetch_active_recurring_schedules_with_project()
 
     mock_error.assert_called_once()
     call_text = " ".join(str(a) for a in mock_error.call_args.args) + " ".join(

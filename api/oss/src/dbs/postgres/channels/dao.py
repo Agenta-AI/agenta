@@ -2496,7 +2496,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         *,
         channel: str,
     ) -> List[Tuple[UUID, ChannelConnection]]:
-        # Deliberately unscoped, like fetch_active_schedules_with_project in
+        # Deliberately unscoped, like fetch_active_recurring_schedules_with_project in
         # triggers: the socket loop serves every project's connections.
         async with self.engine.session() as session:
             stmt = select(ChannelConnectionDBE).where(

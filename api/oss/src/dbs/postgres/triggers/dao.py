@@ -1161,7 +1161,7 @@ class TriggersDAO(TriggersDAOInterface):
                 for dbe in result.scalars().all()
             ]
 
-    async def fetch_active_schedules_with_project(
+    async def fetch_active_recurring_schedules_with_project(
         self,
         *,
         project_id: Optional[UUID] = None,
@@ -1193,9 +1193,10 @@ class TriggersDAO(TriggersDAOInterface):
         earliest first, at most `limit`. Reads through `ix_trigger_schedules_run_at`.
 
         "Fired" means a delivery row with the schedule's event id
-        `<schedule id>:<run_at in ISO form>` exists. The service writes `run_at` in
-        whole minutes in UTC, so Python's `isoformat()` of it is
-        `YYYY-MM-DDTHH:MM:00+00:00`, which the expression below renders the same.
+        `<schedule id>:<run_at in ISO form>` exists and is not retryable, as in
+        `_dedup_seen_from_status`: a retryable delivery fires again at a later tick.
+        The expression below renders `run_at` as `_ONE_TIME_RUN_AT_FORMAT` in the
+        triggers service does (UTC, to the second); the two must stay equal.
         """
         event_id = func.concat(
             cast(TriggerScheduleDBE.id, String),
@@ -1211,6 +1212,8 @@ class TriggersDAO(TriggersDAOInterface):
                 TriggerDeliveryDBE.project_id == TriggerScheduleDBE.project_id,
                 TriggerDeliveryDBE.schedule_id == TriggerScheduleDBE.id,
                 TriggerDeliveryDBE.event_id == event_id,
+                func.coalesce(TriggerDeliveryDBE.status["code"].astext, "")
+                != TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
             )
             .exists()
         )

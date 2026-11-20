@@ -349,7 +349,9 @@ class TriggerScheduleData(BaseModel):
     @model_validator(mode="after")
     def _check_period(self) -> "TriggerScheduleData":
         if (self.schedule is None) == (self.run_at is None):
-            raise ValueError("A schedule needs exactly one of schedule and run_at.")
+            raise ValueError(
+                "A schedule needs exactly one of data.schedule and data.run_at."
+            )
         if self.run_at is not None and (
             self.start_time is not None or self.end_time is not None
         ):

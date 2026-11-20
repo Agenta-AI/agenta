@@ -159,7 +159,7 @@ def _refuse_server_only_schedule_fields(data: TriggerScheduleData) -> None:
 
     if data.run_at is not None:
         raise HTTPException(
-            status_code=422,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A schedule with run_at cannot be created or edited through this route.",
         )
 
