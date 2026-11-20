@@ -908,6 +908,25 @@ async def test_a_settled_execution_waits_for_its_last_records():
     )
 
 
+@pytest.mark.asyncio
+async def test_a_runner_ending_without_its_done_waits_for_the_next_signal():
+    harness = _Harness()
+    harness.inputs.add_child_input()
+    harness.executions.add(CHILD_EXECUTION, outcome="completed")
+    harness.executions.rows[(PROJECT_ID, CHILD, CHILD_EXECUTION)].settled_by = "runner"
+
+    await harness.ended()
+
+    assert harness.starts.calls == []
+
+    # The records worker signals again after the `done` commits.
+    _completed(harness, text="The answer.")
+    await harness.ended()
+
+    assert harness.part()["status"] == "completed"
+    assert "The answer." in harness.text()
+
+
 # --- the consumer's failure rule ----------------------------------------------------
 
 

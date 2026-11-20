@@ -233,8 +233,9 @@ class SessionChildUpdatesService:
             project_id=project_id, session_id=session_id, chain=chain
         )
         if ending is None:
-            log.error(
-                "[CHILD-UPDATES] no ending found for the execution; no update is written",
+            log.info(
+                "[CHILD-UPDATES] the ending is not visible yet; the signal after the "
+                "records commit writes the update",
                 **context,
             )
             return None
@@ -409,13 +410,20 @@ class SessionChildUpdatesService:
             )
             # A settled execution can be visible before its last records commit (the
             # record route settles first, and `complete_turn` signals too). Read again
-            # until the `done` record is there; after the last read, the settled
-            # outcome alone is the ending (a lost run writes no `done`).
+            # until the `done` record is there. After the last read, an outcome that
+            # the runner settled waits for the signal that follows its `done` (below),
+            # and any other settled outcome alone is the ending. A lost run sends
+            # nothing more (only the watchdog's `done` can still come), so it ends now.
             last_attempt = attempt == _ENDING_READ_ATTEMPTS - 1
             has_done = (
                 _last(by_execution[execution_id], TERMINAL_RECORD_TYPE) is not None
             )
-            if status is not None and (has_done or last_attempt):
+            ends_now = has_done or status == ChildTurnStatus.lost
+            if last_attempt and not has_done and _settled_by_runner(execution):
+                # The runner's `done` is still on its way, and the records worker
+                # signals again after it commits: that signal writes the update.
+                return None
+            if status is not None and (ends_now or last_attempt):
                 return status, [by_execution[key] for key in chain], execution
             if not last_attempt:
                 await self._sleep(_ENDING_READ_BACKOFF_SECONDS)
@@ -559,6 +567,10 @@ def ending_status(
     if done is not None or outcome == "completed":
         return ChildTurnStatus.completed
     return None
+
+
+def _settled_by_runner(execution: Optional[SessionExecutionSettlement]) -> bool:
+    return execution is not None and execution.settled_by == "runner"
 
 
 def cancelled_by(records: List[SessionRecord]) -> ChildCancelledBy:

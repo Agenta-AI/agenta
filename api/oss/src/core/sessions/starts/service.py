@@ -481,8 +481,8 @@ class SessionStartsService:
         `SessionStartNotDurable` when the dispatch cannot be shown to have started.
 
         `calling_turn_id` is the first execution id of the calling turn of a child
-        input. Only server code that sends a child input passes it (no caller does
-        yet); the row stores it and no response returns it."""
+        input. Only server code that sends a child input passes it; the row stores
+        it and no response returns it."""
         if run_envelope.authority.project_id != project_id:
             raise SessionInputEnvelopeMismatch()
         if not is_reserved_input_key(idempotency_key):

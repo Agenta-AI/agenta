@@ -36,7 +36,7 @@ class SessionInputDBE(Base, ProjectScopeDBA, LifecycleDBA, IdentifierDBA):
     # The admitting request's run envelope (M2); copied onto the continue_input command.
     run_envelope = Column(JSONB(none_as_null=True), nullable=True)
     # Server-owned: the first execution id of the calling turn of a child input. Only
-    # the session tool handlers pass it; no route reads or writes it.
+    # server code that sends a child input sets it; no route reads or writes it.
     calling_turn_id = Column(String, nullable=True)
 
     __table_args__ = (
