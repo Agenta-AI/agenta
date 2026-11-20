@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The session header's sharing control: one "Share the conversation" icon button. A channel chat's
- * access view gets the channel text, an API-key chat's the no-owner texts, from the reason the
- * sharing state carries.
+ * The session tab strip's sharing control: a channel chat's chip gets the channel text, an
+ * API-key chat's chip the no-owner texts, from the reason the sharing state carries.
  */
 import type {SessionSharingState} from "@agenta/entities/sharing"
 import {renderToStaticMarkup} from "react-dom/server"
@@ -18,7 +17,7 @@ vi.mock("@agenta/sessions-ui/sharing", () => ({
         chipProps.push(props)
         return null
     },
-    sessionSharingCopy: {tooltipNotShareable: "Cannot be shared"},
+    SessionShareButton: () => null,
 }))
 
 vi.mock("../../src/features/chat/useSessionSharing", () => ({
@@ -57,20 +56,5 @@ describe("SessionSharingControl", () => {
         sharingState.current = ownerless("ownerless")
         render()
         expect(chipProps[0]?.fromChannel).toBe(false)
-    })
-
-    it("gives the access view the header's icon button as its trigger", () => {
-        sharingState.current = ownerless("channel")
-        render()
-        const trigger = renderToStaticMarkup(chipProps[0]?.trigger as React.ReactElement)
-        expect(trigger).toContain('aria-label="Share the conversation"')
-    })
-
-    it("shows the owner the same icon button, not a text button", () => {
-        sharingState.current = {...ownerless(null), my_role: "owner", shareable: true}
-        const html = render()
-        expect(chipProps).toHaveLength(0)
-        expect(html).toContain('aria-label="Share the conversation"')
-        expect(html).not.toContain(">Share<")
     })
 })

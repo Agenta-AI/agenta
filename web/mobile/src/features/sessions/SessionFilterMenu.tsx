@@ -6,17 +6,17 @@ import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
-    Broadcast,
+    Archive,
     CalendarBlank,
     ChatCircle,
     Clock,
-    ClockCounterClockwise,
-    Folder,
     Lightning,
-    ListBullets,
+    LockSimple,
     Minus,
     Robot,
+    Rows,
     SquaresFour,
+    Waveform,
 } from "@phosphor-icons/react"
 
 import {
@@ -56,8 +56,6 @@ export const SessionFilterMenu = ({
     onReset,
     lockedAgent,
     defaultView = DEFAULT_SESSION_LIST_VIEW,
-    open,
-    onOpenChange,
 }: {
     view: SessionListView
     onChange: (view: SessionListView) => void
@@ -78,9 +76,6 @@ export const SessionFilterMenu = ({
     lockedAgent?: {id: string; name: string}
     /** What Reset returns to and what counts as untouched. */
     defaultView?: SessionListView
-    /** Controlled open state (the agent sidebar's Filter link opens the menu on arrival). */
-    open?: boolean
-    onOpenChange?: (open: boolean) => void
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
@@ -114,7 +109,7 @@ export const SessionFilterMenu = ({
             {
                 key: "status",
                 label: t("sessions.mobileList.status"),
-                icon: <Broadcast size={ICON} />,
+                icon: <Waveform size={ICON} />,
                 value: status,
                 // Ordered by what it costs to miss, and each dot is the one a row of that status
                 // paints. `live` is not offered: "the sandbox is up" is a fact about the
@@ -152,8 +147,15 @@ export const SessionFilterMenu = ({
                       icon: <Robot size={ICON} />,
                       value: lockedAgent.id,
                       valueLabel: lockedAgent.name,
-                      options: [{value: lockedAgent.id, label: lockedAgent.name}],
-                      locked: true,
+                      options: [
+                          {
+                              value: lockedAgent.id,
+                              label: lockedAgent.name,
+                              icon: <LockSimple size={ICON} />,
+                              disabled: true,
+                          },
+                      ],
+                      wide: true,
                       onChange: () => undefined,
                   }
                 : {
@@ -187,7 +189,7 @@ export const SessionFilterMenu = ({
             {
                 key: "activity",
                 label: t("sessions.mobileList.lastActivity"),
-                icon: <ClockCounterClockwise size={ICON} />,
+                icon: <Clock size={ICON} />,
                 value: view.activity,
                 options: [
                     {
@@ -217,14 +219,14 @@ export const SessionFilterMenu = ({
                 kind: "toggle",
                 key: "archived",
                 label: t("sessions.mobileList.onlyArchived"),
-                icon: <Folder size={ICON} />,
+                icon: <Archive size={ICON} />,
                 checked: archivedOnly,
                 onChange: setArchivedOnly,
             },
             {
                 key: "group",
                 label: t("sessions.mobileList.groupBy"),
-                icon: <ListBullets size={ICON} />,
+                icon: <Rows size={ICON} />,
                 block: "sort",
                 value: view.group,
                 options: [
@@ -246,7 +248,7 @@ export const SessionFilterMenu = ({
                     {
                         value: "status",
                         label: t("sessions.mobileList.status"),
-                        icon: <Broadcast size={ICON} />,
+                        icon: <Waveform size={ICON} />,
                     },
                     {
                         value: "none",
@@ -276,17 +278,15 @@ export const SessionFilterMenu = ({
 
     // Search is its own field in the toolbar, so it does not dot this button — a control that
     // looks touched because someone typed next to it says nothing about what the menu holds.
-    const changed =
+    const active =
         Boolean(agentId) ||
         status !== "all" ||
-        Boolean(mode) ||
+        mode ||
         archivedOnly ||
         !isDefaultSessionListView(view, defaultView)
 
     return (
         <FilterMenu
-            open={open}
-            onOpenChange={onOpenChange}
             sections={sections}
             align="start"
             // Icon alone: the table beside it is already the subject, and the word "Filter" added
@@ -296,10 +296,9 @@ export const SessionFilterMenu = ({
             size="default"
             // The square icon size is 28; the search field is 32.
             triggerClassName="size-8 max-md:size-11"
-            // A page locked to one agent is narrowed to it, so the dot shows there too (A02).
-            active={changed || Boolean(lockedAgent)}
+            active={active}
             onReset={onReset}
-            resetDisabled={!changed}
+            resetDisabled={!active}
         />
     )
 }

@@ -6,8 +6,9 @@
  */
 import {act, type ReactNode} from "react"
 
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
+import {QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -82,10 +83,17 @@ vi.mock("next/router", () => ({useRouter: () => ({basePath: "/m", push: vi.fn()}
 import {BuilderChatTitle} from "@/features/builder-page/BuilderChatTitle"
 import {PaneSessions, usePaneSessionPick} from "@/features/builder-page/PaneSessions"
 import {PaneSessionSwitcher} from "@/features/builder-page/PaneSessionSwitcher"
+import {queryClient} from "@/lib/queryClient"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
 let host: HTMLDivElement
+/** A store that reads the app's query client, as the app's host hydrates it. */
+const store = () => {
+    const value = createStore()
+    value.set(queryClientAtom, queryClient)
+    return value
+}
 let root: Root
 
 beforeEach(() => {
@@ -97,14 +105,15 @@ beforeEach(() => {
 
 afterEach(() => {
     act(() => root.unmount())
+    queryClient.clear()
     host.remove()
 })
 
 const render = async (node: ReactNode) => {
     await act(async () => {
         root.render(
-            <QueryClientProvider client={new QueryClient()}>
-                <Provider store={createStore()}>{node}</Provider>
+            <QueryClientProvider client={queryClient}>
+                <Provider store={store()}>{node}</Provider>
             </QueryClientProvider>,
         )
     })

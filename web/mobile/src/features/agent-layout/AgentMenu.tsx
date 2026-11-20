@@ -1,7 +1,7 @@
 import {useState, type ReactNode} from "react"
 
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
-import {AgentKindBadge, useAgentActions} from "@agenta/entity-ui/agent"
+import {AgentIdentity, useAgentActions} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
@@ -29,9 +29,8 @@ interface AgentMenuEntry {
 }
 
 /**
- * The agent menu of the session header: History, Rename, Export agent, Archive agent. The agent's
- * name and a down arrow are the trigger, after the agent's icon. On a phone the icon is part of the
- * trigger, and the menu opens as a bottom sheet with "Cancel".
+ * The agent menu of the session header: History, Rename, Export agent, Archive agent. On a phone
+ * the agent's icon and name are the trigger, and the menu opens as a bottom sheet with "Cancel".
  */
 export const AgentMenu = ({
     agentId,
@@ -125,21 +124,18 @@ export const AgentMenu = ({
                             role="button"
                             tabIndex={0}
                             aria-haspopup="dialog"
-                            className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
+                            className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
                             onKeyDown={(event) => {
                                 if (event.key !== "Enter" && event.key !== " ") return
                                 event.preventDefault()
                                 setSheetOpen(true)
                             }}
                         >
-                            <AgentKindBadge workflowId={agentId} editable={false} />
-                            <span className="min-w-0 truncate text-base font-semibold leading-5">
-                                {name}
-                            </span>
+                            <AgentIdentity workflowId={agentId} name={name} editable={false} />
                             <CaretDown
                                 size={14}
                                 aria-hidden
-                                className="shrink-0 text-colorTextTertiary"
+                                className="shrink-0 text-colorTextSecondary"
                             />
                         </div>
                     }
@@ -150,19 +146,10 @@ export const AgentMenu = ({
     return (
         <>
             {leave}
-            {/* The icon (it opens the icon picker), then the name and the arrow as one button. */}
-            <AgentKindBadge workflowId={agentId} />
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        className="h-[30px] min-w-0 shrink gap-2 rounded-[6px] px-2 text-[15px] font-semibold text-colorText"
-                    >
-                        <span className="truncate">{name}</span>
-                        <CaretDown
-                            aria-hidden
-                            className="size-3.5 shrink-0 text-colorTextTertiary"
-                        />
+                    <Button variant="ghost" size="icon-sm" aria-label={name} className="shrink-0">
+                        <CaretDown size={12} />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-52">

@@ -21,7 +21,7 @@ vi.mock("@agenta/navigation", async () => {
 })
 vi.mock("next/router", () => ({useRouter: () => ({push: vi.fn(), query: {}, asPath: "/"})}))
 vi.mock("@agenta/entity-ui/agent", () => ({
-    AgentKindBadge: () => <span data-testid="agent-kind-badge" />,
+    AgentIdentity: ({name}: {name: string}) => <span>{name}</span>,
     useAgentActions: () => actions,
 }))
 vi.mock("@agenta/playground-ui/agent-page-header", () => ({
@@ -177,20 +177,6 @@ describe("the session header", () => {
         expect(sessions.retry).toHaveBeenCalled()
         expect(screen.getByRole("button", {name: "New session"})).toBeTruthy()
         sessions.failed = false
-    })
-
-    it("opens the agent menu from one button: the name and its arrow, after the agent badge", async () => {
-        agentNames.set("agent-1", "Support triage")
-        renderHeader(panel())
-        expect(screen.getByTestId("agent-kind-badge")).toBeTruthy()
-        fireEvent.keyDown(screen.getByRole("button", {name: "Support triage"}), {key: "Enter"})
-        expect(await screen.findByRole("menuitem", {name: "History"})).toBeTruthy()
-    })
-
-    it("draws the session button with its status dot", () => {
-        renderHeader(panel())
-        const button = screen.getByTitle("Charged twice for March")
-        expect(within(button).getByTestId("session-status-dot")).toBeTruthy()
     })
 
     it("names the agent by its id before its revision has loaded", () => {

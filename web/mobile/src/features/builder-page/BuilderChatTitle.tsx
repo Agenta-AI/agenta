@@ -42,8 +42,12 @@ export const BuilderChatTitle = ({
             `${router.basePath}${builderChatHref({workspaceId, projectId, sessionId: id})}`,
         [projectId, router.basePath, workspaceId],
     )
+    // Leave only when the removed chat is still the one on screen.
     const onRemoved = useCallback(
-        () => router.push(`/w/${workspaceId}/p/${projectId}/builder`),
+        (removed: SessionActionTarget) => {
+            if (!window.location.pathname.includes(`/builder/${removed.sessionId}`)) return
+            return router.push(`/w/${workspaceId}/p/${projectId}/builder`)
+        },
         [projectId, router, workspaceId],
     )
     const actions = useSessionActions({sharePathFor, onRemoved, currentUserId: userId})

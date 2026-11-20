@@ -1,4 +1,13 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type PointerEvent as ReactPointerEvent,
+    type ReactNode,
+} from "react"
 
 import {
     FILES_PANE_MAX,
@@ -17,6 +26,7 @@ import {
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPhoneCatalog from "@agenta/i18n/catalogs/agentLayout.phone"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {userAtom} from "@agenta/shared/state"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -32,7 +42,6 @@ import {ConfigPaneLoading} from "../chat/states/ConfigPaneLoading"
 import {useDriveUrlSync} from "../chat/useDriveUrlSync"
 
 import {AgentPanelContext, type AgentPanelApi} from "./agentPanelContext"
-import {AgentPanelFrame, type PanelMode} from "./AgentPanelFrame"
 import {
     agentPanelStateAtomFamily,
     nextPanelContent,
@@ -85,6 +94,7 @@ export const AgentLayoutBody = ({
     header,
     conversation,
 }: AgentLayoutProps) => {
+    const tControls = useT(uiControlsCatalog)
     const tPhone = useT(agentLayoutPhoneCatalog, agentLayoutHeaderCatalog)
     const confirmLeave = useConfirmLeave()
     const user = useAtomValue(userAtom)
@@ -311,7 +321,23 @@ export const AgentLayoutBody = ({
     const filesExpanded = isFiles && filesLayout.expanded
 
     const panelBody = (
-        <>
+        <div
+            ref={panelRef}
+            tabIndex={-1}
+            data-testid="agent-panel"
+            className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
+            onKeyDown={(event) => {
+                // A view goes back first (the view stack handles it); a menu or dialog closes
+                // itself. What is left closes the panel.
+                if (event.key !== "Escape" || event.defaultPrevented) return
+                const layer = (event.target as HTMLElement).closest?.(
+                    '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
+                )
+                if (layer && layer !== event.currentTarget) return
+                event.preventDefault()
+                void close()
+            }}
+        >
             {mounted.has("files") || isFiles ? (
                 <div className={isFiles ? "flex h-full min-h-0 flex-col" : "hidden"}>
                     {/* On a phone Files covers the session: the phone header returns to it. */}
@@ -364,63 +390,111 @@ export const AgentLayoutBody = ({
                     />
                 </div>
             ) : null}
-        </>
+        </div>
     )
 
     const open = content !== null
-    // One tree at every width, so neither a resize nor a mode change remounts the conversation.
-    const mode: PanelMode =
+    // One tree at every width, so neither a resize nor a mode change remounts the conversation:
+    // push = side by side; overlay = the panel lies over the conversation; full = it covers it.
+    const mode =
         phone || filesExpanded ? "full" : !pushWidth || (wide && !isFiles) ? "overlay" : "push"
-    const [min, max] = isFiles ? [FILES_PANE_MIN, FILES_PANE_MAX] : [PANEL_MIN, PANEL_MAX]
-    const resize =
-        mode !== "full" && !(wide && !isFiles)
-            ? {
-                  min,
-                  max,
-                  onLive: isFiles ? setFilesWidth : setLiveWidth,
-                  onCommit: (width: number) => {
-                      if (isFiles) {
-                          setFilesWidth(width)
-                          setStoredFilesWidth(width)
-                      } else setState({width})
-                  },
-              }
-            : null
+    const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+        const pointerId = event.pointerId
+        const startX = event.clientX
+        const startWidth = panelWidth
+        const [min, max] = isFiles ? [FILES_PANE_MIN, FILES_PANE_MAX] : [PANEL_MIN, PANEL_MAX]
+        const widthAt = (x: number) => Math.min(max, Math.max(min, startWidth + startX - x))
+        const setLive = isFiles ? setFilesWidth : setLiveWidth
+        const store = (width: number) => (isFiles ? setStoredFilesWidth(width) : setState({width}))
+        const move = (e: PointerEvent) => {
+            if (e.pointerId === pointerId) setLive(widthAt(e.clientX))
+        }
+        const stop = () => {
+            window.removeEventListener("pointermove", move)
+            window.removeEventListener("pointerup", up)
+            window.removeEventListener("pointercancel", cancel)
+        }
+        const up = (e: PointerEvent) => {
+            if (e.pointerId !== pointerId) return
+            stop()
+            // Stored at pointer-up, not on every move.
+            store(widthAt(e.clientX))
+        }
+        // A cancelled drag (a touch the browser took over) goes back to the stored width.
+        const cancel = (e: PointerEvent) => {
+            if (e.pointerId !== pointerId) return
+            stop()
+            setLive(startWidth)
+        }
+        window.addEventListener("pointermove", move)
+        window.addEventListener("pointerup", up)
+        window.addEventListener("pointercancel", cancel)
+        event.preventDefault()
+    }
+    // The ARIA window-splitter keys: arrows move 16 px, and each step is stored.
+    const keyResize = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const step = event.key === "ArrowLeft" ? 16 : event.key === "ArrowRight" ? -16 : 0
+        if (!step) return
+        event.preventDefault()
+        const [min, max] = isFiles ? [FILES_PANE_MIN, FILES_PANE_MAX] : [PANEL_MIN, PANEL_MAX]
+        const width = Math.min(max, Math.max(min, panelWidth + step))
+        if (isFiles) {
+            setFilesWidth(width)
+            setStoredFilesWidth(width)
+        } else setState({width})
+    }
+    const body = (
+        <div className={cn("flex h-full min-h-0", mode !== "full" && "relative")}>
+            <div
+                className={cn(
+                    "ag-canvas flex h-full min-h-0 min-w-0 flex-1 flex-col",
+                    mode === "full" && open && "hidden",
+                )}
+                inert={mode === "full" && open}
+            >
+                {conversation}
+            </div>
+            <div
+                className={cn(
+                    "h-full min-h-0 shrink-0",
+                    !open && "hidden",
+                    mode === "overlay" && "absolute inset-y-0 right-0 z-20 shadow-overlay",
+                    // On a phone the content covers the whole session screen, header included.
+                    mode === "full" && "absolute inset-0 z-30",
+                    mode === "push" && "relative",
+                    mode !== "full" && "border-0 border-l border-solid border-colorBorderSecondary",
+                )}
+                style={mode === "full" ? undefined : {width: panelWidth}}
+            >
+                {mode !== "full" && !(wide && !isFiles) ? (
+                    <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-valuemin={isFiles ? FILES_PANE_MIN : PANEL_MIN}
+                        aria-valuemax={isFiles ? FILES_PANE_MAX : PANEL_MAX}
+                        aria-valuenow={panelWidth}
+                        aria-label={tControls("ui.controls.resizePanes")}
+                        tabIndex={0}
+                        className="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none"
+                        onPointerDown={startDrag}
+                        onKeyDown={keyResize}
+                    />
+                ) : null}
+                {panelBody}
+            </div>
+        </div>
+    )
 
     return (
         <AgentPanelContext.Provider value={api}>
-            {/* The panel runs full height beside the session header (the header ends at the
-                panel edge). Clipped, not scrollable: a row wider than a phone (a long header) must
-                never let the browser scroll the layout sideways, which shifts a full screen panel
-                off its left edge when focus moves into it. */}
-            <div className="relative flex h-full min-h-0 overflow-x-clip">
-                <div
-                    className="ag-canvas flex h-full min-h-0 min-w-0 flex-1 flex-col"
-                    inert={mode === "full" && open}
-                >
+            {/* Clipped, not scrollable: a row wider than a phone (a long header) must never let
+                the browser scroll the layout sideways, which shifts a full screen panel off its
+                left edge when focus moves into it. */}
+            <div className="relative flex h-full min-h-0 flex-col overflow-x-clip">
+                <div className="contents" inert={mode === "full" && open}>
                     {header}
-                    <div
-                        className={cn(
-                            "flex min-h-0 min-w-0 flex-1 flex-col",
-                            mode === "full" && open && "hidden",
-                        )}
-                    >
-                        {conversation}
-                    </div>
                 </div>
-                <AgentPanelFrame
-                    open={open}
-                    mode={mode}
-                    width={panelWidth}
-                    resize={resize}
-                    // Under 1100 px the panel lies over the conversation, below the session
-                    // header: the header icons that swap the panel stay in reach.
-                    overlayTop={pushWidth ? undefined : "top-12"}
-                    panelRef={panelRef}
-                    onClose={() => void close()}
-                >
-                    {panelBody}
-                </AgentPanelFrame>
+                <div className="min-h-0 flex-1">{body}</div>
             </div>
         </AgentPanelContext.Provider>
     )

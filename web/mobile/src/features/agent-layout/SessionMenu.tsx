@@ -8,9 +8,8 @@ import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {BottomSheet, PHONE_BUTTON_CLASS} from "@agenta/ui/phone"
-import {cn} from "@agenta/ui/styles"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
-import {CaretUpDown, CircleNotchIcon, Plus} from "@phosphor-icons/react"
+import {CaretDown, CaretUpDown, CircleIcon, CircleNotchIcon, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -65,17 +64,6 @@ export const SessionMenu = ({
         if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
     }
     const running = useAtomValue(sessionStatusAtomFamily(sessionId)) === "running"
-    // The session's status: a ring, filled while a run is active.
-    const statusDot = (
-        <span
-            aria-hidden
-            data-testid="session-status-dot"
-            className={cn(
-                "mx-0.5 box-border size-2 shrink-0 rounded-full border-[1.25px] border-solid",
-                running ? "border-colorText bg-colorText" : "border-colorTextTertiary",
-            )}
-        />
-    )
     // One list for both widths: the rail's compact rows in the popover, the taller card rows
     // in the phone sheet. The row menu (rename, pin, archive) is the same on both; on a touch
     // screen the pin lives in that menu.
@@ -121,15 +109,15 @@ export const SessionMenu = ({
                             type="button"
                             aria-haspopup="dialog"
                             title={title}
-                            className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm font-medium leading-5 text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
+                            className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-lg border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
                         >
-                            {running ? (
-                                <span aria-hidden className="flex shrink-0 text-colorTextTertiary">
+                            <span aria-hidden className="flex shrink-0 text-colorTextTertiary">
+                                {running ? (
                                     <CircleNotchIcon size={12} className="animate-spin" />
-                                </span>
-                            ) : (
-                                statusDot
-                            )}
+                                ) : (
+                                    <CircleIcon size={10} />
+                                )}
+                            </span>
                             <span className="truncate">{title}</span>
                             <CaretUpDown
                                 size={14}
@@ -179,14 +167,12 @@ export const SessionMenu = ({
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button
-                    variant="outline"
-                    size="compact"
-                    className="min-w-0 max-w-[240px] shrink gap-2 pl-2.5 pr-2 font-medium max-md:h-11"
+                    variant="ghost"
+                    className="h-8 min-w-0 max-w-[240px] gap-1 px-2 text-sm max-md:h-11"
                     title={title}
                 >
-                    {statusDot}
                     <span className="truncate">{title}</span>
-                    <CaretUpDown aria-hidden className="size-3.5 shrink-0 text-colorTextTertiary" />
+                    <CaretDown size={12} className="shrink-0" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">

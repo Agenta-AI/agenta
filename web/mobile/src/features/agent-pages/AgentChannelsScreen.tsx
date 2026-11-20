@@ -1,16 +1,15 @@
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
-import {useIsPhone} from "@agenta/ui/phone"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
 import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 
 import {AgentChannels} from "./AgentChannels"
-import {AGENT_CHANNELS_PAGE_COLUMN, AgentListPageHeader} from "./AgentListPageHeader"
 
 /** The Channels page of one agent. */
 export const AgentChannelsScreen = ({
@@ -23,7 +22,6 @@ export const AgentChannelsScreen = ({
     agentId: string
 }) => {
     const t = useT(agentSidebarCatalog)
-    const phone = useIsPhone()
     useBindProjectContext(projectId)
     return (
         <>
@@ -31,21 +29,19 @@ export const AgentChannelsScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <AgentListPageHeader
-                            title={t("agentSidebar.channels")}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                        />
+                        <div
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                    {t("agentSidebar.channels")}
+                                </h1>
+                            </div>
+                        </div>
                     }
                 >
-                    <div
-                        className={
-                            phone
-                                ? // On a phone the channel rows run edge to edge (M13).
-                                  `min-w-0 pb-12 ${SESSIONS_PAGE_FRAME}`
-                                : AGENT_CHANNELS_PAGE_COLUMN
-                        }
-                    >
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}>
                         <AgentChannels agentId={agentId} />
                     </div>
                 </ScreenScaffold>

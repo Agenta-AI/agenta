@@ -153,9 +153,13 @@ export const AgentFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // A text button, sliders and "Filter", as drawn (A03). The default label is "Filter".
+            // Icon alone: the roster beside it is already the subject, and the word "Filter"
+            // added a second label to a toolbar that has one.
+            label={null}
             triggerAriaLabel={t("agents.list.filterTriggerLabel")}
-            size="compact"
+            size="default"
+            // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
+            triggerClassName="size-8"
             active={!isDefaultAgentListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.

@@ -20,6 +20,11 @@ vi.mock("@agenta/entities/session", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/session")>()),
     querySessionStreams: (...args: unknown[]) => rows.querySessionStreams(...args),
 }))
+vi.mock("@agenta/sessions-ui/sharing", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/sessions-ui/sharing")>()),
+    SessionShareButton: () => createElement("button", {"data-testid": "share"}, "Share"),
+}))
+
 import {SessionSharingControl} from "@/features/chat/SessionSharingControl"
 
 let host: HTMLDivElement
@@ -77,7 +82,7 @@ describe("a brand-new chat", () => {
             ),
         )
         await act(async () => undefined)
-        expect(host.querySelector('[aria-label="Share the conversation"]')).toBeNull()
+        expect(host.querySelector('[data-testid="share"]')).toBeNull()
 
         // The first turn lands: the session change invalidates the row read.
         rows.querySessionStreams.mockResolvedValue(ownerRow)
@@ -90,7 +95,7 @@ describe("a brand-new chat", () => {
         await vi.waitFor(
             async () => {
                 await act(async () => undefined)
-                expect(host.querySelector('[aria-label="Share the conversation"]')).not.toBeNull()
+                expect(host.querySelector('[data-testid="share"]')).not.toBeNull()
             },
             {timeout: 5000},
         )

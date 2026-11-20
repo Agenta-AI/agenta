@@ -252,8 +252,6 @@ export const SessionListTable = ({
                     stickyHeader
                     // Compact for the same reason it is sticky: this is the long list.
                     density="compact"
-                    // The page of one agent draws the light chevron on its headings (A02).
-                    groupCaret={lockedAgentId ? "chevron" : "fill"}
                     loading={list.isPending}
                     groups={groups}
                     rowKey={(vm) => vm.id}

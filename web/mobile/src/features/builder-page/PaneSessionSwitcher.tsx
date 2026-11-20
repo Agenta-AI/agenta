@@ -38,7 +38,6 @@ export const PaneSessionSwitcher = ({pick}: {pick: PaneSessionPick}) => {
                 <button
                     type="button"
                     data-testid="pane-session-switcher"
-                    aria-haspopup="listbox"
                     // 44 px high on a phone (tap rule).
                     className="box-border flex h-7 w-[172px] shrink-0 cursor-pointer items-center gap-2 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer pl-2.5 pr-2 text-left text-[13px] font-medium leading-5 text-colorText hover:bg-muted max-md:h-11 max-md:w-[140px]"
                 >

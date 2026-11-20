@@ -1,7 +1,6 @@
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {AgentPageBuilderHost} from "@/features/agent-layout/AgentPageBuilderHost"
 import {isConfigurationTab} from "@/features/agent-pages/configurationTabs"
 import {isAgentOverviewEnabled, OPEN_PLAYGROUND} from "@/features/agents/agentEntry"
 import {AgentOverviewScreen} from "@/features/agents/AgentOverviewScreen"
@@ -48,10 +47,9 @@ export default function AgentOverviewPage() {
         return null
     }
     // The agent pages are views of this route (`?view=`). Keyed by agent: each agent's page has
-    // its own filters. One builder host holds all four, so the builder panel stays mounted on a
-    // move between them.
-    const page =
-        view === "configuration" ? (
+    // its own filters.
+    if (view === "configuration")
+        return (
             <AgentConfigurationPage
                 key={agentId}
                 workspaceId={workspaceId}
@@ -60,38 +58,33 @@ export default function AgentOverviewPage() {
                 // The Agent tab by default, and for an unknown tab.
                 tab={isConfigurationTab(tab) ? tab : "agent"}
             />
-        ) : view === "sessions" ? (
+        )
+    if (view === "sessions")
+        return (
             <AgentSessionsPage
                 key={agentId}
                 workspaceId={workspaceId}
                 projectId={projectId}
                 lockedAgentId={agentId}
             />
-        ) : view === "channels" ? (
+        )
+    if (view === "channels")
+        return (
             <AgentChannelsPage
                 key={agentId}
                 workspaceId={workspaceId}
                 projectId={projectId}
                 agentId={agentId}
             />
-        ) : view === "analytics" ? (
+        )
+    if (view === "analytics")
+        return (
             <AgentAnalyticsPage
                 key={agentId}
                 workspaceId={workspaceId}
                 projectId={projectId}
                 agentId={agentId}
             />
-        ) : null
-    if (page)
-        return (
-            <AgentPageBuilderHost
-                key={agentId}
-                agentId={agentId}
-                workspaceId={workspaceId}
-                projectId={projectId}
-            >
-                {page}
-            </AgentPageBuilderHost>
         )
     const overview = (
         <AgentOverviewScreen
