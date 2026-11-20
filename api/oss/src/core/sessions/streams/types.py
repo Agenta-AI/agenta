@@ -31,6 +31,20 @@ class SessionCreationRequiresRunCredential(SessionStreamError):
         super().__init__(self.message)
 
 
+class SessionCreationRequiresCallingSessionRecord(SessionStreamError):
+    """A run with the run origin `calling_session` would create a session row without
+    the calling session record: only a start from the calling session creates a child
+    session, with its record."""
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.message = (
+            "Creating a session from a calling session's run needs its calling "
+            "session record."
+        )
+        super().__init__(self.message)
+
+
 class SessionStreamAlreadyExists(SessionStreamError):
     def __init__(self, session_id: str):
         self.session_id = session_id
