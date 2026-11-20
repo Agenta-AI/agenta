@@ -1,7 +1,6 @@
 {
     "builder": "ビルダー",
     "back": "戻る",
-    "collapseSidebar": "サイドバーを折りたたむ",
     "newChat": "新しいチャット",
     "chats": "チャット",
     "chatsLoading": "チャットを読み込んでいます…",
@@ -26,7 +25,6 @@
     "noAgents": "このプロジェクトにはまだエージェントがありません。",
     "noAgentMatches": "検索に一致するエージェントはありません。",
     "searchIdeas": "アイデアを検索…",
-    "close": "閉じる",
     "noIdeaMatches": "検索に一致するアイデアはありません。",
     "catAll": "すべて",
     "catGettingStarted": "はじめに",

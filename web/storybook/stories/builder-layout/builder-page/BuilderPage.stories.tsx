@@ -10,7 +10,7 @@ const noop = () => undefined
 
 /**
  * The middle of the builder page for a new chat (B01) and with "Browse ideas" open (B02). The
- * hero, the title, the quick actions and the ideas dialog are the page's own components; the
+ * hero, the title, the quick actions (under the composer, as on the page) and the ideas dialog are the page's own components; the
  * composer frame stands in for the production composer, which needs a live conversation.
  */
 const NewChatFrame = ({ideas}: {ideas: boolean}) => {
@@ -26,12 +26,12 @@ const NewChatFrame = ({ideas}: {ideas: boolean}) => {
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-6">
                 <NewBuilderChat heroState="idle" />
                 <div className="flex w-full max-w-[680px] flex-col gap-3">
-                    <PageQuickActions onFill={noop} onPickAgent={noop} onBrowseIdeas={noop} />
                     <div className="flex h-24 flex-col rounded-xl p-3 ring-1 ring-inset ring-colorBorderSecondary">
                         <span className="text-sm text-colorTextTertiary">
                             {t("builder.page.placeholderNew")}
                         </span>
                     </div>
+                    <PageQuickActions onFill={noop} onPickAgent={noop} onBrowseIdeas={noop} />
                 </div>
             </div>
             <BrowseIdeasDialog open={ideas} onOpenChange={noop} onPick={noop} />

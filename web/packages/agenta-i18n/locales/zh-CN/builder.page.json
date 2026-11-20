@@ -1,7 +1,6 @@
 {
     "builder": "构建器",
     "back": "返回",
-    "collapseSidebar": "收起侧边栏",
     "newChat": "新对话",
     "chats": "对话",
     "chatsLoading": "正在加载对话…",
@@ -26,7 +25,6 @@
     "noAgents": "这个项目还没有 Agent。",
     "noAgentMatches": "没有与搜索匹配的 Agent。",
     "searchIdeas": "搜索创意…",
-    "close": "关闭",
     "noIdeaMatches": "没有与搜索匹配的创意。",
     "catAll": "全部",
     "catGettingStarted": "入门",

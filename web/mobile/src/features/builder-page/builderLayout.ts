@@ -5,22 +5,26 @@
  */
 export const BUILDER_LAYOUT_KEY = "agenta:builder:layout"
 
-export interface BuilderLayout {
+export interface BuilderPaneLayout {
     /** The pane width in px. */
     width: number
     hidden: boolean
     fullScreen: boolean
 }
 
-export const DEFAULT_BUILDER_LAYOUT: BuilderLayout = {width: 560, hidden: false, fullScreen: false}
+export const DEFAULT_BUILDER_LAYOUT: BuilderPaneLayout = {
+    width: 560,
+    hidden: false,
+    fullScreen: false,
+}
 export const PANE_MIN_WIDTH = 360
 export const PANE_MAX_WIDTH = 1100
 
-export const readBuilderLayout = (): BuilderLayout => {
+export const readBuilderLayout = (): BuilderPaneLayout => {
     try {
         const parsed: unknown = JSON.parse(window.localStorage.getItem(BUILDER_LAYOUT_KEY) ?? "{}")
         if (!parsed || typeof parsed !== "object") return DEFAULT_BUILDER_LAYOUT
-        const value = parsed as Partial<Record<keyof BuilderLayout, unknown>>
+        const value = parsed as Partial<Record<keyof BuilderPaneLayout, unknown>>
         return {
             width:
                 typeof value.width === "number" && Number.isFinite(value.width)
@@ -34,7 +38,7 @@ export const readBuilderLayout = (): BuilderLayout => {
     }
 }
 
-export const writeBuilderLayout = (layout: BuilderLayout) => {
+export const writeBuilderLayout = (layout: BuilderPaneLayout) => {
     try {
         window.localStorage.setItem(BUILDER_LAYOUT_KEY, JSON.stringify(layout))
     } catch {

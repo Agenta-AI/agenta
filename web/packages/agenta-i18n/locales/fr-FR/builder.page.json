@@ -1,7 +1,6 @@
 {
     "builder": "Builder",
     "back": "Retour",
-    "collapseSidebar": "Replier la barre latérale",
     "newChat": "Nouveau chat",
     "chats": "Chats",
     "chatsLoading": "Chargement des chats…",
@@ -26,7 +25,6 @@
     "noAgents": "Ce projet n’a encore aucun agent.",
     "noAgentMatches": "Aucun agent ne correspond à votre recherche.",
     "searchIdeas": "Rechercher des idées…",
-    "close": "Fermer",
     "noIdeaMatches": "Aucune idée ne correspond à votre recherche.",
     "catAll": "Toutes",
     "catGettingStarted": "Premiers pas",

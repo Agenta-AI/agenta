@@ -7,7 +7,7 @@ import {builderChatsKey} from "../builder/builderChatLink"
 import {sentContextOf} from "./sentContext"
 
 /** An agent as the builder page names it. The name is empty when the source gives none. */
-export interface PaneAgent {
+export interface AgentRef {
     id: string
     name: string
 }
@@ -55,7 +55,7 @@ const parseResult = (output: unknown): AgentToolResult | null => {
 }
 
 /** The agent of one settled `create_agent` or `edit_agent_config` call, or null. */
-export const agentOfToolPart = (part: UIMessage["parts"][number]): PaneAgent | null => {
+export const agentOfToolPart = (part: UIMessage["parts"][number]): AgentRef | null => {
     if (!isToolPart(part.type)) return null
     const tool = part as ToolUIPart
     if (tool.state !== "output-available") return null
@@ -69,7 +69,7 @@ export const agentOfToolPart = (part: UIMessage["parts"][number]): PaneAgent | n
 }
 
 /** The agent of the latest settled `create_agent` or `edit_agent_config` result, or null. */
-export const latestResultAgent = (messages: readonly UIMessage[]): PaneAgent | null => {
+export const latestResultAgent = (messages: readonly UIMessage[]): AgentRef | null => {
     for (let m = messages.length - 1; m >= 0; m--) {
         const message = messages[m]
         if (message.role !== "assistant") continue
@@ -82,7 +82,7 @@ export const latestResultAgent = (messages: readonly UIMessage[]): PaneAgent | n
 }
 
 /** The agent of the latest user message that carries a page context line, or null. */
-export const latestContextAgent = (messages: readonly UIMessage[]): PaneAgent | null => {
+export const latestContextAgent = (messages: readonly UIMessage[]): AgentRef | null => {
     for (let m = messages.length - 1; m >= 0; m--) {
         const message = messages[m]
         if (message.role !== "user") continue
@@ -118,6 +118,8 @@ export const linkedAgentId = (
 /**
  * The agent of the pane's agent tab, in this order: the agent tab in the address, the latest
  * typed tool result of the chat, the page context of the chat, the browser link. Null: no pane.
+ * The page writes the agent it shows into the address, so once a chat shows an agent, a result
+ * for another agent does not replace it; the builder tabs (section 40) open that agent beside it.
  */
 export const paneAgentId = ({
     tab,
@@ -126,8 +128,8 @@ export const paneAgentId = ({
     linkedAgent,
 }: {
     tab: BuilderTabRef | null
-    resultAgent: PaneAgent | null
-    contextAgent: PaneAgent | null
+    resultAgent: AgentRef | null
+    contextAgent: AgentRef | null
     linkedAgent: string | null
 }): string | null => {
     if (tab?.kind === "agent") return tab.id

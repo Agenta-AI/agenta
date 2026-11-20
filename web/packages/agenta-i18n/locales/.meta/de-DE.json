@@ -795,7 +795,6 @@
     "builder.page": {
         "builder": "090940e73258",
         "back": "76900f1bfd16",
-        "collapseSidebar": "044eaf90532d",
         "newChat": "db18382a249e",
         "chats": "ef5b4049bb36",
         "chatsLoading": "c275c298d1c7",
@@ -820,7 +819,6 @@
         "noAgents": "3faa6ba87b42",
         "noAgentMatches": "fe880c7cb63a",
         "searchIdeas": "8693c6b7854e",
-        "close": "7d9eb7acb13e",
         "noIdeaMatches": "c11900a036c4",
         "catAll": "a52ace420f21",
         "catGettingStarted": "831d0f72d242",

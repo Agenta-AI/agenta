@@ -13,6 +13,7 @@ import {Spinner} from "@agenta/ui/ui"
 import {ArrowClockwiseIcon, CircleIcon, PlusIcon, SparkleIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
+import {builderChatHref} from "../builder/builderChatHref"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 
@@ -66,7 +67,7 @@ export const createBuilderSidebarScope = (
                         {className: "text-xs text-colorTextTertiary"},
                         chatDayLabel(row.updated_at, now, words),
                     ),
-                    link: `${projectURL}/builder/${encodeURIComponent(row.session_id)}`,
+                    link: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),
                     prefetch: false,
                 }
             })

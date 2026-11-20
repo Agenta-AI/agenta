@@ -6,7 +6,7 @@ import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Robot, X} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
-import {useStore} from "jotai"
+import {useSetAtom, useStore} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -14,6 +14,7 @@ import {rememberBuilderChat} from "../builder/builderChatLink"
 import {chipClass} from "../builder/chipText"
 import {withContextLine, type PageContext} from "../builder/pageContext"
 import {SentContextChip} from "../builder/SentContextChip"
+import {builderChatLinkVersionAtom} from "../builder/useBuilderChatList"
 import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
 import {viewFormDirtyAtom} from "../chat/viewFormDirty"
@@ -23,7 +24,7 @@ import {BrowseIdeasDialog} from "./BrowseIdeasDialog"
 import type {HeroState} from "./hero/BuilderHero"
 import {NewBuilderChat} from "./NewBuilderChat"
 import {PageQuickActions} from "./PageQuickActions"
-import type {PaneAgent} from "./paneAgent"
+import type {AgentRef} from "./paneAgent"
 import {sentContextOf} from "./sentContext"
 
 const sentContextChip = (message: UIMessage) => {
@@ -45,7 +46,7 @@ export const BuilderPageChat = ({
     projectId,
     paneAgent,
     onFirstSend,
-    onMessages,
+    onMessagesChanged,
 }: {
     builderRevisionId: string
     sessionId: string
@@ -53,18 +54,19 @@ export const BuilderPageChat = ({
     workspaceId: string
     projectId: string
     /** The agent of the pane, the default context of a message. */
-    paneAgent: PaneAgent | null
+    paneAgent: AgentRef | null
     /** The first message of a new chat left the composer. */
-    onFirstSend: (agent: PaneAgent | null) => void
-    onMessages: (messages: UIMessage[]) => void
+    onFirstSend: (agent: AgentRef | null) => void
+    onMessagesChanged: (messages: UIMessage[]) => void
 }) => {
     const t = useT(builderPageCatalog, builderContextCatalog)
     const store = useStore()
+    const bumpLinkVersion = useSetAtom(builderChatLinkVersionAtom)
     const liveness = useLivenessPoll(projectId)
     const liveStream = liveness.data?.find((stream) => stream.session_id === sessionId)
 
     const [hasMessages, setHasMessages] = useState(false)
-    const [pickedAgent, setPickedAgent] = useState<PaneAgent | null>(null)
+    const [pickedAgent, setPickedAgent] = useState<AgentRef | null>(null)
     const [chipRemoved, setChipRemoved] = useState(false)
     const [ideasOpen, setIdeasOpen] = useState(false)
     const [heroState, setHeroState] = useState<HeroState>("idle")
@@ -73,9 +75,9 @@ export const BuilderPageChat = ({
     const handleMessages = useCallback(
         (messages: UIMessage[]) => {
             setHasMessages(messages.length > 0)
-            onMessages(messages)
+            onMessagesChanged(messages)
         },
-        [onMessages],
+        [onMessagesChanged],
     )
 
     const hasMessagesRef = useRef(hasMessages)
@@ -84,14 +86,15 @@ export const BuilderPageChat = ({
         (text: string) => {
             if (!hasMessagesRef.current) onFirstSend(chipAgent)
             if (!chipAgent) return text
-            rememberBuilderChat(userId, projectId, chipAgent.id, sessionId)
+            if (rememberBuilderChat(userId, projectId, chipAgent.id, sessionId))
+                bumpLinkVersion((version) => version + 1)
             const context: PageContext = {
                 agent: {id: chipAgent.id, name: chipAgent.name},
                 has_unsaved_draft: store.get(viewFormDirtyAtom),
             }
             return withContextLine(context, text)
         },
-        [chipAgent, onFirstSend, projectId, sessionId, store, userId],
+        [bumpLinkVersion, chipAgent, onFirstSend, projectId, sessionId, store, userId],
     )
 
     // A ready request or an idea replaces the composer text and is not sent.
@@ -173,7 +176,7 @@ export const BuilderPageChat = ({
                         )
                     }
                     userMessageAccessory={sentContextChip}
-                    onMessages={handleMessages}
+                    onMessagesChanged={handleMessages}
                 />
                 <BrowseIdeasDialog
                     open={ideasOpen}

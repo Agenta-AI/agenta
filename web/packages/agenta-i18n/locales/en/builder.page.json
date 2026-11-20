@@ -1,7 +1,6 @@
 {
     "builder": "Builder",
     "back": "Back",
-    "collapseSidebar": "Collapse the sidebar",
     "newChat": "New chat",
     "chats": "Chats",
     "chatsLoading": "Loading chats…",
@@ -26,7 +25,6 @@
     "noAgents": "There is no agent in this project yet.",
     "noAgentMatches": "No agent matches your search.",
     "searchIdeas": "Search ideas…",
-    "close": "Close",
     "noIdeaMatches": "No idea matches your search.",
     "catAll": "All",
     "catGettingStarted": "Getting started",

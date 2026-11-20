@@ -7,7 +7,7 @@ import {Popover, PopoverContent, PopoverTrigger, SearchInput, SkeletonRows} from
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import type {PaneAgent} from "./paneAgent"
+import type {AgentRef} from "./paneAgent"
 
 /**
  * The agent list behind "Improve an agent": the project's agents with a search. A pick names the
@@ -18,7 +18,7 @@ export const AgentPicker = ({
     onPick,
 }: {
     trigger: ReactNode
-    onPick: (agent: PaneAgent) => void
+    onPick: (agent: AgentRef) => void
 }) => {
     const t = useT(builderPageCatalog)
     const [open, setOpen] = useState(false)

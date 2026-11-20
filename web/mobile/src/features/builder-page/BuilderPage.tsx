@@ -35,13 +35,13 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {AgentPane, useAgentIsPrivate} from "./AgentPane"
+import {AgentPane} from "./AgentPane"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
     readBuilderLayout,
     writeBuilderLayout,
-    type BuilderLayout,
+    type BuilderPaneLayout,
 } from "./builderLayout"
 import {BuilderPageChat} from "./BuilderPageChat"
 import {createBuilderSidebarScope} from "./builderSidebarScope"
@@ -52,7 +52,7 @@ import {
     paneAgentId,
     parseTabParam,
     tabParam,
-    type PaneAgent,
+    type AgentRef,
 } from "./paneAgent"
 
 /** A new builder chat: a client-side id that becomes a server session on its first message. */
@@ -66,12 +66,11 @@ const newBuilderSessionId = () => {
 /** The agents one chat's messages name. */
 interface ChatFacts {
     sessionId: string
-    result: PaneAgent | null
-    context: PaneAgent | null
+    result: AgentRef | null
+    context: AgentRef | null
 }
 
-const sameAgent = (a: PaneAgent | null, b: PaneAgent | null) =>
-    a?.id === b?.id && a?.name === b?.name
+const sameAgent = (a: AgentRef | null, b: AgentRef | null) => a?.id === b?.id && a?.name === b?.name
 
 /**
  * The builder page: the builder sidebar, the chat, and the pane with the agent tab of the agent
@@ -114,7 +113,7 @@ export const BuilderPage = ({
     // What the pane reads of the chat, per chat: set only when it changes, so a streamed chunk
     // renders nothing here.
     const [facts, setFacts] = useState<ChatFacts | null>(null)
-    const onMessages = useCallback(
+    const onMessagesChanged = useCallback(
         (messages: UIMessage[]) => {
             const result = latestResultAgent(messages)
             const context = latestContextAgent(messages)
@@ -148,7 +147,7 @@ export const BuilderPage = ({
     }, [agentId, router, tabRef?.id, tabRef?.kind])
 
     const onFirstSend = useCallback(
-        (agent: PaneAgent | null) => {
+        (agent: AgentRef | null) => {
             if (routeChatId === sessionId) return
             routed.current = true
             void router.replace(
@@ -176,8 +175,8 @@ export const BuilderPage = ({
         [agentId, agentName],
     )
 
-    const [layout, setLayoutState] = useState<BuilderLayout>(readBuilderLayout)
-    const setLayout = (next: Partial<BuilderLayout>) =>
+    const [layout, setLayoutState] = useState<BuilderPaneLayout>(readBuilderLayout)
+    const setLayout = (next: Partial<BuilderPaneLayout>) =>
         setLayoutState((held) => {
             const value = {...held, ...next}
             writeBuilderLayout(value)
@@ -216,7 +215,7 @@ export const BuilderPage = ({
                 projectId={projectId}
                 paneAgent={paneAgent}
                 onFirstSend={onFirstSend}
-                onMessages={onMessages}
+                onMessagesChanged={onMessagesChanged}
             />
         )
 
@@ -380,3 +379,7 @@ const PaneHeader = ({
         </div>
     )
 }
+
+/** True when the agent is private: only its owner can see and use it. */
+const useAgentIsPrivate = (agentId: string) =>
+    useAtomValue(agentSharingQueryAtomFamily(agentId)).data?.sharing.policy.visibility === "private"

@@ -1,6 +1,5 @@
 import {useMemo, useRef, useState} from "react"
 
-import {agentSharingQueryAtomFamily} from "@agenta/entities/sharing"
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {SessionFilesPane} from "@agenta/entity-ui/drive"
 import {formatNumber, useT} from "@agenta/i18n"
@@ -10,7 +9,6 @@ import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {DrawerViewChrome, ViewStackHost} from "@agenta/ui/view-stack"
-import {useAtomValue} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -158,7 +156,3 @@ export const AgentPane = ({
         </div>
     )
 }
-
-/** True when the agent is private: only its owner can see and use it. */
-export const useAgentIsPrivate = (agentId: string) =>
-    useAtomValue(agentSharingQueryAtomFamily(agentId)).data?.sharing.policy.visibility === "private"

@@ -11,7 +11,7 @@ import {
 
 import {AgentPicker} from "./AgentPicker"
 import type {PageKey} from "./ideas"
-import type {PaneAgent} from "./paneAgent"
+import type {AgentRef} from "./paneAgent"
 
 const buttonClass =
     "inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border-0 bg-transparent px-3 text-[13px] text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary hover:bg-colorFillTertiary hover:text-colorText"
@@ -34,7 +34,7 @@ export const PageQuickActions = ({
     onBrowseIdeas,
 }: {
     onFill: (text: string) => void
-    onPickAgent: (agent: PaneAgent) => void
+    onPickAgent: (agent: AgentRef) => void
     onBrowseIdeas: () => void
 }) => {
     const t = useT(builderPageCatalog)
