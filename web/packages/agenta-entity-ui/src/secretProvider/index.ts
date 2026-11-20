@@ -44,10 +44,6 @@ export {
     type SubscriptionConnectionCardProps,
 } from "./SubscriptionConnectionCard"
 export {
-    default as SubscriptionSignInDialog,
-    type SubscriptionSignInDialogProps,
-} from "./SubscriptionSignInDialog"
-export {
     default as SubscriptionTokenCard,
     type SubscriptionTokenCardProps,
 } from "./SubscriptionTokenCard"
@@ -82,8 +78,8 @@ export {
 
 /**
  * The model providers views (target `project`): the list, "Add a provider or subscription", one
- * connection's form and the built-in models card. `ProviderListBody` is the list for a host that
- * shows it as its root (Settings › AI providers).
+ * connection's form, the built-in models card and the subscription sign-ins. `ProviderListBody`
+ * is the list for a host that shows it as its root (Settings › AI providers).
  */
 export {
     builtinModelsView,
@@ -96,4 +92,18 @@ export {
     type ProviderListViewParams,
 } from "./views/providerViews"
 export {ProviderListBody, type ProviderListBodyProps} from "./views/ProviderListBody"
+export {
+    SubscriptionOwnerContext,
+    subscriptionSignInView,
+    subscriptionTokenView,
+    subscriptionViewFor,
+    subscriptionViewOf,
+    type SubscriptionOwner,
+    type SubscriptionViewParams,
+} from "./views/subscriptionViews"
+export {
+    SubscriptionSignInCard,
+    type SubscriptionSignInCardProps,
+    type SubscriptionSignInPhase,
+} from "./views/SubscriptionSignInCard"
 export {ProviderOwnerChoiceContext} from "./views/providerOwnerChoice"

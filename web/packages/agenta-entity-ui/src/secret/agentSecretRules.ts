@@ -11,7 +11,8 @@ export interface AgentSecretRequestSeed {
     reason?: string
 }
 
-type SecretOwner = Exclude<OwnerKind, "organization">
+/** Who may own a secret a person creates: the person ("Only me") or the project. */
+export type SecretOwner = Exclude<OwnerKind, "organization">
 
 /** Why a variable name cannot be attached, or null. `editIndex` is the binding being renamed. */
 export const envBindingError = (

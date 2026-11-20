@@ -53,6 +53,7 @@ export const useSubscriptionSignIn = ({
     connection = null,
     scope = "project",
     organizationName = "",
+    onSignedIn,
 }: {
     provider?: string
     connection?: ProviderConnection | null
@@ -60,6 +61,8 @@ export const useSubscriptionSignIn = ({
     scope?: SecretOwnerScope
     /** For the organization refusal messages. */
     organizationName?: string
+    /** Called once a sign-in this hook started arrived and the vault lists the connection ready. */
+    onSignedIn?: () => void
 }) => {
     const createSubscriptionConnection = useSetAtom(createSubscriptionConnectionAtom)
     const startLogin = useSetAtom(startSubscriptionLoginAtom)
@@ -71,6 +74,10 @@ export const useSubscriptionSignIn = ({
     const [starting, setStarting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [lostPoll, setLostPoll] = useState(false)
+    // A sign-in arrived and the vault refresh is on its way.
+    const [finishing, setFinishing] = useState(false)
+    const onSignedInRef = useRef(onSignedIn)
+    onSignedInRef.current = onSignedIn
     const [now, setNow] = useState(() => Date.now())
     // Bumped by each start and by `cancel`; a start that resolves under a newer value was abandoned.
     const startRef = useRef(0)
@@ -118,7 +125,11 @@ export const useSubscriptionSignIn = ({
         if (outcome === "succeeded" || outcome === "unreadable") void invalidateAgentRequirements()
         if (outcome === "succeeded") {
             setError(null)
-            void refreshVault()
+            setFinishing(true)
+            void refreshVault().finally(() => {
+                setFinishing(false)
+                onSignedInRef.current?.()
+            })
             return
         }
         if (outcome === "unreadable") {
@@ -240,6 +251,7 @@ export const useSubscriptionSignIn = ({
         hasSignedInBefore,
         pending,
         starting,
+        finishing,
         error,
         lostPoll,
         now,

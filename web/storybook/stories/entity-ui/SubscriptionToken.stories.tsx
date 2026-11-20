@@ -1,7 +1,12 @@
 import {useEffect} from "react"
 
 import type {ProviderConnection, SecretKind} from "@agenta/entities/secret"
-import {SubscriptionSignInDialog, SubscriptionTokenCard} from "@agenta/entity-ui/secretProvider"
+import {
+    SubscriptionOwnerContext,
+    SubscriptionTokenCard,
+    subscriptionTokenView,
+} from "@agenta/entity-ui/secretProvider"
+import {DrawerViewChrome, useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {userEvent, within} from "storybook/test"
 
@@ -69,8 +74,21 @@ const claude = (loginState: string): ProviderConnection => ({
     source: {name: "Claude", provider: "claude"} as ProviderConnection["source"],
 })
 
+/** Opens the token view once, like a click on Claude. */
+const OpenTokenView = ({connectionId}: {connectionId: string}) => {
+    const stack = useViewStack()
+    useEffect(() => {
+        void stack.open(
+            subscriptionTokenView,
+            {provider: "claude", connectionId},
+            {kind: "project"},
+        )
+    }, [])
+    return null
+}
+
 interface StageProps {
-    surface: "dialog" | "card"
+    surface: "view" | "card"
     connected: boolean
     answer: TokenAnswer
 }
@@ -78,14 +96,14 @@ interface StageProps {
 const Stage = ({surface, connected, answer}: StageProps) => {
     useTokenRoute(answer)
     const connection = claude(connected ? "ready" : "pending_login")
-    return surface === "dialog" ? (
-        <SubscriptionSignInDialog
-            open
-            onClose={() => undefined}
-            provider="claude"
-            connection={connection}
-            onRemove={() => undefined}
-        />
+    return surface === "view" ? (
+        <SubscriptionOwnerContext.Provider value={{connections: [connection]}}>
+            <div className="flex h-[640px] w-[440px] flex-col border border-solid border-border">
+                <ViewStackHost chrome={DrawerViewChrome}>
+                    <OpenTokenView connectionId={connection.id} />
+                </ViewStackHost>
+            </div>
+        </SubscriptionOwnerContext.Provider>
     ) : (
         <div className="w-[432px]">
             <SubscriptionTokenCard connection={connection} />
@@ -97,9 +115,9 @@ const meta = {
     title: "@agenta/entity-ui/SecretProvider/SubscriptionToken",
     component: Stage,
     parameters: {layout: "centered", agenta: {} satisfies AgentaDataParameters},
-    args: {surface: "dialog", connected: false, answer: "pending"},
+    args: {surface: "view", connected: false, answer: "pending"},
     argTypes: {
-        surface: {control: "inline-radio", options: ["dialog", "card"]},
+        surface: {control: "inline-radio", options: ["view", "card"]},
         answer: {control: "inline-radio", options: ["pending", "rejected", "unverified"]},
     },
 } satisfies Meta<typeof Stage>
@@ -122,25 +140,25 @@ const openReplace = async (canvasElement: HTMLElement) => {
     await userEvent.click(await screen.findByRole("button", {name: "Replace token"}))
 }
 
-export const DialogEmpty: Story = {}
+export const ViewEmpty: Story = {}
 
-export const DialogChecking: Story = {
-    play: ({canvasElement}) => submitToken(canvasElement, "dialog"),
+export const ViewChecking: Story = {
+    play: ({canvasElement}) => submitToken(canvasElement, "view"),
 }
 
-export const DialogRefused: Story = {
+export const ViewRefused: Story = {
     args: {answer: "rejected"},
-    play: ({canvasElement}) => submitToken(canvasElement, "dialog"),
+    play: ({canvasElement}) => submitToken(canvasElement, "view"),
 }
 
-export const DialogUnverified: Story = {
+export const ViewUnverified: Story = {
     args: {answer: "unverified"},
-    play: ({canvasElement}) => submitToken(canvasElement, "dialog"),
+    play: ({canvasElement}) => submitToken(canvasElement, "view"),
 }
 
-export const DialogConnected: Story = {args: {connected: true}}
+export const ViewConnected: Story = {args: {connected: true}}
 
-export const DialogReplace: Story = {
+export const ViewReplace: Story = {
     args: {connected: true},
     play: ({canvasElement}) => openReplace(canvasElement),
 }

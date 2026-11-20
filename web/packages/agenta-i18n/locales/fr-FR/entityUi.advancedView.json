@@ -1,0 +1,5 @@
+{
+    "toolsSummary_one": "{{policy}} · {{count}} outil",
+    "toolsSummary_many": "{{policy}} · {{count}} outils",
+    "toolsSummary_other": "{{policy}} · {{count}} outils"
+}
