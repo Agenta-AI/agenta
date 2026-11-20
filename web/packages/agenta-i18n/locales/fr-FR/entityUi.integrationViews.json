@@ -1,0 +1,10 @@
+{
+    "back": "Retour",
+    "cancel": "Annuler",
+    "connectLeaveDescription": "Enregistrer vos modifications pour connecter l’app dans ce projet, ou les abandonner ?",
+    "connectionStays": "La connexion reste dans le projet.",
+    "remove": "Retirer",
+    "removeFromAgent": "Retirer de l’agent",
+    "removeTitle": "Retirer {{name}} de cet agent ?",
+    "removedState": "Cette intégration ne fait plus partie de l’agent."
+}

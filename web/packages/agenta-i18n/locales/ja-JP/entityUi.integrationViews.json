@@ -1,0 +1,10 @@
+{
+    "back": "戻る",
+    "cancel": "キャンセル",
+    "connectLeaveDescription": "変更を保存してこのプロジェクトでアプリを接続しますか？それとも破棄しますか？",
+    "connectionStays": "接続はプロジェクトに残ります。",
+    "remove": "削除",
+    "removeFromAgent": "エージェントから削除",
+    "removeTitle": "{{name}} をこのエージェントから削除しますか？",
+    "removedState": "この連携はもうエージェントにありません。"
+}

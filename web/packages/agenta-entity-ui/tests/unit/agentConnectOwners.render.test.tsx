@@ -1,6 +1,6 @@
 /**
- * "Add integration" in the agent editor: the connect dialog asks "Who can use it" as Settings
- * does, and "Only me" sets the item to each person's own account.
+ * "Add integration" in the agent editor: Connect opens the connect form with "Who can use it" as
+ * Settings asks it, and the catalog adds the connection the form made, and only that one.
  */
 import {act, createElement} from "react"
 
@@ -9,7 +9,7 @@ import {createStore, Provider, type PrimitiveAtom} from "jotai"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {accessAtom, dialog, catalog, personal} = vi.hoisted(() => ({
+const {accessAtom, catalog, personal, writer} = vi.hoisted(() => ({
     personal: {connections: [] as unknown[]},
     // Stable across renders, as the real query's data is.
     catalog: {
@@ -18,7 +18,7 @@ const {accessAtom, dialog, catalog, personal} = vi.hoisted(() => ({
         categories: [] as unknown[],
     },
     accessAtom: {current: null as unknown as PrimitiveAtom<string>},
-    dialog: {props: null as null | Record<string, unknown>},
+    writer: {agent: {} as Record<string, unknown>, update: (() => undefined) as unknown},
 }))
 
 vi.mock("@agenta/entities/secret", async () => {
@@ -29,6 +29,11 @@ vi.mock("@agenta/entities/secret", async () => {
 
 vi.mock("@agenta/entities/project", () => ({
     fetchProject: async () => ({project_name: "Support"}),
+}))
+
+vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
+    invalidateAgentRequirements: () => undefined,
 }))
 
 vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
@@ -48,51 +53,60 @@ vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
     useToolIntegrationDetail: () => ({integration: {name: "Gmail", categories: []}}),
 }))
 
-vi.mock("../../src/gatewayTool/drawers/ConnectDrawer", () => ({
-    default: (props: Record<string, unknown>) => {
-        dialog.props = props
-        return null
-    },
+// The add view's body is rendered alone here, with a push spy in place of its stack.
+vi.mock("@agenta/ui/view-stack", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/ui/view-stack")>()),
+    useViewTitle: () => undefined,
 }))
 
-import {AgentIntegrationDrawer} from "../../src/DrillInView/SchemaControls/agentTemplate/AgentIntegrationDrawer"
+vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", () => ({
+    useAgentConfigWriter: () => writer,
+}))
+
+import {IntegrationCatalog} from "../../src/DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
+import IntegrationAddViewBody from "../../src/DrillInView/SchemaControls/agentTemplate/views/IntegrationAddViewBody"
+import {integrationConnectView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/integrationConnectView"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 const onAddIntegration = vi.fn()
 const onAddPersonalIntegration = vi.fn()
+const onConnect = vi.fn()
 
-const openDialog = async (access: string) => {
-    const store = createStore()
-    store.set(accessAtom.current, access)
+const render = async (element: ReturnType<typeof createElement>, store = createStore()) => {
     await act(async () => {
         root.render(
             createElement(
                 QueryClientProvider,
                 {client: new QueryClient()},
-                createElement(
-                    Provider,
-                    {store},
-                    createElement(AgentIntegrationDrawer, {
-                        open: true,
-                        onClose: vi.fn(),
-                        integrationRows: [],
-                        onAddIntegration,
-                        onAddPersonalIntegration,
-                    }),
-                ),
+                createElement(Provider, {store}, element),
             ),
         )
     })
+}
+
+const catalogElement = () =>
+    createElement(IntegrationCatalog, {
+        integrationRows: [],
+        onAddIntegration,
+        onAddPersonalIntegration,
+        onConnect,
+    })
+
+const clickConnect = async () => {
     const connect = document.querySelector<HTMLButtonElement>('button[aria-label="Connect Gmail"]')
     await act(async () => connect!.click())
 }
 
+const valid = {is_active: true, is_valid: true}
+
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
-    dialog.props = null
+    catalog.connections = []
+    personal.connections = []
     onAddIntegration.mockClear()
     onAddPersonalIntegration.mockClear()
+    onConnect.mockClear()
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -105,43 +119,90 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-describe("the connect dialog of the agent editor", () => {
-    it("asks who can use it, with Only me first, when personal accounts are on", async () => {
-        await openDialog("on")
-        expect(dialog.props?.owners).toEqual(["user", "project"])
+describe("Add integration: Connect, then attach", () => {
+    it("pushes the connect view with the target project, asking who can use it when the switch is on", async () => {
+        const push = vi.fn(async () => true)
+        const store = createStore()
+        store.set(accessAtom.current, "on")
+        await render(
+            createElement(IntegrationAddViewBody, {
+                params: {},
+                target: {kind: "agent_draft", revisionId: "rev-1"},
+                nav: {depth: 1, push, back: async () => true, cancel: () => undefined},
+            }),
+            store,
+        )
+        await clickConnect()
+        expect(push).toHaveBeenCalledWith(
+            integrationConnectView,
+            {integrationKey: "gmail", owners: ["user", "project"]},
+            {kind: "project"},
+        )
     })
 
-    it("does not ask when personal accounts are off", async () => {
-        await openDialog("off")
-        expect(dialog.props?.owners).toBeUndefined()
+    it("does not ask who can use it when personal accounts are off", async () => {
+        const push = vi.fn(async () => true)
+        const store = createStore()
+        store.set(accessAtom.current, "off")
+        await render(
+            createElement(IntegrationAddViewBody, {
+                params: {},
+                target: {kind: "agent_draft", revisionId: "rev-1"},
+                nav: {depth: 1, push, back: async () => true, cancel: () => undefined},
+            }),
+            store,
+        )
+        await clickConnect()
+        expect(push.mock.calls[0][1]).toEqual({integrationKey: "gmail", owners: undefined})
     })
 
-    it("Only me sets the item to each person's own account once the sign-in is valid", async () => {
-        personal.connections = [
+    it("adds the new project connection once it is valid, as a separate write", async () => {
+        await render(catalogElement())
+        await clickConnect()
+        expect(onConnect).toHaveBeenCalledWith("gmail")
+        expect(onAddIntegration).not.toHaveBeenCalled()
+
+        // The connection exists before its sign-in finishes: not yet.
+        catalog.connections = [
             {
+                slug: "gmail-1",
                 integration_key: "gmail",
-                flags: {is_active: true, is_valid: true},
+                provider_key: "composio",
+                flags: {is_active: true},
             },
         ]
-        await openDialog("on")
-        await act(async () => (dialog.props?.onSuccess as (owner: string) => void)("user"))
+        await render(catalogElement())
+        expect(onAddIntegration).not.toHaveBeenCalled()
+
+        catalog.connections = [
+            {slug: "gmail-1", integration_key: "gmail", provider_key: "composio", flags: valid},
+        ]
+        await render(catalogElement())
+        expect(onAddIntegration).toHaveBeenCalledWith(
+            {provider: "composio", integration: "gmail"},
+            "gmail-1",
+        )
+    })
+
+    it("a connection that existed before Connect is not added", async () => {
+        catalog.connections = [
+            {slug: "gmail-old", integration_key: "gmail", provider_key: "composio", flags: valid},
+        ]
+        await render(catalogElement())
+        await clickConnect()
+        await render(catalogElement())
+        expect(onAddIntegration).not.toHaveBeenCalled()
+    })
+
+    it("Only me: a new valid personal connection sets each person's own account", async () => {
+        await render(catalogElement())
+        await clickConnect()
+        personal.connections = [{slug: "mine", integration_key: "gmail", flags: valid}]
+        await render(catalogElement())
         expect(onAddPersonalIntegration).toHaveBeenCalledWith({
             provider: "composio",
             integration: "gmail",
         })
         expect(onAddIntegration).not.toHaveBeenCalled()
-    })
-
-    it("a closed popup with no valid sign-in adds nothing", async () => {
-        personal.connections = []
-        await openDialog("on")
-        await act(async () => (dialog.props?.onSuccess as (owner: string) => void)("user"))
-        expect(onAddPersonalIntegration).not.toHaveBeenCalled()
-    })
-
-    it("Everyone waits for the new connection and adds nothing personal", async () => {
-        await openDialog("on")
-        await act(async () => (dialog.props?.onSuccess as (owner: string) => void)("project"))
-        expect(onAddPersonalIntegration).not.toHaveBeenCalled()
     })
 })

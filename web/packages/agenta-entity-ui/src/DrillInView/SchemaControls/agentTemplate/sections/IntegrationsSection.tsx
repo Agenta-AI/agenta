@@ -1,8 +1,12 @@
+import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {Wrench} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
 import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
+import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -20,6 +24,7 @@ export interface IntegrationsSectionParams {
     toolStatusFor: ToolManagementListProps["statusFor"]
     gatewayToolsEnabled: boolean
     openIntegrationRow: (row: IntegrationRow) => void
+    /** The row's bin: asks with {@link IntegrationRemoveDialog} first. */
     removeIntegration: (row: IntegrationRow) => void
     closeEditor: () => void
 }
@@ -74,3 +79,26 @@ export const integrationsSection = ({
             />
         ),
     }
+
+/** The row bin's question (F06 f2): removing from the agent keeps the project connection. */
+export const IntegrationRemoveDialog = ({
+    row,
+    onRemove,
+    onClose,
+}: {
+    row: IntegrationRow
+    onRemove: () => void
+    onClose: () => void
+}) => {
+    const t = useT(integrationViewsCatalog)
+    const {integration} = useToolIntegrationDetail(row.integration)
+    return (
+        <RemoveFromAgentDialog
+            open
+            name={integration?.name || row.integration}
+            description={t("entityUi.integrationViews.connectionStays")}
+            onRemove={onRemove}
+            onClose={onClose}
+        />
+    )
+}

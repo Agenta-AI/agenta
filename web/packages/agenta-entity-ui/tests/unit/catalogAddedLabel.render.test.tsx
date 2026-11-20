@@ -47,7 +47,7 @@ vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
     useToolIntegrationDetail: () => ({integration: {name: "GitHub", categories: []}}),
 }))
 
-import {AgentIntegrationDrawer} from "../../src/DrillInView/SchemaControls/agentTemplate/AgentIntegrationDrawer"
+import {IntegrationCatalog} from "../../src/DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -88,9 +88,8 @@ afterEach(async () => {
 describe("the Added label on the catalog drawers", () => {
     it("is painted with a declared token on the integrations catalog", async () => {
         await mount(
-            createElement(AgentIntegrationDrawer, {
-                open: true,
-                onClose: vi.fn(),
+            createElement(IntegrationCatalog, {
+                onConnect: vi.fn(),
                 integrationRows: [
                     {
                         provider: "composio",

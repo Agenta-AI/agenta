@@ -8,6 +8,7 @@ import {
     defineView,
     useOptionalViewStack,
     useViewForm,
+    useViewOpener,
     useViewStack,
     useViewTitle,
     ViewFormActions,
@@ -436,5 +437,60 @@ describe("useOptionalViewStack", () => {
             </ViewStackHost>,
         )
         expect(screen.getByText("stack depth 0")).toBeTruthy()
+    })
+})
+
+describe("useViewOpener", () => {
+    const LabelBody = () => {
+        useViewTitle("connect")
+        useViewForm({
+            dirty: true,
+            valid: true,
+            save: async () => true,
+            leaveDescription: "leave connect",
+            saveLabel: "Connect",
+        })
+        return <span>connect body</span>
+    }
+    const labelView = defineView({id: "test.label", apply: "on_save", Component: LabelBody})
+
+    const OpenerRoot = () => {
+        const views = useViewOpener()
+        return (
+            <>
+                <button onClick={() => void views.open(pickerView, {name: "model"}, AGENT)}>
+                    open model
+                </button>
+                <button onClick={() => void views.open(labelView, {}, PROJECT)}>open label</button>
+                {views.drawer}
+            </>
+        )
+    }
+
+    it("opens the view in the nearest stack when there is one", async () => {
+        render(
+            <ViewStackHost chrome={TestChrome} rootTitle="Agent">
+                <OpenerRoot />
+            </ViewStackHost>,
+        )
+        await act(async () => fireEvent.click(screen.getByText("open model")))
+        expect(screen.getByText("crumb:Agent")).toBeTruthy()
+        expect(screen.getByText("picker can push")).toBeTruthy()
+    })
+
+    it("with no stack, opens the view in a drawer that closes with Done", async () => {
+        render(<OpenerRoot />)
+        await act(async () => fireEvent.click(screen.getByText("open model")))
+        expect(await screen.findByText("picker can push")).toBeTruthy()
+        await act(async () => fireEvent.click(screen.getByRole("button", {name: "Done"})))
+        await waitFor(() => expect(screen.queryByText("picker can push")).toBeNull(), {
+            timeout: 2000,
+        })
+    })
+
+    it("the Save button takes the view's label", async () => {
+        render(<OpenerRoot />)
+        await act(async () => fireEvent.click(screen.getByText("open label")))
+        expect(await screen.findByRole("button", {name: "Connect"})).toBeTruthy()
     })
 })

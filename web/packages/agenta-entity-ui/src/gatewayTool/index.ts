@@ -8,6 +8,10 @@
 
 export {default as CatalogDrawer} from "./drawers/CatalogDrawer"
 export {default as ConnectDrawer} from "./drawers/ConnectDrawer"
+export {
+    integrationConnectView,
+    type IntegrationConnectViewParams,
+} from "../DrillInView/SchemaControls/agentTemplate/views/integrationConnectView"
 export {default as ConnectionManagerDrawer} from "./drawers/ConnectionManagerDrawer"
 export {default as ToolExecutionDrawer} from "./drawers/ToolExecutionDrawer"
 

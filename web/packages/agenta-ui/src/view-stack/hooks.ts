@@ -14,10 +14,10 @@ export const useViewForm = (form: ViewForm): void => {
     const {setForm} = useViewEntry("useViewForm")
     const saveRef = useRef(form.save)
     saveRef.current = form.save
-    const {dirty, valid, leaveDescription} = form
+    const {dirty, valid, leaveDescription, saveLabel} = form
     useEffect(() => {
-        setForm({dirty, valid, leaveDescription, save: () => saveRef.current()})
-    }, [setForm, dirty, valid, leaveDescription])
+        setForm({dirty, valid, leaveDescription, saveLabel, save: () => saveRef.current()})
+    }, [setForm, dirty, valid, leaveDescription, saveLabel])
     useEffect(() => () => setForm(null), [setForm])
 }
 

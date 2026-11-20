@@ -64,6 +64,8 @@ export interface ViewForm {
     save: () => Promise<boolean>
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
     leaveDescription: string
+    /** The Save button's label when the view names its action (for example "Connect"). */
+    saveLabel?: string
 }
 
 /** For the container's root and for the container itself. */
