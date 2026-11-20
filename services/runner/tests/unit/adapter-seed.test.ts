@@ -48,7 +48,7 @@ function bakePin(dir: string): void {
     join(modules, "@agentclientprotocol", "codex-acp", "package.json"),
     JSON.stringify({
       name: "@agentclientprotocol/codex-acp",
-      version: "1.13.1",
+      version: "2.8.0",
     }),
   );
   writeFileSync(
@@ -156,7 +156,7 @@ describe("seedPinnedAgentProcesses under a HOME override", () => {
         "utf8",
       ),
     ) as { version: string };
-    assert.equal(pkg.version, "1.13.1");
+    assert.equal(pkg.version, "2.8.0");
     assert.equal(logs.length, 1, "exactly one line on seed");
     assert.match(logs[0], /seeded the pinned Codex adapter/);
   });

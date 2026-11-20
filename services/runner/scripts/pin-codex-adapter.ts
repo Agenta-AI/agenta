@@ -4,7 +4,11 @@
  * `@sandbox-agent/cli`), so no `node_modules/.bin/sandbox-agent` exists to call from a
  * Dockerfile. This script resolves the daemon binary through the runner's own
  * resolution (daemon.ts, the same path used at runtime) and forwards argv verbatim,
- * e.g. `tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.7.0 -n`.
+ * e.g. `tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 2.8.0 -n`.
+ *
+ * The daemon verifies the install by running `codex-acp --help` with this process's stdin.
+ * codex-acp 2.x ignores `--help`, starts its ACP server and exits only when stdin closes, which a
+ * file stdin such as `/dev/null` (a Docker `RUN`) never signals. An empty pipe closes at once.
  */
 import { spawnSync } from "node:child_process";
 
@@ -17,5 +21,8 @@ if (!bin) {
   );
   process.exit(1);
 }
-const result = spawnSync(bin, process.argv.slice(2), { stdio: "inherit" });
+const result = spawnSync(bin, process.argv.slice(2), {
+  input: "",
+  stdio: ["pipe", "inherit", "inherit"],
+});
 process.exit(result.status ?? 1);

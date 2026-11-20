@@ -4,12 +4,13 @@ import { describe, it } from "vitest";
 import { applyCodexAcpApprovalPatch } from "../../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
- * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.13.1,
+ * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 2.8.0,
  * `dist/index.js`, `src/AgentMode.ts` section). Keep it byte-exact: the patch's only job
  * is to rewrite this shape, so a fixture that drifts from the real bundle proves nothing.
  */
 const AGENT_MODE_SECTION = `// src/AgentMode.ts
 var MODE_CONFIG_ID = "mode";
+var PERMISSION_PROFILE_MODE_PREFIX = "permission-profile:";
 var AgentMode = class _AgentMode {
   id;
   name;
@@ -19,7 +20,8 @@ var AgentMode = class _AgentMode {
   approvalsReviewer;
   sandboxPolicy;
   sandboxMode;
-  constructor(id, name, description, kind, approvalPolicy, approvalsReviewer, sandboxPolicy, sandboxMode) {
+  permissionProfileId;
+  constructor(id, name, description, kind, approvalPolicy, approvalsReviewer, sandboxPolicy, sandboxMode, permissionProfileId = null) {
     this.id = id;
     this.name = name;
     this.description = description;
@@ -28,11 +30,25 @@ var AgentMode = class _AgentMode {
     this.approvalsReviewer = approvalsReviewer;
     this.sandboxPolicy = sandboxPolicy;
     this.sandboxMode = sandboxMode;
+    this.permissionProfileId = permissionProfileId;
   }
   static ReadOnly = new _AgentMode(
     "read-only",
-    "Ask for approval",
-    "Always ask to edit external files and use the internet",
+    "Read-only",
+    "Requires approval to edit files and access the internet.",
+    "standard",
+    "on-request",
+    "user",
+    {
+      type: "readOnly",
+      networkAccess: false
+    },
+    "read-only"
+  );
+  static WorkspaceWrite = new _AgentMode(
+    "workspace-write",
+    "Workspace access",
+    "Edit workspace files; ask before writing outside the workspace or accessing the network.",
     "standard",
     "on-request",
     "user",
@@ -47,7 +63,7 @@ var AgentMode = class _AgentMode {
   );
   static Agent = new _AgentMode(
     "agent",
-    "Approve for me",
+    "Auto review",
     "Only ask for actions detected as potentially unsafe",
     "auto_review",
     "on-request",
@@ -96,8 +112,9 @@ describe("applyCodexAcpApprovalPatch", () => {
     // The whole point is decoupling: full access must stay full access.
     assert.equal(patched.includes('{ "type": "dangerFullAccess" }'), true);
     assert.equal(patched.includes('"danger-full-access"'), true);
-    // read-only and agent were already on-request; the patch must not duplicate or drop them.
-    assert.equal(patched.split('"on-request"').length - 1, 3);
+    // read-only, workspace-write and agent were already on-request; the patch must not
+    // duplicate or drop them.
+    assert.equal(patched.split('"on-request"').length - 1, 4);
     assert.equal(patched.includes('type: "workspaceWrite"'), true);
   });
 
