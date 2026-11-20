@@ -65,16 +65,19 @@ const AutomationTabRoot = ({
     const stack = useViewStack()
     const editor = useAutomationEditor(automationId)
     const kind = editor.automation?.kind
+    // The automation view is the tab's only content: it opens once the kind is known, and again
+    // when Done, Escape or the root crumb leaves it.
+    const atRoot = stack.depth === 0
     useEffect(() => {
-        if (kind)
+        if (kind && atRoot)
             void stack.open(
                 automationView,
                 {automationId, kind, workspaceId, projectId},
                 {kind: "project"},
             )
-        // Opened once per automation; the stack keeps it.
+        // stack is a new object on each change; atRoot is the dependency.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [automationId, kind])
+    }, [automationId, kind, atRoot])
     if (editor.missing) return <Notice>{t("builder.page.noAccess")}</Notice>
     if (!kind)
         return (

@@ -219,12 +219,19 @@ const parseTab = (value: unknown): BuilderTab | null => {
     }
 }
 
-/** The stored tabs of a chat; empty when there are none or storage cannot be read. */
+/** The tabs of each chat in this visit, for a browser that refuses storage. */
+const visitTabs = new Map<string, BuilderTabsState>()
+
+/** The stored tabs of a chat; this visit's tabs when storage refuses reads; else none. */
 export const readBuilderTabs = (sessionId: string): BuilderTabsState => {
+    let stored: string | null
     try {
-        const raw: unknown = JSON.parse(
-            window.localStorage.getItem(builderTabsStorageKey(sessionId)) ?? "null",
-        )
+        stored = window.localStorage.getItem(builderTabsStorageKey(sessionId))
+    } catch {
+        return visitTabs.get(sessionId) ?? EMPTY_BUILDER_TABS
+    }
+    try {
+        const raw: unknown = JSON.parse(stored ?? "null")
         if (!raw || typeof raw !== "object") return EMPTY_BUILDER_TABS
         const value = raw as Record<string, unknown>
         const tabs = (Array.isArray(value.tabs) ? value.tabs : [])
@@ -252,9 +259,10 @@ export const readBuilderTabs = (sessionId: string): BuilderTabsState => {
 }
 
 export const writeBuilderTabs = (sessionId: string, state: BuilderTabsState) => {
+    visitTabs.set(sessionId, state)
     try {
         window.localStorage.setItem(builderTabsStorageKey(sessionId), JSON.stringify(state))
     } catch {
-        // Storage refused: the tabs last for this visit.
+        // Storage refused: the tabs last for this visit (visitTabs).
     }
 }

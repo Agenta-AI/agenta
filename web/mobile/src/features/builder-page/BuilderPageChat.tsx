@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderContextCatalog from "@agenta/i18n/catalogs/builder.context"
@@ -70,6 +70,12 @@ export const BuilderPageChat = ({
     const [ideasOpen, setIdeasOpen] = useState(false)
     const [heroState, setHeroState] = useState<HeroState>("idle")
     const chipAgent = chipRemoved ? null : (pickedAgent ?? paneAgent)
+    // Another active tab: the chip follows its agent, and an earlier pick or removal no longer holds.
+    const paneAgentId = paneAgent?.id ?? null
+    useEffect(() => {
+        setPickedAgent(null)
+        setChipRemoved(false)
+    }, [paneAgentId])
 
     const handleMessages = useCallback(
         (messages: UIMessage[]) => {

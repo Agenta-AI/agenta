@@ -10,7 +10,7 @@ import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {userAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {Button, SimpleTooltip, SplitPane} from "@agenta/ui/ui"
-import {ArrowsInSimple, ArrowsOutSimple, SidebarSimple} from "@phosphor-icons/react"
+import {ArrowsInSimple, ArrowsOutSimple, Plus, SidebarSimple} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -34,6 +34,7 @@ import {
     writeBuilderPaneLayout,
     type BuilderPaneLayout,
 } from "./builderLayout"
+import {AgentPicker} from "./AgentPicker"
 import {BuilderPageChat} from "./BuilderPageChat"
 import {createBuilderSidebarScope} from "./builderSidebarScope"
 import {BuilderTabContent} from "./BuilderTabContent"
@@ -216,6 +217,24 @@ export const BuilderPage = ({
                             <SidebarSimple size={16} className="-scale-x-100" />
                         </Button>
                     </SimpleTooltip>
+                ) : null}
+                {!activeTab && routeChatId === sessionId ? (
+                    // Every tab of this chat is closed: "+" opens an item again.
+                    <AgentPicker
+                        onPick={(agent) =>
+                            tabs.open({kind: "agent", id: agent.id, name: agent.name})
+                        }
+                        trigger={
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("builder.page.openItem")}
+                                title={t("builder.page.openItem")}
+                            >
+                                <Plus size={16} />
+                            </Button>
+                        }
+                    />
                 ) : null}
             </header>
             <div className="min-h-0 flex-1">{chat}</div>

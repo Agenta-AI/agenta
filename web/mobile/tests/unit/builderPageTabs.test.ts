@@ -207,6 +207,17 @@ describe("builder tab storage", () => {
         expect(readBuilderTabs("chat-2")).toEqual(EMPTY_BUILDER_TABS)
     })
 
+    it("keeps each chat's tabs for this visit when storage refuses reads", () => {
+        const state = openBuilderTab(EMPTY_BUILDER_TABS, agent("a"))
+        writeBuilderTabs("chat-blocked", state)
+        const refuse = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+            throw new Error("blocked")
+        })
+        expect(readBuilderTabs("chat-blocked")).toEqual(state)
+        expect(readBuilderTabs("chat-other")).toEqual(EMPTY_BUILDER_TABS)
+        refuse.mockRestore()
+    })
+
     it("reads a broken value as no tabs", () => {
         window.localStorage.setItem(builderTabsStorageKey("chat-1"), "{not json")
         expect(readBuilderTabs("chat-1")).toEqual(EMPTY_BUILDER_TABS)
