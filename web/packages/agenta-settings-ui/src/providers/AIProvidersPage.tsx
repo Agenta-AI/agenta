@@ -7,7 +7,7 @@ import {
     providerConnectionView,
     ProviderListBody,
     ProviderOwnerChoiceContext,
-    subscriptionViewFor,
+    subscriptionViewOf,
     type OrganizationProjectChoice,
     type ProviderOwnerChoice,
 } from "@agenta/entity-ui/secretProvider"
@@ -152,12 +152,8 @@ export const AIProvidersPage = ({
                         )
                     }
                     onOpenSubscription={(connection) => {
-                        const provider = connection.subscription?.provider ?? ""
-                        void views.open(
-                            subscriptionViewFor(provider),
-                            {provider, connectionId: connection.id},
-                            PROJECT,
-                        )
+                        const {view, params} = subscriptionViewOf(connection)
+                        void views.open(view, params, PROJECT)
                     }}
                     rowMenu={
                         renderRemoveDialog

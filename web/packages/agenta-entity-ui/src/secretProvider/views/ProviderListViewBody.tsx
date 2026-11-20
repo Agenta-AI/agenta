@@ -9,7 +9,7 @@ import {
     providerConnectionView,
     type ProviderListViewParams,
 } from "./providerViews"
-import {subscriptionViewFor} from "./subscriptionViews"
+import {subscriptionViewOf} from "./subscriptionViews"
 
 /** The list as a view: its rows open their views one level down. */
 const ProviderListViewBody = ({target, nav}: ViewProps<ProviderListViewParams>) => {
@@ -29,8 +29,8 @@ const ProviderListViewBody = ({target, nav}: ViewProps<ProviderListViewParams>) 
                 })
             }
             onOpenSubscription={(connection) => {
-                const provider = connection.subscription?.provider ?? ""
-                openChild(subscriptionViewFor(provider), {provider, connectionId: connection.id})
+                const {view, params} = subscriptionViewOf(connection)
+                openChild(view, params)
             }}
         />
     )

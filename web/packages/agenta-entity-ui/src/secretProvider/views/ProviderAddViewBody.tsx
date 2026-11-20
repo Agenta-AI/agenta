@@ -82,11 +82,7 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) =>
                         kind={subscriptionProviderFamily(provider)}
                         name={subscriptionProviderName(provider)}
                         onPick={() =>
-                            void nav.replace(
-                                subscriptionViewFor(provider),
-                                {provider, fromAdd: true},
-                                target,
-                            )
+                            void nav.replace(subscriptionViewFor(provider), {provider}, target)
                         }
                     />
                 ))}

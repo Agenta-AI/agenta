@@ -1,40 +1,68 @@
 /**
  * The Claude token as a view (F11 f10): "Paste a token to run agents on your Pro or Max plan."
- * and the three numbered steps. Save reads "Connect" and is on only for a setup token
- * (`sk-ant-oat…`); it stores the token, then the stack goes back to the list. A connected
- * subscription opens to its status with "Replace token".
+ * and the three numbered steps. Save reads "Connect", is on only for a setup token
+ * (`sk-ant-oat…`) and reads "Checking…" while the token is stored; then the stack goes back. A
+ * connected subscription opens to its status with "Replace token".
+ *
+ * For an organization subscription the view also offers "Projects that can use it". A new
+ * connection is created with the chosen projects; on a saved one, Save writes a changed choice,
+ * after the token when one is typed.
  */
-import {providerConnectionsAtom, subscriptionConnectionFor} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {CheckCircle} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
 
 import {SubscriptionTokenSteps} from "../SubscriptionTokenSteps"
+import {useOrganizationProjectsDraft} from "../useOrganizationProjectsDraft"
 import {useSubscriptionToken} from "../useSubscriptionToken"
 
+import {SubscriptionProjectsBlock} from "./SubscriptionProjectsBlock"
 import type {SubscriptionViewParams} from "./subscriptionViews"
+import {useSubscriptionViewConnection} from "./useSubscriptionViewConnection"
 
-const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewParams>) => {
+const SubscriptionTokenViewBody = ({params}: ViewProps<SubscriptionViewParams>) => {
     const t = useT(subscriptionSignInCatalog, providerListCatalog)
-    const connections = useAtomValue(providerConnectionsAtom)
-    const connection =
-        (params.connectionId
-            ? connections.find((candidate) => candidate.id === params.connectionId)
-            : subscriptionConnectionFor(connections, params.provider)) ?? null
-    const token = useSubscriptionToken({provider: params.provider, connection})
+    const {connection, organization} = useSubscriptionViewConnection(params)
+    const editProjects = !!organization && !organization.readOnly
+    const draft = useOrganizationProjectsDraft({
+        open: true,
+        connection,
+        enabled: editProjects,
+        organizationName: organization?.name,
+    })
+    const token = useSubscriptionToken({
+        provider: params.provider,
+        connection,
+        scope: organization ? "organization" : "project",
+        projects: organization ? draft.projects : undefined,
+        organizationName: organization?.name,
+    })
     const {name, connected} = token
     useViewTitle(name)
 
+    const typed = token.value.trim() !== ""
+    const applyProjects = () =>
+        new Promise<boolean>((resolve) => {
+            // `apply` calls back on success and returns either way.
+            void draft.apply(() => resolve(true)).then(() => resolve(false))
+        })
+
     useViewForm({
-        dirty: token.value.trim() !== "",
-        valid: token.canSubmit,
+        dirty: typed || draft.changed,
+        valid: typed ? token.canSubmit : draft.changed,
         leaveDescription: t("entityUi.providerList.formLeaveDescription"),
-        saveLabel: t("entityUi.subscriptionSignIn.connect"),
-        save: token.submit,
+        saveLabel:
+            typed || !draft.changed
+                ? t("entityUi.subscriptionSignIn.connect")
+                : t("entityUi.subscriptionSignIn.done"),
+        savingLabel: typed ? t("entityUi.subscriptionSignIn.checking") : undefined,
+        save: async () => {
+            if (typed && !(await token.submit())) return false
+            return draft.changed ? applyProjects() : true
+        },
     })
 
     return (
@@ -58,14 +86,11 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
                     </Button>
                 </div>
             ) : (
-                <SubscriptionTokenSteps
-                    token={token}
-                    // Enter stores the token like "Connect"; the stored token clears the form.
-                    onSubmit={() =>
-                        void token.submit().then((stored) => (stored ? nav.cancel() : undefined))
-                    }
-                />
+                <SubscriptionTokenSteps token={token} submitOnEnter={false} />
             )}
+            {editProjects && organization ? (
+                <SubscriptionProjectsBlock organization={organization} draft={draft} />
+            ) : null}
         </div>
     )
 }

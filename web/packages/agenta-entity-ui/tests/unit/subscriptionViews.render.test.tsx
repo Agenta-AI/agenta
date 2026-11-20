@@ -248,12 +248,12 @@ describe("ChatGPT device code view", {timeout: 30_000}, () => {
         expect(fx.polling.size).toBe(0)
     })
 
-    it("Cancel ends the sign-in, stops the poll and returns to the add list", async () => {
+    it("Cancel ends the sign-in, stops the poll and returns to the list", async () => {
         await openList()
         await pick("ChatGPT")
         await findByText("KXRT-9P4M")
         await click(button("Cancel"))
-        await findByText("here:Add")
+        await findByText("here:Model providers")
         await waitFor(() => expect(fx.cancelled).toEqual(["attempt-1"]))
         expect(fx.polling.size).toBe(0)
     })
@@ -298,6 +298,38 @@ describe("ChatGPT device code view", {timeout: 30_000}, () => {
         await click(button("Cancel"))
         await findByText("here:Model providers")
         expect(fx.polling.size).toBe(0)
+    })
+})
+
+describe("ChatGPT view on a ready connection", {timeout: 30_000}, () => {
+    const ready = {
+        id: "chatgpt-1",
+        name: "ChatGPT",
+        kind: "openai",
+        title: "ChatGPT",
+        secretKind: "subscription_provider",
+        subscription: {provider: "chatgpt", loginState: "ready"},
+    }
+
+    it("opens to its status and starts nothing", async () => {
+        store.set(fx.atoms.connections, [ready])
+        await openList()
+        await click(button("Edit"))
+        await findByText("here:ChatGPT")
+        await findByText("Ready. Pick a ChatGPT model in any agent.")
+        expect(fx.started).toBe(0)
+    })
+
+    it("a failed new sign-in stays on the view with its error", async () => {
+        store.set(fx.atoms.connections, [ready])
+        await openList()
+        await click(button("Edit"))
+        await findByText("here:ChatGPT")
+        await click(button("Sign in again"))
+        await findByText("KXRT-9P4M")
+        await act(async () => store.set(fx.atoms.attemptState, "expired"))
+        await findByText("The sign-in code expired. Start again.", "p")
+        expect(byText("here:ChatGPT")).toBeTruthy()
     })
 })
 

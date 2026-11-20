@@ -59,11 +59,11 @@ const WithCode = ({text}: {text: string}) => (
 /** The three steps that turn `claude setup-token` into a stored token. The host draws the verbs. */
 export const SubscriptionTokenSteps = ({
     token,
-    onSubmit = () => void token.submit(),
+    submitOnEnter = true,
 }: {
     token: SubscriptionTokenState
-    /** What Enter in the token field does. A view routes it through its own Save. */
-    onSubmit?: () => void
+    /** Off in a view, whose Save is the stack's: Enter there would store outside it. */
+    submitOnEnter?: boolean
 }) => {
     const t = useT(subscriptionSignInCatalog)
     const fieldId = useId()
@@ -111,7 +111,7 @@ export const SubscriptionTokenSteps = ({
                     aria-invalid={token.error ? true : undefined}
                     onChange={(event) => token.onChange(event.target.value)}
                     onKeyDown={(event) => {
-                        if (event.key === "Enter" && token.canSubmit) onSubmit()
+                        if (submitOnEnter && event.key === "Enter") void token.submit()
                     }}
                 />
                 {token.error ? (

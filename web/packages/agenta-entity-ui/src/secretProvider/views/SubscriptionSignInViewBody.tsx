@@ -1,38 +1,59 @@
 /**
- * The device code sign-in as a view (F11 f8, f9): the code, "Copy", "Open ChatGPT" and the
- * countdown. After "Copy" the button reads "Copied" and a block says Agenta waits for ChatGPT.
- * The view goes back to the list by itself when the sign-in arrives. Leaving it, by Cancel, Back
- * or a closed container, cancels the sign-in and stops the poll.
+ * The device sign-in as a view (F11 f8, f9): the code, "Copy", "Open ChatGPT" and the countdown.
+ * After "Copy" the button reads "Copied" and a block says Agenta waits for ChatGPT. The view goes
+ * back by itself when the sign-in arrives. Leaving it, by Cancel, Back or a closed container,
+ * cancels the sign-in and stops the poll.
+ *
+ * For an organization subscription the view also offers "Projects that can use it". The view
+ * applies at once ("immediate"), so a changed choice is saved when it changes.
  */
 import {useEffect, useRef, useState} from "react"
 
-import {providerConnectionsAtom, subscriptionConnectionFor} from "@agenta/entities/secret"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {useAtomValue} from "jotai"
 
+import {useOrganizationProjectsDraft} from "../useOrganizationProjectsDraft"
 import {useSubscriptionSignIn} from "../useSubscriptionSignIn"
 
-import {DeviceCodeCard} from "./DeviceCodeCard"
-import {providerAddView} from "./providerViews"
+import {SubscriptionProjectsBlock} from "./SubscriptionProjectsBlock"
+import {SubscriptionSignInCard} from "./SubscriptionSignInCard"
 import type {SubscriptionViewParams} from "./subscriptionViews"
+import {useSubscriptionViewConnection} from "./useSubscriptionViewConnection"
 
-const SubscriptionSignInViewBody = ({params, target, nav}: ViewProps<SubscriptionViewParams>) => {
-    const connections = useAtomValue(providerConnectionsAtom)
-    const connection =
-        (params.connectionId
-            ? connections.find((candidate) => candidate.id === params.connectionId)
-            : subscriptionConnectionFor(connections, params.provider)) ?? null
-    const signIn = useSubscriptionSignIn({provider: params.provider, connection})
-    const {name, isReady, pending, starting, error, lostPoll, now, connect} = signIn
+const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewParams>) => {
+    const {connection, organization} = useSubscriptionViewConnection(params)
+    // Set on unmount and on the first leave, so a late sign-in never moves the stack again.
+    const leftRef = useRef(false)
+    const signIn = useSubscriptionSignIn({
+        provider: params.provider,
+        connection,
+        scope: organization ? "organization" : "project",
+        organizationName: organization?.name,
+        onSignedIn: () => {
+            if (leftRef.current) return
+            leftRef.current = true
+            void nav.back()
+        },
+    })
+    const {name, isReady, pending, starting, finishing, error, lostPoll, now, connect} = signIn
     useViewTitle(name)
-
     const [copied, setCopied] = useState(false)
-    // Set when this view started a sign-in; its arrival then takes the view back to the list.
-    const [awaiting, setAwaiting] = useState(false)
+    useEffect(() => setCopied(false), [pending])
+
+    const editProjects = !!organization && !organization.readOnly && !!connection
+    const draft = useOrganizationProjectsDraft({
+        open: true,
+        connection,
+        enabled: editProjects,
+        organizationName: organization?.name,
+    })
+    useEffect(() => {
+        if (draft.changed && !draft.saving) void draft.apply(() => undefined)
+        // Saved on each change of the choice, not on each render of the draft.
+    }, [draft.projects])
 
     // Opening is the Connect click; a ready connection opens to its status instead. Once per
-    // mount, since `connect` changes when a new connection reaches the vault. The timer keeps a
-    // mount that React runs twice in development from starting two sign-ins.
+    // mount. The timer keeps a mount that React runs twice in development from starting two
+    // sign-ins.
     const readyOnOpen = useRef(isReady)
     useEffect(() => {
         if (readyOnOpen.current) return
@@ -43,53 +64,41 @@ const SubscriptionSignInViewBody = ({params, target, nav}: ViewProps<Subscriptio
     // Leaving the view ends a sign-in that is still running, so its poll stops with it.
     const cancelRef = useRef(signIn.cancel)
     cancelRef.current = signIn.cancel
-    useEffect(() => () => cancelRef.current(), [])
-
-    useEffect(() => {
-        if (pending) {
-            setAwaiting(true)
-            setCopied(false)
-        }
-    }, [pending])
-    useEffect(() => {
-        if (error || lostPoll) setAwaiting(false)
-    }, [error, lostPoll])
-    const leftRef = useRef(false)
-    useEffect(() => {
-        if (leftRef.current || !awaiting || !isReady || pending || starting) return
-        leftRef.current = true
-        void nav.back()
-    }, [awaiting, isReady, nav, pending, starting])
-
-    // The sign-in ends with the view (above), so Cancel only leaves.
-    const cancel = () => {
-        if (params.fromAdd) void nav.replace(providerAddView, {}, target)
-        else nav.cancel()
-    }
-
-    // A finished sign-in waits on the vault refresh before the connection reads ready.
-    const settling = awaiting && !pending && !starting && !error && !lostPoll
-    const phase = pending
-        ? "pending"
-        : starting || settling
-          ? "busy"
-          : isReady && !awaiting
-            ? "connected"
-            : "idle"
+    useEffect(
+        () => () => {
+            leftRef.current = true
+            cancelRef.current()
+        },
+        [],
+    )
 
     return (
-        <DeviceCodeCard
+        <SubscriptionSignInCard
             name={name}
-            phase={phase}
-            pending={pending}
+            phase={
+                pending
+                    ? "waiting"
+                    : starting || finishing
+                      ? "busy"
+                      : isReady
+                        ? "connected"
+                        : "idle"
+            }
+            attempt={pending}
             now={now}
             copied={copied}
             statusLine={signIn.statusLine}
             error={error}
-            lostTrack={lostPoll && !isReady}
+            lostPoll={lostPoll && !isReady}
             onCopy={(code) => void navigator.clipboard?.writeText(code).then(() => setCopied(true))}
-            onCancel={cancel}
+            // The sign-in ends with the view (above), so Cancel only leaves.
+            onCancel={() => nav.cancel()}
             onConnect={() => void connect()}
+            footer={
+                editProjects && organization ? (
+                    <SubscriptionProjectsBlock organization={organization} draft={draft} />
+                ) : null
+            }
         />
     )
 }

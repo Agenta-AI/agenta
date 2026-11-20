@@ -1,10 +1,12 @@
 /**
- * The device code card (F11 f8, f9), drawn from the sign-in's state. The view feeds it; a story
- * can draw each state without a running sign-in.
+ * The ChatGPT sign-in card (F11 f8, f9), drawn from the sign-in's state. The view feeds it; a
+ * story can draw each state without a running sign-in.
  */
+import type {ReactNode} from "react"
+
 import {useT} from "@agenta/i18n"
-import subscriptionFormsCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionForms"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
+import subscriptionViewsCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionViews"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {
     ArrowSquareOut,
@@ -17,9 +19,9 @@ import {
 
 import {countdownLabel, type PendingAttempt} from "../useSubscriptionSignIn"
 
-export type DeviceCodePhase =
+export type SubscriptionSignInPhase =
     /** The code is shown and the poll runs. */
-    | "pending"
+    | "waiting"
     /** The sign-in is starting, or it arrived and the vault refresh is still on its way. */
     | "busy"
     /** The connection is signed in. */
@@ -27,49 +29,53 @@ export type DeviceCodePhase =
     /** No sign-in runs: before the first one, or after one failed. */
     | "idle"
 
-export interface DeviceCodeCardProps {
+export interface SubscriptionSignInCardProps {
     name: string
-    phase: DeviceCodePhase
-    /** The running attempt; read in the `pending` phase. */
-    pending: Pick<PendingAttempt, "userCode" | "verificationUri" | "expiresAt"> | null
+    phase: SubscriptionSignInPhase
+    /** The running attempt; read in the `waiting` phase. */
+    attempt: Pick<PendingAttempt, "userCode" | "verificationUri" | "expiresAt"> | null
     /** The countdown's clock. */
     now: number
     /** The code was copied: the button reads "Copied" and the waiting block shows. */
     copied: boolean
-    /** The connected line; the production status line of the connection. */
+    /** The connected line: the production status line of the connection. */
     statusLine?: string
     error?: string | null
     /** The poll lost the attempt and the connection is not ready. */
-    lostTrack?: boolean
+    lostPoll?: boolean
     onCopy: (code: string) => void
     onCancel: () => void
     onConnect: () => void
+    /** Under the card (the organization's "Projects that can use it"). */
+    footer?: ReactNode
 }
 
 const Loader = ({size}: {size: number}) => (
     <CircleNotch size={size} className="shrink-0 motion-safe:animate-spin" aria-hidden />
 )
 
-export const DeviceCodeCard = ({
+export const SubscriptionSignInCard = ({
     name,
     phase,
-    pending,
+    attempt,
     now,
     copied,
     statusLine,
     error,
-    lostTrack,
+    lostPoll,
     onCopy,
     onCancel,
     onConnect,
-}: DeviceCodeCardProps) => {
-    const t = useT(subscriptionSignInCatalog, subscriptionFormsCatalog)
+    footer,
+}: SubscriptionSignInCardProps) => {
+    const t = useT(subscriptionSignInCatalog, subscriptionViewsCatalog)
+    const waiting = phase === "waiting" && attempt
     return (
-        <div className="flex min-h-0 flex-1 flex-col px-4 py-3.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-3.5">
             <section className="flex flex-col gap-2.5 rounded-lg border border-solid border-colorBorderSecondary p-3 text-[13px]">
                 <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-medium text-colorText">{name}</span>
-                    {phase === "pending" && pending ? (
+                    {waiting ? (
                         <span className="flex items-center gap-1.5 text-colorTextSecondary">
                             <Loader size={12} />
                             {t("entityUi.subscriptionSignIn.waitingForSignIn")}
@@ -85,14 +91,14 @@ export const DeviceCodeCard = ({
                     )}
                 </div>
 
-                {phase === "pending" && pending ? (
+                {waiting ? (
                     <div className="flex flex-col gap-2.5 rounded-lg bg-colorFillQuaternary p-3">
                         <span className="text-colorText">
                             {t("entityUi.subscriptionSignIn.openChatgptEnterCode")}
                         </span>
                         <div className="flex items-center gap-2">
                             <span className="select-all font-mono text-lg tracking-[0.2em] text-colorText">
-                                {pending.userCode}
+                                {attempt.userCode}
                             </span>
                             {copied ? (
                                 <span className="flex items-center gap-1 text-xs text-colorSuccess">
@@ -104,7 +110,7 @@ export const DeviceCodeCard = ({
                                     variant="ghost"
                                     size="sm"
                                     aria-label={t("entityUi.subscriptionSignIn.copySignInCode")}
-                                    onClick={() => onCopy(pending.userCode)}
+                                    onClick={() => onCopy(attempt.userCode)}
                                 >
                                     <Copy size={12} />
                                     {t("entityUi.subscriptionSignIn.copy")}
@@ -113,7 +119,7 @@ export const DeviceCodeCard = ({
                         </div>
                         <div className="flex items-center gap-2">
                             <a
-                                href={pending.verificationUri}
+                                href={attempt.verificationUri}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="flex items-center gap-1 text-colorText underline underline-offset-2"
@@ -121,10 +127,10 @@ export const DeviceCodeCard = ({
                                 {t("entityUi.subscriptionSignIn.openName", {name})}
                                 <ArrowSquareOut size={12} />
                             </a>
-                            {pending.expiresAt ? (
+                            {attempt.expiresAt ? (
                                 <span className="tabular-nums text-colorTextTertiary">
                                     {t("entityUi.subscriptionSignIn.expiresIn", {
-                                        time: countdownLabel(pending.expiresAt, now),
+                                        time: countdownLabel(attempt.expiresAt, now),
                                     })}
                                 </span>
                             ) : null}
@@ -143,10 +149,10 @@ export const DeviceCodeCard = ({
                                 </span>
                                 <span className="flex flex-col gap-0.5">
                                     <span className="font-medium text-colorText">
-                                        {t("entityUi.subscriptionForms.waitingToConfirm", {name})}
+                                        {t("entityUi.subscriptionViews.waitingToConfirm", {name})}
                                     </span>
                                     <span className="text-xs leading-4 text-colorTextSecondary">
-                                        {t("entityUi.subscriptionForms.waitingToConfirmBody", {
+                                        {t("entityUi.subscriptionViews.waitingToConfirmBody", {
                                             name,
                                         })}
                                     </span>
@@ -175,7 +181,7 @@ export const DeviceCodeCard = ({
                     </Button>
                 )}
 
-                {lostTrack ? (
+                {lostPoll ? (
                     <p className="m-0 flex items-center gap-1.5 text-xs text-colorWarning">
                         <WarningCircle size={14} />
                         {t("entityUi.subscriptionSignIn.lostTrack", {name})}
@@ -191,6 +197,7 @@ export const DeviceCodeCard = ({
                     </p>
                 ) : null}
             </section>
+            {footer}
         </div>
     )
 }

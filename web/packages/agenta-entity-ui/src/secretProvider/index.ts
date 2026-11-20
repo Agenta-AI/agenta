@@ -44,10 +44,6 @@ export {
     type SubscriptionConnectionCardProps,
 } from "./SubscriptionConnectionCard"
 export {
-    default as SubscriptionSignInDialog,
-    type SubscriptionSignInDialogProps,
-} from "./SubscriptionSignInDialog"
-export {
     default as SubscriptionTokenCard,
     type SubscriptionTokenCardProps,
 } from "./SubscriptionTokenCard"
@@ -97,14 +93,17 @@ export {
 } from "./views/providerViews"
 export {ProviderListBody, type ProviderListBodyProps} from "./views/ProviderListBody"
 export {
+    SubscriptionOwnerContext,
     subscriptionSignInView,
     subscriptionTokenView,
     subscriptionViewFor,
+    subscriptionViewOf,
+    type SubscriptionOwner,
     type SubscriptionViewParams,
 } from "./views/subscriptionViews"
 export {
-    DeviceCodeCard,
-    type DeviceCodeCardProps,
-    type DeviceCodePhase,
-} from "./views/DeviceCodeCard"
+    SubscriptionSignInCard,
+    type SubscriptionSignInCardProps,
+    type SubscriptionSignInPhase,
+} from "./views/SubscriptionSignInCard"
 export {ProviderOwnerChoiceContext} from "./views/providerOwnerChoice"

@@ -2,7 +2,7 @@ import {useEffect} from "react"
 
 import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
 import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
-import {DeviceCodeCard, subscriptionTokenView} from "@agenta/entity-ui/secretProvider"
+import {SubscriptionSignInCard, subscriptionTokenView} from "@agenta/entity-ui/secretProvider"
 import {userAtom} from "@agenta/shared/state"
 import {
     defineView,
@@ -45,10 +45,10 @@ const chatgptFrame = (copied: boolean) =>
         Component: () => {
             useViewTitle("ChatGPT")
             return (
-                <DeviceCodeCard
+                <SubscriptionSignInCard
                     name="ChatGPT"
-                    phase="pending"
-                    pending={CHATGPT_ATTEMPT}
+                    phase="waiting"
+                    attempt={CHATGPT_ATTEMPT}
                     now={SIGN_IN_NOW}
                     copied={copied}
                     onCopy={() => undefined}
