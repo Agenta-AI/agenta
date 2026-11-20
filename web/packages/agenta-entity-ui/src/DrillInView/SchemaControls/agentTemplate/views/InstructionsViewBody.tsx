@@ -47,8 +47,9 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
                 value={draft}
                 onChange={setDraft}
                 disabled={writer.readOnly}
-                autoFocus
-                showToolbar
+                autoFocus={!writer.readOnly}
+                // Read only (a Viewer, or a phone) shows the text with no editor toolbar.
+                showToolbar={!writer.readOnly}
                 defaultView="rendered"
                 hideHeader
                 bordered={false}
