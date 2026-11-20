@@ -382,6 +382,7 @@ export const ViewStackHost = ({
                             top.view.actionRow === false ||
                             topForm?.actionRow === false
                         }
+                        showWiden={top.view.widenButton !== false}
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
