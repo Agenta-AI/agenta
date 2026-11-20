@@ -4,6 +4,7 @@
     "openInBuilder": "Abrir no Builder",
     "chatHistory": "Histórico de chats",
     "back": "Voltar",
+    "chat": "Chat",
     "question": "O que vamos mudar?",
     "intro": "Posso mudar, testar e explicar {{agent}}.",
     "placeholder": "Pergunte ao Builder sobre este agente",

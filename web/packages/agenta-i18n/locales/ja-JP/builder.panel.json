@@ -4,6 +4,7 @@
     "openInBuilder": "ビルダーで開く",
     "chatHistory": "チャット履歴",
     "back": "戻る",
+    "chat": "チャット",
     "question": "何を変更しますか？",
     "intro": "{{agent}} の変更、テスト、説明ができます。",
     "placeholder": "このエージェントについてビルダーに質問",

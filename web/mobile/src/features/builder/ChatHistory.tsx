@@ -12,11 +12,13 @@ export const ChatHistory = ({
     projectId,
     agentId,
     onOpen,
+    phone = false,
 }: {
     userId: string
     projectId: string
     agentId: string
     onOpen: (sessionId: string) => void
+    phone?: boolean
 }) => {
     const [search, setSearch] = useState("")
     const query = useDeferredValue(search)
@@ -31,6 +33,7 @@ export const ChatHistory = ({
             onSearch={setSearch}
             onRetry={list.retry}
             onOpen={onOpen}
+            phone={phone}
         />
     )
 }

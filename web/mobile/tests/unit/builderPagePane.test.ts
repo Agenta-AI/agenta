@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
- * The builder page's agent tab (task 27.2): which agent the pane shows, from the address
- * (`?tab=agent:<id>`), the latest typed `create_agent` or `edit_agent_config` result, the page
- * context of the chat, or the browser link. The results are recorded in the builder-backend shape
- * (`status`, `agent`, `revision: {id, version}`).
+ * The builder page's sources of an agent (task 27.2): the address (`?tab=agent:<id>`), the typed
+ * `create_agent` and `edit_agent_config` results, the page context of the chat, and the browser
+ * link. The results are recorded in the builder-backend shape (`status`, `agent`,
+ * `revision: {id, version}`). The tab each source opens is in builderPageTabs.test.ts.
  */
 import type {UIMessage} from "ai"
 import {afterEach, describe, expect, it} from "vitest"
@@ -16,14 +16,10 @@ import {
     readBuilderPaneLayout,
     writeBuilderPaneLayout,
 } from "@/features/builder-page/builderLayout"
+import {parseTabParam} from "@/features/builder-page/builderTabs"
 import {chatDayLabel} from "@/features/builder-page/chatDayLabel"
 import {filterIdeas} from "@/features/builder-page/ideas"
-import {
-    latestContextAgent,
-    latestResultAgent,
-    paneAgentId,
-    parseTabParam,
-} from "@/features/builder-page/paneAgent"
+import {agentResults, latestContextAgent} from "@/features/builder-page/paneAgent"
 
 const toolPart = (
     name: string,
@@ -67,16 +63,20 @@ describe("parseTabParam", () => {
     })
 })
 
-describe("latestResultAgent", () => {
-    it("names the agent of the latest create_agent or edit_agent_config result", () => {
+describe("agentResults", () => {
+    it("lists each create_agent or edit_agent_config result with its agent, in order", () => {
         const messages = [
             assistant("m1", [toolPart("create_agent", "c1", created)]),
             assistant("m2", [toolPart("edit_agent_config", "c2", JSON.stringify(committed))]),
         ]
-        expect(latestResultAgent(messages)).toEqual({
-            id: "agent-email-writer",
-            name: "Email writer",
-        })
+        expect(agentResults(messages)).toEqual([
+            {toolCallId: "c1", agent: {id: "agent-lead-finder", name: "Lead finder"}, saved: true},
+            {
+                toolCallId: "c2",
+                agent: {id: "agent-email-writer", name: "Email writer"},
+                saved: true,
+            },
+        ])
     })
 
     it("skips calls with no result, refusals and other tools", () => {
@@ -88,8 +88,8 @@ describe("latestResultAgent", () => {
                 toolPart("list_agents", "c4", {agents: [{id: "x"}]}),
             ]),
         ]
-        expect(latestResultAgent(messages)?.id).toBe("agent-lead-finder")
-        expect(latestResultAgent([])).toBeNull()
+        expect(agentResults(messages).map((result) => result.toolCallId)).toEqual(["c1"])
+        expect(agentResults([])).toEqual([])
     })
 })
 
@@ -113,27 +113,6 @@ describe("linkedAgentIdOf", () => {
         expect(linkedAgentIdOf("user-1", "project-1", "chat-3")).toBe("agent-b")
         expect(linkedAgentIdOf("user-1", "project-1", "chat-9")).toBeNull()
         expect(linkedAgentIdOf("user-2", "project-1", "chat-3")).toBeNull()
-    })
-})
-
-describe("paneAgentId", () => {
-    const none = {tab: null, resultAgent: null, contextAgent: null, linkedAgentId: null}
-    it("takes the address first, then the result, the page context and the link", () => {
-        const all = {
-            tab: {kind: "agent" as const, id: "from-tab"},
-            resultAgent: {id: "from-result", name: ""},
-            contextAgent: {id: "from-context", name: ""},
-            linkedAgentId: "from-link",
-        }
-        expect(paneAgentId(all)).toBe("from-tab")
-        expect(paneAgentId({...all, tab: null})).toBe("from-result")
-        expect(paneAgentId({...all, tab: null, resultAgent: null})).toBe("from-context")
-        expect(paneAgentId({...none, linkedAgentId: "from-link"})).toBe("from-link")
-    })
-
-    it("shows no pane for a chat with nothing to show", () => {
-        expect(paneAgentId(none)).toBeNull()
-        expect(paneAgentId({...none, tab: {kind: "automation", id: "s-1"}})).toBeNull()
     })
 })
 
