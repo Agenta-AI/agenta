@@ -113,7 +113,9 @@ export function ExpandableDescription({
                 setExpanded(!expanded)
             }}
             // The invisible expansion carries the 24px floor to the 44px touch minimum.
-            className={`group/desc flex min-h-control-xs w-full min-w-0 cursor-pointer gap-1 border-0 bg-transparent p-0 text-left font-[inherit] ${expanded ? "items-start" : "items-center"} ${touchTargetExpansion({height: 24, border: 0})}`}
+            // The canvas line is 20 px (F02 f6: a 63 px tool row). It shows only at 768 px and up
+            // (a phone shows the full text), where the 24 px expansion is a pointer convenience.
+            className={`group/desc flex w-full min-w-0 cursor-pointer gap-1 border-0 bg-transparent p-0 text-left font-[inherit] ${canvas ? "min-h-5" : "min-h-control-xs"} ${expanded ? "items-start" : "items-center"} ${touchTargetExpansion({height: 24, border: 0})}`}
         >
             <span
                 id={textId}

@@ -96,7 +96,7 @@ const ServerTitle = ({
             {status && status !== "connected" ? (
                 <>
                     <Badge
-                        variant="warning"
+                        variant="gold"
                         className="m-0 shrink-0 px-1.5 text-[12px] font-normal leading-4"
                     >
                         {getMcpConnectionStatusLabel(status)}

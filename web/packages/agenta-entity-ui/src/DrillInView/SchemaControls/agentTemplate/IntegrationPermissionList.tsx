@@ -438,10 +438,10 @@ function ToolGroup({
                 className={`flex cursor-pointer items-center gap-2 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)] ${phone ? "min-h-11" : ""}`}
             >
                 {open ? (
-                    <CaretDown size={11} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+                    <CaretDown size={12} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
                 ) : (
                     <CaretRight
-                        size={11}
+                        size={12}
                         className="shrink-0 text-[var(--ag-colorTextSecondary)]"
                     />
                 )}
@@ -924,7 +924,7 @@ export function IntegrationTitle({
                 </Badge>
             ) : attention !== undefined ? (
                 attention ? (
-                    <Badge variant="warning" className={tag}>
+                    <Badge variant="gold" className={tag}>
                         {attention}
                     </Badge>
                 ) : null

@@ -98,8 +98,8 @@ describe("the canvas tool line (F02 f6, M09)", () => {
 
         expect(toggle().querySelector("svg"), "no caret").toBeNull()
         expect(toggle().querySelector("span")?.className).toContain("text-[12px]")
-        // The hit area stays (PR 8463).
-        expect(touchTargetHeight(toggle().className)).toBe(TOUCH_TARGET_MINIMUM_PX)
+        // A 20 px line, so the tool row is the canvas 63 px.
+        expect(toggle().className).toContain("min-h-5")
     })
 
     it("shows the whole text with no toggle when full", async () => {
