@@ -20,6 +20,7 @@ vi.mock("@agenta/ui/view-stack", () => ({
 }))
 
 vi.mock("@agenta/ui/ui", () => ({
+    PHONE_TOUCH_TARGET_CLASS: "",
     Button: ({children, ...props}: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
         <button {...props}>{children}</button>
     ),

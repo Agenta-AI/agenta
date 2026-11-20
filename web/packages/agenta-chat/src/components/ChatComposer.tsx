@@ -20,6 +20,7 @@ import {
     useStagedQuotes,
 } from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
@@ -311,6 +312,9 @@ export const ChatComposer = ({
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the
+                                    // design canvas.
+                                    className={`max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.

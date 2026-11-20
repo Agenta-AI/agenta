@@ -2,6 +2,7 @@ import {useRef} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatMicPermissionNoticeCatalog from "@agenta/i18n/catalogs/chat.micPermissionNotice"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
 import RevealCollapse from "./RevealCollapse"
@@ -39,7 +40,7 @@ const MicPermissionNotice = ({
                 <button
                     type="button"
                     onClick={onDismiss}
-                    className="shrink-0 cursor-pointer rounded border-0 bg-transparent text-xs text-colorError hover:underline"
+                    className={`shrink-0 cursor-pointer rounded border-0 bg-transparent text-xs text-colorError hover:underline ${PHONE_TOUCH_TARGET_CLASS}`}
                 >
                     {t("chat.micPermissionNotice.dismiss")}
                 </button>

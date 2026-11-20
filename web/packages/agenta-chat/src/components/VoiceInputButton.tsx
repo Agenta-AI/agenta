@@ -4,6 +4,7 @@ import {useT} from "@agenta/i18n"
 import chatVoiceInputButtonCatalog from "@agenta/i18n/catalogs/chat.voiceInputButton"
 import {pushToTalkLabel} from "@agenta/shared/utils"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {
     Button,
     DropdownMenu,
@@ -228,6 +229,8 @@ const VoiceInputButton = ({
                 <Button
                     variant={dictating ? "destructive" : "ghost"}
                     size="icon"
+                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
+                    className={`max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || (!dictating && (audioPending || audioBlocked))}
