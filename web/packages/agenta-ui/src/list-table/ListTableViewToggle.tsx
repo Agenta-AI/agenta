@@ -15,6 +15,9 @@ import type {ListTableView} from "./types"
  *
  * On the canvas scale (A03): one 28px track with two 24px options.
  */
+/** On a phone each option is at least 44 px wide and fills a 44 px track (tap rule). */
+const PHONE_OPTION = "max-md:min-w-11 max-md:self-stretch"
+
 export const ListTableViewToggle = ({
     value,
     onChange,
@@ -27,8 +30,18 @@ export const ListTableViewToggle = ({
     const t = useT(commonCatalog)
     const options = useMemo<SegmentedOption[]>(
         () => [
-            {value: "list", icon: <List size={14} aria-hidden />, "aria-label": "List"},
-            {value: "grid", icon: <LayoutGrid size={14} aria-hidden />, "aria-label": "Cards"},
+            {
+                value: "list",
+                icon: <List size={14} aria-hidden />,
+                "aria-label": "List",
+                className: PHONE_OPTION,
+            },
+            {
+                value: "grid",
+                icon: <LayoutGrid size={14} aria-hidden />,
+                "aria-label": "Cards",
+                className: PHONE_OPTION,
+            },
         ],
         [],
     )
@@ -39,7 +52,7 @@ export const ListTableViewToggle = ({
             options={options}
             value={value}
             onChange={(next) => onChange(next as ListTableView)}
-            className={cn("shrink-0", className)}
+            className={cn("shrink-0 max-md:h-11", className)}
         />
     )
 }

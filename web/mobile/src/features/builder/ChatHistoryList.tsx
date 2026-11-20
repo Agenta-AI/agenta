@@ -77,13 +77,14 @@ export const ChatHistoryList = ({
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
-                    // Phone: no clear button (M06). The search glyph is tertiary (S09, M06).
+                    // Phone: no clear button (M06); 16 px text, not the canvas 15 px, because iOS
+                    // zooms the page into a smaller input on focus. The glyph is tertiary (S09).
                     prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
                     allowClear={!phone}
                     className={cn(
                         "gap-2 border-colorBorderSecondary px-2",
                         phone
-                            ? "h-10 items-stretch rounded-[8px] py-0 [&_input]:text-[15px]"
+                            ? "h-10 items-stretch rounded-[8px] py-0 [&_input]:text-base"
                             : "h-[30px] rounded-[6px] [&_input]:text-[13px] md:[&_input]:text-[13px]",
                     )}
                 />

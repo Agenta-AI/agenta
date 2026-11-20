@@ -22,6 +22,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -212,7 +213,8 @@ export const SkillListScreen = ({
                                     onWrite={onWrite}
                                     onUpload={onUpload}
                                     onImport={onImport}
-                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                    // A 44 px tap area on a phone.
+                                    className={`h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md ${PHONE_TOUCH_TARGET_CLASS}`}
                                 />
                             </div>
                         </div>

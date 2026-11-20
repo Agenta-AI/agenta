@@ -254,6 +254,8 @@ export const SessionListTable = ({
                     flushFirstRows
                     // Compact for the same reason it is sticky: this is the long list.
                     density="compact"
+                    // On a phone a row is a 44 px tap target (compact rows are 40 px).
+                    rowClassName="max-md:min-h-11"
                     // The page of one agent draws the light chevron on its headings (A02).
                     groupCaret={lockedAgentId ? "chevron" : "fill"}
                     loading={list.isPending}

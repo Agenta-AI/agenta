@@ -40,7 +40,8 @@ export const ListTableToolbar = ({
     const t = useT(commonCatalog)
     return (
         <div className={cn("mb-3 flex items-center gap-2", className)}>
-            <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
+            {/* 44 px high on a phone (tap rule); the desktop keeps the control height. */}
+            <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent max-md:h-11 dark:bg-transparent">
                 <InputGroupAddon>
                     <Search size={14} aria-hidden />
                 </InputGroupAddon>

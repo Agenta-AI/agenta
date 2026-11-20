@@ -47,8 +47,8 @@ export const PanelViewChrome = ({
                 <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pl-2 pr-1.5">
                     {/* Parent crumbs 13 px fg2, "›" between, the open view 13 px / 600. When the
                         row is short, the parent crumbs give up their width first (down to 48 px
-                        each; the shrink factors are 100 and 0.01), so the open view keeps its full
-                        name while it fits (F05-06). */}
+                        each; shrink 1000 against 1), so the open view keeps its full name while it
+                        fits (F05-06). */}
                     <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">
                         {crumbs.map((crumb, index) => {
                             const last = index === crumbs.length - 1
@@ -57,7 +57,7 @@ export const PanelViewChrome = ({
                                     key={index}
                                     className={cn(
                                         "flex items-center gap-1.5",
-                                        last ? "min-w-0 shrink-[0.01]" : "min-w-12 shrink-[100]",
+                                        last ? "min-w-0" : "min-w-12 shrink-[1000]",
                                     )}
                                 >
                                     {index > 0 ? (

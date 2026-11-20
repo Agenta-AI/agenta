@@ -115,6 +115,8 @@ export const SessionHeader = ({
                 onUpdate={onUpdate}
                 autoUpdate={autoUpdate}
                 checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
+                // On a phone the failed-save notice keeps its "Not saved" words.
+                phone={panel.phone}
             />
         ) : null
     // On a phone the Configuration tab row shows the version; row 2 shows it only on a failed save.
@@ -190,12 +192,13 @@ export const SessionHeader = ({
                     ) : null}
                     {/* Mounted even when hidden: it drives session follow. A save can fail after
                         the person leaves Configuration, so the notice and retry show here. Hit
-                        areas grow to 44 px; the retry is a span with the button role. */}
+                        areas grow by 16 px on each side, so the 12 px retry glyph is 44 px; the
+                        retry is a span with the button role. */}
                     {revisionStatus ? (
                         <span
                             data-testid="session-header-save-status"
                             className={cn(
-                                "shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-3 [&_:is(button,[role=button])]:after:content-['']",
+                                "shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-4 [&_:is(button,[role=button])]:after:content-['']",
                                 saveFailed ? "flex" : "hidden",
                             )}
                         >
