@@ -659,7 +659,8 @@ export function PermissionDrawerBody({
                         value={query}
                         onValueChange={setQuery}
                         disabled={inert}
-                        className={phone ? "h-11" : undefined}
+                        // shrink-0: the column is a flex column that shrinks its children when the list overflows.
+                        className={phone ? "h-11 shrink-0" : undefined}
                     />
                 ) : null}
 
