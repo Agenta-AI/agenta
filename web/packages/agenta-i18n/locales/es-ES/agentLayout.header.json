@@ -5,8 +5,10 @@
     "exportAgent": "Exportar agente",
     "files": "Archivos",
     "history": "Historial",
+    "loadFailed": "No se pudieron cargar las sesiones",
     "newSession": "Nueva sesión",
     "rename": "Cambiar nombre",
+    "retry": "Reintentar",
     "sessions": "Sesiones",
     "shareConversation": "Compartir la conversación",
     "untitledSession": "Sesión sin título"

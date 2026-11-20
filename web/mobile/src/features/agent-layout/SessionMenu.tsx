@@ -16,17 +16,24 @@ import {SessionInspectorSheet} from "../chat/SessionInspectorSheet"
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {sessionMenuListArgs} from "./useAgentSessionOrder"
+
 /** The session menu of the session header: latest sessions, New session, Inspect session, Sessions. */
 export const SessionMenu = ({
     agentId,
     base,
     sessionId,
     title,
+    loadFailed,
+    onRetry,
 }: {
     agentId: string
     base: string
     sessionId: string
     title: string
+    /** The agent's session list failed to load; "New session" still works. */
+    loadFailed: boolean
+    onRetry: () => void
 }) => {
     const t = useT(agentLayoutHeaderCatalog)
     const router = useRouter()
@@ -62,12 +69,22 @@ export const SessionMenu = ({
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
+                {loadFailed ? (
+                    <div
+                        role="alert"
+                        className="flex items-center justify-between gap-2 px-2 py-1 text-xs"
+                    >
+                        <span className="text-colorTextSecondary">
+                            {t("agentLayout.header.loadFailed")}
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={onRetry}>
+                            {t("agentLayout.header.retry")}
+                        </Button>
+                    </div>
+                ) : null}
                 <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
                     <SessionCardList
-                        agentId={agentId}
-                        policy={{origin: "exclude-trigger", expansions: []}}
-                        limit={20}
-                        withPinned
+                        {...sessionMenuListArgs(agentId)}
                         density="compact"
                         activeRowId={sessionId}
                         emptyText=""

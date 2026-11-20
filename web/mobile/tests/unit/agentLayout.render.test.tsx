@@ -6,13 +6,14 @@
 import {act} from "react"
 
 import {configPaneRevealRequestAtom} from "@agenta/chat/state"
+import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const media = vi.hoisted(() => ({width: 1440}))
-const files = vi.hoisted(() => ({toggle: vi.fn()}))
+const files = vi.hoisted(() => ({openPane: vi.fn(), close: vi.fn(), open: false}))
 vi.mock("@agenta/ui/hooks", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     useMediaQuery: (query: string) => media.width >= Number(/(\d+)px/.exec(query)?.[1] ?? 0),
@@ -50,7 +51,12 @@ vi.mock("@agenta/entity-ui/drive", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entity-ui/drive")>()),
     DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
     SessionFilesPane: () => <div data-testid="files" />,
-    useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: files.toggle}),
+    useSessionFilesPane: () => ({
+        open: files.open,
+        close: files.close,
+        openPane: files.openPane,
+        toggle: () => undefined,
+    }),
 }))
 vi.mock("@agenta/sessions-ui", () => ({
     useRequestSessionTabRename: () => () => undefined,
@@ -184,17 +190,17 @@ describe("the session screen on the agent layout", () => {
     })
 
     it("opens Files again after a reload when Files was the stored content", async () => {
-        files.toggle.mockClear()
+        files.openPane.mockClear()
         localStorage.setItem(
             panelStateKey("anonymous", "proj-1"),
             JSON.stringify({content: "files", width: 440, configTab: "agent"}),
         )
         await render(createStore())
-        expect(files.toggle).toHaveBeenCalledTimes(1)
+        expect(files.openPane).toHaveBeenCalledTimes(1)
     })
 
     it("restores Files again when the scope moves from the session to the resolved agent", async () => {
-        files.toggle.mockClear()
+        files.openPane.mockClear()
         localStorage.setItem(
             panelStateKey("anonymous", "proj-1"),
             JSON.stringify({content: "files", width: 440, configTab: "agent"}),
@@ -218,7 +224,7 @@ describe("the session screen on the agent layout", () => {
         await mount(undefined)
         await mount("agent-1")
         // Once for the session scope, once for the agent scope; never read as a close.
-        expect(files.toggle).toHaveBeenCalledTimes(2)
+        expect(files.openPane).toHaveBeenCalledTimes(2)
         expect(
             JSON.parse(localStorage.getItem(panelStateKey("anonymous", "proj-1"))!).content,
         ).toBe("files")
@@ -235,5 +241,66 @@ describe("the session screen on the agent layout", () => {
             store.set(composerPrefillRequestAtom, {id: 1, text: "Add a skill"})
         })
         expect(panel.className).toContain("hidden")
+    })
+
+    it("puts files staged by a drop aside on a swap and gives them back when Files opens", async () => {
+        files.close.mockClear()
+        files.open = true
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 440, configTab: "agent"}),
+        )
+        const store = createStore()
+        const staged = [{file: new File(["x"], "a.txt")}] as never[]
+        store.set(filesDrawerStagedAtomFamily("session-1"), staged)
+        await render(store)
+        await act(async () => {
+            store.set(configPaneRevealRequestAtom, Date.now())
+        })
+        expect(files.close).toHaveBeenCalledTimes(1)
+        // The real close clears what Files held; Files then opens again.
+        store.set(filesDrawerStagedAtomFamily("session-1"), [])
+        files.open = false
+        await render(store)
+        files.open = true
+        await render(store)
+        expect(store.get(filesDrawerStagedAtomFamily("session-1"))).toEqual(staged)
+        files.open = false
+    })
+
+    it("never gives one session's set-aside files to another session", async () => {
+        files.open = true
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 440, configTab: "agent"}),
+        )
+        const store = createStore()
+        store.set(filesDrawerStagedAtomFamily("session-1"), [{name: "a"}] as never[])
+        const mount = (sessionId: string) =>
+            act(async () =>
+                root.render(
+                    <Provider store={store}>
+                        <SessionWorkspace
+                            entityId="rev-1"
+                            agentId="agent-1"
+                            sessionId={sessionId}
+                            workspaceId="ws-1"
+                            projectId="proj-1"
+                            chat={<div data-testid="chat-column" />}
+                        />
+                    </Provider>,
+                ),
+            )
+        await mount("session-1")
+        await act(async () => {
+            store.set(configPaneRevealRequestAtom, Date.now())
+        })
+        store.set(filesDrawerStagedAtomFamily("session-1"), [])
+        files.open = false
+        await mount("session-2")
+        files.open = true
+        await mount("session-2")
+        expect(store.get(filesDrawerStagedAtomFamily("session-2"))).toEqual([])
+        files.open = false
     })
 })

@@ -5,8 +5,10 @@
     "exportAgent": "Agent exportieren",
     "files": "Dateien",
     "history": "Verlauf",
+    "loadFailed": "Sitzungen konnten nicht geladen werden",
     "newSession": "Neue Sitzung",
     "rename": "Umbenennen",
+    "retry": "Erneut versuchen",
     "sessions": "Sitzungen",
     "shareConversation": "Unterhaltung teilen",
     "untitledSession": "Unbenannte Sitzung"

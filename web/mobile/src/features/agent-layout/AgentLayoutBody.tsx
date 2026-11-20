@@ -16,14 +16,20 @@ import {
     useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {CONFIG_REVEAL_TTL_MS, configPaneRevealRequestAtom} from "@agenta/chat/state"
-import {DriveLinkContext, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {
+    driveQuickLookAtomFamily,
+    DriveLinkContext,
+    filesDrawerStagedAtomFamily,
+    SessionFilesPane,
+    useSessionFilesPane,
+} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {userAtom} from "@agenta/shared/state"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useStore, type ExtractAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {ConfigPaneLoading} from "../chat/states/ConfigPaneLoading"
@@ -113,22 +119,53 @@ export const AgentLayoutBody = ({
         [canConfigure, builder, agentId, agentHidden],
     )
     // A content the screen cannot show (no configuration, no builder) stays closed.
+    // Files keeps its production open state (deep links, a file card, a staged drop open it) and
+    // its own close. The panel shows Files exactly while that state is open.
     const stored = state.content
     const content: PanelContent | null = files.open
         ? "files"
         : stored === "configuration" && canConfigure
           ? "configuration"
-          : stored === "builder" && builder && agentId
+          : stored === "builder" && available.builder
             ? "builder"
             : null
 
-    // The Files pane's own close (and a deep link) moves the panel with it.
+    // A swap away from Files closes it, which clears what it was holding (files staged by a drop,
+    // the file in quick look). They are put aside here and given back when Files opens again.
+    const store = useStore()
+    // Kept per session: the page stays mounted across sessions of one agent, and one session's
+    // staged files must never land in another's.
+    const setAside = useRef(
+        new Map<
+            string,
+            {
+                staged: ExtractAtomValue<ReturnType<typeof filesDrawerStagedAtomFamily>>
+                quickLook: ExtractAtomValue<ReturnType<typeof driveQuickLookAtomFamily>>
+            }
+        >(),
+    )
+    const putAside = useCallback(() => {
+        const staged = store.get(filesDrawerStagedAtomFamily(sessionId))
+        const quickLook = store.get(driveQuickLookAtomFamily(sessionId))
+        if (staged.length || quickLook) setAside.current.set(sessionId, {staged, quickLook})
+        else setAside.current.delete(sessionId)
+    }, [store, sessionId])
+    const giveBack = useCallback(() => {
+        const kept = setAside.current.get(sessionId)
+        setAside.current.delete(sessionId)
+        if (!kept) return
+        // A new request that opened Files wins over what was put aside.
+        if (store.get(filesDrawerStagedAtomFamily(sessionId)).length === 0)
+            store.set(filesDrawerStagedAtomFamily(sessionId), kept.staged)
+        if (!store.get(driveQuickLookAtomFamily(sessionId)) && kept.quickLook)
+            store.set(driveQuickLookAtomFamily(sessionId), kept.quickLook)
+    }, [store, sessionId])
+
     // These two effects run in this order (restore, then follow): the restore resets
-    // `filesWasOpen`, so the follow never reads a scope change as a close.
+    // `filesWasOpen`, so the follow never reads a scope change as an opening or a close.
     const filesWasOpen = useRef(files.open)
-    // A stored Files content opens Files again after a reload, through its own open state. Files
-    // is scoped by agent, and the scope changes once the agent resolves: each new scope restores
-    // again, and a scope change is never read as a close.
+    // Files is scoped by agent, and the scope changes once the agent resolves: each new scope
+    // restores again. A stored Files content opens Files after a reload.
     const restoredScope = useRef<string | null>(null)
     useEffect(() => {
         // Keyed by the stored preference too: the user can resolve after the first render.
@@ -136,23 +173,34 @@ export const AgentLayoutBody = ({
         if (restoredScope.current === restoreKey) return
         restoredScope.current = restoreKey
         filesWasOpen.current = files.open
-        if (stored === "files" && !files.open) files.toggle()
+        if (stored === "files" && !files.open) files.openPane()
     }, [panelKey, filesScope, stored, files])
 
+    // Files opened or closed from anywhere moves the panel with it.
     useEffect(() => {
-        if (files.open && !filesWasOpen.current) setState({content: "files"})
+        if (files.open && !filesWasOpen.current) {
+            setState({content: "files"})
+            giveBack()
+        }
         if (!files.open && filesWasOpen.current && stored === "files") setState({content: null})
         filesWasOpen.current = files.open
-    }, [files.open, stored, setState])
+    }, [files.open, stored, setState, giveBack])
 
     const setContent = useCallback(
         (next: PanelContent | null) => {
-            if (next === "files") files.toggle()
-            else if (files.open) files.close()
+            if (next === "files") {
+                if (!files.open) files.openPane()
+            } else if (files.open) {
+                // A swap keeps what Files held; closing the panel from Files drops it, as the
+                // pane's own close does.
+                if (next) putAside()
+                else setAside.current.delete(sessionId)
+                files.close()
+            }
             setState({content: next})
             setWide(false)
         },
-        [files, setState],
+        [files, setState, putAside, sessionId],
     )
 
     // The panel takes the focus when it opens, so Escape reaches it.

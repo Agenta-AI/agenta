@@ -24,6 +24,10 @@ import {AgentMenu} from "./AgentMenu"
 import {useAgentPanel} from "./agentPanelContext"
 import type {PanelContent} from "./agentPanelState"
 import {SessionMenu} from "./SessionMenu"
+import {useAgentSessionOrder} from "./useAgentSessionOrder"
+
+/** The session tab strip's shortcuts; this screen has no strip, so the sheet leaves them out. */
+const TAB_STRIP_SHORTCUTS = ["session.jump", "session.step", "session.close", "session.rename"]
 
 interface SessionHeaderProps {
     agentId: string | null
@@ -64,6 +68,8 @@ export const SessionHeader = ({
     const name = artifactName || tScreen("chat.mobileScreen.agent")
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const session = useSessionHeader(projectId, sessionId)
+    // The agent's session order: archiving the open session moves to the next one.
+    const sessionOrder = useAgentSessionOrder(agentId)
     const showAgentActions = Boolean(agentId) && !agentHidden
     // No header button for the shortcuts sheet; `?` still opens it.
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -94,7 +100,11 @@ export const SessionHeader = ({
             className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3"
         >
             <PageTitle title={session.data?.name} />
-            <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+            <KeyboardShortcutsSheet
+                open={shortcutsOpen}
+                onOpenChange={setShortcutsOpen}
+                omit={TAB_STRIP_SHORTCUTS}
+            />
             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
             {agentHidden ? (
                 <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
@@ -131,6 +141,8 @@ export const SessionHeader = ({
                     base={base}
                     sessionId={sessionId}
                     title={session.data?.name || t("agentLayout.header.untitledSession")}
+                    loadFailed={sessionOrder.failed}
+                    onRetry={sessionOrder.retry}
                 />
             ) : null}
             <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
