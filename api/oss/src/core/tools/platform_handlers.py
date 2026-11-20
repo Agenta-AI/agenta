@@ -52,9 +52,6 @@ from agenta.sdk.agents.platform.op_catalog import (
     READ_SESSION_SPANS_MAX_LIMIT,
 )
 from agenta.sdk.engines.tracing.propagation import inject
-
-if TYPE_CHECKING:
-    from oss.src.core.sessions.service import SessionsService
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
 from oss.src.core.access.dtos import (
@@ -135,6 +132,9 @@ from oss.src.core.gateways.egress import EgressRefusedError
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.env import env
 from oss.src.utils.web_links import agent_page_url
+
+if TYPE_CHECKING:
+    from oss.src.core.sessions.service import SessionsService
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -3267,7 +3267,8 @@ async def handle_read_session(
         )
         has_more = True
     elif through == 0:
-        # Only unsequenced rows so far: they sort first, so the offset stays valid.
+        # No record is sequenced (none yet, or sequence writes are off): plain offset
+        # paging in send order, as before sequences existed.
         next_cursor = _StepsCursor(offset=cursor.offset + consumed)
         has_more = False
     else:

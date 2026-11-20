@@ -102,11 +102,6 @@ SWEEP_INTERVAL_SECONDS: int = env.agenta.sessions.watchdog.interval_seconds
 # Rows swept per pass. A backlog drains over successive passes instead of one huge commit.
 SWEEP_BATCH_SIZE: int = env.agenta.sessions.watchdog.batch_size
 
-# The error class the watchdog stamps on the turn it settles. One of the `RunErrorCode`
-# values in services/runner/src/engines/sandbox_agent/errors.ts; the client reads it to offer
-# a retry rather than parsing the message.
-LOST_ERROR_CODE = EXECUTION_LOST_ERROR_CODE
-
 # The line the user reads in place of the answer the dead runner never gave. Identical to
 # `EXECUTION_LOST_MESSAGE` in services/runner/src/engines/sandbox_agent/errors.ts, which the
 # runner writes for the same class when a turn will not unwind: one outcome must not reach
@@ -180,7 +175,7 @@ def _lost_turn_records(
             attributes={
                 "type": "error",
                 "message": LOST_ERROR_MESSAGE,
-                "code": LOST_ERROR_CODE,
+                "code": EXECUTION_LOST_ERROR_CODE,
                 **SETTLED_BY,
             },
             turn_id=turn_id,

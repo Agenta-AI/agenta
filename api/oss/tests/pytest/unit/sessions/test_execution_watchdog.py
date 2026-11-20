@@ -25,9 +25,9 @@ from oss.src.core.sessions.records.dtos import (
     SETTLED_BY_WATCHDOG,
     SessionRecordEvent,
 )
+from oss.src.core.sessions.records.dtos import EXECUTION_LOST_ERROR_CODE
 from oss.src.dbs.redis.sessions.locks import is_turn_superseded
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
-    LOST_ERROR_CODE,
     LOST_ERROR_MESSAGE,
     ORPHAN_THRESHOLD_SECONDS,
     IDLE_THRESHOLD_SECONDS,
@@ -477,7 +477,7 @@ async def test_a_lost_turn_gets_an_error_then_a_done(anyio_backend):
     assert error_event.attributes == {
         "type": "error",
         "message": LOST_ERROR_MESSAGE,
-        "code": LOST_ERROR_CODE,
+        "code": EXECUTION_LOST_ERROR_CODE,
         RECORD_SETTLED_BY_ATTRIBUTE: SETTLED_BY_WATCHDOG,
     }
     assert done_event.attributes == {

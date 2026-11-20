@@ -4,8 +4,8 @@ Two jobs, one owner each:
 
 - `execution_ending` maps the code's words for how an execution ended (its `done` and
   `error` records) to the tool's status words. `turn_endings` applies it per turn and
-  `execution_endings` per execution. The
-  session tools, the child update and the result file read status only through these.
+  `execution_endings` per execution. The session tools, the child update and the result
+  file read status only through these.
 - `render_marked_form` builds the one model-facing form for text that comes from another
   session: a header that marks it as data, one line per field, and delimited fields for
   free text. No execution id goes into it; a turn is named by its `turn_id`.

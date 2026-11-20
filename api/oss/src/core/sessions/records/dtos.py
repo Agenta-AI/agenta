@@ -18,7 +18,9 @@ MAX_LIVE_FRAME_BYTES = 64 * 1024
 TERMINAL_RECORD_TYPE = "done"
 
 # The error code of an execution that no runner closed: the orphan sweep writes it, and the
-# session tools read it as the status `lost`.
+# session tools read it as the status `lost`. One of the `RunErrorCode` values in
+# services/runner/src/engines/sandbox_agent/errors.ts; the client reads it to offer a retry
+# rather than parsing the message.
 EXECUTION_LOST_ERROR_CODE = "execution_lost"
 
 # Who wrote a terminal record, stamped into `attributes` by the writer.
