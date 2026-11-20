@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {cleanup, fireEvent, render, screen} from "@testing-library/react"
+import {cleanup, fireEvent, render, screen, waitFor, within} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
@@ -176,5 +176,54 @@ describe("the session header", () => {
         renderHeader(panel())
         expect(screen.getByText("Support triage")).toBeTruthy()
         expect(screen.queryByText("Agent")).toBeNull()
+    })
+})
+
+describe("the session header on a phone", () => {
+    const rows = () => screen.getByTestId("session-header").children
+
+    it("has two rows: the agent with Configuration and Builder, then the session with Files", () => {
+        renderHeader(panel({phone: true}), {builder: true})
+        const header = screen.getByTestId("session-header")
+        const [agentRow, sessionRow] = [...rows()].filter((row) => row.tagName === "DIV")
+        expect(agentRow.textContent).toContain("Agent")
+        expect(
+            within(agentRow as HTMLElement).getByRole("button", {name: "Configuration"}),
+        ).toBeTruthy()
+        expect(within(agentRow as HTMLElement).getByRole("button", {name: "Builder"})).toBeTruthy()
+        expect(sessionRow.textContent).toContain("Charged twice for March")
+        expect(within(sessionRow as HTMLElement).getByRole("button", {name: "Files"})).toBeTruthy()
+        // The icons have a 44 px hit area on a phone.
+        expect(header.querySelector("#agent-panel-icon-files")?.className).toContain(
+            "max-md:size-11",
+        )
+    })
+
+    it("opens the agent menu as a bottom sheet with Cancel", async () => {
+        renderHeader(panel({phone: true}))
+        fireEvent.click(screen.getByRole("button", {name: /Agent/}))
+        const sheet = await screen.findByTestId("bottom-sheet-menu")
+        for (const item of ["History", "Rename", "Export agent", "Archive agent"]) {
+            expect(within(sheet).getByRole("menuitem", {name: item})).toBeTruthy()
+        }
+        fireEvent.click(within(sheet).getByRole("button", {name: "Cancel"}))
+        await waitFor(() => expect(screen.queryByTestId("bottom-sheet-menu")).toBeNull())
+    })
+
+    it("opens the latest sessions in a bottom sheet with New session, Sessions and Cancel", async () => {
+        renderHeader(panel({phone: true}))
+        fireEvent.click(screen.getByTitle("Charged twice for March"))
+        const sheet = await screen.findByTestId("session-sheet")
+        expect(within(sheet).getByRole("button", {name: "New session"})).toBeTruthy()
+        expect(within(sheet).getByRole("link", {name: "Sessions"})).toBeTruthy()
+        fireEvent.click(within(sheet).getByRole("button", {name: "Cancel"}))
+        await waitFor(() => expect(screen.queryByTestId("session-sheet")).toBeNull())
+    })
+
+    it("shows no Configuration and no Builder for a private agent the reader cannot see", () => {
+        renderHeader(panel({phone: true}), {hidden: true, builder: true})
+        expect(screen.queryByRole("button", {name: "Configuration"})).toBeNull()
+        expect(screen.queryByRole("button", {name: "Builder"})).toBeNull()
+        expect(screen.getByRole("button", {name: "Files"})).toBeTruthy()
     })
 })

@@ -95,19 +95,114 @@ export const SessionHeader = ({
         </SimpleTooltip>
     )
 
+    const shortcuts = (
+        <KeyboardShortcutsSheet
+            open={shortcutsOpen}
+            onOpenChange={setShortcutsOpen}
+            omit={TAB_STRIP_SHORTCUTS}
+        />
+    )
+    const revisionStatus =
+        entityId && !agentHidden ? (
+            <AgentRevisionStatus
+                revisionId={entityId}
+                historyWorkflowId={agentId}
+                onUpdate={onUpdate}
+                autoUpdate={autoUpdate}
+                checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
+            />
+        ) : null
+    const sessionTitle = session.data?.name || t("agentLayout.header.untitledSession")
+    const sharing = (
+        <SessionSharingControl
+            sessionId={sessionId}
+            sessionName={session.data?.name ?? ""}
+            workspaceId={workspaceId}
+            projectId={projectId}
+            agentId={agentId}
+        />
+    )
+
+    if (panel.phone) {
+        // Two rows on a phone: row 1 is about the agent, row 2 about this session.
+        return (
+            <header
+                data-testid="session-header"
+                className="flex min-w-0 shrink-0 flex-col border-0 border-b border-solid border-colorBorderSecondary"
+            >
+                <PageTitle title={session.data?.name} />
+                {shortcuts}
+                <div className="flex h-[52px] min-w-0 items-center gap-0.5 px-1">
+                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                    {agentHidden ? (
+                        <span className="flex min-w-0 items-center gap-1.5 px-2 text-sm font-medium">
+                            <LockSimpleIcon size={14} aria-hidden className="shrink-0" />
+                            <span className="truncate">{sharingCopy.privateAgent}</span>
+                        </span>
+                    ) : agentId ? (
+                        <AgentMenu
+                            phone
+                            agentId={agentId}
+                            name={name}
+                            sessionId={sessionId}
+                            canSend={canSend && Boolean(entityId)}
+                            projectId={projectId}
+                            base={base}
+                        />
+                    ) : (
+                        <span className="truncate px-2 text-sm font-medium">{name}</span>
+                    )}
+                    <div className="min-w-0 flex-1" />
+                    {showAgentActions && panel.available.configuration
+                        ? icon(
+                              "configuration",
+                              t("agentLayout.header.configuration"),
+                              <SlidersHorizontal size={20} />,
+                          )
+                        : null}
+                    {showAgentActions && panel.available.builder
+                        ? icon("builder", t("agentLayout.header.builder"), <Hammer size={20} />)
+                        : null}
+                </div>
+                <div className="flex h-12 min-w-0 items-center gap-1 pl-3 pr-1">
+                    {agentId ? (
+                        <SessionMenu
+                            phone
+                            agentId={agentId}
+                            base={base}
+                            sessionId={sessionId}
+                            title={sessionTitle}
+                            loadFailed={sessionOrder.failed}
+                            onRetry={sessionOrder.retry}
+                        />
+                    ) : null}
+                    {/* The version status: the save state, a failed save with its retry, and
+                        the offer of a newer version. It keeps its drawn size; the hit area of
+                        each of its buttons grows to 44 px, as for the share control. The retry of a
+                        failed save is a span with the button role, so the rule matches that role. */}
+                    {revisionStatus ? (
+                        <span className="flex shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-3 [&_:is(button,[role=button])]:after:content-['']">
+                            {revisionStatus}
+                        </span>
+                    ) : null}
+                    <div className="min-w-0 flex-1" />
+                    {icon("files", t("agentLayout.header.files"), <FolderSimple size={20} />)}
+                    {/* The share control keeps its drawn size; its hit area grows to 44 px. */}
+                    <span className="flex shrink-0 items-center pl-1 pr-2 [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-2.5 [&_button]:after:content-['']">
+                        {sharing}
+                    </span>
+                </div>
+            </header>
+        )
+    }
+
     return (
         <header
             data-testid="session-header"
-            // On a phone the row wraps instead of running off the screen (the layout clips sideways
-            // overflow), so every icon stays reachable until the two-row phone header lands.
-            className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 max-md:h-auto max-md:min-h-12 max-md:flex-wrap max-md:py-1"
+            className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3"
         >
             <PageTitle title={session.data?.name} />
-            <KeyboardShortcutsSheet
-                open={shortcutsOpen}
-                onOpenChange={setShortcutsOpen}
-                omit={TAB_STRIP_SHORTCUTS}
-            />
+            {shortcuts}
             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
             {agentHidden ? (
                 <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
@@ -129,34 +224,20 @@ export const SessionHeader = ({
                     ) : null}
                 </div>
             )}
-            {entityId && !agentHidden ? (
-                <AgentRevisionStatus
-                    revisionId={entityId}
-                    historyWorkflowId={agentId}
-                    onUpdate={onUpdate}
-                    autoUpdate={autoUpdate}
-                    checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
-                />
-            ) : null}
+            {revisionStatus}
             <div className="flex-1" />
             {agentId ? (
                 <SessionMenu
                     agentId={agentId}
                     base={base}
                     sessionId={sessionId}
-                    title={session.data?.name || t("agentLayout.header.untitledSession")}
+                    title={sessionTitle}
                     loadFailed={sessionOrder.failed}
                     onRetry={sessionOrder.retry}
                 />
             ) : null}
             <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
-            <SessionSharingControl
-                sessionId={sessionId}
-                sessionName={session.data?.name ?? ""}
-                workspaceId={workspaceId}
-                projectId={projectId}
-                agentId={agentId}
-            />
+            {sharing}
             {icon("files", t("agentLayout.header.files"), <FolderSimple size={16} />)}
             {showAgentActions && panel.available.configuration
                 ? icon(

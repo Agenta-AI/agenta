@@ -1,10 +1,11 @@
-import {useState} from "react"
+import {useState, type ReactNode} from "react"
 
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
-import {useAgentActions} from "@agenta/entity-ui/agent"
+import {AgentIdentity, useAgentActions} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
+import {BottomSheetMenu} from "@agenta/ui/phone"
 import {
     Button,
     DropdownMenu,
@@ -20,7 +21,17 @@ import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
 import {LeaveWhenArchived} from "./LeaveWhenArchived"
 
-/** The agent menu of the session header: History, Rename, Export agent, Archive agent. */
+interface AgentMenuEntry {
+    key: string
+    label: ReactNode
+    disabled?: boolean
+    onSelect: () => void
+}
+
+/**
+ * The agent menu of the session header: History, Rename, Export agent, Archive agent. On a phone
+ * the agent's icon and name are the trigger, and the menu opens as a bottom sheet with "Cancel".
+ */
 export const AgentMenu = ({
     agentId,
     name,
@@ -28,6 +39,7 @@ export const AgentMenu = ({
     canSend,
     projectId,
     base,
+    phone = false,
 }: {
     agentId: string
     name: string
@@ -36,6 +48,7 @@ export const AgentMenu = ({
     projectId: string
     /** The project URL: an archived agent leaves for its Agents list. */
     base: string
+    phone?: boolean
 }) => {
     const t = useT(agentLayoutHeaderCatalog)
     const canEdit = useProjectPermission(projectId, "edit_workflows")
@@ -47,11 +60,92 @@ export const AgentMenu = ({
     // Set when the person picks Archive. The confirmation and the request belong to the shared
     // agent actions, so the menu learns the result from the agent list.
     const [archiveAskedFor, setArchiveAskedFor] = useState<string | null>(null)
+    const [sheetOpen, setSheetOpen] = useState(false)
+    const entries: AgentMenuEntry[] = [
+        {
+            key: "history",
+            label: t("agentLayout.header.history"),
+            onSelect: () => openHistory(agentId),
+        },
+        ...(canEdit
+            ? [
+                  {
+                      key: "rename",
+                      label: t("agentLayout.header.rename"),
+                      onSelect: () => actions.rename(target),
+                  },
+              ]
+            : []),
+        ...(canSend
+            ? [
+                  {
+                      key: "export",
+                      label: t("agentLayout.header.exportAgent"),
+                      disabled: pending,
+                      onSelect: () => {
+                          // Production "Save as template": the agent builds the download.
+                          if (store.get(pendingTasksAtom)[sessionId]) return
+                          store.set(stashPendingTaskAtom, {
+                              sessionId,
+                              task: {agentId, text: SAVE_AS_TEMPLATE_MESSAGE},
+                          })
+                      },
+                  },
+              ]
+            : []),
+        ...(canEdit
+            ? [
+                  {
+                      key: "archive",
+                      label: t("agentLayout.header.archiveAgent"),
+                      onSelect: () => {
+                          setArchiveAskedFor(agentId)
+                          actions.remove(target)
+                      },
+                  },
+              ]
+            : []),
+    ]
+    const leave =
+        archiveAskedFor === agentId ? <LeaveWhenArchived agentId={agentId} base={base} /> : null
+    if (phone) {
+        return (
+            <>
+                {leave}
+                {/* The trigger is a div with the button role: the identity renders block
+                    elements, which a <button> may not hold. */}
+                <BottomSheetMenu
+                    open={sheetOpen}
+                    onOpenChange={setSheetOpen}
+                    title={name}
+                    items={entries}
+                    trigger={
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            aria-haspopup="dialog"
+                            className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
+                            onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return
+                                event.preventDefault()
+                                setSheetOpen(true)
+                            }}
+                        >
+                            <AgentIdentity workflowId={agentId} name={name} editable={false} />
+                            <CaretDown
+                                size={14}
+                                aria-hidden
+                                className="shrink-0 text-colorTextSecondary"
+                            />
+                        </div>
+                    }
+                />
+            </>
+        )
+    }
     return (
         <>
-            {archiveAskedFor === agentId ? (
-                <LeaveWhenArchived agentId={agentId} base={base} />
-            ) : null}
+            {leave}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon-sm" aria-label={name} className="shrink-0">
@@ -59,39 +153,15 @@ export const AgentMenu = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-52">
-                    <DropdownMenuItem onSelect={() => openHistory(agentId)}>
-                        {t("agentLayout.header.history")}
-                    </DropdownMenuItem>
-                    {canEdit ? (
-                        <DropdownMenuItem onSelect={() => actions.rename(target)}>
-                            {t("agentLayout.header.rename")}
-                        </DropdownMenuItem>
-                    ) : null}
-                    {canSend ? (
+                    {entries.map((entry) => (
                         <DropdownMenuItem
-                            disabled={pending}
-                            onSelect={() => {
-                                // Production "Save as template": the agent builds the download.
-                                if (store.get(pendingTasksAtom)[sessionId]) return
-                                store.set(stashPendingTaskAtom, {
-                                    sessionId,
-                                    task: {agentId, text: SAVE_AS_TEMPLATE_MESSAGE},
-                                })
-                            }}
+                            key={entry.key}
+                            disabled={entry.disabled}
+                            onSelect={entry.onSelect}
                         >
-                            {t("agentLayout.header.exportAgent")}
+                            {entry.label}
                         </DropdownMenuItem>
-                    ) : null}
-                    {canEdit ? (
-                        <DropdownMenuItem
-                            onSelect={() => {
-                                setArchiveAskedFor(agentId)
-                                actions.remove(target)
-                            }}
-                        >
-                            {t("agentLayout.header.archiveAgent")}
-                        </DropdownMenuItem>
-                    ) : null}
+                    ))}
                 </DropdownMenuContent>
             </DropdownMenu>
         </>
