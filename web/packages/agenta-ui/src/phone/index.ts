@@ -1,3 +1,4 @@
+export {BottomSheet, PHONE_BUTTON_CLASS, type BottomSheetProps} from "./BottomSheet"
 export {
     BottomSheetMenu,
     type BottomSheetMenuItem,

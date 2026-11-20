@@ -7,15 +7,8 @@ import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {
-    Button,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    Sheet,
-    SheetContent,
-    SheetTitle,
-} from "@agenta/ui/ui"
+import {BottomSheet, PHONE_BUTTON_CLASS} from "@agenta/ui/phone"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown, CaretUpDown, CircleIcon, CircleNotchIcon, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
@@ -71,11 +64,26 @@ export const SessionMenu = ({
         if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
     }
     const running = useAtomValue(sessionStatusAtomFamily(sessionId)) === "running"
+    // One list for both widths: the rail's compact rows in the popover, the taller card rows
+    // in the phone sheet. The row menu (rename, pin, archive) is the same on both; on a touch
+    // screen the pin lives in that menu.
+    const list = (density: "card" | "compact") => (
+        <SessionCardList
+            {...sessionMenuListArgs(agentId)}
+            density={density}
+            activeRowId={sessionId}
+            emptyText=""
+            onOpenRow={openRow}
+            menuFor={menu.menuFor}
+            onMenuSelect={menu.onMenuSelect}
+            onRenameRow={menu.onRenameRow}
+        />
+    )
 
     const loadError = loadFailed ? (
         <div role="alert" className="flex items-center justify-between gap-2 px-2 py-1 text-xs">
             <span className="text-colorTextSecondary">{t("agentLayout.header.loadFailed")}</span>
-            <Button variant="ghost" size="sm" onClick={onRetry}>
+            <Button variant="ghost" size="sm" className="max-md:h-11" onClick={onRetry}>
                 {t("agentLayout.header.retry")}
             </Button>
         </div>
@@ -112,44 +120,21 @@ export const SessionMenu = ({
                         className="shrink-0 text-colorTextSecondary"
                     />
                 </button>
-                <Sheet open={open} onOpenChange={setOpen}>
-                    <SheetContent
-                        side="bottom"
-                        data-testid="session-sheet"
-                        aria-describedby={undefined}
-                        className="max-h-[85vh] gap-0 rounded-t-2xl pb-6 pt-2"
-                    >
-                        <div
-                            aria-hidden
-                            className="mx-auto mb-2.5 h-[5px] w-9 shrink-0 rounded-full bg-colorBorder"
-                        />
-                        <SheetTitle className="px-4 pb-2 pt-1 text-base font-semibold">
-                            {t("agentLayout.header.sessions")}
-                        </SheetTitle>
-                        {loadError}
-                        {/* The rows keep their drawn size; their small buttons (pin, "Show more")
-                            get a 44 px hit area. */}
-                        <div className="min-h-0 flex-1 overflow-y-auto px-2 [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-[5px] [&_button]:after:content-['']">
-                            <SessionCardList
-                                {...sessionMenuListArgs(agentId)}
-                                showAgent={false}
-                                activeRowId={sessionId}
-                                emptyText=""
-                                onOpenRow={openRow}
-                            />
-                        </div>
-                        <div className="flex shrink-0 flex-col gap-2 px-4 pt-2">
-                            <Button
-                                className="h-11 w-full gap-2 rounded-[10px] text-[15px]"
-                                onClick={newSession}
-                            >
+                <BottomSheet
+                    open={open}
+                    onOpenChange={setOpen}
+                    title={t("agentLayout.header.sessions")}
+                    data-testid="session-sheet"
+                    actions={
+                        <>
+                            <Button className={PHONE_BUTTON_CLASS} onClick={newSession}>
                                 <Plus size={14} />
                                 {t("agentLayout.header.newSession")}
                             </Button>
                             {inspectorEnabled ? (
                                 <Button
                                     variant="outline"
-                                    className="h-11 w-full rounded-[10px] text-[15px]"
+                                    className={PHONE_BUTTON_CLASS}
                                     onClick={() => {
                                         setOpen(false)
                                         setInspecting(true)
@@ -158,9 +143,20 @@ export const SessionMenu = ({
                                     {tSessions("chat.mobileSessions.inspectSession")}
                                 </Button>
                             ) : null}
-                        </div>
-                    </SheetContent>
-                </Sheet>
+                            <Button variant="outline" className={PHONE_BUTTON_CLASS} asChild>
+                                <Link
+                                    href={`${base}/agents/${agentId}?view=sessions`}
+                                    onClick={() => setOpen(false)}
+                                >
+                                    {t("agentLayout.header.sessions")}
+                                </Link>
+                            </Button>
+                        </>
+                    }
+                >
+                    {loadError}
+                    <div className="px-2">{list("card")}</div>
+                </BottomSheet>
                 {inspector}
             </>
         )
@@ -181,16 +177,7 @@ export const SessionMenu = ({
             <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
                 {loadError}
                 <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
-                    <SessionCardList
-                        {...sessionMenuListArgs(agentId)}
-                        density="compact"
-                        activeRowId={sessionId}
-                        emptyText=""
-                        onOpenRow={openRow}
-                        menuFor={menu.menuFor}
-                        onMenuSelect={menu.onMenuSelect}
-                        onRenameRow={menu.onRenameRow}
-                    />
+                    {list("compact")}
                 </div>
                 <div className="flex flex-col border-0 border-t border-solid border-colorBorderSecondary pt-1">
                     <Button variant="ghost" className="justify-start" onClick={newSession}>

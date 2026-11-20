@@ -163,7 +163,7 @@ describe("the session header", () => {
 describe("the session header on a phone", () => {
     const rows = () => screen.getByTestId("session-header").children
 
-    it("has two rows: the agent with Configuration and Builder, then the session with Files and Share", () => {
+    it("has two rows: the agent with Configuration and Builder, then the session with Files", () => {
         renderHeader(panel({phone: true}), {builder: true})
         const header = screen.getByTestId("session-header")
         const [agentRow, sessionRow] = [...rows()].filter((row) => row.tagName === "DIV")
@@ -189,11 +189,14 @@ describe("the session header on a phone", () => {
         await waitFor(() => expect(screen.queryByTestId("bottom-sheet-menu")).toBeNull())
     })
 
-    it("opens the latest sessions in a bottom sheet with New session", async () => {
+    it("opens the latest sessions in a bottom sheet with New session, Sessions and Cancel", async () => {
         renderHeader(panel({phone: true}))
         fireEvent.click(screen.getByTitle("Charged twice for March"))
         const sheet = await screen.findByTestId("session-sheet")
         expect(within(sheet).getByRole("button", {name: "New session"})).toBeTruthy()
+        expect(within(sheet).getByRole("link", {name: "Sessions"})).toBeTruthy()
+        fireEvent.click(within(sheet).getByRole("button", {name: "Cancel"}))
+        await waitFor(() => expect(screen.queryByTestId("session-sheet")).toBeNull())
     })
 
     it("shows no Configuration and no Builder for a private agent the reader cannot see", () => {
