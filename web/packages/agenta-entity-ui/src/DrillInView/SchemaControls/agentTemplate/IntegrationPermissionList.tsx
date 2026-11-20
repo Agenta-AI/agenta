@@ -811,7 +811,7 @@ export function IntegrationTitle({
     const connection = findTargetConnection(connections, target, connectionSlug)
     const displayName = integration?.name || target.integration
     const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
-    // A healthy connection shows no tag (decided on 19 November).
+    // A healthy connection shows no tag.
     const healthy = connection && isConnectionActive(connection) && isConnectionValid(connection)
 
     return (

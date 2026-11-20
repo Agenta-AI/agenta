@@ -3,7 +3,7 @@ import {USER_ACCOUNT_SOURCE, type ItemAccount} from "@agenta/entities/accountCho
 import {isConnectionDefault, type ToolConnection} from "@agenta/entities/gatewayTool"
 import type {PersonalAccountsAccess} from "@agenta/entities/secret"
 
-import type {ParsedGatewayConnection} from "../../toolUtils"
+import type {GatewayConnectionAccount, ParsedGatewayConnection} from "../../toolUtils"
 
 /** The "Your account" value that follows the viewer's default account. */
 export const USE_MY_DEFAULT = "default"
@@ -79,3 +79,17 @@ export const hasAutomationWithoutPerson = (
             Boolean(automation.principal?.kind) &&
             automation.principal?.kind !== "human",
     )
+
+/**
+ * What a pick on the switch does: write the account source, or, for one shared account with no
+ * connection to share yet, connect one first (the agent switches once it exists).
+ */
+export const accountSourcePick = (
+    next: string,
+    entry: Pick<ParsedGatewayConnection, "connection">,
+    shared: readonly {slug: string}[],
+): {write: GatewayConnectionAccount} | {connect: "project"} => {
+    if (next === USER_ACCOUNT_SOURCE) return {write: {accountSource: USER_ACCOUNT_SOURCE}}
+    const slug = entry.connection || shared[0]?.slug
+    return slug ? {write: {accountSource: "agent", slug}} : {connect: "project"}
+}

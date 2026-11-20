@@ -19,6 +19,8 @@ const AgentChannelPresence = ({
                   list.some((connection) => connection.status === "connected"),
               )
     useEffect(() => onChange(hasChannel), [hasChannel, onChange])
+    // Unknown again once it unmounts, until the next read answers.
+    useEffect(() => () => onChange(undefined), [onChange])
     return null
 }
 

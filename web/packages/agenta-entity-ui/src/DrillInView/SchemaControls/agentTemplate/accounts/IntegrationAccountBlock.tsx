@@ -9,7 +9,6 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
@@ -20,7 +19,11 @@ import {useAtomValue} from "jotai"
 import {AccountSwitch} from "../../../../accounts/AccountSwitch"
 import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {useAccountChoice} from "../../../../accounts/useAccountChoice"
-import {useItemAccount, type ItemAccountContext} from "../../../../accounts/useItemAccount"
+import {
+    useItemAccount,
+    useItemWorkflowId,
+    type ItemAccountContext,
+} from "../../../../accounts/useItemAccount"
 import type {
     GatewayConnectionAccount,
     GatewayConnectionTarget,
@@ -29,6 +32,7 @@ import type {
 
 import {AccountSelect, CONNECT_ANOTHER} from "./AccountSelect"
 import {
+    accountSourcePick,
     defaultAccountOf,
     sharedAccountOptions,
     showAccountSwitch,
@@ -77,9 +81,9 @@ export function IntegrationAccountBlock({
     )
 
     const pickSource = (next: string) => {
-        if (next === USER_ACCOUNT_SOURCE) onChange({accountSource: USER_ACCOUNT_SOURCE})
-        // Back to one shared account: the saved slug, else the project's first connection.
-        else onChange({accountSource: "agent", slug: entry.connection || shared[0]?.slug || ""})
+        const pick = accountSourcePick(next, entry, shared)
+        if ("write" in pick) onChange(pick.write)
+        else onConnect(pick.connect)
     }
 
     return (
@@ -119,8 +123,8 @@ export function IntegrationAccountBlock({
                         target={target}
                         name={name}
                         context={context}
+                        // The viewer's own accounts, not the agent: no edit right needed.
                         onConnect={() => onConnect("user")}
-                        disabled={disabled}
                     />
                 ) : null
             ) : (
@@ -154,10 +158,7 @@ export function IntegrationAccountBlock({
 /** Shown when the agent has runs without a person: a channel, or an automation saved by an API key. */
 function NoPersonWarning({context}: {context: ItemAccountContext}) {
     const t = useT(accountSwitchCatalog)
-    const fromRevision = useAtomValue(
-        workflowMolecule.selectors.workflowId(context.workflowId ? "" : (context.revisionId ?? "")),
-    )
-    if (!useRunsWithoutPerson(context.workflowId || fromRevision || "")) return null
+    if (!useRunsWithoutPerson(useItemWorkflowId(context))) return null
     return (
         <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
             <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
@@ -181,13 +182,11 @@ function YourAccount({
     name,
     context,
     onConnect,
-    disabled,
 }: {
     target: GatewayConnectionTarget
     name: string
     context: ItemAccountContext
     onConnect: () => void
-    disabled?: boolean
 }) {
     const t = useT(accountSwitchCatalog, accountsCatalog)
     const itemKey = userItemKey("app_connection", target.integration)
@@ -206,7 +205,7 @@ function YourAccount({
                 <span className="text-[13px] text-colorTextSecondary">
                     {t("entityUi.accountSwitch.noAccountYet")}
                 </span>
-                <Button variant="outline" size="sm" onClick={onConnect} disabled={disabled}>
+                <Button variant="outline" size="sm" onClick={onConnect}>
                     <Plus size={14} />
                     {t("entityUi.accountSwitch.connectApp", {name})}
                 </Button>
@@ -239,7 +238,7 @@ function YourAccount({
                 connectLabel={t("entityUi.accounts.connectAnother", {name})}
                 onChange={(value) => void pick(value)}
                 aria-label={t("entityUi.accountSwitch.yourAccount")}
-                disabled={disabled || choice.busy}
+                disabled={choice.busy}
             />
         )
     }

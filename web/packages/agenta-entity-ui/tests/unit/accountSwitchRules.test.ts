@@ -2,6 +2,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    accountSourcePick,
     defaultAccountOf,
     hasAutomationWithoutPerson,
     sharedAccountOptions,
@@ -97,5 +98,24 @@ describe("runs without a person", () => {
                 agent,
             ),
         ).toBe(false)
+    })
+})
+
+describe("a pick on the switch", () => {
+    it("each person's own drops the slug", () => {
+        expect(accountSourcePick("user", {connection: "acme"}, [])).toEqual({
+            write: {accountSource: "user"},
+        })
+    })
+    it("one shared account keeps the saved slug, else takes the project's first connection", () => {
+        expect(accountSourcePick("agent", {connection: "acme"}, [{slug: "eu"}])).toEqual({
+            write: {accountSource: "agent", slug: "acme"},
+        })
+        expect(accountSourcePick("agent", {connection: ""}, [{slug: "eu"}])).toEqual({
+            write: {accountSource: "agent", slug: "eu"},
+        })
+    })
+    it("one shared account with no connection connects one first and writes nothing", () => {
+        expect(accountSourcePick("agent", {connection: ""}, [])).toEqual({connect: "project"})
     })
 })

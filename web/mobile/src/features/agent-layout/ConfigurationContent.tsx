@@ -56,7 +56,10 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
             projectId={props.projectId}
             onWorkflowRevisionCommitted={pinRevision}
         >
-            <AgentChannelPresence agentId={props.agentId} onChange={setHasChannel} />
+            {/* Read again each time the Agent tab opens, so a change in the Channels tab shows. */}
+            {panel.configTab === "agent" ? (
+                <AgentChannelPresence agentId={props.agentId} onChange={setHasChannel} />
+            ) : null}
             <AgentEditorContext.Provider value={editor}>
                 <ViewStackHost
                     chrome={PanelViewChrome}
