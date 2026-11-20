@@ -504,6 +504,56 @@ const splitObjectChange = (change: ChangePreviewChange): ChangePreviewChange[] =
     }))
 }
 
+/** The keyed lists of the engine (`KEY_FIELDS` in `change_set.py`) and the field of each key. */
+const LIST_KEY_FIELD: Record<string, string> = {skills: "name", mcps: "name", files: "path"}
+
+/** The entries of a list by key, or null when an entry has no key or a key repeats. */
+const keyedEntries = (field: string, value: unknown): Map<string, unknown> | null => {
+    if (value === undefined) return new Map()
+    if (!Array.isArray(value)) return null
+    const entries = new Map<string, unknown>()
+    for (const entry of value) {
+        const key = asRecord(entry)?.[field]
+        if (typeof key !== "string" || !key || entries.has(key)) return null
+        entries.set(key, entry)
+    }
+    return entries
+}
+
+/**
+ * A whole keyed list in the preview (a list that appears or goes away, or kept items in another
+ * order) reads as its items: one added or removed item per key, and the items that differ. It
+ * compares the preview's own old and new lists, as the engine does by key; it applies no
+ * operation. A reorder alone leaves one change with no values (title and path only).
+ */
+const splitListChange = (change: ChangePreviewChange): ChangePreviewChange[] => {
+    const path = Array.isArray(change.path) ? change.path : []
+    const list = path[path.length - 1]
+    const field = typeof list === "string" ? LIST_KEY_FIELD[list] : undefined
+    if (!field) return [change]
+    const before = keyedEntries(field, change.old)
+    const after = keyedEntries(field, change.new)
+    if (!before || !after) return [change]
+    const prefix = path.slice(0, -1)
+    const split: ChangePreviewChange[] = []
+    for (const key of [...before.keys(), ...[...after.keys()].filter((k) => !before.has(k))]) {
+        const old = before.get(key)
+        const next = after.get(key)
+        if (before.has(key) && after.has(key) && JSON.stringify(old) === JSON.stringify(next))
+            continue
+        split.push({
+            path: [...prefix, {list, key}],
+            operation_indexes: change.operation_indexes,
+            kind: !before.has(key) ? "added" : !after.has(key) ? "removed" : "changed",
+            ...(before.has(key) ? {old} : {}),
+            ...(after.has(key) ? {new: next} : {}),
+        })
+    }
+    if (split.length) return split
+    const {old: _old, new: _new, ...rest} = change
+    return [rest]
+}
+
 /** The fields that have a value: a detail never carries `old: undefined`. */
 const defined = (fields: {old?: string; new?: string}): {old?: string; new?: string} => ({
     ...(fields.old !== undefined ? {old: fields.old} : {}),
@@ -542,6 +592,15 @@ const operationKind = (operation: Record<string, unknown>): ChangeKind =>
         : operation.operation === "remove_item"
           ? "removed"
           : "changed"
+
+/** The operations whose proposed values the change card can show without a server preview. */
+export const OPERATIONS_WITH_VALUES: ReadonlySet<string> = new Set([
+    "set",
+    "edit_text",
+    "add_item",
+    "remove_item",
+    "remove",
+])
 
 /** The proposed values of one operation, read from the call's arguments. */
 const operationDetail = (
@@ -620,20 +679,23 @@ export const describeConfigChanges = (
     const effect = "version" as const
 
     if (preview?.applies) {
-        const changes = preview.changes.flatMap(splitObjectChange).map((change): ApprovalChange => {
-            const target = Array.isArray(change.path) ? change.path : []
-            const source = ops[change.operation_indexes?.[0] ?? -1]
-            const location = locateTarget(target, change.new ?? change.old ?? source?.value)
-            const detail = previewDetail(change, location)
-            return {
-                title: changeTitle(location, change.kind),
-                path: withField(headerPath(location, change.kind), location, detail),
-                section: location.section,
-                ...(detail ? {detail} : {}),
-                effect,
-                risks: risksOf(location, change.kind, change.old, change.new),
-            }
-        })
+        const changes = preview.changes
+            .flatMap(splitListChange)
+            .flatMap(splitObjectChange)
+            .map((change): ApprovalChange => {
+                const target = Array.isArray(change.path) ? change.path : []
+                const source = ops[change.operation_indexes?.[0] ?? -1]
+                const location = locateTarget(target, change.new ?? change.old ?? source?.value)
+                const detail = previewDetail(change, location)
+                return {
+                    title: changeTitle(location, change.kind),
+                    path: withField(headerPath(location, change.kind), location, detail),
+                    section: location.section,
+                    ...(detail ? {detail} : {}),
+                    effect,
+                    risks: risksOf(location, change.kind, change.old, change.new),
+                }
+            })
         return {changes, proposedValues: false, cannotApply: false, ...(base ? {base} : {})}
     }
 

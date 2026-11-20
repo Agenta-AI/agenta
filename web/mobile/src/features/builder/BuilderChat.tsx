@@ -1,7 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {getDisplayContent} from "@agenta/chat/assets"
-import {markSessionFresh} from "@agenta/chat/state"
 import {builderAgentRevisionIdQueryAtom} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
@@ -9,8 +7,6 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useQueryClient} from "@tanstack/react-query"
 import type {UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
-
-import {newId} from "@/lib/ids"
 
 import {useAgentPanel} from "../agent-layout/agentPanelContext"
 import {useAgentRow} from "../agent-layout/useAgentRow"
@@ -28,22 +24,15 @@ import {BuilderHeader, TITLE_MENU_CHATS} from "./BuilderHeader"
 import type {BuilderPanelProps} from "./BuilderPanel"
 import {ChatHistory} from "./ChatHistory"
 import {ContextChip} from "./ContextChip"
+import {newBuilderSessionId} from "./newBuilderSession"
 import {NewChatIntro} from "./NewChatIntro"
 import {sessionToOpen} from "./openRule"
-import {parseSentContextLine, withContextLine, type PageContext} from "./pageContext"
+import {sentContextOf, withContextLine, type PageContext} from "./pageContext"
 import {readPagePart, removedPagePartAtom} from "./pagePart"
 import {QuickActions} from "./QuickActions"
 import {RecentChats} from "./RecentChats"
 import {SentContextChip} from "./SentContextChip"
 import {builderChatLinkVersionAtom, useBuilderChatList} from "./useBuilderChatList"
-
-/** A new builder chat: a client-side id that becomes a server session on its first message. */
-const newBuilderSessionId = () => {
-    const id = newId()
-    // Never run: the conversation must not read its empty history as a pruned one.
-    markSessionFresh(id)
-    return id
-}
 
 /**
  * The chat the panel last showed, per user and project. A remount of the panel for the same agent
@@ -52,19 +41,8 @@ const newBuilderSessionId = () => {
  */
 const lastShownChat = new Map<string, {agentId: string; builderSessionId: string}>()
 
-/** The page context line of a stored or live user message, rebuilt from its text. */
-const sentContext = (message: UIMessage): PageContext | null => {
-    const words = getDisplayContent(message)
-    if (typeof words !== "string") return null
-    const text = message.parts
-        .filter((part) => part.type === "text")
-        .map((part) => part.text)
-        .join("")
-    return parseSentContextLine(text, words)
-}
-
 const sentContextChip = (message: UIMessage) => {
-    const context = sentContext(message)
+    const context = sentContextOf(message)
     return context ? <SentContextChip context={context} /> : null
 }
 
@@ -205,7 +183,6 @@ export const BuilderChat = ({
                 beforeSend={beforeSend}
                 inputRef={inputRef}
                 hideSlashCommands
-                canSwitchModel={false}
                 composerPlaceholder={t("builder.panel.placeholder")}
                 composerHeaderExtra={<ContextChip projectId={projectId} agentName={agentName} />}
                 emptyState={<NewChatIntro agentName={agentName} />}

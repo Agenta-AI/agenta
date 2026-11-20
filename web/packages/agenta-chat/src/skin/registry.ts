@@ -18,11 +18,8 @@ import {createT, getActiveLanguage} from "@agenta/i18n"
 import toolActivityCatalog from "@agenta/i18n/catalogs/chat.toolActivity"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
-import {
-    agentCallTarget,
-    summarizeAgentCall,
-    toolOutputRecord,
-} from "../model/approvalDescribers/describeAgentChanges"
+import {agentCallTarget, summarizeAgentCall} from "../model/approvalDescribers/describeAgentChanges"
+import {toolOutputRecord} from "../model/changeCallState"
 
 import type {
     ActivityIcon,

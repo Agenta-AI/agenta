@@ -1,12 +1,17 @@
+import {useContext} from "react"
+
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {Sidebar, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
+
+import {SidebarLayoutContext} from "./sidebarLayout"
 
 export interface SidebarToggleButtonProps {
     /** The rail's collapsed state. Defaults to the shared atom both shells already use. */
@@ -23,7 +28,9 @@ export const SidebarToggleButton = ({
     onDismiss,
     className,
 }: SidebarToggleButtonProps) => {
-    const t = useT(navigationCatalog, commonCatalog)
+    const t = useT(navigationCatalog, commonCatalog, phoneCatalog)
+    // The phone sheet names itself "the sidebar", as its menu button does ("Open the sidebar").
+    const phone = useContext(SidebarLayoutContext) === "phone"
     const [collapsed, setCollapsed] = useAtom(collapsedAtom)
 
     return (
@@ -40,7 +47,11 @@ export const SidebarToggleButton = ({
                 !collapsed && "-mr-1",
                 className,
             )}
-            aria-label={onDismiss ? t("navigation.chrome.closeNavigation") : undefined}
+            aria-label={
+                onDismiss
+                    ? t(phone ? "ui.phone.closeSidebar" : "navigation.chrome.closeNavigation")
+                    : undefined
+            }
             icon={
                 onDismiss ? (
                     <X size={16} />

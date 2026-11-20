@@ -20,6 +20,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
+import {PhonePrimaryAction, useIsPhone} from "@agenta/ui/phone"
 import {Badge, Button, SkeletonRows} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -86,6 +87,8 @@ export const ProviderListBody = ({
     rowMenu,
 }: ProviderListBodyProps) => {
     const t = useT(providerListCatalog, settingsProvidersCatalog, commonCatalog)
+    // On a phone every button has a 44 px hit area (M12).
+    const phone = useIsPhone()
     const connections = useAtomValue(providerConnectionsAtom)
     const vault = useAtomValue(vaultSecretsQueryAtom)
     const builtinEndpoints = useAtomValue(builtinModelEndpointsQueryAtom).data
@@ -98,7 +101,7 @@ export const ProviderListBody = ({
     const failed = vault.isError && !connections.length
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className={`flex min-h-0 flex-1 flex-col ${phone ? "[&_button]:min-h-11" : ""}`}>
             <div className="min-h-0 flex-1 overflow-y-auto pb-2">
                 {loading ? (
                     <SkeletonRows count={4} className="px-4 pt-4" />
@@ -171,12 +174,18 @@ export const ProviderListBody = ({
                     </>
                 )}
             </div>
-            <div className="shrink-0 px-4 py-3">
-                <Button className="w-full" onClick={onAdd}>
-                    <Plus size={14} />
+            {phone ? (
+                <PhonePrimaryAction icon={<Plus size={14} />} onClick={onAdd}>
                     {t("entityUi.providerList.addProviderOrSubscription")}
-                </Button>
-            </div>
+                </PhonePrimaryAction>
+            ) : (
+                <div className="shrink-0 px-4 py-3">
+                    <Button className="w-full" onClick={onAdd}>
+                        <Plus size={14} />
+                        {t("entityUi.providerList.addProviderOrSubscription")}
+                    </Button>
+                </div>
+            )}
         </div>
     )
 }

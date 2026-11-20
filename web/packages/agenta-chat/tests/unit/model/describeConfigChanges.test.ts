@@ -212,7 +212,7 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
         expect(changes[0].detail?.kind).toBe("text_diff")
     })
 
-    it("shows a whole list that appears as its values, not as one item", () => {
+    it("shows a whole list that appears as the items it adds", () => {
         const {changes} = describeConfigChanges(
             [{operation: "set", target: [...T, "mcps"], value: [{name: "linear"}]}],
             applied([
@@ -224,8 +224,9 @@ describe("the four detail forms, one per operation (the C01 cards)", () => {
                 },
             ]),
         )
-        expect(changes[0].detail?.kind).not.toBe("item")
-        expect(JSON.stringify(changes[0].detail)).toContain("linear")
+        expect(changes).toHaveLength(1)
+        expect(changes[0].title).toBe("Add an MCP server")
+        expect(changes[0].detail).toMatchObject({kind: "item", change: "added", name: "linear"})
         // The first server of a list that did not exist still sends data out.
         expect(changes[0].risks.map((risk) => risk.kind)).toEqual(["data_egress"])
         const builtin = describeConfigChanges([
@@ -630,5 +631,71 @@ describe("the result row", () => {
     it("says no version for a result that did not save", () => {
         expect(savedVersion({status: "conflict"})).toBeNull()
         expect(savedVersion(JSON.stringify(recorded.committedOutput))).toBe("5")
+    })
+})
+
+describe("a whole keyed list in the preview reads as its items", () => {
+    it("shows a skill's files array as the files it adds, removes and edits", () => {
+        const skill = {list: "skills", key: "refund-check"}
+        const {changes} = describeConfigChanges(
+            [{operation: "set", target: [...T, skill, "files"], value: []}],
+            applied([
+                {
+                    path: [...T, skill, "files"],
+                    operation_indexes: [0],
+                    kind: "changed",
+                    old: [
+                        {path: "b.md", content: "same"},
+                        {path: "a.md", content: "one"},
+                        {path: "gone.md", content: "x"},
+                    ],
+                    new: [
+                        {path: "a.md", content: "two"},
+                        {path: "b.md", content: "same"},
+                        {path: "new.py", content: "print(1)", executable: true},
+                    ],
+                },
+            ]),
+        )
+        expect(changes.map((change) => change.title)).toEqual([
+            "Edit a skill file",
+            "Remove a skill file",
+            "Add a skill file",
+        ])
+        expect(changes[0].path).toEqual(["Skills", "refund-check", "a.md"])
+        expect(changes[0].detail).toMatchObject({kind: "text_diff", old: "one", new: "two"})
+        expect(JSON.stringify(changes)).not.toContain('\\"content\\"')
+    })
+
+    it("shows a reorder alone as its title and path, with no values", () => {
+        const {changes} = describeConfigChanges(
+            [{operation: "set", target: [...T, "mcps"], value: []}],
+            applied([
+                {
+                    path: [...T, "mcps"],
+                    operation_indexes: [0],
+                    kind: "changed",
+                    old: [{name: "a"}, {name: "b"}],
+                    new: [{name: "b"}, {name: "a"}],
+                },
+            ]),
+        )
+        expect(changes).toHaveLength(1)
+        expect(changes[0].detail).toBeUndefined()
+    })
+
+    it("keeps a list with no keys as its values", () => {
+        const {changes} = describeConfigChanges(
+            [{operation: "set", target: [...T, "mcps"], value: []}],
+            applied([
+                {
+                    path: [...T, "mcps"],
+                    operation_indexes: [0],
+                    kind: "added",
+                    new: [{url: "x"}],
+                },
+            ]),
+        )
+        expect(changes[0].detail?.kind).toBe("value_change")
     })
 })

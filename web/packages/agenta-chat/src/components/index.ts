@@ -72,3 +72,10 @@ export {
     type ActivityTimelineProps,
     ActivityNode,
 } from "./activity"
+export {
+    ChangeResultRow,
+    ChangeResultRows,
+    type ChangeResultActions,
+    type ChangeResultRowProps,
+    type ChangeVersionRef,
+} from "./ChangeResultRow"

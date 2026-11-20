@@ -18,6 +18,7 @@ export {
 } from "./CommandPalette"
 export {SidebarSelectionButton, type SidebarSelectionButtonProps} from "./SidebarSelectionButton"
 export {SidebarBackButton, type SidebarBackButtonProps} from "./SidebarBackButton"
+export {SidebarLayoutContext, type SidebarLayout} from "./sidebarLayout"
 export {NamePromptModal, type NamePromptModalProps} from "./NamePromptModal"
 export {
     ProjectOrgSwitcherView,

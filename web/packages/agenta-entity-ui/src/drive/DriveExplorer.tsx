@@ -104,6 +104,15 @@ const noop = () => undefined
 const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
 
 /**
+ * On a touch screen every header button is at least 44 x 44 px (the 48 px header row holds
+ * them), so no hit area overlaps its neighbour; the icons keep their size.
+ */
+const TOUCH_HEADER = "contents [&_button]:min-h-11 [&_button]:min-w-11"
+/** The same for the 36 px toolbar row: the row and the view switch grow to hold 44 px buttons. */
+const TOUCH_TOOLBAR =
+    "contents [&>div]:h-auto [&>div]:min-h-12 [&_[role=tablist]]:h-auto [&_button]:min-h-11 [&_button]:min-w-11"
+
+/**
  * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
  * selection state; initialize with `initialPath` (callers remount per open, so mount-time init
  * is the reset).
@@ -128,6 +137,8 @@ export function DriveExplorer({
     initialShowTree = true,
     treePersistKey,
     closeVariant = "close",
+    readOnly = false,
+    touch = false,
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -163,6 +174,10 @@ export function DriveExplorer({
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
     closeVariant?: "close" | "collapse" | "back"
+    /** Open and download only: no upload, drop, paste, new item, rename, delete or edit (a phone). */
+    readOnly?: boolean
+    /** A touch screen (a phone): the header and toolbar buttons get a 44 px hit area. */
+    touch?: boolean
 }) {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const chrome = chromeProp ?? onClose != null
@@ -227,7 +242,7 @@ export function DriveExplorer({
     const revealUpload = useRef<(path: string) => void>(() => undefined)
     const onUploaded = useCallback((path: string) => revealUpload.current(path), [])
     const {
-        canUpload,
+        canUpload: uploadsAllowed,
         uploadInputRef,
         uploadFiles,
         pendingUploadByPath,
@@ -239,6 +254,8 @@ export function DriveExplorer({
         retryUpload,
         dismissUpload,
     } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange, onUploaded})
+    // Every write below (upload, drop, paste, new item, rename, delete, edit) shares this gate.
+    const canUpload = uploadsAllowed && !readOnly
 
     const {
         lazyTree,
@@ -370,6 +387,8 @@ export function DriveExplorer({
         /** A folder created a moment ago and still empty: renamed by create + delete. */
         fresh?: boolean
     } | null>(null)
+    // An open name editor closes when the explorer turns read only (the window became a phone).
+    if (readOnly && nameEdit) setNameEdit(null)
     // New folder / New file: created at once under an untitled name, then named in place.
     const startNew = useCallback(
         async (kind: "folder" | "file", folder: string) => {
@@ -398,9 +417,14 @@ export function DriveExplorer({
     // Row 2's slot for a running app's controls.
     const [appControlsEl, setAppControlsEl] = useState<HTMLDivElement | null>(null)
     // An app's access sheet stays inside this pane, so the chat beside it stays usable.
+    // Read only: a running app gets no write access, and its access menu offers none.
     const sheetHtmlAppEnv = useMemo(
-        () => ({...htmlAppEnv, sheetContainer: getPane}),
-        [htmlAppEnv, getPane],
+        () => ({
+            ...htmlAppEnv,
+            sheetContainer: getPane,
+            ...(readOnly ? {canEditMounts: false} : {}),
+        }),
+        [htmlAppEnv, getPane, readOnly],
     )
     // The app whose code is on screen; every other app opens running.
     const [htmlCodePath, setHtmlCodePath] = useState<string | null>(null)
@@ -436,7 +460,7 @@ export function DriveExplorer({
     // On the open file a rename flushes the draft first; a delete forgets it.
     const commitName = useCallback(
         async (name: string): Promise<boolean> => {
-            if (!nameEdit) return false
+            if (!nameEdit || readOnly) return false
             const {path, fresh} = nameEdit
             if (editing && path === selectedPath) await saveDraft()
             const ok = await (fresh
@@ -447,7 +471,7 @@ export function DriveExplorer({
             setNameEdit(null)
             return true
         },
-        [nameEdit, writes, editing, selectedPath, saveDraft, replaceSelection],
+        [nameEdit, readOnly, writes, editing, selectedPath, saveDraft, replaceSelection],
     )
     const startRename = useCallback(
         (path: string) => {
@@ -676,6 +700,13 @@ export function DriveExplorer({
             />
         )
 
+        const shownContentHeader =
+            touch && contentHeader ? (
+                <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
+            ) : (
+                contentHeader
+            )
+
         // The content column: the folder's children, an editor, or a preview.
         const contentPane =
             selectedPath == null ? (
@@ -782,7 +813,7 @@ export function DriveExplorer({
                     treeScrollRef={treeScrollRef}
                     onTreeKeyDown={onTreeKeyDown}
                     treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
-                    contentHeader={contentHeader}
+                    contentHeader={shownContentHeader}
                     railHeader={
                         chrome ? (
                             <Input
@@ -860,36 +891,38 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    <DriveHeader
-                        selectedPath={selectedPath}
-                        isFolder={selectedIsFolder}
-                        rootLabel={rootLabel}
-                        onNavigate={select}
-                        canGoBack={canGoBack}
-                        canGoForward={canGoForward}
-                        onBack={goBack}
-                        onForward={goForward}
-                        copyText={copyText}
-                        ids={driveIds ?? []}
-                        showOrigin={showOrigin}
-                        showTemporary={showTemporary}
-                        onToggleTemporary={() => setShowTemporary((v) => !v)}
-                        showHidden={showHidden}
-                        onToggleHidden={toggleShowHiddenPref}
-                        inGitScope={inGitScope}
-                        showGitignored={showGitignored}
-                        onToggleGitignored={toggleShowGitignoredPref}
-                        treeVisible={treeVisible}
-                        onToggleTree={toggleTree}
-                        onClose={onClose}
-                        closeVariant={closeVariant}
-                        expanded={drawerExpanded}
-                        onToggleExpand={onToggleExpand}
-                        expandPlacement={expandPlacement}
-                        partialErrored={drive.partialErrored}
-                        onRetry={drive.retry}
-                        retrying={drive.isFetching}
-                    />
+                    <div className={touch ? TOUCH_HEADER : "contents"}>
+                        <DriveHeader
+                            selectedPath={selectedPath}
+                            isFolder={selectedIsFolder}
+                            rootLabel={rootLabel}
+                            onNavigate={select}
+                            canGoBack={canGoBack}
+                            canGoForward={canGoForward}
+                            onBack={goBack}
+                            onForward={goForward}
+                            copyText={copyText}
+                            ids={driveIds ?? []}
+                            showOrigin={showOrigin}
+                            showTemporary={showTemporary}
+                            onToggleTemporary={() => setShowTemporary((v) => !v)}
+                            showHidden={showHidden}
+                            onToggleHidden={toggleShowHiddenPref}
+                            inGitScope={inGitScope}
+                            showGitignored={showGitignored}
+                            onToggleGitignored={toggleShowGitignoredPref}
+                            treeVisible={treeVisible}
+                            onToggleTree={toggleTree}
+                            onClose={onClose}
+                            closeVariant={closeVariant}
+                            expanded={drawerExpanded}
+                            onToggleExpand={onToggleExpand}
+                            expandPlacement={expandPlacement}
+                            partialErrored={drive.partialErrored}
+                            onRetry={drive.retry}
+                            retrying={drive.isFetching}
+                        />
+                    </div>
                     <input
                         ref={uploadInputRef}
                         type="file"
