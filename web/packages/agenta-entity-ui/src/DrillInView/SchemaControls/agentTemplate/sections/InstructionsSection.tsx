@@ -1,9 +1,13 @@
+import {createT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {FileText} from "@phosphor-icons/react"
 
 import {InstructionsFileRow, type ItemRowStatus} from "../ItemRow"
 import type {PanelSectionKey} from "../sectionChanges"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
+
+const tItems = createT(configItemsCatalog)
 
 export interface InstructionsSectionParams {
     t: AgentTemplateT
@@ -33,12 +37,20 @@ export const instructionsSection = ({
               tooltip: t("entityUi.agentTemplate.editedNotSaved"),
           }
         : undefined
+    // The phone row (M07): "AGENTS.md · 33 words", as the file row inside counts them.
+    const words = (agentsMd ?? "").trim().split(/\s+/).filter(Boolean).length
+    const phoneSummary = `AGENTS.md · ${
+        words > 0
+            ? tItems("entityUi.configItems.wordCount", {count: words})
+            : tItems("entityUi.configItems.empty")
+    }`
 
     return (
         hasInstructions && {
             key: "instructions",
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", t("entityUi.agentTemplate.instructions")),
+            phoneSummary,
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             content: (

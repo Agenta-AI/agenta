@@ -33,6 +33,11 @@ export interface AgentTemplateSectionDescriptor {
     /** Short status pill after the title (see SectionTitleBadge). */
     titleBadge?: ReactNode
     summary?: ReactNode
+    /**
+     * On a phone, the row's summary line in place of `summary`, where the phone canvas (M07) says
+     * more than the desktop header ("AGENTS.md · 33 words", the skill names).
+     */
+    phoneSummary?: ReactNode
     /** Header-right slot, before the chevron (the "+" add button). */
     extra?: ReactNode
     indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode; pulse?: boolean}
@@ -210,9 +215,9 @@ const PhoneSectionList = ({
                             ) : null}
                             {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
                         </span>
-                        {s.summary ? (
+                        {(s.phoneSummary ?? s.summary) ? (
                             <span className="truncate text-xs text-colorTextSecondary">
-                                {s.summary}
+                                {s.phoneSummary ?? s.summary}
                             </span>
                         ) : null}
                     </span>

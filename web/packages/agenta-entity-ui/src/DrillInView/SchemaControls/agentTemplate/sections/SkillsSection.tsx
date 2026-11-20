@@ -8,7 +8,7 @@ import {Compass} from "@phosphor-icons/react"
 import {countSummary} from "../agentTemplateUtils"
 import {ConfigItemList} from "../ConfigItemList"
 import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
-import {isEmbedRefSkill} from "../itemDescriptors"
+import {describeSkill, isEmbedRefSkill, skillCommandName} from "../itemDescriptors"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -51,6 +51,11 @@ export const skillsSection = ({
         title: fieldTitle("skills", t("entityUi.agentTemplate.skills")),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(skills.length, "skill") || tNow("common.none"),
+        // The phone row (M07) names them: "ticket-triage, plain-writing".
+        phoneSummary:
+            skills
+                .map((skill) => skillCommandName(skill) ?? describeSkill(skill).name)
+                .join(", ") || tNow("common.none"),
         indicator: sectionIndicator("skills"),
         extra: !disabled ? <SkillsAddMenu t={t} onManual={handleAddSkill} /> : undefined,
         defaultOpen: skills.length > 0,
