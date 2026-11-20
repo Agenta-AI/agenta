@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {createT, useT} from "@agenta/i18n"
 import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import type {SessionRowVm} from "@agenta/sessions/row"
-import {sessionSearchAtom, useSessionPins, useSessionsList} from "@agenta/sessions/state"
+import {useSessionFilterAtoms, useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -82,6 +82,8 @@ const WIDE_COLUMNS: ListTableColumn[] = [
     ACTIONS_COLUMN,
 ]
 const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
+/** The Sessions page of one agent: every row has that agent, so there is no Agent column. */
+const LOCKED_AGENT_WIDE_COLUMNS = WIDE_COLUMNS.filter((column) => column.key !== "agent")
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
@@ -113,6 +115,7 @@ export const SessionListTable = ({
     onNewSession,
     onClearSearch,
     onResetView,
+    lockedAgentId,
 }: {
     group: SessionGrouping
     /** ISO floor from the Last activity facet; undefined = no bound. */
@@ -133,9 +136,13 @@ export const SessionListTable = ({
     onClearSearch: () => void
     /** Undoes every facet, the grouping and the search. */
     onResetView: () => void
+    /** The Sessions page of one agent: the list shows only its sessions, and the table has no
+     *  Agent column. */
+    lockedAgentId?: string
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const list = useSessionsList({
+        agentId: lockedAgentId,
         activityFloor,
         // Release contract: the human list hides automation runs; the Type filter's "Automation
         // runs" swaps in the automation policy. Same policies the desktop list passes.
@@ -149,7 +156,7 @@ export const SessionListTable = ({
     const narrow = !useMediaQuery(WIDE_QUERY)
     // The APPLIED term, not the field's draft: the empty state quotes what the rows were actually
     // queried for, so it can never name a search that has not run yet.
-    const term = useAtomValue(sessionSearchAtom).trim()
+    const term = useAtomValue(useSessionFilterAtoms().search).trim()
 
     const probe = useProjectHasSessions(list.isEmpty && !list.isPlaceholder && !list.isPending)
 
@@ -230,7 +237,13 @@ export const SessionListTable = ({
                 }
             >
                 <ListTable
-                    columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+                    columns={
+                        narrow
+                            ? NARROW_COLUMNS
+                            : lockedAgentId
+                              ? LOCKED_AGENT_WIDE_COLUMNS
+                              : WIDE_COLUMNS
+                    }
                     minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
                     // Sessions is the long list in this app — hundreds of rows, four screens of
                     // scrolling — so the column names have to stay put. Affordable here because
@@ -247,7 +260,8 @@ export const SessionListTable = ({
                     onToggleGroup={toggleGroup}
                     groupActions={groupActions}
                     empty={
-                        // Nothing while unsettled; an empty project gets the onboarding.
+                        // Nothing while unsettled. An empty project gets the onboarding from the
+                        // screen; the Sessions page of one agent shows this state too.
                         list.isPlaceholder || probe.pending ? null : (
                             <SessionsNoMatch
                                 term={term || undefined}
@@ -259,6 +273,7 @@ export const SessionListTable = ({
                         <SessionRowCells
                             vm={vm}
                             narrow={narrow}
+                            hideAgent={Boolean(lockedAgentId)}
                             entries={verbs.menuFor(vm)}
                             onMenuSelect={verbs.onMenuSelect}
                             onRenameRow={verbs.onRenameRow}

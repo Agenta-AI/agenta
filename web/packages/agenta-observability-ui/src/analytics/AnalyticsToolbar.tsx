@@ -10,6 +10,7 @@ import {
     rankKeys,
     sum,
     analyticsModelProvidersAtomFamily,
+    useAnalyticsViewAtoms,
     type AnalyticsCustomRange,
     type AnalyticsFilters,
     type AnalyticsGroup,
@@ -105,6 +106,10 @@ export interface AnalyticsToolbarProps {
     agentName: (id: string) => string
     rangeOpen: boolean
     onRangeOpenChange: (open: boolean) => void
+    /** Shown on the page of one agent, where the Agent filter and grouping are not offered. */
+    lockedAgentChip?: ReactNode
+    /** What the charts read; the filter counts read it too, so they count this page's runs. */
+    queryFilters?: AnalyticsFilters
 }
 
 export const AnalyticsToolbar = ({
@@ -123,12 +128,20 @@ export const AnalyticsToolbar = ({
     agentName,
     rangeOpen,
     onRangeOpenChange,
+    lockedAgentChip,
+    queryFilters = filters,
 }: AnalyticsToolbarProps) => {
+    // The view decides, as on the page: the page of one agent made its own view with that agent.
+    const locked = Boolean(useAnalyticsViewAtoms().lockedAgentId)
     const t = useT(analyticsCatalog)
     const groupOptions: FilterMenuOption<AnalyticsGroup>[] = (
-        ["none", "agent", "model", "provider"] as const
+        locked
+            ? (["none", "model", "provider"] as const)
+            : (["none", "agent", "model", "provider"] as const)
     ).map((value) => ({value, label: t(GROUP_LABEL[value]), icon: GROUP_ICONS[value]}))
-    const active = DIMS.filter((d) => filters[d.key].length)
+    // The locked agent shows as its own chip, never as a removable filter.
+    const dims = locked ? DIMS.filter((d) => d.key !== "agent") : DIMS
+    const active = dims.filter((d) => filters[d.key].length)
     const label = (dim: FilterDim, key: string) => (dim === "agent" ? agentName(key) : key)
     const [customOpen, setCustomOpen] = useState(false)
     const openingCustom = useRef(false)
@@ -233,6 +246,8 @@ export const AnalyticsToolbar = ({
                 onChange={onFiltersChange}
                 window={window}
                 label={label}
+                queryFilters={queryFilters}
+                dims={dims}
             />
 
             <GroupMenu
@@ -246,6 +261,8 @@ export const AnalyticsToolbar = ({
                 }
                 icon={<Rows size={ICON} />}
             />
+
+            {locked ? lockedAgentChip : null}
 
             {active.map((dim) => {
                 const values = filters[dim.key].map((key) => label(dim.key, key))
@@ -331,10 +348,24 @@ const CustomRangePanel = ({
     )
 }
 
-/** Counts per value, ignoring the dimension's own filter so every option stays pickable. */
-const useFilterCounts = (dim: FilterDim, filters: AnalyticsFilters, window: AnalyticsWindow) => {
+/**
+ * Counts per value, ignoring the dimension's own filter so every option stays pickable. A
+ * dimension the menu does not offer asks for nothing.
+ */
+const useFilterCounts = (
+    dim: FilterDim,
+    filters: AnalyticsFilters,
+    window: AnalyticsWindow,
+    offered = true,
+) => {
     const others = useMemo(() => ({...filters, [dim]: []}), [dim, filters])
-    const query = useAnalyticsBuckets(dim === "agent" ? "agents" : "models", window, others)
+    const query = useAnalyticsBuckets(
+        dim === "agent" ? "agents" : "models",
+        window,
+        others,
+        null,
+        offered,
+    )
     return useMemo(() => {
         const paths = dim === "agent" ? [PATH.agentApp, PATH.agentWorkflow] : [PATH.model]
         const series = keyedSeries(window, query.data ?? [], paths)
@@ -422,23 +453,30 @@ const AnalyticsFilterMenu = ({
     onChange,
     window,
     label,
+    queryFilters,
+    dims,
 }: {
     filters: AnalyticsFilters
     onChange: (filters: AnalyticsFilters) => void
     window: AnalyticsWindow
     label: (dim: FilterDim, key: string) => string
+    /** Counts read these, so the page of one agent counts only its runs. */
+    queryFilters: AnalyticsFilters
+    /** The dimensions the menu offers. */
+    dims: readonly (typeof DIMS)[number][]
 }) => {
     const t = useT(analyticsCatalog)
     const [open, setOpen] = useState(false)
-    const agents = useFilterCounts("agent", filters, window)
-    const models = useFilterCounts("model", filters, window)
-    const providerOf = useModelProviders(window, filters, open)
+    const offersAgent = dims.some((d) => d.key === "agent")
+    const agents = useFilterCounts("agent", queryFilters, window, offersAgent)
+    const models = useFilterCounts("model", queryFilters, window)
+    const providerOf = useModelProviders(window, queryFilters, open)
     const optionAgentName = useAgentNames(Object.keys(agents.counts))
-    const anyActive = DIMS.some((d) => filters[d.key].length)
+    const anyActive = dims.some((d) => filters[d.key].length)
 
     const sections = useMemo<FilterMenuSection[]>(
         () =>
-            DIMS.map((d) => {
+            dims.map((d) => {
                 const {counts, pending} = d.key === "agent" ? agents : models
                 const name = (key: string) =>
                     d.key === "agent" ? optionAgentName(key) : label(d.key, key)
@@ -480,7 +518,7 @@ const AnalyticsFilterMenu = ({
                         }),
                 }
             }),
-        [agents, models, providerOf, optionAgentName, label, filters, onChange, t],
+        [agents, models, providerOf, optionAgentName, label, filters, onChange, dims, t],
     )
 
     return (

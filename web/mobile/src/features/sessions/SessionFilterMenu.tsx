@@ -11,6 +11,7 @@ import {
     ChatCircle,
     Clock,
     Lightning,
+    LockSimple,
     Minus,
     Robot,
     Rows,
@@ -19,6 +20,7 @@ import {
 } from "@phosphor-icons/react"
 
 import {
+    DEFAULT_SESSION_LIST_VIEW,
     isDefaultSessionListView,
     type SessionActivityWindow,
     type SessionGrouping,
@@ -52,6 +54,8 @@ export const SessionFilterMenu = ({
     agents,
     waitingCount,
     onReset,
+    lockedAgent,
+    defaultView = DEFAULT_SESSION_LIST_VIEW,
 }: {
     view: SessionListView
     onChange: (view: SessionListView) => void
@@ -65,6 +69,13 @@ export const SessionFilterMenu = ({
      * showing a term that no longer applies.
      */
     onReset: () => void
+    /**
+     * The page's one agent, on the Sessions page of an agent. The Agent row shows it with a lock
+     * and cannot change, and Group by has no Agent choice.
+     */
+    lockedAgent?: {id: string; name: string}
+    /** What Reset returns to and what counts as untouched. */
+    defaultView?: SessionListView
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
@@ -129,34 +140,52 @@ export const SessionFilterMenu = ({
                 ],
                 onChange: (value) => setStatus(value as SessionStatusFilter),
             },
-            {
-                key: "agent",
-                label: t("sessions.mobileList.agent"),
-                icon: <Robot size={ICON} />,
-                value: agentId ?? ALL_AGENTS,
-                options: [
-                    {
-                        value: ALL_AGENTS,
-                        label: t("sessions.mobileList.allAgents"),
-                        icon: <Robot size={ICON} />,
-                    },
-                    ...agents.map((agent) => ({
-                        value: agent.id,
-                        label: agent.name,
-                        // The agent's own glyph, as in the table's Agent column.
-                        icon: (
-                            <AgentGlyph
-                                workflowId={agent.id}
-                                size={ICON}
-                                fallback={<Robot size={ICON} aria-hidden />}
-                            />
-                        ),
-                    })),
-                ],
-                emptyText: t("sessions.mobileList.noAgentsYet"),
-                wide: true,
-                onChange: (value) => setAgentId(value === ALL_AGENTS ? null : value),
-            },
+            lockedAgent
+                ? {
+                      key: "agent",
+                      label: t("sessions.mobileList.agent"),
+                      icon: <Robot size={ICON} />,
+                      value: lockedAgent.id,
+                      valueLabel: lockedAgent.name,
+                      options: [
+                          {
+                              value: lockedAgent.id,
+                              label: lockedAgent.name,
+                              icon: <LockSimple size={ICON} />,
+                              disabled: true,
+                          },
+                      ],
+                      wide: true,
+                      onChange: () => undefined,
+                  }
+                : {
+                      key: "agent",
+                      label: t("sessions.mobileList.agent"),
+                      icon: <Robot size={ICON} />,
+                      value: agentId ?? ALL_AGENTS,
+                      options: [
+                          {
+                              value: ALL_AGENTS,
+                              label: t("sessions.mobileList.allAgents"),
+                              icon: <Robot size={ICON} />,
+                          },
+                          ...agents.map((agent) => ({
+                              value: agent.id,
+                              label: agent.name,
+                              // The agent's own glyph, as in the table's Agent column.
+                              icon: (
+                                  <AgentGlyph
+                                      workflowId={agent.id}
+                                      size={ICON}
+                                      fallback={<Robot size={ICON} aria-hidden />}
+                                  />
+                              ),
+                          })),
+                      ],
+                      emptyText: t("sessions.mobileList.noAgentsYet"),
+                      wide: true,
+                      onChange: (value) => setAgentId(value === ALL_AGENTS ? null : value),
+                  },
             {
                 key: "activity",
                 label: t("sessions.mobileList.lastActivity"),
@@ -201,11 +230,16 @@ export const SessionFilterMenu = ({
                 block: "sort",
                 value: view.group,
                 options: [
-                    {
-                        value: "agent",
-                        label: t("sessions.mobileList.agent"),
-                        icon: <Robot size={ICON} />,
-                    },
+                    // One agent has nothing to group by.
+                    ...(lockedAgent
+                        ? []
+                        : [
+                              {
+                                  value: "agent",
+                                  label: t("sessions.mobileList.agent"),
+                                  icon: <Robot size={ICON} />,
+                              },
+                          ]),
                     {
                         value: "date",
                         label: t("sessions.mobileList.date"),
@@ -229,6 +263,7 @@ export const SessionFilterMenu = ({
         agentId,
         agents,
         archivedOnly,
+        lockedAgent,
         mode,
         onChange,
         setAgentId,
@@ -248,7 +283,7 @@ export const SessionFilterMenu = ({
         status !== "all" ||
         mode ||
         archivedOnly ||
-        !isDefaultSessionListView(view)
+        !isDefaultSessionListView(view, defaultView)
 
     return (
         <FilterMenu

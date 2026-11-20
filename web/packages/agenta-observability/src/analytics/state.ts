@@ -1,3 +1,5 @@
+import {createContext, useContext} from "react"
+
 import {canViewSpansAtom} from "@agenta/entities/access"
 import {agentWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -37,34 +39,7 @@ import type {
     AnalyticsWindow,
 } from "./types"
 
-export const analyticsRangeAtom = atom<AnalyticsRangeKey>("7d")
-
-/** The page's clock; the host ticks it so the window follows real time. */
-export const analyticsNowAtom = atom(Date.now())
-
-/** A picked span of days; set, it replaces the preset range. */
-export const analyticsCustomRangeAtom = atom<AnalyticsCustomRange | null>(null)
-
-// Rounded to the hour or day, so the query keys only move at a boundary.
-export const analyticsWindowAtom = atom<AnalyticsWindow>((get) => {
-    const custom = get(analyticsCustomRangeAtom)
-    return custom
-        ? customWindow(custom)
-        : rangeWindow(get(analyticsRangeAtom), get(analyticsNowAtom))
-})
-
-export const analyticsRangeLabelAtom = atom((get) => {
-    const custom = get(analyticsCustomRangeAtom)
-    return custom
-        ? customRangeLabel(custom, get(analyticsNowAtom))
-        : ANALYTICS_RANGE[get(analyticsRangeAtom)].label
-})
-
 export const EMPTY_FILTERS: AnalyticsFilters = {agent: [], model: []}
-
-export const analyticsFiltersAtom = atom<AnalyticsFilters>(EMPTY_FILTERS)
-
-export const analyticsGroupAtom = atom<AnalyticsGroup>("none")
 
 const QUERY_OPTIONS = {
     staleTime: 60_000,
@@ -78,6 +53,8 @@ export interface AnalyticsBucketsKey {
     window: AnalyticsWindow
     filters: AnalyticsFilters
     focus?: AnalyticsFocus | null
+    /** False holds the request; the key only carries it when false. */
+    enabled?: false
 }
 
 export const analyticsBucketsAtomFamily = atomFamily(
@@ -88,7 +65,7 @@ export const analyticsBucketsAtomFamily = atomFamily(
                 queryKey: ["analytics", "buckets", projectId, key],
                 queryFn: ({signal}) =>
                     fetchAnalyticsBuckets({projectId: projectId as string, ...key, signal}),
-                enabled: Boolean(projectId) && get(canViewSpansAtom),
+                enabled: Boolean(projectId) && get(canViewSpansAtom) && key.enabled !== false,
                 ...QUERY_OPTIONS,
             }
         }),
@@ -260,4 +237,65 @@ export interface AnalyticsDrawerState {
     failedOnly: boolean
 }
 
-export const analyticsDrawerAtom = atom<AnalyticsDrawerState | null>(null)
+/**
+ * One Analytics page's view: the range, the filters, the grouping and the open drawer. The
+ * Analytics tab in Settings uses the shared view (the exports below). The Analytics page of one
+ * agent makes its own view with `lockedAgentId`: the reader's `filters` never hold that agent,
+ * and `queryFilters`, what the data reads, always does. The queries are keyed by value, so both
+ * views share the query cache.
+ */
+export const createAnalyticsViewAtoms = (lockedAgentId?: string) => {
+    const range = atom<AnalyticsRangeKey>("7d")
+    /** The page's clock; the host ticks it so the window follows real time. */
+    const now = atom(Date.now())
+    /** A picked span of days; set, it replaces the preset range. */
+    const custom = atom<AnalyticsCustomRange | null>(null)
+    // Rounded to the hour or day, so the query keys only move at a boundary.
+    const timeWindow = atom<AnalyticsWindow>((get) => {
+        const picked = get(custom)
+        return picked ? customWindow(picked) : rangeWindow(get(range), get(now))
+    })
+    const rangeLabel = atom((get) => {
+        const picked = get(custom)
+        return picked ? customRangeLabel(picked, get(now)) : ANALYTICS_RANGE[get(range)].label
+    })
+    /** What the reader picked in the toolbar. */
+    const filters = atom<AnalyticsFilters>(EMPTY_FILTERS)
+    /** What the charts and the drawer read: the reader's filters, and the locked agent. */
+    const queryFilters = lockedAgentId
+        ? atom<AnalyticsFilters>((get) => ({...get(filters), agent: [lockedAgentId]}))
+        : filters
+    const group = atom<AnalyticsGroup>("none")
+    const drawer = atom<AnalyticsDrawerState | null>(null)
+    return {
+        lockedAgentId: lockedAgentId ?? null,
+        range,
+        now,
+        custom,
+        window: timeWindow,
+        rangeLabel,
+        filters,
+        queryFilters,
+        group,
+        drawer,
+    }
+}
+
+export type AnalyticsViewAtoms = ReturnType<typeof createAnalyticsViewAtoms>
+
+/** The view the Analytics tab in Settings keeps. */
+export const sharedAnalyticsViewAtoms: AnalyticsViewAtoms = createAnalyticsViewAtoms()
+
+/** The view the page below reads: its own on the page of one agent, else the shared one. */
+export const AnalyticsViewAtomsContext = createContext<AnalyticsViewAtoms>(sharedAnalyticsViewAtoms)
+
+export const useAnalyticsViewAtoms = (): AnalyticsViewAtoms => useContext(AnalyticsViewAtomsContext)
+
+export const analyticsRangeAtom = sharedAnalyticsViewAtoms.range
+export const analyticsNowAtom = sharedAnalyticsViewAtoms.now
+export const analyticsCustomRangeAtom = sharedAnalyticsViewAtoms.custom
+export const analyticsWindowAtom = sharedAnalyticsViewAtoms.window
+export const analyticsRangeLabelAtom = sharedAnalyticsViewAtoms.rangeLabel
+export const analyticsFiltersAtom = sharedAnalyticsViewAtoms.filters
+export const analyticsGroupAtom = sharedAnalyticsViewAtoms.group
+export const analyticsDrawerAtom = sharedAnalyticsViewAtoms.drawer

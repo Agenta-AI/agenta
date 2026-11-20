@@ -11,12 +11,10 @@ import {
     sharePercent,
     successRate,
     sum,
-    analyticsDrawerAtom,
-    analyticsGroupAtom,
-    analyticsFiltersAtom,
-    analyticsWindowAtom,
+    type AnalyticsDimension,
     type AnalyticsMetric,
     type AnalyticsPoint,
+    useAnalyticsViewAtoms,
 } from "@agenta/observability/analytics"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@agenta/ui/ui"
@@ -57,6 +55,8 @@ const METRIC_LOWER = {
     tools: "observabilityUi.analytics.lowerTools",
     avgcost: "observabilityUi.analytics.lowerAvgCost",
 } as const satisfies Record<AnalyticsMetric, string>
+
+const LOCKED_AGENT_DIMS: readonly AnalyticsDimension[] = ["model"]
 
 const TILES: AnalyticsMetric[] = ["cost", "runs", "success", "tokens", "avgcost", "tools"]
 
@@ -103,7 +103,7 @@ export interface AnalyticsDrawerProps {
 }
 
 export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
-    const [state, setState] = useAtom(analyticsDrawerAtom)
+    const [state, setState] = useAtom(useAnalyticsViewAtoms().drawer)
     return (
         <Sheet open={state !== null} onOpenChange={(open) => !open && setState(null)}>
             <SheetContent
@@ -125,10 +125,13 @@ export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDra
 
 const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
     const t = useT(analyticsCatalog)
-    const [state, setState] = useAtom(analyticsDrawerAtom)
-    const pageWindow = useAtomValue(analyticsWindowAtom)
+    const view = useAnalyticsViewAtoms()
+    const [state, setState] = useAtom(view.drawer)
+    const pageWindow = useAtomValue(view.window)
     const {label: rangeLabel} = useRangeLabel()
-    const [filters, setFilters] = useAtom(analyticsFiltersAtom)
+    const [readerFilters, setFilters] = useAtom(view.filters)
+    // The data reads the page's filters with its locked agent; the reader edits only their own.
+    const filters = useAtomValue(view.queryFilters)
     const [hovered, setHovered] = useState<number | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(scrollRef)
@@ -148,7 +151,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         [data.starts, tools],
     )
     // The page's group stacks the chart too, unless the drawer is on one key of it.
-    const group = useAtomValue(analyticsGroupAtom)
+    const group = useAtomValue(view.group)
     const stackDim = group !== "none" && focus?.dim !== group ? group : null
     const stackSplit = useAnalyticsSplit(
         stackDim ?? "agent",
@@ -159,6 +162,9 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         focus,
     )
     if (!state) return null
+    // The page of one agent breaks down by model only: by agent is one row, and tool calls carry
+    // no agent, so they would count every agent's.
+    const breakdownDim = view.lockedAgentId ? "model" : state.dim
     // Tool spans carry no agent or model, so a narrowed drawer cannot count them.
     const narrowed = Boolean(focus) || filters.agent.length > 0 || filters.model.length > 0
     const metric = narrowed && state.metric === "tools" ? "runs" : state.metric
@@ -212,14 +218,17 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
               {names: focusName ?? ""},
           )
         : null
+    // The reader's own filters: the locked agent is the page, not a filter.
     const pageChips = [
-        filters.agent.length
+        readerFilters.agent.length
             ? t("observabilityUi.analytics.filterAgent", {
-                  names: filters.agent.map(agentName).join(", "),
+                  names: readerFilters.agent.map(agentName).join(", "),
               })
             : null,
-        filters.model.length
-            ? t("observabilityUi.analytics.filterModel", {names: filters.model.join(", ")})
+        readerFilters.model.length
+            ? t("observabilityUi.analytics.filterModel", {
+                  names: readerFilters.model.join(", "),
+              })
             : null,
     ].filter((c): c is string => Boolean(c))
 
@@ -299,11 +308,12 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                     </button>
                                 </span>
                             ) : null}
-                            {focus ? (
+                            {/* The page of one agent has no Agent filter to apply. */}
+                            {focus && !(focus.dim === "agent" && view.lockedAgentId) ? (
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setFilters({...filters, [focus.dim]: [focus.key]})
+                                        setFilters({...readerFilters, [focus.dim]: [focus.key]})
                                         setState(null)
                                     }}
                                     className="h-6 cursor-pointer border-0 bg-transparent px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
@@ -487,7 +497,8 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         window={window}
                         filters={filters}
                         focus={focus}
-                        dim={state.dim}
+                        dim={breakdownDim}
+                        dims={view.lockedAgentId ? LOCKED_AGENT_DIMS : undefined}
                         metric={metric}
                         agentName={agentName}
                         keyColor={keyColor}

@@ -1,12 +1,31 @@
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {isAgentOverviewEnabled, OPEN_PLAYGROUND} from "@/features/agents/agentEntry"
 import {AgentOverviewScreen} from "@/features/agents/AgentOverviewScreen"
 import {AgentPlaygroundRedirect} from "@/features/agents/AgentPlaygroundRedirect"
+import {SessionsPageSkeleton} from "@/features/sessions/states/SessionsPageSkeleton"
+
+// The agent pages load only when opened, so the agent route stays as light as it was.
+// The page frame shows while a chunk loads, not a blank body.
+const AgentSessionsPage = dynamic(
+    () => import("@/features/sessions/SessionListScreen").then((m) => m.SessionListScreen),
+    {loading: () => <SessionsPageSkeleton />},
+)
+const AgentAnalyticsPage = dynamic(
+    () => import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),
+    {loading: () => <SessionsPageSkeleton />},
+)
 
 export default function AgentOverviewPage() {
     const router = useRouter()
-    const {workspace_id: workspaceId, project_id: projectId, agent_id: agentId, open} = router.query
+    const {
+        workspace_id: workspaceId,
+        project_id: projectId,
+        agent_id: agentId,
+        open,
+        view,
+    } = router.query
     if (
         typeof workspaceId !== "string" ||
         typeof projectId !== "string" ||
@@ -14,6 +33,26 @@ export default function AgentOverviewPage() {
     ) {
         return null
     }
+    // The agent pages are views of this route (`?view=`). Keyed by agent: each agent's page has
+    // its own filters.
+    if (view === "sessions")
+        return (
+            <AgentSessionsPage
+                key={agentId}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                lockedAgentId={agentId}
+            />
+        )
+    if (view === "analytics")
+        return (
+            <AgentAnalyticsPage
+                key={agentId}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                agentId={agentId}
+            />
+        )
     const overview = (
         <AgentOverviewScreen
             key={agentId}
