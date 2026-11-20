@@ -143,9 +143,8 @@ export const Composer = ({
     // The config panel's "Create with AI" writes its starter prompt here.
     useComposerPrefill(richInputRef)
 
-    // The `/` palette and its pickers, anchored to the composer box so they open where the
-    // palette was. /new mirrors the session rail's `+`, exactly as it does on the desktop.
-    const composerBoxRef = useRef<HTMLDivElement>(null)
+    // The `/` palette and its pickers open above the composer box, where the palette was. /new
+    // mirrors the session rail's `+`, exactly as it does on the desktop.
     // A tap outside is a deliberate move elsewhere — the one close that must not pull focus back.
     const skipFocusRestoreRef = useRef(false)
     const slash = useChatSlashCommands({
@@ -158,14 +157,6 @@ export const Composer = ({
         }, [richInputRef]),
     })
     const openModelPicker = slash.openModelPicker
-    useEffect(() => {
-        // "Switch model" opens the same list as the model button, and only where the button is.
-        if (!modelPickerRef || modelButtonHidden) return
-        modelPickerRef.current = openModelPicker
-        return () => {
-            modelPickerRef.current = null
-        }
-    }, [modelPickerRef, openModelPicker, modelButtonHidden])
     // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
     // the still-focused panel leaves the DOM.
     const hadPickerRef = useRef(slash.picker)
@@ -207,6 +198,14 @@ export const Composer = ({
     // No button while the model needs setup, or with no model or no list to pick from.
     const modelButtonModel =
         !modelButtonHidden && slash.modelGroups.length > 0 ? slash.currentModel : null
+    useEffect(() => {
+        // "Switch model" opens the same list as the model button, and only where the button is.
+        if (!modelPickerRef || !modelButtonModel) return
+        modelPickerRef.current = openModelPicker
+        return () => {
+            modelPickerRef.current = null
+        }
+    }, [modelPickerRef, openModelPicker, modelButtonModel])
     // Held until the draft and tray leave the composer, not for the whole send.
     const sending = useRef(false)
     const presets = useMotionPresets()
@@ -370,7 +369,7 @@ export const Composer = ({
                                 : describeAccepted(attachments.limits)
                         }
                     />
-                    <div ref={composerBoxRef} className="relative">
+                    <div className="relative">
                         <AnimatePresence initial={false}>
                             {slash.picker === "permissions" ? (
                                 <motion.div
