@@ -127,15 +127,14 @@ export function SkillUploadStep({fileCount, onUpload, onCancel, onControl}: Skil
                     void read(() => readSkillUploadFromDataTransfer(dt), first)
                 }}
                 className={cn(
-                    "flex flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-colorBorder bg-[var(--ag-surface-raised)] px-4 py-7 text-center transition-colors",
+                    "flex flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-colorBorder bg-colorBgContainer px-4 py-7 text-center transition-colors",
                     over && "border-[var(--ag-c-586673)] bg-[var(--ag-c-F5F7FA)]",
                 )}
             >
                 {busy ? <Spinner size="small" /> : <ArrowUp size={16} className="text-colorText" />}
                 <span className="text-[13px] font-medium leading-5 text-colorText">
-                    {richText(t("entityUi.skillTemplate.dragHint"), {
-                        mono: (text) => <span className="font-mono">{text}</span>,
-                    })}
+                    {/* ".zip" and ".skill" in the line's own font (F07 f7). */}
+                    {richText(t("entityUi.skillTemplate.dragHint"), {mono: (text) => text})}
                 </span>
                 <span className="text-[12px] leading-4 text-colorTextSecondary">
                     {t("entityUi.skillView.or")}

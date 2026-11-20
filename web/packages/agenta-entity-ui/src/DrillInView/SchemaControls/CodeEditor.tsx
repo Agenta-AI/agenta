@@ -89,7 +89,9 @@ export function CodeEditor({
         <SharedEditor
             // `!min-h-full`: fills the scroll box (beating the component's own `min-h-[70px]`)
             // while still growing past it, so the border spans the pane AND long files scroll.
-            className={grow ? "!min-h-full" : undefined}
+            // Plain: the host's box is the only frame, so the editor's own hover and focus
+            // border (radius 10) never draws a second one inside it.
+            className={cn(grow && "!min-h-full", plain && "!rounded-none !border-0")}
             editorType={plain ? "borderless" : "border"}
             initialValue={text}
             value={text}

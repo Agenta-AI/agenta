@@ -299,6 +299,12 @@ function ConnectedRow({
     const logo = integration?.logo ?? null
     // One connection reads as Settings reads it: the connection's own name, then "App · Auth".
     const attention = multiple ? null : attentionOf(single)
+    // "Added" only while the connection the agent uses works; with several connections that is
+    // the one its entry names.
+    const addedConnection = multiple
+        ? group.connections.find((connection) => connection.slug === currentSlug)
+        : single
+    const addedWorks = !addedConnection || attentionOf(addedConnection) === null
     // The panel names the app and puts the account under it (canvas F02 f4).
     const title = multiple || canvas ? name : singleLabel
 
@@ -388,7 +394,9 @@ function ConnectedRow({
             }
             action={
                 <span className={`flex items-center ${canvas ? "gap-2" : "gap-0.5"}`}>
-                    {canvas && added && !choosing ? (
+                    {/* "Added" only on a working connection; a pending or inactive one shows its
+                        tag instead (canvas F02 f4). */}
+                    {canvas && added && !choosing && addedWorks ? (
                         <span className="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
                             <Check size={14} />
                             {t("entityUi.integrationDrawer.added")}

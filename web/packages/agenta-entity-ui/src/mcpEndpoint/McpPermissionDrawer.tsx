@@ -57,14 +57,13 @@ import {
     TOOL_PERMISSION_OPTIONS,
     type PermissionPresetValue,
 } from "../DrillInView/SchemaControls/integrationPolicy"
-import type {PermissionPolicy} from "../DrillInView/SchemaControls/permissionPolicy"
 import type {
     GatewayConnectionPermissions,
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
 import {ToolsEmpty} from "../shared/ToolsEmpty"
 
-import {FOLLOW_AGENT_PRESET, MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
+import {MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
 // Built inside memos and callbacks below, which read the language when they run.
 const tNow = createT(mcpPermissionsCatalog)
@@ -110,15 +109,6 @@ export interface McpPermissionDrawerProps {
     onRemove?: () => void
     /** Present when this drawer was opened from the add-server drawer: go back to that list. */
     onBack?: () => void
-    /**
-     * The agent-wide `runner.permissions.default`, for the note under the preset.
-     *
-     * It is the whole meaning of the "Follow agent policy" preset, so the drawer names it there
-     * rather than sending a reader to a different row to find out whether the ladder asks, allows
-     * or denies. A caller with no agent in hand (Settings' read-only "View tools") passes none,
-     * and that view has no preset select to qualify anyway.
-     */
-    agentPolicy?: PermissionPolicy | null
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
     /** The "Account" block, above the preset select. Absent in Settings' "View tools". */
@@ -328,7 +318,6 @@ export default function McpPermissionDrawer(props: McpPermissionDrawerProps) {
             permissions={mcp.permissions}
             onChangePermissions={mcp.write}
             onChangeToolPermission={mcp.setTool}
-            agentPolicy={props.agentPolicy}
             disabled={disabled}
             account={account}
             source={{
@@ -565,7 +554,6 @@ export function useMcpPermissionSource({
                     : option,
             ),
             // Null is "not knowable until the list lands", which `pending` draws instead.
-            agentPolicyPreset: FOLLOW_AGENT_PRESET,
             value: preset ?? "custom",
             overrideCount,
             pending: preset === null,
