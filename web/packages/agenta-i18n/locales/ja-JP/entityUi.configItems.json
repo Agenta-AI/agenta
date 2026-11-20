@@ -49,5 +49,6 @@
     "countSubagent_other": "{{count}} 件のサブエージェント",
     "countServer_other": "{{count}} 件のサーバー",
     "countSkill_other": "{{count}} 件のスキル",
-    "countTool_other": "{{count}} 件のツール"
+    "countTool_other": "{{count}} 件のツール",
+    "change": "変更"
 }

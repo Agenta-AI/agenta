@@ -32,6 +32,7 @@ import {SecretRemoveDialog} from "../../../../secret/SecretRemoveDialog"
 import {ItemRow, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
+import {SectionPageAction} from "../SectionPageAction"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
 
@@ -67,6 +68,13 @@ export const secretsSection = ({
         indicator: sectionIndicator("secrets"),
         extra: !disabled ? (
             <SecretsAddButton
+                revisionId={revisionId ?? ""}
+                canEditSecrets={canEditSecrets}
+                onAdd={() => openAttach()}
+            />
+        ) : undefined,
+        pageAction: !disabled ? (
+            <SecretsPageAction
                 revisionId={revisionId ?? ""}
                 canEditSecrets={canEditSecrets}
                 onAdd={() => openAttach()}
@@ -114,6 +122,20 @@ const SecretsAddButton = ({
             }}
         />
     )
+}
+
+/** "Add" on the Configuration page: the same rule as the header "+". */
+const SecretsPageAction = ({
+    revisionId,
+    canEditSecrets,
+    onAdd,
+}: {
+    revisionId: string
+    canEditSecrets: boolean
+    onAdd: () => void
+}) => {
+    const {canChange} = useCanChange(revisionId, canEditSecrets)
+    return <SectionPageAction action="add" disabled={!canChange} onClick={onAdd} />
 }
 
 export const SecretsSectionBody = ({
