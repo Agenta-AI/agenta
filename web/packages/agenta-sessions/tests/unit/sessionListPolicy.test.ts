@@ -309,9 +309,9 @@ describe("child sessions in the session list", () => {
     })
 
     it("leaves the automations list alone, and the switch does not count there", () => {
-        expect(
-            filter({policy: automation, automationMode: true, showChildSessions: true}),
-        ).toEqual({policy: automation, active: false})
+        expect(filter({policy: automation, automationMode: true, showChildSessions: true})).toEqual(
+            {policy: automation, active: false},
+        )
         expect(filter({policy: automation, automationMode: true}).policy).toBe(automation)
     })
 })

@@ -116,9 +116,7 @@ describe("sessionRowVm automation attribution", () => {
 
 describe("sessionRowVm child session mark", () => {
     it("marks a session that another session created, from its origin", () => {
-        const row = vm(
-            stream({origin: "calling_session"}),
-        )
+        const row = vm(stream({origin: "calling_session"}))
         expect(row.isChildSession).toBe(true)
         expect(row.isAutomation).toBe(false)
     })

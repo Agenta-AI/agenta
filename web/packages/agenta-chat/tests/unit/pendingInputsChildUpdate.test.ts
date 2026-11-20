@@ -22,7 +22,11 @@ const part = {session_id: "child", turn_id: "turn-1", status: "failed"}
 
 describe("child update rows", () => {
     it("reads the structured part of a child_update row", () => {
-        const row = input("child_update", {role: "user", content: "marked text", child_update: part})
+        const row = input("child_update", {
+            role: "user",
+            content: "marked text",
+            child_update: part,
+        })
         expect(childUpdateOfInput(row)).toEqual({
             sessionId: "child",
             turnId: "turn-1",
