@@ -599,11 +599,13 @@ class SessionStreamsRouter:
         interactions_service: SessionInteractionsService,
         run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
+        commands_service: Optional[SessionCommandsService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
         self._run_admission = run_admission
         self._records_service = records_service
+        self._commands_service = commands_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -896,11 +898,30 @@ class SessionStreamsRouter:
         ):
             return {"ok": True}
 
+        # The execution that runs now, read before the kill clears the flags. The kill
+        # writes no ending for it, so it is settled below.
+        stream = await self._service.fetch(
+            project_id=UUID(str(project_id)),
+            session_id=session_id,
+        )
+        running_execution_id = (
+            stream.turn_id
+            if stream is not None and stream.flags.is_running and stream.turn_id
+            else None
+        )
         await self._service.kill(
             project_id=UUID(str(project_id)),
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
+        if running_execution_id is not None and self._commands_service is not None:
+            # Settled `stopped` by the watchdog, so the orphan sweep writes the missing
+            # `done` when the runner writes none.
+            await self._commands_service.settle_execution_killed(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                execution_id=running_execution_id,
+            )
         # kill orphans every pending gate — no one will answer them.
         await self._interactions_service.cancel_session_pending(
             project_id=UUID(str(project_id)),
@@ -1631,13 +1652,15 @@ class RecordsRouter:
             # The runner cannot tell a Steer from a Stop: both abort the turn the same way. The
             # cancel command can, so name the cause on the record and the transcript does not
             # call a turn the user's own reply replaced "Stopped".
+            # `cancel_session` marks its cancel command the same way.
             try:
-                if await self.commands_service.cancelled_by_steer(
+                cancelled_by = await self.commands_service.cancel_cause(
                     project_id=UUID(project_id),
                     session_id=body.session_id,
                     execution_id=body.turn_id,
-                ):
-                    attributes = {**(attributes or {}), "cancelledBy": "steer"}
+                )
+                if cancelled_by is not None:
+                    attributes = {**(attributes or {}), "cancelledBy": cancelled_by}
             except Exception:  # noqa: BLE001 - the cause is a label; the record must land
                 log.warning(
                     "cancel cause lookup failed session=%s turn=%s",
@@ -3811,6 +3834,7 @@ class SessionsRouter:
             interactions_service=interactions_service,
             run_admission=run_admission,
             records_service=records_service,
+            commands_service=commands_service,
         )
         self.records = RecordsRouter(
             records_service=records_service,
