@@ -69,6 +69,34 @@ describe("AgentTemplateSectionList on a phone", () => {
         expect(container.textContent).not.toContain("skill rows")
     })
 
+    it("shows the phone summary on the row, and the desktop summary in the accordion", () => {
+        const withPhoneSummary = [
+            {
+                key: "skills",
+                title: "Skills",
+                summary: "2 skills",
+                phoneSummary: "ticket-triage, plain-writing",
+                content: null,
+            },
+        ]
+        const render = (phone: PhoneSectionsApi | null) =>
+            act(() =>
+                root.render(
+                    createElement(
+                        PhoneSectionsContext.Provider,
+                        {value: phone},
+                        createElement(AgentTemplateSectionList, {sections: withPhoneSummary}),
+                    ),
+                ),
+            )
+        render({shownKey: null, show: vi.fn()})
+        expect(container.textContent).toContain("ticket-triage, plain-writing")
+        expect(container.textContent).not.toContain("2 skills")
+        render(null)
+        expect(container.textContent).toContain("2 skills")
+        expect(container.textContent).not.toContain("ticket-triage")
+    })
+
     it("opens the section's view, or the section as its own screen", () => {
         const show = vi.fn()
         renderList({shownKey: null, show})
