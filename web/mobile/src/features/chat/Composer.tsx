@@ -147,6 +147,9 @@ export const Composer = ({
     // mirrors the session rail's `+`, exactly as it does on the desktop.
     // A tap outside is a deliberate move elsewhere — the one close that must not pull focus back.
     const skipFocusRestoreRef = useRef(false)
+    // An Escape that closed a list the model button opened: focus goes back to that button.
+    const escapeClosedRef = useRef(false)
+    const modelButtonRef = useRef<HTMLButtonElement>(null)
     const slash = useChatSlashCommands({
         entityId,
         onNewSession,
@@ -168,9 +171,14 @@ export const Composer = ({
             skipFocusRestoreRef.current = false
             return
         }
+        const escaped = escapeClosedRef.current
+        escapeClosedRef.current = false
         // Only a `/` command came from typing. A list opened by a button leaves the editor alone,
-        // so a phone keyboard does not pop up after a pick.
-        if (slash.pickerOrigin !== "command") return
+        // so a phone keyboard does not pop up after a pick; an Escape returns to the button.
+        if (slash.pickerOrigin !== "command") {
+            if (escaped) modelButtonRef.current?.focus()
+            return
+        }
         richInputRef.current?.focus()
     }, [richInputRef, slash.picker, slash.pickerOrigin])
     // Stable: both panels register document-level listeners keyed on these.
@@ -178,6 +186,7 @@ export const Composer = ({
     const dismissPicker = useCallback(
         (reason: "escape" | "outside") => {
             if (reason === "outside") skipFocusRestoreRef.current = true
+            escapeClosedRef.current = reason === "escape"
             closePicker()
         },
         [closePicker],
@@ -194,7 +203,6 @@ export const Composer = ({
         closePicker()
         setProvidersOpen(true)
     }, [closePicker])
-    const modelButtonRef = useRef<HTMLButtonElement>(null)
     // No button while the model needs setup, or with no model or no list to pick from.
     const modelButtonModel =
         !modelButtonHidden && slash.modelGroups.length > 0 ? slash.currentModel : null

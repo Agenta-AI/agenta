@@ -69,16 +69,19 @@ export const ComposerModelPanel = ({
             document.removeEventListener("keydown", onKeyDown, true)
         }
     }, [onDismiss, triggerRef])
+    // A touch keyboard would cover the list, so the caret goes to the search only with a mouse.
+    const [finePointer] = useState(
+        () => typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches,
+    )
     // The current model in view when the list opens, as the design draws it.
     useEffect(() => {
         rootRef.current
             ?.querySelector<HTMLElement>("li button[aria-pressed=true]")
             ?.scrollIntoView({block: "nearest"})
-    }, [])
-    // A touch keyboard would cover the list, so the caret goes to the search only with a mouse.
-    const [finePointer] = useState(
-        () => typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches,
-    )
+        // With no caret in the search, the list itself takes focus, so a keyboard attached to a
+        // tablet can still walk it. A focused list opens no touch keyboard.
+        if (!finePointer) rootRef.current?.focus({preventScroll: true})
+    }, [finePointer])
 
     // Up and Down walk the search field and the rows; Enter presses the focused row. Left in an
     // empty search goes back to the commands when `/model` opened the list.
@@ -114,10 +117,11 @@ export const ComposerModelPanel = ({
             ref={rootRef}
             onKeyDown={onKeyDown}
             role="dialog"
+            tabIndex={-1}
             // An open layer for the chat's shortcuts (`isOverlayOpen`), as a Radix popover is.
             data-state="open"
             aria-label={t("chat.mobileComposer.searchModels")}
-            className="bg-popover text-popover-foreground shadow-overlay flex max-h-[min(540px,60dvh)] flex-col rounded-xl p-1.5"
+            className="bg-popover text-popover-foreground shadow-overlay flex outline-none max-h-[min(540px,60dvh)] flex-col rounded-xl p-1.5"
         >
             <ModelPickerList
                 options={groups}

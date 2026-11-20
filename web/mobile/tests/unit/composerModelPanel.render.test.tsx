@@ -128,6 +128,11 @@ describe("ComposerModelPanel", () => {
         pointer.fine = false
         renderPanel()
         expect(document.activeElement).not.toBe(screen.getByPlaceholderText("Search models"))
+        // The list takes focus instead, so an attached keyboard can still walk it.
+        const panel = screen.getByRole("dialog")
+        expect(document.activeElement).toBe(panel)
+        fireEvent.keyDown(panel, {key: "ArrowDown"})
+        expect(document.activeElement).toBe(screen.getByPlaceholderText("Search models"))
     })
 
     it("walks the rows with the arrow keys and goes back with Left from an empty search", () => {
