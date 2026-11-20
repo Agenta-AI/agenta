@@ -9,7 +9,15 @@ import {
 } from "react"
 
 import {ViewEntryContext, ViewStackContext, type ViewEntryApi} from "./context"
-import type {ViewChromeProps, ViewDef, ViewForm, ViewNav, ViewStack, ViewTarget} from "./types"
+import type {
+    ViewChromeProps,
+    ViewDef,
+    ViewForm,
+    ViewNav,
+    ViewSaveResult,
+    ViewStack,
+    ViewTarget,
+} from "./types"
 import {UnsavedChangesDialog, type LeaveAnswer} from "./UnsavedChangesDialog"
 
 interface Entry {
@@ -73,7 +81,7 @@ export const ViewStackHost = ({
     entriesRef.current = entries
     const formsRef = useRef(forms)
     formsRef.current = forms
-    const savingRef = useRef<Promise<boolean | "stay"> | null>(null)
+    const savingRef = useRef<Promise<ViewSaveResult> | null>(null)
     // One guarded navigation at a time, from its first wait to its stack update.
     const navigatingRef = useRef(false)
     const hostRef = useRef<HTMLDivElement>(null)
@@ -89,7 +97,7 @@ export const ViewStackHost = ({
      * that worked: no failure, and the view stays.
      */
     const runSave = useCallback(
-        async (entryKey: number, markFailure: boolean): Promise<boolean | "stay"> => {
+        async (entryKey: number, markFailure: boolean): Promise<ViewSaveResult> => {
             const form = formsRef.current[entryKey]
             if (!form || savingRef.current) return false
             const run = (async () => {

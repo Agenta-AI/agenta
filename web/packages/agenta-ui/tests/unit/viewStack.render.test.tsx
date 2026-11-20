@@ -16,6 +16,7 @@ import {
     type ViewChromeProps,
     type ViewDef,
     type ViewProps,
+    type ViewSaveResult,
     type ViewStack,
     type ViewTarget,
 } from "../../src/view-stack"
@@ -50,7 +51,7 @@ const deferred = () => {
     return {promise, resolve}
 }
 
-let saveImpl: () => Promise<boolean | "stay"> = async () => true
+let saveImpl: () => Promise<ViewSaveResult> = async () => true
 const seen: {target?: ViewTarget; push?: unknown}[] = []
 
 const FormBody = ({params, target, nav}: ViewProps<{name: string}>) => {
@@ -348,7 +349,7 @@ describe("ViewStackHost", () => {
     })
 
     it('a step that resolves "stay" keeps the view, shows no failure and takes input again', async () => {
-        let result: boolean | "stay" = "stay"
+        let result: ViewSaveResult = "stay"
         saveImpl = async () => result
         renderHost()
         fireEvent.click(screen.getByText("open skill"))

@@ -15,6 +15,7 @@ export type {
     ViewForm,
     ViewNav,
     ViewProps,
+    ViewSaveResult,
     ViewStack,
     ViewTarget,
 } from "./types"

@@ -53,6 +53,12 @@ export interface ViewNav {
     cancel: () => void
 }
 
+/**
+ * What a view's save answers: true when the edits landed, false when they did not, "stay" when
+ * one step of a form with several steps worked and the view stays open.
+ */
+export type ViewSaveResult = boolean | "stay"
+
 /** What an "on_save" view reports. An "immediate" view reports nothing. */
 export interface ViewForm {
     dirty: boolean
@@ -66,7 +72,7 @@ export interface ViewForm {
      * the Save press) calls `nav.cancel()`. From the unsaved-changes dialog, "stay" keeps the
      * person on the view, as "Keep editing" does.
      */
-    save: () => Promise<boolean | "stay">
+    save: () => Promise<ViewSaveResult>
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
     leaveDescription: string
     /** The Save button's label when the view names its action (for example "Connect"). */
@@ -105,7 +111,7 @@ export interface ViewChromeProps {
     onBack: () => void
     /** Discard the top view's form and go back one level, without a question. */
     onCancel: () => void
-    /** Save the top view's form: ignored while a save runs; goes back one level on success. */
+    /** Save the top view's form: ignored while a save runs; goes back one level on true. */
     onSave: () => void
     children: ReactNode
 }
