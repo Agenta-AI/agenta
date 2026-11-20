@@ -25,7 +25,6 @@ import {
     getMcpConnectionStatusLabel,
     readMcpConnectionHealth,
     mcpEndpointsQueryAtom,
-    readMcpToolCount,
     refreshMcpEndpointsAtom,
     type McpConnectionStatus,
     type MCPEndpoint,
