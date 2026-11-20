@@ -79,24 +79,27 @@ describe("ConfigurationSectionNav", () => {
                 const top = index < 0 ? 0 : 28 + index * 200
                 return {top, bottom: top + 100, left: 0, right: 0, width: 0, height: 100} as DOMRect
             })
-        act(() =>
-            root.render(
-                <Page
-                    sections={[
-                        {key: "model-harness", title: "Model"},
-                        {key: "instructions", title: "Instructions"},
-                        {key: "advanced", title: "Advanced"},
-                    ]}
-                />,
-            ),
-        )
-        // Not scrolled; jsdom has no scroll height, so the box also reads as "at the bottom".
-        expect(
-            buttons()
-                .filter((b) => b.getAttribute("aria-current") === "location")
-                .map((b) => b.textContent),
-        ).toEqual(["Model"])
-        rect.mockRestore()
+        try {
+            act(() =>
+                root.render(
+                    <Page
+                        sections={[
+                            {key: "model-harness", title: "Model"},
+                            {key: "instructions", title: "Instructions"},
+                            {key: "advanced", title: "Advanced"},
+                        ]}
+                    />,
+                ),
+            )
+            // Not scrolled; jsdom has no scroll height, so the box also reads as "at the bottom".
+            expect(
+                buttons()
+                    .filter((b) => b.getAttribute("aria-current") === "location")
+                    .map((b) => b.textContent),
+            ).toEqual(["Model"])
+        } finally {
+            rect.mockRestore()
+        }
     })
 
     it("scrolls to a section on click and marks it", () => {
@@ -114,7 +117,9 @@ describe("ConfigurationSectionNav", () => {
         const scrollTo = vi.fn()
         content.scrollTo = scrollTo as unknown as typeof content.scrollTo
         act(() => buttons()[1].click())
-        expect(scrollTo).toHaveBeenCalledTimes(1)
+        // jsdom has no layout: the section and the box are both at 0, so the target is the page's
+        // 28 px top padding above it.
+        expect(scrollTo).toHaveBeenCalledWith({top: -28, behavior: "smooth"})
         expect(buttons()[1].getAttribute("aria-current")).toBe("location")
     })
 

@@ -33,7 +33,7 @@ export const AgentPagesHeader = ({
             className="box-border flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-background px-3"
         >
             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-            <h1 className="m-0 min-w-0 truncate text-[15px] font-semibold leading-5 text-colorText">
+            <h1 className="m-0 min-w-0 truncate text-[15px] font-semibold leading-5 text-foreground">
                 {title}
             </h1>
             <div className="min-w-0 flex-1" />
@@ -47,7 +47,7 @@ export const AgentPagesHeader = ({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t("agentLayout.header.builder")}
-                        className="size-8 shrink-0 text-colorTextSecondary"
+                        className="size-8 shrink-0 text-muted-foreground"
                         onClick={onOpenBuilder}
                     >
                         <Hammer size={16} />

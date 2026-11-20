@@ -242,7 +242,7 @@ export const AgentConfigurationScreen = ({
                                         projectId={projectId}
                                         actions={revisionStatus}
                                     />
-                                    {/* The tab row sits in the page column, on a white strip. */}
+                                    {/* The tab row sits in the page column, on its own strip. */}
                                     <div className="box-border h-10 shrink-0 border-0 border-b border-solid border-colorBorderSecondary bg-background">
                                         <div className={`flex h-full ${CONFIGURATION_PAGE_COLUMN}`}>
                                             <TabsList className="h-full gap-[18px] p-0">
@@ -250,7 +250,7 @@ export const AgentConfigurationScreen = ({
                                                     <TabsTrigger
                                                         key={key}
                                                         value={key}
-                                                        className="h-full flex-none rounded-none px-0.5 py-0 text-[13px] font-normal text-colorTextSecondary after:-bottom-px data-[state=active]:font-medium"
+                                                        className="h-full flex-none rounded-none px-0.5 py-0 text-[13px] font-normal text-muted-foreground after:-bottom-px data-[state=active]:font-medium"
                                                     >
                                                         {t(`agentLayout.panel.${key}`)}
                                                     </TabsTrigger>

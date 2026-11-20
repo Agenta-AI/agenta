@@ -1,4 +1,4 @@
-import {cn} from "@agenta/ui/styles"
+import {cn} from "@/lib/utils"
 
 import {AgentPrivacyPanelHost} from "../chat/AgentPrivacyHost"
 

@@ -109,8 +109,8 @@ export const ConfigurationSectionNav = ({
                     className={cn(
                         "h-8 truncate rounded-[8px] border-0 bg-transparent px-2.5 text-left text-[13px] [font-family:inherit]",
                         current === section.key
-                            ? "bg-[var(--ag-controlItemBgActive)] font-medium text-colorText"
-                            : "cursor-pointer text-colorTextSecondary hover:text-colorText",
+                            ? "bg-accent font-medium text-foreground"
+                            : "cursor-pointer text-muted-foreground hover:text-foreground",
                     )}
                     onClick={() => {
                         const root = contentRef.current
