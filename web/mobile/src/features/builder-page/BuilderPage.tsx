@@ -173,7 +173,8 @@ export const BuilderPage = ({
     )
 
     // A page-sized layer for dialogs that cover the page but not the sidebar (Browse ideas, B02).
-    // `contain: layout` makes it the box their fixed mask and positioner fill.
+    // `contain: layout` makes it the box their fixed mask and positioner fill. Not the dialog's
+    // `contained` mode: that one is non-modal (no focus trap) and its mask always blurs.
     const [dialogHost, setDialogHost] = useState<HTMLDivElement | null>(null)
 
     const header = useSessionHeader(projectId, routeChatId ?? "")
@@ -299,20 +300,20 @@ export const BuilderPage = ({
                     }}
                 />
                 {phone ? null : (
-                    <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorderSecondary" />
-                )}
-                {phone ? null : (
-                    <SimpleTooltip title={t("builder.page.fullScreen")}>
-                        <Button
-                            variant="ghost"
-                            size="icon-compact"
-                            aria-label={t("builder.page.fullScreen")}
-                            aria-pressed={layout.fullScreen}
-                            onClick={() => setLayout({fullScreen: !layout.fullScreen})}
-                        >
-                            {layout.fullScreen ? <ArrowsInSimple /> : <ArrowsOutSimple />}
-                        </Button>
-                    </SimpleTooltip>
+                    <>
+                        <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorderSecondary" />
+                        <SimpleTooltip title={t("builder.page.fullScreen")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-compact"
+                                aria-label={t("builder.page.fullScreen")}
+                                aria-pressed={layout.fullScreen}
+                                onClick={() => setLayout({fullScreen: !layout.fullScreen})}
+                            >
+                                {layout.fullScreen ? <ArrowsInSimple /> : <ArrowsOutSimple />}
+                            </Button>
+                        </SimpleTooltip>
+                    </>
                 )}
                 <SimpleTooltip title={t("builder.page.hideOpenItems")}>
                     <Button

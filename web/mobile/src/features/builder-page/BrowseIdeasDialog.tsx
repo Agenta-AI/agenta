@@ -1,4 +1,4 @@
-import {useMemo, useState, type ComponentType} from "react"
+import {useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
@@ -25,12 +25,10 @@ import {
     filterIdeas,
     IDEA_CATEGORIES,
     IDEAS,
+    type Glyph,
     type IdeaCategory,
     type PageKey,
 } from "./ideas"
-
-/** A category or idea glyph: a Phosphor icon, or the Builder mark for "Getting started". */
-type Glyph = ComponentType<{size?: number; className?: string}>
 
 const CATEGORY_ICONS: Record<IdeaCategory | "all", Glyph> = {
     all: List,
@@ -90,10 +88,13 @@ export const BrowseIdeasDialog = ({
                 showCloseButton={false}
                 // A flat 25 % dim with no blur (B02).
                 overlayClassName="bg-black/25 supports-[backdrop-filter]:backdrop-blur-none"
-                // The dialog itself takes the focus, so no field shows a focus ring on open.
-                onOpenAutoFocus={(event) => event.preventDefault()}
+                // The dialog box takes the focus on open, not the search, so no focus ring shows.
+                onOpenAutoFocus={(event) => {
+                    event.preventDefault()
+                    ;(event.currentTarget as HTMLElement | null)?.focus()
+                }}
                 // 60 px from the top of the page: the positioner pads 16 px.
-                className="mt-11 flex h-[460px] max-w-[760px] flex-col gap-0 self-start overflow-hidden rounded-[12px] p-0 shadow-[0_20px_50px_rgba(0,0,0,0.18)] sm:max-w-[760px]"
+                className="mt-11 flex h-[min(460px,calc(100%-44px))] max-w-[760px] flex-col gap-0 self-start overflow-hidden rounded-[12px] p-0 shadow-[0_20px_50px_rgba(0,0,0,0.18)] sm:max-w-[760px]"
             >
                 <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-4 py-3.5">
                     <DialogTitle className="m-0 flex-1 text-sm font-semibold">

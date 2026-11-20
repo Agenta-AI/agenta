@@ -177,18 +177,20 @@ export const BuilderPageChat = ({
                     }
                     composerHeaderExtra={chip}
                     emptyState={<NewBuilderChat heroState={heroState} />}
-                    // Above the composer (B01), only while the chat is new and loaded.
+                    // Above the composer (B01), only in a new chat once it has loaded.
                     aboveComposer={
-                        <div className="px-3 pb-2.5">
-                            <PageQuickActions
-                                onFill={fillComposer}
-                                onPickAgent={(agent) => {
-                                    setPickedAgent(agent)
-                                    setChipRemoved(false)
-                                }}
-                                onBrowseIdeas={() => setIdeasOpen(true)}
-                            />
-                        </div>
+                        isNew ? (
+                            <div className="px-3 pb-2.5">
+                                <PageQuickActions
+                                    onFill={fillComposer}
+                                    onPickAgent={(agent) => {
+                                        setPickedAgent(agent)
+                                        setChipRemoved(false)
+                                    }}
+                                    onBrowseIdeas={() => setIdeasOpen(true)}
+                                />
+                            </div>
+                        ) : null
                     }
                     userMessageAccessory={sentContextChip}
                     onMessagesChanged={handleMessages}

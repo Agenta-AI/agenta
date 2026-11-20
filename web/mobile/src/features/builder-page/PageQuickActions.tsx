@@ -1,12 +1,10 @@
-import type {ComponentType} from "react"
-
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {ChartBar, Lightning, SlidersHorizontal, SquaresFour} from "@phosphor-icons/react"
 
 import {AgentPicker} from "./AgentPicker"
-import type {PageKey} from "./ideas"
+import type {Glyph, PageKey} from "./ideas"
 import type {AgentRef} from "./paneAgent"
 
 const buttonClass =
@@ -16,7 +14,7 @@ const buttonClass =
 const READY: {
     label: PageKey
     request: PageKey
-    icon: ComponentType<{size?: number; className?: string}>
+    icon: Glyph
 }[] = [
     {label: "builder.page.quickBuild", request: "builder.page.readyBuild", icon: BuilderIcon},
     {label: "builder.page.quickTest", request: "builder.page.readyTest", icon: ChartBar},

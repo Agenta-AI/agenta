@@ -5,31 +5,24 @@ import {useT} from "@agenta/i18n"
 import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {
     InlineRenameInput,
-    isMenuDivider,
-    useDeferredMenuSelect,
     useInlineRename,
     useSessionActions,
     type SessionActionTarget,
 } from "@agenta/sessions-ui"
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {DotsThree} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {builderChatHref} from "../builder/builderChatHref"
+import {SessionRowMenu} from "../sessions/SessionRowMenu"
 
 const titleClass = "min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-colorText"
 
 /**
  * The title of a saved builder chat and its "⋯" menu (B03). The menu holds the session actions a
- * session row has (rename, pin, copy link, archive, delete), from the shared `useSessionActions`,
- * because a builder chat is a session. Archive and delete leave for a new chat.
+ * session row has (rename, pin, copy link, archive, delete), from the shared `useSessionActions`
+ * and the session row menu, because a builder chat is a session. Archive and delete leave for a
+ * new chat.
  */
 export const BuilderChatTitle = ({
     title,
@@ -75,11 +68,7 @@ export const BuilderChatTitle = ({
         current: session?.name,
         onCommit: (name) => commitRename(target, name),
     })
-    // "Rename" mounts the input once the menu has closed, so the menu does not take the focus back.
-    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect((key) => {
-        if (key === "rename") return rename.start
-        actions.onMenuClick(target)({key})
-    })
+    const actionsLabel = t("sessions.rows.actionsFor", {name: title})
 
     return (
         <>
@@ -92,38 +81,25 @@ export const BuilderChatTitle = ({
             ) : (
                 <span className={titleClass}>{title}</span>
             )}
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+            <SessionRowMenu
+                entries={actions.menuItems(target)}
+                // "Rename" mounts the input once the menu has closed (the menu's deferred select).
+                onSelect={(key) =>
+                    key === "rename" ? rename.start : actions.onMenuClick(target)({key})
+                }
+                label={title}
+                trigger={
                     <Button
                         variant="ghost"
                         size="icon-compact"
-                        aria-label={t("sessions.rows.actionsFor", {name: title})}
-                        title={t("sessions.rows.actionsFor", {name: title})}
+                        aria-label={actionsLabel}
+                        title={actionsLabel}
                         className="shrink-0"
                     >
                         <DotsThree aria-hidden weight="bold" />
                     </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" onCloseAutoFocus={handleCloseAutoFocus}>
-                    {actions.menuItems(target).map((entry, index) =>
-                        isMenuDivider(entry) ? (
-                            <DropdownMenuSeparator key={`divider-${index}`} />
-                        ) : (
-                            <DropdownMenuItem
-                                key={entry.key}
-                                disabled={entry.disabled}
-                                variant={entry.danger ? "destructive" : "default"}
-                                onSelect={() => handleSelect(entry.key)}
-                            >
-                                {entry.icon ? (
-                                    <span className="flex shrink-0 items-center">{entry.icon}</span>
-                                ) : null}
-                                {entry.label}
-                            </DropdownMenuItem>
-                        ),
-                    )}
-                </DropdownMenuContent>
-            </DropdownMenu>
+                }
+            />
         </>
     )
 }

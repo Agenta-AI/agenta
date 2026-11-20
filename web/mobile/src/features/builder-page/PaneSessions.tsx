@@ -49,19 +49,24 @@ export const usePaneSessionPick = (projectId: string, agentId: string) => {
     const [pickedId, setPickedId] = useState<string | null>(null)
     const rows = query.data?.sessions ?? []
     const session = rows.find((row) => row.session_id === pickedId) ?? rows[0] ?? null
-    return {query, rows, session, pick: setPickedId}
+    return {query, session, pick: setPickedId}
 }
 export type PaneSessionPick = ReturnType<typeof usePaneSessionPick>
 
-const StatusMark = ({session}: {session: SessionStream}) =>
-    sessionRowVm(session, {pinned: false, pending: undefined}).status.status === "running" ? (
-        <Spinner className="size-3 shrink-0" />
-    ) : (
-        <Circle aria-hidden size={12} className="shrink-0 text-colorTextSecondary" />
+/** A session's status mark and title, as the session rows show them. */
+const SessionLabel = ({session}: {session: SessionStream}) => {
+    const vm = sessionRowVm(session, {pinned: false, pending: undefined})
+    return (
+        <>
+            {vm.status.status === "running" ? (
+                <Spinner className="size-3 shrink-0" />
+            ) : (
+                <Circle aria-hidden size={12} className="shrink-0 text-colorTextSecondary" />
+            )}
+            <span className="min-w-0 flex-1 truncate">{vm.title}</span>
+        </>
     )
-
-const titleOf = (session: SessionStream) =>
-    sessionRowVm(session, {pinned: false, pending: undefined}).title
+}
 
 /**
  * The session switcher at the end of the pane sub-tab row (B04): the session on screen, and the
@@ -79,10 +84,10 @@ export const PaneSessionSwitcher = ({pick}: {pick: PaneSessionPick}) => {
                     type="button"
                     data-testid="pane-session-switcher"
                     aria-haspopup="listbox"
-                    className="box-border flex h-7 w-[172px] min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer pl-2.5 pr-2 text-left text-[13px] font-medium leading-5 text-colorText hover:bg-zinc-1"
+                    // 44 px high on a phone (tap rule).
+                    className="box-border flex h-7 w-[172px] min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer pl-2.5 pr-2 text-left text-[13px] font-medium leading-5 text-colorText hover:bg-zinc-1 max-md:h-11 max-md:w-[140px]"
                 >
-                    <StatusMark session={current} />
-                    <span className="min-w-0 flex-1 truncate">{titleOf(current)}</span>
+                    <SessionLabel session={current} />
                     <CaretUpDown
                         aria-hidden
                         size={14}
@@ -95,7 +100,7 @@ export const PaneSessionSwitcher = ({pick}: {pick: PaneSessionPick}) => {
                 aria-label={t("builder.page.sessions")}
                 className="flex max-h-[360px] w-[280px] flex-col overflow-y-auto p-1"
             >
-                {pick.rows.map((row) => (
+                {(pick.query.data?.sessions ?? []).map((row) => (
                     <button
                         key={row.session_id}
                         type="button"
@@ -105,12 +110,11 @@ export const PaneSessionSwitcher = ({pick}: {pick: PaneSessionPick}) => {
                             setOpen(false)
                         }}
                         className={cn(
-                            "flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[13px] text-colorText hover:bg-colorFillTertiary",
+                            "flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[13px] text-colorText hover:bg-colorFillTertiary max-md:h-11",
                             row.session_id === current.session_id && "bg-colorFillSecondary",
                         )}
                     >
-                        <StatusMark session={row} />
-                        <span className="min-w-0 flex-1 truncate">{titleOf(row)}</span>
+                        <SessionLabel session={row} />
                     </button>
                 ))}
             </PopoverContent>
