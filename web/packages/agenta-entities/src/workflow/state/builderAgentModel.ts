@@ -77,13 +77,19 @@ export async function ensureBuilderAgentModel({
                 },
             },
         })
-    } catch {
-        // A conflict: another commit landed first. Read it and do not commit again.
+    } catch (error) {
+        if (!isConflict(error)) {
+            // For example a member without edit rights: the chat shows that a model is
+            // needed, as with no candidate.
+            console.warn("[builder] The default model commit failed", error)
+            return revision
+        }
+        // Another commit landed first. Read it and do not commit again.
         return (
-            (await retrieveWorkflowRevision({
-                projectId,
-                workflowRef: {id: workflowId},
-            }).catch(() => null)) ?? revision
+            (await retrieveWorkflowRevision({projectId, workflowRef: {id: workflowId}})) ?? revision
         )
     }
 }
+
+const isConflict = (error: unknown): boolean =>
+    (error as {response?: {status?: unknown}} | null)?.response?.status === 409

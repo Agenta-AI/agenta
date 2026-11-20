@@ -123,7 +123,9 @@ describe("ensureBuilderAgentModel", () => {
 
     it("reads the current revision and does not retry when the commit loses", async () => {
         loadCandidates.mockResolvedValue(ready([CANDIDATE]))
-        commitApi.mockRejectedValue(Object.assign(new Error("conflict"), {status: 409}))
+        commitApi.mockRejectedValue(
+            Object.assign(new Error("conflict"), {response: {status: 409}}),
+        )
         const current = {id: "someone-elses-revision"} as Workflow
         retrieveApi.mockResolvedValue(current)
 
@@ -133,5 +135,19 @@ describe("ensureBuilderAgentModel", () => {
             projectId: "proj-1",
             workflowRef: {id: "builder-artifact"},
         })
+    })
+
+    it("keeps the read revision and does not read again when the commit is refused", async () => {
+        loadCandidates.mockResolvedValue(ready([CANDIDATE]))
+        commitApi.mockRejectedValue(
+            Object.assign(new Error("forbidden"), {response: {status: 403}}),
+        )
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+        const revision = builder({})
+
+        expect(await run(revision)).toBe(revision)
+        expect(retrieveApi).not.toHaveBeenCalled()
+        expect(warn).toHaveBeenCalled()
+        warn.mockRestore()
     })
 })

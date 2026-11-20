@@ -23,13 +23,14 @@ const BUILDER_AGENT_REVISION_KEY = ["workflows", "builder-agent-revision"] as co
  * on top. When it has no model yet, the first read commits the new-agent default
  * (`ensureBuilderAgentModel`), so both builder chats get it from this one place. The key holds
  * the number of project connections, so a connection added from the chat's "connect a model"
- * strip reads again and commits the default then.
+ * strip reads again and commits the default then. (Each form that adds a connection would
+ * otherwise have to invalidate this query itself.) A read that finds a model commits nothing;
+ * two reads that both commit end in one conflict, and the second one reads the first's commit.
  */
 export const builderAgentRevisionIdQueryAtom = atomWithQuery<string | null>((get) => {
     const projectId = get(projectIdAtom)
     const userId = get(userAtom)?.id ?? null
-    const vault = get(vaultSecretsQueryAtom)
-    const connections = vault.data?.length ?? 0
+    const connections = get(vaultSecretsQueryAtom).data?.length ?? 0
     return {
         queryKey: [...BUILDER_AGENT_REVISION_KEY, projectId, connections],
         queryFn: async () => {
@@ -43,8 +44,7 @@ export const builderAgentRevisionIdQueryAtom = atomWithQuery<string | null>((get
             primeWorkflowRevisionDetailCacheImperative(revision, {projectId})
             return revision.id
         },
-        // After the first connection read, so the first read does not run twice.
-        enabled: get(sessionAtom) && !!projectId && !!userId && !vault.isLoading,
+        enabled: get(sessionAtom) && !!projectId && !!userId,
         // A new key keeps showing the last id while it reads again.
         placeholderData: (previous: string | null | undefined) => previous,
         // The code version changes only with a deploy; a commit invalidates it.

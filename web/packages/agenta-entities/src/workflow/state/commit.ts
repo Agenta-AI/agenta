@@ -317,7 +317,8 @@ export const commitWorkflowRevisionAtom = atom(
             // The picker lists by VARIANT, so without this the revision just created is missing
             // from the dropdown until something else refetches.
             if (variantId) invalidateWorkflowRevisionsByVariantCache(variantId)
-            // The builder chats read the builder's revision id from its own query.
+            // A committed static workflow is one with editable fields, which today is only the
+            // builder. Its chats read its revision id from their own query.
             if (entity.flags?.is_static) invalidateBuilderAgentRevisionCache()
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
