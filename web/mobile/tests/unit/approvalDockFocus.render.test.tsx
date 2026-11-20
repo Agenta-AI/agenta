@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Hand-off H5: with two conversations on screen, the approval card's keys (Cmd/Ctrl+Enter and
+ * With two conversations on screen, the approval card's keys (Cmd/Ctrl+Enter and
  * Escape) answer the card of the focused conversation only. The dock gives the card the focus rule
  * of its conversation; the card's own key handling is tested in `@agenta/chat`.
  */

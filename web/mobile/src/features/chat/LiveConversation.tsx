@@ -1188,8 +1188,7 @@ export const LiveConversation = ({
         </ConnectionFocusProvider>
     )
 
-    // The role comes from the container as a value, so a role change keeps this mount and its
-    // state.
+    // Marks this conversation for the focus rule of its shortcuts and its approval card.
     const rootedScaffold = <ConversationRoot>{scaffold}</ConversationRoot>
 
     // Embedded: the workspace owns the shell and the pane geometry.
