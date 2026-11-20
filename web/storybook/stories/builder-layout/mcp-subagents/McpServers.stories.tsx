@@ -131,3 +131,41 @@ export const ServerSignInExpired: Story = {
         },
     },
 }
+
+/** F03 f7: each person's own sign-in; the viewer has not signed in yet. */
+export const ServerEachPersonsOwn: Story = {
+    args: {frame: "server", revisionId: ""},
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) => mcpQueries(scope, {eachPerson: true}),
+            args: (scope: StoryScope) => ({revisionId: subagentRevisionId(scope)}),
+        },
+    },
+}
+
+/** F03 f7 after the sign-in: "Your sign-in: {name}" with the name the server gave (task 39.2). */
+export const ServerYourSignInWithName: Story = {
+    args: {frame: "server", revisionId: ""},
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                mcpQueries(scope, {
+                    eachPerson: true,
+                    linearSignIn: {is_ready: true, account_name: "Lena at Acme"},
+                }),
+            args: (scope: StoryScope) => ({revisionId: subagentRevisionId(scope)}),
+        },
+    },
+}
+
+/** The same, when the server gave no name: "Signed in". */
+export const ServerYourSignInNoName: Story = {
+    args: {frame: "server", revisionId: ""},
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                mcpQueries(scope, {eachPerson: true, linearSignIn: {is_ready: true}}),
+            args: (scope: StoryScope) => ({revisionId: subagentRevisionId(scope)}),
+        },
+    },
+}
