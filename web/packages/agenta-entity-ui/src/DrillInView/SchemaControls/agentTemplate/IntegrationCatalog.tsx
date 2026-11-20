@@ -1,13 +1,13 @@
 /**
- * AgentIntegrationDrawer
+ * IntegrationCatalog
  *
  * Add WHOLE integrations to an agent. Adding one adds every tool the integration has; what the
  * author configures afterwards, from the integration's row, is the permission policy. There is no
  * per-action catalog here any more.
  *
  * Three ways in, all landing the same entry: quick-add from a connection the project already has,
- * pick a connection when an integration has several, and Connect, which runs the existing
- * {@link ConnectDrawer} auth flow and then adds the integration.
+ * pick a connection when an integration has several, and Connect, which the host opens (the
+ * connect view) and which stores a project connection; the catalog then adds the new connection.
  *
  * A new integration lands on "Allow all". Choosing another connection for an
  * integration that is already configured REPLACES its entry, keeping the policy already set.
@@ -28,12 +28,10 @@ import {
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {createT, useT} from "@agenta/i18n"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {
     Button,
@@ -46,13 +44,12 @@ import {
     RadioGroupItem,
     SearchInput,
 } from "@agenta/ui/ui"
-import {Check, MagnifyingGlass, Plugs, Plus} from "@phosphor-icons/react"
+import {Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-import {useProjectName} from "../../../accounts/useProjectName"
+import type {CreatedConnection} from "../../../gatewayTool/components/ConnectForm"
 import {FinishConnectionDialog} from "../../../gatewayTool/components/FinishConnectionDialog"
-import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
 import {useRefreshToolConnection} from "../../../gatewayTool/hooks/useRefreshToolConnection"
 import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
 import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
@@ -62,12 +59,16 @@ import {CatalogRowSkeleton} from "./CatalogRowSkeleton"
 import {CategorySelect} from "./CategorySelect"
 import {ConnectionActionConfirm, type ConnectionAction} from "./ConnectionActionConfirm"
 import {ConnectionRowMenu} from "./ConnectionRowMenu"
-import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 import {catalogSections, type CategorySelection} from "./integrationCatalogFilters"
 
 const tNow = createT(integrationDrawerCatalog)
 
 type CatalogIntegration = ToolCatalogIntegration | ToolCatalogIntegrationDetails
+
+/** A connection a connect form made, waiting to be valid before it is added. */
+interface PendingConnect extends CreatedConnection {
+    integrationKey: string
+}
 
 /** Whether "Connected" is folded away; remembered, as Settings remembers its own. */
 const connectedCollapsedAtom = atomWithStorage(
@@ -75,15 +76,18 @@ const connectedCollapsedAtom = atomWithStorage(
     false,
 )
 
-export interface AgentIntegrationDrawerProps {
-    open: boolean
-    onClose: () => void
+export interface IntegrationCatalogProps {
     /** The integrations the agent already holds — the added state and the current connection. */
     integrationRows: IntegrationRow[]
     /** Add an integration, or point a configured one at another connection. One write, one entry. */
     onAddIntegration: (target: GatewayConnectionTarget, connectionSlug: string) => void
     /** Add an integration that uses each person's own account. */
     onAddPersonalIntegration: (target: GatewayConnectionTarget) => void
+    /**
+     * Open the connect form of an app. The form calls `onCreated` with the connection it made,
+     * and the catalog adds that one once it is valid. A cancelled form calls nothing.
+     */
+    onConnect: (integrationKey: string, onCreated: (created: CreatedConnection) => void) => void
 }
 
 interface ConnectedGroup {
@@ -358,67 +362,27 @@ function CatalogRow({
     )
 }
 
-/**
- * The connect dialog of the editor. With personal accounts on it asks "Who can use it", as
- * Settings does: "Only me" makes a personal connection and the item uses each person's own account.
- */
-function AgentConnectDrawer({
-    integration,
-    container,
-    onClose,
-    onConnected,
-}: {
-    integration: CatalogIntegration
-    container: HTMLElement | null
-    onClose: () => void
-    onConnected: (owner: "user" | "project") => void
-}) {
-    const access = useAtomValue(personalAccountsAccessAtom)
-    const askOwner = access === "on"
-    const projectName = useProjectName(askOwner)
-    return (
-        <ConnectDrawer
-            open
-            container={container}
-            integrationKey={integration.key}
-            integrationName={integration.name}
-            integrationLogo={integration.logo ?? undefined}
-            integrationDescription={integration.description ?? undefined}
-            authSchemes={(integration as {auth_schemes?: string[] | null}).auth_schemes ?? []}
-            owners={askOwner ? ["user", "project"] : undefined}
-            projectName={projectName}
-            onClose={onClose}
-            onSuccess={onConnected}
-        />
-    )
-}
-
-// Body — mounted only while the drawer is open (EnhancedDrawer destroyOnClose), so the catalog
-// queries don't run in the background.
-function IntegrationCatalogContent({
+/** The catalog: the project's connected apps, then all apps. Mounted only while it shows. */
+export function IntegrationCatalog({
     integrationRows,
     onAddIntegration,
     onAddPersonalIntegration,
-    container,
-}: Omit<AgentIntegrationDrawerProps, "open" | "onClose"> & {
-    /** The drawer panel, so its dialogs open inside it. */
-    container: HTMLElement | null
-}) {
+    onConnect,
+}: IntegrationCatalogProps) {
     const t = useT(integrationDrawerCatalog)
+    // The catalog's own box: its dialogs and the category list open inside it, so they stay in
+    // a drawer host and scroll under the drawer's lock.
+    const [container, setContainer] = useState<HTMLDivElement | null>(null)
     const [query, setQuery] = useState("")
     const [category, setCategoryState] = useState<CategorySelection | null>(null)
-    // Phone: one pane at a time, as the skill drawer does. Apps are the point of the drawer, so
-    // they open; the category rail is a tap back.
-    const [connectTarget, setConnectTarget] = useState<CatalogIntegration | null>(null)
     const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
     // Fades the list's top and bottom edges while there is more to scroll that way.
     const listRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(listRef)
     // A search always shows what it matched.
     const searching = query.trim().length > 0
-    // The integration a just-finished connect flow should land, once its connection shows up.
-    const [pendingAdd, setPendingAdd] = useState<string | null>(null)
-    const [pendingPersonalAdd, setPendingPersonalAdd] = useState<string | null>(null)
+    // The connection a connect form made, until it is valid and added.
+    const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null)
     const {connections: personalConnections} = usePersonalToolConnections()
     // The rows' Settings verbs: finish a pending sign-in, or confirm a revoke or delete.
     const [finishing, setFinishing] = useState<{
@@ -532,43 +496,44 @@ function IntegrationCatalogContent({
         [onAddIntegration],
     )
 
-    // A connect flow reports success without naming the connection it made, so the add waits for
-    // the refreshed list. One new connection for that integration is the unambiguous case; with
-    // several the author picks in the chooser instead.
-    //
-    // The connect flow treats the provider popup closing as success, so an abandoned or failed
-    // authorization can leave a connection that exists but does not work. Add only a connection
-    // the project reports as valid; the row stays, with its reconnect hint, for the rest.
+    // The connect form stores the connection in the project (or the person's own) and names it.
+    // Adding it to the agent is this catalog's own write. A closed sign-in window is not a
+    // sign-in, so the add waits until the connection is valid; the row keeps its reconnect hint
+    // until then.
     useEffect(() => {
-        if (!pendingAdd) return
-        // The unfiltered list: a search typed before connecting must not hide the new connection.
-        const group = allConnectedGroups.find((g) => g.integrationKey === pendingAdd)
-        if (!group) return
-        const only = group.connections.length === 1 ? group.connections[0] : null
-        // Stay armed while the single connection is not valid YET: validity can arrive on a later
-        // refresh, and the drawer is destroyed on close, so the intent cannot outlive the flow.
-        if (only && !isConnectionValid(only)) return
-        if (only) addIntegration(group, only.slug ?? "")
-        setPendingAdd(null)
-    }, [pendingAdd, allConnectedGroups, addIntegration])
+        if (!pendingConnect) return
+        const {integrationKey, slug, owner} = pendingConnect
+        const list = owner === "user" ? (personalConnections ?? []) : connections
+        const made = list.find((connection) => connection.slug === slug)
+        if (!made || !isConnectionValid(made)) return
+        if (owner === "user") {
+            onAddPersonalIntegration({provider: "composio", integration: integrationKey})
+        } else {
+            onAddIntegration(
+                {provider: made.provider_key ?? "composio", integration: integrationKey},
+                slug,
+            )
+        }
+        setPendingConnect(null)
+    }, [
+        pendingConnect,
+        connections,
+        personalConnections,
+        onAddIntegration,
+        onAddPersonalIntegration,
+    ])
 
-    // As above: a closed popup is not a sign-in, so the item waits for a valid connection.
-    useEffect(() => {
-        if (!pendingPersonalAdd) return
-        const signedIn = personalConnections?.some(
-            (connection) =>
-                connection.integration_key === pendingPersonalAdd && isConnectionValid(connection),
-        )
-        if (!signedIn) return
-        onAddPersonalIntegration({provider: "composio", integration: pendingPersonalAdd})
-        setPendingPersonalAdd(null)
-    }, [pendingPersonalAdd, personalConnections, onAddPersonalIntegration])
+    const startConnect = useCallback(
+        (integrationKey: string) =>
+            onConnect(integrationKey, (created) => setPendingConnect({integrationKey, ...created})),
+        [onConnect],
+    )
 
     const catalogLoading = isLoading && integrations.length === 0
     const nothingFound = !catalogLoading && connectedGroups.length === 0 && catalogRows.length === 0
 
     return (
-        <div className="flex min-h-0 flex-1">
+        <div ref={setContainer} className="relative flex min-h-0 flex-1">
             {/* One column: the category filter sits beside the search, so apps get the width. */}
             {/* min-w-0: without it the one-line descriptions stretch the column past the drawer. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -667,7 +632,7 @@ function IntegrationCatalogContent({
                                         <CatalogRow
                                             key={integration.key}
                                             integration={integration}
-                                            onConnect={() => setConnectTarget(integration)}
+                                            onConnect={() => startConnect(integration.key)}
                                         />
                                     ))}
                                 </div>
@@ -714,65 +679,6 @@ function IntegrationCatalogContent({
                     onClose={() => setConfirming(null)}
                 />
             ) : null}
-            {connectTarget ? (
-                <AgentConnectDrawer
-                    integration={connectTarget}
-                    container={container}
-                    onClose={() => setConnectTarget(null)}
-                    onConnected={(owner) => {
-                        if (owner === "user") setPendingPersonalAdd(connectTarget.key)
-                        else setPendingAdd(connectTarget.key)
-                        setConnectTarget(null)
-                    }}
-                />
-            ) : null}
         </div>
-    )
-}
-
-export function AgentIntegrationDrawer({
-    open,
-    onClose,
-    integrationRows,
-    onAddIntegration,
-    onAddPersonalIntegration,
-}: AgentIntegrationDrawerProps) {
-    const t = useT(integrationDrawerCatalog)
-    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
-    return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
-            open={open}
-            onClose={onClose}
-            placement="right"
-            width={INTEGRATION_DRAWER_WIDTH}
-            destroyOnClose
-            panelRef={setPanel}
-            title={
-                <div className="flex items-center gap-2">
-                    <Plugs size={16} />
-                    <span className="text-sm font-medium">
-                        {t("entityUi.integrationDrawer.addIntegration")}
-                    </span>
-                </div>
-            }
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
-            }}
-            footer={
-                <div className="flex items-center justify-end">
-                    <Button variant="default" onClick={onClose}>
-                        {t("entityUi.integrationDrawer.done")}
-                    </Button>
-                </div>
-            }
-        >
-            <IntegrationCatalogContent
-                integrationRows={integrationRows}
-                onAddIntegration={onAddIntegration}
-                onAddPersonalIntegration={onAddPersonalIntegration}
-                container={panel}
-            />
-        </EnhancedDrawer>
     )
 }

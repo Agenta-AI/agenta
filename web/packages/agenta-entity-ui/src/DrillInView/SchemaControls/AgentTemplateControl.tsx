@@ -26,9 +26,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
-    agentCreationPrefsAtom,
     agentRequirementsAtomFamily,
-    invalidateAgentRequirements,
     isPersonalRequirement,
     modelRequirement,
     requirementAtPath,
@@ -53,7 +51,8 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {Cpu, UploadSimple} from "@phosphor-icons/react"
+import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
+import {UploadSimple} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -62,13 +61,10 @@ import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
-import {IntegrationAccountBlock} from "./agentTemplate/accounts/IntegrationAccountBlock"
-import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {
     AgentTemplateSectionList,
     type AgentTemplateSectionDescriptor,
 } from "./agentTemplate/AgentTemplateSectionList"
-import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {
     embedRevisionVersion,
     isEmbedRefSkill,
@@ -77,6 +73,7 @@ import {
     toolReferenceSlug,
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
+import {integrationItemRef, removeIntegrationByRef} from "./agentTemplate/itemKinds/tool"
 import type {ItemRowStatus} from "./agentTemplate/ItemRow"
 import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
 import {modelNeedsSetupMessage, needsSetupLabel} from "./agentTemplate/needsSetupText"
@@ -89,7 +86,10 @@ import {
 import {advancedSection} from "./agentTemplate/sections/AdvancedSection"
 import {agentMcpSection} from "./agentTemplate/sections/AgentMcpSection"
 import {instructionsSection} from "./agentTemplate/sections/InstructionsSection"
-import {integrationsSection} from "./agentTemplate/sections/IntegrationsSection"
+import {
+    IntegrationRemoveDialog,
+    integrationsSection,
+} from "./agentTemplate/sections/IntegrationsSection"
 import {ModelHarnessSectionBody} from "./agentTemplate/sections/ModelHarnessSectionBody"
 import {modelSection} from "./agentTemplate/sections/ModelSection"
 import {permissionsSection} from "./agentTemplate/sections/PermissionsSection"
@@ -98,21 +98,22 @@ import {subagentsSection} from "./agentTemplate/sections/SubagentsSection"
 import {SubagentDrawerContainer} from "./agentTemplate/SubagentDrawerContainer"
 import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {selectSubagentTools} from "./agentTemplate/ToolManagementList"
+import {AgentEditorContext, type AgentEditor} from "./agentTemplate/useAgentConfigWriter"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
+import {instructionsView} from "./agentTemplate/views/instructionsView"
+import {integrationAddView} from "./agentTemplate/views/integrationAddView"
+import {integrationView} from "./agentTemplate/views/integrationView"
+import {modelView} from "./agentTemplate/views/modelView"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
-import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
+import {modelIdFromConfig} from "./connectionUtils"
 import {SkillFormSkeleton} from "./DrawerSkeletons"
-import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {
-    findIntegrationRow,
-    integrationRowConnection,
     integrationRowIndices,
     parseGatewayEntry,
-    type GatewayConnectionTarget,
     type GatewayEntry,
     type IntegrationRow,
 } from "./toolUtils"
@@ -176,11 +177,31 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         configRef.current = config
     }, [config])
 
+    // The open revision id (from drill-in context): the views' target, harness-capability
+    // inspection (inside useModelHarness) and bound-trigger scoping all key off it.
+    const drillIn = useOptionalDrillIn<unknown>()
+    const revisionId = drillIn?.entityId ?? null
+    // Rows and "+" open views: in the container's stack, or, in a host with none, in a drawer.
+    const views = useViewOpener()
+    const openView = views.open
+    const editor = useMemo<AgentEditor | null>(
+        () => (revisionId ? {revisionId, readOnly: Boolean(disabled)} : null),
+        [revisionId, disabled],
+    )
+    const viewTarget = useMemo<ViewTarget | null>(
+        () => (revisionId ? {kind: "agent_draft", revisionId} : null),
+        [revisionId],
+    )
+
     const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
-    const [integrationDrawerOpen, setIntegrationDrawerOpen] = useState(false)
-    const openIntegration = useCallback(() => setIntegrationDrawerOpen(true), [])
-    // The integration whose permission drawer is open, addressed by provider and integration.
-    const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
+    const openAddIntegration = useCallback(() => {
+        if (viewTarget) void openView(integrationAddView, {}, viewTarget)
+    }, [openView, viewTarget])
+    const openModel = useCallback(() => {
+        if (viewTarget) void openView(modelView, {}, viewTarget)
+    }, [openView, viewTarget, disabled])
+    // The integration whose remove dialog is open (F06 f2).
+    const [removingIntegration, setRemovingIntegration] = useState<IntegrationRow | null>(null)
     // The MCP endpoint being authorized. Held here, not on the row: `extra` renders inside the
     // row's own click target, and React events propagate through the React tree, so a dialog
     // mounted there reopens the edit drawer on every click inside it — including the one that
@@ -213,23 +234,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         draftUnchanged,
     } = useConfigItemDrawer({config, onChange, prepareCommit: prepareItemCommit})
 
-    // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
-    const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
-    const [instructionDraft, setInstructionDraft] = useState("")
-    // The content we opened with — Save is gated on a real diff against it, like the section drawers.
-    const [instructionOriginal, setInstructionOriginal] = useState("")
-    const openInstruction = useCallback((filename: string, content: string) => {
-        setInstructionDraft(content)
-        setInstructionOriginal(content)
-        setEditingInstruction({filename})
-    }, [])
-    const instructionDirty = instructionDraft !== instructionOriginal
+    // The instructions file list (one AGENTS.md today): a row opens the editor view.
+    const openInstruction = useCallback(() => {
+        if (viewTarget) void openView(instructionsView, {file: "AGENTS.md" as const}, viewTarget)
+    }, [openView, viewTarget, disabled])
 
     // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
     // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
     // we opened with). The build-kit state lives OUTSIDE the config (playground-only atoms), so it is
     // buffered alongside the config draft and committed to the atoms on Save.
-    const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
+    const [openSection, setOpenSection] = useState<null | "advanced">(null)
     const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
     const [draftBuildKit, setDraftBuildKit] = useState<BuildKitUiState | null>(null)
     const sectionBaseline = useRef<{
@@ -258,6 +272,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
+            // The Model section is a view now; only Advanced keeps its drawer.
+            if (key === "model-harness") {
+                openModel()
+                return
+            }
             // Same section already open: never re-snapshot over a live draft.
             if (openSection === key) return
             // Another section is open with unsaved edits: drop the request rather than clobber it.
@@ -275,7 +294,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
             setOpenSection(key)
         },
-        [value, store, openSection, isCurrentSectionDirty],
+        [value, store, openSection, isCurrentSectionDirty, openModel],
     )
     const closeSectionDraft = useCallback(() => {
         setOpenSection(null)
@@ -310,29 +329,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     openSection ?? undefined,
                 ),
             )
-            // Remember the harness/model/connection pick for future agent creations — only on an
-            // explicit Model-section save, not on every keystroke or the Advanced section.
-            if (openSection === "model-harness") {
-                const harness = draftConfig.harness
-                const harnessKind =
-                    harness && typeof harness === "object" && !Array.isArray(harness)
-                        ? (harness as Record<string, unknown>).kind
-                        : undefined
-                const modelId = modelIdFromConfig(draftConfig.llm)
-                const connection = connectionFromConfig(draftConfig.llm)
-                store.set(agentCreationPrefsAtom, (prev) => ({
-                    version: 1,
-                    harness: typeof harnessKind === "string" ? harnessKind : prev.harness,
-                    model: modelId ?? prev.model,
-                    // Not `?? prev.provider`: a custom-connection pick deliberately stores none,
-                    // and inheriting the last family would seed the next agent with a provider its
-                    // model contradicts.
-                    provider: connection.provider ?? undefined,
-                    connectionMode: connection.mode ?? prev.connectionMode,
-                    connectionSlug: connection.slug ?? undefined,
-                    connectionNamespace: connection.namespace ?? undefined,
-                }))
-            }
         }
         if (draftBuildKit !== null && sectionBaseline.current !== null) {
             const revision = sectionRevision ?? revisionIdRef.current ?? ""
@@ -363,10 +359,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config, onChange],
     )
 
-    // The open revision id (from drill-in context): harness-capability inspection (inside
-    // useModelHarness) and bound-trigger scoping both key off it.
-    const drillIn = useOptionalDrillIn<unknown>()
-    const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
     // The server's needs-setup check for this saved revision; null until it answers.
     // A personal requirement belongs to each person who runs the agent, so the editor skips it.
@@ -507,42 +499,25 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         handleAddWorkflowReference,
         handleRemoveReferenceBySlug,
         integrationRows,
-        setIntegrationConnection,
-        addPersonalIntegration,
-        setIntegrationAccount,
-        setIntegrationPermissions,
-        setIntegrationToolPermission,
-        removeIntegration,
         migrateIntegrationEntries,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
-    // Where an item's "Account" line reads from: the revision on screen and the agent as edited.
-    const accountContext = useMemo(() => ({revisionId, agent: config}), [revisionId, config])
 
     /**
-     * Open one integration's permission drawer. Migration runs HERE, on the click, and never on a
-     * page load: viewing an untouched agent must not rewrite it. An integration whose legacy
-     * entries name two or more connections is left alone and the drawer says why.
+     * Open one integration's view. Migration runs HERE, on the click, and never on a page load:
+     * viewing an untouched agent must not rewrite it. An integration whose legacy entries name two
+     * or more connections is left alone and the view says why.
      */
     const openIntegrationPermissions = useCallback(
         (row: IntegrationRow) => {
-            // Target first: the migration write below re-renders the tree and swallowed the open.
-            setPermissionTarget({provider: row.provider, integration: row.integration})
             migrateIntegrationEntries({provider: row.provider, integration: row.integration})
+            if (viewTarget)
+                void openView(integrationView, {item: integrationItemRef(row)}, viewTarget)
         },
-        [migrateIntegrationEntries],
+        [migrateIntegrationEntries, openView, viewTarget, disabled],
     )
 
-    // The agent-wide `runner.permissions.default`. The "Ask for write and delete" preset saves
-    // `inherit`, which means "reads run, writes ask" only while this is its default, so the drawer
-    // says so when an author has changed it.
+    // The agent-wide `runner.permissions.default`, for the MCP servers' permission note.
     const agentPermissionPolicy = readRunnerPermission(config)
-
-    // Read back from the live config, so the drawer shows the migrated entry the click just wrote.
-    const permissionRow = useMemo(
-        () =>
-            permissionTarget ? findIntegrationRow(integrationRows, permissionTarget) : undefined,
-        [permissionTarget, integrationRows],
-    )
 
     // The subagents, each keeping its index in `tools`: edit and remove address it by index.
     const subagentTools = useMemo(
@@ -1037,10 +1012,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const openIntegrationRow = useCallback(
         (row: IntegrationRow) => {
             if (integrationRowIndices(row).some((i) => isNeedsSetupStatus(toolResolutionStatus(i))))
-                openIntegration()
+                openAddIntegration()
             else openIntegrationPermissions(row)
         },
-        [openIntegration, openIntegrationPermissions, toolResolutionStatus],
+        [openAddIntegration, openIntegrationPermissions, toolResolutionStatus],
     )
 
     // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
@@ -1050,8 +1025,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
               setReferenceSelectorOpen(true)
           }
         : undefined
-    // The Integrations add button. Routes to the agent-scoped drawer, not the shared global catalog.
-    const openIntegrationDrawer = gatewayTools?.enabled ? openIntegration : undefined
+    // The Integrations add button: the agent's "Add integration" view, not the shared catalog.
+    const addIntegration = gatewayTools?.enabled ? openAddIntegration : undefined
 
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
     // is clean, which is what keeps it a plain drawer-opening row.
@@ -1064,7 +1039,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // tabs / cards) without duplicating the content. Schema-gated, like before. Each section's
     // header and body live in its own file under `agentTemplate/sections/`.
     const sections = [
-        modelSection({t, mh, sectionIndicator, config, modelReq, panelChangedPaths, bodyProps}),
+        modelSection({
+            t,
+            mh,
+            sectionIndicator,
+            config,
+            modelReq,
+            openModel,
+        }),
         instructionsSection({
             t,
             hasInstructions,
@@ -1079,15 +1061,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             hasTools,
             sectionIndicator,
             disabled,
-            openIntegrationDrawer,
+            openAddIntegration: addIntegration,
             integrationCount,
             tools,
             integrationRows,
             toolStatusFor,
             gatewayToolsEnabled: Boolean(gatewayTools?.enabled),
             openIntegrationRow,
-            removeIntegration,
-            closeEditor,
+            askRemoveIntegration: setRemovingIntegration,
         }),
         subagentsSection({
             t,
@@ -1159,9 +1140,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const subagentHeaderAction = workflowReference ? (
         <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
     ) : undefined
-    const lastInstructionRef = useRef(editingInstruction)
-    if (editingInstruction) lastInstructionRef.current = editingInstruction
-    const shownInstruction = editingInstruction ?? lastInstructionRef.current
 
     return (
         <div className={cn("flex flex-col", className)}>
@@ -1313,56 +1291,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                   })()
                 : null}
 
-            {shownInstruction && (
-                <InstructionsDrawer
-                    open={!!editingInstruction}
-                    filename={shownInstruction.filename}
-                    value={instructionDraft}
-                    onChange={setInstructionDraft}
-                    onCancel={() => setEditingInstruction(null)}
-                    onSave={() => {
-                        setAgentField("instructions", {
-                            ...instructions,
-                            agents_md: instructionDraft,
-                        })
-                        setEditingInstruction(null)
-                    }}
-                    disabled={disabled}
-                    dirty={instructionDirty}
-                />
-            )}
-
-            <SectionDrawer
-                open={openSection === "model-harness"}
-                title={t("entityUi.agentTemplate.model")}
-                icon={<Cpu size={16} />}
-                onCancel={cancelSection}
-                onSave={saveSection}
-                disabled={disabled || !sectionDirty}
-                dirty={sectionDirty}
-                width={mh.modelHarnessDrawerWidth}
-            >
-                {/* Marks the exact properties that changed since the commit (and opens the
-                    sub-sections holding them). Must sit ABOVE the body: `useModelHarness` reads the
-                    context at its own position, so a provider rendered *by* the body wouldn't reach
-                    it. Scoped to the draft diff — the drawer's own unsaved edits are its Save gate's
-                    business, not "what changed since the commit". */}
-                <ChangedPathsProvider changes={drawerChangedPaths}>
-                    <ModelHarnessSectionBody
-                        section="model-harness"
-                        schema={schema}
-                        config={draftConfig ?? config}
-                        onChange={applyDraftConfig}
-                        disabled={disabled}
-                        withTooltip={withTooltip}
-                        revisionId={sectionRevision ?? revisionId}
-                        buildKitOverride={draftBuildKitOverride}
-                        // A model the chosen key no longer offers: list only that key's models.
-                        onlyCurrentConnection={modelReq?.kind === "model"}
-                    />
-                </ChangedPathsProvider>
-            </SectionDrawer>
-
             <SectionDrawer
                 open={openSection === "advanced"}
                 title={t("entityUi.agentTemplate.advanced")}
@@ -1422,52 +1350,25 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 />
             )}
 
-            {gatewayTools?.enabled && (
-                <AgentIntegrationDrawer
-                    open={integrationDrawerOpen}
-                    onClose={() => {
-                        setIntegrationDrawerOpen(false)
-                        // A sign-in there can fix a tagged integration without a new revision.
-                        void invalidateAgentRequirements()
+            {/* A view in this drawer follows the revision on screen and the edit right. */}
+            <AgentEditorContext.Provider value={editor}>{views.drawer}</AgentEditorContext.Provider>
+            {removingIntegration ? (
+                <IntegrationRemoveDialog
+                    row={removingIntegration}
+                    onRemove={() => {
+                        const latest = configRef.current
+                        onChange({
+                            ...latest,
+                            tools: removeIntegrationByRef(
+                                Array.isArray(latest.tools) ? (latest.tools as unknown[]) : [],
+                                integrationItemRef(removingIntegration),
+                            ),
+                        })
+                        setRemovingIntegration(null)
                     }}
-                    integrationRows={integrationRows}
-                    onAddIntegration={setIntegrationConnection}
-                    onAddPersonalIntegration={addPersonalIntegration}
+                    onClose={() => setRemovingIntegration(null)}
                 />
-            )}
-
-            {gatewayTools?.enabled && permissionTarget && (
-                <IntegrationPermissionDrawer
-                    open
-                    onClose={() => setPermissionTarget(null)}
-                    target={permissionTarget}
-                    connectionSlug={
-                        permissionRow ? (integrationRowConnection(permissionRow) ?? "") : ""
-                    }
-                    permissions={permissionRow?.entry?.permissions ?? null}
-                    onChangePermissions={(next) =>
-                        setIntegrationPermissions(permissionTarget, next)
-                    }
-                    onChangeToolPermission={(toolKey, permission) =>
-                        setIntegrationToolPermission(permissionTarget, toolKey, permission)
-                    }
-                    agentPolicy={agentPermissionPolicy}
-                    disabled={disabled}
-                    account={
-                        permissionRow?.entry ? (
-                            <IntegrationAccountBlock
-                                target={permissionTarget}
-                                entry={permissionRow.entry}
-                                context={accountContext}
-                                onChange={(account) =>
-                                    setIntegrationAccount(permissionTarget, account)
-                                }
-                                disabled={disabled}
-                            />
-                        ) : undefined
-                    }
-                />
-            )}
+            ) : null}
         </div>
     )
 })

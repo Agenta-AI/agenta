@@ -1,0 +1,13 @@
+{
+    "accountsStay": "La cuenta propia de cada persona sigue conectada.",
+    "appLoadError": "No se pudo cargar esta app.",
+    "back": "Atrás",
+    "cancel": "Cancelar",
+    "connectLeaveDescription": "¿Guardar los cambios para conectar la app en este proyecto o descartarlos?",
+    "connectionStays": "La conexión se queda en el proyecto.",
+    "remove": "Quitar",
+    "removeFromAgent": "Quitar del agente",
+    "removeTitle": "¿Quitar {{name}} de este agente?",
+    "removedState": "Esta integración ya no está en el agente.",
+    "tryAgain": "Reintentar"
+}

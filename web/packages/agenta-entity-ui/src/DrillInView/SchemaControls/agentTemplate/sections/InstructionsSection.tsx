@@ -12,7 +12,8 @@ export interface InstructionsSectionParams {
     sectionIndicator: SectionIndicatorFor
     draftSectionKeys: ReadonlySet<PanelSectionKey>
     agentsMd: string | null
-    openInstruction: (filename: string, content: string) => void
+    /** Opens the AGENTS.md editor view. */
+    openInstruction: () => void
 }
 
 /** The Instructions section: one row per instruction file (AGENTS.md today). */
@@ -45,7 +46,7 @@ export const instructionsSection = ({
                     <InstructionsFileRow
                         filename="AGENTS.md"
                         content={agentsMd ?? ""}
-                        onOpen={() => openInstruction("AGENTS.md", agentsMd ?? "")}
+                        onOpen={openInstruction}
                         status={instructionsStatus}
                     />
                 </div>

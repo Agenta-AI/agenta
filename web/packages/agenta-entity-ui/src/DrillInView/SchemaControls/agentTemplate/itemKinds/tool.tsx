@@ -1,9 +1,16 @@
 import {createT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {Wrench} from "@phosphor-icons/react"
 
 import {ToolFormView} from "../../ToolFormView"
-import {parseGatewayEntry} from "../../toolUtils"
+import {
+    buildIntegrationRows,
+    findIntegrationRow,
+    parseGatewayEntry,
+    removeIntegrationRow,
+    type GatewayConnectionTarget,
+} from "../../toolUtils"
 import {describeSubagent, describeTool, isFunctionTool, isReferenceTool} from "../itemDescriptors"
 
 import type {ItemKindDef} from "./types"
@@ -51,4 +58,27 @@ export const toolKind: ItemKindDef = {
         if (fn && typeof fn === "object") return !String(fn.name ?? "").trim()
         return false
     },
+}
+
+/**
+ * The address of an integration in the agent's `tools` list: the key the change-set engine gives
+ * a `gateway_connection` entry (`gateway_connection:{provider}:{integration}`). It names the
+ * integration, not a position, so it stays right when the list changes under an open view.
+ */
+export const integrationItemRef = (target: GatewayConnectionTarget): ConfigItemRef => ({
+    list: "tools",
+    key: `gateway_connection:${target.provider}:${target.integration}`,
+})
+
+/** The integration an item key names, or null when the key is not an integration's. */
+export const integrationTargetOf = (ref: ConfigItemRef): GatewayConnectionTarget | null => {
+    const match = /^gateway_connection:([^:]+):(.+)$/.exec(ref.key)
+    return ref.list === "tools" && match ? {provider: match[1], integration: match[2]} : null
+}
+
+/** The tools without the integration `ref` names, found by key in the list as it is now. */
+export const removeIntegrationByRef = (tools: unknown[], ref: ConfigItemRef): unknown[] => {
+    const target = integrationTargetOf(ref)
+    const row = target ? findIntegrationRow(buildIntegrationRows(tools), target) : undefined
+    return row ? removeIntegrationRow(tools, row) : tools
 }

@@ -99,7 +99,8 @@ export const PanelViewChrome = ({
                     </SimpleTooltip>
                 )}
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-3">{children}</div>
+            {/* Edge to edge: each view pads itself. */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
             <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4 py-3">
                 <ViewFormActions
                     apply={apply}

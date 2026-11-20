@@ -13,7 +13,6 @@ import {
     buildIntegrationRows,
     findGatewayConnectionIndex,
     parseGatewayConnection,
-    removeIntegrationRow,
     setGatewayConnectionAccount,
     setGatewayConnectionPermissions,
     upsertGatewayConnection,
@@ -21,7 +20,6 @@ import {
     type GatewayConnectionPermissions,
     type GatewayConnectionTarget,
     type GatewayPermission,
-    type IntegrationRow,
 } from "../toolUtils"
 
 import {toolReferenceSlug} from "./itemDescriptors"
@@ -158,11 +156,6 @@ export function useAgentTools({
         [tools, setTools],
     )
 
-    const removeIntegration = useCallback(
-        (row: IntegrationRow) => setTools(removeIntegrationRow(tools, row)),
-        [tools, setTools],
-    )
-
     /** Fold an integration's legacy entries into one connection entry. An author action only —
      *  never a page load, so viewing an untouched agent never rewrites it. */
     const migrateIntegrationEntries = useCallback(
@@ -183,7 +176,6 @@ export function useAgentTools({
         setIntegrationAccount,
         setIntegrationPermissions,
         setIntegrationToolPermission,
-        removeIntegration,
         migrateIntegrationEntries,
     }
 }

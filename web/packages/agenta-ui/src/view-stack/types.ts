@@ -64,6 +64,8 @@ export interface ViewForm {
     save: () => Promise<boolean>
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
     leaveDescription: string
+    /** The Save button's label when the view names its action (for example "Connect"). */
+    saveLabel?: string
 }
 
 /** For the container's root and for the container itself. */
@@ -72,6 +74,8 @@ export interface ViewStack {
     open: <P>(view: ViewDef<P>, params: P, target: ViewTarget) => Promise<boolean>
     /** Leave every view. Resolves false when the person chose "Keep editing". */
     closeAll: () => Promise<boolean>
+    /** Guarded back one level from the top view (what Escape does). Resolves true at the root. */
+    back: () => Promise<boolean>
     /** True while any view has a dirty form or a save in flight. A picker on top does not hide a dirty parent. */
     dirty: boolean
     /** Number of open views, 0 at the root. */

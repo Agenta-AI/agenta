@@ -2959,20 +2959,6 @@
     "entityUi.generationResult": {
         "openTrace": "c331a5916f7f"
     },
-    "entityUi.instructionsDrawer": {
-        "outputFormat": "93c53d374513",
-        "toneAndStyle": "a879d55a713b",
-        "guardrails": "443f975eefe8",
-        "writingGoodAgentsMd": "18da96d257d0",
-        "tipRole": "9ed8e455eb4d",
-        "tipSections": "072efc7a6936",
-        "tipOutput": "37db46b18dc1",
-        "tipImperative": "5764f6aac0b3",
-        "suggested": "93b63bab4c3a",
-        "cancel": "19766ed6ccb2",
-        "save": "1509f561f241",
-        "placeholder": "ea0b78bc0433"
-    },
     "entityUi.integrationDrawer": {
         "apiKeyScheme": "23189d55f697",
         "inactive": "ac7c949f1211",
@@ -2997,7 +2983,6 @@
         "tryAnotherName": "eebbcab349b8",
         "allApps": "01bed311e7d0",
         "addIntegration": "02a81fedf530",
-        "done": "11a6767d5674",
         "allCategories": "9d5097a83710",
         "category": "292c06f0045a",
         "noMatchingCategory": "d33aae8076df",

@@ -13,7 +13,8 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {ConfigPane} from "@/features/chat/ConfigPane"
+import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
+import {ConfigurationContent} from "@/features/agent-layout/ConfigurationContent"
 import {DrillInBridgeProvider} from "@/features/chat/DrillInBridgeProvider"
 import {selectedRevisionAtomFamily} from "@/features/chat/selectedRevision"
 import {queryClient} from "@/lib/queryClient"
@@ -34,14 +35,27 @@ const CommitsRevision = () => {
     return null
 }
 
-// The agent pane's panels are heavy and not under test: the build panel becomes the committer.
-vi.mock("@agenta/playground-ui/agent-build", () => ({AgentBuildPanel: () => <CommitsRevision />}))
-vi.mock("@agenta/playground-ui/agent-config-header", () => ({AgentConfigHeader: () => null}))
-vi.mock("@agenta/entity-ui/drive", () => ({
-    StorageFilesHeader: () => null,
-    StorageSection: () => null,
+// The panel's tabs are heavy and not under test: the Configuration root becomes the committer.
+vi.mock("@/features/agent-layout/ConfigurationRoot", () => ({
+    ConfigurationRoot: () => <CommitsRevision />,
 }))
-vi.mock("@agenta/chat/components", () => ({ModelSetupBanner: () => null}))
+vi.mock("@/features/agent-layout/StackGuards", () => ({StackGuards: () => null}))
+vi.mock("@/features/context/useProjectPermission", async (original) => ({
+    ...(await original<object>()),
+    useProjectPermissionState: () => ({pending: false, allowed: true}),
+}))
+
+const panel: AgentPanelApi = {
+    content: "configuration",
+    toggle: async () => true,
+    close: async () => true,
+    configTab: "agent",
+    setConfigTab: () => undefined,
+    wide: false,
+    setWide: () => undefined,
+    phone: false,
+    available: {files: true, configuration: true, builder: false},
+}
 
 let root: Root
 let host: HTMLDivElement
@@ -72,8 +86,19 @@ afterEach(async () => {
 })
 
 describe("the config editor host", () => {
-    it("The agent config pane still pins the committed revision to the session", async () => {
-        await render(<ConfigPane entityId="rev-1" sessionId="session-1" projectId={projectId} />)
+    it("The agent configuration still pins the committed revision to the session", async () => {
+        await render(
+            <AgentPanelContext.Provider value={panel}>
+                <ConfigurationContent
+                    agentId="agent-1"
+                    revisionId="rev-1"
+                    sessionId="session-1"
+                    filesScope="session-1"
+                    workspaceId="ws-1"
+                    projectId={projectId}
+                />
+            </AgentPanelContext.Provider>,
+        )
 
         expect(store.get(selectedRevisionAtomFamily("session-1"))).toBe("rev-2")
     })

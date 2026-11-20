@@ -260,8 +260,8 @@ export const ViewStackHost = ({
     const depth = entries.length as 0 | 1 | 2
 
     const stack = useMemo<ViewStack>(
-        () => ({open, closeAll, dirty, depth}),
-        [open, closeAll, dirty, depth],
+        () => ({open, closeAll, back, dirty, depth}),
+        [open, closeAll, back, dirty, depth],
     )
 
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

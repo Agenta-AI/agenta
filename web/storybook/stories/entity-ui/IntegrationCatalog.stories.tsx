@@ -1,10 +1,7 @@
-import {useState} from "react"
-
-import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// Imported from source: the DrillInView barrel does not re-export the add drawer.
-import {AgentIntegrationDrawer} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/AgentIntegrationDrawer"
+// Imported from source: the DrillInView barrel does not re-export the catalog.
+import {IntegrationCatalog} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
 import {buildIntegrationRows} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils"
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {
@@ -17,7 +14,7 @@ import {
 } from "../../fixtures/gatewayIntegration"
 
 /**
- * **Data-connected drawer story.** Adding an integration to the agent. The drawer leads with the
+ * **Data-connected story.** Adding an integration to the agent: the body of the "Add integration" view. It leads with the
  * apps already connected in the workspace, because that is the one-click case, and puts the whole
  * catalog behind it for apps that still need connecting.
  *
@@ -26,20 +23,20 @@ import {
  * says so rather than offering a second, conflicting way in.
  */
 const meta = {
-    title: "@agenta/entity-ui/DrillIn/AgentIntegrationDrawer",
-    component: AgentIntegrationDrawer,
+    title: "@agenta/entity-ui/DrillIn/IntegrationCatalog",
+    component: IntegrationCatalog,
     parameters: {
         layout: "padded",
         docs: {
             description: {
                 component:
-                    "Add-integration drawer: a category rail, a search box, the workspace's " +
+                    "The Add integration view body: a category select, a search box, the workspace's " +
                     "connected apps as one-click adds, and the full catalog with a Connect leaf " +
                     "for apps with no connection yet.",
             },
         },
     },
-} satisfies Meta<typeof AgentIntegrationDrawer>
+} satisfies Meta<typeof IntegrationCatalog>
 
 export default meta
 type Story = StoryObj
@@ -57,20 +54,14 @@ const legacyEntry = (integration: string, action: string, connection: string) =>
     function: {name: `tools__composio__${integration}__${action}__${connection}`},
 })
 
-// The drawer is a controlled overlay, so the story owns `open`, with a re-open button so it stays
-// usable after a close.
 function DrawerHost({tools = [] as unknown[]}) {
-    const [open, setOpen] = useState(true)
     return (
-        <div className="min-h-[560px]">
-            <Button variant="outline" onClick={() => setOpen(true)}>
-                Add integration
-            </Button>
-            <AgentIntegrationDrawer
-                open={open}
-                onClose={() => setOpen(false)}
+        <div className="flex h-[560px] w-[440px] flex-col">
+            <IntegrationCatalog
                 integrationRows={buildIntegrationRows(tools)}
                 onAddIntegration={noop}
+                onAddPersonalIntegration={noop}
+                onConnect={noop}
             />
         </div>
     )

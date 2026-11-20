@@ -740,7 +740,7 @@ export function PermissionDrawerBody({
 }
 
 /** The Composio body: reads the catalog hook, then renders the shared body. */
-function IntegrationDrawerBody({
+export function IntegrationDrawerBody({
     target,
     permissions,
     ...rest
@@ -807,7 +807,7 @@ function IntegrationDrawerBody({
  * the saved format rejects, and picking one connection would guess the author's intent and drop the
  * tools of the other. The entries keep working exactly as they are.
  */
-function UnmigratedNotice({target}: {target: GatewayConnectionTarget}) {
+export function UnmigratedNotice({target}: {target: GatewayConnectionTarget}) {
     const t = useT(permissionDrawerCatalog)
     return (
         <div className="flex flex-col gap-2 p-4 text-xs text-[var(--ag-colorTextSecondary)]">
@@ -823,7 +823,7 @@ function UnmigratedNotice({target}: {target: GatewayConnectionTarget}) {
 }
 
 /** Header: logo, name, the integration and connection it points at, and its connection state. */
-function DrawerTitle({
+export function IntegrationTitle({
     target,
     connectionSlug,
 }: {
@@ -894,7 +894,7 @@ export function IntegrationPermissionDrawer({
             panelRef={panelRef}
             title={
                 source?.title ?? (
-                    <DrawerTitle target={body.target} connectionSlug={body.connectionSlug} />
+                    <IntegrationTitle target={body.target} connectionSlug={body.connectionSlug} />
                 )
             }
             styles={{

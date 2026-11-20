@@ -1,8 +1,7 @@
 import {act, useState, type ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
-import {openAgentConfigSectionAtom, projectIdAtom} from "@agenta/shared/state"
+import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -264,41 +263,15 @@ describe("shared agent settings", () => {
         expect((live.sandbox as {permissions: unknown}).permissions).toEqual({network: "off"})
     })
 
-    it("saves the complete buffered Pi model selection over a newer Claude selection", async () => {
-        await mount()
-        await act(async () => store.set(openAgentConfigSectionAtom, "model-harness"))
-        const drawer = document.querySelector('[role="dialog"]')!
-        await click(button("Pick model", drawer))
-        const newer = {
-            ...saved("claude"),
-            llm: {
-                model: "sonnet",
-                provider: "anthropic",
-                connection: {mode: "self_managed"},
-                extras: {seed: 2},
-            },
-            harness: {kind: "claude", permissions: {deny: ["new restriction"]}},
-        }
-        await act(async () => update(newer))
-        await click(button("Save", drawer))
-        expect(live.llm).toEqual({model: "gpt-5", provider: "openai", extras: {seed: 2}})
-        expect(live.harness).toEqual({kind: "pi_core", permissions: newer.harness.permissions})
-        expect(live.runner).toEqual(newer.runner)
-        expect(live.sandbox).toEqual(newer.sandbox)
-    })
-
-    it.each(["model-harness", "advanced"] as const)(
+    // The Model section is a view now (a pick applies at once); only Advanced keeps a drawer draft.
+    it.each(["advanced"] as const)(
         "discards %s drafts on revision changes and rejects stale Save callbacks",
         async (section) => {
             fixture.revision = "old-revision"
             await mount()
             await act(async () => store.set(openAgentConfigSectionAtom, section))
-            if (section === "model-harness")
-                await click(button("Pick model", document.querySelector('[role="dialog"]')!))
-            else {
-                await click(button("Execution"))
-                await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
-            }
+            await click(button("Execution"))
+            await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
             const staleSave = fixture.saveSection!
             const newer = {...saved("claude"), llm: {model: "sonnet", provider: "anthropic"}}
             await act(async () => {
@@ -460,39 +433,6 @@ describe("shared agent settings", () => {
         expectRules()
     })
 
-    it("saves a stale Model drawer without overwriting newer policy or hidden rules", async () => {
-        await mount()
-        await act(async () => store.set(openAgentConfigSectionAtom, "model-harness"))
-        await click(button("Pick model", document.querySelector('[role="dialog"]')!))
-        const newer = {
-            ...saved(),
-            runner: {permissions: {default: "deny", rules: [{tool: "new", policy: "ask"}]}},
-            sandbox: {...saved().sandbox, permissions: {network: "on"}},
-        }
-        await act(async () => update(newer))
-        await click(button("Save"))
-        expect(live.llm).toMatchObject({model: "gpt-5"})
-        expect(live.runner).toEqual(newer.runner)
-        expect(live.sandbox).toEqual(newer.sandbox)
-        expect((live.harness as {permissions: unknown}).permissions).toEqual(
-            saved().harness.permissions,
-        )
-    })
-
-    it("cancels buffered Model edits without reverting newer live policy", async () => {
-        await mount()
-        await act(async () => store.set(openAgentConfigSectionAtom, "model-harness"))
-        await click(button("Pick model", document.querySelector('[role="dialog"]')!))
-        const newer = {
-            ...saved(),
-            runner: {permissions: {...saved().runner.permissions, default: "allow"}},
-        }
-        await act(async () => update(newer))
-        await click(button("Cancel"))
-        expect(live).toEqual(newer)
-        expect(writes).not.toHaveBeenCalled()
-    })
-
     it("saves and cancels Advanced environment edits without changing stored restrictions", async () => {
         await mount()
         await click(button("Advanced"))
@@ -582,15 +522,4 @@ describe("shared agent settings", () => {
             expectRules(dirty)
         },
     )
-
-    it("does not roll back newer build-kit availability when saving only a model", async () => {
-        fixture.revision = "saved-revision"
-        await mount()
-        store.set(projectIdAtom, "project")
-        await act(async () => store.set(openAgentConfigSectionAtom, "model-harness"))
-        await click(button("Pick model", document.querySelector('[role="dialog"]')!))
-        await act(async () => store.set(workflowBuildKitEnabledAtomFamily("saved-revision"), false))
-        await click(button("Save"))
-        expect(store.get(workflowBuildKitEnabledAtomFamily("saved-revision"))).toBe(false)
-    })
 })

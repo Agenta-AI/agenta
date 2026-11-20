@@ -17,7 +17,7 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
-    ConnectDrawer,
+    integrationConnectView,
     FinishConnectionDialog,
     ToolExecutionDrawer,
     useRefreshToolConnection,
@@ -31,6 +31,7 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
+import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {ArrowClockwise, MagnifyingGlass, Play, Star, Trash, XCircle} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -212,7 +213,7 @@ export default function GatewayToolsSection({
         () => ({...defaultCopy(t), ...copyOverrides}),
         [copyOverrides, t],
     )
-    const {connections, isLoading, refetch} = useToolConnectionsQuery()
+    const {connections, isLoading} = useToolConnectionsQuery()
     const access = useAtomValue(personalAccountsAccessAtom)
     const {
         connections: personalConnections,
@@ -561,17 +562,15 @@ export default function GatewayToolsSection({
                 />
             ) : null}
             {readOnly || !connectTarget ? null : (
-                <ConnectDrawer
-                    open
-                    integrationKey={connectTarget.key}
-                    integrationName={connectTarget.name}
-                    integrationLogo={connectTarget.logo ?? undefined}
-                    integrationDescription={connectTarget.description ?? undefined}
-                    authSchemes={connectTarget.auth_schemes ?? []}
-                    onClose={() => setConnectTarget(null)}
-                    onSuccess={() => void refetch()}
-                    owners={connectOwners}
-                    projectName={projectName}
+                // The connect view in a drawer; its target is the project, so it adds the new
+                // connection to no agent.
+                <ViewDrawerHost
+                    request={{
+                        view: integrationConnectView,
+                        params: {integrationKey: connectTarget.key, owners: connectOwners},
+                        target: {kind: "project"},
+                    }}
+                    onClosed={() => setConnectTarget(null)}
                 />
             )}
         </>

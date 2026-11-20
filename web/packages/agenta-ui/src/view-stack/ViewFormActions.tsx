@@ -43,7 +43,9 @@ export const ViewFormActions = ({
                     onClick={onSave}
                 >
                     {form?.saving ? <Spinner size="small" /> : null}
-                    {form?.saving ? t("ui.viewStack.saving") : t("ui.viewStack.save")}
+                    {form?.saving
+                        ? t("ui.viewStack.saving")
+                        : (form?.saveLabel ?? t("ui.viewStack.save"))}
                 </Button>
             </div>
         </div>
