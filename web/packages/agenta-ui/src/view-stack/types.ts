@@ -47,6 +47,12 @@ export interface ViewNav {
      * opens over the dirty parent.
      */
     push: (<C>(view: ViewDef<C>, params: C, target: ViewTarget) => Promise<boolean>) | null
+    /**
+     * Put another view in this view's place, at the same depth (guarded like back). For a picker
+     * whose choice is the next step: the crumb shows the new view, and its Save or Back returns
+     * to this view's parent.
+     */
+    replace: <C>(view: ViewDef<C>, params: C, target: ViewTarget) => Promise<boolean>
     /** Guarded back: asks first when this view's form is dirty. */
     back: () => Promise<boolean>
     /** Cancel: discards the local form without asking, then goes back. */

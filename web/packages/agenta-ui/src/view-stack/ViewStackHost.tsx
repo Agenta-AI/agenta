@@ -248,6 +248,22 @@ export const ViewStackHost = ({
         [exclusive, settle, setStack],
     )
 
+    /** The view `entryKey` gives its place to a new view; only its own form asks first. */
+    const replace = useCallback(
+        <C,>(entryKey: number, view: ViewDef<C>, params: C, target: ViewTarget) =>
+            exclusive(async () => {
+                const current = entriesRef.current
+                if (current.at(-1)?.key !== entryKey) return false
+                if (!(await settle(current.slice(-1)))) return false
+                setStack([
+                    ...current.slice(0, -1),
+                    newEntry(view as ViewDef<unknown>, params, target),
+                ])
+                return true
+            }),
+        [exclusive, settle, setStack],
+    )
+
     const save = useCallback(async () => {
         const top = entriesRef.current.at(-1)
         if (!top || navigatingRef.current) return
@@ -317,6 +333,7 @@ export const ViewStackHost = ({
                                 setForms={setForms}
                                 setTitles={setTitles}
                                 push={push}
+                                replace={replace}
                                 back={back}
                                 cancel={cancel}
                             />
@@ -343,6 +360,7 @@ const MountedView = ({
     setForms,
     setTitles,
     push,
+    replace,
     back,
     cancel,
 }: {
@@ -354,6 +372,12 @@ const MountedView = ({
     setTitles: (update: (prev: Record<number, string>) => Record<number, string>) => void
     push: <C>(
         parentKey: number,
+        view: ViewDef<C>,
+        params: C,
+        target: ViewTarget,
+    ) => Promise<boolean>
+    replace: <C>(
+        entryKey: number,
         view: ViewDef<C>,
         params: C,
         target: ViewTarget,
@@ -383,10 +407,11 @@ const MountedView = ({
         () => ({
             depth,
             push: depth === 1 ? (view, params, target) => push(key, view, params, target) : null,
+            replace: (view, params, target) => replace(key, view, params, target),
             back,
             cancel,
         }),
-        [depth, key, push, back, cancel],
+        [depth, key, push, replace, back, cancel],
     )
     const Component = entry.view.Component
     return (
