@@ -26,6 +26,7 @@ vi.mock("@/features/chat/SessionInspectorSheet", () => ({
 }))
 vi.mock("@/features/agent-layout/useAgentSessionOrder", () => ({
     useAgentSessionOrder: () => ({failed: sessions.failed, retry: sessions.retry}),
+    sessionMenuListArgs: () => ({}),
 }))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 vi.mock("@/features/context/useProjectPermission", () => ({

@@ -16,7 +16,13 @@ import {
     useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {CONFIG_REVEAL_TTL_MS, configPaneRevealRequestAtom} from "@agenta/chat/state"
-import {DriveLinkContext, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {
+    driveQuickLookAtomFamily,
+    DriveLinkContext,
+    filesDrawerStagedAtomFamily,
+    SessionFilesPane,
+    useSessionFilesPane,
+} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {userAtom} from "@agenta/shared/state"
@@ -142,6 +148,18 @@ export const AgentLayoutBody = ({
         if (stored === "files" && !files.open) files.openPane()
         else if (files.open && stored !== "files") setState({content: "files"})
     }, [panelKey, filesScope, stored, files, setState])
+
+    // While Files is hidden but open, a new request to it (a file card, a quote, a staged drop)
+    // brings it forward: the open state alone no longer changes then.
+    const quickLook = useAtomValue(driveQuickLookAtomFamily(sessionId))
+    const stagedCount = useAtomValue(filesDrawerStagedAtomFamily(sessionId)).length
+    const lastRequest = useRef({quickLook, stagedCount})
+    useEffect(() => {
+        const last = lastRequest.current
+        lastRequest.current = {quickLook, stagedCount}
+        const asked = (quickLook && quickLook !== last.quickLook) || stagedCount > last.stagedCount
+        if (asked && stored !== "files") setState({content: "files"})
+    }, [quickLook, stagedCount, stored, setState])
 
     useEffect(() => {
         if (files.open && !filesWasOpen.current) setState({content: "files"})

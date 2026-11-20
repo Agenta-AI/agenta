@@ -6,6 +6,7 @@
 import {act} from "react"
 
 import {configPaneRevealRequestAtom} from "@agenta/chat/state"
+import {driveQuickLookAtomFamily} from "@agenta/entity-ui/drive"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -258,6 +259,13 @@ describe("the session screen on the agent layout", () => {
         })
         expect(q("configuration")).toHaveLength(1)
         expect(files.close).not.toHaveBeenCalled()
+        // A file opened from elsewhere while Files is hidden brings Files back.
+        await act(async () => {
+            store.set(driveQuickLookAtomFamily("session-1"), {path: "notes.md"} as never)
+        })
+        expect(
+            JSON.parse(localStorage.getItem(panelStateKey("anonymous", "proj-1"))!).content,
+        ).toBe("files")
         files.open = false
     })
 })

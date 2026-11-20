@@ -4,38 +4,66 @@ import {
     renderedSessionTabsAtomFamily,
     sessionTabScope,
 } from "@agenta/sessions/state"
-import {renderHook} from "@testing-library/react"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
+import {act, renderHook} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
 import {describe, expect, it, vi} from "vitest"
 
 import {useAgentSessionOrder} from "@/features/agent-layout/useAgentSessionOrder"
 
-const list = vi.hoisted(() => ({
-    pages: [{sessions: [{session_id: "s-2"}, {session_id: "s-1"}, {session_id: "s-3"}]}],
-    isError: false,
-}))
 vi.mock("@agenta/sessions/state", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/sessions/state")>()),
-    useSessionList: () => ({data: {pages: list.pages}, isError: list.isError, refetch: vi.fn()}),
+    useSessionCardList: () => ({
+        groups: [
+            {key: "pinned", rows: [{id: "s-2"}]},
+            {key: "recent", rows: [{id: "s-1"}, {id: "s-3"}]},
+        ],
+    }),
 }))
 
+const setup = () => {
+    const store = createStore()
+    const client = new QueryClient()
+    const hook = renderHook(() => useAgentSessionOrder("agent-1"), {
+        wrapper: ({children}) => (
+            <QueryClientProvider client={client}>
+                <Provider store={store}>{children}</Provider>
+            </QueryClientProvider>
+        ),
+    })
+    return {store, client, hook}
+}
+
 describe("the agent's session order", () => {
-    it("publishes the list order where leaving a session reads it, so archive moves to the next one", () => {
-        const store = createStore()
-        renderHook(() => useAgentSessionOrder("agent-1"), {
-            wrapper: ({children}) => <Provider store={store}>{children}</Provider>,
-        })
+    it("publishes the menu's order where leaving a session reads it, so archive moves to the next one", () => {
+        const {store} = setup()
         const order = store.get(renderedSessionTabsAtomFamily(sessionTabScope("agent-1")))
         expect(order).toEqual(["s-2", "s-1", "s-3"])
-        expect(nearestSurvivingTab(order, new Set(["s-1"]), "s-1")).not.toBeNull()
+        expect(nearestSurvivingTab(order, new Set(["s-1"]), "s-1")).toBe("s-3")
     })
 
-    it("reports a failed list only when nothing loaded", () => {
-        list.isError = true
-        list.pages = []
-        const {result} = renderHook(() => useAgentSessionOrder("agent-1"), {
-            wrapper: ({children}) => <Provider store={createStore()}>{children}</Provider>,
+    it("reports a failed session-list request of this agent, and only of this agent", async () => {
+        const {client, hook} = setup()
+        expect(hook.result.current.failed).toBe(false)
+        await act(async () => {
+            await client
+                .fetchQuery({
+                    queryKey: ["session-list", "proj", "", "agent-2"],
+                    queryFn: () => Promise.reject(new Error("down")),
+                    retry: false,
+                })
+                .catch(() => undefined)
         })
-        expect(result.current.failed).toBe(true)
+        expect(hook.result.current.failed).toBe(false)
+        await act(async () => {
+            await client
+                .fetchQuery({
+                    queryKey: ["session-list", "proj", "", "agent-1"],
+                    queryFn: () => Promise.reject(new Error("down")),
+                    retry: false,
+                })
+                .catch(() => undefined)
+        })
+        expect(hook.result.current.failed).toBe(true)
     })
 })

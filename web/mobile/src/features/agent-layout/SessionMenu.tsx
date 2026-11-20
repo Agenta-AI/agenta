@@ -16,6 +16,8 @@ import {SessionInspectorSheet} from "../chat/SessionInspectorSheet"
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {sessionMenuListArgs} from "./useAgentSessionOrder"
+
 /** The session menu of the session header: latest sessions, New session, Inspect session, Sessions. */
 export const SessionMenu = ({
     agentId,
@@ -82,10 +84,7 @@ export const SessionMenu = ({
                 ) : null}
                 <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
                     <SessionCardList
-                        agentId={agentId}
-                        policy={{origin: "exclude-trigger", expansions: []}}
-                        limit={20}
-                        withPinned
+                        {...sessionMenuListArgs(agentId)}
                         density="compact"
                         activeRowId={sessionId}
                         emptyText=""
