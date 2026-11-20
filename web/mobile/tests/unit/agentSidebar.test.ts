@@ -307,6 +307,7 @@ describe("the agent sidebar's filters as server predicates", () => {
             origins: undefined,
             excludeOrigins: undefined,
             activityFloor: undefined,
+            excludeSessionIds: undefined,
         })
     })
 
@@ -316,7 +317,7 @@ describe("the agent sidebar's filters as server predicates", () => {
         expect(agentSessionsNarrowing({...all, status: "running"}, null)?.flags).toEqual({
             is_running: true,
         })
-        expect(agentSessionsNarrowing({...all, status: "idle"}, null)?.flags).toEqual({
+        expect(agentSessionsNarrowing({...all, status: "idle"}, [])?.flags).toEqual({
             is_alive: false,
         })
         expect(agentSessionsNarrowing({...all, type: "chat"}, null)?.excludeOrigins).toEqual([
@@ -328,6 +329,13 @@ describe("the agent sidebar's filters as server predicates", () => {
         expect(agentSessionsNarrowing({...all, activity: "24h"}, null)?.activityFloor).toBe(
             "2026-11-19T12:00:00.000Z",
         )
+    })
+
+    it("leaves the waiting sessions out of Idle on the server, before the page limit", () => {
+        expect(agentSessionsNarrowing({...all, status: "idle"}, null)).toBeNull()
+        expect(
+            agentSessionsNarrowing({...all, status: "idle"}, ["s2", "s1"])?.excludeSessionIds,
+        ).toEqual(["s1", "s2"])
     })
 
     it("narrows Waiting to the sessions with a pending interaction, and waits for that list", () => {

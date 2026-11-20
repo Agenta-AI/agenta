@@ -8,27 +8,31 @@ import {
 /** What the agent sidebar's filter menu narrows the list by: server predicates only. */
 export type AgentSessionsNarrowing = Pick<
     SessionListFilters,
-    "flags" | "origins" | "excludeOrigins" | "activityFloor" | "sessionIds"
+    "flags" | "origins" | "excludeOrigins" | "activityFloor" | "sessionIds" | "excludeSessionIds"
 >
 
 /**
  * The agent sidebar's filters (Type, Status, Last activity) as the session list's server
  * predicates, from the main sidebar's own mapping (`sidebarSessionRequestFilters`). "Waiting" is
- * the sessions with a pending interaction (`waitingIds`); null while that list loads.
+ * the sessions with a pending interaction (`waitingIds`), and "Idle" leaves them out: the server's
+ * idle ("no sandbox up") also matches a session that still waits for the person, and waiting
+ * ranks first. Both need `waitingIds`; null while that list loads.
  */
 export const agentSessionsNarrowing = (
     filters: SidebarSessionFilters,
     waitingIds: string[] | null,
 ): AgentSessionsNarrowing | null => {
-    if (filters.status === "waiting" && waitingIds === null) return null
+    const usesWaiting = filters.status === "waiting" || filters.status === "idle"
+    if (usesWaiting && waitingIds === null) return null
     const request = sidebarSessionRequestFilters(filters)
+    // Capped as the main sidebar caps it: a longer list is a 422 from the server.
+    const capped = [...(waitingIds ?? [])].sort().slice(0, MAX_SESSION_IDS_PER_QUERY)
     return {
         flags: request.flags,
-        // Capped as the main sidebar caps it: a longer list is a 422 from the server.
-        sessionIds:
-            filters.status === "waiting"
-                ? [...(waitingIds ?? [])].sort().slice(0, MAX_SESSION_IDS_PER_QUERY)
-                : undefined,
+        sessionIds: filters.status === "waiting" ? capped : undefined,
+        // On the server, before the page limit, so a page of waiting sessions cannot empty the
+        // Idle list.
+        excludeSessionIds: filters.status === "idle" && capped.length ? capped : undefined,
         origins: request.origin ? [request.origin] : undefined,
         excludeOrigins: request.excludeOrigin ? [request.excludeOrigin] : undefined,
         activityFloor: request.oldest,

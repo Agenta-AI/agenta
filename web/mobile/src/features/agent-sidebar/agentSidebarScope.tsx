@@ -67,9 +67,9 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     const interactions = useActionableInteractions(projectId)
     const pending = useMemo(() => pendingBySessionId(interactions.data), [interactions.data])
     // Joined, so a poll that returns the same waiting sessions keeps the same query. Read only
-    // under "Waiting": no other filter depends on who is waiting.
-    const waitingKey =
-        filters.status !== "waiting" ? "" : pending ? [...pending.keys()].sort().join(",") : null
+    // under "Waiting" and "Idle": no other filter depends on who is waiting.
+    const usesWaiting = filters.status === "waiting" || filters.status === "idle"
+    const waitingKey = !usesWaiting ? "" : pending ? [...pending.keys()].sort().join(",") : null
     // Per filter change, not per render: the activity floor reads the clock, and a new floor on
     // every render would make a new query each time.
     const narrowing = useMemo(
@@ -83,8 +83,9 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     const filtered = useAtomValue(
         sidebarSessionFiltersDirtyAtomFamily(agentSidebarFilterScope(agentId)),
     )
-    // The waiting list failed to load (the lookup answers null): "Waiting" cannot be answered.
-    const waitingFailed = filters.status === "waiting" && interactions.data === null
+    // The waiting list failed to load (the lookup answers null): "Waiting" and "Idle" cannot be
+    // answered.
+    const waitingFailed = usesWaiting && interactions.data === null
     const query = useQuery({
         // Until the waiting list loads, a key of its own: never the unfiltered list's.
         ...agentSessionsQuery(
@@ -103,29 +104,24 @@ const useAgentSessions = (projectId: string, agentId: string) => {
     })
     const sessions = useMemo(
         () =>
-            (waitingFailed ? [] : (query.data?.sessions ?? []))
-                // "Idle" on the server is "no sandbox up", which also matches a session that
-                // still waits for the person. Waiting ranks first, so those leave the Idle list,
-                // as in the main sidebar.
-                .filter((row) => filters.status !== "idle" || !pending?.has(row.session_id))
-                .map((row): AgentSidebarSession => {
-                    const vm = sessionRowVm(row, {
-                        pinned: false,
-                        pending: pending?.get(row.session_id),
-                    })
-                    return {
-                        sessionId: vm.id,
-                        appId: vm.agentId,
-                        name: row.name ?? null,
-                        archived: Boolean(row.archived_at),
-                        ownerUserId: row.owner_user_id ?? null,
-                        title: vm.title,
-                        activityAt: vm.activityAt,
-                        status: vm.status.status,
-                        isAutomation: vm.isAutomation,
-                    }
-                }),
-        [filters.status, pending, query.data?.sessions, waitingFailed],
+            (waitingFailed ? [] : (query.data?.sessions ?? [])).map((row): AgentSidebarSession => {
+                const vm = sessionRowVm(row, {
+                    pinned: false,
+                    pending: pending?.get(row.session_id),
+                })
+                return {
+                    sessionId: vm.id,
+                    appId: vm.agentId,
+                    name: row.name ?? null,
+                    archived: Boolean(row.archived_at),
+                    ownerUserId: row.owner_user_id ?? null,
+                    title: vm.title,
+                    activityAt: vm.activityAt,
+                    status: vm.status.status,
+                    isAutomation: vm.isAutomation,
+                }
+            }),
+        [pending, query.data?.sessions, waitingFailed],
     )
     const status = waitingFailed
         ? "error"
