@@ -138,8 +138,9 @@ const AutomationDrawerShell = ({
         >
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">{children}</div>
             {/* The event picker's "Connect another app" opens the catalog by atom, so the
-                catalog has to be mounted wherever this drawer is — the screens mount their own,
-                and this shell renders nothing when closed, so the two never collide. */}
+                catalog has to be mounted wherever this drawer is. The screens mount their own and
+                this shell renders nothing when closed; the panel's Automations tab drops its copy
+                while a drawer atom is set. */}
             <AutomationTriggerDrawers />
         </EnhancedDrawer>
     )

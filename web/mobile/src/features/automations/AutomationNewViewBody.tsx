@@ -22,7 +22,8 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
         // The draft needs the agent's own id, from the references the panel resolved.
         defaultAgentId: params.references.application?.id ?? null,
         defaultAgentName: agentName ?? undefined,
-        defaultReferences: params.references,
+        // Without a resolved agent the person picks one, and the binding follows that pick.
+        defaultReferences: params.references.application?.id ? params.references : undefined,
     })
     useViewForm({
         // An open form counts as edits: leaving it asks first.
