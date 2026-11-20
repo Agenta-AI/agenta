@@ -95,6 +95,9 @@ export const NavDrawer = ({
                     onOpenChange={setOpen}
                     title={t("navigation.chrome.navigationTitle")}
                     header={false}
+                    // Every small button of the sidebar (group +, row ⋯, search, help) is 44 x 44 px
+                    // here, so a finger reaches it; the icons keep their size.
+                    className="[&_button]:min-h-11 [&_button]:min-w-11"
                 >
                     <SidebarDensityContext.Provider value="touch">
                         {shell}
