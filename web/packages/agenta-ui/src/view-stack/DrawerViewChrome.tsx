@@ -15,14 +15,14 @@ export const DrawerCloseContext = createContext<(() => void) | null>(null)
 
 /**
  * The chrome of a container that keeps a drawer: the breadcrumb and Close at the top, the view
- * edge to edge, and the view's action row at the bottom. `wide` is the panel's business; a drawer
- * keeps its width.
+ * edge to edge, and the view's action row at the bottom.
  */
 export const DrawerViewChrome = ({
     crumbs,
     apply,
     readOnly,
     form,
+    footerStartRef,
     onBack,
     onCancel,
     onSave,
@@ -82,6 +82,7 @@ export const DrawerViewChrome = ({
                         onBack={onBack}
                         onCancel={onCancel}
                         onSave={onSave}
+                        startRef={footerStartRef}
                     />
                 </div>
             )}

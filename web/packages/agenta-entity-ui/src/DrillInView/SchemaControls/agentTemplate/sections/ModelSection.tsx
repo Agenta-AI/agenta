@@ -39,7 +39,7 @@ export const modelSection = ({
     return (
         mh.hasModelOrHarness && {
             key: "model-harness",
-            icon: <Cpu size={16} />,
+            icon: <Cpu size={14} />,
             title: t("entityUi.agentTemplate.model"),
             titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,

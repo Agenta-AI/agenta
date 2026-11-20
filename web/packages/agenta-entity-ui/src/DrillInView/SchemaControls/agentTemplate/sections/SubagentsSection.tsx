@@ -60,7 +60,7 @@ export const subagentsSection = ({
     hasTools &&
     (Boolean(openAddSubagents) || subagentCount > 0) && {
         key: "subagents",
-        icon: <Robot size={16} />,
+        icon: <Robot size={14} />,
         title: t("entityUi.agentTemplate.subagents"),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(subagentCount, "subagent") || tNow("common.none"),

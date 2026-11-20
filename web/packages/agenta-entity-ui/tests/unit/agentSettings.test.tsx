@@ -227,6 +227,8 @@ describe("shared agent settings", () => {
         "shows only the shared policy for %s, outside Advanced",
         async (kind) => {
             await mount(saved(kind))
+            // Permissions starts closed (canvas S02); its row opens the policy inline.
+            await click(button("Permissions"))
             const permissions = host.querySelector('section[aria-label="Permissions"]')!
             expect(permissions.querySelector('[aria-label="Policy"]')).not.toBeNull()
             const advanced = host.querySelector('section[aria-label="Advanced"]')!
@@ -282,6 +284,7 @@ describe("shared agent settings", () => {
             {...saved(), runner: {permissions: {...saved().runner.permissions, default: "deny"}}},
             {disabled: true},
         )
+        await click(button("Permissions"))
         const permissions = host.querySelector('section[aria-label="Permissions"]')!
         expect(
             (permissions.querySelector('[aria-label="Policy"]') as HTMLButtonElement).disabled,

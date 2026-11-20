@@ -16,7 +16,14 @@ import {useOpenModelSetup} from "./useOpenModelSetup"
  *
  * The DrillIn bridge sits above it, around the panel's view stack (`ConfigurationContent`).
  */
-export const ConfigPane = ({entityId}: {entityId: string}) => {
+export const ConfigPane = ({
+    entityId,
+    column = false,
+}: {
+    entityId: string
+    /** A wide host (the builder page pane, B03): the sections sit in a centered 760 px column. */
+    column?: boolean
+}) => {
     const openModelSetup = useOpenModelSetup()
     // The edit right comes from the container (ConfigurationContent), which its open views share.
     const readOnly = useContext(AgentEditorContext)?.readOnly ?? false
@@ -26,6 +33,7 @@ export const ConfigPane = ({entityId}: {entityId: string}) => {
         // the bottom).
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]">
             <AgentBuildPanel
+                className={column ? "mx-auto w-full max-w-[760px] px-[22px]" : undefined}
                 revisionId={entityId}
                 disabled={readOnly}
                 // Automations and files have their own places in the panel.

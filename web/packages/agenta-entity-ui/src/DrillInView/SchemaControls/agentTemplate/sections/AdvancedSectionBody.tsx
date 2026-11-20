@@ -1,5 +1,5 @@
 /**
- * The Advanced section's row: its summary, and the body it shows inline while the sandbox has a
+ * The Advanced section: the body it shows inline while the sandbox has a
  * change that is not saved yet (the config panel narrows to what changed). The parts themselves
  * open as views (`views/advancedView`).
  */
@@ -33,12 +33,6 @@ export const useAdvancedSectionBody = ({
     setSection,
     sandbox,
 }: AdvancedSectionBodyParams) => {
-    // Advanced header summary: sandbox only — the connection mode comes with the picked model.
-    const advancedSummary =
-        hasExecutionGroup && sandbox.kind
-            ? t("entityUi.modelHarness.sandboxSummary", {kind: String(sandbox.kind)})
-            : undefined
-
     const advancedChangeBody = hasExecutionGroup ? (
         <div className="flex flex-col gap-3">
             <RailField
@@ -58,5 +52,5 @@ export const useAdvancedSectionBody = ({
         </div>
     ) : null
 
-    return {advancedSummary, advancedChangeBody}
+    return {advancedChangeBody}
 }
