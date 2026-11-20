@@ -93,6 +93,8 @@ Agenta converts each part to content blocks before the run:
 | `tool-approval-request`                                            | dropped                                                                                                              |
 | anything else, including `reasoning`                               | dropped                                                                                                              |
 
+An approval answer (a `tool-approval-response` part, or a tool part in `approval-responded` or `output-denied`) must carry the id of the approval request it answers: `approvalId` on a `tool-approval-response` part, `approval.id` on a tool part. Before the run starts, Agenta records the answer on that approval request with the credential that you sent. The agent acts on the recorded answer. An answer with no id, or one that your credential may not give, is not recorded, and the agent asks for approval again.
+
 A tool part's `state` decides the result block:
 
 | `state`              | Result                                                                              |
