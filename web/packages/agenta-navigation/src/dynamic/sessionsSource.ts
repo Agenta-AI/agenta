@@ -645,26 +645,28 @@ const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
     return new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
 })
 
-/**
- * The name an agent heading and a search row show.
- *
- * The artifact query is the source of truth, but it starts only once the session rows name their
- * agents, so a cold rail painted every heading as "Agent" until it answered. The catalog above is
- * already loaded by then (the rail reads it for `liveAgentIdsAtom`) and carries the same name, so
- * it fills that gap. Never the latest revision: a revision committed by API has no name.
- */
-const agentNameFor = (get: Getter, agentId: string): string | null => {
-    const artifactName = get(workflowMolecule.selectors.artifactName(agentId))
-    if (artifactName) return artifactName
-    const listed = (get(appWorkflowsListQueryAtom).data?.refs ?? []).find(
-        (ref: {id: string}) => ref.id === agentId,
-    ) as {name?: string | null} | undefined
-    return listed?.name || null
-}
+/** Each listed agent's name, by id, from the same unpaged catalog as `liveAgentIdsAtom`. */
+const catalogAgentNamesAtom = atom<ReadonlyMap<string, string>>((get) => {
+    const names = new Map<string, string>()
+    for (const ref of get(appWorkflowsListQueryAtom).data?.refs ?? []) {
+        if (ref.name) names.set(ref.id, ref.name)
+    }
+    return names
+})
 
-/** `agentNameFor` for one agent, for surfaces outside the rail such as the session header. */
-export const agentDisplayNameAtomFamily = atomFamily((agentId: string) =>
-    atom((get) => (agentId ? agentNameFor(get, agentId) : null)),
+/**
+ * The name an agent heading, a search row and the session header show: the artifact name, else
+ * the catalog name while the artifact query loads. Accepts a workflow id or a revision id.
+ */
+export const agentDisplayNameAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        return (
+            get(workflowMolecule.selectors.artifactName(entityId)) ||
+            get(catalogAgentNamesAtom).get(entityId) ||
+            null
+        )
+    }),
 )
 
 /**
@@ -823,8 +825,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
 
         const groupBy = filters.groupBy
         const now = Date.now()
-        // The owning agent's name, read off the workflow ARTIFACT (see `agentNameFor`), so a
-        // heading and a row can never disagree about an agent's name.
+        // The owning agent's name (see `agentDisplayNameAtomFamily`).
         // The heading is resolved HERE, not in the entity's `getGroupKey`: that closure is not
         // reactive, so a `groupBy` change would not re-bucket the rows.
         const grouped = merged.map((ref) => {
@@ -833,7 +834,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
                 // OR, not a replacement: a gate the host already knows about is open before the
                 // interactions query has a row for it.
                 waiting: waitingIds.has(ref.sessionId) || Boolean(ref.waiting),
-                agentName: ref.agentId ? agentNameFor(get, ref.agentId) : null,
+                agentName: ref.agentId ? get(agentDisplayNameAtomFamily(ref.agentId)) : null,
             }
             const group = sidebarSessionGroup(named, groupBy, now)
             return {
@@ -1407,7 +1408,7 @@ export const sidebarSessionSearchResultsAtom = atom<SessionSidebarRef[]>((get) =
         .filter((ref): ref is SessionSidebarRef => ref !== null)
     return dropMissingAgentSessions(refs, get(liveAgentIdsAtom)).map((ref) => ({
         ...ref,
-        agentName: ref.agentId ? agentNameFor(get, ref.agentId) : null,
+        agentName: ref.agentId ? get(agentDisplayNameAtomFamily(ref.agentId)) : null,
     }))
 })
 

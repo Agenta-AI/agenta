@@ -106,4 +106,13 @@ describe("agent headings in the main sidebar", () => {
         const labels = await headings()
         expect(labels).toEqual(expect.arrayContaining(["Support desk", "Email writer"]))
     })
+
+    it("give the session header the same name by agent id", async () => {
+        artifactNames.clear()
+        const {agentDisplayNameAtomFamily} = await import("../../src/dynamic/sessionsSource")
+        const store = createStore()
+        expect(store.get(agentDisplayNameAtomFamily("support"))).toBe("Support triage")
+        expect(store.get(agentDisplayNameAtomFamily("unknown"))).toBeNull()
+        expect(store.get(agentDisplayNameAtomFamily(""))).toBeNull()
+    })
 })

@@ -1,6 +1,5 @@
 import {useCallback, useState} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
@@ -63,13 +62,11 @@ export const SessionHeader = ({
     const panel = useAgentPanel()
     const base = `/w/${workspaceId}/p/${projectId}`
     const tScreen = useT(chatMobileScreenCatalog)
-    // By the agent id, as the sidebar heading reads it: the name is known before the revision
-    // loads. The revision's artifact is the fallback for a session that has no agent id yet.
-    const agentName = useAtomValue(agentDisplayNameAtomFamily(agentId ?? ""))
-    const revisionName = useAtomValue(
-        workflowMolecule.selectors.artifactName(agentId ? "" : (entityId ?? "")),
-    )
-    const name = agentName || revisionName || tScreen("chat.mobileScreen.agent")
+    // By the agent id first, as the sidebar heading reads it: the name is known before the
+    // revision loads.
+    const name =
+        useAtomValue(agentDisplayNameAtomFamily(agentId ?? entityId ?? "")) ||
+        tScreen("chat.mobileScreen.agent")
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const session = useSessionHeader(projectId, sessionId)
     // The agent's session order: archiving the open session moves to the next one.
