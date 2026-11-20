@@ -10,13 +10,7 @@ from typing import Any
 from agenta.sdk.agents.adapters.agenta_builtins import AGENT_CONFIG_FIELDS_REFERENCE
 from agenta.sdk.agents.skills.models import SkillFile, SkillTemplate
 
-from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
-
-from oss.src.core.workflows.build_kit import (
-    AGENTA_BUILTIN_AGENT_URI,
-    REQUEST_INPUT_WORKFLOW_SLUG,
-    reserved_static_tool_embeds,
-)
+from oss.src.core.workflows.build_kit import AGENTA_BUILTIN_AGENT_URI
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.new_agent import new_agent_revision_data
 
@@ -29,7 +23,6 @@ BUILDER_AGENT_DESCRIPTION = (
 # The drive slug rule for a static agent: `<agent slug>__<drive name>`.
 BUILDER_LEARNING_DRIVE_SLUG = f"{BUILDER_AGENT_SLUG}__learning"
 
-# Create and edit ask the person first; the reads run without asking.
 BUILDER_AGENT_TOOLS: dict[str, str] = {
     "list_agents": "allow",
     "read_agent_config": "allow",
@@ -828,6 +821,12 @@ you handle it.
 
 
 def _builder_agent_parameters() -> dict[str, Any]:
+    # Imported here: the static catalog imports this module.
+    from oss.src.core.workflows.static_catalog import (
+        request_connection_tool,
+        request_input_tool,
+    )
+
     # The model, harness, runner and sandbox are the ones a new agent starts with, so the
     # builder runs where a person's own agent would on this deployment.
     template = new_agent_revision_data()["parameters"]["agent"]
@@ -840,12 +839,11 @@ def _builder_agent_parameters() -> dict[str, Any]:
                     {"type": "platform", "op": op, "permission": permission}
                     for op, permission in BUILDER_AGENT_TOOLS.items()
                 ),
-                # The client tools that ask the person for input or a connection, embedded
-                # the way the build kit embeds them. No `request_secret`: its card attaches
-                # the secret to the agent of the chat, which here is the builder itself.
-                *reserved_static_tool_embeds(
-                    (REQUEST_CONNECTION_WORKFLOW_SLUG, REQUEST_INPUT_WORKFLOW_SLUG)
-                ),
+                # The client tools that ask the person for a choice or a connection, inline,
+                # so the builder does not depend on resolving an embed. No `request_secret`:
+                # its card attaches the secret to the agent of the chat, the builder itself.
+                request_input_tool(),
+                request_connection_tool(),
             ],
             "mcps": [],
             "skills": [

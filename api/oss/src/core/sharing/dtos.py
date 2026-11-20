@@ -133,6 +133,18 @@ class AgentPolicyWriteResult(BaseModel):
     """The result of `set_agent_policy`."""
 
     policy: AccessPolicy
+    # The slugs of the drives the same write made shared.
+    drives_made_shared: List[str] = []
+
+
+class MountVisibility(BaseModel):
+    """One drive's scope and its `mount_visibility` row (`policy` None: no row)."""
+
+    mount_id: UUID
+    slug: Optional[str] = None
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    policy: Optional[AccessPolicy] = None
 
 
 # -- read scopes ------------------------------------------------------------------------
@@ -167,6 +179,12 @@ class ShareDisclosure(BaseModel):
     always true; the UI owns their text."""
 
     connections: List[DisclosedConnection]
+    # The private drives the agent lists, by slug. Making the agent shared shares the
+    # acting owner's drives among them; a private drive of another member blocks it.
+    private_drives: List[str] = []
+    # The other agents, by name, that use one of `private_drives`: after the change they
+    # use a shared drive, and a private one among them loses that drive as its home.
+    agents_using_private_drives: List[str] = []
     turns_use_run_credentials: bool = True
     files_and_tool_results_shared: bool = True
     trace_readers_can_read: bool = True
@@ -180,6 +198,8 @@ class AgentSharingState(BaseModel):
     owner_is_active: bool
     my_role: EffectiveRole  # OWNER, VIEWER or NONE for agents
     can_take_ownership: bool
+    # Set by a visibility change only: the drives it made shared, by slug.
+    drives_made_shared: List[str] = []
 
 
 class NotShareableReason(str, Enum):
@@ -211,6 +231,13 @@ class CachedAgentAccess(BaseModel):
 
     # None = "no agent_access row" (project-visible, ownerless): a hit, not a miss.
     policy: Optional[AccessPolicy] = None
+
+
+class CachedMountVisibility(BaseModel):
+    """Namespace `sharing_mount_visibility`, key (project_id, mount_id). Only a row is
+    cached, never "no row"."""
+
+    mount: Optional[MountVisibility] = None
 
 
 class CachedSessionAccess(BaseModel):

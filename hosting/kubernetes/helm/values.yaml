@@ -52,6 +52,15 @@
 agenta:
   license: oss
 
+  # People may store their own accounts (custom secrets, Composio connections,
+  # MCP sign-ins), and an agent's `user` items use them. On by default
+  # (AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED). Set false to turn it off. During
+  # an upgrade, keep it false until every API, services and runner pod runs a
+  # release that supports personal accounts. Rendered into the API, workers,
+  # cron, services and alembic containers.
+  access:
+    personalAccountsEnabled: true
+
   # ================================================================ #
   # Agenta — Core endpoints
   # ================================================================ #

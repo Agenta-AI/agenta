@@ -24,7 +24,9 @@ import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {conversationKey} from "./conversationKey"
+import {ConversationRoleContext} from "./conversationRole"
 import {LiveConversation} from "./LiveConversation"
+import {usePublishPageSessionId} from "./pageSessionId"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
 import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import type {SessionReadOnly} from "./sessionReadOnly"
@@ -43,6 +45,7 @@ import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
 import {useSessionTranscript} from "./useSessionTranscript"
 import {useSessionWatch} from "./useSessionWatch"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+import {viewFormDirtyAtom} from "./viewFormDirty"
 import {watchAwarePollMs} from "./watchRelay"
 
 /**
@@ -80,6 +83,7 @@ export const ChatScreen = ({
         void prefetchRecords(sessionId).catch(() => undefined)
     }, [boundProjectId, prefetchRecords, projectId, sessionId])
     useLeaveHeldTask(sessionId, projectId)
+    usePublishPageSessionId(sessionId)
     // A session the server does not list yet names its agent only in the route, and the rail's
     // link does not carry it. A first message waiting here names it too.
     const taskAgentId = useAtomValue(pendingTasksAtom)[sessionId]?.agentId
@@ -168,10 +172,12 @@ export const ChatScreen = ({
     // This tab's run state knows of a send or an approval wait before liveness does.
     const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
     const turnActive = running || runStatus === "running" || runStatus === "awaiting"
+    // An open view form with edits holds the move too; the header then offers "Update to vN".
+    const viewFormDirty = useAtomValue(viewFormDirtyAtom)
     // Across a switch the bar still holds the last session's revision and agent, and an active
     // turn keeps the revision it started on, so neither may move this session's pin.
     const autoUpdateRevision =
-        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !turnActive
+        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !turnActive && !viewFormDirty
     // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
     // agent from the chat before it, so a private chat looks exactly like an unknown one.
     if (access.blocked) {
@@ -219,6 +225,10 @@ export const ChatScreen = ({
         />
     ) : (
         <ReplayScreen
+            // Per session, as the live conversation: its transcript state is per session, and a
+            // kept screen showed the last session's turns for one render, which the per-session
+            // transcript position would have saved under the new session.
+            key={sessionId}
             embedded
             sessionId={sessionId}
             projectId={projectId}
@@ -245,7 +255,12 @@ export const ChatScreen = ({
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
-            chat={chat}
+            // The session's own conversation. The builder panel gives its chat the role "embedded".
+            chat={
+                <ConversationRoleContext.Provider value="page">
+                    {chat}
+                </ConversationRoleContext.Provider>
+            }
             deepLinks
         />
     )
@@ -303,16 +318,10 @@ const ReplayScreen = ({
         approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
     const nextPollMs = watchAwarePollMs(basePollMs, watch.connected)
     if (nextPollMs !== pollMs) setPollMs(nextPollMs)
-    // One identity cache per session — the dep does that, and must, since the screen is no longer
-    // remounted per session.
-
-    // Both factories take no argument, so the linter reads `sessionId` as unused. It is the point:
-    // the dep is what discards the previous session's cache on a screen that never remounts.
-
-    const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
+    // One identity cache per session: the screen is mounted per session (`key` in `ChatScreen`).
+    const [executedFor] = useState(createExecutedToolIdentityCache)
     // Without this every view model is a fresh object per poll, so TurnRow's memo never hits.
-
-    const turnCache = useMemo(() => createTurnViewModelCache(), [sessionId])
+    const [turnCache] = useState(createTurnViewModelCache)
     const turns = useMemo(
         () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),
         [messages, executedFor, turnCache],
@@ -335,8 +344,6 @@ const ReplayScreen = ({
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <TranscriptTurns
-                    // This screen stays mounted across sessions; the window must not.
-                    key={sessionId}
                     turns={visibleTurns}
                     scrollerRef={autoScroll.ref}
                     sessionId={sessionId}

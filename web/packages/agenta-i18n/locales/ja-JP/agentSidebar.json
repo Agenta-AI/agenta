@@ -1,0 +1,19 @@
+{
+    "agent": "エージェント",
+    "agents": "エージェント",
+    "analytics": "分析",
+    "backToMainSidebar": "メインサイドバーに戻る",
+    "channels": "チャネル",
+    "configuration": "設定",
+    "earlier": "それ以前",
+    "loadError": "セッションを読み込めませんでした",
+    "loading": "読み込み中",
+    "newSession": "新しいセッション",
+    "retry": "再試行",
+    "searchAgents": "エージェントを検索",
+    "seeAllSessions": "すべてのセッションを表で表示",
+    "sessions": "セッション",
+    "showOlderSessions_other": "以前のセッションを{{count}}件表示",
+    "today": "今日",
+    "yesterday": "昨日"
+}

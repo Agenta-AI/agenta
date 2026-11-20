@@ -118,8 +118,7 @@ describe("file citation guidance", () => {
       const text = platformGuidanceAppendix({
         acpAgent,
         isPi: acpAgent === "pi",
-        agentMountedPath: undefined,
-        agentMountSkipped: false,
+        homeDrive: undefined,
         toolNames: [],
       });
       assert.match(text ?? "", /relative to your working directory/);

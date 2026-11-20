@@ -845,6 +845,14 @@ def _read_config_response(outcome: Any, *, is_draft: bool):
     )
 
 
+def _revision_summary(revision: Any) -> Optional[Dict[str, Any]]:
+    """The revision an agent tool wrote (or, on `no_change`, the head it kept), in the
+    `revision` shape `read_agent_config` answers with."""
+    if revision is None:
+        return None
+    return {"id": str(revision.id), "version": getattr(revision, "version", None)}
+
+
 def _commit_payload_refusal(error: Exception) -> AgentError:
     return AgentError(
         code="commit_payload_invalid",
@@ -882,6 +890,7 @@ async def _commit_as_agent(
     from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
     from oss.src.core.workflows.service import RevisionConflictError
     from oss.src.core.workflows.types import (
+        AgentDriveError,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
         InvalidAgentHarnessError,
@@ -902,6 +911,7 @@ async def _commit_as_agent(
             first_agent_owner_user_id=first_agent_owner_user_id,
         )
     except (
+        AgentDriveError,
         ChangeSetError,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
@@ -1110,6 +1120,11 @@ LIST_AGENTS_CALL_REF = "tools.agenta.list_agents"
 READ_AGENT_CONFIG_CALL_REF = "tools.agenta.read_agent_config"
 CREATE_AGENT_CALL_REF = "tools.agenta.create_agent"
 EDIT_AGENT_CONFIG_CALL_REF = "tools.agenta.edit_agent_config"
+# Not a model tool: the runner calls it when the approval gate of one of the two writes
+# above opens, and puts the answer on the approval card.
+PREVIEW_AGENT_CHANGE_CALL_REF = "tools.agenta.preview_agent_change"
+# The handlers only the runner calls. Every other handler backs an op of the SDK catalog.
+RUNNER_ONLY_CALL_REFS = frozenset({PREVIEW_AGENT_CHANGE_CALL_REF})
 
 _FIND_AGENT_STEP = (
     "Call list_agents and pass the agent's `slug` or `id` as `agent`, not its name."
@@ -1554,11 +1569,11 @@ async def handle_list_agents(
                     workflow, project_id=project_id, workspace_id=workspace_id
                 ),
                 "description": workflow.description,
-                "version": head.version,
+                "revision": _revision_summary(head),
                 "updated_at": head.created_at.isoformat() if head.created_at else None,
             }
             if workflow.deleted_at is not None:
-                agent["archived"] = True
+                agent["is_archived"] = True
             agents.append(agent)
             if len(agents) == limit:
                 # Stopped inside the batch: what is left of it is the next page.
@@ -1739,14 +1754,15 @@ async def handle_edit_agent_config(
             "agent": _agent_summary(
                 workflow, project_id=project_id, workspace_id=workspace_id
             ),
-            "version": revision.version if revision else None,
+            "revision": _revision_summary(revision),
+            # The base the next edit of this agent sends: the head after this call.
             "base_revision_id": str(revision.id) if revision else None,
             "message": revision.message if revision else None,
             "warnings": [w.model_dump(mode="json") for w in outcome.warnings],
         },
         # Not `committed_revision`: that signal tells the CALLER's playground it committed
         # itself, and this is another agent.
-        wrote_other_agent_revision=outcome.status == "committed",
+        committed_other_agent_revision=outcome.status == "committed",
     )
 
 
@@ -1799,6 +1815,7 @@ async def handle_create_agent(
     from oss.src.core.workflows.change_set import ChangeSetError
     from oss.src.core.workflows.service import SimpleWorkflowsService
     from oss.src.core.workflows.types import (
+        AgentDriveError,
         AgentReferenceUnresolved,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
@@ -1846,6 +1863,17 @@ async def handle_create_agent(
                     "an agent the whole project sees."
                 ),
             ) from e
+        if visibility == Visibility.PRIVATE and first_agent_owner_user_id is None:
+            # A run with no person (an API key) cannot own an agent, and an agent
+            # with no owner is visible to the project. Refused, so a private request
+            # never makes a project-visible agent.
+            raise _ArgumentsRefused(
+                "This run has no person to own a private agent. No agent was created.",
+                next_step=(
+                    "Send `visibility: project` to create an agent the whole project "
+                    "sees, or create it from a chat with a person."
+                ),
+            )
         operations = _operations(parsed, required=False)
         attribution = await _attribution(
             workflows_service=workflows_service,
@@ -1888,6 +1916,7 @@ async def handle_create_agent(
         except ValidationError as e:
             raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
         except (
+            AgentDriveError,
             ChangeSetError,
             InvalidAgentConfigurationError,
             InvalidAgentConnectionError,
@@ -1929,11 +1958,127 @@ async def handle_create_agent(
                 created, project_id=project_id, workspace_id=workspace_id
             ),
             "visibility": result.visibility.value,
-            "base_revision_id": str(created.revision_id),
+            "revision": _revision_summary(result.revision),
+            # The base the next edit of this agent sends.
+            "base_revision_id": str(
+                result.head.id if result.head else created.revision_id
+            ),
             "message": result.message,
             "warnings": [w.model_dump(mode="json") for w in warnings],
         },
-        wrote_other_agent_revision=True,
+        committed_other_agent_revision=True,
+    )
+
+
+async def handle_preview_agent_change(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+    workspace_id: Optional[UUID] = None,
+    agent_read_scope: Optional[AgentReadScope] = None,
+) -> PlatformHandlerResult:
+    """What a waiting `edit_agent_config` or `create_agent` call would change, saving nothing.
+
+    Arguments: `call_ref` (of the waiting call) and `arguments` (its arguments, with the
+    runner's bindings). The engine runs the operations the way the save would, on the
+    base the call names (an edit) or on the new agent template (a create), and the answer is
+    the preview of `change_preview.py`. An edit reads the target agent, so it needs the right
+    to read it, like `read_agent_config`. A change set the engine refuses is a preview with
+    `applies: false` (`applies` covers the change-set engine only: the save's later checks,
+    such as the embed and runtime checks, can still refuse it); any other refusal (no such agent, a base that is not the head) is the
+    canonical envelope, and the card then shows the proposed values alone.
+    """
+    from oss.src.core.workflows.change_preview import (
+        build_change_preview,
+        failed_change_preview,
+    )
+    from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
+    from oss.src.core.workflows.commit_support import normalize_operations
+    from oss.src.core.workflows.dtos import WorkflowRevisionCommit
+    from oss.src.core.workflows.new_agent import new_agent_revision_data
+    from oss.src.core.workflows.service import (
+        RevisionConflictError,
+        SimpleWorkflowsService,
+    )
+
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("preview_agent_change is unavailable.")
+    read_scope = agent_read_scope or AgentReadScope(owner_user_id=None)
+
+    try:
+        parsed = _parse_arguments(arguments)
+        call_ref = parsed.get("call_ref")
+        call = _parse_arguments(parsed.get("arguments"))
+        if call_ref not in (EDIT_AGENT_CONFIG_CALL_REF, CREATE_AGENT_CALL_REF):
+            raise _ArgumentsRefused(
+                f"`call_ref` must be {EDIT_AGENT_CONFIG_CALL_REF} or "
+                f"{CREATE_AGENT_CALL_REF}.",
+                next_step="Send the call ref of the waiting call as `call_ref`.",
+            )
+        operations = _operations(call, required=call_ref == EDIT_AGENT_CONFIG_CALL_REF)
+        operations = normalize_operations(operations or [])[0]
+        base_revision = None
+        try:
+            if call_ref == CREATE_AGENT_CALL_REF:
+                base = new_agent_revision_data()
+                result, _, _ = SimpleWorkflowsService(
+                    workflows_service=workflows_service
+                ).compose_new_agent(operations)
+            else:
+                workflow, head = await _resolve_other_agent(
+                    workflows_service=workflows_service,
+                    project_id=project_id,
+                    read_scope=read_scope,
+                    arguments=call,
+                    caller_id=_bound_caller(call),
+                    self_step="To change your own configuration, use commit_revision.",
+                )
+                if not await _allowed_on_agent(
+                    project_id=project_id,
+                    agent_id=workflow.id,
+                    action=Permission.VIEW_WORKFLOWS,
+                ):
+                    raise _not_found(call["agent"].strip())
+                resolution = await workflows_service._resolve_revision_delta(
+                    project_id=project_id,
+                    workflow_revision_commit=WorkflowRevisionCommit(
+                        workflow_variant_id=head.workflow_variant_id,
+                        base_revision_id=call.get("base_revision_id"),
+                        delta={"operations": operations},
+                    ),
+                    scope_policy=AGENT_COMMIT_SCOPE,
+                    agent_context=True,
+                )
+                base_revision = resolution.head
+                base = (
+                    base_revision.data.model_dump(mode="json", exclude_none=True)
+                    if base_revision and base_revision.data
+                    else {}
+                )
+                result = resolution.commit.data.model_dump(
+                    mode="json", exclude_none=True
+                )
+        except ChangeSetError as e:
+            return PlatformHandlerResult(
+                content=failed_change_preview(operations=operations, error=e)
+            )
+        except RevisionConflictError as e:
+            raise _Refusal(AgentError(**e.to_detail())) from e
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    return PlatformHandlerResult(
+        content=build_change_preview(
+            base=base,
+            result=result,
+            operations=operations,
+            base_revision=_revision_summary(base_revision),
+        )
     )
 
 
@@ -2042,6 +2187,14 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_edit_agent_config,
         elevated_permission=Permission.EDIT_WORKFLOWS,
         needs_workspace=True,
+        needs_agent_read_scope=True,
+    ),
+    # Reads the target like `read_agent_config` and writes nothing.
+    PREVIEW_AGENT_CHANGE_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=PREVIEW_AGENT_CHANGE_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_preview_agent_change,
+        elevated_permission=Permission.VIEW_WORKFLOWS,
         needs_agent_read_scope=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes

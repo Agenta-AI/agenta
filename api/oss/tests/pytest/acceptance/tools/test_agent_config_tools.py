@@ -34,6 +34,8 @@ def _call(authed_api, op, **arguments):
 
 
 def _create(authed_api, name, caller_id, **arguments):
+    # These calls run with an API key, which cannot own a private agent.
+    arguments.setdefault("visibility", "project")
     ok, content = _call(
         authed_api,
         "create_agent",
@@ -186,7 +188,20 @@ class TestAnAgentCreatesListsReadsAndEditsAnother:
     def test_an_edit_lands_with_the_editing_agent_in_the_history(
         self, authed_api, agents
     ):
-        caller, target = agents["caller"], agents["target"]["agent"]
+        # Its own target: the edit moves the head that the other tests read.
+        caller = agents["caller"]
+        target = _create(
+            authed_api,
+            "Invoice editor",
+            caller["id"],
+            operations=[
+                {
+                    "operation": "set",
+                    "target": INSTRUCTIONS,
+                    "value": "You answer questions about invoices.",
+                }
+            ],
+        )["agent"]
         _, read = _read(authed_api, agents, target["slug"])
 
         ok, edit = _call(

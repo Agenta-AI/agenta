@@ -1,0 +1,11 @@
+{
+    "cancel": "キャンセル",
+    "discard": "破棄",
+    "done": "完了",
+    "keepEditing": "編集を続ける",
+    "save": "保存",
+    "saveChanges": "変更を保存",
+    "saveFailed": "変更を保存できませんでした。もう一度お試しください。",
+    "saving": "保存中…",
+    "unsavedChanges": "未保存の変更があります"
+}

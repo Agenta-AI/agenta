@@ -1,11 +1,12 @@
 from hmac import compare_digest
-from typing import Any, List, Optional, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from oss.src.middlewares.auth import (
+    run_agent_id_of_request,
     SECRET_RESOLVE_GRANT,
     request_run_envelope,
     sign_secret_token,
@@ -31,6 +32,9 @@ from oss.src.core.access.types import RbacEntitlementUnavailable
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
 from oss.src.apis.fastapi.access.models import AccessRolesResponse
+
+if TYPE_CHECKING:
+    from oss.src.core.workflows.service import WorkflowsService
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
@@ -196,7 +200,11 @@ async def _run_accounts_of_exchange(
 
 
 class AccessRouter:
-    def __init__(self) -> None:
+    def __init__(
+        self, *, workflows_service: Optional["WorkflowsService"] = None
+    ) -> None:
+        # Resolves the agent a first mint names, for the `run_agent_id` claim.
+        self.workflows_service = workflows_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -213,6 +221,38 @@ class AccessRouter:
             operation_id="fetch_access_roles",
             response_model=AccessRolesResponse,
         )
+
+    async def _run_agent_id_of_exchange(
+        self, request: Request, *, envelope: RunEnvelope, workflow_id: Optional[UUID]
+    ) -> Optional[UUID]:
+        """The `run_agent_id` claim of the credential this exchange returns. A run
+        credential carries its own claim on, unchanged. A first mint (a turn the agent
+        service runs for an API key or a browser session) gets the agent the service
+        names, only after the API resolves it in the caller's project and the caller
+        may run it."""
+
+        access = get_request_access()
+        if (
+            access is not None
+            and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+        ):
+            return run_agent_id_of_request(request)
+        if workflow_id is None or self.workflows_service is None:
+            return None
+        run_agent_id = await self.workflows_service.resolve_run_agent_id(
+            project_id=envelope.authority.project_id,
+            envelope=envelope,
+            references={"workflow": {"id": str(workflow_id)}},
+        )
+        if run_agent_id is not None:
+            # A first mint starts a run: its static agent's drive exists before the
+            # runner signs the run's drives.
+            await self.workflows_service.ensure_static_agent_drive(
+                project_id=envelope.authority.project_id,
+                envelope=envelope,
+                artifact_id=run_agent_id,
+            )
+        return run_agent_id
 
     @intercept_exceptions()
     async def fetch_roles(self) -> AccessRolesResponse:
@@ -351,5 +391,8 @@ class AccessRouter:
             organization_name=getattr(request.state, "organization_name", None),
             grants=grants or None,
             envelope=envelope,
+            run_agent_id=await self._run_agent_id_of_exchange(
+                request, envelope=envelope, workflow_id=workflow_id
+            ),
         )
         return Allow(f"Secret {secret_token}")

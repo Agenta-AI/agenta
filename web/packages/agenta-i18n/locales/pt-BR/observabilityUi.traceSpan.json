@@ -44,5 +44,9 @@
     "valueLabel": "Valor:",
     "totalMean": "Média total:",
     "true": "Verdadeiro",
-    "false": "Falso"
+    "false": "Falso",
+    "panelInputs": "entradas",
+    "panelParameters": "parâmetros",
+    "panelOutputs": "saídas",
+    "panelInternals": "dados internos"
 }

@@ -1,0 +1,15 @@
+{
+    "archiveAgent": "Arquivar agente",
+    "builder": "Builder",
+    "configuration": "Configuração",
+    "exportAgent": "Exportar agente",
+    "files": "Arquivos",
+    "history": "Histórico",
+    "loadFailed": "Não foi possível carregar as sessões",
+    "newSession": "Nova sessão",
+    "rename": "Renomear",
+    "retry": "Tentar novamente",
+    "sessions": "Sessões",
+    "shareConversation": "Compartilhar a conversa",
+    "untitledSession": "Sessão sem título"
+}

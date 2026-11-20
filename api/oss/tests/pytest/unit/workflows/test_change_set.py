@@ -2284,6 +2284,9 @@ class TestAgentCommitScope:
             ["parameters", "agent", "sandbox", "kind"],
             ["parameters", "agent", "sandbox", "permissions"],
             ["parameters", "agent", "sandbox", "credentials"],
+            ["parameters", "agent", "drives"],
+            ["parameters", "agent", "home_drive"],
+            ["parameters", "agent", "has_session_drive"],
         ],
     )
     def test_platform_owned_targets_are_refused(self, target):

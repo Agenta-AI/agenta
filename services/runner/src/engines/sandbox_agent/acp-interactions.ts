@@ -19,6 +19,7 @@ import {
   parsePiGateEnvelope,
   type PiGateEnvelope,
 } from "./pi-gate-envelope.ts";
+import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
 import { redactContextBoundArgs } from "../../tools/relay.ts";
 import { bareToolName } from "./client-tools.ts";
 import {
@@ -168,6 +169,18 @@ export interface AttachPermissionResponderInput {
       }
   >;
   /**
+   * The server preview of an agent write (`edit_agent_config`, `create_agent`): old and new
+   * value per changed path. It rides the approval event as `preview`. Unlike the approved
+   * content above it never fails the gate: no preview, and the card shows the proposed values.
+   */
+  onResolveChangePreview?: AgentChangePreviewFetcher;
+  /**
+   * Resolves when the turn pauses. A card that still waits for its preview stops waiting
+   * then and opens without it, so a sibling gate's pause never ends the turn before the card
+   * exists.
+   */
+  pauseSignal?: Promise<unknown>;
+  /**
    * Whether a REPLAYED approval must not answer this gate, so the gate asks again.
    *
    * A cold resume destroys the environment, and with it the frozen bytes the human approved. The
@@ -226,6 +239,8 @@ export function attachPermissionResponder({
   onPiGateAllowed,
   onExecutableGateAllowed,
   onResolveApprovedContent,
+  onResolveChangePreview,
+  pauseSignal,
   shouldRegateStaleApproval,
   piToolSpecsByName,
   toolSpecsByName,
@@ -276,13 +291,16 @@ export function attachPermissionResponder({
   // approval prompt on the same tool-call id (the F-024 clobber). The turn instead ends via
   // `onPause` (session teardown resolves the RPC as cancelled, not rejected) and the next
   // turn's stored decision answers the re-raised gate.
-  const pauseUserApproval = (
+  const pauseUserApproval = async (
     req: any,
     id: string,
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
     manifest?: unknown,
-  ): void => {
+    resolvePreview?: () =>
+      | Promise<Record<string, unknown> | undefined>
+      | undefined,
+  ): Promise<void> => {
     // Signal the parkable gate so a keep-alive resume can record the pending permission id and
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
     // gated calls in one turn all render and all park (the plural approval path).
@@ -298,6 +316,15 @@ export function attachPermissionResponder({
     });
     const eventId = interactionEventId(id, toolCallId);
     if (toolCallId) onPausedToolCall?.(toolCallId);
+    // Fetched after the call is marked paused, so a sibling gate that pauses the turn
+    // meanwhile does not settle this call as an orphan.
+    const pending = resolvePreview?.();
+    const preview = pending
+      ? await Promise.race([
+          pending,
+          ...(pauseSignal ? [pauseSignal.then(() => undefined)] : []),
+        ])
+      : undefined;
     run.emitEvent({
       type: "interaction_request",
       id: eventId,
@@ -312,6 +339,9 @@ export function attachPermissionResponder({
         // keeps only the model's own arguments: the resolved content must not be persisted
         // into an interaction row on every gated commit.
         ...(manifest === undefined ? {} : { manifest }),
+        // Live event only, like the manifest: it is derived from the stored configuration,
+        // and the durable row keeps the model's own arguments.
+        ...(preview === undefined ? {} : { preview }),
       },
     });
     createdInteractionIds.add(eventId);
@@ -358,8 +388,16 @@ export function attachPermissionResponder({
     availableReplies: string[],
     toolCallId: string | undefined,
   ): Promise<void> => {
+    const preview = onResolveChangePreview
+      ? () =>
+          onResolveChangePreview({
+            toolName: gate.toolName,
+            toolCallId,
+            args: gate.args,
+          })
+      : undefined;
     if (!onResolveApprovedContent) {
-      pauseUserApproval(req, id, gate, gateType);
+      await pauseUserApproval(req, id, gate, gateType, undefined, preview);
       return;
     }
     const outcome = await onResolveApprovedContent({
@@ -368,7 +406,14 @@ export function attachPermissionResponder({
       args: gate.args,
     });
     if (outcome.ok) {
-      pauseUserApproval(req, id, gate, gateType, outcome.manifest);
+      await pauseUserApproval(
+        req,
+        id,
+        gate,
+        gateType,
+        outcome.manifest,
+        preview,
+      );
       return;
     }
     // The structured detail, when the failure was an unresolvable marker. `available` is the

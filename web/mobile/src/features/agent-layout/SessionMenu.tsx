@@ -1,0 +1,132 @@
+import {useCallback, useState} from "react"
+
+import {useT} from "@agenta/i18n"
+import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
+import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
+import type {SessionRowVm} from "@agenta/sessions/row"
+import {SessionCardList} from "@agenta/sessions-ui"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {CaretDown} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+import Link from "next/link"
+import {useRouter} from "next/router"
+
+import {SessionInspectorSheet} from "../chat/SessionInspectorSheet"
+import {useStartBlankSession} from "../chat/useStartBlankSession"
+import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
+
+import {sessionMenuListArgs} from "./useAgentSessionOrder"
+
+/** The session menu of the session header: latest sessions, New session, Inspect session, Sessions. */
+export const SessionMenu = ({
+    agentId,
+    base,
+    sessionId,
+    title,
+    loadFailed,
+    onRetry,
+}: {
+    agentId: string
+    base: string
+    sessionId: string
+    title: string
+    /** The agent's session list failed to load; "New session" still works. */
+    loadFailed: boolean
+    onRetry: () => void
+}) => {
+    const t = useT(agentLayoutHeaderCatalog)
+    const router = useRouter()
+    const menu = useSessionRowMenu(base)
+    const startBlank = useStartBlankSession(base)
+    const [open, setOpen] = useState(false)
+    // "Inspect session" lives in this menu while the debug preference is on; the sheet stays
+    // outside the popover, which closes when it opens.
+    const tSessions = useT(chatMobileSessionsCatalog)
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    const [inspecting, setInspecting] = useState(false)
+    // `startBlankSession` itself ignores a second start while the first navigation runs.
+    const newSession = useCallback(() => {
+        setOpen(false)
+        startBlank(agentId)
+    }, [agentId, startBlank])
+
+    const openRow = (vm: SessionRowVm) => {
+        setOpen(false)
+        if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
+    }
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="ghost"
+                    className="h-8 min-w-0 max-w-[240px] gap-1 px-2 text-sm max-md:h-11"
+                    title={title}
+                >
+                    <span className="truncate">{title}</span>
+                    <CaretDown size={12} className="shrink-0" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
+                {loadFailed ? (
+                    <div
+                        role="alert"
+                        className="flex items-center justify-between gap-2 px-2 py-1 text-xs"
+                    >
+                        <span className="text-colorTextSecondary">
+                            {t("agentLayout.header.loadFailed")}
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={onRetry}>
+                            {t("agentLayout.header.retry")}
+                        </Button>
+                    </div>
+                ) : null}
+                <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
+                    <SessionCardList
+                        {...sessionMenuListArgs(agentId)}
+                        density="compact"
+                        activeRowId={sessionId}
+                        emptyText=""
+                        onOpenRow={openRow}
+                        menuFor={menu.menuFor}
+                        onMenuSelect={menu.onMenuSelect}
+                        onRenameRow={menu.onRenameRow}
+                    />
+                </div>
+                <div className="flex flex-col border-0 border-t border-solid border-colorBorderSecondary pt-1">
+                    <Button variant="ghost" className="justify-start" onClick={newSession}>
+                        {t("agentLayout.header.newSession")}
+                    </Button>
+                    {inspectorEnabled ? (
+                        <Button
+                            variant="ghost"
+                            className="justify-start"
+                            onClick={() => {
+                                setOpen(false)
+                                setInspecting(true)
+                            }}
+                        >
+                            {tSessions("chat.mobileSessions.inspectSession")}
+                        </Button>
+                    ) : null}
+                    <Button variant="ghost" className="justify-start" asChild>
+                        <Link
+                            href={`${base}/agents/${agentId}?view=sessions`}
+                            onClick={() => setOpen(false)}
+                        >
+                            {t("agentLayout.header.sessions")}
+                        </Link>
+                    </Button>
+                </div>
+            </PopoverContent>
+            {inspectorEnabled ? (
+                <SessionInspectorSheet
+                    sessionId={sessionId}
+                    open={inspecting}
+                    onOpenChange={setInspecting}
+                />
+            ) : null}
+        </Popover>
+    )
+}

@@ -32,7 +32,10 @@ from oss.src.core.workflows.service import (
     WorkflowsService,
     _reject_unrunnable_agent,
 )
-from oss.src.core.workflows.types import InvalidAgentConfigurationError
+from oss.src.core.workflows.types import (
+    InvalidAgentConfigurationError,
+    InvalidAgentHarnessError,
+)
 
 AGENT_URI = "agenta:builtin:agent:v0"
 SKILL = {"name": "invoice-lookup", "description": "Find invoices.", "body": "Look."}
@@ -403,6 +406,23 @@ class TestTheRoutesAnswer422:
         assert caught.value.status_code == 422
         assert caught.value.detail["code"] == "invalid_harness_kind"
 
+    @pytest.mark.asyncio
+    async def test_a_field_of_the_wrong_type_is_422_not_500(self):
+        # `prompt.llm_config` as a string made the parse raise an AttributeError, which
+        # the route answered with a 500.
+        @handle_workflow_exceptions()
+        async def route():
+            _reject_unrunnable_agent(
+                {"uri": AGENT_URI, "parameters": {"prompt": {"llm_config": "gpt-5.5"}}}
+            )
+
+        with pytest.raises(HTTPException) as caught:
+            await route()
+
+        assert caught.value.status_code == 422
+        assert caught.value.detail["code"] == "invalid_agent_configuration"
+        assert "wrong type" in caught.value.detail["details"]["issues"][0]
+
 
 class TestTheTemplateIsFoundTheWayTheRuntimeFindsIt:
     """The runtime reads the bare template, or the `prompt` fallback, when the parameters
@@ -420,6 +440,29 @@ class TestTheTemplateIsFoundTheWayTheRuntimeFindsIt:
                     "uri": AGENT_URI,
                     "parameters": {
                         "prompt": {"llm_config": {"tools": [{"type": "builtin"}]}}
+                    },
+                }
+            )
+
+    def test_a_bare_template_whose_only_field_is_embedded_does_not_fall_back(self):
+        # The runtime resolves the embed, finds `llm`, and ignores `prompt`. The check must
+        # not read the `prompt` fallback because the embed was left out.
+        _reject_unrunnable_agent(
+            {
+                "uri": AGENT_URI,
+                "parameters": {"llm": SKILL_EMBED, "prompt": {"llm_config": "gpt-5.5"}},
+            }
+        )
+
+    def test_the_other_fields_of_such_a_template_are_still_checked(self):
+        with pytest.raises(InvalidAgentHarnessError):
+            _reject_unrunnable_agent(
+                {
+                    "uri": AGENT_URI,
+                    "parameters": {
+                        "llm": SKILL_EMBED,
+                        "harness": {"kind": "not_a_real_harness"},
+                        "prompt": {"llm_config": "gpt-5.5"},
                     },
                 }
             )

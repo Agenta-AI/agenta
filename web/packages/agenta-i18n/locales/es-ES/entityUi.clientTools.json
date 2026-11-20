@@ -39,5 +39,16 @@
     "youSkippedSecret": "Has omitido <name>{{name}}</name>",
     "waitingToAddSecretBelow": "Esperando a que añadas <name>{{name}}</name> abajo",
     "couldNotSaveAnswer": "No se ha podido guardar la respuesta. Inténtalo de nuevo.",
-    "theService": "el servicio"
+    "theService": "el servicio",
+    "keepSavedValue": "Mantener el valor guardado",
+    "changeValue": "Cambiar el valor",
+    "moreOptions": "Más opciones",
+    "secretValue": "Valor del secreto",
+    "pasteNewValue": "Pega un valor nuevo",
+    "pasteValue": "Pega el valor",
+    "save": "Guardar",
+    "environmentVariable": "Variable de entorno",
+    "onlyYou": "· solo tú",
+    "checking": "Comprobando...",
+    "secretOptions": "Opciones del secreto"
 }

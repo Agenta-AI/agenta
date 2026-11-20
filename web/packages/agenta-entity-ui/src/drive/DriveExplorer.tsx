@@ -40,7 +40,7 @@ import {useDriveTreeKeyboard} from "@agenta/entities/drive"
 import {useDriveTreePane} from "@agenta/entities/drive"
 import {useDriveTreeReveal} from "@agenta/entities/drive"
 import {useDriveTreeViewport} from "@agenta/entities/drive"
-import {useDriveUploads} from "@agenta/entities/drive"
+import {canWriteAt, useDriveUploads} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
@@ -324,8 +324,8 @@ export function DriveExplorer({
     const selectedMountPath = selectedResolved?.path ?? selectedPath ?? ""
     const selectedFileSize = selected?.size ?? selectedNode?.size ?? undefined
 
-    // Writes share the upload gate: a writable, real mount.
-    const canWrite = canUpload
+    // Writes share the upload gate, judged at the destination: a mount backs it, not a read drive.
+    const canWrite = canUpload && canWriteAt(drive, currentFolder)
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
@@ -353,7 +353,7 @@ export function DriveExplorer({
     )
     useDrivePasteUpload({
         paneRef,
-        enabled: chrome && canUpload,
+        enabled: chrome && canWrite,
         onFiles: onPasteFiles,
         isNameTaken,
     })
@@ -451,11 +451,12 @@ export function DriveExplorer({
     )
     const startRename = useCallback(
         (path: string) => {
+            if (!writes.canChange(path)) return
             const folder = parentOf(path)
             if (selectedPath !== folder) select(folder)
             setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file"})
         },
-        [selectedPath, select, nodeByPath],
+        [writes, selectedPath, select, nodeByPath],
     )
     const nameEditView = useMemo<DriveNameEdit | null>(() => {
         if (!nameEdit) return null
@@ -472,7 +473,7 @@ export function DriveExplorer({
     }, [nameEdit, siblingsOf, commitName])
     const onDelete = useCallback(
         async (path: string, isFolder: boolean) => {
-            if (!writes.canDelete(path)) return
+            if (!writes.canChange(path)) return
             const node = nodeByPath.get(path)
             const under =
                 selectedPath != null &&
@@ -485,15 +486,17 @@ export function DriveExplorer({
         },
         [writes, nodeByPath, selectedPath, editing, discardDraft, select],
     )
+    // Each item's menu asks for its own path: a read drive's items offer no write verb.
     const itemWrites = useMemo<DriveItemWriteActions | undefined>(
         () =>
-            canWrite
+            canUpload
                 ? {
+                      canChange: writes.canChange,
                       onRename: startRename,
                       onDelete: (path, isFolder) => void onDelete(path, isFolder),
                   }
                 : undefined,
-        [canWrite, startRename, onDelete],
+        [canUpload, writes.canChange, startRename, onDelete],
     )
     const fileActions = useMemo<DriveFileActions | undefined>(
         () =>
@@ -603,7 +606,7 @@ export function DriveExplorer({
                 mirrored={mirrored}
             />
         )
-    } else if (drive.fileCount === 0) {
+    } else if (drive.fileCount === 0 && !drive.otherDrives?.length) {
         body = <DriveEmptyState scope={scope} />
     } else {
         // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.
@@ -760,6 +763,7 @@ export function DriveExplorer({
                     path={selectedMountPath}
                     displayPath={selectedPath}
                     showOrigin={showOrigin}
+                    otherDrives={drive.otherDrives}
                     rootLabel={rootLabel}
                     touchedAt={selected?.touchedAt}
                     size={selectedFileSize}
@@ -808,6 +812,7 @@ export function DriveExplorer({
                             shownExpanded={shownExpanded}
                             selectedPath={selectedPath}
                             showOrigin={showOrigin}
+                            otherDrives={drive.otherDrives}
                             isDirLoading={isDirLoading}
                             scrollXFor={scrollXFor}
                             onMeasureContent={onMeasureContent}

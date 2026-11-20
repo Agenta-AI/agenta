@@ -1,14 +1,11 @@
 /**
  * useModelHarness — the Model, Permissions, and Advanced sections. One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
+ * The bodies themselves live in `./sections/` (one file per section); this hook owns the state.
  */
-import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-import {
-    customSecretsAtom,
-    type AgentConnectionNamespace,
-    type AgentSecretBinding,
-} from "@agenta/entities/secret"
+import {customSecretsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     harnessCapabilitiesAtomFamily,
@@ -19,21 +16,10 @@ import {
 import {useT} from "@agenta/i18n"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, Hammer, Toolbox, Vault} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
-import {
-    useFocusPaths,
-    useHasFocusUnder,
-    useIsPathVisible,
-} from "../../../drawers/shared/FocusPathsContext"
-import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
-import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
-import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
+import {useHasFocusUnder, useIsPathVisible} from "../../../drawers/shared/FocusPathsContext"
 import type {PickerSelection} from "../connectionPicker"
 import {
     allowedConnectionModes,
@@ -49,8 +35,7 @@ import {
     vaultPickedProviderFamily,
     type ConnectionMode,
 } from "../connectionUtils"
-import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
-import {GroupedChoiceControl} from "../GroupedChoiceControl"
+import {getEnumOptions} from "../EnumSelectControl"
 import {selectableHarnesses} from "../harnessMeta"
 import {
     isPermissionPolicy,
@@ -59,23 +44,15 @@ import {
 } from "../permissionPolicy"
 
 import {useAgentaTools} from "./AgentaToolsSection"
-import {AgentSecretsSection} from "./AgentSecretsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
-import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
-import ModelPickerControl from "./ModelPickerControl"
-import {PermissionPolicySelect} from "./PermissionPolicySelect"
-import {RevertGroupButton} from "./RevertGroupButton"
+import {useAdvancedSectionBody} from "./sections/AdvancedSectionBody"
+import {modelSectionBody} from "./sections/ModelSectionBody"
+import {permissionsSectionBody} from "./sections/PermissionsSectionBody"
+import {useSecretsSection} from "./sections/SecretsSection"
 import {useBuildKit} from "./useBuildKit"
 
 // Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
-
-/** One Advanced rail panel: its nav item, an optional header, and the controls it shows. */
-interface AdvancedPanel {
-    item: SectionRailItem
-    header?: {title: string; caption: string; extra?: ReactNode}
-    body: ReactNode
-}
 
 export function useModelHarness({
     schema,
@@ -142,19 +119,6 @@ export function useModelHarness({
             (o) => enabled.has(o.value) && !(daytonaEnabled && o.value === "inprocess"),
         )
     }, [sandboxProps.kind, daytonaEnabled])
-
-    const secretBindings = Array.isArray(sandbox.credentials)
-        ? sandbox.credentials.filter((value): value is AgentSecretBinding => {
-              if (!value || typeof value !== "object") return false
-              const candidate = value as AgentSecretBinding
-              return (
-                  (typeof candidate.secret?.slug === "string" ||
-                      candidate.secret?.account_source === "user") &&
-                  candidate.binding?.type === "env" &&
-                  typeof candidate.binding.name === "string"
-              )
-          })
-        : []
 
     const runnerPermissions =
         runner.permissions && typeof runner.permissions === "object"
@@ -415,36 +379,11 @@ export function useModelHarness({
         stateOverride: buildKitOverride,
     })
 
-    // Which Advanced sub-sections own an uncommitted change (see `ChangedPathsProvider`). Drives
-    // `defaultOpen` so a drawer opened from a "something changed" indicator lands with the changed
-    // group ALREADY expanded instead of three closed rows. Mount-time is the right moment:
-    // `SectionDrawer` uses `destroyOnClose`, so this re-evaluates on every open.
-    const sandboxChanged = useHasChangedUnder("sandbox.kind")
-    const changedIndicator = (changed: boolean) =>
-        changed
-            ? ({tone: "draft", tooltip: t("entityUi.modelHarness.unsavedGroupChanges")} as const)
-            : undefined
-
-    // Section-scoped undo: restore every changed property in this group to its committed value. The
-    // per-row dot reverts ONE property; this is "undo the whole group". Null when nothing changed or
-    // the surface offers no revert, so the header keeps its normal actions.
-    const revertSandbox = useRevertUnder("sandbox.kind")
-
-    // Confirmed — see `RevertGroupButton`, which owns the confirm step.
-    const revertAction = (onRevert: (() => void) | null) =>
-        onRevert ? <RevertGroupButton onConfirm={onRevert} disabled={disabled} /> : undefined
-
     // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
-    // config panel showing only what changed — a group renders only if it owns one of them, and the
-    // rows filter themselves. Chrome follows the content: with changes in ONE group there is nothing
-    // to disambiguate, so it renders FLAT (just the controls, like the Connect-key field); spread
-    // across several, the group headers earn their keep by saying which change belongs where.
-    const focus = useFocusPaths()
-    const sandboxInFocus = useHasFocusUnder("sandbox.kind")
+    // config panel showing only what changed — a body renders only what owns one of them.
     const policyInFocus = useIsPathVisible("runner.permissions.default")
     // Hidden harness policies do not focus the model picker.
     const harnessKindInFocus = useHasFocusUnder("harness.kind")
-    const flatFocus = focus.active
 
     // Same, for the Model section body: the connection list owns both `llm.model` and the
     // `harness.kind` a picked row sets, so a change filter keeps it whenever either is in scope.
@@ -467,371 +406,68 @@ export function useModelHarness({
         [capabilities, schemaHarnesses.join(",")],
     )
 
-    // The Model picker (inspect-filtered when available, else the schema catalog), as a rail row —
-    // the info tooltip only applies to the inspect-filtered variant (the fallback is the full catalog).
-    // The bare model control (no label). In the capabilities layout the "Model" section header carries
-    // the label (matching the schedule drawer's "Name" section — title + bare input), so we render this
-    // directly; the flat/no-capabilities branch wraps it in a labelled `RailField` (`modelPicker`).
-    // The pre-connections menu: the harness's own catalog grouped by provider family, plus the
-    // vault's custom-provider models. It stays as the fallback for a backend that publishes no
-    // capabilities, and for a project whose connections yield no rows.
-    const catalogModelControl = props.llm ? (
-        hasInspectModels ? (
-            <SelectLLMProviderBase
-                showGroup
-                providerDropdownWidth={580}
-                options={modelGroups}
-                value={modelId ?? undefined}
-                onChange={(v, option) => {
-                    // A vault-hosted model option carries its own connection slug + kind in
-                    // `metadata` (set by `vaultModelGroups`); a catalog option carries neither.
-                    // Read them straight off the picked option instead of re-guessing the
-                    // connection by model id — duplicate ids across providers/connections would
-                    // resolve to the wrong one. The kind is a fallback provider source only (see
-                    // `vaultPickedProviderFamily`) for ids that encode no family themselves.
-                    const picked = Array.isArray(option) ? option[0] : option
-                    const metadata = (
-                        picked as
-                            | {metadata?: {connectionSlug?: string; provider?: string}}
-                            | undefined
-                    )?.metadata
-                    writeModel({
-                        modelId: (v as string) ?? null,
-                        slug: metadata?.connectionSlug ?? null,
-                        metadataProvider: metadata?.provider ?? null,
-                    })
-                }}
-                disabled={disabled}
-                placeholder={t("entityUi.modelHarness.selectModel")}
-                className="w-full"
-                footerContent={llmProviderConfig?.footerContent}
-            />
-        ) : (
-            <GroupedChoiceControl
-                schema={
-                    (props.llm?.properties as Record<string, SchemaProperty> | undefined)?.model ??
-                    props.llm
-                }
-                value={modelId}
-                onChange={(v) => writeModel({modelId: v})}
-                disabled={disabled}
-            />
-        )
-    ) : null
+    const modelHarnessBody = modelSectionBody({
+        t,
+        props,
+        hasInspectModels,
+        modelGroups,
+        modelId,
+        writeModel,
+        disabled,
+        llmProviderConfig,
+        capabilities,
+        harnessList,
+        harnessValue,
+        connection,
+        revisionId,
+        onlyCurrentConnection,
+        applyPickerSelection,
+        retryCatalog,
+        catalogUnavailable,
+        modelInFocus,
+        harnessKindInFocus,
+    })
 
-    // Connection-first cascade: level 1 is one row per connection (and per subscription), level 2
-    // that connection's models flat, one row per model AND harness pair. Picking one writes model,
-    // provider, connection and harness together, which is why this section has no harness control.
-    const modelControl = props.llm ? (
-        <ModelPickerControl
-            capabilities={capabilities}
-            harnessIds={harnessList}
-            harness={harnessValue}
-            modelId={modelId}
-            provider={connection.provider ?? null}
-            mode={connection.mode}
-            slug={connection.slug ?? null}
-            namespace={connection.namespace}
-            replaceable={revisionId?.startsWith("local-") ?? false}
-            disabled={disabled}
-            // A subscription is a login mounted into the deployment; cloud has nowhere to mount one.
-            // isCloud is really isEE today, which would hide subscriptions on self-hosted EE,
-            // exactly where mounted logins exist. Ungated until a real cloud signal exists.
-            showSubscriptions={true}
-            onlyCurrentConnection={onlyCurrentConnection}
-            onSelect={applyPickerSelection}
-            fallback={catalogModelControl}
-        />
-    ) : null
+    const permissionsBody = permissionsSectionBody({
+        t,
+        runnerPermissionSchema,
+        policyInFocus,
+        currentRunnerPermission,
+        setSection,
+        runner,
+        runnerPermissions,
+        runnerPermissionOptions,
+        disabled,
+    })
 
-    // The Model section's body: the picker, and nothing else. It carries no rail label — that would
-    // only restate the section title and cost the narrow panel its label gutter. A focus filter
-    // keeps it as long as either property it owns is in scope: the model, or the harness a picked
-    // row sets.
-    const catalogUnavailableNotice = <CatalogUnavailableNotice onRetry={() => retryCatalog()} />
+    const {secretBindings, secretsBody, secretsSummary, setSecretsHeaderSlot} = useSecretsSection({
+        t,
+        sandbox,
+        revisionId,
+        disabled,
+        credentialOperationsBlocked,
+        canEditSecrets: permissions?.canEditSecrets ?? false,
+        onRevisionCommitted: handleCredentialRevisionCommitted,
+    })
 
-    const modelHarnessControls = (
-        <>
-            {!capabilities && catalogUnavailable ? catalogUnavailableNotice : null}
-            {modelInFocus || harnessKindInFocus ? modelControl : null}
-        </>
-    )
-
-    // Single column: the list owns the drawer's full width.
-    const modelHarnessBody = (
-        <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
-            {modelHarnessControls}
-        </div>
-    )
-
-    // Advanced header summary: sandbox only — the connection mode now comes with the picked model.
-    const advancedSummary =
-        hasExecutionGroup && sandbox.kind
-            ? t("entityUi.modelHarness.sandboxSummary", {kind: String(sandbox.kind)})
-            : undefined
-    // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
-    // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
-    // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
-    // `RailField` (labelled control rows).
-    /**
-     * One Advanced group. Under a focus filter it disappears unless it owns a focused property, and
-     * drops its chrome entirely when it's the only survivor — the body (the real controls) is the
-     * same either way, so nothing is rendered twice.
-     */
-    const advancedGroup = (
-        opts: {
-            inFocus: boolean
-            defaultOpen: boolean
-            indicator: ReturnType<typeof changedIndicator>
-            extra: ReactNode
-            icon: ReactNode
-            title: string
-            summary?: string
-            caption: ReactNode
-        },
-        body: ReactNode,
-    ) => {
-        if (!opts.inFocus) return null
-        // Flat: just the focused control(s) — the group header would only restate the section.
-        if (flatFocus) return <div className="flex flex-col gap-3">{body}</div>
-        return (
-            <ConfigAccordionSection
-                size="compact"
-                defaultOpen={opts.defaultOpen}
-                indicator={opts.indicator}
-                extra={opts.extra}
-                icon={opts.icon}
-                title={opts.title}
-                summary={opts.summary}
-                summaryCollapsedOnly
-            >
-                {opts.caption}
-                {body}
-            </ConfigAccordionSection>
-        )
-    }
-
-    const executionBody = (
-        <>
-            {hasExecutionGroup ? (
-                <RailField
-                    label={t("entityUi.modelHarness.sandbox")}
-                    align="center"
-                    path="sandbox.kind"
-                >
-                    <EnumSelectControl
-                        schema={sandboxProps.kind}
-                        options={sandboxOptions}
-                        value={shownSandboxKind}
-                        onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
-                        withTooltip={withTooltip}
-                        disabled={disabled}
-                    />
-                </RailField>
-            ) : null}
-        </>
-    )
-
-    const permissionsBody = (
-        <>
-            {/* No rail label: the section header already reads "Policy: …", so the select
-                takes the full width. */}
-            {runnerPermissionSchema && policyInFocus ? (
-                <PermissionPolicySelect
-                    value={currentRunnerPermission}
-                    onChange={(v) =>
-                        setSection("runner", {
-                            ...runner,
-                            permissions: {...runnerPermissions, default: v},
-                        })
-                    }
-                    options={runnerPermissionOptions}
-                    disabled={disabled}
-                    aria-label={t("entityUi.modelHarness.policy")}
-                />
-            ) : null}
-        </>
-    )
-
-    // The Attach button sits in the panel header; the section portals it into this slot.
-    const [secretsHeaderSlot, setSecretsHeaderSlot] = useState<HTMLElement | null>(null)
-    const secretsBody = (
-        <AgentSecretsSection
-            revisionId={revisionId}
-            bindings={secretBindings}
-            disabled={disabled}
-            localDraftDirty={credentialOperationsBlocked}
-            canEditSecrets={permissions?.canEditSecrets ?? false}
-            onRevisionCommitted={handleCredentialRevisionCommitted}
-            attachContainer={secretsHeaderSlot}
-        />
-    )
-
-    const secretsSummary = secretBindings.length
-        ? t("entityUi.modelHarness.attachedCount", {count: secretBindings.length})
-        : t("entityUi.modelHarness.noneAttached")
-
-    const advancedControls = (
-        <>
-            {focus.active ? null : agentaToolsSection}
-            {/* Playground-only overlay — it owns no committed property, so a focus filter drops it. */}
-            {focus.active ? null : buildKitSection}
-
-            {hasExecutionGroup
-                ? advancedGroup(
-                      {
-                          inFocus: sandboxInFocus,
-                          defaultOpen: sandboxChanged,
-                          indicator: changedIndicator(sandboxChanged),
-                          extra: revertAction(revertSandbox),
-                          icon: <Cube size={15} />,
-                          title: t("entityUi.modelHarness.executionEnvironment"),
-                          summary: sandbox.kind
-                              ? t("entityUi.modelHarness.sandboxSummary", {
-                                    kind: String(sandbox.kind),
-                                })
-                              : undefined,
-                          caption: (
-                              <span className="text-xs leading-snug text-colorTextDescription">
-                                  {t("entityUi.modelHarness.executionCaptionShort")}
-                              </span>
-                          ),
-                      },
-                      executionBody,
-                  )
-                : null}
-
-            {focus.active ? null : (
-                <ConfigAccordionSection
-                    size="compact"
-                    defaultOpen={secretBindings.length > 0}
-                    icon={<Vault size={15} />}
-                    title={t("entityUi.modelHarness.customSecrets")}
-                    summary={secretsSummary}
-                    summaryCollapsedOnly
-                >
-                    {secretsBody}
-                </ConfigAccordionSection>
-            )}
-        </>
-    )
-
-    // One rail panel per Advanced group, schema-gated: no group, no rail item and no panel.
-    const advancedPanels: AdvancedPanel[] = (
-        [
-            hasExecutionGroup && {
-                item: {
-                    value: "execution",
-                    label: t("entityUi.modelHarness.execution"),
-                    icon: <Cube size={14} />,
-                    status: sandboxChanged ? ("warning" as const) : undefined,
-                },
-                header: {
-                    title: t("entityUi.modelHarness.executionEnvironment"),
-                    caption: t("entityUi.modelHarness.executionCaption"),
-                    extra: revertAction(revertSandbox),
-                },
-                body: executionBody,
-            },
-            // Unlike the others this is not schema-gated: the vault is a property of the agent, not
-            // of its config schema, so the panel is always offered — it is the only way to reach
-            // the secrets from Advanced, which is where they have always lived.
-            {
-                item: {
-                    value: "secrets",
-                    label: t("entityUi.modelHarness.customSecrets"),
-                    icon: <Vault size={14} />,
-                },
-                header: {
-                    title: t("entityUi.modelHarness.customSecrets"),
-                    caption: t("entityUi.modelHarness.secretsCaption", {summary: secretsSummary}),
-                    extra: <span ref={setSecretsHeaderSlot} className="flex shrink-0" />,
-                },
-                body: secretsBody,
-            },
-            agentaToolsSection && {
-                item: {
-                    value: "agenta-tools",
-                    label: t("entityUi.modelHarness.agentaTools"),
-                    icon: <Toolbox size={14} />,
-                },
-                body: agentaToolsSection,
-            },
-            hasBuildKitOverlay && {
-                item: {
-                    value: "build-kit",
-                    label: t("entityUi.modelHarness.buildKit"),
-                    icon: <Hammer size={14} />,
-                },
-                // The block carries its own title + enable switch, so it needs no panel header.
-                body: buildKitSection,
-            },
-        ] as (AdvancedPanel | false)[]
-    ).filter((panel): panel is AdvancedPanel => Boolean(panel))
-
-    // Land on the first panel that owns an uncommitted change, else the first one.
-    const initialAdvancedPanel =
-        advancedPanels.find((panel) => panel.item.status === "warning" && panel.header)?.item
-            .value ??
-        advancedPanels[0]?.item.value ??
-        ""
-    const [advancedPanelValue, setAdvancedPanelValue] = useState(initialAdvancedPanel)
-    const activeAdvancedPanel =
-        advancedPanels.find((panel) => panel.item.value === advancedPanelValue) ?? advancedPanels[0]
-
-    const activeAdvancedPanelBody = (
-        // -ml/pl: the field rings keep 4px clear of the scroll clip. Keyed so each panel re-measures.
-        <ScrollFadeArea
-            key={activeAdvancedPanel?.item.value}
-            className="-ml-1 flex min-h-0 flex-1 flex-col gap-4 pb-4 pl-1 pr-1 pt-1"
-        >
-            {activeAdvancedPanel?.header ? (
-                <div className="flex items-start gap-2">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="text-sm font-medium text-colorText">
-                            {activeAdvancedPanel.header.title}
-                        </span>
-                        <span className="text-xs leading-snug text-colorTextDescription">
-                            {activeAdvancedPanel.header.caption}
-                        </span>
-                    </div>
-                    {activeAdvancedPanel.header.extra}
-                </div>
-            ) : null}
-            {activeAdvancedPanel?.body}
-        </ScrollFadeArea>
-    )
-
-    // One panel needs no nav — a single-item rail is chrome around nothing.
-    const advancedRailBody =
-        advancedPanels.length > 1 ? (
-            <SectionRail
-                fill
-                // Wider than the default rail: these labels carry an icon as well. The pt keeps
-                // the focus ring clear of the body's clip and lines up with the panel title.
-                railWidth="w-[112px] pt-1 sm:w-[148px]"
-                drillIn
-                listLabel={t("entityUi.modelHarness.advanced")}
-                items={advancedPanels.map((panel) => panel.item)}
-                value={activeAdvancedPanel?.item.value ?? ""}
-                onChange={setAdvancedPanelValue}
-            >
-                {activeAdvancedPanelBody}
-            </SectionRail>
-        ) : (
-            activeAdvancedPanelBody
-        )
-
-    // Under a focus filter the body is already narrowed, so it keeps the stack over the rail.
-    const advancedDrawerBody = focus.active ? (
-        <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
-            {advancedControls}
-        </div>
-    ) : (
-        <FieldLayoutProvider layout="stacked">
-            <div className="flex h-full min-h-0 flex-col">{advancedRailBody}</div>
-        </FieldLayoutProvider>
-    )
+    const {advancedSummary, advancedDrawerBody} = useAdvancedSectionBody({
+        t,
+        disabled,
+        withTooltip,
+        hasExecutionGroup,
+        sandboxProps,
+        sandboxOptions,
+        shownSandboxKind,
+        setSection,
+        sandbox,
+        agentaToolsSection,
+        buildKitSection,
+        hasBuildKitOverlay,
+        secretBindings,
+        secretsSummary,
+        secretsBody,
+        setSecretsHeaderSlot,
+    })
 
     return {
         hasModelOrHarness,

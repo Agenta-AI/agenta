@@ -466,7 +466,7 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
     """
 
     @staticmethod
-    async def _call(committed_revision, wrote_other_agent_revision=False):
+    async def _call(committed_revision, committed_other_agent_revision=False):
         from types import SimpleNamespace
         from unittest.mock import patch
 
@@ -497,7 +497,7 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
         result = PlatformHandlerResult(
             content={"status": "x"},
             committed_revision=committed_revision,
-            wrote_other_agent_revision=wrote_other_agent_revision,
+            committed_other_agent_revision=committed_other_agent_revision,
         )
         with (
             patch.object(
@@ -541,7 +541,9 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
 
     async def test_another_agents_write_clears_the_caches_and_announces_nothing(self):
         # `edit_agent_config` and `create_agent`: the caller did not commit itself.
-        invalidated, emitted = await self._call(None, wrote_other_agent_revision=True)
+        invalidated, emitted = await self._call(
+            None, committed_other_agent_revision=True
+        )
 
         assert invalidated
         assert not emitted

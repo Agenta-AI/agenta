@@ -23,7 +23,7 @@ import dynamic from "next/dynamic"
 import {type DriveLinkItem} from "./driveLink"
 
 import {DriveExplorerSkeleton} from "./index"
-import {useDriveArtifactId} from "./index"
+import {useDriveArtifactId, useDriveRevisionId} from "./index"
 import {useDriveGeneration} from "./index"
 import {driveQuickLookAtomFamily} from "./index"
 import {filesDrawerStagedAtomFamily, resolveQuickLookPath} from "./index"
@@ -103,12 +103,14 @@ export function SessionFilesPane({
     const [quickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     const [staged, setStaged] = useAtom(filesDrawerStagedAtomFamily(sessionId))
     const artifactId = useDriveArtifactId()
+    const revisionId = useDriveRevisionId()
 
     // Summary drive (cheap) — DriveExplorer lazy-loads the rest. Gated on open (the agent-mount query
     // keys on artifactId, so a live id while collapsed would fetch the agent drive before it's shown).
     const drive = useSessionDriveSummary(
         open ? sessionId : "",
         open ? (artifactId ?? undefined) : undefined,
+        open ? (revisionId ?? undefined) : undefined,
     )
 
     // Every opener writes a fresh request, so the same path clicked twice still re-opens.
@@ -119,10 +121,16 @@ export function SessionFilesPane({
         () =>
             quickLook
                 ? quickLook.path && !quickLook.exact
-                    ? resolveQuickLookPath(drive.recents, quickLook.path)
+                    ? resolveQuickLookPath(
+                          drive.recents,
+                          quickLook.path,
+                          drive.driveEntries,
+                          drive.homeSlug,
+                          drive.homeAtRoot,
+                      )
                     : quickLook.path
                 : null,
-        [quickLook, drive.recents],
+        [quickLook, drive.recents, drive.driveEntries, drive.homeSlug, drive.homeAtRoot],
     )
 
     // Raw ids are a DEBUGGING affordance (wiring an SDK call, filing a bug), so they ride the same

@@ -29,11 +29,13 @@ import {
     type ScalarChange,
     type SectionId,
 } from "@agenta/entities/workflow/commitDiff"
-import {createT} from "@agenta/i18n"
+import {createT, textVersionAtom} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
+
+import {commitDiffTextNow} from "../../../changes/commitDiffText"
 
 const t = createT(configItemsCatalog)
 
@@ -246,39 +248,49 @@ export function useAgentSectionChanges(
         ),
     ) as Record<string, unknown> | null
     const committed = useMemo(() => templateOf(committedConfig), [committedConfig])
+    const textVersion = useAtomValue(textVersionAtom)
 
     const draft = useMemo(() => {
         if (!committed) return EMPTY_SECTION_CHANGES
         try {
             const local = stripAgentaMetadataDeep(config) as Record<string, unknown>
-            return toSectionChanges(classifyAgentChanges(local, committed))
+            return toSectionChanges(classifyAgentChanges(local, committed, commitDiffTextNow()))
         } catch {
             return EMPTY_SECTION_CHANGES
         }
-    }, [config, committed])
+    }, [config, committed, textVersion])
 
     // The agent commits itself and the playground switches in place; once this control renders the
     // NEW revision we diff it against the captured previous parameters. FROZEN on the first
     // non-empty result so the user's own later edits don't drift into "the agent changed this".
     const commitSignal = useAtomValue(agentSelfCommitSignalAtom)
-    const frozenRef = useRef<{signalAt: number; changes: SectionChanges} | null>(null)
+    // The inputs are frozen, not the result, so the words still follow the language.
+    const frozenRef = useRef<{
+        signalAt: number
+        local: Record<string, unknown>
+        remote: Record<string, unknown>
+    } | null>(null)
     const agent = useMemo(() => {
         if (!commitSignal || !revisionId || commitSignal.revisionId !== revisionId) return null
-        if (frozenRef.current?.signalAt === commitSignal.at) return frozenRef.current.changes
         try {
+            const frozen =
+                frozenRef.current?.signalAt === commitSignal.at ? frozenRef.current : null
             // local = the NEW config, remote = the PREVIOUS revision's. Order is load-bearing now
             // that we render before→after: reversing it would report every add as a removal.
-            const local = templateOf({agent: config})
-            const remote = templateOf(commitSignal.prevParameters as Record<string, unknown>)
+            const local = frozen?.local ?? templateOf({agent: config})
+            const remote =
+                frozen?.remote ?? templateOf(commitSignal.prevParameters as Record<string, unknown>)
             if (!local || !remote) return null
-            const changes = toSectionChanges(classifyAgentChanges(local, remote))
+            const changes = toSectionChanges(
+                classifyAgentChanges(local, remote, commitDiffTextNow()),
+            )
             if (!changes.panelKeys.size) return null
-            frozenRef.current = {signalAt: commitSignal.at, changes}
+            frozenRef.current = {signalAt: commitSignal.at, local, remote}
             return changes
         } catch {
             return null
         }
-    }, [commitSignal, revisionId, config])
+    }, [commitSignal, revisionId, config, textVersion])
 
     const agentVersion = useMemo(() => {
         const raw = commitSignal?.version ? String(commitSignal.version) : null

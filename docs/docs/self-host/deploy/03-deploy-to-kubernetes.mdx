@@ -264,6 +264,14 @@ Access control settings are available only in Enterprise Edition.
 | `agenta.access.blockedEmails` | Block specific email addresses (comma-separated) | `""` |
 | `agenta.access.allowedOwnerEmails` | Only these emails can create organizations (comma-separated) | `""` |
 
+### Personal accounts
+
+People can store their own accounts (custom secrets, Composio connections, MCP sign-ins). This works in both editions.
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `agenta.access.personalAccountsEnabled` | Allow personal accounts. During an upgrade, set `false` until every pod runs the release | `true` |
+
 ### Email (SendGrid)
 
 To enable transactional emails (invitations and password resets), configure SendGrid.

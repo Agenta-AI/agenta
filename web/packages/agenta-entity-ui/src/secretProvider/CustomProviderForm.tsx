@@ -10,7 +10,7 @@ import {
     useVaultSecret,
     type ProviderFieldConfig,
 } from "@agenta/entities/secret"
-import {createT, useT} from "@agenta/i18n"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import type {LlmProvider} from "@agenta/shared/types"
 import {isSlugInputValid} from "@agenta/shared/utils"
@@ -22,6 +22,7 @@ import {Button, Textarea} from "@agenta/ui/ui"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 
 import ModelNameInput from "./ModelNameInput"
+import {translateProviderField} from "./providerFieldText"
 
 /** Imperative surface the host's footer (Submit button) drives — replaces the antd
  * `FormInstance` the pre-migration API shared with the caller. */
@@ -55,6 +56,20 @@ const INITIAL_VALUES: FormValues = {
 
 /** Error line under a control — replaces antd `Form.Item`'s validation message. */
 const tNow = createT(customProviderFormCatalog)
+type FormKey = CatalogKey<typeof customProviderFormCatalog>
+
+/** The either/or credential message, by provider kind. */
+const AUTH_MESSAGE_TEXT: Record<string, FormKey> = {
+    bedrock: "entityUi.customProviderForm.bedrockAuthRequired",
+}
+
+/** A provider kind's name in the picker; the custom endpoint is the one that is not a brand. */
+const providerLabel = (kind: string): string =>
+    kind === "custom"
+        ? tNow("entityUi.customProviderForm.openaiCompatibleEndpoint")
+        : Object.hasOwn(PROVIDER_LABELS, kind)
+          ? PROVIDER_LABELS[kind]
+          : capitalize(kind)
 
 const FieldError = ({error}: {error?: string}) =>
     error ? <span className="text-xs text-colorError">{error}</span> : null
@@ -145,17 +160,19 @@ const CustomProviderForm = ({
         [standardProviders],
     )
 
-    // Build provider options for SelectLLMProviderBase
-    const providerOptions = useMemo<ProviderGroup[]>(() => {
-        const allProviders = [...new Set([...standardProviders, ...customProviders])]
-        return allProviders.map((key) => {
-            const label = PROVIDER_LABELS[key] ?? capitalize(key)
-            return {
-                label,
-                options: [{label, value: key, key}],
-            }
-        })
-    }, [standardProviders, customProviders])
+    // Build provider options for SelectLLMProviderBase. Labels are read on every render, so they
+    // follow the language and a catalog that loads after the form opens.
+    const allProviders = useMemo(
+        () => [...new Set([...standardProviders, ...customProviders])],
+        [standardProviders, customProviders],
+    )
+    const providerOptions: ProviderGroup[] = allProviders.map((key) => {
+        const label = providerLabel(key)
+        return {
+            label,
+            options: [{label, value: key, key}],
+        }
+    })
 
     const providerValue = values.provider || ""
     const normalizedProviderKind = useMemo(() => {
@@ -177,7 +194,10 @@ const CustomProviderForm = ({
     const eitherOrAuthKeys = useMemo(
         () =>
             new Set<string>(
-                (PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]?.alternatives ?? []).flat(),
+                (Object.hasOwn(PROVIDER_AUTH_REQUIREMENTS, normalizedProviderKind)
+                    ? PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind].alternatives
+                    : []
+                ).flat(),
             ),
         [normalizedProviderKind],
     )
@@ -206,15 +226,22 @@ const CustomProviderForm = ({
         }
     }, [selectedProvider, initialProviderKind])
 
-    const visibleFields = useMemo(
+    const providerFields = useMemo(
         () =>
             PROVIDER_FIELDS.filter((field) => {
                 if (shouldFilter) {
                     return !field.model || field.model.includes(normalizedProviderKind)
                 }
                 return true
-            }).map((field) => ({...field, note: fieldNoteForKind(field, normalizedProviderKind)})),
+            }),
         [shouldFilter, normalizedProviderKind],
+    )
+    // Translated on every render, like the provider options above.
+    const visibleFields = providerFields.map((field) =>
+        translateProviderField(
+            {...field, note: fieldNoteForKind(field, normalizedProviderKind)},
+            normalizedProviderKind,
+        ),
     )
 
     const isFieldRequired = useCallback(
@@ -294,13 +321,19 @@ const CustomProviderForm = ({
                 return
             }
 
-            const authReq = PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]
+            const authReq = Object.hasOwn(PROVIDER_AUTH_REQUIREMENTS, normalizedProviderKind)
+                ? PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]
+                : undefined
             if (authReq) {
                 const filled = (key: keyof LlmProvider) =>
                     !!(values[key] as string | undefined)?.trim()
                 const satisfied = authReq.alternatives.some((set) => set.every(filled))
                 if (!satisfied) {
-                    setErrorMessage(authReq.message)
+                    setErrorMessage(
+                        Object.hasOwn(AUTH_MESSAGE_TEXT, normalizedProviderKind)
+                            ? tNow(AUTH_MESSAGE_TEXT[normalizedProviderKind])
+                            : authReq.message,
+                    )
                     return
                 }
             }

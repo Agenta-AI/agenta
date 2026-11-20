@@ -272,6 +272,9 @@ class ChannelSecretSettingsDTO(BaseModel):
     # app secret every webhook is signed with (X-Hub-Signature-256).
     access_token: Optional[str] = None
     app_secret: Optional[str] = None
+    # Teams: the bot registration's client secret, used only to get access
+    # tokens. Not an inbound signing secret like WhatsApp's `app_secret`.
+    client_secret: Optional[str] = None
 
 
 class ChannelSecretDTO(BaseModel):
@@ -337,6 +340,10 @@ class OAuthGrantSettingsDTO(BaseModel):
     # registered by hand, or from the identity document, has no registration row to
     # name, so this is what keeps its renewal on the same client.
     client_id: Optional[str] = None
+    # The account the grant signs in as, as the server named it at sign-in (an email or a
+    # user name). A label for a person's own sign-in, shown to that person only; None
+    # when the server gave no name.
+    account_name: Optional[str] = None
 
 
 class OAuthGrantDTO(BaseModel):

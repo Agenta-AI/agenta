@@ -16,7 +16,6 @@ from agenta.sdk.agents.adapters.agenta_builtins import AGENT_CONFIG_FIELDS_REFER
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
-from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
 from agenta.sdk.agents.tools import ToolResolver
 from agenta.sdk.agents.tools.models import ClientToolConfig
 
@@ -24,7 +23,6 @@ from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tools import platform_handlers
-from oss.src.core.workflows.build_kit import REQUEST_INPUT_WORKFLOW_SLUG
 from oss.src.core.workflows.builder_agent import (
     BUILDER_AGENT_SLUG,
     BUILDER_AGENT_TOOLS,
@@ -32,10 +30,14 @@ from oss.src.core.workflows.builder_agent import (
 )
 from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
+from oss.src.core.workflows.static_catalog import (
+    StaticWorkflowCatalog,
+    request_connection_tool,
+    request_input_tool,
+)
 
 
-_CLIENT_TOOLS = ["request_connection", "request_input"]
+_CLIENT_TOOLS = ["request_input", "request_connection"]
 
 
 def _agent() -> dict:
@@ -115,8 +117,12 @@ async def test_entry_resolves_in_any_project_without_a_database_read(ref):
     workflows_dao.fetch_artifact.assert_not_awaited()
 
 
+def _platform_tools():
+    return [tool for tool in _agent()["tools"] if tool["type"] == "platform"]
+
+
 def test_tool_approvals():
-    tools = {tool["op"]: tool for tool in _agent()["tools"] if "op" in tool}
+    tools = {tool["op"]: tool for tool in _platform_tools()}
 
     assert tools["create_agent"]["permission"] == "ask"
     assert tools["edit_agent_config"]["permission"] == "ask"
@@ -156,15 +162,41 @@ def test_instructions_ask_who_a_new_agent_is_for():
     assert "visibility: project" in instructions
 
 
-def test_entry_embeds_the_two_client_tools():
-    embeds = [tool["@ag.embed"] for tool in _agent()["tools"] if "@ag.embed" in tool]
+def test_entry_lists_the_two_client_tools_inline():
+    """The choice form and the connect card are the static client tools the build kit
+    offers, listed inline so the builder does not depend on resolving an embed."""
+    client_tools = [tool for tool in _agent()["tools"] if tool["type"] == "client"]
 
-    assert [embed["@ag.references"]["workflow"]["slug"] for embed in embeds] == [
-        REQUEST_CONNECTION_WORKFLOW_SLUG,
-        REQUEST_INPUT_WORKFLOW_SLUG,
+    assert client_tools == [request_input_tool(), request_connection_tool()]
+    assert [tool["render"]["kind"] for tool in client_tools] == [
+        "elicitation",
+        "connect",
     ]
-    for embed in embeds:
-        assert embed["@ag.selector"] == {"path": "parameters.tool"}
+
+
+_LATER_TOOLS = ["request_secret", "run_agent", "read_session", "read_traces"]
+
+
+def _builder_text() -> str:
+    agent = _agent()
+    return json.dumps(
+        {"instructions": agent["instructions"], "skills": agent["skills"]}
+    )
+
+
+def test_text_names_the_two_client_tools():
+    instructions = _agent()["instructions"]["agents_md"]
+
+    for name in _CLIENT_TOOLS:
+        assert f"`{name}`" in instructions, name
+
+
+def test_text_names_no_tool_the_builder_does_not_have():
+    text = _builder_text()
+
+    for name in _LATER_TOOLS:
+        assert name not in text, name
+        assert not any(tool.get("name") == name for tool in _agent()["tools"]), name
 
 
 @pytest.mark.asyncio
@@ -196,10 +228,7 @@ _FORBIDDEN = [
 
 
 def test_text_has_no_secret_host_or_script():
-    agent = _agent()
-    text = json.dumps(
-        {"instructions": agent["instructions"], "skills": agent["skills"]}
-    )
+    text = _builder_text()
 
     for pattern in _FORBIDDEN:
         assert not pattern.search(text), pattern.pattern
