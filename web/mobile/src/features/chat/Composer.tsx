@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, type MutableRefObject} from "react"
+import {useCallback, useEffect, useRef, type MutableRefObject, type ReactNode} from "react"
 
 import {canRestoreRefusedSend, describeAccepted, isComposerRunStoppable} from "@agenta/chat/assets"
 import {
@@ -61,6 +61,8 @@ export const Composer = ({
     placeholder,
     hasTurns,
     onNewSession,
+    header,
+    noAgentCommands = false,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
     entityId: string
@@ -102,6 +104,13 @@ export const Composer = ({
     hasTurns?: boolean
     /** Starts a fresh session — the palette offers no /new row without it. */
     onNewSession?: () => void
+    /** Inside the input frame, above the editor (the builder's context chip). */
+    header?: ReactNode
+    /**
+     * No `/` palette. Its commands change the configuration of `entityId`, and the builder chat's
+     * agent is the platform's builder, whose model and permissions are not the person's to change.
+     */
+    noAgentCommands?: boolean
 }) => {
     const t = useT(chatMobileComposerCatalog)
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
@@ -387,7 +396,8 @@ export const Composer = ({
                             attachmentsBlocked={attachmentsBlocked}
                             initialMarkdown={draft.initialDraft}
                             onChange={draft.handleComposerChange}
-                            slashCommands={slash.sections}
+                            slashCommands={noAgentCommands ? undefined : slash.sections}
+                            headerExtra={header}
                             disabled={disabled}
                             sendDisabled={sendDisabled}
                             composerDisabled={disabled}

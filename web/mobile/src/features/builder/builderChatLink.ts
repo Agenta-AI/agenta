@@ -14,6 +14,12 @@ export const builderChatsKey = (userId: string, projectId: string) =>
 
 type ChatLinks = Record<string, string[]>
 
+/**
+ * Chats linked since this page loaded. Their session row can lag the first send, so a query that
+ * does not return them yet never drops them.
+ */
+const linkedInThisPage = new Set<string>()
+
 const readLinks = (key: string): ChatLinks => {
     try {
         const parsed: unknown = JSON.parse(window.localStorage.getItem(key) ?? "{}")
@@ -47,11 +53,36 @@ export const rememberBuilderChat = (
     const links = readLinks(key)
     const owner = Object.keys(links).find((id) => links[id]?.includes(chatId))
     if (owner && owner !== agentId) return
+    linkedInThisPage.add(chatId)
     const chats = [chatId, ...(links[agentId] ?? []).filter((id) => id !== chatId)]
     links[agentId] = chats.slice(0, MAX_CHATS_PER_AGENT)
     try {
         window.localStorage.setItem(key, JSON.stringify(links))
     } catch {
         // Storage refused: the chat works, the panel just cannot find it again.
+    }
+}
+
+/**
+ * Drops `chatIds` from the list of `agentId`: chats the sessions query no longer returns (deleted,
+ * or the person can no longer read them).
+ */
+export const forgetBuilderChats = (
+    userId: string,
+    projectId: string,
+    agentId: string,
+    chatIds: string[],
+): void => {
+    if (!chatIds.length) return
+    const key = builderChatsKey(userId, projectId)
+    const links = readLinks(key)
+    const gone = chatIds.filter((id) => !linkedInThisPage.has(id))
+    const kept = (links[agentId] ?? []).filter((id) => !gone.includes(id))
+    if (kept.length === (links[agentId] ?? []).length) return
+    links[agentId] = kept
+    try {
+        window.localStorage.setItem(key, JSON.stringify(links))
+    } catch {
+        // Storage refused: the list is read again next time and the query drops them again.
     }
 }

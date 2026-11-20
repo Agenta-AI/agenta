@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useContext, useEffect, useMemo, useRef} from "react"
 
 import {
     getMessageTraceId,
@@ -50,6 +50,7 @@ import {turnFiles} from "./turnFileList"
 import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {TurnRunFailure} from "./TurnRunFailure"
+import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
@@ -362,9 +363,20 @@ const TurnRowInner = ({
             ),
         [turn.items],
     )
-    const header = files.length ? (
+    const readAccessory = useContext(UserMessageAccessoryContext)
+    const accessory = turn.isUser && readAccessory ? readAccessory(turn.message.id) : null
+    const attachmentStrip = files.length ? (
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
+    const header =
+        accessory && attachmentStrip ? (
+            <>
+                {accessory}
+                {attachmentStrip}
+            </>
+        ) : (
+            (accessory ?? attachmentStrip)
+        )
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
