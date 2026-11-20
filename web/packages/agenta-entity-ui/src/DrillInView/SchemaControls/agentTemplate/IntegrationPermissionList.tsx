@@ -659,7 +659,7 @@ export function PermissionDrawerBody({
                         value={query}
                         onValueChange={setQuery}
                         disabled={inert}
-                        className={phone ? "!h-11" : undefined}
+                        className={phone ? "h-11" : undefined}
                     />
                 ) : null}
 
