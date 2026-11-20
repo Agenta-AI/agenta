@@ -11,6 +11,7 @@ import {
     sharePercent,
     successRate,
     sum,
+    type AnalyticsDimension,
     type AnalyticsMetric,
     type AnalyticsPoint,
     useAnalyticsViewAtoms,
@@ -54,6 +55,8 @@ const METRIC_LOWER = {
     tools: "observabilityUi.analytics.lowerTools",
     avgcost: "observabilityUi.analytics.lowerAvgCost",
 } as const satisfies Record<AnalyticsMetric, string>
+
+const LOCKED_AGENT_DIMS: readonly AnalyticsDimension[] = ["model"]
 
 const TILES: AnalyticsMetric[] = ["cost", "runs", "success", "tokens", "avgcost", "tools"]
 
@@ -159,6 +162,9 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         focus,
     )
     if (!state) return null
+    // The page of one agent breaks down by model only: by agent is one row, and tool calls carry
+    // no agent, so they would count every agent's.
+    const breakdownDim = view.lockedAgentId ? "model" : state.dim
     // Tool spans carry no agent or model, so a narrowed drawer cannot count them.
     const narrowed = Boolean(focus) || filters.agent.length > 0 || filters.model.length > 0
     const metric = narrowed && state.metric === "tools" ? "runs" : state.metric
@@ -491,7 +497,8 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         window={window}
                         filters={filters}
                         focus={focus}
-                        dim={state.dim}
+                        dim={breakdownDim}
+                        dims={view.lockedAgentId ? LOCKED_AGENT_DIMS : undefined}
                         metric={metric}
                         agentName={agentName}
                         keyColor={keyColor}
