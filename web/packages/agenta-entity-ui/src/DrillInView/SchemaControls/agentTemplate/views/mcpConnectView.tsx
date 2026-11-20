@@ -1,13 +1,20 @@
-import type {McpReconnectTarget} from "@agenta/entities/mcpEndpoint"
+import type {McpConnectedEndpoint, McpReconnectTarget} from "@agenta/entities/mcpEndpoint"
 import {defineView} from "@agenta/ui/view-stack"
+
+import type {ConnectionOwner} from "../../../../accounts/ConnectOwnerField"
 
 import {lazyView} from "./lazyView"
 
 export interface McpConnectViewParams {
     /** Reconnect a server that exists already, instead of connecting a new one. */
     reconnect?: McpReconnectTarget | null
-    /** The connection, once it is made. The view has left by then. */
-    onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
+    /**
+     * Who may own a new server's OAuth sign-in; the first is the default. Two ask "Who can use
+     * it". Absent, the sign-in is the project's.
+     */
+    owners?: ConnectionOwner[]
+    /** The connection, once it is made, and whose sign-in it stored. The view has left by then. */
+    onConnected?: (endpoint: McpConnectedEndpoint) => void
 }
 
 /**

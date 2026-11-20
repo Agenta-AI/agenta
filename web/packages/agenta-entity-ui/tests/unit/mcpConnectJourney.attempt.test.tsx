@@ -23,6 +23,7 @@ const {
     deleteMcpEndpoint,
     editMcpEndpoint,
     beginMcpConnect,
+    beginPersonalMcpSignIn,
     cancelMcpConnectAttempt,
     discoverMcpConnect,
     fetchMcpConnectAttempt,
@@ -30,6 +31,7 @@ const {
     queryMcpEndpoints,
     recordMcpEndpointCheck,
 } = vi.hoisted(() => ({
+    beginPersonalMcpSignIn: vi.fn(),
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
     deleteMcpEndpoint: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     deleteMcpEndpoint,
     editMcpEndpoint,
     beginMcpConnect,
+    beginPersonalMcpSignIn,
     cancelMcpConnectAttempt,
     discoverMcpConnect,
     fetchMcpConnectAttempt,
@@ -120,6 +123,12 @@ beforeEach(() => {
     beginMcpConnect.mockResolvedValue({
         count: 1,
         redirect_url: "https://issuer.test/authorize",
+        attempt_id: "attempt-1",
+        expires_in: 600,
+    })
+    beginPersonalMcpSignIn.mockResolvedValue({
+        count: 1,
+        redirect_url: "https://issuer.test/authorize?personal",
         attempt_id: "attempt-1",
         expires_in: 600,
     })
@@ -1563,5 +1572,82 @@ describe("the OAuth app the person entered", () => {
             token_endpoint_auth_method: "client_secret_basic",
             scopes: [],
         })
+    })
+})
+
+describe("whose sign-in the first consent stores", () => {
+    const connectAs = async (owner?: "user" | "project") => {
+        const onConnected = vi.fn()
+        const listeners = vi.spyOn(window, "addEventListener")
+        listMcpTools.mockResolvedValue([{name: "echo"}])
+        // The discovered scopes are written to the row before the consent.
+        const row = {id: "mcp-1", slug: "acme-7mx", name: "Acme", auth_mode: "oauth", data: {}}
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [row]})
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: row})
+        await mountJourney({owner, onConnected})
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        // The screens run discovery before the consent, as the press asks for it.
+        await act(async () => {
+            await journey.startScopeDiscovery()
+        })
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        const handler = listeners.mock.calls.find(([type]) => type === "message")?.[1] as (
+            event: MessageEvent,
+        ) => void
+        await act(async () => {
+            handler({
+                data: {type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"},
+                origin: "https://api.example.test",
+            } as MessageEvent)
+        })
+        await act(async () => {
+            await journey.finish()
+        })
+        listeners.mockRestore()
+        return onConnected
+    }
+
+    it("stores the person's own grant for Only me, after the project's discovery", async () => {
+        const onConnected = await connectAs("user")
+
+        // The row and its discovery are the project's; the grant is the person's.
+        expect(discoverMcpConnect).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(beginPersonalMcpSignIn).toHaveBeenCalledWith("mcp-1", ["tools:list"], "project-1")
+        expect(beginMcpConnect).not.toHaveBeenCalled()
+        // The project's credential cannot see the person's grant, so no check is recorded.
+        expect(recordMcpEndpointCheck).not.toHaveBeenCalled()
+        expect(onConnected).toHaveBeenCalledWith({
+            id: "mcp-1",
+            slug: "acme-7mx",
+            name: "Acme",
+            owner: "user",
+        })
+    })
+
+    it("stores the project's grant for Everyone, as before", async () => {
+        const onConnected = await connectAs("project")
+
+        expect(beginMcpConnect).toHaveBeenCalledWith("mcp-1", ["tools:list"], "project-1")
+        expect(beginPersonalMcpSignIn).not.toHaveBeenCalled()
+        expect(recordMcpEndpointCheck).toHaveBeenCalledWith("mcp-1", {ok: true}, "project-1")
+        expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({owner: "project"}))
+    })
+
+    it("stores the project's grant when nobody asked", async () => {
+        const onConnected = await connectAs()
+
+        expect(beginMcpConnect).toHaveBeenCalled()
+        expect(beginPersonalMcpSignIn).not.toHaveBeenCalled()
+        expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({owner: "project"}))
     })
 })

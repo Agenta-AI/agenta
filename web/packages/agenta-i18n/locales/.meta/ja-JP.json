@@ -3342,6 +3342,9 @@
         "searchServers": "3d7d709f953e",
         "noServersMatch": "6c98afe733d3"
     },
+    "entityUi.mcpConnectOwner": {
+        "onlyMeNote": "8285c397b79d"
+    },
     "entityUi.mcpDetail": {
         "connectionRenamed": "e8150aac20f0",
         "couldNotRename": "4dee0b6a96a3",

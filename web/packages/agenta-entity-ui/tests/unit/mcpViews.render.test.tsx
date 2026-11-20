@@ -21,6 +21,7 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest
 import {
     buildMcpAgentItem,
     mcpItemRef,
+    readMcpAccountSource,
     removeMcpByRef,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
 import {mcpAddView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/mcpAddView"
@@ -28,7 +29,8 @@ import {mcpServerView} from "../../src/DrillInView/SchemaControls/agentTemplate/
 
 import {byText, click, findByText} from "./domHelpers"
 
-const {writer, listeners, endpoints} = vi.hoisted(() => ({
+const {writer, listeners, endpoints, access} = vi.hoisted(() => ({
+    access: {value: "on"},
     listeners: new Set<() => void>(),
     endpoints: {rows: [] as unknown[]},
     writer: {
@@ -72,17 +74,47 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     }
 })
 
+vi.mock("@agenta/entities/secret", async (importOriginal) => {
+    const {atom: jotaiAtom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
+        personalAccountsAccessAtom: jotaiAtom(() => access.value),
+    }
+})
+
 vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
     invalidateAgentRequirements: () => undefined,
 }))
 
-// The connect step stands in for itself and records what it was opened with.
+// The connect step stands in for itself: it shows what it was opened with, and its buttons
+// finish the connection as each owner would.
 vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/views/McpConnectViewBody", async () => {
     const {createElement: h} = await import("react")
+    type Params = {
+        reconnect?: {slug: string} | null
+        owners?: string[]
+        onConnected?: (endpoint: Record<string, string>) => void
+    }
+    const finish = (params: Params, owner: string) =>
+        h(
+            "button",
+            {
+                onClick: () =>
+                    params.onConnected?.({id: "id-new", slug: "new-server", name: "new", owner}),
+            },
+            `finish as ${owner}`,
+        )
     return {
-        default: ({params}: {params: {reconnect?: {slug: string} | null}}) =>
-            h("div", null, `connect step: ${params.reconnect?.slug ?? "new"}`),
+        default: ({params}: {params: Params}) =>
+            h(
+                "div",
+                null,
+                h("span", null, `connect step: ${params.reconnect?.slug ?? "new"}`),
+                h("span", null, `owners: ${params.owners?.join(",") ?? "none"}`),
+                finish(params, "user"),
+                finish(params, "project"),
+            ),
     }
 })
 
@@ -152,6 +184,7 @@ beforeEach(() => {
     endpoints.rows = [endpoint("linear", "healthy"), endpoint("docs-search", "healthy")]
     writer.agent = {mcps: [linear]}
     writer.readOnly = false
+    access.value = "on"
     writer.update = vi.fn((next) => {
         writer.agent = next(writer.agent)
         listeners.forEach((listener) => listener())
@@ -173,6 +206,39 @@ describe("Add MCP server view", () => {
         expect(mcps().map((item) => item.name)).toEqual(["linear", "docs_search"])
         await findByText("crumb:docs-search")
         expect(byText("crumb:Add MCP server")).toBeUndefined()
+    })
+})
+
+describe("Connect server, who can use it", () => {
+    const added = () => mcps().find((item) => item.name === "new")
+
+    it("asks for the owner, and an Only me sign-in starts on each person's own", async () => {
+        await openIn(mcpAddView, {})
+        await click(await findByText("Connect server", "button"))
+        await findByText("owners: user,project")
+        await click(byText("finish as user"))
+        expect(added()?.connection).toEqual({
+            type: "gateway",
+            namespace: "custom",
+            slug: "new-server",
+            account_source: "user",
+        })
+        expect(readMcpAccountSource(added())).toBe("user")
+    })
+
+    it("keeps one shared sign-in for Everyone", async () => {
+        await openIn(mcpAddView, {})
+        await click(await findByText("Connect server", "button"))
+        await click(await findByText("finish as project"))
+        expect(added()?.connection).toEqual({type: "gateway", namespace: "custom", slug: "new-server"})
+        expect(readMcpAccountSource(added())).toBe("agent")
+    })
+
+    it("does not ask with personal accounts off", async () => {
+        access.value = "off"
+        await openIn(mcpAddView, {})
+        await click(await findByText("Connect server", "button"))
+        await findByText("owners: none")
     })
 })
 

@@ -1,21 +1,23 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {mcpEndpointsQueryAtom, useMcpConnectJourney} from "@agenta/entities/mcpEndpoint"
+import {
+    hostnameLabel,
+    mcpEndpointsQueryAtom,
+    useMcpConnectJourney,
+    type McpConnectedEndpoint,
+} from "@agenta/entities/mcpEndpoint"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
+import mcpConnectOwnerCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnectOwner"
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
+import {ConnectOwnerField, type ConnectionOwner} from "../../../../accounts/ConnectOwnerField"
+import {useProjectName} from "../../../../accounts/useProjectName"
 import {useMcpConnectScreens} from "../../../../mcpEndpoint/McpConnectJourney"
 
 import type {McpConnectViewParams} from "./mcpConnectView"
-
-interface Connected {
-    id: string
-    slug: string
-    name: string
-}
 
 /** Whether this code runs inside a press the browser still counts (it then allows a window). */
 const hasUserActivation = (): boolean => {
@@ -26,15 +28,26 @@ const hasUserActivation = (): boolean => {
 }
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
-    const t = useT(mcpViewsCatalog)
+    const t = useT(mcpViewsCatalog, mcpConnectOwnerCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
     const existingNames = useMemo(
         () => (endpoints ?? []).map((endpoint) => endpoint.name),
         [endpoints],
     )
     const reconnect = params.reconnect ?? null
-    const [connected, setConnected] = useState<Connected | null>(null)
-    const journey = useMcpConnectJourney({existingNames, reconnect, onConnected: setConnected})
+    const [connected, setConnected] = useState<McpConnectedEndpoint | null>(null)
+    // "Who can use it" asks only for a new server, and only when the opener allows both owners.
+    const owners = !reconnect && params.owners && params.owners.length > 1 ? params.owners : null
+    const [chosenOwner, setOwner] = useState<ConnectionOwner>(params.owners?.[0] ?? "project")
+    // Without the question the sign-in is the project's, as a reconnect's always is.
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : "project"
+    const projectName = useProjectName(owners !== null)
+    const journey = useMcpConnectJourney({
+        existingNames,
+        reconnect,
+        owner,
+        onConnected: setConnected,
+    })
     // The screens close the view: their own Cancel links, and the end of the journey (they ask
     // to close once the connection is made). Navigation has this one owner.
     const screens = useMcpConnectScreens({
@@ -42,6 +55,17 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
         existingNames,
         reconnect,
         onClose: nav.cancel,
+        ownerField: owners ? (
+            <ConnectOwnerField
+                value={owner}
+                owners={owners}
+                onChange={setOwner}
+                onlyMeDetail={t("entityUi.mcpConnectOwner.onlyMeNote", {
+                    name: journey.state.name.trim() || hostnameLabel(journey.state.url),
+                })}
+                projectName={projectName}
+            />
+        ) : null,
     })
     useViewTitle(screens.title)
 
