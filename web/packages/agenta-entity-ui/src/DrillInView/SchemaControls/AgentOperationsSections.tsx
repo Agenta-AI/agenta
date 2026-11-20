@@ -150,7 +150,8 @@ export function AgentOperationsSections({
 
     return (
         <>
-            <section className="flex flex-col">
+            {/* On a phone the list is the whole screen: its white sheet runs down to the button. */}
+            <section className={phone ? "flex grow flex-col" : "flex flex-col"}>
                 {phone ? null : (
                     <AgentRegionHeaderBar
                         title={t("entityUi.agentOperations.automations")}
@@ -169,7 +170,7 @@ export function AgentOperationsSections({
                         </ConfigRowTrailing>
                     </AgentRegionHeaderBar>
                 )}
-                <div className={sectionsBodyClass}>
+                <div className={phone ? `${sectionsBodyClass} grow` : sectionsBodyClass}>
                     <TriggerManagementSection
                         entityId={revisionId}
                         disabled={disabled}
