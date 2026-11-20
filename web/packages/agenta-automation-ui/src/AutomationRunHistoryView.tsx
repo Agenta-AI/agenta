@@ -172,7 +172,7 @@ export const AutomationRunHistoryView = ({
                                     title={t("automations.runHistory.openInNewTab")}
                                     className={cn(
                                         "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
-                                        phone && "-my-2.5 size-11",
+                                        phone && "size-11",
                                         ICON_LINK,
                                     )}
                                 >
