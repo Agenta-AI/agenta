@@ -35,7 +35,8 @@ export const BuilderTabStrip = ({
     active: string | null
     label: TabLabel
     onActivate: (key: string) => void
-    onClose: (key: string) => void
+    /** Resolves once the tab is closed (the page may ask first). */
+    onClose: (key: string) => void | Promise<void>
     onOpenAgent: (agent: AgentRef) => void
 }) => {
     const t = useT(builderPageCatalog)
@@ -83,6 +84,17 @@ export const BuilderTabStrip = ({
     const byKey = new Map(tabs.map((tab) => [builderTabKey(tab), tab]))
     const hiddenTabs = hidden.map((key) => byKey.get(key)).filter((tab): tab is BuilderTab => !!tab)
 
+    // The closed tab held the focus: it moves to the tab that is active now.
+    const tablistRef = useRef<HTMLDivElement>(null)
+    const closeAndRefocus = async (key: string) => {
+        await onClose(key)
+        requestAnimationFrame(() =>
+            tablistRef.current
+                ?.querySelector<HTMLElement>("[role=tab][aria-selected=true]")
+                ?.focus(),
+        )
+    }
+
     return (
         <div ref={rowRef} className="relative flex min-w-0 flex-1 items-center gap-1">
             <div
@@ -100,6 +112,7 @@ export const BuilderTabStrip = ({
                 ))}
             </div>
             <div
+                ref={tablistRef}
                 role="tablist"
                 aria-label={t("builder.page.openItems")}
                 className="flex min-w-0 items-center gap-1"
@@ -128,7 +141,7 @@ export const BuilderTabStrip = ({
                             label={label(tab)}
                             active={key === active}
                             onActivate={() => onActivate(key)}
-                            onClose={() => onClose(key)}
+                            onClose={() => void closeAndRefocus(key)}
                         />
                     )
                 })}
