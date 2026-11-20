@@ -7,6 +7,8 @@
  */
 import {useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatElicitationCatalog from "@agenta/i18n/catalogs/chat.elicitation"
 import {Badge} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 
@@ -37,6 +39,7 @@ export const ElicitationChips = ({
     inputRef,
     onChange,
 }: ElicitationChipsProps) => {
+    const t = useT(chatElicitationCatalog)
     const [draft, setDraft] = useState("")
     // The entry a duplicate press pointed at. Without this the keystroke does nothing visible at
     // all — no chip, no advance, no message — and reads as a dead field.
@@ -101,7 +104,7 @@ export const ElicitationChips = ({
                     <span className="truncate">{chip}</span>
                     <button
                         type="button"
-                        aria-label={`Remove ${chip}`}
+                        aria-label={t("chat.elicitation.removeChip", {chip})}
                         onClick={(event) => {
                             event.stopPropagation()
                             onChange(chips.filter((item) => item !== chip))
@@ -116,7 +119,7 @@ export const ElicitationChips = ({
                 ref={inputRef}
                 aria-label={label}
                 value={draft}
-                placeholder={chips.length ? "" : "Add one"}
+                placeholder={chips.length ? "" : t("chat.elicitation.addOne")}
                 onKeyDown={onKeyDown}
                 onChange={(event) => setDraft(event.target.value)}
                 // A typed word left behind on blur reads as data loss, so commit it.

@@ -1,0 +1,13 @@
+{
+    "kicker": "新功能",
+    "title": "最新版本",
+    "latest": "最新",
+    "viewAll": "查看所有版本",
+    "improvements": "改进",
+    "fixes": "修复",
+    "dontShowAgain": "不再显示",
+    "readChangelog": "查看更新日志",
+    "play": "播放",
+    "playFeature": "播放：{{title}}",
+    "notInstalled": "未安装"
+}

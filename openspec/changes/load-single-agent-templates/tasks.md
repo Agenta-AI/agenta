@@ -1,6 +1,6 @@
 # Implementation tasks
 
-The runtime and revised display-content contract are implemented. The current implementation plan records deployed acceptance evidence and test coverage. The test-first steps, exact files, interfaces, commands, and commit boundaries are in the [implementation plan](../../../docs/superpowers/plans/2026-09-20-load-single-agent-templates.md).
+The runtime and revised display-content contract are implemented. The current implementation plan records deployed acceptance evidence and test coverage. The test-first steps, exact files, interfaces, commands, and commit boundaries are in the [implementation plan](../../../docs/design/plans/2026-09-20-load-single-agent-templates.md).
 
 ## 1. Source and package validation
 
@@ -56,7 +56,7 @@ The runtime and revised display-content contract are implemented. The current im
 
 ### Display-content implementation increment
 
-The [current implementation plan](../../../docs/superpowers/plans/2026-09-21-template-display-content.md) replaces the earlier message-field proposal.
+The [current implementation plan](../../../docs/design/plans/2026-09-21-template-display-content.md) replaces the earlier message-field proposal.
 
 - [x] Add generic display-content transport to Python Message, Vercel conversion, wire schema, and runner interfaces.
 - [x] Persist display-content field presence alongside full execution text in runner user-message records.

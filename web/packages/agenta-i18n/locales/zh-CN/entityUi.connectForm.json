@@ -1,0 +1,17 @@
+{
+    "popupBlocked": "弹出窗口被拦截。正在当前标签页中跳转。",
+    "onlyMe": "仅我自己",
+    "onlyMeNote": "当你运行使用每个人自己的 {{name}} 的 Agent 时使用。你的第一个 {{name}} 账户将成为默认账户。",
+    "everyoneInProject": "{{project}} 中的所有人",
+    "everyoneInThisProject": "此项目中的所有人",
+    "everyoneNote": "此项目中的 Agent 可以将其用作 Agent 的账户，适用于每个运行它的人。",
+    "connectName": "连接 {{name}}",
+    "name": "名称",
+    "required": "必填",
+    "namePlaceholder": "例如：我的 {{name}} 账户",
+    "whoCanUseIt": "谁可以使用",
+    "authMethod": "认证方式",
+    "apiKey": "API 密钥",
+    "submitFailed": "无法开始连接：服务器拒绝了请求。请重试；如果一直失败，说明此部署未配置连接供应商。",
+    "connect": "连接"
+}

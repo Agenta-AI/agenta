@@ -1,4 +1,6 @@
 import {extractAgData, extractInputs, type TraceSpanNode} from "@agenta/entities/trace"
+import {createT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {closeTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {extractReferences, looksLikePromptConfig, resolveTraceRefs} from "@agenta/playground"
 import {encodeSnapshot, SNAPSHOT_VERSION} from "@agenta/playground/snapshot"
@@ -123,6 +125,8 @@ export const resolveTracePlaygroundTarget = async ({
     })
 }
 
+const tNow = createT(screenCatalog)
+
 /**
  * Opens the span: the drawer closes and the page moves to the playground or the agent chat. A
  * span with no app says so. Returns null, so the drawer does no navigation of its own.
@@ -136,13 +140,11 @@ export const openTraceInPlayground = async (router: NextRouter, span: TraceSpanN
         span,
     })
     if (target.kind === "no-app") {
-        message.info("This trace has no app, so it cannot open in the playground.")
+        message.info(tNow("observability.screen.playgroundNoApp"))
         return null
     }
     if (target.kind === "span-type") {
-        message.info(
-            `"${target.spanType}" spans can't be replayed in the playground. Open the parent workflow, task, agent, or chain span instead.`,
-        )
+        message.info(tNow("observability.screen.playgroundSpanType", {spanType: target.spanType}))
         return null
     }
     // Close the drawer once the new page shows. A closed drawer clears `?trace` from the address,

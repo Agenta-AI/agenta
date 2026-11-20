@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import securityWarningCatalog from "@agenta/i18n/catalogs/shell.securityWarning"
 import {dismissNotice, isNoticeDismissed, type MaintenanceNotice} from "@agenta/shared/analytics"
 import {X} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
@@ -28,6 +30,7 @@ const SCREEN_SAFE_TOP_VAR = "--ag-screen-safe-top"
  * newer than the running version (from the release feed). One bar at a time owns the height.
  */
 export const MaintenanceNoticeBar = () => {
+    const t = useT(securityWarningCatalog)
     const maintenance = useMaintenanceNotice()
     const security = useSecurityWarning()
     const router = useRouter()
@@ -45,9 +48,9 @@ export const MaintenanceNoticeBar = () => {
         : security.release
           ? {
                 id: `security-${security.release.id}`,
-                message: `Security update available. Upgrade to ${security.release.id} or later.`,
+                message: t("shell.securityWarning.message", {version: security.release.id}),
                 linkHref: security.release.features[0]?.link,
-                linkLabel: "Read the notes",
+                linkLabel: t("shell.securityWarning.readNotes"),
                 tone: "warning",
             }
           : null

@@ -1,0 +1,20 @@
+{
+    "composerViewer": "你可以查看此对话，但不能向其发送消息。请向 {{owner}} 申请“可发送”权限。",
+    "composerPrivateAgent": "此对话的 Agent 是私有的。你可以阅读历史记录，但不能发送消息。",
+    "composerNoOwner": "此对话由 API 密钥或自动化启动。你可以阅读，但不能在此处发送消息。",
+    "composerOwnerLeft": "{{owner}} 已离开此项目，因此没有人可以在此对话中发送消息。",
+    "ownerFallback": "所有者",
+    "privateAgent": "私有 Agent",
+    "refusedSubject": "这条消息",
+    "refusedNoAgentAccess": "未运行。你已无法访问此对话的 Agent。",
+    "accessRemovedTitle": "你已无法访问此对话",
+    "accessRemovedBody": "所有者更改了可查看的人员。",
+    "backToSessions": "返回会话",
+    "backToAgents": "返回 Agent",
+    "chatNotFound": "此对话不存在，或你没有访问权限。",
+    "chatNotFoundAskOwner": "如果有人向你发送了此链接，请让对方通过“共享”添加你。",
+    "agentNotFound": "此 Agent 不存在，或你没有访问权限。",
+    "approvalWaiting": "等待 {{owner}} 或可在此对话中发送消息的人。",
+    "rowMenuNotOwner": "只有 {{owner}} 可以重命名、分享、归档或删除此对话。",
+    "agentPrivateMarker": "在 Agenta 中只有你可以查看和使用它。"
+}

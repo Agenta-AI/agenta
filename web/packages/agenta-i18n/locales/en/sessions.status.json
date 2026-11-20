@@ -1,0 +1,23 @@
+{
+    "approval": "Approval",
+    "archived": "Archived",
+    "automationRuns": "Automation runs",
+    "ended": "Ended",
+    "eventSubscription": "Event subscription",
+    "idle": "Idle",
+    "input": "Input",
+    "missingEventSubscription": "Missing event subscription",
+    "missingSchedule": "Missing schedule",
+    "multiple": "Multiple",
+    "pinned": "Pinned",
+    "pinnedCount": "Pinned {{count}}",
+    "readyToResume": "Ready to resume",
+    "recent": "Recent",
+    "running": "Running",
+    "schedule": "Schedule",
+    "toolCall": "Tool call",
+    "untitledSession": "Untitled session",
+    "waiting": "Waiting",
+    "waitingForInput": "Waiting for your input",
+    "waitingOnYou": "Waiting on you"
+}

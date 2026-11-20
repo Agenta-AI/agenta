@@ -1,0 +1,11 @@
+{
+    "addToMessage": "Adicionar à mensagem",
+    "askAboutThis": "Pergunte sobre isto…",
+    "comment": "Comentário",
+    "commentN": "Comentário {{n}}",
+    "quoteActions": "Ações de citação",
+    "quoteAdded": "Citação adicionada. {{count}} anexadas.",
+    "reply": "Responder",
+    "replyToSelection": "Responder à parte selecionada",
+    "sendNow": "Enviar agora"
+}

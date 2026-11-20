@@ -1,5 +1,7 @@
 import {memo, useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
@@ -15,6 +17,7 @@ interface MarkdownToggleButtonProps {
 }
 
 const MarkdownToggleButton = ({id}: MarkdownToggleButtonProps) => {
+    const t = useT(uiChatCatalog)
     const [editor] = useLexicalComposerContext()
     const [markdownView] = useAtom(markdownViewAtom(id))
 
@@ -36,7 +39,7 @@ const MarkdownToggleButton = ({id}: MarkdownToggleButtonProps) => {
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                    {markdownView ? "Preview markdown" : "Preview text"}
+                    {markdownView ? t("ui.chat.previewMarkdown") : t("ui.chat.previewText")}
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>

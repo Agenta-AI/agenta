@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
 import {TurnstileWidget} from "@agenta/auth-ui"
+import {useT} from "@agenta/i18n"
+import oidcCatalog from "@agenta/i18n/catalogs/auth.oidcCallback"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import Link from "next/link"
@@ -12,7 +14,6 @@ import {
     claimOAuthCode,
     completeOidcSignIn,
     isTurnstileEnabled,
-    OAUTH_CODE_USED_MESSAGE,
     setPendingTurnstileToken,
 } from "@/lib/auth"
 
@@ -29,11 +30,15 @@ import {useAuthSuccess} from "./useAuthSuccess"
  * token. Without one the API refuses the exchange and the sign-in dies here.
  */
 export const OidcCallbackScreen = () => {
+    const t = useT(oidcCatalog)
     const router = useRouter()
     const onSuccess = useAuthSuccess()
     const startBoot = useSetAtom(postAuthBootAtom)
     const started = useRef(false)
-    const [error, setError] = useState<string | null>(null)
+    // A catalog key for our own messages, or the server's text, which is shown as it comes.
+    const [error, setError] = useState<
+        {key: "codeUsed" | "signedInButAppFailed" | "securityCheckFailed"} | {text: string} | null
+    >(null)
     // "unknown" until mounted: the site key is runtime config (`__env.js`), which the prerender
     // cannot see, so deciding during render would hydrate against the wrong answer.
     const [turnstile, setTurnstile] = useState<"unknown" | "needed" | "ready">("unknown")
@@ -57,7 +62,7 @@ export const OidcCallbackScreen = () => {
         started.current = true
         const code = router.query.code
         if (!claimOAuthCode(Array.isArray(code) ? code[0] : code)) {
-            setError(OAUTH_CODE_USED_MESSAGE)
+            setError({key: "codeUsed"})
             return
         }
         // The post-auth loader covers the exchange, so the screen goes straight to it.
@@ -74,12 +79,12 @@ export const OidcCallbackScreen = () => {
                         isNewUser: outcome.createdNewUser,
                     })
                 } catch {
-                    setError("Signed in, but the app could not open. Try again.")
+                    setError({key: "signedInButAppFailed"})
                 }
                 return
             }
             startBoot(null)
-            setError(outcome.message)
+            setError({text: outcome.message})
         })()
     }, [router, router.isReady, onSuccess, startBoot, turnstileReady])
 
@@ -92,10 +97,10 @@ export const OidcCallbackScreen = () => {
             {error ? (
                 <>
                     <p className="text-destructive text-xs" role="alert">
-                        {error}
+                        {"key" in error ? t(`auth.oidcCallback.${error.key}`) : error.text}
                     </p>
                     <Button asChild variant="link" size="sm" className="text-xs text-foreground">
-                        <Link href="/auth">Back to sign in</Link>
+                        <Link href="/auth">{t("auth.oidcCallback.backToSignIn")}</Link>
                     </Button>
                 </>
             ) : null}
@@ -107,7 +112,7 @@ export const OidcCallbackScreen = () => {
                         setPendingTurnstileToken(token)
                         setTurnstile("ready")
                     }}
-                    onError={() => setError("Security check failed. Try again.")}
+                    onError={() => setError({key: "securityCheckFailed"})}
                 />
             ) : null}
         </div>

@@ -13,12 +13,13 @@
  * - Recursive rendering of nested objects
  */
 
-import {memo, useMemo, useState} from "react"
+import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {formatLabel} from "@agenta/ui/drill-in"
-import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
 
 // Forward declaration - actual component imported to avoid circular deps
@@ -45,8 +46,6 @@ export interface ObjectSchemaControlProps {
     path?: string[]
     /** Whether to show header with label (default: true) */
     showHeader?: boolean
-    /** Whether object is initially collapsed (default: false) */
-    defaultCollapsed?: boolean
     /** Callback to update a specific property within the object */
     onPropertyChange?: (propertyPath: string[], value: unknown) => void
     /** SchemaPropertyRenderer component (passed to avoid circular imports) */
@@ -107,6 +106,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     onPropertyChange,
     SchemaPropertyRenderer,
 }: ObjectSchemaControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Get description from schema or prop
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
@@ -147,7 +147,9 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
                 {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <span className="text-xs text-colorTextDescription">No properties defined</span>
+                <span className="text-xs text-colorTextDescription">
+                    {t("entityUi.schemaControls.noProperties")}
+                </span>
             </div>
         )
     }
@@ -159,7 +161,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
                 {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
                 <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
                     <span className="text-xs text-colorTextDescription">
-                        Tool Configuration (JSON Editor)
+                        {t("entityUi.schemaControls.toolConfigurationJson")}
                     </span>
                     <pre className="text-xs mt-2 overflow-auto max-h-[200px]">
                         {JSON.stringify(value, null, 2)}
@@ -233,70 +235,4 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     }
 
     return <div className={className}>{content}</div>
-})
-
-/**
- * Collapsible variant of ObjectSchemaControl
- * Used when objects are displayed in a list and should be collapsible
- */
-export const CollapsibleObjectControl = memo(function CollapsibleObjectControl({
-    schema,
-    label,
-    value,
-    onChange,
-    description,
-    withTooltip = true,
-    disabled = false,
-    className,
-    path = [],
-    defaultCollapsed = true,
-    onPropertyChange,
-    SchemaPropertyRenderer,
-}: ObjectSchemaControlProps) {
-    const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
-
-    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
-
-    const toggle = (
-        <Button
-            variant="ghost"
-            className="flex items-center gap-1.5 px-0 h-auto"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-        >
-            <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
-                {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
-            </span>
-            <span className="text-sm font-medium">{label}</span>
-        </Button>
-    )
-
-    return (
-        <div className={clsx("flex flex-col gap-2", className)}>
-            {withTooltip && tooltipText ? (
-                <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>{toggle}</TooltipTrigger>
-                        <TooltipContent side="right">{tooltipText}</TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            ) : (
-                toggle
-            )}
-
-            {!isCollapsed && (
-                <ObjectSchemaControl
-                    schema={schema}
-                    label=""
-                    value={value}
-                    onChange={onChange}
-                    disabled={disabled}
-                    withTooltip={withTooltip}
-                    path={path}
-                    showHeader={false}
-                    onPropertyChange={onPropertyChange}
-                    SchemaPropertyRenderer={SchemaPropertyRenderer}
-                />
-            )}
-        </div>
-    )
 })

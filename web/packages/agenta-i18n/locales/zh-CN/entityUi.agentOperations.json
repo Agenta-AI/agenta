@@ -1,0 +1,9 @@
+{
+    "automations": "自动化",
+    "recentFiles": "最近的文件",
+    "addAutomation": "添加自动化",
+    "automationStarter": "我想要一个自动化，它能",
+    "createManually": "手动创建",
+    "runOnScheduleOrEvent": "按计划或事件运行",
+    "workingFilesHint": "Agent 的工作文件，即它在运行期间读写的所有内容。打开一个会话即可在此浏览；Agent 级存储上线后，Agent 的持久文件夹会显示为子文件夹。"
+}

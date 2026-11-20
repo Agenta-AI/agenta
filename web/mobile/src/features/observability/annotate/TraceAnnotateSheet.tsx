@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
+import {useT} from "@agenta/i18n"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {projectIdAtom} from "@agenta/shared/state"
 import {
     Alert,
@@ -44,6 +46,7 @@ export const TraceAnnotateSheet = ({
     annotations: readonly AnnotationDto[]
     onClose: () => void
 }) => {
+    const t = useT(annotateCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const [step, setStep] = useState<"annotate" | "select">("annotate")
     const {selected, setSelected} = useAnnotateEvaluatorSelection(projectId)
@@ -60,7 +63,7 @@ export const TraceAnnotateSheet = ({
 
     const annotateBody =
         form.isLoading && form.sections.length === 0 ? (
-            <Message>Loading evaluators...</Message>
+            <Message>{t("observability.annotate.loadingEvaluators")}</Message>
         ) : form.sections.length === 0 ? (
             <TraceAnnotateEmpty onAddEvaluator={() => setStep("select")} />
         ) : (
@@ -83,14 +86,16 @@ export const TraceAnnotateSheet = ({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Back"
+                                aria-label={t("observability.annotate.back")}
                                 onClick={() => setStep("annotate")}
                             >
                                 <ArrowLeftIcon size={16} />
                             </Button>
                         ) : null}
                         <SheetTitle className="min-w-0 flex-1 truncate">
-                            {selecting ? "Select Evaluators" : "Annotate"}
+                            {selecting
+                                ? t("observability.annotate.selectEvaluators")
+                                : t("observability.annotate.annotate")}
                         </SheetTitle>
                         {selecting ? (
                             <Button
@@ -98,7 +103,7 @@ export const TraceAnnotateSheet = ({
                                 disabled={selected.length === 0 && form.ownSlugs.length === 0}
                                 onClick={() => setStep("annotate")}
                             >
-                                Annotate
+                                {t("observability.annotate.annotate")}
                             </Button>
                         ) : (
                             <>
@@ -109,7 +114,7 @@ export const TraceAnnotateSheet = ({
                                     onClick={() => setStep("select")}
                                 >
                                     <PlusIcon size={14} />
-                                    Add Evaluator
+                                    {t("observability.annotate.addEvaluator")}
                                 </Button>
                                 <LoadingButton
                                     size="sm"
@@ -117,13 +122,13 @@ export const TraceAnnotateSheet = ({
                                     disabled={!form.hasChanges || form.isSaving}
                                     onClick={() => void form.save()}
                                 >
-                                    Save
+                                    {t("observability.annotate.save")}
                                 </LoadingButton>
                             </>
                         )}
                     </div>
                     <SheetDescription className="sr-only">
-                        Rate the selected span with your human evaluators.
+                        {t("observability.annotate.sheetDescription")}
                     </SheetDescription>
                 </SheetHeader>
                 {!selecting && form.storedFailed ? (
@@ -131,10 +136,10 @@ export const TraceAnnotateSheet = ({
                         banner
                         type="warning"
                         showIcon
-                        message="Could not load your saved annotations"
+                        message={t("observability.annotate.storedLoadFailed")}
                         action={
                             <Button variant="outline" size="sm" onClick={form.retryStored}>
-                                Try again
+                                {t("observability.annotate.tryAgain")}
                             </Button>
                         }
                     />
@@ -144,7 +149,7 @@ export const TraceAnnotateSheet = ({
                         banner
                         type="warning"
                         showIcon
-                        message="Some evaluators could not be loaded. Loaded evaluator fields are still available."
+                        message={t("observability.annotate.someEvaluatorsFailedStill")}
                     />
                 ) : null}
                 {/* Inert while saving: an edit made then would be lost when the sheet closes. */}

@@ -1,0 +1,17 @@
+{
+    "exportJson": "JSON exportieren",
+    "exportRecords": "Sitzungsdatensätze exportieren",
+    "inspectSession": "Sitzung untersuchen",
+    "inspectorTitle": "Sitzungs-Inspektor",
+    "linkCopied": "Link kopiert",
+    "loadingRecords": "Datensätze werden geladen …",
+    "newSession": "Neue Sitzung",
+    "noRecords": "Diese Sitzung hat noch keine Datensätze.",
+    "noSessions": "Mit diesem Agent gibt es noch keine Sitzungen.",
+    "recordsAndTurns": "{{records}} Datensätze · {{turns}} Durchgänge",
+    "recordsFailed": "Die Sitzungsdatensätze konnten nicht geladen werden.",
+    "refresh": "Aktualisieren",
+    "refreshInspector": "Sitzungs-Inspektor aktualisieren",
+    "sessionHistory": "Sitzungsverlauf",
+    "sessions": "Sitzungen"
+}

@@ -1,0 +1,23 @@
+{
+    "addProvider": "Adicionar provedor",
+    "addProviderSetSlug": "Adicionar provedor (defina o slug primeiro)",
+    "deleteDomain": "Excluir domínio",
+    "deleteDomainBody": "Remove {{name}} desta organização.",
+    "deleteDomainError": "Não foi possível excluir o domínio",
+    "deleteProvider": "Excluir provedor",
+    "deleteProviderBody": "Remove {{name}} e o segredo armazenado dele.",
+    "deleteProviderError": "Não foi possível excluir o provedor",
+    "deleteProviderTitle": "Excluir provedor de SSO",
+    "enableProviderError": "Não foi possível ativar o provedor",
+    "loadError": "Não foi possível carregar as configurações desta organização",
+    "providerAddedNotice": "Provedor adicionado. Ative-o para verificá-lo e ativá-lo de fato.",
+    "providerConnectError": "Não foi possível conectar ao provedor. Verifique a URL do emissor e os dados do cliente e tente novamente.",
+    "providerSavedNotice": "Provedor salvo. Editar as configurações limpa a validação, então ative-o novamente.",
+    "refreshTokenError": "Não foi possível atualizar o token",
+    "saveFlagError": "Não foi possível salvar essa configuração. Tente novamente",
+    "setSlugFirst": "Defina primeiro um slug da organização",
+    "setSlugHint": "Defina um slug da organização antes de adicionar um provedor. Sem ele, não é possível formar a URL de callback.",
+    "thisDomain": "este domínio",
+    "thisProvider": "este provedor",
+    "verifyDomainError": "Não foi possível verificar o domínio"
+}

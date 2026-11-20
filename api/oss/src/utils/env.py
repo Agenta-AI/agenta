@@ -538,7 +538,7 @@ class WorkersConfig(BaseModel):
     """Topology selectors for the merged `worker-streams`/`worker-queues` entrypoints.
 
     Empty list means "all loops in that family" — see
-    docs/designs/workers-sprawl/specs.md.
+    docs/design/workers-sprawl/specs.md.
     """
 
     streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")

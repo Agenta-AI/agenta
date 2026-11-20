@@ -1,0 +1,20 @@
+{
+    "composerViewer": "このチャットを閲覧できますが、送信はできません。{{owner}} に「送信可能」のアクセス権を依頼してください。",
+    "composerPrivateAgent": "このチャットのエージェントは非公開です。履歴は読めますが、送信はできません。",
+    "composerNoOwner": "このチャットは API キーまたは自動化によって開始されました。読むことはできますが、ここから送信はできません。",
+    "composerOwnerLeft": "{{owner}} がこのプロジェクトを離れたため、このチャットには誰も送信できません。",
+    "ownerFallback": "オーナー",
+    "privateAgent": "非公開のエージェント",
+    "refusedSubject": "このメッセージは",
+    "refusedNoAgentAccess": "実行されませんでした。このチャットのエージェントにアクセスできなくなりました。",
+    "accessRemovedTitle": "このチャットにアクセスできなくなりました",
+    "accessRemovedBody": "オーナーが閲覧できる人を変更しました。",
+    "backToSessions": "セッションに戻る",
+    "backToAgents": "エージェントに戻る",
+    "chatNotFound": "このチャットは存在しないか、アクセス権がありません。",
+    "chatNotFoundAskOwner": "このリンクを受け取った場合は、送信者に「共有」からあなたを追加するよう依頼してください。",
+    "agentNotFound": "このエージェントは存在しないか、アクセス権がありません。",
+    "approvalWaiting": "{{owner}} またはこのチャットで送信できる人を待っています。",
+    "rowMenuNotOwner": "このチャットの名前変更、共有、アーカイブ、削除ができるのは {{owner}} だけです。",
+    "agentPrivateMarker": "Agenta でこれを表示・使用できるのはあなただけです。"
+}

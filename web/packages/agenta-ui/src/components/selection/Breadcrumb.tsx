@@ -17,6 +17,8 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Home} from "lucide-react"
 
 import {
@@ -79,10 +81,12 @@ export interface BreadcrumbProps {
 export function Breadcrumb({
     path,
     onNavigate,
-    rootLabel = "Home",
+    rootLabel: rootLabelProp,
     showHomeIcon = true,
     className,
 }: BreadcrumbProps) {
+    const t = useT(navigationCatalog)
+    const rootLabel = rootLabelProp ?? t("navigation.items.home")
     const items = [
         {
             key: "root",

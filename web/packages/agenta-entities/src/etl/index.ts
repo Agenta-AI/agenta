@@ -4,8 +4,8 @@
  * General-purpose chunked iteration engine for ETL pipelines.
  *
  * Defines four contracts (Source, Transform, Sink, Chunk) and one
- * runtime (runLoop). Zero entity coupling. See docs/designs/etl-engine.md
- * for the design RFC, docs/designs/eval-etl-engine.md for the canonical
+ * runtime (runLoop). Zero entity coupling. See docs/design/etl-engine.md
+ * for the design RFC, docs/design/eval-etl-engine.md for the canonical
  * consumer (eval's filter pipeline).
  *
  * @example

@@ -1,0 +1,12 @@
+{
+    "agentFallback": "Agent",
+    "browseTemplates": "浏览模板",
+    "description": "搜索会话、Agent 和页面，或执行操作。",
+    "groupEvaluators": "评测器",
+    "groupPages": "页面",
+    "groupPrompts": "提示词",
+    "newAgent": "新建 Agent",
+    "nothingMatches": "没有匹配项",
+    "placeholder": "搜索会话、Agent、页面…",
+    "searching": "正在搜索…"
+}

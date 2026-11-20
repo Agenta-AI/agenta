@@ -1,0 +1,12 @@
+{
+    "hint": "Defínelo una sola vez. Se usa en las URL de devolución de llamada de SSO y no se podrá cambiar después.",
+    "invalid": "Usa entre 1 y 64 letras minúsculas (a-z) y guiones (-)",
+    "label": "Slug de la organización",
+    "lockedHint": "Este slug se usa en las URL de devolución de llamada de SSO y no se puede cambiar.",
+    "noSlug": "No hay ningún slug definido.",
+    "save": "Guardar slug",
+    "saveFailed": "No se ha podido guardar el slug de la organización",
+    "saving": "Guardando…",
+    "setBeforeSso": "Define el slug antes de añadir un proveedor de SSO. La URL de devolución de llamada lo necesita.",
+    "taken": "Ese slug ya está en uso. Elige otro."
+}

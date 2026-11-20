@@ -37,6 +37,7 @@ export {
     unarchiveSession as unarchiveSessionRemote,
     querySessionMounts,
     queryAgentMounts,
+    queryMountsBySlugs,
     queryMountFiles,
     queryLatestMountFiles,
     readMountFile,

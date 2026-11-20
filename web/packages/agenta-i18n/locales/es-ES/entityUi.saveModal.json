@@ -1,0 +1,13 @@
+{
+    "titleCreate": "Crear nuevo",
+    "titleSaveAs": "Guardar como",
+    "titleSave": "Guardar",
+    "missingName": "No se puede guardar: falta el nombre o el tipo",
+    "name": "Nombre",
+    "namePlaceholder": "Introduce un nombre...",
+    "saveAsNewCopy": "Guardar como copia nueva",
+    "original": "Original: <name>{{name}}</name>",
+    "saveFailed": "Error al guardar",
+    "saved": "Guardado correctamente",
+    "save": "Guardar"
+}

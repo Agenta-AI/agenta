@@ -47,6 +47,7 @@ import {
 import { localRelayHost, startToolRelay } from "../../src/tools/relay.ts";
 import { publishRelayRequest } from "../../src/tools/relay-client.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 
 const specs: AdvertisedToolSpec[] = [
   {
@@ -332,10 +333,15 @@ describe("shim -> real relay loop round trip (semantic writer/reader contract)",
 
     // The REAL runner-side loop over the REAL local host — the same reader Pi's writer talks
     // to — with the executor mocked at the network boundary (the callback POST).
-    const relay = startToolRelay(localRelayHost(), dir, [resolvedSpec], {
-      endpoint: "https://agenta.example/api/tools/call",
-      authorization: "ApiKey k",
-    });
+    const relay = startToolRelay(
+      localRelayHost(),
+      dir,
+      [resolvedSpec],
+      fixedToolCallback({
+        endpoint: "https://agenta.example/api/tools/call",
+        authorization: "ApiKey k",
+      }),
+    );
     await relay.ready;
     try {
       const res: any = await handleToolMcpMessage(
@@ -378,10 +384,15 @@ describe("shim -> real relay loop round trip (semantic writer/reader contract)",
     const dir = tempDir("agenta-tool-mcp-crash-");
     const fetchCalls = stubFetch((args) => `RELAY-OK ${JSON.stringify(args)}`);
 
-    const relay = startToolRelay(localRelayHost(), dir, [resolvedSpec], {
-      endpoint: "https://agenta.example/api/tools/call",
-      authorization: "ApiKey k",
-    });
+    const relay = startToolRelay(
+      localRelayHost(),
+      dir,
+      [resolvedSpec],
+      fixedToolCallback({
+        endpoint: "https://agenta.example/api/tools/call",
+        authorization: "ApiKey k",
+      }),
+    );
     await relay.ready;
     try {
       // Publish through the REAL relay client (the same writer the shim and the Pi extension

@@ -1,0 +1,21 @@
+{
+    "accessTokenRejected": "Jeton d’accès rejeté",
+    "accessTokenRejectedUpdate": "Jeton d’accès rejeté · mettez-le à jour",
+    "appUninstalled": "Application désinstallée · reconnectez-vous",
+    "botRemoved_one": "Bot retiré de {{count}} canal",
+    "botRemoved_many": "Bot retiré de {{count}} canaux",
+    "botRemoved_other": "Bot retiré de {{count}} canaux",
+    "botTokenRevoked": "Jeton du bot révoqué",
+    "botTokenRevokedUpdate": "Jeton du bot révoqué · mettez-le à jour",
+    "clientSecretRejected": "Secret client rejeté",
+    "clientSecretRejectedUpdate": "Secret client rejeté · mettez-le à jour",
+    "connectedTo": "Connecté à {{agent}}",
+    "discordIdle": "Discutez avec l’agent sur votre serveur Discord",
+    "pending": "Pas encore lié · terminez la connexion",
+    "placesAndDms": "{{places}} + messages directs",
+    "slackIdle": "Discutez avec l’agent dans l’espace de travail de votre équipe",
+    "teamsIdle": "Discutez avec l’agent dans Microsoft Teams",
+    "telegramIdle": "Discutez avec l’agent depuis votre téléphone",
+    "unassigned": "Ne répond encore sous aucun agent · connectez-le ici",
+    "whatsappIdle": "Répondez aux messages de votre numéro WhatsApp Business"
+}

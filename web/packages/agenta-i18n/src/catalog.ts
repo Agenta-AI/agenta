@@ -1,0 +1,99 @@
+import {useMemo, useState} from "react"
+
+import {atom, getDefaultStore, useAtomValue} from "jotai"
+
+import {activeLanguageAtom, DEFAULT_LANGUAGE, getActiveLanguage, languageAtom} from "./language"
+import {
+    catalogVersionAtom,
+    loadCatalog,
+    loadCatalogs,
+    namespaceLoader,
+    registeredCount,
+    registeredSince,
+    registerCatalog,
+    type Catalog,
+    type CatalogEntry,
+    type CatalogLoader,
+} from "./registry"
+import {translate, type TranslationValues} from "./translate"
+
+type PluralSuffix = "zero" | "one" | "two" | "few" | "many" | "other"
+type BaseKey<K> = K extends `${infer Base}_${PluralSuffix}` ? Base : K
+
+declare const keyType: unique symbol
+
+/** A catalog entry that also carries its keys as a type: `"<namespace>.<key>"`. */
+export interface TypedCatalog<K extends string> extends CatalogEntry {
+    readonly [keyType]?: K
+}
+
+export type CatalogKey<C> = C extends TypedCatalog<infer K> ? K : never
+
+/**
+ * Declares one small catalog. Its English is a static import, so it ships in the same chunk as
+ * the screen that uses it. Other languages load from `locales/<language>/<namespace>.json`, one
+ * chunk per file; `load` replaces that loader in tests. A missing file rejects, and the screen
+ * shows English.
+ */
+export const defineCatalog = <NS extends string, EN extends Catalog>(
+    namespace: NS,
+    en: EN,
+    load: CatalogLoader = namespaceLoader(namespace),
+): TypedCatalog<`${NS}.${BaseKey<keyof EN & string>}`> => {
+    const entry: CatalogEntry = {namespace, en, load}
+    registerCatalog(entry)
+    const language = getDefaultStore().get(languageAtom)
+    if (language !== DEFAULT_LANGUAGE) void loadCatalog(entry, language).catch(() => undefined)
+    return entry
+}
+
+type Translator<C extends CatalogEntry[]> = (
+    key: CatalogKey<C[number]>,
+    values?: TranslationValues,
+) => string
+
+/**
+ * Loads a lazy module, then waits for its own catalogs in the chosen language, so a panel's text
+ * arrives with its code. Never fails or hangs on a catalog: English shows after a failure or
+ * the timeout. `lazy(() => loadWithText(() => import("./Panel")).then((m) => ({default: m.Panel})))`
+ */
+export const loadWithText = async <M>(load: () => Promise<M>): Promise<M> => {
+    const before = registeredCount()
+    const module = await load()
+    await loadCatalogs(registeredSince(before), getDefaultStore().get(languageAtom))
+    return module
+}
+
+/** A `t` outside React: reads the active language when called and does not re-render. */
+export const createT =
+    <C extends CatalogEntry[]>(...catalogs: C): Translator<C> =>
+    (key, values) =>
+        translate(getActiveLanguage(), key, values, catalogs)
+
+/**
+ * A `t` that always answers in English, for text that is saved to the API or sent to a third
+ * party (a generated name, a default label). Never use it for text that is only displayed.
+ */
+export const createEnglishT =
+    <C extends CatalogEntry[]>(...catalogs: C): Translator<C> =>
+    (key, values) =>
+        translate(DEFAULT_LANGUAGE, key, values, catalogs)
+
+/**
+ * Changes when displayed text can change: the language switches or a catalog finishes loading.
+ * Put it in the dependencies of a memo or an atom that keeps text built with `createT`.
+ */
+export const textVersionAtom = atom(
+    (get) => `${get(activeLanguageAtom)}:${get(catalogVersionAtom)}`,
+)
+
+/** A `t` for components; it changes, and the component re-renders, when the language does. */
+export const useT = <C extends CatalogEntry[]>(...catalogs: C): Translator<C> => {
+    const [entries] = useState(catalogs)
+    const language = useAtomValue(activeLanguageAtom)
+    const version = useAtomValue(catalogVersionAtom)
+    return useMemo<Translator<C>>(
+        () => (key, values) => translate(language, key, values, entries, version),
+        [entries, language, version],
+    )
+}

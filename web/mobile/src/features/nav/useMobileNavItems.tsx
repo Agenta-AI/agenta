@@ -1,6 +1,9 @@
 import {createElement, useCallback, useMemo, type ReactNode} from "react"
 
 import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
@@ -40,7 +43,7 @@ import {
     CircleIcon,
     GearIcon,
     GithubLogoIcon,
-    GraduationCapIcon,
+    CompassIcon,
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
@@ -70,6 +73,9 @@ import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
+/** Outside React: the row-level labels the entity registry builds at call time. */
+const tNow = createT(navigationCatalog)
+
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 // By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
@@ -91,7 +97,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // Its OWN scope: the source reads that scope's filters, so the desktop rail's filters
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
-        getLabel: (session) => session.name || "Untitled session",
+        getLabel: (session) => session.name || tNow("navigation.items.untitledSession"),
         childPath: (session) => `/sessions/${session.sessionId}`,
         emptyLabel: "No sessions yet",
         // No caret on this row to protect, and "No sessions yet" under a heading that already
@@ -135,7 +141,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             group.agentId
                 ? {
                       link: agentEntryHref(projectURL, group.agentId),
-                      label: `New session with ${group.label}`,
+                      label: tNow("navigation.items.newSessionWith", {agent: group.label}),
                       onClick: (event) => {
                           event.preventDefault()
                           startBlankSession(projectURL, group.agentId!)
@@ -160,7 +166,8 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
         kind: "app",
         icon: createElement(SquaresFourIcon, {size: 14}),
         listAtom: promptWorkflowsListQueryStateAtom,
-        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled prompt",
+        getLabel: (workflow) =>
+            workflow.name || workflow.slug || tNow("navigation.items.untitledPrompt"),
         childPath: (workflow) => `/apps/${workflow.id}/playground`,
         emptyLabel: "No prompts",
         showAllPath: "/prompts",
@@ -173,6 +180,7 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
  * forking a component.
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+    const t = useT(navigationCatalog)
     // Sessions this client created ride the shared local seam until the server lists them.
     useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
@@ -246,22 +254,23 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 developerMode
                     ? resolveChildren(mobilePromptsEntity, promptsSource, projectURL)
                     : [],
+                t,
             ),
-        [developerMode, developerViews, projectURL, promptsSource],
+        [developerMode, developerViews, projectURL, promptsSource, t],
     )
 
     return useMemo(
         () => [
             {
                 key: "mobile-home",
-                title: "Home",
+                title: t("navigation.items.home"),
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
             ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
-                title: "Agents",
+                title: t("navigation.items.agents"),
                 icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
                 // Start or open an agent without leaving the page: a "+" on the row, the same
@@ -278,19 +287,19 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             // After Agents: an automation is something an agent has, and Skills is what it uses.
             {
                 key: "automations",
-                title: "Automations",
+                title: t("navigation.items.automations"),
                 icon: createElement(LightningIcon, {size: 16}),
                 link: `${projectURL}/automations`,
             },
             {
                 key: SKILLS_SIDEBAR_KEY,
-                title: "Skills",
-                icon: createElement(GraduationCapIcon, {size: 16}),
+                title: t("navigation.items.skills"),
+                icon: createElement(CompassIcon, {size: 16}),
                 link: `${projectURL}/skills`,
             },
             {
                 key: SESSIONS_SIDEBAR_KEY,
-                title: "Sessions",
+                title: t("navigation.items.sessions"),
                 icon: createElement(ChatsCircleIcon, {size: 16}),
                 link: `${projectURL}/sessions`,
                 hideChildrenWhenCollapsed: true,
@@ -307,7 +316,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                     "span",
                     {className: "flex items-center gap-0.5"},
                     createElement(SessionSearchButton, {
-                        label: "Search",
+                        label: t("navigation.items.search"),
                         shortcut: paletteShortcut,
                     }),
                     createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
@@ -323,7 +332,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             },
             ...developerSlots.afterSessions,
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots, t],
     )
 }
 
@@ -338,6 +347,7 @@ export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
 ): SidebarConfig[] => {
+    const t = useT(navigationCatalog, commonCatalog)
     const version = useMobileVersion()
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     // No project id, no permission request: outside beta developer mode nothing is asked.
@@ -350,13 +360,17 @@ export const useMobileBottomNavItems = (
         () =>
             developerMode && canInvite
                 ? [
-                      buildInviteTeammateNavItem({
-                          projectURL,
-                          icon: createElement(PaperPlaneIcon, {size: 16}),
-                      }),
+                      {
+                          ...buildInviteTeammateNavItem({
+                              projectURL,
+                              icon: createElement(PaperPlaneIcon, {size: 16}),
+                          }),
+                          title: t("navigation.items.inviteTeammate"),
+                          tooltip: t("navigation.items.inviteTeammate"),
+                      },
                   ]
                 : [],
-        [canInvite, developerMode, projectURL],
+        [canInvite, developerMode, projectURL, t],
     )
     const items = useMemo(
         () =>
@@ -365,13 +379,13 @@ export const useMobileBottomNavItems = (
                 ? [
                       {
                           key: "mobile-templates",
-                          title: "Templates",
+                          title: t("navigation.items.templates"),
                           icon: createElement(SquaresFourIcon, {size: 16}),
                           link: `${projectURL}/templates`,
                       },
                       {
                           key: "mobile-settings",
-                          title: "Settings",
+                          title: t("common.settings"),
                           icon: createElement(GearIcon, {size: 16}),
                           link: `${projectURL}/settings`,
                           suffix: version
@@ -384,7 +398,7 @@ export const useMobileBottomNavItems = (
                       },
                   ]
                 : [],
-        [includeSettingsLink, projectURL, version],
+        [includeSettingsLink, projectURL, version, t],
     )
     return useMemo(
         () => (inviteItems.length ? [...items, ...inviteItems] : items),
@@ -400,45 +414,57 @@ export const useMobileBottomNavItems = (
 export const useMobileHelpItem = ({
     onOpenShortcuts,
 }: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
+    const t = useT(navigationCatalog)
     const version = useMobileVersion()
     const openWhatsNew = useSetAtom(whatsNewAtom)
     const releases = useAtomValue(releaseListAtom)
     const notInstalled = useAtomValue(notInstalledReleasesAtom)
     const {notices, dismiss: dismissReleaseNotice} = useReleaseNotices()
 
-    return useMemo(
-        () =>
-            buildHelpDocsNavItem({
-                icons: {
-                    help:
-                        notInstalled.length > 0
-                            ? createElement(
-                                  "span",
-                                  {className: "relative flex", "aria-label": "Update available"},
-                                  createElement(QuestionIcon, {size: 16}),
-                                  createElement("span", {
-                                      className:
-                                          "absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-colorSuccess",
-                                  }),
-                              )
-                            : createElement(QuestionIcon, {size: 16}),
-                    docs: createElement(ScrollIcon, {size: 14}),
-                    github: createElement(GithubLogoIcon, {size: 14}),
-                    slack: createElement(SlackLogoIcon, {size: 14}),
+    return useMemo(() => {
+        const help = buildHelpDocsNavItem({
+            icons: {
+                help:
+                    notInstalled.length > 0
+                        ? createElement(
+                              "span",
+                              {
+                                  className: "relative flex",
+                                  "aria-label": t("navigation.items.updateAvailable"),
+                              },
+                              createElement(QuestionIcon, {size: 16}),
+                              createElement("span", {
+                                  className:
+                                      "absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-colorSuccess",
+                              }),
+                          )
+                        : createElement(QuestionIcon, {size: 16}),
+                docs: createElement(ScrollIcon, {size: 14}),
+                github: createElement(GithubLogoIcon, {size: 14}),
+                slack: createElement(SlackLogoIcon, {size: 14}),
+            },
+            extraItems: [
+                {
+                    key: "keyboard-shortcuts",
+                    title: t("navigation.items.keyboardShortcuts"),
+                    icon: createElement(KeyboardIcon, {size: 14}),
+                    isHidden: !onOpenShortcuts,
+                    onClick: () => onOpenShortcuts?.(),
+                    // The rule between the destinations and the release list.
+                    divider: true,
                 },
-                extraItems: [
+                // Release rows reopen the what's-new dialog; a notice opens its link and
+                // stays closed after; "View all releases" links out.
+                ...buildReleaseNavItems(
+                    version,
                     {
-                        key: "keyboard-shortcuts",
-                        title: "Keyboard shortcuts",
-                        icon: createElement(KeyboardIcon, {size: 14}),
-                        isHidden: !onOpenShortcuts,
-                        onClick: () => onOpenShortcuts?.(),
-                        // The rule between the destinations and the release list.
-                        divider: true,
+                        whatsNew: t("navigation.items.whatsNew"),
+                        viewAll: t("navigation.items.viewAllReleases"),
+                        updateAvailable: t("navigation.items.updateAvailable"),
+                        howToUpgrade: t("navigation.items.howToUpgrade"),
+                        notInstalled: t("navigation.items.notInstalled"),
                     },
-                    // Release rows reopen the what's-new dialog; a notice opens its link and
-                    // stays closed after; "View all releases" links out.
-                    ...buildReleaseNavItems(version, {
+                    {
                         releases,
                         notInstalled,
                         notices,
@@ -446,25 +472,39 @@ export const useMobileHelpItem = ({
                             window.open(notice.link, "_blank", "noopener,noreferrer")
                             dismissReleaseNotice(notice.id)
                         },
-                    }).map((item) =>
-                        releases.some((release) => release.id === item.key)
-                            ? {
-                                  ...item,
-                                  link: undefined,
-                                  onClick: () => openWhatsNew({releaseId: item.key}),
-                              }
-                            : item,
-                    ),
-                ],
-            }),
-        [
-            dismissReleaseNotice,
-            notInstalled,
-            notices,
-            onOpenShortcuts,
-            openWhatsNew,
-            releases,
-            version,
-        ],
-    )
+                    },
+                ).map((item) =>
+                    releases.some((release) => release.id === item.key)
+                        ? {
+                              ...item,
+                              link: undefined,
+                              onClick: () => openWhatsNew({releaseId: item.key}),
+                          }
+                        : item,
+                ),
+            ],
+        })
+        // The shared builder carries English titles; the shell supplies the visible text.
+        const titles: Record<string, string> = {
+            docs: t("navigation.items.documentation"),
+            "github-support": t("navigation.items.githubSupport"),
+            "slack-connect": t("navigation.items.slackSupport"),
+        }
+        return {
+            ...help,
+            title: t("navigation.items.helpDocs"),
+            submenu: help.submenu?.map((item) =>
+                titles[item.key] ? {...item, title: titles[item.key]} : item,
+            ),
+        }
+    }, [
+        dismissReleaseNotice,
+        notInstalled,
+        notices,
+        onOpenShortcuts,
+        openWhatsNew,
+        releases,
+        t,
+        version,
+    ])
 }

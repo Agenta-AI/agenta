@@ -1,6 +1,9 @@
 import {useId, useState} from "react"
 
 import ChatMarkdown from "@agenta/chat/markdown"
+import {formatLocale, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import whatsNewCatalog from "@agenta/i18n/catalogs/education.whatsNew"
 import {
     ALL_RELEASES_LINK,
     isWhatsNewOptedOut,
@@ -28,7 +31,7 @@ const RAIL_COUNT = 6
 
 const formatReleaseDate = (release: Release): string => {
     const [year, month, day] = release.date.split("-").map(Number)
-    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(formatLocale() ?? "en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -38,6 +41,7 @@ const formatReleaseDate = (release: Release): string => {
 
 /** Release timeline rail beside the picked release; closing it in any way marks everything seen. */
 export const WhatsNewDialog = () => {
+    const t = useT(whatsNewCatalog, commonCatalog)
     const [state, setState] = useAtom(whatsNewAtom)
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [playingId, setPlayingId] = useState<string | null>(null)
@@ -79,10 +83,10 @@ export const WhatsNewDialog = () => {
                 <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-3 pb-3 pt-5 max-md:border-t md:min-h-0 md:overflow-y-auto md:border-r">
                     <div className="flex flex-col gap-1 px-2 pb-3">
                         <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                            What&apos;s new
+                            {t("education.whatsNew.kicker")}
                         </span>
                         <DialogTitle className="m-0 text-[18px] font-medium tracking-[-0.015em] text-foreground">
-                            Latest releases
+                            {t("education.whatsNew.title")}
                         </DialogTitle>
                     </div>
 
@@ -130,11 +134,11 @@ export const WhatsNewDialog = () => {
                                                     {release.id}
                                                     {notInstalled.has(release.id) ? (
                                                         <span className="rounded bg-colorWarningBg px-1.5 text-[10.5px] font-medium leading-4 text-colorWarning">
-                                                            Not installed
+                                                            {t("education.whatsNew.notInstalled")}
                                                         </span>
                                                     ) : index === 0 ? (
                                                         <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
-                                                            Latest
+                                                            {t("education.whatsNew.latest")}
                                                         </span>
                                                     ) : null}
                                                 </span>
@@ -156,7 +160,7 @@ export const WhatsNewDialog = () => {
                         rel="noreferrer"
                         className="mt-auto flex items-center gap-1 px-2 pt-4 text-[13px] text-muted-foreground no-underline hover:text-foreground"
                     >
-                        View all releases
+                        {t("education.whatsNew.viewAll")}
                         <ArrowUpRight size={11} aria-hidden />
                     </a>
                 </div>
@@ -166,7 +170,7 @@ export const WhatsNewDialog = () => {
                         <Button
                             variant="ghost"
                             size="icon-sm"
-                            aria-label="Close"
+                            aria-label={t("common.close")}
                             className="absolute right-2 top-2 z-10 bg-background/80 text-muted-foreground backdrop-blur-sm hover:bg-background md:right-3 md:top-3"
                         >
                             <X />
@@ -203,12 +207,12 @@ export const WhatsNewDialog = () => {
                         {selected.improvements.length > 0 || selected.fixes.length > 0 ? (
                             <div className="flex flex-col gap-2">
                                 <ReleaseItemsSection
-                                    title="Improvements"
+                                    title={t("education.whatsNew.improvements")}
                                     icon={Sparkle}
                                     items={selected.improvements}
                                 />
                                 <ReleaseItemsSection
-                                    title="Fixes"
+                                    title={t("education.whatsNew.fixes")}
                                     icon={Wrench}
                                     items={selected.fixes}
                                 />
@@ -226,7 +230,7 @@ export const WhatsNewDialog = () => {
                                 checked={optOut}
                                 onCheckedChange={(checked) => setOptOutDraft(checked === true)}
                             />
-                            Don&apos;t show this again
+                            {t("education.whatsNew.dontShowAgain")}
                         </label>
                         <Button
                             asChild
@@ -238,7 +242,7 @@ export const WhatsNewDialog = () => {
                                 target="_blank"
                                 rel="noreferrer"
                             >
-                                Read changelog
+                                {t("education.whatsNew.readChangelog")}
                                 <ArrowUpRight className="size-3" aria-hidden />
                             </a>
                         </Button>

@@ -1,5 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import createProjectCatalog from "@agenta/i18n/catalogs/shell.createProject"
 import {
     Button,
     Dialog,
@@ -23,6 +26,7 @@ export const CreateProjectSheet = ({
     onSubmit: (name: string) => void
     isPending?: boolean
 }) => {
+    const t = useT(createProjectCatalog, commonCatalog)
     const [name, setName] = useState("")
 
     useEffect(() => {
@@ -38,8 +42,8 @@ export const CreateProjectSheet = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Create project</DialogTitle>
-                    <DialogDescription>Projects keep agents and sessions apart.</DialogDescription>
+                    <DialogTitle>{t("shell.createProject.title")}</DialogTitle>
+                    <DialogDescription>{t("shell.createProject.description")}</DialogDescription>
                 </DialogHeader>
                 <form
                     className="flex flex-col gap-3"
@@ -51,7 +55,7 @@ export const CreateProjectSheet = ({
                     <Input
                         autoFocus
                         value={name}
-                        placeholder="Project name"
+                        placeholder={t("shell.createProject.namePlaceholder")}
                         onChange={(event) => setName(event.target.value)}
                     />
                     {/* Enter submits; the visible Create sits in the footer, outside this form. */}
@@ -60,10 +64,10 @@ export const CreateProjectSheet = ({
                 <DialogFooter>
                     {/* Pending blocks submitting only: a dismissed create still lands and refetches. */}
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button disabled={!name.trim() || isPending} onClick={submit}>
-                        {isPending ? "Creating…" : "Create"}
+                        {isPending ? t("shell.createProject.creating") : t("common.create")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -64,6 +64,15 @@ const RowNote = ({children}: {children: ReactNode}) => (
     <span className="text-[11px] leading-none text-colorTextTertiary">{children}</span>
 )
 
+/** The visible text of the block; the shell supplies it in the reader's language. */
+export interface ReleaseNavLabels {
+    whatsNew: string
+    viewAll: string
+    updateAvailable: string
+    howToUpgrade: string
+    notInstalled: string
+}
+
 export interface ReleaseNavOptions {
     /** The bundled list merged with the release feed. Defaults to the bundled list. */
     releases?: Release[]
@@ -84,12 +93,13 @@ export interface ReleaseNavOptions {
  * beside the list of what shipped.
  */
 export const buildReleaseNavItems = (
-    appVersion?: string,
+    appVersion: string | undefined,
+    labels: ReleaseNavLabels,
     {releases = RELEASES, notInstalled = [], notices = [], onOpenNotice}: ReleaseNavOptions = {},
 ): SidebarConfig[] => {
     const newer = new Set(notInstalled.map((release) => release.id))
     return [
-        {key: "releases-heading", title: "What's new?", isGroupLabel: true},
+        {key: "releases-heading", title: labels.whatsNew, isGroupLabel: true},
         ...notices.map((notice) => ({
             key: `notice:${notice.id}`,
             title: notice.title,
@@ -106,10 +116,10 @@ export const buildReleaseNavItems = (
             ? [
                   {
                       key: "update-available",
-                      title: "Update available",
+                      title: labels.updateAvailable,
                       link: UPGRADE_GUIDE_LINK,
                       icon: <ArrowCircleUpIcon size={14} className="text-colorSuccessText" />,
-                      suffix: <RowNote>How to upgrade</RowNote>,
+                      suffix: <RowNote>{labels.howToUpgrade}</RowNote>,
                   },
               ]
             : []),
@@ -119,11 +129,11 @@ export const buildReleaseNavItems = (
             link: release.features[0]?.link ?? ALL_RELEASES_LINK,
             icon: <ReleaseGlyph first={index === 0} />,
             rowClassName: RELEASE_ROW,
-            suffix: newer.has(release.id) ? <RowNote>Not installed</RowNote> : undefined,
+            suffix: newer.has(release.id) ? <RowNote>{labels.notInstalled}</RowNote> : undefined,
         })),
         {
             key: "all-releases",
-            title: "View all releases",
+            title: labels.viewAll,
             link: ALL_RELEASES_LINK,
             icon: <ReleaseGlyph last />,
             rowClassName: RELEASE_ROW,

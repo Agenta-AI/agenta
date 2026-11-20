@@ -1,0 +1,15 @@
+{
+    "didYouKnow": "你知道吗",
+    "statusAlmostReady": "即将就绪",
+    "statusNew1": "正在创建你的工作区",
+    "statusNew2": "正在设置你的第一个项目",
+    "statusPending1": "正在登录",
+    "statusPending2": "正在加载你的工作区",
+    "statusReturning1": "正在加载你的 Agent",
+    "statusReturning2": "正在恢复最近的会话",
+    "tip1": "你可以在 Slack、Telegram、WhatsApp、Discord 和 Microsoft Teams 中与你的 Agent 对话。",
+    "tip2": "纠正 Agent 一次，它下次就会记住。",
+    "tip3": "每个会话都在自己的沙箱中运行，与其他会话相互隔离。",
+    "tip4": "Agent 可以按计划运行，也可以在已连接的应用中发生某件事时运行。",
+    "tip5": "你可以使用自己的 Claude 或 ChatGPT 订阅来运行 Agent。"
+}

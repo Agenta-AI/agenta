@@ -1,0 +1,13 @@
+{
+    "kicker": "新機能",
+    "title": "最新のリリース",
+    "latest": "最新",
+    "viewAll": "すべてのリリースを見る",
+    "improvements": "改善",
+    "fixes": "修正",
+    "dontShowAgain": "今後表示しない",
+    "readChangelog": "変更履歴を読む",
+    "play": "再生",
+    "playFeature": "{{title}} を再生",
+    "notInstalled": "未インストール"
+}

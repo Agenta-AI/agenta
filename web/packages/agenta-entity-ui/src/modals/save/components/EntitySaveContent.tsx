@@ -4,6 +4,8 @@
  * Modal content with name input and save-as-new option.
  */
 
+import {richText, useT} from "@agenta/i18n"
+import saveModalCatalog from "@agenta/i18n/catalogs/entityUi.saveModal"
 import {Alert, Checkbox, Input} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -27,6 +29,7 @@ import {
  * - Error alert if any
  */
 export function EntitySaveContent() {
+    const t = useT(saveModalCatalog)
     const entity = useAtomValue(saveModalEntityAtom)
     const name = useAtomValue(saveModalNameAtom)
     const saveAsNew = useAtomValue(saveModalSaveAsNewAtom)
@@ -43,13 +46,13 @@ export function EntitySaveContent() {
             {/* Name input */}
             <div className="flex flex-col gap-2">
                 <label htmlFor="entity-name" className="font-medium text-gray-700">
-                    Name
+                    {t("entityUi.saveModal.name")}
                 </label>
                 <Input
                     id="entity-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter a name..."
+                    placeholder={t("entityUi.saveModal.namePlaceholder")}
                     autoFocus
                 />
             </div>
@@ -59,11 +62,13 @@ export function EntitySaveContent() {
                 <div className="flex flex-col gap-2">
                     <label className="inline-flex cursor-pointer items-center gap-2">
                         <Checkbox checked={saveAsNew} onCheckedChange={() => toggleSaveAsNew()} />
-                        <span>Save as new copy</span>
+                        <span>{t("entityUi.saveModal.saveAsNewCopy")}</span>
                     </label>
                     {saveAsNew && originalName && (
                         <p className="text-gray-500 ml-6">
-                            Original: <span className="font-medium">{originalName}</span>
+                            {richText(t("entityUi.saveModal.original", {name: originalName}), {
+                                name: (text) => <span className="font-medium">{text}</span>,
+                            })}
                         </p>
                     )}
                 </div>
@@ -71,7 +76,12 @@ export function EntitySaveContent() {
 
             {/* Error display */}
             {error && (
-                <Alert type="error" message="Save failed" description={error.message} showIcon />
+                <Alert
+                    type="error"
+                    message={t("entityUi.saveModal.saveFailed")}
+                    description={error.message}
+                    showIcon
+                />
             )}
         </div>
     )

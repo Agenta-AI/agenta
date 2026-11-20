@@ -1,0 +1,23 @@
+{
+    "addProvider": "Añadir proveedor",
+    "addProviderSetSlug": "Añadir proveedor (define antes el slug)",
+    "deleteDomain": "Eliminar dominio",
+    "deleteDomainBody": "Quita {{name}} de esta organización.",
+    "deleteDomainError": "No se ha podido eliminar el dominio",
+    "deleteProvider": "Eliminar proveedor",
+    "deleteProviderBody": "Quita {{name}} y su secreto almacenado.",
+    "deleteProviderError": "No se ha podido eliminar el proveedor",
+    "deleteProviderTitle": "Eliminar proveedor de SSO",
+    "enableProviderError": "No se ha podido activar el proveedor",
+    "loadError": "No se han podido cargar los ajustes de esta organización",
+    "providerAddedNotice": "Proveedor añadido. Actívalo para verificarlo y ponerlo en marcha.",
+    "providerConnectError": "No hemos podido conectar con el proveedor. Comprueba la URL del emisor y los datos del cliente, y vuelve a intentarlo.",
+    "providerSavedNotice": "Proveedor guardado. Al editar los ajustes se borra la validación, así que vuelve a activarlo.",
+    "refreshTokenError": "No se ha podido actualizar el token",
+    "saveFlagError": "No hemos podido guardar ese ajuste. Inténtalo de nuevo",
+    "setSlugFirst": "Define antes un slug para la organización",
+    "setSlugHint": "Define un slug para la organización antes de añadir un proveedor. Sin él no se puede formar la URL de devolución de llamada.",
+    "thisDomain": "este dominio",
+    "thisProvider": "este proveedor",
+    "verifyDomainError": "No se ha podido verificar el dominio"
+}

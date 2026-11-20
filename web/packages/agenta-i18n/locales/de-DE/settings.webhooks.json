@@ -1,0 +1,13 @@
+{
+    "emptyDescription": "Abonnieren Sie einen Endpunkt, um Workflow-Events als signierte HTTP-Anfragen zu erhalten.",
+    "emptyTitle": "Noch keine Webhooks",
+    "events": "Events",
+    "paused": "Webhook pausiert",
+    "pausedStatus": "Pausiert",
+    "resumed": "Webhook fortgesetzt",
+    "subscribe": "Abonnieren",
+    "target": "Ziel",
+    "test": "Testen",
+    "updateFailed": "Der Webhook konnte nicht aktualisiert werden",
+    "webhookActions": "Webhook-Aktionen"
+}

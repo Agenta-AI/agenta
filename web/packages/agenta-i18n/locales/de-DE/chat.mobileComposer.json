@@ -1,0 +1,11 @@
+{
+    "addProviderKey": "Fügen Sie Ihren Modellanbieter-Schlüssel hinzu, um diesen Agent auszuführen.",
+    "attachment": "Anhang",
+    "backToCommands": "← zurück zu den Befehlen",
+    "changesDraft": "Ändert die Entwurfskonfiguration dieses Agent.",
+    "connectModelPlaceholder": "Verbinden Sie ein Modell, um den Chat zu starten …",
+    "messageSubject": "Nachricht",
+    "removeOneToAdd": "Entfernen Sie eine Datei, um eine weitere hinzuzufügen (maximal {{count}})",
+    "searchModels": "Modelle suchen",
+    "setUpProviders": "Modellanbieter einrichten"
+}

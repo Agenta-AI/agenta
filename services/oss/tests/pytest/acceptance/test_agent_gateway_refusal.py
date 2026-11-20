@@ -147,6 +147,9 @@ def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
     to ask about the plane itself. With the plane off the resolver never reaches a gateway to
     be refused by: it falls back to the vault, finds no connection under this slug, and raises
     `ConnectionNotFoundError`, which carries the same 422 and no failure code at all.
+
+    Since needs setup (#7923) the run reports a missing model item as one `agent_needs_setup`
+    error. The gateway's own code survives as the requirement's `detail.code`.
     """
     require_llm_gateway(llm_gateway_plane)
     model = _HARNESS_CONNECTIONS[harness][1]
@@ -157,5 +160,8 @@ def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
     body = resp.json()
     status = body.get("status") or {}
     assert resp.status_code == 422, body
-    assert status.get("failure_code") == "endpoint_not_found", body
-    assert "not found" in (status.get("message") or ""), body
+    assert status.get("failure_code") == "agent_needs_setup", body
+    [requirement] = (status.get("details") or {}).get("requirements") or [None]
+    assert requirement is not None, body
+    assert requirement["reason"] == "not_found", body
+    assert requirement["detail"] == {"code": "endpoint_not_found"}, body

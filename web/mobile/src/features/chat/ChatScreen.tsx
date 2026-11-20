@@ -6,7 +6,10 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
+import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -84,6 +87,7 @@ export const ChatScreen = ({
     const {
         entityId: latestEntityId,
         agentId: resolvedAgentId,
+        followsAgent,
         resolving,
         refetchLatest,
         unreachable,
@@ -125,8 +129,8 @@ export const ChatScreen = ({
         setHeldCommit(null)
     }, [agentHidden, pinRevision, setHeldCommit])
     // A session starts pinned to the server's latest at the moment it opens. After that it moves
-    // only to a version the agent commits in this session (`LiveConversation` follows it); a
-    // version made elsewhere is offered by the top bar instead.
+    // to a version the agent commits in this session (`LiveConversation` follows it), or to a
+    // version made elsewhere, which the top bar applies when `autoUpdateRevision` allows it.
     const hasAgent = Boolean(latestEntityId)
     useEffect(() => {
         if (pinnedRevisionId || !hasAgent) return
@@ -161,6 +165,13 @@ export const ChatScreen = ({
     const liveStream = liveness.data?.find((s) => s.session_id === sessionId)
     const running = Boolean(liveStream?.flags?.is_running)
     const sharedReader = Boolean(liveStream?.capabilities?.shared_reader)
+    // This tab's run state knows of a send or an approval wait before liveness does.
+    const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
+    const turnActive = running || runStatus === "running" || runStatus === "awaiting"
+    // Across a switch the bar still holds the last session's revision and agent, and an active
+    // turn keeps the revision it started on, so neither may move this session's pin.
+    const autoUpdateRevision =
+        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !turnActive
     // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
     // agent from the chat before it, so a private chat looks exactly like an unknown one.
     if (access.blocked) {
@@ -228,6 +239,7 @@ export const ChatScreen = ({
             agentResolving={resolving}
             linkEntityId={entityId}
             linkAgentId={resolvedAgentId}
+            autoUpdateRevision={autoUpdateRevision}
             agentHidden={agentHidden}
             canSend={access.canSend}
             sessionId={sessionId}
@@ -263,6 +275,7 @@ const ReplayScreen = ({
     /** Rendered inside a workspace pane — the shell belongs to the parent. */
     embedded?: boolean
 }) => {
+    const t = useT(chatMobileScreenCatalog)
     // Tightened records cadence only while this foregrounded screen shows a running or pending
     // turn; derived from the previous render's messages, so it settles one render behind.
     const [pollMs, setPollMs] = useState(0)
@@ -322,7 +335,10 @@ const ReplayScreen = ({
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <TranscriptTurns
+                    // This screen stays mounted across sessions; the window must not.
+                    key={sessionId}
                     turns={visibleTurns}
+                    scrollerRef={autoScroll.ref}
                     sessionId={sessionId}
                     remoteRunning={running}
                     waitingOnUser={pendingCount > 0}
@@ -346,15 +362,15 @@ const ReplayScreen = ({
                     {readOnly ? null : (
                         <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
                             {agentId
-                                ? "Read-only — this agent has no revision to message yet."
-                                : "Read-only — this session has no agent to message yet."}
+                                ? t("chat.mobileScreen.readOnlyNoRevision")
+                                : t("chat.mobileScreen.readOnlyNoAgent")}
                         </p>
                     )}
                     {running ? (
                         <div className="border-border shrink-0 border-b px-4 py-2">
                             <ContentRail className="flex items-center justify-between">
                                 <StatusTag tone="running" dot>
-                                    running
+                                    {t("chat.mobileScreen.running")}
                                 </StatusTag>
                             </ContentRail>
                         </div>

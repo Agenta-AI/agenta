@@ -1,0 +1,9 @@
+{
+    "copyFailed": "コピーできませんでした。上のシークレットを選択してコピーしてください",
+    "copySecret": "シークレットをコピー",
+    "deleteBody": "Agenta は {{url}} へのイベント配信を停止します。",
+    "deleteFailed": "サブスクリプションを削除できませんでした",
+    "deleteTitle": "サブスクリプションを削除",
+    "secretDescription": "一度だけ表示されます。受信したリクエストが Agenta から送信されたことを確認するために必要です。",
+    "secretTitle": "Webhook シークレットを保存"
+}

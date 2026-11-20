@@ -1,0 +1,13 @@
+{
+    "pageTitle": "开始使用",
+    "preparing": "正在准备你的工作区",
+    "mintError": "无法设置你的 Agent。",
+    "stepCounter": "第 {{current}} 步，共 {{total}} 步",
+    "skip": "暂时跳过",
+    "dotCredits": "额度",
+    "dotTemplates": "第一个 Agent",
+    "keyHint": "按 {{key}}",
+    "continue": "继续",
+    "writeIn": "告诉我们更多",
+    "writeInPlaceholder": "一行就够了"
+}

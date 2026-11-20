@@ -4,13 +4,13 @@
  * Schedules use a 5-field UTC cron expression. The web has no cron dependency,
  * so `core/cron.ts` is a tiny local validator + describer + "next runs" preview
  * (the backend croniter remains the source of truth). These tests pin the
- * validation bounds, the human-readable description, and the next-run scan.
+ * validation bounds and the next-run scan. The English description is pinned in
+ * @agenta/entity-ui (tests/unit/scheduleText.test.ts), which owns the words.
  */
 
 import {describe, expect, it} from "vitest"
 
 import {
-    describeCron,
     MIN_CRON_INTERVAL_MINUTES,
     nextCronRuns,
     smallestCronGapMinutes,
@@ -46,24 +46,6 @@ describe("validateCron", () => {
     it("rejects a bad step and a reversed range", () => {
         expect(validateCron("*/0 * * * *").valid).toBe(false)
         expect(validateCron("0 0 10-5 * *").valid).toBe(false)
-    })
-})
-
-describe("describeCron", () => {
-    it("describes the common shapes", () => {
-        expect(describeCron("* * * * *")).toBe("Every minute (UTC)")
-        expect(describeCron("*/5 * * * *")).toBe("Every 5 minutes (UTC)")
-        expect(describeCron("0 * * * *")).toBe("Every hour (UTC)")
-        expect(describeCron("30 9 * * *")).toBe("Every day at 09:30 UTC")
-        expect(describeCron("0 9 * * 1")).toBe("Every Monday at 09:00 UTC")
-    })
-
-    it("echoes the raw expression for exotic shapes", () => {
-        expect(describeCron("0 9 1,15 * *")).toBe("0 9 1,15 * * (UTC)")
-    })
-
-    it("echoes an invalid expression unchanged", () => {
-        expect(describeCron("nonsense")).toBe("nonsense")
     })
 })
 
@@ -117,20 +99,6 @@ describe("nextCronRuns", () => {
             "2026-06-29T00:00:00.000Z",
             "2026-07-06T00:00:00.000Z",
         ])
-    })
-
-    it("describes an hourly minute rather than falling back to the expression", () => {
-        expect(describeCron("5 * * * *")).toBe("Every hour at :05 (UTC)")
-    })
-
-    it("describes an hour step", () => {
-        expect(describeCron("30 */2 * * *")).toBe("Every 2 hours at :30 (UTC)")
-    })
-
-    it("describes a day range", () => {
-        expect(describeCron("0 9 * * 1-5")).toBe(
-            "Monday, Tuesday, Wednesday, Thursday, Friday at 09:00 UTC",
-        )
     })
 })
 

@@ -1,5 +1,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {shortcutAria} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {Stop} from "@phosphor-icons/react"
@@ -40,6 +42,7 @@ export function SendButton({
     busyActions,
     sending,
 }: SendButtonProps) {
+    const t = useT(uiChatInputCatalog)
     const [editor] = useLexicalComposerContext()
     const [empty, setEmpty] = useState(true)
 
@@ -93,7 +96,9 @@ export function SendButton({
                             size="icon"
                             variant="ghost"
                             className="rounded-control-round"
-                            aria-label={stopping ? "Stopping" : "Stop"}
+                            aria-label={
+                                stopping ? t("ui.chatInput.stopping") : t("ui.chatInput.stop")
+                            }
                             aria-keyshortcuts={shortcutAria("run.stop")}
                             onClick={onStop}
                             disabled={stopping}

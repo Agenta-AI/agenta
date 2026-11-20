@@ -1,5 +1,8 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
 import {Button} from "./button"
 import {cn} from "./utils"
 
@@ -41,12 +44,14 @@ const FOCUSABLE =
 export function InlineConfirm({
     message,
     confirmLabel,
-    cancelLabel = "Cancel",
+    cancelLabel: cancelLabelProp,
     onConfirm,
     onCancel,
     className,
     ...props
 }: InlineConfirmProps) {
+    const t = useT(commonCatalog)
+    const cancelLabel = cancelLabelProp ?? t("common.cancel")
     const cancelRef = React.useRef<HTMLButtonElement>(null)
     const rootRef = React.useRef<HTMLDivElement>(null)
     const messageId = `${React.useId()}-message`

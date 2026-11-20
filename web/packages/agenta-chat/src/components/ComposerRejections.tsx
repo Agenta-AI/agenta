@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import chatComposerRejectionsCatalog from "@agenta/i18n/catalogs/chat.composerRejections"
 import {Button} from "@agenta/ui/ui"
 import {WarningCircle, X} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
@@ -21,50 +23,55 @@ export interface ComposerRejectionsProps {
  *
  * Each row still dismisses on its own, which is the part worth keeping from the card treatment.
  */
-export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsProps) => (
-    <MotionConfig transition={SESSION_SPRING}>
-        {/* max-h: four rows, then it scrolls — a bad multi-select must not push the input off screen. */}
-        <div
-            className="mb-2 flex max-h-[134px] flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-colorWarningBorder bg-colorWarningBg px-2 py-1.5"
-            role="status"
-        >
-            <AnimatePresence initial={false} mode="popLayout">
-                {rejections.map((rejection, index) => (
-                    <motion.div
-                        key={`${index}-${rejection.name}`}
-                        layout
-                        initial={{opacity: 0, y: -4}}
-                        animate={{opacity: 1, y: 0}}
-                        exit={{opacity: 0, y: -4}}
-                        className="flex min-w-0 items-center gap-2"
-                    >
-                        <WarningCircle
-                            size={16}
-                            weight="fill"
-                            className="shrink-0 text-colorWarning"
-                        />
-                        <span
-                            className="min-w-0 flex-1 truncate text-xs text-colorWarning"
-                            title={`${rejection.name} ${rejection.reason}`}
+export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsProps) => {
+    const t = useT(chatComposerRejectionsCatalog)
+    return (
+        <MotionConfig transition={SESSION_SPRING}>
+            {/* max-h: four rows, then it scrolls — a bad multi-select must not push the input off screen. */}
+            <div
+                className="mb-2 flex max-h-[134px] flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-colorWarningBorder bg-colorWarningBg px-2 py-1.5"
+                role="status"
+            >
+                <AnimatePresence initial={false} mode="popLayout">
+                    {rejections.map((rejection, index) => (
+                        <motion.div
+                            key={`${index}-${rejection.name}`}
+                            layout
+                            initial={{opacity: 0, y: -4}}
+                            animate={{opacity: 1, y: 0}}
+                            exit={{opacity: 0, y: -4}}
+                            className="flex min-w-0 items-center gap-2"
                         >
-                            <span className="font-medium">{rejection.name}</span>{" "}
-                            <span className="opacity-80">{rejection.reason}</span>
-                        </span>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Dismiss ${rejection.name}`}
-                            onClick={() => onDismiss(index)}
-                            className="shrink-0 text-colorWarning opacity-70 transition-opacity hover:opacity-100"
-                        >
-                            <X weight="bold" />
-                        </Button>
-                    </motion.div>
-                ))}
-            </AnimatePresence>
-        </div>
-    </MotionConfig>
-)
+                            <WarningCircle
+                                size={16}
+                                weight="fill"
+                                className="shrink-0 text-colorWarning"
+                            />
+                            <span
+                                className="min-w-0 flex-1 truncate text-xs text-colorWarning"
+                                title={`${rejection.name} ${rejection.reason}`}
+                            >
+                                <span className="font-medium">{rejection.name}</span>{" "}
+                                <span className="opacity-80">{rejection.reason}</span>
+                            </span>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("chat.composerRejections.dismiss", {
+                                    name: rejection.name,
+                                })}
+                                onClick={() => onDismiss(index)}
+                                className="shrink-0 text-colorWarning opacity-70 transition-opacity hover:opacity-100"
+                            >
+                                <X weight="bold" />
+                            </Button>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
+        </MotionConfig>
+    )
+}
 
 export default ComposerRejections

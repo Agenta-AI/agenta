@@ -1,0 +1,6 @@
+{
+    "changeFailed": "无法更改你的套餐。请重试；如果问题仍然存在，请联系支持团队。",
+    "description": "所有套餐都按额度计费。选择你每月获得的额度。",
+    "includedOnEveryPlan": "所有套餐均包含",
+    "title": "套餐"
+}

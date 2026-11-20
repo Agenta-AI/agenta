@@ -641,6 +641,8 @@ class SlackAdapter(ChannelAdapterInterface):
         connection: ChannelConnection,
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Re-render the answered card without its buttons: a clickable card
         after the answer reads as still pending. The message text stays."""
@@ -1197,7 +1199,7 @@ def _connection_discriminator(payload: Dict[str, Any]) -> Tuple[str, str]:
 
 def _card_to_markdown(card: Dict[str, Any]) -> str:
     """An approval card as Markdown: bold title, the scope line, and the
-    redacted arguments as a code block. The tool name and arguments live only
+    redacted arguments, one per line, as a code block. The tool name and arguments live only
     on the card part, so dropping it posted bare Approve/Deny buttons and the
     user approved blind (QA finding, 2026-09-23)."""
 
@@ -1207,12 +1209,11 @@ def _card_to_markdown(card: Dict[str, Any]) -> str:
     if card.get("text"):
         lines.append(card["text"])
     details = approval_details(card.get("arguments"))
-    head, _, body = details.partition("\n")
-    if body:
+    if details and isinstance(card.get("arguments"), dict):
         # a literal fence inside an argument would close the block early
-        body = body.replace("```", "`\u200b``")
-        lines.append(f"{head}\n```\n{body}\n```")
-    else:
+        details = details.replace("```", "`\u200b``")
+        lines.append(f"```\n{details}\n```")
+    elif details:
         lines.append(details)
     return "\n\n".join(lines)
 

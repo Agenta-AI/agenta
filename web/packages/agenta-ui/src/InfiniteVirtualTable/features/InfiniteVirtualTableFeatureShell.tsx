@@ -1,6 +1,9 @@
 import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {Export, Trash} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
@@ -289,6 +292,7 @@ const resolveColumnVisibilityRenderer = <Row extends InfiniteTableRowBase>(
 function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     props: InfiniteVirtualTableFeatureProps<Row> & {pagination: TableFeaturePagination<Row>},
 ) {
+    const t = useT(uiTableCatalog, commonCatalog)
     const {
         tableScope,
         columns,
@@ -529,7 +533,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     // Built-in delete button (wide screens only)
     const builtInDeleteButton = useMemo(() => {
         if (!deleteAction || hideBuiltInButtons) return null
-        const {onDelete, disabled, disabledTooltip, label = "Delete"} = deleteAction
+        const {onDelete, disabled, disabledTooltip, label = t("common.delete")} = deleteAction
         const button = (
             <Button
                 variant="destructive-outline"
@@ -555,7 +559,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     // Built-in export button (wide screens only, when exportAction is provided)
     const builtInExportButton = useMemo(() => {
         if (!enableExport || !exportAction || hideBuiltInButtons) return null
-        const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
+        const {disabled, disabledTooltip, label = t("ui.table.exportCsv")} = exportAction
         const button = (
             <LoadingButton
                 disabled={disabled}
@@ -583,7 +587,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             return {
                 onDelete: deleteAction.onDelete,
                 disabled: deleteAction.disabled,
-                label: deleteAction.label ? `${deleteAction.label} selected` : "Delete selected",
+                label: deleteAction.label
+                    ? t("ui.table.labelSelected", {label: deleteAction.label})
+                    : t("ui.table.deleteSelected"),
             }
         }
         return settingsDropdownDelete
@@ -767,7 +773,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     <div className="flex justify-end px-4 py-2">
                         <Pagination
                             total={paginatedSlice.total}
-                            showTotal={(total) => `Total ${total} items`}
+                            showTotal={(total) => t("ui.table.totalItems", {total})}
                             pageSize={uiPageSize}
                             current={currentPage}
                             onChange={handlePageChange}

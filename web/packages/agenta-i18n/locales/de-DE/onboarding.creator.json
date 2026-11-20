@@ -1,0 +1,7 @@
+{
+    "title": "Beschreiben Sie Ihren Agent",
+    "subtitle": "Sagen Sie, was er tun soll und wann. Er beginnt damit als erster Aufgabe.",
+    "starters": "Nachrichtenideen",
+    "modelMissing": "Ihr Agent braucht ein Modell, um zu laufen.",
+    "modelMissingAction": "Eines wählen"
+}

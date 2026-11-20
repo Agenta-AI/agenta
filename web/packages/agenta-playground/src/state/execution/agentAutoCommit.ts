@@ -14,7 +14,11 @@ import {
     commitWorkflowRevisionAtom,
     invalidateAgentCommittedRevisionCache,
 } from "@agenta/entities/workflow"
-import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
+import {
+    buildCommitSummaryMessage,
+    classifyAgentChanges,
+    NO_COMMIT_DIFF_TEXT,
+} from "@agenta/entities/workflow/commitDiff"
 import {agentSelfCommitSignalAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -50,7 +54,7 @@ const inFlight = new Set<string>()
  *
  * Keyed so a module re-evaluation (HMR) replaces its handler instead of stacking a second one.
  */
-type AfterCommitHandler = (revisionId: string, newRevisionId: string) => void
+type AfterCommitHandler = (revisionId: string, newRevisionId: string, workflowId?: string) => void
 const afterCommitHandlers = new Map<string, AfterCommitHandler>()
 
 export const registerAgentAutoCommitHandler = (
@@ -97,7 +101,8 @@ const flushBlocker = (store: Store, revisionId: string): "skip" | "clean" | "bus
 const buildMessage = (store: Store, revisionId: string): string | undefined => {
     const local = store.get(workflowMolecule.selectors.configuration(revisionId))
     const server = store.get(workflowMolecule.selectors.serverConfiguration(revisionId))
-    const sections = classifyAgentChanges(local, server)
+    // Only the message is built, and it reads ids, kinds and stored values, never the words.
+    const sections = classifyAgentChanges(local, server, NO_COMMIT_DIFF_TEXT)
     return sections.length ? buildCommitSummaryMessage(sections) : undefined
 }
 
@@ -199,12 +204,13 @@ const runFlush = async (
             store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
             // The commit atom invalidates everything BUT the latest-revision query, which an
             // unattended writer notices: the next read keeps answering with the superseded id.
-            invalidateAgentCommittedRevisionCache(
-                store.get(workflowMolecule.selectors.data(revisionId))?.workflow_id,
-            )
+            const workflowId = store.get(workflowMolecule.selectors.data(revisionId))?.workflow_id
+            invalidateAgentCommittedRevisionCache(workflowId)
             const newRevisionId = result.newRevisionId
             if (newRevisionId) {
-                afterCommitHandlers.forEach((handler) => handler(revisionId, newRevisionId))
+                afterCommitHandlers.forEach((handler) =>
+                    handler(revisionId, newRevisionId, workflowId ?? undefined),
+                )
                 // Deferred a tick so subscribers reading this revision during the switch
                 // finish first. Safe: it is superseded.
                 setTimeout(() => forgetRevision(store, revisionId), 0)

@@ -1,0 +1,8 @@
+{
+    "invoices": "Faturas e recibos",
+    "invoicesHint": "Todos os pagamentos de assinatura e de pacotes de créditos, com a fatura em PDF.",
+    "opening": "Abrindo…",
+    "portalHint": "Forma de pagamento, números fiscais e endereço de cobrança também são gerenciados no portal de faturamento.",
+    "title": "Histórico de pagamentos",
+    "viewPortal": "Ver no portal de faturamento"
+}

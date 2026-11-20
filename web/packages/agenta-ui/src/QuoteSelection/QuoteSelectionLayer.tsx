@@ -1,6 +1,8 @@
 // Quote-to-reply over a `relative` pane: selection pill, note box, draft highlight.
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiQuoteSelectionCatalog from "@agenta/i18n/catalogs/ui.quoteSelection"
 import {locateQuote, type Quote} from "@agenta/shared/quotes"
 import {generateId} from "@agenta/shared/utils"
 
@@ -45,6 +47,7 @@ export const QuoteSelectionLayer = ({
     sessionId: string | null
     touch?: boolean
 }) => {
+    const t = useT(uiQuoteSelectionCatalog)
     const [draft, setDraft] = useState<{quote: Quote; candidate: QuoteCandidate} | null>(null)
     const [announced, setAnnounced] = useState("")
     const staged = useStagedQuotes(sessionId)
@@ -112,7 +115,7 @@ export const QuoteSelectionLayer = ({
     const stage = (note: string) => {
         if (!draft) return
         addQuote(sessionId, {...draft.quote, note, staged: true})
-        setAnnounced(`Quote added. ${staged.length + 1} attached.`)
+        setAnnounced(t("ui.quoteSelection.quoteAdded", {count: staged.length + 1}))
         finish()
     }
 

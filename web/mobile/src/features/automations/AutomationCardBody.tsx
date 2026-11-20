@@ -2,6 +2,7 @@ import {
     AutomationLastRunCell,
     automationStatus,
     runsWhenLabel,
+    useAutomationText,
     type Automation,
 } from "@agenta/automation-ui"
 import {AgentChip} from "@agenta/entity-ui/agent"
@@ -27,6 +28,7 @@ export const AutomationCardBody = ({
     agentName: string | null
     base: string
 }) => {
+    useAutomationText()
     // Run outcomes land in W6; until then nothing here has failed.
     const status = automationStatus(automation, false)
     const runsWhen = runsWhenLabel(automation)

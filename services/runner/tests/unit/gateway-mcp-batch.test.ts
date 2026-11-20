@@ -35,6 +35,7 @@ import {
   makeRelayDir,
   stubToolCall,
 } from "../utils/gateway.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 
 const realFetch = globalThis.fetch;
 let server: InternalToolMcpServer | undefined;
@@ -71,7 +72,7 @@ async function startServer(): Promise<InternalToolMcpServer> {
     localRelayHost(),
     dir,
     SPECS,
-    TOOL_CALLBACK,
+    fixedToolCallback(TOOL_CALLBACK),
     undefined,
     undefined,
     undefined,

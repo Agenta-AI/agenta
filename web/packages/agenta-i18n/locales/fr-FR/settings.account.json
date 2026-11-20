@@ -1,0 +1,14 @@
+{
+    "cannotBeUndone": "Cette action est irréversible.",
+    "dangerZone": "Zone de danger",
+    "deleteAccount": "Supprimer le compte",
+    "deleteAccountDescription": "Supprime votre compte, toutes les organisations dont vous êtes propriétaire, ainsi que tous leurs espaces de travail, projets, applications et données. Vous serez déconnecté immédiatement.",
+    "deleteCallout": "Supprime définitivement votre compte et toutes les organisations dont vous êtes propriétaire, y compris tous les espaces de travail, projets, applications et données.",
+    "email": "E-mail",
+    "emailHint": "Utilisé pour la connexion et pour les invitations aux organisations.",
+    "profile": "Profil",
+    "typeToConfirm": "Saisissez <code>{{email}}</code> pour confirmer :",
+    "username": "Nom d’utilisateur",
+    "usernameHint": "La façon dont vous apparaissez dans les listes de membres et les entrées d’audit.",
+    "yourEmail": "Votre e-mail"
+}

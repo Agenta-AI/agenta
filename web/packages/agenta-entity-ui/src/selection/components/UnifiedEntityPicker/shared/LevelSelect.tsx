@@ -11,9 +11,12 @@
 
 import React, {useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {HierarchyLevelSelect} from "@agenta/ui/components/selection"
 
 import type {CascadingLevelState} from "../../../hooks"
+import {labelInSentence, levelLabelText, tSelection} from "../../../text"
 
 // ============================================================================
 // TYPES
@@ -79,6 +82,8 @@ export function LevelSelect({
     showAutoIndicator,
     prevLevelLabel,
 }: LevelSelectProps) {
+    // The texts below come from the catalog; this draws them again when it loads.
+    useT(selectionCatalog)
     const {config, items, query, effectiveId, isEnabled, setSelectedId, isAutoSelected} = level
 
     // EntityPicker still speaks antd size names across its public API; HierarchyLevelSelect
@@ -121,10 +126,15 @@ export function LevelSelect({
 
     // Get not found content based on state
     const notFoundContent = useMemo(() => {
-        if (query.isPending) return "Loading..."
-        if (query.isError) return "Error loading items"
-        if (!isEnabled) return `Select ${prevLevelLabel?.toLowerCase() ?? "previous level"} first`
-        return "No items found"
+        if (query.isPending) return tSelection("entityUi.selection.loading")
+        if (query.isError) return tSelection("entityUi.selection.errorLoadingItems")
+        if (!isEnabled)
+            return tSelection("entityUi.selection.selectLevelFirst", {
+                label: prevLevelLabel
+                    ? labelInSentence(levelLabelText(prevLevelLabel))
+                    : tSelection("entityUi.selection.previousLevel"),
+            })
+        return tSelection("entityUi.selection.noItemsFound")
     }, [query.isPending, query.isError, isEnabled, prevLevelLabel])
 
     return (
