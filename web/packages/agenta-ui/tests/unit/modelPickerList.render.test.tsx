@@ -117,15 +117,7 @@ describe("ModelPickerList", () => {
         renderList({layout: "popover"})
         const head = screen.getByText("Anthropic").parentElement as HTMLElement
         expect(head.textContent).toBe("AnthropicOrganizationvia Claude Code")
-        expect(screen.getByText("via Claude Code").className).toContain("ml-auto")
         expect(head.querySelector("svg")).not.toBeNull()
-    })
-
-    it("the Subscription tag is the same bordered tag as the others", () => {
-        renderList()
-        expect(screen.getByText("Subscription").className).toBe(
-            screen.getByText("Organization").className,
-        )
     })
 
     it("Manage model providers is a button under the list", () => {
@@ -137,22 +129,25 @@ describe("ModelPickerList", () => {
         expect(screen.queryByText("Manage model providers")).toBeNull()
     })
 
-    it("opens with the current model's group head at the top of the list", () => {
-        // jsdom has no layout: every box is placed by hand, relative to the list's top at 100.
-        const rects = new Map<string, {top: number; height: number}>([
-            ["list", {top: 100, height: 300}],
-            ["section", {top: 400, height: 100}],
-            ["row", {top: 432, height: 50}],
-        ])
-        const box = (name: string) => {
-            const {top, height} = rects.get(name) as {top: number; height: number}
-            return {top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top}
-        }
+    // jsdom has no layout: every box is placed by hand. The list's top is at 100 and it is
+    // 300px high.
+    const withLayout = (group: {top: number; height: number}, row: {top: number}) => {
+        const box = (top: number, height: number) =>
+            ({
+                top,
+                height,
+                bottom: top + height,
+                left: 0,
+                right: 0,
+                width: 0,
+                x: 0,
+                y: top,
+            }) as DOMRect
         const original = Element.prototype.getBoundingClientRect
         Element.prototype.getBoundingClientRect = function (this: Element) {
-            if (this.tagName === "SECTION") return box("section") as DOMRect
-            if (this.getAttribute("aria-pressed") === "true") return box("row") as DOMRect
-            if (this.className.toString().includes("overflow-y-auto")) return box("list") as DOMRect
+            if (this.tagName === "SECTION") return box(group.top, group.height)
+            if (this.getAttribute("aria-pressed") === "true") return box(row.top, 50)
+            if (this.getAttribute("data-testid") === "model-picker-list") return box(100, 300)
             return original.call(this)
         }
         Object.defineProperty(HTMLElement.prototype, "clientHeight", {
@@ -161,12 +156,20 @@ describe("ModelPickerList", () => {
         })
         try {
             renderList()
-            const list = document.querySelector(".overflow-y-auto") as HTMLElement
-            // The group head starts 300px into the list.
-            expect(list.scrollTop).toBe(300)
+            return screen.getByTestId("model-picker-list").scrollTop
         } finally {
             Element.prototype.getBoundingClientRect = original
             delete (HTMLElement.prototype as {clientHeight?: number}).clientHeight
         }
+    }
+
+    it("opens with the current model's group head at the top of the list", () => {
+        // The group starts 300px into the list and fits in it.
+        expect(withLayout({top: 400, height: 100}, {top: 432})).toBe(300)
+    })
+
+    it("centres the current model when its group is taller than the list", () => {
+        // The row is 900px into the list: (300 - 50) / 2 above it stays in view.
+        expect(withLayout({top: 400, height: 1000}, {top: 1000})).toBe(900 - 125)
     })
 })

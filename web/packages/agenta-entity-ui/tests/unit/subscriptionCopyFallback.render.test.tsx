@@ -18,6 +18,8 @@ const token = {
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
+const originalExecCommand = document.execCommand
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard")
 
 beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -35,7 +37,9 @@ beforeEach(() => {
 afterEach(() => {
     act(() => root.unmount())
     host.remove()
-    vi.restoreAllMocks()
+    document.execCommand = originalExecCommand
+    if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard)
+    else delete (navigator as {clipboard?: Clipboard}).clipboard
 })
 
 const copyButton = () =>

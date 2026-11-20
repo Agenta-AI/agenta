@@ -1,13 +1,8 @@
-import {useId} from "react"
-
 import {IconProps} from "./types"
+import {useSvgIds} from "./useSvgIds"
 
 const Bedrock = ({...props}: IconProps) => {
-    // Ids unique to this copy: with fixed ids a second, hidden copy on the page owns the
-    // gradient, and this copy paints nothing. Only id-safe characters, for the `url(#…)` refs.
-    const id = useId().replace(/[^a-zA-Z0-9_-]/g, "")
-    const paint = `${id}-paint`
-    const clip = `${id}-clip`
+    const {paint, clip} = useSvgIds()
     return (
         <svg
             width="100%"

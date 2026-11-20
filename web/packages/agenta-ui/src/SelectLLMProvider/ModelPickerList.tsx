@@ -270,6 +270,7 @@ const ModelPickerList = ({
             </div>
             <div
                 ref={listRef}
+                data-testid="model-picker-list"
                 className={clsx(
                     "min-h-0 flex-1 overflow-y-auto",
                     !popover && "flex flex-col gap-1.5 px-4",
