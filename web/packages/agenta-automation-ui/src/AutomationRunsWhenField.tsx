@@ -5,8 +5,8 @@ import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {Button, selectTriggerVariants} from "@agenta/ui/ui"
-import {CalendarBlank, Lightning} from "@phosphor-icons/react"
-import {ChevronRight, ChevronsUpDown} from "lucide-react"
+import {CalendarBlank, CaretUpDown, Lightning} from "@phosphor-icons/react"
+import {ChevronRight} from "lucide-react"
 
 import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
@@ -121,13 +121,17 @@ export const AutomationRunsWhenField = ({
                     <button
                         type="button"
                         aria-invalid={error ? true : undefined}
-                        className={cn(selectTriggerVariants(), "h-auto py-input-y")}
+                        className={cn(selectTriggerVariants({size: "compact"}), "max-md:h-11")}
                     >
                         <span className="min-w-0 flex-1 truncate text-left">{label}</span>
                         {/* Up and down for a popover that drops from the field; right for the
                             sheet that slides in from the side, so the glyph says what opens. */}
                         {isWide ? (
-                            <ChevronsUpDown className="text-placeholder size-3.5 shrink-0" />
+                            <CaretUpDown
+                                aria-hidden
+                                size={14}
+                                className="shrink-0 text-colorTextTertiary"
+                            />
                         ) : (
                             <ChevronRight className="text-placeholder size-3 shrink-0" />
                         )}

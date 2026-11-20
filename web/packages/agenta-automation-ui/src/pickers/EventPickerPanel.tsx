@@ -517,18 +517,23 @@ export const EventInlineCard = ({
                 <span className={label}>{t("automations.editor.app")}</span>
                 <Select value={app?.connectionId ?? ""} onValueChange={selectApp}>
                     <SelectTrigger
-                        className="h-auto min-h-11 py-1.5"
+                        size="compact"
+                        className="h-auto min-h-11 py-1"
                         aria-label={t("automations.editor.app")}
                     >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {apps.map((candidate) => (
-                            <SelectItem key={candidate.connectionId} value={candidate.connectionId}>
+                            <SelectItem
+                                key={candidate.connectionId}
+                                value={candidate.connectionId}
+                                size="compact"
+                            >
                                 <span className="flex min-w-0 flex-col text-left">
                                     <span className="truncate">{candidate.label}</span>
                                     {accountOf(candidate.connectionId) ? (
-                                        <span className="truncate text-xs font-normal text-colorTextTertiary">
+                                        <span className="truncate text-[12px] font-normal leading-4 text-colorTextTertiary">
                                             {accountOf(candidate.connectionId)}
                                         </span>
                                     ) : null}
@@ -545,12 +550,16 @@ export const EventInlineCard = ({
                     disabled={!app || eventsLoading}
                     onValueChange={setEventKey}
                 >
-                    <SelectTrigger aria-label={t("automations.editor.event")}>
+                    <SelectTrigger
+                        size="compact"
+                        className="max-md:h-11"
+                        aria-label={t("automations.editor.event")}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {events.map((candidate) => (
-                            <SelectItem key={candidate.key} value={candidate.key}>
+                            <SelectItem key={candidate.key} value={candidate.key} size="compact">
                                 {eventLabel(candidate.name, candidate.key)}
                             </SelectItem>
                         ))}
