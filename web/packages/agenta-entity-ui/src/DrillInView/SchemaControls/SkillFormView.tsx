@@ -526,7 +526,7 @@ export function SkillFormView({
                                     }
                                 >
                                     {readOnly ? (
-                                        <ReadOnlyText text={name} />
+                                        <ReadOnlyText text={name} mono />
                                     ) : (
                                         <Input
                                             ref={nameInput}
