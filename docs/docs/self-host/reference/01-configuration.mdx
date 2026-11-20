@@ -1545,7 +1545,9 @@ What a self-hosted instance sends to Agenta, and what each setting stops, is on 
 
 `AGENTA_TELEMETRY_ENABLED` defaults to `true`. Set it to `false` to stop every event
 except the one-time install ping. `AGENTA_DEPLOYMENT_METHOD` is `compose`, `helm`,
-`railway`, or unset. The example env files and templates set it for you.
+`railway`, `kubernetes` or `docker`. The Helm chart, the compose files and the Railway
+template set it for you. When it is unset, the API reports `kubernetes` if
+`KUBERNETES_SERVICE_HOST` is set, `docker` if `/.dockerenv` exists, and nothing otherwise.
 
 ## Deprecated environment variables
 

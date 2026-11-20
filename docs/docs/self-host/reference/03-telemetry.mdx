@@ -16,7 +16,7 @@ PostHog receives each event over the network, from your server or from the user'
 
 | Event | When | Stopped by `AGENTA_TELEMETRY_ENABLED=false` |
 |---|---|---|
-| [Install ping](#install-ping) | Once per instance, after the first organization exists | No |
+| [Install ping](#install-ping) | Once per new instance, after the first organization exists | No |
 | [Product events from the API](#product-events-from-the-api) | When a user uses a feature | Yes |
 | [Product events from the browser](#product-events-from-the-browser) | Page views and named actions in the app | Yes |
 
@@ -46,7 +46,7 @@ Each instance has one random id (a UUID). The database migration creates it, and
 
 ## Install ping
 
-Event name: `instance_installed`. The API sends it once per instance id, after the first organization exists. It checks at every start and after each new organization. It stops when PostHog accepts the event. If the send fails (for example, the instance has no outbound network), the API logs one warning and tries again at the next start.
+Event name: `instance_installed`. The API sends it once per instance id, after the first organization exists. An instance that already had users or organizations when it upgraded to the version with this event does not send it, so an upgrade is not counted as a new install. It checks at every start and after each new organization. It stops when PostHog accepts the event. If the send fails (for example, the instance has no outbound network), the API logs one warning and tries again at the next start.
 
 The distinct id is the instance id. The event has these properties and no others:
 
@@ -142,7 +142,7 @@ The update check downloads `https://agenta.ai/releases.json` at most every 12 ho
 | Variable | Default | Effect |
 |---|---|---|
 | `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping. |
-| `AGENTA_DEPLOYMENT_METHOD` | unset | `compose`, `helm` or `railway`. The example env files and the templates set it. |
+| `AGENTA_DEPLOYMENT_METHOD` | detected | `compose`, `helm`, `railway`, `kubernetes` or `docker`. The Helm chart, the compose files and the Railway template set it. When it is unset, the API reports `kubernetes` if `KUBERNETES_SERVICE_HOST` is set, `docker` if `/.dockerenv` exists, and nothing otherwise. |
 | `AGENTA_UPDATE_CHECK_ENABLED` | `true` | `false` stops the update check. It does not follow `AGENTA_TELEMETRY_ENABLED`. |
 | `POSTHOG_API_KEY` | Agenta's project key | The PostHog project the events go to. |
 | `POSTHOG_API_URL` | Agenta's PostHog proxy | The PostHog address the events go to. |

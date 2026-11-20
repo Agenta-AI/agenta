@@ -18,15 +18,17 @@ class InstancesDAO:
     async def lock_unsent_install_ping(self) -> AsyncIterator[Optional[UUID]]:
         """Yield the instance id while its row is locked, when the install ping is due.
 
-        Due means: not sent yet, and at least one organization exists. Another container
-        skips the locked row and gets None. A normal exit marks the ping as sent and
-        commits; an exception rolls the transaction back, so the ping stays due.
+        Due means: not sent yet, the install is new (not `preexisting`), and at least
+        one organization exists. Another container skips the locked row and gets None.
+        A normal exit marks the ping as sent and commits; an exception rolls the
+        transaction back, so the ping stays due.
         """
 
         async with get_transactions_engine().transaction() as connection:
             result = await connection.execute(
                 select(InstanceDBE.id)
                 .where(InstanceDBE.installed_event_sent_at.is_(None))
+                .where(InstanceDBE.preexisting.is_(False))
                 .where(text("EXISTS (SELECT 1 FROM organizations)"))
                 .with_for_update(skip_locked=True)
             )
