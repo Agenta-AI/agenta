@@ -25,6 +25,7 @@ import {
     querySkills,
     scanSkillSource,
     skillContentSchema,
+    type SkillRegistryItem,
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/drill-in"
@@ -276,20 +277,29 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
 
     /** The embed entry of each imported skill; the import answer has no slug, the registry has. */
     const entriesOfImported = useCallback(
-        async (imported: {workflow_id?: string | null; name?: string | null}[]) => {
-            const listed = await querySkills({projectId})
-            const byId = new Map((listed.skills ?? []).map((s) => [s.workflow_id, s]))
+        async (
+            imported: {path_in_repo: string; workflow_id?: string | null; name?: string | null}[],
+        ) => {
+            const byId = new Map<string, SkillRegistryItem>()
+            try {
+                const listed = await querySkills({projectId})
+                for (const s of listed.skills ?? []) if (s.workflow_id) byId.set(s.workflow_id, s)
+            } catch {
+                // Each skill still gets its own search below.
+            }
             const entries: Skill[] = []
             const missed: string[] = []
             for (const item of imported) {
                 let match = item.workflow_id ? byId.get(item.workflow_id) : undefined
                 // A large registry may not list it on the first page.
                 if (!match && item.workflow_id && item.name) {
-                    const found = await querySkills({projectId, search: item.name})
-                    match = (found.skills ?? []).find((s) => s.workflow_id === item.workflow_id)
+                    const found = await querySkills({projectId, search: item.name}).catch(
+                        () => null,
+                    )
+                    match = (found?.skills ?? []).find((s) => s.workflow_id === item.workflow_id)
                 }
                 if (!match?.workflow_slug) {
-                    missed.push(item.name || item.workflow_id || "")
+                    missed.push(item.name ? skillDisplayName(item.name) : item.path_in_repo)
                     continue
                 }
                 entries.push(
@@ -329,11 +339,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
         const imported = response.imported ?? []
         const notes: string[] = []
         if (onCreated && imported.length) {
-            // The import is in; a failed lookup only means the agent misses the references.
-            const {entries, missed} = await entriesOfImported(imported).catch(() => ({
-                entries: [] as Skill[],
-                missed: imported.map((item) => item.name || item.path_in_repo),
-            }))
+            const {entries, missed} = await entriesOfImported(imported)
             if (entries.length) onCreated(entries)
             if (missed.length)
                 notes.push(t("entityUi.skillNew.notAddedToAgent", {names: missed.join(", ")}))
@@ -347,7 +353,11 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                 ].join(" "),
             )
         if (notes.length === 0) return true
-        // Some went in: keep the view open and say what did not.
+        // Some went in: keep the view open, mark them imported and say what did not.
+        const done = new Set(imported.map((item) => item.path_in_repo))
+        setFound((rows) =>
+            rows ? rows.map((row) => (done.has(row.path) ? {...row, imported: true} : row)) : rows,
+        )
         setSelected(new Set())
         setError(notes.join(" "))
         return "stay" as const
