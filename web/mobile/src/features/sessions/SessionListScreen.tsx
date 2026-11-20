@@ -274,7 +274,11 @@ const SessionListBody = ({
                                                 view={view}
                                                 onChange={setView}
                                                 agents={agents}
-                                                waitingCount={list.waitingCount}
+                                                // The count is project-wide: the page of one
+                                                // agent shows Waiting without it.
+                                                waitingCount={
+                                                    lockedAgentId ? undefined : list.waitingCount
+                                                }
                                                 onReset={resetView}
                                                 lockedAgent={lockedAgent}
                                                 defaultView={defaultView}
