@@ -5,6 +5,7 @@ import {useCallback, useEffect, useState} from "react"
 import {type ProviderConnection} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
+import {copyToClipboard} from "@agenta/ui"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, Copy, WarningCircle} from "@phosphor-icons/react"
 
@@ -24,7 +25,8 @@ const CodeBlock = ({code}: {code: string}) => {
     const [copied, setCopied] = useState(false)
 
     const copy = useCallback(() => {
-        void navigator.clipboard?.writeText(code).then(() => setCopied(true))
+        // A refused clipboard falls back to a selection copy; "Copied" shows only on success.
+        void copyToClipboard(code).then(setCopied)
     }, [code])
 
     useEffect(() => {
