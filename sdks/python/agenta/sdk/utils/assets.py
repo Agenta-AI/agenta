@@ -15,6 +15,7 @@ from litellm import cost_calculator
 supported_llm_models = {
     "anthropic": [
         "anthropic/claude-opus-5-5",
+        "anthropic/claude-fable-5-2",
         "anthropic/claude-fable-5-1",
         "anthropic/claude-fable-5",
         "anthropic/claude-sonnet-5-5",
@@ -95,6 +96,9 @@ supported_llm_models = {
         # umbrella that routes to one of them, so offering it would ask the user to pick a model
         # and then pick nothing in particular. A guard test pins this (see
         # test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers).
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
+        "gpt-6.1-terra",
         "gpt-6-astra",
         "gpt-6.1-sol",
         "gpt-6-sol",
@@ -134,24 +138,21 @@ supported_llm_models = {
         "gpt-3.5-turbo-1106",
         "gpt-3.5-turbo",
     ],
-    # OpenRouter's 10 most-used tool-capable text models as of 2026-09-10, from
+    # OpenRouter's 10 most-used tool-capable text models as of 2026-11-20, from
     # GET /api/v1/models?sort=most-popular&supported_parameters=tools&output_modalities=text.
-    # Every id below is also a valid key in Pi's vendored OpenRouter catalog
-    # (drop the "openrouter/" prefix), so it is settable by the Pi harness picker. GPT-6 Sol and
-    # Luna (released 2026-09-22) are added by hand ahead of the next popularity refresh.
+    # Every id below except tencent/hy4-flash is also a key in Pi's vendored OpenRouter catalog
+    # (drop the "openrouter/" prefix); pi-ai 1.5.2 predates hy4-flash.
     "openrouter": [
-        "openrouter/tencent/hy4-preview",
-        "openrouter/openai/gpt-6-sol",
-        "openrouter/openai/gpt-6-luna",
-        "openrouter/openai/gpt-5.6-luna",
-        "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/tencent/hy4-flash",
+        "openrouter/deepseek/deepseek-v4.1-flash-1017",
+        "openrouter/deepseek/deepseek-v4.1-flash",
+        "openrouter/tencent/hy4",
         "openrouter/z-ai/glm-5.3-flash",
-        "openrouter/deepseek/deepseek-v4-flash",
-        "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/tencent/hy3",
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/z-ai/glm-5.3",
-        "openrouter/google/gemini-3.8-flash",
+        "openrouter/openai/gpt-6-luna",
+        "openrouter/anthropic/claude-opus-5.5",
+        "openrouter/stepfun/step-5-preview",
+        "openrouter/xiaomi/mimo-v2.6-flash",
+        "openrouter/minimax/minimax-m3.1-flash",
     ],
     # NOTE: provider kind must match Secrets API enums ("perplexityai").
     # Models remain "perplexity/..." but the provider key is used to match secrets.

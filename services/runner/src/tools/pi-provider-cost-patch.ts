@@ -23,11 +23,17 @@
  * with the total. When Pi has no price for the model (estimate 0), the split stays 0 and only the
  * total carries the charge: there is no honest split to invent.
  *
- * SCOPE. Only the OpenAI-completions client needs this. In pi-ai 0.99.1 the OpenRouter provider
+ * SCOPE. Only the OpenAI-completions client needs this. In pi-ai 1.5.2 the OpenRouter provider
  * serves most models through `openai-completions`, but its `anthropic/*` models go through
  * `anthropic-messages`, which this patch does not touch: whether OpenRouter's Anthropic-compatible
  * endpoint reports `usage.cost` is not verified, so those spans keep Pi's estimate. The Responses
  * and native Anthropic/Google/Bedrock clients talk to first-party APIs that report no billed cost.
+ *
+ * UPSTREAM OVERLAP. Since 1.x, pi-ai's own `applyOpenRouterReportedCost` also sets
+ * `usage.cost.total` from OpenRouter's report (marking `totalFromProvider`, not `source`), without
+ * scaling the split. The patch runs right after `calculateCost`, before that step, so the split is
+ * scaled against Pi's estimate and Pi's step then keeps the same total (or, for BYOK, adds the
+ * upstream charge).
  *
  * TWO COPIES OF PI-AI. The `pi` CLI (`dist/bundle/cli.js`) does not load the `pi-ai` package: it
  * runs a minified copy bundled into `pi-coding-agent` (`cli.bundlePath` in the spec). The
@@ -40,8 +46,9 @@
  * sandbox snapshot (`images/sandbox/daytona/build_snapshot.py`, which installs Pi from npm and
  * embeds the same spec), and a runtime Pi install in a Daytona sandbox (`ensurePiInSandbox`).
  *
- * VERSION-PIN FRICTION, ACCEPTED. The anchors are the exact tail of `parseChunkUsage` pi-ai 0.87.1
- * ships, and the CLI chunk's file name carries the bundle's content hash. A Pi upgrade that changes
+ * VERSION-PIN FRICTION, ACCEPTED. The anchors are the exact `calculateCost` call inside
+ * `parseChunkUsage` that pi-ai 1.5.2 ships, and the CLI chunk's file name carries the bundle's
+ * content hash. A Pi upgrade that changes
  * either breaks the image build until someone re-reads the function and updates the JSON. That is deliberate: a loose pattern that keeps
  * matching after the code moved is how a patch silently rewrites the wrong line.
  *

@@ -403,9 +403,9 @@ describe("models newer than the pinned Pi catalog", () => {
     );
   });
 
-  // Pi 0.99.1 carries Sonnet 5.5 and GPT-6.1 Sol itself, so the runner registers nothing for
-  // them either (Sonnet 5.5's runner-side entry was dropped with the 0.99.1 bump).
-  it("leaves Sonnet 5.5 and GPT-6.1 Sol to the pinned catalog, which prices them", async () => {
+  // Pi carries Sonnet 5.5, GPT-6.1 Sol (since 0.99.1) and Haiku 5.5 (since 1.x) itself, so the
+  // runner registers nothing for them.
+  it("leaves Sonnet 5.5, GPT-6.1 Sol and Haiku 5.5 to the pinned catalog, which prices them", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
 
@@ -415,8 +415,17 @@ describe("models newer than the pinned Pi catalog", () => {
     assert.deepEqual(pickRates(sonnet?.cost), {
       input: 2,
       output: 10,
-      cacheRead: 0.2,
+      cacheRead: 0.1,
       cacheWrite: 2.5,
+    });
+    const haiku = registry
+      .models("anthropic")
+      .find((model) => model.id === "claude-haiku-5-5");
+    assert.deepEqual(pickRates(haiku?.cost), {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
     });
     const sol = registry
       .models("openai")
@@ -439,61 +448,41 @@ describe("models newer than the pinned Pi catalog", () => {
       buildPiModelRegistrationPlan(piRequest("openai/gpt-6.1-sol"), registry),
       undefined,
     );
+    assert.equal(
+      buildPiModelRegistrationPlan(
+        piRequest("anthropic/claude-haiku-5-5"),
+        registry,
+      ),
+      undefined,
+    );
   });
 
-  // Pi 0.99.1 does not carry Haiku 5.5. Before it had an entry, the run borrowed the compat of
-  // the first anthropic built-in (Fable 5), so Pi sent its fallback list and the gateway refused
-  // every turn with HTTP 400 `routing_field_not_allowed`, and the span cost was $0.
-  it("registers Haiku 5.5 with Sonnet 5.5's request surface and its own prices", async () => {
+  // Pi 1.5.2 does not carry GPT-6.2 Sol or Astra. Each registers on its predecessor's request
+  // surface with its own prices, so a run is not priced at $0.
+  it("registers GPT-6.2 Sol and Astra on their predecessors' request surface with their own prices", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
-    const sonnet55 = registry
-      .models("anthropic")
-      .find((model) => model.id === "claude-sonnet-5-5");
-    assert.ok(sonnet55);
-
-    const plan = buildPiModelRegistrationPlan(
-      piRequest("anthropic/claude-haiku-5-5"),
-      registry,
-    );
-
-    assert.equal(plan?.builtinProvider, "anthropic");
-    const entry = plan?.models[0];
-    assert.equal(entry?.id, "claude-haiku-5-5");
-    assert.deepEqual(entry?.compat, sonnet55.compat);
-    // Haiku 5.5 rejects a `budget_tokens` thinking request, so Pi must send adaptive thinking.
-    assert.equal(entry?.compat?.forceAdaptiveThinking, true);
-    assert.equal(entry?.reasoning, true);
-    assert.deepEqual(entry?.cost, {
-      input: 0.1,
-      output: 0.5,
-      cacheRead: 0.01,
-      cacheWrite: 0.125,
-      tiers: [
-        {
-          inputTokensAbove: 100000,
-          input: 0.5,
-          output: 2.5,
-          cacheRead: 0.05,
-          cacheWrite: 0.625,
-        },
-      ],
-    });
-    assert.equal(entry?.contextWindow, 1000000);
-    assert.equal(entry?.maxTokens, 128000);
-    // Haiku 5.5 can run with thinking off, which Sonnet 5.5's map forbids.
-    assert.deepEqual(entry?.thinkingLevelMap, {
-      minimal: null,
-      low: "low",
-      medium: "medium",
-      high: "high",
-      xhigh: "xhigh",
-      max: "max",
-    });
-    assert.equal(
-      serializePiModelsJson(plan as PiModelRegistrationPlan).includes("allowedFallbackModels"),
-      false,
-    );
+    const cases: Array<[string, string, Record<string, unknown>]> = [
+      ["gpt-6.2-sol", "gpt-6.1-sol", { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 }],
+      ["gpt-6.2-astra", "gpt-6-astra", { input: 8, output: 40, cacheRead: 0.4, cacheWrite: 10 }],
+    ];
+    for (const [id, base, rates] of cases) {
+      const builtin: { compat?: unknown; contextWindow?: number } | undefined = registry
+        .models("openai")
+        .find((model) => model.id === base);
+      assert.ok(builtin, base);
+      const plan = buildPiModelRegistrationPlan(piRequest(`openai/${id}`), registry);
+      assert.equal(plan?.builtinProvider, "openai");
+      const entry = plan?.models[0];
+      assert.equal(entry?.id, id);
+      assert.deepEqual(entry?.compat, builtin.compat, id);
+      assert.equal(entry?.reasoning, true, id);
+      assert.deepEqual(pickRates(entry?.cost as Record<string, unknown>), rates, id);
+      assert.equal((entry?.cost as { tiers?: Array<{ inputTokensAbove: number }> })?.tiers?.[0]?.inputTokensAbove, 272000, id);
+      assert.equal(entry?.contextWindow, builtin.contextWindow, id);
+      // Effort `none` is rejected, as on the predecessor.
+      assert.equal(entry?.thinkingLevelMap?.off, null, id);
+    }
   });
 
   it("gives an unknown anthropic model no fallback list against the real table", async () => {
