@@ -41,10 +41,9 @@ export interface AddSubagentListProps {
 }
 
 const FOCUS_RING = "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-/** Canvas F03 f1: rows on the search field's edge, 8 px above and below; the hover fill and the
- *  focus ring bleed 8 px past the column. */
+/** Canvas F03 f1: rows on the column's 16 px inset, 8 px above and below, 8 px apart. */
 const ROW =
-    "-mx-2 box-border flex w-[calc(100%+16px)] cursor-pointer appearance-none items-center gap-2.5 rounded-lg border-0 bg-transparent px-2 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-colorFillQuaternary disabled:cursor-not-allowed " +
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-lg border-0 bg-transparent px-0 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-colorFillQuaternary disabled:cursor-not-allowed " +
     FOCUS_RING
 
 /** The agent's tile: 32 px, radius 8, a 14 px glyph; the agent type's blue when the author never
@@ -172,10 +171,11 @@ export function AddSubagentList({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            {/* Canvas F03 f1: a 30 px search field, radius 6, 13 px. */}
-            <div className="shrink-0 px-4 pt-3">
+            {/* Canvas F03 f1: the 30 px search field, 14 px under the header. */}
+            <div className="shrink-0 px-4 pt-3.5">
                 <SearchInput
-                    className="h-[30px] rounded-[6px] border-colorBorderSecondary max-md:h-11 md:[&_input]:text-[13px]"
+                    size="compact-search"
+                    className="border-colorBorderSecondary max-md:h-11"
                     placeholder={t("entityUi.addSubagent.searchAgents")}
                     aria-label={t("entityUi.addSubagent.searchAgents")}
                     value={search}
@@ -183,7 +183,7 @@ export function AddSubagentList({
                 />
             </div>
 
-            <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-2">
+            <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-2 pt-2">
                 {loading ? (
                     <div className="flex flex-col">
                         {SKELETON_WIDTHS.map((widths, index) => (
@@ -204,7 +204,7 @@ export function AddSubagentList({
                         }
                     />
                 ) : (
-                    <div className="flex flex-col">
+                    <div className="flex flex-col gap-2">
                         {visible.map((option) => (
                             <SubagentRow
                                 key={option.id}
@@ -227,7 +227,7 @@ export function AddSubagentList({
                             {t("entityUi.addSubagent.agentsNotLoaded", {count: failedCount})}
                         </span>
                         {onRetry ? (
-                            <Button variant="outline" size="sm" onClick={onRetry}>
+                            <Button variant="outline" size="compact" onClick={onRetry}>
                                 {t("entityUi.addSubagent.retry")}
                             </Button>
                         ) : null}

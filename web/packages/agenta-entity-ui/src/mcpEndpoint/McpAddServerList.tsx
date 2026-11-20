@@ -105,15 +105,16 @@ export function McpAddServerList({
         <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3">
             <div className="flex items-center gap-2">
                 <SearchInput
-                    className="min-w-0 flex-1"
+                    size="compact-search"
+                    className="min-w-0 flex-1 border-colorBorderSecondary"
                     placeholder={t("entityUi.mcpConnect.searchServers")}
                     aria-label={t("entityUi.mcpConnect.searchServers")}
                     value={search}
                     onValueChange={setSearch}
                 />
                 {/* Secondary: adding a connected server is this list's main job. */}
-                <Button variant="outline" onClick={onConnectServer}>
-                    <Plus size={13} />
+                <Button variant="outline" size="compact" onClick={onConnectServer}>
+                    <Plus size={14} />
                     {t("entityUi.mcpConnect.connectServer")}
                 </Button>
             </div>

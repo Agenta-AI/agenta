@@ -388,7 +388,9 @@ function ConnectedRow({
             }
             action={
                 <span className={`flex items-center ${canvas ? "gap-2" : "gap-0.5"}`}>
-                    {canvas && added && !choosing ? (
+                    {/* "Added" only on a working connection; a pending or inactive one shows its
+                        tag instead (canvas F02 f4). */}
+                    {canvas && added && !choosing && !attention ? (
                         <span className="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
                             <Check size={14} />
                             {t("entityUi.integrationDrawer.added")}

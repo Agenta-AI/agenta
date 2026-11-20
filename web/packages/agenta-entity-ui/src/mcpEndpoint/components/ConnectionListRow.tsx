@@ -4,8 +4,7 @@
  * Three row treatments, and they differ in what the row lets you do rather than only in how
  * it looks. An added connection is already on this agent, so it carries no action at all:
  * the way to change that server is its rail row, not a second route from here. A working one
- * offers Add. One whose login has expired offers Reconnect and states that in place of the
- * host, because a host you cannot sign in to is not the fact the reader needs.
+ * offers Add. One whose login has expired offers Reconnect and states that after the host.
  *
  * The status vocabulary is the data layer's `McpConnectionStatus`, not a set of words of this
  * component's own, so a row here and a row in the settings table cannot end up calling the
@@ -22,11 +21,11 @@ import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {Button, touchTargetExpansion} from "@agenta/ui/ui"
-import {ArrowClockwise, Check, Plus} from "@phosphor-icons/react"
+import {Check, Plus} from "@phosphor-icons/react"
 
 export interface ConnectionListRowProps {
     name: string
-    /** The server's hostname. Replaced by the status when the connection is not working. */
+    /** The server's hostname. A connection that is not working adds its status after it. */
     host: string
     status: McpConnectionStatus
     /** Already on the agent being edited. */
@@ -55,8 +54,9 @@ export function ConnectionListRow({
 }: ConnectionListRowProps) {
     const t = useT(mcpConnectCatalog)
     const working = status === "connected"
+    // A broken connection keeps its host and adds the state: "billing.acme.io · Not signed in".
     const subtitle = !working
-        ? getMcpConnectionStatusLabel(status)
+        ? [host, getMcpConnectionStatusLabel(status)].filter(Boolean).join(" · ")
         : toolCount == null
           ? host
           : t("entityUi.mcpConnect.hostToolCount", {host, count: toolCount})
@@ -70,35 +70,31 @@ export function ConnectionListRow({
             className={cn(
                 // Borderless; the -mx/px pair keeps the icon on the search field's edge while
                 // the hover fill reaches past it.
-                "-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors",
+                "-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors",
                 rowAction && "cursor-pointer hover:bg-accent/60",
-                added && "opacity-70",
             )}
         >
             <McpServerMark size={28} name={name} />
 
             <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-colorText">{name}</div>
-                <div
-                    className={cn(
-                        "truncate text-xs",
-                        working ? "text-colorTextTertiary" : "text-colorWarning",
-                    )}
-                >
+                <div className="truncate text-[13px] font-medium leading-5 text-colorText">
+                    {name}
+                </div>
+                <div className="truncate text-[12px] leading-4 text-colorTextSecondary">
                     {subtitle}
                 </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2.5">
                 {added ? (
-                    <span className="flex items-center gap-1.5 text-xs text-colorTextSecondary">
-                        <Check size={13} />
+                    <span className="flex items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
+                        <Check size={14} />
                         {t("entityUi.mcpConnect.added")}
                     </span>
                 ) : working ? (
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-compact"
                         disabled={busy}
                         onClick={(event) => {
                             event.stopPropagation()
@@ -110,12 +106,12 @@ export function ConnectionListRow({
                         // rhythm, and an invisible box around it for a finger.
                         className={touchTargetExpansion(28)}
                     >
-                        <Plus size={16} />
+                        <Plus className="size-3.5 max-md:size-5" />
                     </Button>
                 ) : (
                     <Button
                         variant="outline"
-                        size="sm"
+                        size="compact"
                         disabled={busy}
                         onClick={(event) => {
                             event.stopPropagation()
@@ -124,7 +120,6 @@ export function ConnectionListRow({
                         aria-label={t("entityUi.mcpConnect.reconnectName", {name})}
                         className={touchTargetExpansion(28)}
                     >
-                        <ArrowClockwise size={12} />
                         {t("entityUi.mcpConnect.reconnect")}
                     </Button>
                 )}

@@ -332,6 +332,16 @@ describe("Attach a secret: the attach", () => {
         expect(envField().value).toBe("GITHUB_TOKEN")
     })
 
+    it("Create new secret after a pick starts with no variable, not the picked one's", async () => {
+        await openIn(secretAttachView, {}, AGENT)
+        await findByText("here:Attach a secret")
+        await choose(secretSelect(), "billing-prod")
+        expect(envField().value).toBe("BILLING_API_KEY")
+        await choose(secretSelect(), "Create new secret")
+        expect(envField().value).toBe("")
+        expect(document.body.textContent).not.toContain("already attached")
+    })
+
     it("a variable the person typed stays when the secret changes", async () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")

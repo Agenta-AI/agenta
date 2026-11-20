@@ -11,7 +11,6 @@ import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
-import {readRunnerPermission} from "../../agentConfigPatch"
 import {
     findIntegrationRow,
     integrationRowConnection,
@@ -164,7 +163,6 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                         onChangeToolPermission={(toolKey, permission) =>
                             setIntegrationToolPermission(integrationTarget, toolKey, permission)
                         }
-                        agentPolicy={readRunnerPermission(writer.agent)}
                         disabled={writer.readOnly}
                         account={
                             row.entry ? (

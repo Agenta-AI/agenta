@@ -9,7 +9,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {CaretUpDown, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 
 /** The select value of the last row, which opens the connect view instead of picking. */
 export const CONNECT_ANOTHER = "__connect_another__"
@@ -47,20 +47,12 @@ export function AccountSelect({
     const selected = options.find((option) => option.value === value)
     return (
         <Select value={selected ? value : ""} onValueChange={onChange} disabled={disabled}>
-            {/* Canvas F02 f6: 36 px, radius 6, 13 px, an up-down icon in place of the shared
-                chevron; 44 px, radius 8 on a phone (M09). */}
+            {/* Canvas F02 f6: the compact select (34 px, radius 6, 13 px, an up-down icon);
+                44 px, radius 8, 14 px on a phone (M09). */}
             <SelectTrigger
-                className={`w-full gap-2 ${
-                    phone ? "!h-11 !rounded-[8px]" : "!h-9 !rounded-[6px] !px-[11px] !text-[13px]"
-                }`}
+                size="compact"
+                className={`w-full gap-2 ${phone ? "!h-11 !rounded-[8px]" : ""}`}
                 aria-label={ariaLabel}
-                icon={
-                    <CaretUpDown
-                        aria-hidden
-                        size={14}
-                        className="shrink-0 text-colorTextTertiary"
-                    />
-                }
             >
                 {icon ? (
                     <span className="flex shrink-0 text-colorTextSecondary">{icon}</span>
@@ -75,13 +67,14 @@ export function AccountSelect({
                     <SelectItem
                         key={option.value}
                         value={option.value}
+                        size="compact"
                         className="data-[state=checked]:font-normal"
                     >
                         <OptionText option={option} />
                     </SelectItem>
                 ))}
                 <SelectSeparator />
-                <SelectItem value={CONNECT_ANOTHER}>
+                <SelectItem value={CONNECT_ANOTHER} size="compact">
                     <span className="flex items-center gap-2">
                         <Plus size={14} />
                         {connectLabel}

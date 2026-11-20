@@ -134,8 +134,9 @@ export function PermissionPolicySelect({
                             value={option.value}
                             disabled={option.disabled}
                             // Neutral rows: hover and the picked row share the accent wash, and the
-                            // check alone marks the value. The check sits on the title line.
-                            className="items-start px-2 py-1.5 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-1 [&>svg]:text-foreground"
+                            // check alone marks the value. The check (14 px) sits on the title line;
+                            // the title is 13/400, the help 12/16 (canvas F04 f8).
+                            className="items-start px-2 py-1.5 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-[3px] [&>svg]:size-3.5 [&>svg]:text-foreground"
                         >
                             <span className="flex items-start gap-2.5">
                                 {option.icon ? (
@@ -144,11 +145,11 @@ export function PermissionPolicySelect({
                                     </span>
                                 ) : null}
                                 <span className="flex min-w-0 flex-col gap-0.5">
-                                    <span className="whitespace-nowrap font-medium max-sm:text-xs">
+                                    <span className="whitespace-nowrap text-[13px] leading-5 max-sm:text-xs">
                                         {option.title}
                                     </span>
                                     {option.help ? (
-                                        <span className="text-xs leading-snug text-colorTextTertiary max-sm:text-[11px]">
+                                        <span className="text-[12px] leading-4 text-colorTextTertiary max-sm:text-[11px]">
                                             {option.help}
                                         </span>
                                     ) : null}

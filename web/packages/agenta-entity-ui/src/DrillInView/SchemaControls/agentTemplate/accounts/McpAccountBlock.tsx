@@ -58,6 +58,8 @@ export function McpAccountBlock({
             personalAccounts: access === "on",
             authMode: endpoint?.auth_mode,
         }).length > 1
+    // A server that takes no sign-in has no account to name (canvas F03 f6).
+    if (!showSwitch && !eachPerson && endpoint?.auth_mode === "none") return null
 
     return (
         <div className="flex flex-col gap-3.5">
