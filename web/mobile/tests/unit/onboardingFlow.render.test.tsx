@@ -57,7 +57,7 @@ vi.mock("@agenta/entity-ui/secretProvider", () => ({
     KEY_PROVIDERS: [],
     ProviderDrawer: () => null,
     providerIconFor: () => () => null,
-    SubscriptionConnectionCard: () => null,
+    subscriptionSignInView: {},
     subscriptionTokenView: {},
 }))
 // The composer as a textarea: the real one is a lazy Lexical editor.
