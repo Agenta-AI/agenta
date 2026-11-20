@@ -6,7 +6,7 @@
     "addAFile": "Añadir un archivo",
     "untitled": "sin título",
     "name": "Nombre",
-    "nameTooltip": "Un nombre corto como weather-report. Solo letras minúsculas, números y guiones.",
+    "nameTooltip": "Solo letras minúsculas, números y guiones.",
     "useSuggestion": "Usar «{{name}}»",
     "description": "Descripción",
     "descriptionTooltip": "Indica al agente cuándo usar este skill.",

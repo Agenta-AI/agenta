@@ -1,6 +1,6 @@
 /**
  * The drawer's footer: the revert button and the revert's progress and outcome. The confirmation
- * itself is `RevertConfirmDialog`, scoped to the drawer.
+ * itself is `RevertConfirmDialog`.
  */
 
 import {richText, useT} from "@agenta/i18n"

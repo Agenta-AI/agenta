@@ -26,7 +26,6 @@ import {ArrowClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {useMcpPermissionSource} from "../../../../mcpEndpoint/McpPermissionDrawer"
-import {readRunnerPermission} from "../../agentConfigPatch"
 import {McpAccountBlock} from "../accounts/McpAccountBlock"
 import {PermissionDrawerBody} from "../IntegrationPermissionList"
 import {
@@ -213,7 +212,6 @@ const AgentServer = ({
                     permissions={mcp.permissions}
                     onChangePermissions={mcp.write}
                     onChangeToolPermission={mcp.setTool}
-                    agentPolicy={readRunnerPermission(writer.agent)}
                     disabled={writer.readOnly}
                     account={
                         <McpAccountBlock

@@ -6,7 +6,7 @@
     "addAFile": "ファイルを追加",
     "untitled": "無題",
     "name": "名前",
-    "nameTooltip": "weather-report のような短い名前。小文字、数字、ハイフンのみ使用できます。",
+    "nameTooltip": "小文字、数字、ハイフンのみ使用できます。",
     "useSuggestion": "「{{name}}」を使用",
     "description": "説明",
     "descriptionTooltip": "このスキルをいつ使うかをエージェントに伝えます。",
