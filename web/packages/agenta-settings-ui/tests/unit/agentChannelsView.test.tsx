@@ -24,6 +24,8 @@ import {
     slackHere,
     slackRevoked,
     telegramBotRemoved,
+    telegramPending,
+    telegramRevoked,
 } from "../../src/channels/storyFixtures"
 import type {ChannelConnections} from "../../src/channels/types"
 
@@ -99,10 +101,37 @@ describe("AgentChannelsView", () => {
         await render({
             ...EMPTY_CONNECTIONS,
             slack: slackHere,
-            agentConnections: {slack: [slackHere, {...slackRevoked, connectionId: "cx-2"}]},
+            agentConnections: {
+                slack: [slackHere, {...slackRevoked, connectionId: "cx-2"}],
+                telegram: [],
+                whatsapp: [],
+                discord: [],
+                teams: [],
+            },
         })
         expect(row("slack").textContent).toContain("Needs attention")
         expect(row("slack").textContent).toContain("Reconnect")
+    })
+
+    it("lists a platform with a working connection as connected even when a link is pending", async () => {
+        await render({
+            ...EMPTY_CONNECTIONS,
+            telegram: telegramPending,
+            agentConnections: {
+                slack: [],
+                telegram: [telegramPending, telegramRevoked],
+                whatsapp: [],
+                discord: [],
+                teams: [],
+            },
+        })
+        expect(groups()).toEqual(["Connected", "Add a channel"])
+        expect(row("telegram").textContent).toContain("Needs attention")
+        await act(async () => row("telegram").querySelector("button")!.click())
+        // The existing connection's manage view, not the hosted setup.
+        expect(container.querySelector('[data-testid="inner-view"]')?.textContent).toBe("telegram")
+        expect(container.querySelector("nav")?.textContent).toContain("Telegram")
+        expect(container.querySelector("nav")?.textContent).not.toContain("Connect")
     })
 
     it("opens the manage view in place and returns with the breadcrumb", async () => {

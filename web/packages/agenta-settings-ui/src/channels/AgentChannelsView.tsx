@@ -55,7 +55,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     const t = useT(agentChannelsCatalog, channelsPageCatalog, commonCatalog)
     const agentName = props.agentName ?? t("channels.page.yourAgent")
     const [retrying, setRetrying] = useState(false)
-    const {open, panel} = useChannelPanel({
+    const {open, openRoute, panel} = useChannelPanel({
         ...props,
         renderPanel: (view) => (view.open ? <InlineChannelView {...view} /> : null),
     })
@@ -66,8 +66,20 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
         platform,
         summary: summarizeConnection(platform, connections[platform], agentId),
     }))
-    const connected = summaries.filter(({summary}) => summary.action === "manage")
-    const toAdd = summaries.filter(({summary}) => summary.action !== "manage")
+    // A platform is connected when the agent has a connection there that is not a pending link,
+    // even when the platform's summary is about a pending one.
+    const isConnected = ({platform, summary}: (typeof summaries)[number]) =>
+        summary.action === "manage" || agentConnectionsOf(connections, platform).length > 0
+    const connected = summaries.filter(isConnected)
+    const toAdd = summaries.filter((entry) => !isConnected(entry))
+    // A connected row opens what the agent has there, not the setup of a pending link.
+    const manage = (platform: ChannelPlatform) => {
+        const mine = agentConnectionsOf(connections, platform)
+        if (mine.length > 1) openRoute({view: "platform", platform})
+        else if (mine[0])
+            openRoute({view: "manage", platform, connectionId: mine[0].connectionId ?? null})
+        else open(platform)
+    }
 
     const retry = async () => {
         if (!actions) return
@@ -145,7 +157,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                                         action={
                                             revoked ? t("common.reconnect") : t("common.manage")
                                         }
-                                        onClick={() => open(platform)}
+                                        onClick={() => manage(platform)}
                                     />
                                 )
                             })}
