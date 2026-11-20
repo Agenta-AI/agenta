@@ -90,3 +90,14 @@ describe("the chat access chip with project visibility", () => {
         expect(page).toContain(copy.panelYouViewOnly)
     })
 })
+
+describe("the chat access chip with a custom trigger", () => {
+    it("draws the trigger in place of the chip and opens the same popover", () => {
+        const trigger = createElement("button", {type: "button", "aria-label": "Share"}, "icon")
+        const {chipText, page} = openChip({sharing: state({}), trigger})
+        expect(chipText).toBe("icon")
+        expect(host.textContent).not.toContain(copy.chipCanSend)
+        expect(page).toContain(copy.panelTitle)
+        expect(page).toContain(copy.panelNoOwnerCanSend)
+    })
+})

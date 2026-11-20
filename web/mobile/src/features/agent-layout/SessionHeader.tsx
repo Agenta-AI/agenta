@@ -1,6 +1,5 @@
 import {useCallback, useState} from "react"
 
-import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
@@ -26,6 +25,10 @@ import {useAgentPanel} from "./agentPanelContext"
 import type {PanelContent} from "./agentPanelState"
 import {SessionMenu} from "./SessionMenu"
 import {useAgentSessionOrder} from "./useAgentSessionOrder"
+
+/** The header's icon buttons: 32 px with a 16 px glyph, 44 px with a 20 px glyph on a phone. */
+const HEADER_ICON_CLASS =
+    "size-8 shrink-0 rounded-md text-colorTextSecondary max-md:size-11 max-md:rounded-lg"
 
 /** The session tab strip's shortcuts; this screen has no strip, so the sheet leaves them out. */
 const TAB_STRIP_SHORTCUTS = ["session.jump", "session.step", "session.close", "session.rename"]
@@ -86,8 +89,8 @@ export const SessionHeader = ({
                 aria-label={label}
                 aria-pressed={panel.content === content}
                 className={cn(
-                    "size-8 shrink-0 max-md:size-11",
-                    panel.content === content && "bg-colorFillSecondary text-colorText",
+                    HEADER_ICON_CLASS,
+                    panel.content === content && "bg-accent text-colorText",
                 )}
                 onClick={() => void panel.toggle(content)}
             >
@@ -123,6 +126,7 @@ export const SessionHeader = ({
             workspaceId={workspaceId}
             projectId={projectId}
             agentId={agentId}
+            buttonClassName={HEADER_ICON_CLASS}
         />
     )
 
@@ -131,11 +135,11 @@ export const SessionHeader = ({
         return (
             <header
                 data-testid="session-header"
-                className="flex min-w-0 shrink-0 flex-col border-0 border-b border-solid border-colorBorderSecondary"
+                className="flex min-w-0 shrink-0 flex-col border-0 border-b border-solid border-colorBorderSecondary bg-background"
             >
                 <PageTitle title={session.data?.name} />
                 {shortcuts}
-                <div className="flex h-[52px] min-w-0 items-center gap-0.5 px-1">
+                <div className="box-border flex h-[52px] min-w-0 items-center gap-0.5 border-0 border-b border-solid border-colorBorderSecondary px-1">
                     <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                     {agentHidden ? (
                         <span className="flex min-w-0 items-center gap-1.5 px-2 text-sm font-medium">
@@ -160,11 +164,15 @@ export const SessionHeader = ({
                         ? icon(
                               "configuration",
                               t("agentLayout.header.configuration"),
-                              <SlidersHorizontal size={20} />,
+                              <SlidersHorizontal className="size-5" />,
                           )
                         : null}
                     {showAgentActions && panel.available.builder
-                        ? icon("builder", t("agentLayout.header.builder"), <Hammer size={20} />)
+                        ? icon(
+                              "builder",
+                              t("agentLayout.header.builder"),
+                              <Hammer className="size-5" />,
+                          )
                         : null}
                 </div>
                 <div className="flex h-12 min-w-0 items-center gap-1 pl-3 pr-1">
@@ -181,8 +189,7 @@ export const SessionHeader = ({
                     ) : null}
                     {/* Mounted even when hidden: it drives session follow. A save can fail after
                         the person leaves Configuration, so the notice and retry show here. Hit
-                        areas grow to 44 px as for the share control; the retry is a span with the
-                        button role. */}
+                        areas grow to 44 px; the retry is a span with the button role. */}
                     {revisionStatus ? (
                         <span
                             data-testid="session-header-save-status"
@@ -195,11 +202,12 @@ export const SessionHeader = ({
                         </span>
                     ) : null}
                     <div className="min-w-0 flex-1" />
-                    {icon("files", t("agentLayout.header.files"), <FolderSimple size={20} />)}
-                    {/* The share control keeps its drawn size; its hit area grows to 44 px. */}
-                    <span className="flex shrink-0 items-center pl-1 pr-2 [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-2.5 [&_button]:after:content-['']">
-                        {sharing}
-                    </span>
+                    {icon(
+                        "files",
+                        t("agentLayout.header.files"),
+                        <FolderSimple className="size-5" />,
+                    )}
+                    {sharing}
                 </div>
             </header>
         )
@@ -208,7 +216,7 @@ export const SessionHeader = ({
     return (
         <header
             data-testid="session-header"
-            className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3"
+            className="box-border flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-background px-3"
         >
             <PageTitle title={session.data?.name} />
             {shortcuts}
@@ -218,20 +226,19 @@ export const SessionHeader = ({
                     <LockSimpleIcon size={14} aria-hidden className="shrink-0" />
                     {sharingCopy.privateAgent}
                 </span>
-            ) : (
-                <div className="flex min-w-0 items-center gap-1">
-                    <AgentIdentity workflowId={agentId} name={name} />
-                    {agentId ? (
-                        <AgentMenu
-                            agentId={agentId}
-                            name={name}
-                            sessionId={sessionId}
-                            canSend={canSend && Boolean(entityId)}
-                            projectId={projectId}
-                            base={base}
-                        />
-                    ) : null}
+            ) : agentId ? (
+                <div className="flex min-w-0 items-center gap-2">
+                    <AgentMenu
+                        agentId={agentId}
+                        name={name}
+                        sessionId={sessionId}
+                        canSend={canSend && Boolean(entityId)}
+                        projectId={projectId}
+                        base={base}
+                    />
                 </div>
+            ) : (
+                <span className="truncate text-[15px] font-semibold">{name}</span>
             )}
             {revisionStatus}
             <div className="flex-1" />
@@ -247,16 +254,16 @@ export const SessionHeader = ({
             ) : null}
             <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
             {sharing}
-            {icon("files", t("agentLayout.header.files"), <FolderSimple size={16} />)}
+            {icon("files", t("agentLayout.header.files"), <FolderSimple className="size-4" />)}
             {showAgentActions && panel.available.configuration
                 ? icon(
                       "configuration",
                       t("agentLayout.header.configuration"),
-                      <SlidersHorizontal size={16} />,
+                      <SlidersHorizontal className="size-4" />,
                   )
                 : null}
             {showAgentActions && panel.available.builder
-                ? icon("builder", t("agentLayout.header.builder"), <Hammer size={16} />)
+                ? icon("builder", t("agentLayout.header.builder"), <Hammer className="size-4" />)
                 : null}
         </header>
     )
