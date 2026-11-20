@@ -340,3 +340,49 @@ describe("buildExecutableToolGate with a harness-gate execution grant", () => {
     );
   });
 });
+
+describe("buildExecutableToolGate with a server answer at the gate", () => {
+  function serverSeam(permission: "allow" | "deny") {
+    let pauses = 0;
+    const permissionPlan: PermissionPlan = {
+      default: "allow_reads",
+      rules: [],
+    };
+    const responder = new ApprovalResponder(
+      permissionPlan,
+      new ConversationDecisions(new Map()),
+      () => {},
+      () => Promise.resolve({ permission, basis: "configured_permission" }),
+    );
+    const gate = buildExecutableToolGate({
+      responder,
+      run: { emitEvent: () => {}, wasForceSettled: () => false },
+      pause: {
+        markPausedToolCall: () => {},
+        pause: () => {
+          pauses += 1;
+        },
+      },
+      recordPendingInteraction: () => {
+        throw new Error("no card may be recorded");
+      },
+      permissionPlan,
+    });
+    return { gate, pauses: () => pauses };
+  }
+
+  it("runs the call with no card on allow", async () => {
+    const { gate, pauses } = serverSeam("allow");
+    assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
+    assert.equal(pauses(), 0);
+  });
+
+  it("words a server deny as a policy refusal, not as a person's decline", async () => {
+    const { gate, pauses } = serverSeam("deny");
+    assert.deepEqual(await gate.onExecutableTool(request), {
+      kind: "deny",
+      reason: deniedByPolicyText("publish"),
+    });
+    assert.equal(pauses(), 0);
+  });
+});

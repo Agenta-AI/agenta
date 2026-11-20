@@ -38,6 +38,7 @@ import {
   seedDecisionMap,
 } from "../../sessions/interactions.ts";
 import { toolSpecsByName } from "../../tools/public-spec.ts";
+import { buildGateAnswerFetcher } from "../../tools/gate-answer.ts";
 import {
   localRelayHost,
   sandboxRelayHost,
@@ -1173,9 +1174,26 @@ export async function runTurn(
       pause.markAllowedExecution(seed.toolCallId);
       executionGrants.grant(seed.toolName, seed.args);
     };
+    // The server answers the gate of a session write (`resolve_gate`). Only a session turn has an
+    // execution for the server to check, so a run with no turn id keeps the card.
+    const fetchGateAnswer = request.turnId
+      ? buildGateAnswerFetcher({
+          callback: toolCallback.runtime,
+          runContext: toolRunContext,
+          toolSpecs: plan.tools.toolSpecs,
+          executionId: request.turnId,
+          signal,
+          log: logger,
+        })
+      : undefined;
     const responder =
       deps.responderFactory?.(request) ??
-      new ApprovalResponder(permissionPlan, decisions, logger);
+      new ApprovalResponder(
+        permissionPlan,
+        decisions,
+        logger,
+        fetchGateAnswer,
+      );
     // Every pause seeds the durable interactions plane, whichever gate paused.
     const recordPendingInteraction = (
       token: string,

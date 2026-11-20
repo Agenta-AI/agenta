@@ -50,6 +50,16 @@ Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` o
 `daytona`, where supported) are per-run config from the Python service, carried on the
 request's `harness` / `sandbox` fields.
 
+## The server answer at the approval gate
+
+When the run's permissions say `ask` for `start_session`, `send_session_message` or
+`cancel_session`, the runner first asks the API (`tools.agenta.resolve_gate`, in
+`tools/gate-answer.ts`). The API knows facts the runner does not: which agent a session id
+names, and whether a person sent the turn. `allow` runs the call with no card, `deny` refuses
+it with no card, and `ask` shows the card. A fault, an unknown op or no answer within 5 seconds
+reads as `ask`, so the card shows as before. The runner logs each answer as
+`[HITL] resolve_gate tool=... permission=... basis=... ms=...`. Other tools never ask the API.
+
 ## Output and ingest limits
 
 The runner limits provider output per step and per turn. A step is one model reply (all

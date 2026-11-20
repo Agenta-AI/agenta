@@ -70,6 +70,7 @@ export function buildExecutableToolGate({
       };
       const verdict = await responder.onPermission({
         id: request.id,
+        toolCallId: request.toolCallId,
         availableReplies: ["once", "reject"],
         gate,
         raw: { spec: request.spec },
@@ -89,8 +90,10 @@ export function buildExecutableToolGate({
       if (preApproved) return { kind: "allow" };
       if (verdict.kind === "allow") return { kind: "allow" };
       if (verdict.kind === "deny") {
+        // A server deny at the gate is a policy refusal too (a denied target), never a person's.
         const byPolicy =
           !permissionPlan ||
+          verdict.gateAnswerBasis !== undefined ||
           effectivePermission(gate, permissionPlan) === "deny";
         return {
           kind: "deny",

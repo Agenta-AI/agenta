@@ -579,6 +579,7 @@ export function attachPermissionResponder({
     }
     const verdict = await responder.onPermission({
       id,
+      toolCallId: envelope.toolCallId,
       availableReplies,
       gate,
       raw: req,
@@ -695,13 +696,14 @@ export function attachPermissionResponder({
       return;
     }
 
+    const toolCallId = stringValue(toolCall?.toolCallId);
     const verdict = await responder.onPermission({
       id,
+      toolCallId,
       availableReplies,
       gate,
       raw: req,
     });
-    const toolCallId = stringValue(toolCall?.toolCallId);
     if (
       verdict.kind === "pendingApproval" ||
       isStaleApproval(verdict, gate, toolCallId) ||

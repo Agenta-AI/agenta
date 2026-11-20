@@ -174,6 +174,18 @@ export interface ResolvedToolSpec {
    * permission plan. The SDK derives a default from `readOnly` when the author set none.
    */
   permission?: ToolPermission;
+  /**
+   * Gate policy of the session writes (`start_session`, `send_session_message`,
+   * `cancel_session`). The SDK gives those three the runner permission `ask` and keeps the
+   * permission they had before that change here. The runner does not read it; it sends it to
+   * `tools.agenta.resolve_gate` with the call (see `tools/gate-answer.ts`).
+   */
+  configuredPermission?: ToolPermission;
+  /**
+   * Gate policy of the session writes: the permission set on each Subagent entry that sets one,
+   * keyed by the entry's slug. Sent to `tools.agenta.resolve_gate` with `configuredPermission`.
+   */
+  targetPermissions?: Record<string, ToolPermission>;
 }
 
 /** Where and how to route a tool call back through Agenta. */
