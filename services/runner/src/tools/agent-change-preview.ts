@@ -34,7 +34,7 @@ export type AgentChangePreviewFetcher = (input: {
   toolName: string | undefined;
   toolCallId: string | undefined;
   args: unknown;
-}) => Promise<Record<string, unknown> | undefined>;
+}) => Promise<Record<string, unknown> | undefined> | undefined;
 
 export function buildAgentChangePreviewFetcher(input: {
   callback: ToolCallbackRuntime | undefined;
@@ -46,12 +46,22 @@ export function buildAgentChangePreviewFetcher(input: {
   const specsByName = new Map(
     input.toolSpecs.map((spec) => [spec.name, spec] as const),
   );
-  return async ({ toolName, toolCallId, args }) => {
+  // No promise at all for a call that gets no preview, so its gate does not wait a tick.
+  return ({ toolName, toolCallId, args }) => {
     const spec = toolName ? specsByName.get(toolName) : undefined;
     if (!spec?.callRef || !PREVIEWED_CALL_REFS.has(spec.callRef))
       return undefined;
     const endpoint = input.callback?.endpoint;
     if (!endpoint) return undefined;
+    return fetchPreview(spec, endpoint, toolCallId, args);
+  };
+
+  async function fetchPreview(
+    spec: ResolvedToolSpec,
+    endpoint: string,
+    toolCallId: string | undefined,
+    args: unknown,
+  ): Promise<Record<string, unknown> | undefined> {
     try {
       // The arguments the call itself would send: the note for the person removed, and the
       // caller bindings filled from run context, so the API resolves the same target.
@@ -80,5 +90,5 @@ export function buildAgentChangePreviewFetcher(input: {
       );
       return undefined;
     }
-  };
+  }
 }
