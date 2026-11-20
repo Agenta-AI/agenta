@@ -154,7 +154,9 @@ const PhoneSectionList = ({
         return (
             <div
                 data-config-section={shown.key}
-                className={`flex flex-col gap-3 pt-3 ${shown.phoneAction ? "" : "pb-6"}`}
+                // With a primary action the column fills its container's height (the phone
+                // container is a size container), so the action sits at the bottom of the screen.
+                className={`flex flex-col gap-3 pt-3 ${shown.phoneAction ? "min-h-[100cqh]" : "pb-6"}`}
             >
                 {shown.extra && !shown.phoneAction ? (
                     <div className="flex justify-end">{shown.extra}</div>
