@@ -23,6 +23,7 @@ export const ApprovalDock = ({
     bottomMost = true,
     readOnly = false,
     readOnlyNote,
+    alwaysAllowOffered = true,
 }: {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
@@ -36,6 +37,8 @@ export const ApprovalDock = ({
     readOnly?: boolean
     /** Shown in place of the actions while read-only (it names who can answer). */
     readOnlyNote?: string | null
+    /** Offer "Always auto-approve" (off in a builder chat). */
+    alwaysAllowOffered?: boolean
 }) => {
     const locked = readOnly || Boolean(readOnlyNote)
     const busy = actions.phase === "resuming"
@@ -61,6 +64,7 @@ export const ApprovalDock = ({
                     touch
                     readOnly={locked}
                     readOnlyNote={readOnlyNote}
+                    alwaysAllowOffered={alwaysAllowOffered}
                     // Two conversations can each show a card: a key answers the focused one only.
                     ownsShortcut={ownsShortcutAt}
                     errorText={actions.phase === "error" ? actions.errorText : null}

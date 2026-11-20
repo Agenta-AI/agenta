@@ -434,7 +434,8 @@ const TurnRowInner = ({
                     content: turn.isUser
                         ? cn(
                               userBubbleContentClass,
-                              "rounded-xl rounded-br-sm bg-muted text-xs sm:px-3.5 sm:py-2.5",
+                              // The canvas bubble: radius 12 with a 2 px corner, 10 / 14 padding (M01, X-8).
+                              "rounded-[12px] rounded-br-[2px] bg-muted px-3.5 py-2.5 text-xs",
                           )
                         : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",

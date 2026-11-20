@@ -14,19 +14,18 @@ import type {IconMap} from "streamdown"
  *
  * From `sm:` the prose steps up to a 14px body, so a wide window does not stay phone-sized.
  */
-export const proseClassName = [
-    // 20/24px leading, over the size's own: prose that reads at length wants the air.
-    "w-full min-w-0 space-y-3 overflow-hidden text-xs leading-5 wrap-anywhere sm:space-y-3.5 sm:text-sm sm:leading-6",
+const proseBase = [
+    "w-full min-w-0 space-y-3 overflow-hidden wrap-anywhere sm:space-y-3.5",
     "[&_a]:text-primary [&_a]:font-medium [&_a]:underline",
-    "[&_p]:text-foreground [&_p]:text-xs [&_p]:leading-5 sm:[&_p]:text-sm sm:[&_p]:leading-6",
+    "[&_p]:text-foreground",
     "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-6 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-2 [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:tracking-tight",
     "[&_h1]:text-base [&_:is(h2,h3)]:text-sm sm:[&_:is(h2,h3)]:text-[15px] [&_:is(h4,h5,h6)]:text-xs sm:[&_:is(h4,h5,h6)]:text-sm",
     // Lists: our own 5px dot, hung in the indent; a nested list is a ruled block, not more dots.
-    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs [&_li]:leading-5 sm:[&_li]:text-sm sm:[&_li]:leading-6",
+    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5",
     "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-full [&_ul>li]:before:bg-foreground [&_ul>li:has(>input)]:pl-0 [&_ul>li:has(>input)]:before:hidden",
     "[&_li_ul]:my-1 [&_li_ul]:border-l [&_li_ul]:border-border/60 [&_li_ul]:pl-3.5 [&_li_ul>li]:pl-0 [&_li_ul>li]:before:hidden",
     "[&_ol]:list-outside [&_ol]:pl-5 [&_ol>li]:marker:text-muted-foreground",
-    "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border/60 [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote]:text-xs [&_blockquote]:leading-5 sm:[&_blockquote]:text-sm sm:[&_blockquote]:leading-6 [&_blockquote_p]:text-muted-foreground",
+    "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border/60 [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote_p]:text-muted-foreground",
     // A quiet break: the heading after it carries the section.
     "[&_hr]:my-3 [&_hr]:border-transparent",
     "[&_:not(pre)>code]:rounded [&_:not(pre)>code]:border-0 [&_:not(pre)>code]:bg-muted [&_:not(pre)>code]:px-[5px] [&_:not(pre)>code]:py-px [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.9em]",
@@ -40,6 +39,29 @@ export const proseClassName = [
     "[&_[data-streamdown=code-block-copy-button]]:flex [&_[data-streamdown=code-block-copy-button]]:size-[22px] [&_[data-streamdown=code-block-copy-button]]:items-center [&_[data-streamdown=code-block-copy-button]]:justify-center [&_[data-streamdown=code-block-copy-button]]:rounded [&_[data-streamdown=code-block-copy-button]]:p-0 [&_[data-streamdown=code-block-copy-button]]:hover:bg-accent",
     "[&_[data-streamdown=code-block-body]]:rounded-none [&_[data-streamdown=code-block-body]]:border-0 [&_[data-streamdown=code-block-body]]:bg-transparent [&_[data-streamdown=code-block-body]]:px-3 [&_[data-streamdown=code-block-body]]:py-2.5 [&_[data-streamdown=code-block-body]]:text-xs [&_[data-streamdown=code-block-body]]:leading-[18px]",
 ].join(" ")
+
+// The body scale, set on the prose and again on its paragraphs, list items and quotes (whose own
+// Streamdown size would win otherwise). Written out in full: Tailwind finds classes as literals.
+// The app scale: 13 / 20 on a phone, 14 / 24 from `sm:`; the leading gives prose read at length
+// its air.
+const APP_SCALE = [
+    "text-xs leading-5 sm:text-sm sm:leading-6",
+    "[&_p]:text-xs [&_p]:leading-5 sm:[&_p]:text-sm sm:[&_p]:leading-6",
+    "[&_li]:text-xs [&_li]:leading-5 sm:[&_li]:text-sm sm:[&_li]:leading-6",
+    "[&_blockquote]:text-xs [&_blockquote]:leading-5 sm:[&_blockquote]:text-sm sm:[&_blockquote]:leading-6",
+].join(" ")
+// The chat's own messages at the canvas scale: 15 / 22 on a phone, 14 / 20 from `sm:` (M01, S03).
+const CHAT_SCALE = [
+    "text-[15px] leading-[22px] sm:text-sm sm:leading-5",
+    "[&_p]:text-[15px] [&_p]:leading-[22px] sm:[&_p]:text-sm sm:[&_p]:leading-5",
+    "[&_li]:text-[15px] [&_li]:leading-[22px] sm:[&_li]:text-sm sm:[&_li]:leading-5",
+    "[&_blockquote]:text-[15px] [&_blockquote]:leading-[22px] sm:[&_blockquote]:text-sm sm:[&_blockquote]:leading-5",
+].join(" ")
+
+/** Markdown at the app scale (file previews, embeds, notes). */
+export const proseClassName = `${proseBase} ${APP_SCALE}`
+/** The chat's user and assistant messages, at the canvas scale. */
+export const chatProseClassName = `${proseBase} ${CHAT_SCALE}`
 
 /** The app's own glyph set on the fence's copy control — Streamdown's default is a different
  * icon family. Module scope: one identity across streamed tokens. */
@@ -72,7 +94,7 @@ export const AssistantMarkdown = ({
     const {text: revealed, settled} = useTypewriter(text, {urgent})
     return (
         <ChatMarkdown
-            baseClassName={proseClassName}
+            baseClassName={chatProseClassName}
             content={revealed}
             streaming={streaming || !settled}
             useLinkResolver={useReplyFileResolver}
@@ -88,7 +110,7 @@ export const AssistantMarkdown = ({
  */
 export const UserMarkdown = ({text}: {text: string}) => (
     <ChatMarkdown
-        baseClassName={proseClassName}
+        baseClassName={chatProseClassName}
         content={text}
         streaming={false}
         useLinkResolver={useDriveLinkResolver}

@@ -51,8 +51,14 @@ const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
 /** Diff rows before "View full diff" takes over. */
 const INLINE_DIFF_LINES = 6
 
-const ADD_ROW = "bg-[color-mix(in_srgb,var(--ag-colorSuccess)_13%,transparent)] text-colorSuccess"
-const DEL_ROW = "bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] text-colorError"
+// Added and removed rows carry a 1 px bar on their left edge (C01, M05).
+const ADD_ROW =
+    "bg-[color-mix(in_srgb,var(--ag-colorSuccess)_13%,transparent)] text-colorSuccess shadow-[inset_1px_0_0_var(--ag-colorSuccess)]"
+const DEL_ROW =
+    "bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] text-colorError shadow-[inset_1px_0_0_var(--ag-colorError)]"
+
+/** The horizontal inset of every part of a change card: the parts run to the card edge. */
+export const CARD_INSET = "px-3"
 
 /** One block of the card: the changes that share a title and a path. */
 export interface ChangeBlock {
@@ -146,12 +152,12 @@ export const diffRows = (
     return {full, short}
 }
 
-const DiffRows = ({rows}: {rows: DiffRow[]}) => (
+const DiffRows = ({rows, inset = "px-2"}: {rows: DiffRow[]; inset?: string}) => (
     <>
         {rows.map((row, index) => (
             <div
                 key={index}
-                className={`flex px-2 ${
+                className={`flex ${inset} ${
                     row.type === "added"
                         ? ADD_ROW
                         : row.type === "removed"
@@ -178,9 +184,12 @@ const DiffRows = ({rows}: {rows: DiffRow[]}) => (
 const TextDiff = ({
     detail,
     screenTitle,
+    bleed,
 }: {
     detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>
     screenTitle: string
+    /** The card's own diff: a band from edge to edge, and "View full diff" a row of its own. */
+    bleed: boolean
 }) => {
     const t = useT(chatChangeCardCatalog)
     const phone = useIsPhone()
@@ -196,22 +205,37 @@ const TextDiff = ({
     const more =
         !inPlace && (rows.short.length > INLINE_DIFF_LINES || rows.full.length > rows.short.length)
     return (
-        <div className="flex flex-col gap-1">
+        <div className={`flex flex-col ${bleed ? "" : "gap-1"}`}>
             <div
-                className="max-h-80 overflow-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 font-mono text-[11px] leading-[1.7]"
+                className={`max-h-80 overflow-auto font-mono ${
+                    bleed
+                        ? `border-0 border-y border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] py-1 text-xs ${
+                              phone ? "leading-[1.7]" : "leading-[1.8]"
+                          }`
+                        : "rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 text-[11px] leading-[1.7]"
+                }`}
                 data-testid="change-diff"
             >
-                <DiffRows rows={shown} />
+                <DiffRows rows={shown} inset={bleed ? CARD_INSET : undefined} />
             </div>
             {more ? (
                 <button
                     type="button"
                     onClick={() => setFull(true)}
-                    className={`cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-colorTextSecondary hover:text-colorText ${
-                        // A 44 px hit area around the 16 px line.
-                        phone
-                            ? "relative after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
-                            : ""
+                    className={`cursor-pointer border-0 bg-transparent text-colorTextSecondary hover:text-colorText ${
+                        bleed
+                            ? // A row of its own: 32 px, and 46 px on a phone (M05).
+                              `w-full text-left hover:bg-[var(--ag-surface-raised)] ${
+                                  phone
+                                      ? "p-3 text-[13px] leading-[22px]"
+                                      : "px-3 py-1.5 text-xs leading-5"
+                              }`
+                            : `self-start p-0 text-xs ${
+                                  // A 44 px hit area around the 16 px line.
+                                  phone
+                                      ? "relative after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
+                                      : ""
+                              }`
                     }`}
                     data-testid="change-full-diff"
                 >
@@ -323,19 +347,29 @@ const Detail = ({
     detail,
     section,
     screenTitle,
+    bleed,
 }: {
     detail: ApprovalChangeDetail
     section: ApprovalChangeSection
     /** The title of the change's full screen detail on a phone. */
     screenTitle: string
+    bleed: boolean
 }) => {
     switch (detail.kind) {
         case "text_diff":
-            return <TextDiff detail={detail} screenTitle={screenTitle} />
+            return <TextDiff detail={detail} screenTitle={screenTitle} bleed={bleed} />
         case "value_change":
-            return <ValueChange detail={detail} />
+            return (
+                <div className={bleed ? `${CARD_INSET} py-1.5` : ""}>
+                    <ValueChange detail={detail} />
+                </div>
+            )
         case "item":
-            return <Item detail={detail} section={section} />
+            return (
+                <div className={bleed ? `${CARD_INSET} py-1.5` : ""}>
+                    <Item detail={detail} section={section} />
+                </div>
+            )
         default:
             return null
     }
@@ -358,7 +392,7 @@ const ChangeHeader = ({
         <div className="flex min-w-0 items-center gap-2.5">
             <span
                 aria-hidden
-                className={`flex shrink-0 items-center justify-center rounded-md bg-colorFillTertiary text-colorText ${
+                className={`flex shrink-0 items-center justify-center rounded-md bg-colorBgLayout text-[var(--ag-zinc-8)] ${
                     small ? "size-5" : "size-[26px]"
                 }`}
             >
@@ -372,7 +406,7 @@ const ChangeHeader = ({
                 </span>
                 {joined ? (
                     <span
-                        className="truncate text-xs text-colorTextSecondary"
+                        className="truncate text-xs leading-4 text-colorTextSecondary"
                         title={joined}
                         data-testid="change-path"
                     >
@@ -407,19 +441,33 @@ export const blockLabel = (block: ChangeBlock): string => {
     return path.join(" › ") || block.title
 }
 
-export const Block = ({block, small}: {block: ChangeBlock; small: boolean}) => (
+export const Block = ({
+    block,
+    small,
+    bleed = false,
+}: {
+    block: ChangeBlock
+    small: boolean
+    /**
+     * The block is the whole card (C01): its header has the card's padding, its diff runs from
+     * edge to edge, and its other parts keep the card's inset.
+     */
+    bleed?: boolean
+}) => (
     <div
-        className={`flex min-w-0 flex-col gap-2 ${
+        className={`flex min-w-0 flex-col ${bleed ? "" : "gap-2"} ${
             block.fails ? "rounded-md border border-solid border-colorError p-2" : ""
         }`}
         data-fails={block.fails ? "true" : undefined}
     >
-        <ChangeHeader
-            icon={SECTION_ICON[block.section]}
-            title={block.title}
-            path={block.path}
-            small={small}
-        />
+        <div className={bleed ? `${CARD_INSET} py-2.5` : ""}>
+            <ChangeHeader
+                icon={SECTION_ICON[block.section]}
+                title={block.title}
+                path={block.path}
+                small={small}
+            />
+        </div>
         {block.changes.map((change, index) =>
             change.detail ? (
                 <Detail
@@ -427,11 +475,14 @@ export const Block = ({block, small}: {block: ChangeBlock; small: boolean}) => (
                     detail={change.detail}
                     section={change.section}
                     screenTitle={blockLabel(block)}
+                    bleed={bleed}
                 />
             ) : null,
         )}
         {block.risks.map((risk) => (
-            <RiskLine key={risk.message}>{risk.message}</RiskLine>
+            <div key={risk.message} className={bleed ? "mx-3 mb-2.5 mt-1.5" : ""}>
+                <RiskLine>{risk.message}</RiskLine>
+            </div>
         ))}
     </div>
 )
@@ -472,14 +523,10 @@ export const ChangeSections = ({
             title={t("chat.changeCard.changesTo", {count: blocks.length, agent: agentName})}
         />
     ) : null
-    return (
-        <div className="flex min-w-0 flex-col gap-3" data-testid="change-sections">
-            {cardHeader}
-            {header && sentence ? (
-                <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">
-                    {sentence}
-                </p>
-            ) : null}
+    // One block draws the C01 card: header, a diff band from edge to edge, the rest inset. Any
+    // other card keeps its parts inside the card's inset.
+    const notes = (
+        <>
             {proposedValues ? (
                 <p className="m-0 text-xs text-colorTextSecondary" data-testid="change-proposed">
                     {t("chat.changeCard.proposedValues")}
@@ -490,14 +537,36 @@ export const ChangeSections = ({
                     {t("chat.changeCard.cannotApply")}
                 </p>
             ) : null}
+        </>
+    )
+    if (single) {
+        return (
+            <div className="flex min-w-0 flex-col" data-testid="change-sections">
+                <div className="flex max-h-[420px] min-w-0 flex-col overflow-y-auto">
+                    <Block block={blocks[0]} small={false} bleed />
+                </div>
+                {proposedValues || cannotApply ? (
+                    <div className={`flex flex-col gap-1 ${CARD_INSET} py-2`}>{notes}</div>
+                ) : null}
+            </div>
+        )
+    }
+    return (
+        <div
+            className={`flex min-w-0 flex-col gap-3 ${CARD_INSET} pb-3 pt-2.5`}
+            data-testid="change-sections"
+        >
+            {cardHeader}
+            {header && sentence ? (
+                <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">
+                    {sentence}
+                </p>
+            ) : null}
+            {notes}
             {blocks.length ? (
                 <div className="flex max-h-[420px] min-w-0 flex-col gap-3 overflow-y-auto">
                     {blocks.map((block, index) => (
-                        <Block
-                            key={`${block.path.join("›")}-${index}`}
-                            block={block}
-                            small={!single}
-                        />
+                        <Block key={`${block.path.join("›")}-${index}`} block={block} small />
                     ))}
                 </div>
             ) : null}

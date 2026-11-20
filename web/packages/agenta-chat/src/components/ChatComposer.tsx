@@ -19,7 +19,11 @@ import {
     revealQuote,
     useStagedQuotes,
 } from "@agenta/ui/quote-selection"
-import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
+import type {
+    ComposerSurface,
+    RichChatInputHandle,
+    SlashCommandSection,
+} from "@agenta/ui/rich-chat-input"
 import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
@@ -65,6 +69,8 @@ export interface ChatComposerProps {
      * there is a keyboard to press them with, hidden on a touch-only screen.
      */
     hideShortcutHints?: boolean
+    /** The box's look: `canvas` is the builder layout design (see RichChatInput). */
+    surface?: ComposerSurface
     /** Full placeholder override; when absent, `waitingOnUser` picks the queue message. */
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
@@ -126,6 +132,7 @@ export const ChatComposer = ({
     hideSendButton,
     hideShortcutHints,
     placeholder,
+    surface,
     waitingOnUser,
     hasTurns = false,
     initialMarkdown,
@@ -249,6 +256,7 @@ export const ChatComposer = ({
                 }
                 className={className}
                 maxHeightClassName={maxHeightClassName}
+                surface={surface}
                 onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
@@ -314,7 +322,12 @@ export const ChatComposer = ({
                                     size="icon"
                                     // A phone: 36 px drawn and a 44 px area (4 px reach), as the
                                     // design canvas.
-                                    className={`max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
+                                    className={`max-md:size-9 ${
+                                        // The canvas draws a bare 16 px glyph in a 24 px box.
+                                        surface === "canvas"
+                                            ? "size-6 text-colorTextTertiary max-md:[&_svg]:size-5"
+                                            : ""
+                                    } ${PHONE_TOUCH_TARGET_CLASS}`}
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.

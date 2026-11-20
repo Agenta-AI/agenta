@@ -183,7 +183,7 @@ describe("ActivityTimeline", () => {
         )
         // The tool step is now expandable too, so the fold line is the first button.
         const line = screen.getAllByRole("button")[0]
-        expect(line.textContent).toContain("Worked for 3s")
+        expect(line.textContent).toContain("Worked for 3 s")
         expect(line.getAttribute("aria-expanded")).toBe("false")
     })
 
@@ -399,7 +399,7 @@ describe("ActivityTimeline", () => {
             </Provider>,
         )
         const line = screen.getAllByRole("button")[0]
-        expect(line.textContent).toContain("Worked for 9s")
+        expect(line.textContent).toContain("Worked for 9 s")
         expect(line.textContent).not.toContain("85m")
     })
 
@@ -512,7 +512,7 @@ describe("ActivityTimeline", () => {
     it("keeps the session turn duration for a settled turn without a gate", () => {
         turnDurations.set("ungated", 9000)
         mount({steps: [toolStep("output-available")], ...sessionTurnOf("ungated")})
-        expect(screen.getAllByRole("button")[0].textContent).toBe("Worked for 9s")
+        expect(screen.getAllByRole("button")[0].textContent).toBe("Worked for 9 s")
     })
 
     it("discards a running clock that missed an approval while the timeline was unmounted", () => {

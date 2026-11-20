@@ -3,5 +3,6 @@
     "showMore_other": "{{count}} weitere anzeigen",
     "viewFullDiff": "Vollständigen Diff anzeigen",
     "lineCount_one": "{{count}} Zeile",
-    "lineCount_other": "{{count}} Zeilen"
+    "lineCount_other": "{{count}} Zeilen",
+    "changed": "Geändert"
 }

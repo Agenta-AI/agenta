@@ -450,6 +450,114 @@ export function SectionCard({
     )
 }
 
+/** A run of changed text longer than this loses its shared start to "…" in a summary box. */
+const SHARED_START_MIN = 24
+
+/**
+ * The changed lines of a text diff, without context: a removed line followed by one added line
+ * drops the start they share, so the box shows what changed ("…and draft a first reply" →
+ * "…and draft a first reply in plain words", S06).
+ */
+export const summaryLines = (
+    hunks: ExtendedDiffLine[],
+): {type: "added" | "removed"; content: string}[] => {
+    const lines = hunks.filter(
+        (line): line is ExtendedDiffLine & {type: "added" | "removed"} =>
+            line.type === "added" || line.type === "removed",
+    )
+    return lines.map((line, index) => {
+        const pair =
+            line.type === "removed"
+                ? lines[index + 1]?.type === "added" && lines[index + 2]?.type !== "added"
+                    ? lines[index + 1]
+                    : undefined
+                : lines[index - 1]?.type === "removed" && lines[index - 2]?.type !== "removed"
+                  ? lines[index - 1]
+                  : undefined
+        if (!pair) return {type: line.type, content: line.content}
+        let shared = 0
+        while (
+            shared < line.content.length &&
+            shared < pair.content.length &&
+            line.content[shared] === pair.content[shared]
+        )
+            shared++
+        // Cut at a word start, so the box never shows half a word.
+        const cut = line.content.lastIndexOf(" ", shared - 1) + 1
+        return cut >= SHARED_START_MIN
+            ? {type: line.type, content: `…${line.content.slice(cut)}`}
+            : {type: line.type, content: line.content}
+    })
+}
+
+/** The summary box of a text diff: the changed lines in one bordered box, in the body font. */
+function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
+    return (
+        <>
+            {summaryLines(hunks)
+                .slice(0, INLINE_TEXT_DIFF_LINES)
+                .map((line, i) => (
+                    <div
+                        key={i}
+                        className="whitespace-pre-wrap break-words px-2.5 py-1"
+                        style={{
+                            background: line.type === "added" ? ADD_BG : DEL_BG,
+                            color:
+                                line.type === "added"
+                                    ? "var(--ag-colorSuccess)"
+                                    : "var(--ag-colorError)",
+                        }}
+                    >
+                        {line.type === "added" ? "+ " : "− "}
+                        {line.content}
+                    </div>
+                ))}
+        </>
+    )
+}
+
+/**
+ * One section as the version history draws it (S06): the icon, the title 13 / 500 and a plain
+ * status at the right, then what changed in one bordered box. Always open, so no toggle.
+ */
+function SummarySection({section}: {section: ChangeSection}) {
+    const t = useT(changeSectionsCatalog)
+    const status = section.textDiff
+        ? t("entityUi.changeSections.changed")
+        : section.scalarChanges
+          ? undefined
+          : section.tags.map((tag) => tag.label).join(" · ")
+    return (
+        <div className="mb-3.5" data-testid="change-summary-section">
+            <div className="flex items-center gap-2 p-2">
+                <span
+                    className={cn(
+                        "inline-flex shrink-0 text-[14px] leading-none",
+                        textColors.secondary,
+                    )}
+                >
+                    {SECTION_ICON[section.id]}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--ag-colorText)]">
+                    {section.title}
+                </span>
+                {status ? (
+                    <span className={cn("shrink-0 text-xs", textColors.tertiary)}>{status}</span>
+                ) : null}
+            </div>
+            <div className="mx-2 overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] text-[12.5px] leading-5">
+                {section.items?.length ? (
+                    <CappedItems items={section.items} padX={GHOST_ROW_PAD} />
+                ) : null}
+                {section.scalarChanges ? (
+                    <ScalarRows changes={section.scalarChanges} padX={GHOST_ROW_PAD} />
+                ) : null}
+                {section.textDiff ? <SummaryText hunks={section.textDiff.hunks} /> : null}
+            </div>
+        </div>
+    )
+}
+
 /** Detail-view card with a sticky header that collapses back to the summary on click.
  * Split frame, not CARD: CARD's overflow-hidden clips sticky positioning. */
 export function DetailCard({
@@ -501,6 +609,11 @@ export interface ChangeSectionsProps {
     onOpenTool?: (sectionId: string, itemId: string) => void
     /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
     ghost?: boolean
+    /**
+     * The version history's summary (S06): each section open, a plain status at the right, and
+     * the changed lines in one box. The open state and the size do not apply.
+     */
+    summary?: boolean
 }
 
 /**
@@ -515,7 +628,17 @@ export function ChangeSections({
     onOpenInstructions,
     onOpenTool,
     ghost,
+    summary,
 }: ChangeSectionsProps) {
+    if (summary) {
+        return (
+            <>
+                {sections.map((section) => (
+                    <SummarySection key={section.id} section={section} />
+                ))}
+            </>
+        )
+    }
     return (
         <>
             {sections.map((section) => (
