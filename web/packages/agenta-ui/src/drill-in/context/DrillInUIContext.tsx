@@ -21,6 +21,7 @@ import {
 
 import type {EditorProps} from "../../Editor"
 import type {SharedEditorProps} from "../../SharedEditor"
+import type {ViewProps} from "../../view-stack/types"
 
 /**
  * Inline provider option/group types to avoid importing from @agenta/ui.
@@ -233,6 +234,11 @@ export interface SkillsPickerHostProps {
  * lives in @agenta/skills-ui and is wired by each host's DrillInUIProvider. Parallels
  * {@link GatewayToolsBridge}. Absent → the panel falls back to the inline-skill editor.
  */
+/** The address of a registry skill: the workflow slug its embed reference stores. */
+export interface RegistrySkillParams {
+    slug: string
+}
+
 export interface SkillsBridge {
     enabled: boolean
     PickerHost: ComponentType<SkillsPickerHostProps>
@@ -246,10 +252,9 @@ export interface SkillsBridge {
     publishInlineSkill: (
         skill: Record<string, unknown>,
     ) => Promise<{entry: Record<string, unknown>} | {error: string}>
-    /** Registry detail drawer for one skill, addressed by its embed slug. The panel opens
-     * it for project-owned embed refs instead of the raw JSON editor; absent (or an
-     * unresolvable slug) falls back to the JSON round-trip. */
-    DetailHost?: ComponentType<{open: boolean; onClose: () => void; slug: string | null}>
+    /** The body of the skill view for a registry skill, addressed by its embed slug. The agent's
+     * skill view renders it for an `@ag.embed` entry; the Skills page mounts the same body. */
+    RegistrySkillBody?: ComponentType<ViewProps<RegistrySkillParams>>
 }
 
 /**

@@ -32,6 +32,7 @@ export {
 } from "./SkillDetailDrawer"
 export {SkillAgentPicker} from "./SkillAgentPicker"
 export {SkillPickerHost} from "./SkillPickerHost"
-export {SkillDetailHost} from "./SkillDetailHost"
+export {registrySkillView, RegistrySkillBody} from "./registrySkillView"
+export {skillsPageHref, SkillAgentHrefContext} from "./RegistrySkillViewBody"
 export {SourceRefreshButton} from "./SourceRefreshButton"
 export {useSkillsBridge} from "./bridge"

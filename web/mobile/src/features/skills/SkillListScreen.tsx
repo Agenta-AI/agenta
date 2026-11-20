@@ -24,6 +24,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -138,6 +139,19 @@ export const SkillListScreen = ({
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
+    // `?skill=<slug>` opens that skill: the "skill registry" link of an agent's skill view.
+    const router = useRouter()
+    const linkedSkill = typeof router.query.skill === "string" ? router.query.skill : ""
+    const [openedLink, setOpenedLink] = useState("")
+    useEffect(() => {
+        if (!linkedSkill || linkedSkill === openedLink) return
+        const row = rows.find(
+            (r) => r.item.workflowSlug === linkedSkill || r.item.slug === linkedSkill,
+        )
+        if (!row) return
+        setOpenedLink(linkedSkill)
+        openRow(row)
+    }, [linkedSkill, openRow, openedLink, rows])
     // The drawer's Used-by names lead to the agent.
     const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
     const [importOpen, setImportOpen] = useState(false)
