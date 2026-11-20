@@ -2,6 +2,15 @@ diff --git a/dist/chunk-TVCDKGSM.js b/dist/chunk-TVCDKGSM.js
 index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..60becacde92447d50c0d29609953b93be245d40d 100644
 --- a/dist/chunk-TVCDKGSM.js
 +++ b/dist/chunk-TVCDKGSM.js
+@@ -559,7 +559,7 @@ var DEFAULT_REPLAY_MAX_CHARS = 12e3;
+ var MAX_EVENT_INDEX_INSERT_RETRIES = 3;
+ var SESSION_CANCEL_METHOD = "session/cancel";
+ var MANUAL_CANCEL_ERROR = "Manual session/cancel calls are not allowed. Use destroySession(sessionId) instead.";
+-var HEALTH_WAIT_MIN_DELAY_MS = 500;
++var HEALTH_WAIT_MIN_DELAY_MS = 100;
+ var HEALTH_WAIT_MAX_DELAY_MS = 15e3;
+ var HEALTH_WAIT_LOG_AFTER_MS = 5e3;
+ var HEALTH_WAIT_LOG_EVERY_MS = 1e4;
 @@ -738,6 +738,7 @@ var LiveAcpConnection = class _LiveAcpConnection {
    pendingReplayByLocalSessionId = /* @__PURE__ */ new Map();
    lastAdapterExit = null;
