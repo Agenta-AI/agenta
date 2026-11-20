@@ -39,6 +39,7 @@ describe("serverAddressLabel", () => {
     it("names the server, not the platform that hosts it", () => {
         expect(serverAddressLabel("https://my-tools.workers.dev/mcp")).toBe("my-tools")
         expect(serverAddressLabel("https://acme-mcp.vercel.app/")).toBe("acme-mcp")
+        expect(serverAddressLabel("https://server.smithery.ai/acme")).toBe("smithery")
     })
 
     it("skips a second-level label under a country code", () => {

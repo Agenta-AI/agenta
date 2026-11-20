@@ -40,7 +40,7 @@ export const normalizeConnectionName = (name: string): string =>
 const normalize = normalizeConnectionName
 
 /** Host labels that name the endpoint, not the service: `mcp.linear.app` is Linear's. */
-const ENDPOINT_LABELS = new Set(["www", "mcp", "api"])
+const ENDPOINT_LABELS = new Set(["www", "mcp", "api", "server"])
 /** Second-level labels under a country code: `acme.co.uk` is Acme's, not "co". */
 const SECOND_LEVEL_LABELS = new Set(["co", "com", "org", "net", "gov", "ac", "edu"])
 

@@ -74,6 +74,16 @@ export const AgentPanelFrame = ({
         return () => observer.disconnect()
     }, [mode])
     const shownWidth = drawn !== null && drawn > 0 ? Math.min(width, drawn) : width
+    // What a resize stores: the width the panel draws once the page has taken its column, so a
+    // drag past the room there is does not store a width the panel never showed.
+    const commitDrawn = (value: number) => {
+        if (!resize) return
+        requestAnimationFrame(() => {
+            const frame = frameRef.current
+            const room = mode === "push" && frame ? Math.round(frame.offsetWidth) : value
+            resize.onCommit(clamp(Math.min(value, room)))
+        })
+    }
     const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
         if (!resize) return
         const pointerId = event.pointerId
@@ -92,7 +102,7 @@ export const AgentPanelFrame = ({
             if (e.pointerId !== pointerId) return
             stop()
             // Stored at pointer-up, not on every move.
-            resize.onCommit(widthAt(e.clientX))
+            commitDrawn(widthAt(e.clientX))
         }
         // A cancelled drag (a touch the browser took over) goes back to the stored width.
         const cancel = (e: PointerEvent) => {
@@ -113,7 +123,7 @@ export const AgentPanelFrame = ({
         event.preventDefault()
         const next = clamp(shownWidth + step)
         resize.onLive(next)
-        resize.onCommit(next)
+        commitDrawn(next)
     }
 
     return (
