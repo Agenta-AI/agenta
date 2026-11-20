@@ -10,7 +10,7 @@
  * depends on nothing app-specific — only `@agenta/entities` state and the project id. The desktop
  * playground and the mobile Build pane both feed it into their own DrillInUIProvider.
  */
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
 import type {RunnablePort} from "@agenta/entities/shared"
 import {
@@ -210,9 +210,21 @@ const subagentDetailQueryAtomFamily = atomFamily((slug: string) =>
     }),
 )
 
-function useSubagentDetail(slug: string): {detail: SubagentDetail | null; loading: boolean} {
+function useSubagentDetail(slug: string): {
+    detail: SubagentDetail | null
+    loading: boolean
+    failed: boolean
+    retry: () => void
+} {
     const res = useAtomValue(subagentDetailQueryAtomFamily(slug))
-    return {detail: (res.data as SubagentDetail | null) ?? null, loading: Boolean(res.isLoading)}
+    const refetch = res.refetch
+    const retry = useCallback(() => void refetch(), [refetch])
+    return {
+        detail: (res.data as SubagentDetail | null) ?? null,
+        loading: Boolean(res.isLoading),
+        failed: Boolean(res.isError),
+        retry,
+    }
 }
 
 /** Words in a body of prose, for the instruction file's "Markdown, N words" line. */

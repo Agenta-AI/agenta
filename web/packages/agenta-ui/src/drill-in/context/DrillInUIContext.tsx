@@ -210,7 +210,13 @@ export interface WorkflowReferenceBridge {
     }
     /** One subagent's configuration for the detail panel, cached so the header and the body share it.
      *  Required, not optional: a hook that may be absent cannot be called without breaking hook order. */
-    useSubagentDetail: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
+    useSubagentDetail: (slug: string) => {
+        detail: SubagentDetail | null
+        loading: boolean
+        /** The read failed, so the caller can say so instead of showing an empty configuration. */
+        failed: boolean
+        retry: () => void
+    }
     /** A link to an agent's own page. Only the host knows its routes; without it the button hides. */
     agentHref?: (workflowId: string) => string | null
 }

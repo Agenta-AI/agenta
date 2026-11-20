@@ -45,6 +45,7 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import ProviderDrawer from "../../src/secretProvider/ProviderDrawer"
+
 import {SecretKind, type ProviderConnection} from "@agenta/entities/secret"
 
 let host: HTMLDivElement

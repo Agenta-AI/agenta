@@ -1,3 +1,5 @@
+import type {ConfigItemRef} from "@agenta/ui/view-stack"
+
 /** The one shape a saved subagent may take. A subagent always runs the target agent's latest
  *  revision, so a legacy pin (`version`, `environment`) or a forbidden `variant_id` is dropped
  *  on every write rather than left where no surface can show or clear it. `name` goes with them:
@@ -15,4 +17,50 @@ export function normalizeSubagentReference(tool: Record<string, unknown>): Recor
         ...rest
     } = tool
     return {type: "reference", ref_by: "variant", ...rest}
+}
+
+/**
+ * The key the change-set engine gives a subagent entry of `tools`: its `name`, else its `slug`.
+ * A view addresses the subagent by it, so it and a builder operation name the same entry.
+ */
+export function subagentItemKey(tool: unknown): string | undefined {
+    if (!tool || typeof tool !== "object") return undefined
+    const entry = tool as Record<string, unknown>
+    if (entry.type !== "reference") return undefined
+    if (typeof entry.name === "string" && entry.name) return entry.name
+    return typeof entry.slug === "string" && entry.slug ? entry.slug : undefined
+}
+
+/** The address of a subagent in the agent's `tools`, or null for an entry with no key. */
+export function subagentItemRef(tool: unknown): ConfigItemRef | null {
+    const key = subagentItemKey(tool)
+    return key ? {list: "tools", key} : null
+}
+
+/** The index of the subagent `ref` names in the tools as they are now, or -1. */
+export function findSubagentIndex(tools: unknown[], ref: ConfigItemRef): number {
+    if (ref.list !== "tools") return -1
+    return tools.findIndex((tool) => subagentItemKey(tool) === ref.key)
+}
+
+/** The tools without the subagent `ref` names; unchanged when it is gone already. */
+export function removeSubagentByRef(tools: unknown[], ref: ConfigItemRef): unknown[] {
+    const index = findSubagentIndex(tools, ref)
+    return index < 0 ? tools : tools.filter((_, i) => i !== index)
+}
+
+/** The tools with the description of the subagent `ref` names set; unchanged when it is gone. */
+export function setSubagentDescription(
+    tools: unknown[],
+    ref: ConfigItemRef,
+    description: string,
+): unknown[] {
+    const index = findSubagentIndex(tools, ref)
+    if (index < 0) return tools
+    const next = [...tools]
+    next[index] = normalizeSubagentReference({
+        ...(tools[index] as Record<string, unknown>),
+        description,
+    })
+    return next
 }

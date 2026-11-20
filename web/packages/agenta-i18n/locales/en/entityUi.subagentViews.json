@@ -1,0 +1,7 @@
+{
+    "added": "Added",
+    "configLoadError": "Couldn't load this agent's configuration.",
+    "tryAgain": "Try again",
+    "removedState": "This subagent is no longer in the agent.",
+    "agentStays": "The agent stays in the project."
+}

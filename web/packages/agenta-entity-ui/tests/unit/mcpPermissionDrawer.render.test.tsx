@@ -27,14 +27,15 @@ vi.mock("jotai", async (importOriginal) => ({
     useAtomValue: () => "project-1",
 }))
 
+import {buildMcpAgentItem} from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
 import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
+
 import {
     getMcpConnectionStatus,
     McpProtocolError,
     readMcpPolicy,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
-import {buildMcpAgentItem} from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
 
 /** The nine tools the spec's own data block supplies, read-only group then write group. */
 const LINEAR_TOOLS = [

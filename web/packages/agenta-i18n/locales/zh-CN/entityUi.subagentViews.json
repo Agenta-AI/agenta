@@ -1,0 +1,7 @@
+{
+    "added": "已添加",
+    "configLoadError": "无法加载此 Agent 的配置。",
+    "tryAgain": "重试",
+    "removedState": "此子 Agent 已不在 Agent 中。",
+    "agentStays": "该 Agent 仍保留在项目中。"
+}

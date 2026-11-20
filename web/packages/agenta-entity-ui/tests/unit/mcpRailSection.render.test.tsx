@@ -9,6 +9,11 @@
  */
 import {act, createElement} from "react"
 
+import {
+    readMcpConnectionSlug,
+    RESERVED_TOOL_PREFIX,
+    type MCPEndpoint,
+} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -20,12 +25,6 @@ import {
     mcpItemNeedsRepair,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
 import {needsSetupStatus} from "../../src/DrillInView/SchemaControls/agentTemplate/needsSetup"
-
-import {
-    readMcpConnectionSlug,
-    RESERVED_TOOL_PREFIX,
-    type MCPEndpoint,
-} from "@agenta/entities/mcpEndpoint"
 
 /** A saved agent item pointing at a project connection. */
 const item = (name: string, slug: string) => ({

@@ -1,19 +1,18 @@
-/** Pick the agents this agent can call. Presentational: every agent arrives as a prop. */
-import {useEffect, useMemo, useState} from "react"
+/** "Add subagents" (F03 f1): pick the agents this agent can call. Presentational: every agent
+ *  arrives as a prop, and the view that mounts it gives the chrome and "Done". */
+import {useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import addSubagentCatalog from "@agenta/i18n/catalogs/entityUi.addSubagent"
+import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
 import {LogoMarks} from "@agenta/ui/components/presentational"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, SkeletonBlock} from "@agenta/ui/ui"
-import {Check, Robot, Warning} from "@phosphor-icons/react"
+import {Plus, Robot} from "@phosphor-icons/react"
 
 import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
-
-import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 
 /** One connected app on an agent. */
 export interface SubagentIntegration {
@@ -40,16 +39,14 @@ export interface SubagentOption {
     added?: boolean
 }
 
-export interface AddSubagentDrawerProps {
-    open: boolean
-    onClose: () => void
+export interface AddSubagentListProps {
     /** Every agent in the project, minus the one being edited. */
     options: SubagentOption[]
     loading?: boolean
     /** How many agents could not be loaded, so the list can say so instead of hiding them. */
     failedCount?: number
     onRetry?: () => void
-    /** One write per author action. May be async; the drawer disables its actions until it settles. */
+    /** One write per author action. May be async; the list disables its actions until it settles. */
     onAdd: (options: SubagentOption[]) => void | Promise<void>
     onRemove: (options: SubagentOption[]) => void | Promise<void>
 }
@@ -81,7 +78,7 @@ function SubagentTile({icon}: {icon?: AgentIconSelection | null}) {
 }
 
 /** One row toggles its agent: click adds it, click again removes it. Added rows carry the home
- *  list's tint and check. */
+ *  list's tint and say "Added". */
 function SubagentRow({
     option,
     busy,
@@ -93,7 +90,7 @@ function SubagentRow({
     onAdd: () => void
     onRemove: () => void
 }) {
-    const t = useT(addSubagentCatalog)
+    const t = useT(addSubagentCatalog, subagentViewsCatalog)
     const integrations = option.integrations ?? []
     return (
         <button
@@ -129,11 +126,11 @@ function SubagentRow({
                 </span>
             ) : null}
             {option.added ? (
-                <Check aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
-            ) : (
                 <span className="ml-2 shrink-0 text-[13px] text-muted-foreground">
-                    {t("entityUi.addSubagent.add")}
+                    {t("entityUi.subagentViews.added")}
                 </span>
+            ) : (
+                <Plus aria-hidden size={14} className="ml-2 shrink-0 text-muted-foreground" />
             )}
         </button>
     )
@@ -159,16 +156,14 @@ const SKELETON_WIDTHS: [string, string][] = [
     ["w-44", "w-3/5"],
 ]
 
-export function AddSubagentDrawer({
-    open,
-    onClose,
+export function AddSubagentList({
     options,
     loading,
     failedCount = 0,
     onRetry,
     onAdd,
     onRemove,
-}: AddSubagentDrawerProps) {
+}: AddSubagentListProps) {
     const t = useT(addSubagentCatalog)
     const [search, setSearch] = useState("")
     // One write in flight at a time: two overlapping ones both start from the same array.
@@ -183,11 +178,6 @@ export function AddSubagentDrawer({
         }
     }
 
-    // Reset on the `open` transition: `destroyOnClose` unmounts the body, not this component.
-    useEffect(() => {
-        if (!open) setSearch("")
-    }, [open])
-
     const visible = useMemo(() => {
         const q = search.trim().toLowerCase()
         if (!q) return options
@@ -197,71 +187,24 @@ export function AddSubagentDrawer({
         )
     }, [options, search])
 
-    const handleClose = () => {
-        setSearch("")
-        onClose()
-    }
-
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
-            open={open}
-            onClose={handleClose}
-            placement="right"
-            width={INTEGRATION_DRAWER_WIDTH}
-            destroyOnClose
-            title={
-                <div className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 text-sm font-medium">
-                        {t("entityUi.addSubagent.addSubagents")}
-                    </span>
-                    <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        {t("entityUi.addSubagent.pickAgents")}
-                    </span>
-                </div>
-            }
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
-            }}
-            // Each row adds itself, so the only thing left for the footer is to close.
-            footer={
-                <div className="flex items-center justify-end">
-                    <Button variant="default" onClick={handleClose}>
-                        {t("entityUi.addSubagent.done")}
-                    </Button>
-                </div>
-            }
-        >
-            {/* The Agents page's search bar, so the drawer and the page it mirrors match. */}
+        <div className="flex min-h-0 flex-1 flex-col">
+            {/* The Agents page's search bar, so this list and the page it mirrors match. */}
             <ListTableToolbar
-                className="mb-0 shrink-0 px-4 pt-4 [&>[data-slot=input-group]]:max-w-none"
+                className="mb-0 shrink-0 px-4 pt-3 [&>[data-slot=input-group]]:max-w-none"
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder={t("entityUi.addSubagent.searchAgents")}
             />
 
             <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 p-2">
-                {failedCount > 0 ? (
-                    <div className="mx-1.5 flex items-center gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
-                        <Warning size={14} className="shrink-0" />
-                        <span className="min-w-0 flex-1">
-                            {t("entityUi.addSubagent.agentsNotLoaded", {count: failedCount})}
-                        </span>
-                        {onRetry ? (
-                            <Button variant="outline" size="sm" onClick={onRetry}>
-                                {t("entityUi.addSubagent.retry")}
-                            </Button>
-                        ) : null}
-                    </div>
-                ) : null}
-
                 {loading ? (
                     <div className="flex flex-col gap-0.5">
                         {SKELETON_WIDTHS.map((widths, index) => (
                             <RowSkeleton key={index} widths={widths} />
                         ))}
                     </div>
-                ) : visible.length === 0 ? (
+                ) : visible.length === 0 && failedCount === 0 ? (
                     <EmptyState
                         title={
                             search.trim()
@@ -287,7 +230,24 @@ export function AddSubagentDrawer({
                         ))}
                     </div>
                 )}
+
+                {/* One line at the end of the list: the agents that are listed still work. */}
+                {!loading && failedCount > 0 ? (
+                    <div
+                        role="status"
+                        className="mx-1.5 flex items-center gap-2 px-2 text-xs text-muted-foreground"
+                    >
+                        <span className="min-w-0 flex-1">
+                            {t("entityUi.addSubagent.agentsNotLoaded", {count: failedCount})}
+                        </span>
+                        {onRetry ? (
+                            <Button variant="outline" size="sm" onClick={onRetry}>
+                                {t("entityUi.addSubagent.retry")}
+                            </Button>
+                        ) : null}
+                    </div>
+                ) : null}
             </ScrollFadeArea>
-        </EnhancedDrawer>
+        </div>
     )
 }
