@@ -19,7 +19,7 @@ interface NoticeCopy {
 }
 
 interface NoticeRow {
-    copy: (alert: ShownAlert, canBuy: CanBuy, canSwitchModel: boolean) => NoticeCopy
+    copy: (alert: ShownAlert, canBuy: CanBuy) => NoticeCopy
     main: CreditAlertAction | null
     secondary: CreditAlertAction | null
 }
@@ -30,15 +30,10 @@ const ACTION_LABELS: Record<CreditAlertAction, string> = {
     buy: "Buy credits",
 }
 
-/** `aboutSwitch`: the extra line asks for "Switch model", so it is dropped where that is not offered. */
-const lowCopy =
-    (detail: string, aboutSwitch = false) =>
-    (alert: ShownAlert, _canBuy: CanBuy, canSwitchModel: boolean) => ({
-        title: "Running low on credits",
-        detail: `${alert.kind === "low" ? formatCredits(alert.remainingMusd) : "0"} credits left${
-            aboutSwitch && !canSwitchModel ? "." : detail
-        }`,
-    })
+const lowCopy = (detail: string) => (alert: ShownAlert) => ({
+    title: "Running low on credits",
+    detail: `${alert.kind === "low" ? formatCredits(alert.remainingMusd) : "0"} credits left${detail}`,
+})
 
 const emptyCopy = (_: ShownAlert, canBuy: CanBuy) => ({
     title: "Out of credits",
@@ -64,7 +59,7 @@ const dailyCopy = (alert: ShownAlert) => {
 const ROWS: Record<ShownAlert["kind"], Record<CreditFunding, NoticeRow>> = {
     low: {
         "credits-with-own-key": {
-            copy: lowCopy(". Switch to your own model key to save credits.", true),
+            copy: lowCopy(". Switch to your own model key to save credits."),
             main: "switch-model",
             secondary: "buy",
         },
@@ -102,25 +97,20 @@ export const CreditAlertNotice = ({
     alert,
     funding,
     canBuy,
-    canSwitchModel = true,
     onAction,
     onDismiss,
 }: {
     alert: ShownAlert
     funding: CreditFunding
     canBuy: CanBuy
-    /** False where the agent's model is not the person's to change: no "Switch model" part. */
-    canSwitchModel?: boolean
     onAction: (action: CreditAlertAction) => void
     onDismiss: () => void
 }) => {
     const row = ROWS[alert.kind][funding]
     const tone = TONES[alert.kind]
-    const {title, detail} = row.copy(alert, canBuy, canSwitchModel)
+    const {title, detail} = row.copy(alert, canBuy)
     const available = (action: CreditAlertAction | null) =>
-        (action === "buy" && canBuy !== true) || (action === "switch-model" && !canSwitchModel)
-            ? null
-            : action
+        action === "buy" && canBuy !== true ? null : action
     const main = available(row.main)
     const secondary = available(row.secondary)
 

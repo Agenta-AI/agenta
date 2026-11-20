@@ -124,12 +124,11 @@ describe("durable response state", () => {
             />,
         )
 
-        expect(markup).toContain("Answered, waiting for the agent")
-        expect(markup).toContain("The answer is saved")
-        // HeightCollapse keeps its child mounted for the leave animation, but removes it from
-        // layout, accessibility, and interaction while the answered state is visible.
-        expect(markup).toContain('aria-hidden="true" inert=""')
-        expect(markup).toContain('disabled=""')
+        // The card shrinks to its result row (task 26.1): no buttons while the result comes.
+        expect(markup).toContain("Waiting for the agent")
+        expect(markup).toContain("Your answer is saved.")
+        expect(markup).not.toContain("Approve")
+        expect(markup).not.toContain("Deny")
     })
 
     it("keeps a failed answer pending and surfaces the retryable error", () => {
@@ -485,7 +484,21 @@ describe("the read-only card (a person who can view but not send)", () => {
     it("keeps the eyebrow and shows who it waits for", () => {
         const html = renderReadOnly()
         expect(html).toContain("Needs your approval")
+        expect(html).toContain("Only the owner can approve")
         expect(html).toContain("Waiting for Alice Martin or someone who can send in this chat.")
+    })
+
+    it("says the reader can read the chat when the host names nobody", () => {
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                readOnly
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("Only the owner can approve")
+        expect(html).toContain("You can read this chat.")
     })
 })
 
@@ -631,5 +644,96 @@ describe("the change card of a builder edit (task 8.2)", () => {
         expect(html).toContain('data-testid="change-risk"')
         expect(html).toContain("The agent will use Close ticket without asking you.")
         expect(html).toContain("!border-colorWarningBorder")
+    })
+})
+
+describe("the grouped card of several change calls (task 26.2)", () => {
+    const call = (id: string, value: string) => ({
+        approvalId: id,
+        toolName: "edit_agent_config",
+        input: {
+            agent: "Support triage",
+            base_revision_id: "rev-4",
+            operations: [
+                {
+                    operation: "set",
+                    target: ["parameters", "agent", "llm", "model"],
+                    value,
+                },
+            ],
+        },
+        changePreview: {
+            applies: true,
+            base: {id: "rev-4", version: "4"},
+            operations: [{index: 0, applies: true}],
+            changes: [
+                {
+                    path: ["parameters", "agent", "llm", "model"],
+                    operation_indexes: [0],
+                    kind: "changed",
+                    old: "claude-sonnet-5.5",
+                    new: value,
+                },
+            ],
+        },
+    })
+    const render = (onDenyAll?: () => void) =>
+        renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[call("a1", "claude-opus-5.5"), call("a2", "gpt-6")]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+                onDenyAll={onDenyAll}
+            />,
+        )
+
+    it("shows one group per call, each saved as its own version", () => {
+        const html = render(() => undefined)
+        expect(html).toContain("2 changes to Support triage")
+        expect(html.match(/Saved together as v5/g)?.length).toBe(2)
+        expect(html.match(/data-testid="change-block-row"/g)?.length).toBe(2)
+        expect(html).toContain("claude-sonnet-5.5 to claude-opus-5.5")
+        expect(html).toContain("Open a row to see its details")
+        expect(html).toContain("Deny all")
+        expect(html).toContain("Approve all")
+        // No list of actions behind a toggle: the groups are the details.
+        expect(html).not.toContain("See what runs")
+    })
+
+    it("shows the conflict state of a group before a click", () => {
+        versions.latest = 5
+        expect(render()).toContain('data-testid="change-conflict"')
+    })
+
+    it("names the agent of each group when the calls change several agents", () => {
+        const other = call("a2", "gpt-6")
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    call("a1", "claude-opus-5.5"),
+                    {...other, input: {...other.input, agent: "Refund checker"}},
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("2 changes")
+        expect(html).toContain(">Support triage<")
+        expect(html).toContain(">Refund checker<")
+    })
+
+    it("keeps the list of actions for a batch with another tool", () => {
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    call("a1", "claude-opus-5.5"),
+                    {approvalId: "a2", toolName: "bash", input: {command: "ls"}},
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("See what runs (2)")
+        expect(html).not.toContain("Saved together")
     })
 })

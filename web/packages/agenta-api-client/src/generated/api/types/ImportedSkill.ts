@@ -3,5 +3,7 @@
 export interface ImportedSkill {
     path_in_repo: string;
     workflow_id?: (string | null) | undefined;
+    workflow_slug?: (string | null) | undefined;
     name?: (string | null) | undefined;
+    description?: (string | null) | undefined;
 }

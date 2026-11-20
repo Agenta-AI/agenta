@@ -208,7 +208,7 @@ describe("new skill", () => {
         expect(entries.map((e) => e.name)).toEqual(["alpha", "beta"])
     })
 
-    it("a repo import adds the imported skills to the agent and says which it could not add", async () => {
+    it("a repo import adds the imported skills to the agent by the slugs the import names", async () => {
         scanSkillSource.mockResolvedValue({
             already_imported_paths: ["skills/old"],
             scan: {
@@ -221,23 +221,22 @@ describe("new skill", () => {
         })
         importSkillSource.mockResolvedValue({
             imported: [
-                {path_in_repo: "skills/pdf", workflow_id: "wf-pdf", name: "pdf-reader"},
-                {path_in_repo: "skills/ref", workflow_id: "wf-ref", name: "refund-check"},
+                {
+                    path_in_repo: "skills/pdf",
+                    workflow_id: "wf-pdf",
+                    workflow_slug: "pdf-reader-2b9e",
+                    name: "pdf-reader",
+                    description: "Reads PDF files.",
+                },
+                {
+                    path_in_repo: "skills/ref",
+                    workflow_id: "wf-ref",
+                    workflow_slug: "refund-check-7c1d",
+                    name: "refund-check",
+                },
             ],
             skipped: [],
         })
-        // The registry lists only one of the two; the name search finds none.
-        querySkills.mockImplementation(async ({search}: {search?: string}) => ({
-            skills: search
-                ? []
-                : [
-                      {
-                          workflow_id: "wf-pdf",
-                          workflow_slug: "pdf-reader-2b9e",
-                          skill_name: "pdf-reader",
-                      },
-                  ],
-        }))
         await open({step: "import"})
         const input = document.querySelector("input") as HTMLInputElement
         await act(async () => {
@@ -251,18 +250,14 @@ describe("new skill", () => {
         await click(byText("Import 2 skills"))
         await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1))
         const [entries] = onCreated.mock.calls[0] as [Record<string, unknown>[]]
+        expect(entries).toHaveLength(2)
         expect(JSON.stringify(entries)).toContain("pdf-reader-2b9e")
-        expect(entries).toHaveLength(1)
-        await waitFor(() =>
-            expect(
-                byText(
-                    "Imported to the skill registry, but not added to this agent: Refund Check.",
-                ),
-            ).toBeTruthy(),
-        )
+        expect(JSON.stringify(entries)).toContain("refund-check-7c1d")
+        // The import answer is enough: no registry lookup after it.
+        expect(querySkills).not.toHaveBeenCalled()
     })
 
-    it("a failed lookup keeps the import, names the skills not added and marks them imported", async () => {
+    it("an imported skill the answer gives no slug for is named as not added", async () => {
         scanSkillSource.mockResolvedValue({
             already_imported_paths: [],
             scan: {
@@ -275,7 +270,6 @@ describe("new skill", () => {
             imported: [{path_in_repo: "skills/pdf", workflow_id: "wf-pdf", name: "pdf-reader"}],
             skipped: [],
         })
-        querySkills.mockRejectedValue(new Error("network"))
         await open({step: "import"})
         const input = document.querySelector("input") as HTMLInputElement
         await act(async () => {

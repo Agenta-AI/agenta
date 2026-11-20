@@ -326,7 +326,11 @@ def _request_input_revision() -> WorkflowRevision:
                                 "description": "What you need and why, in one or two sentences shown above the form.",
                             },
                             "requestedSchema": {
-                                "type": "object",
+                                # Some models send the object as a JSON string. The harness
+                                # checks this schema before the call reaches the chat, so it
+                                # admits a string; the chat parses it and refuses a string that
+                                # is not a JSON object.
+                                "type": ["object", "string"],
                                 "description": "Flat JSON Schema (type 'object', primitive top-level properties only) describing the fields to collect.",
                             },
                         },

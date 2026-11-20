@@ -115,7 +115,7 @@ const linesOf = (text: string | undefined, type: DiffRow["type"]): DiffRow[] =>
     text === undefined ? [] : text.split("\n").map((content) => ({type, content}))
 
 /** The rows of a text detail: all of them, and the short form the card shows first. */
-const diffRows = (
+export const diffRows = (
     detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>,
 ): {full: DiffRow[]; short: DiffRow[]} => {
     if (detail.diff) {
@@ -356,7 +356,7 @@ export const RiskLine = ({children}: {children: ReactNode}) => (
     </div>
 )
 
-const Block = ({
+export const Block = ({
     block,
     small,
     pathPrefix,

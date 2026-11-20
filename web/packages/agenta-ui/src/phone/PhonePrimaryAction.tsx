@@ -4,6 +4,8 @@ import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
 import {cn} from "../utils/styles"
 
+import {PHONE_BUTTON_CLASS} from "./phoneButton"
+
 export interface PhonePrimaryActionProps {
     /** The label ("Add integration"). */
     children: ReactNode
@@ -38,7 +40,7 @@ export const PhonePrimaryAction = ({
         )}
     >
         <Button
-            className="h-11 w-full gap-2 rounded-[10px] text-[15px]"
+            className={PHONE_BUTTON_CLASS}
             disabled={disabled || loading}
             aria-busy={loading || undefined}
             onClick={onClick}

@@ -78,7 +78,9 @@ class SourceScanResult(BaseModel):
 class ImportedSkill(BaseModel):
     path_in_repo: str
     workflow_id: Optional[str] = None
+    workflow_slug: Optional[str] = None
     name: Optional[str] = None
+    description: Optional[str] = None
 
 
 class SkippedSkill(BaseModel):
@@ -371,7 +373,9 @@ class SkillImportService:
                 ImportedSkill(
                     path_in_repo=candidate.path_in_repo,
                     workflow_id=str(created.id),
+                    workflow_slug=created.slug,
                     name=skill.name,
+                    description=skill.description,
                 )
             )
 

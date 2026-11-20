@@ -7,6 +7,10 @@
  * one exception: its changes show in place, with the old and new values of the server preview.
  * Hosts adapt transport only: how a response actually fires arrives as callbacks. There is no
  * `body` slot and no mode flag.
+ *
+ * Several change calls of one turn share one grouped card (`ChangeCallGroups`). After the answer the
+ * card shrinks to the row "Waiting for the agent"; a reader who cannot answer sees the row "Only
+ * the owner can approve" in place of the buttons (`ChangeResultRow`).
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
@@ -15,6 +19,7 @@ import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
 import chatApprovalCardCatalog from "@agenta/i18n/catalogs/chat.approvalCard"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
+import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
@@ -26,7 +31,10 @@ import {useChangeVersions} from "../hooks/useChangeVersions"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 import {describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
+import {changeCallState} from "../model/changeCallState"
 
+import {ChangeCallGroups} from "./ChangeCallGroups"
+import {ChangeResultRow} from "./ChangeResultRow"
 import {ChangeSections, removesOnly, RiskLine} from "./ChangeSections"
 
 export interface ApprovalCardProps {
@@ -92,6 +100,7 @@ export const ApprovalCard = ({
 
     const t = useT(chatApprovalCardCatalog)
     const tChange = useT(chatChangeCardCatalog)
+    const tStates = useT(chatChangeCardStatesCatalog)
     const [detailsOpen, setDetailsOpen] = useState(false)
     // Which detail rows are expanded from their one-line preview to the full text.
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
@@ -163,14 +172,29 @@ export const ApprovalCard = ({
         !batched && (preview?.changes?.length || preview?.cannotApply || preview?.header)
             ? (preview.changes ?? [])
             : null
+    // Several change calls: one grouped card with a group per call. A batch with any other tool
+    // keeps the list of actions behind the toggle.
+    const batchKey = approvals
+        .map((approval) => `${approval.approvalId}:${approval.changePreview !== undefined}`)
+        .join("|")
+    const grouped = useMemo(() => {
+        if (!batched) return null
+        const previews = approvals.map((approval) =>
+            describeApproval(approval, undefined, homeSlug),
+        )
+        return previews.every((one) => one.changes?.length) ? previews : null
+        // Keyed on the ids and the preview arrivals: they are what change a batch's description.
+    }, [batched, batchKey, homeSlug])
     const items = useMemo(
         () =>
-            batched
-                ? describeBatchItems(approvals, homeSlug)
-                : changes
-                  ? []
-                  : (preview?.items ?? []),
-        [batched, approvals, homeSlug, preview, changes],
+            grouped
+                ? []
+                : batched
+                  ? describeBatchItems(approvals, homeSlug)
+                  : changes
+                    ? []
+                    : (preview?.items ?? []),
+        [grouped, batched, approvals, homeSlug, preview, changes],
     )
 
     // "Saves as v{base + 1}", and the conflict state when a newer version landed after the base.
@@ -178,15 +202,19 @@ export const ApprovalCard = ({
     const conflict =
         baseVersion !== undefined && latestVersion !== undefined && latestVersion > baseVersion
 
-    if (!current || !preview) return null
-
     const removes = changes ? removesOnly(changes) : false
-    const risky = Boolean(changes?.some((change) => change.risks.length))
+    const risky = Boolean(
+        (grouped ? grouped.flatMap((one) => one.changes ?? []) : changes)?.some(
+            (change) => change.risks.length,
+        ),
+    )
 
     // A batch answers as a whole, so the grant covers every tool it would approve, not just the
     // first gate's. Ineligible members (a commit op mixed in) simply stay gated.
     const grantableTools = [
-        ...new Set((batched ? approvals : [current]).map((approval) => approval.toolName)),
+        ...new Set(
+            (batched ? approvals : current ? [current] : []).map((approval) => approval.toolName),
+        ),
     ].filter((toolName) => {
         const info = infoFor(toolName)
         return info.eligible && !info.alreadyAllowed
@@ -201,14 +229,14 @@ export const ApprovalCard = ({
     const showKeys = hasKeyboard
 
     const approve = () => {
-        if (responding || readOnly) return
+        if (!current || responding || readOnly || answered) return
         setFiredAction("approve")
         if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }
     const deny = () => {
-        if (responding || readOnly) return
+        if (!current || responding || readOnly || answered) return
         setFiredAction("deny")
         // No always-allow grant on a deny, ever.
         if (batched && onDenyAll) return onDenyAll(approvals.map((a) => a.approvalId))
@@ -221,8 +249,8 @@ export const ApprovalCard = ({
     // has focus, so a note-in-progress can use Escape/Enter for its own editing. `approve`/`deny`
     // already no-op while `responding`, so a double-fire is harmless.
     useEffect(() => {
-        // A read-only card answers nothing, so it binds no keys either.
-        if (readOnly) return
+        // A read-only or answered card answers nothing, so it binds no keys either.
+        if (readOnly || answered) return
         const onKeyDown = (event: KeyboardEvent) => {
             const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
             const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
@@ -253,6 +281,38 @@ export const ApprovalCard = ({
         return () => window.removeEventListener("keydown", onKeyDown)
     })
 
+    // Every hook ran above: a card with no gate renders nothing.
+    if (!current || !preview) return null
+
+    // One state for the card, from the same function as the result rows. A recoverable answer
+    // keeps the full card with the production retry text.
+    const cardState = changeCallState({
+        partState: "approval-requested",
+        answered: answered && !recoverable,
+        readOnly,
+    })
+
+    // Answered: the card shrinks to its result row until the tool result replaces it.
+    if (cardState.kind === "waiting") {
+        return (
+            <div
+                ref={rootRef}
+                className="flex flex-col gap-1 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer py-1"
+            >
+                <ChangeResultRow state={cardState} />
+                {errorText ? (
+                    <p
+                        role="alert"
+                        aria-live="assertive"
+                        className="m-0 px-3 pb-1 text-xs text-colorError"
+                    >
+                        {errorText}
+                    </p>
+                ) : null}
+            </div>
+        )
+    }
+
     return (
         <div
             ref={rootRef}
@@ -262,21 +322,21 @@ export const ApprovalCard = ({
         >
             {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. A change card's
                 header is the change itself, so it shows the eyebrow only once answered. */}
-            {changes && !answered ? null : (
+            {(changes || grouped) && !answered ? null : (
                 <div className="flex items-center gap-1.5">
                     <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
                     <span className="text-xs font-medium text-colorText">
                         {answered
-                            ? recoverable
-                                ? t("chat.approvalCard.answerSavedRetry")
-                                : t("chat.approvalCard.answeredWaiting")
+                            ? t("chat.approvalCard.answerSavedRetry")
                             : t("chat.approvalCard.needsApproval")}
                     </span>
                 </div>
             )}
 
             {/* The whole ask, in one sentence — what happens, and what it costs. */}
-            {changes ? (
+            {grouped ? (
+                <ChangeCallGroups previews={grouped} />
+            ) : changes ? (
                 <ChangeSections
                     changes={changes}
                     proposedValues={preview.proposedValues}
@@ -376,15 +436,23 @@ export const ApprovalCard = ({
 
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
-            {readOnly && readOnlyNote && !answered ? (
-                <p className="m-0 text-xs text-colorTextSecondary">{readOnlyNote}</p>
+            {cardState.kind === "read_only" ? (
+                <ChangeResultRow
+                    state={cardState}
+                    readOnlyNote={readOnlyNote}
+                    className="-mx-1 rounded-md bg-colorFillQuaternary px-2.5 py-2"
+                />
             ) : null}
             {readOnly ? null : (
                 <HeightCollapse className="-mt-1" open={!steerOpen && !answered} fade inert>
                     {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
                     instead of shoving Approve off a narrow screen. */}
                     <div className="flex flex-wrap items-center gap-2">
-                        {changes && baseVersion !== undefined ? (
+                        {grouped ? (
+                            <span className="text-xs text-colorTextSecondary">
+                                {tStates("chat.changeCardStates.openRow")}
+                            </span>
+                        ) : changes && baseVersion !== undefined ? (
                             <span
                                 className="text-xs text-colorTextSecondary"
                                 data-testid="change-saves-as"
@@ -516,9 +584,7 @@ export const ApprovalCard = ({
 
             {answered ? (
                 <p role="status" aria-live="polite" className="m-0 text-xs text-colorTextSecondary">
-                    {recoverable
-                        ? t("chat.approvalCard.answerSavedRetryHint")
-                        : t("chat.approvalCard.answerSavedWaiting")}
+                    {t("chat.approvalCard.answerSavedRetryHint")}
                 </p>
             ) : null}
             {errorText ? (
