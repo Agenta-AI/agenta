@@ -63,6 +63,13 @@ const newBuilderSessionId = () => {
     return id
 }
 
+/** The agents one chat's messages name. */
+interface ChatFacts {
+    sessionId: string
+    result: PaneAgent | null
+    context: PaneAgent | null
+}
+
 const sameAgent = (a: PaneAgent | null, b: PaneAgent | null) =>
     a?.id === b?.id && a?.name === b?.name
 
@@ -104,20 +111,25 @@ export const BuilderPage = ({
         }
     }, [routeChatId])
 
-    // What the pane reads of the chat: set only when it changes, so a streamed chunk renders
-    // nothing here.
-    const [resultAgent, setResultAgent] = useState<PaneAgent | null>(null)
-    const [contextAgent, setContextAgent] = useState<PaneAgent | null>(null)
-    useEffect(() => {
-        setResultAgent(null)
-        setContextAgent(null)
-    }, [sessionId])
-    const onMessages = useCallback((messages: UIMessage[]) => {
-        const result = latestResultAgent(messages)
-        const context = latestContextAgent(messages)
-        setResultAgent((held) => (sameAgent(held, result) ? held : result))
-        setContextAgent((held) => (sameAgent(held, context) ? held : context))
-    }, [])
+    // What the pane reads of the chat, per chat: set only when it changes, so a streamed chunk
+    // renders nothing here.
+    const [facts, setFacts] = useState<ChatFacts | null>(null)
+    const onMessages = useCallback(
+        (messages: UIMessage[]) => {
+            const result = latestResultAgent(messages)
+            const context = latestContextAgent(messages)
+            setFacts((held) =>
+                held?.sessionId === sessionId &&
+                sameAgent(held.result, result) &&
+                sameAgent(held.context, context)
+                    ? held
+                    : {sessionId, result, context},
+            )
+        },
+        [sessionId],
+    )
+    const resultAgent = facts?.sessionId === sessionId ? facts.result : null
+    const contextAgent = facts?.sessionId === sessionId ? facts.context : null
     const linkedAgent = useMemo(
         () => (userId ? linkedAgentId(userId, projectId, sessionId) : null),
         [projectId, sessionId, userId],
@@ -173,6 +185,8 @@ export const BuilderPage = ({
         })
 
     const [builderSidebar, setBuilderSidebar] = useState(true)
+    // Another chat, or "Builder" in the main sidebar: the builder sidebar shows again.
+    useEffect(() => setBuilderSidebar(true), [sessionId])
     const scope = useMemo(
         () =>
             createBuilderSidebarScope(workspaceId, projectId, () => {

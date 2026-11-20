@@ -40,7 +40,7 @@ const userWithContext = (id: string, agent: {id: string; name: string}, words: s
     ({
         id,
         role: "user",
-        parts: [{type: "text", text: withContextLine({agent}, words)}],
+        parts: [{type: "text", text: withContextLine({agent, has_unsaved_draft: false}, words)}],
         metadata: {display_content: words},
     }) as UIMessage
 
