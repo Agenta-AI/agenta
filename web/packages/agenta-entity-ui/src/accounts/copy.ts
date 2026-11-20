@@ -21,7 +21,6 @@ export const ACCOUNT_COPY = {
     get label() {
         return t("entityUi.accounts.label")
     },
-    eachPersonDefault: (name: string) => t("entityUi.accounts.eachPersonDefault", {name}),
     get eachPersonSignIn() {
         return t("entityUi.accounts.eachPersonSignIn")
     },
@@ -29,16 +28,9 @@ export const ACCOUNT_COPY = {
         return t("entityUi.accounts.projectSignIn")
     },
     whenYouRun: (account: string) => t("entityUi.accounts.whenYouRun", {account}),
-    get yourDefault() {
-        return t("entityUi.accounts.yourDefault")
-    },
     get change() {
         return t("entityUi.accounts.change")
     },
-    get makeDefault() {
-        return t("entityUi.accounts.makeDefault")
-    },
-    connectAnother: (name: string) => t("entityUi.accounts.connectAnother", {name}),
     get signedInAsYou() {
         return t("entityUi.accounts.signedInAsYou")
     },
@@ -46,10 +38,6 @@ export const ACCOUNT_COPY = {
         return t("entityUi.accounts.signOut")
     },
     // Drafts.
-    noAccountYet: (name: string) => t("entityUi.accounts.noAccountYet", {name}),
-    get connectOne() {
-        return t("entityUi.accounts.connectOne")
-    },
     get noneChosen() {
         return t("entityUi.accounts.noneChosen")
     },
@@ -71,14 +59,8 @@ export const ACCOUNT_COPY = {
     get saveToken() {
         return t("entityUi.accounts.saveToken")
     },
-    get defaultMark() {
-        return t("entityUi.accounts.defaultMark")
-    },
     get choiceFailed() {
         return t("entityUi.accounts.choiceFailed")
-    },
-    get defaultFailed() {
-        return t("entityUi.accounts.defaultFailed")
     },
     // "Attach a secret" (drafts).
     get eachPersonSecret() {

@@ -1,0 +1,5 @@
+{
+    "cannotApply": "此更改无法应用到 Agent 的当前版本。",
+    "proposedValues": "建议的值。无法加载当前值。",
+    "savedAs": "已保存为 v{{version}}"
+}

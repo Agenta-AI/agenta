@@ -9,7 +9,15 @@ import {
 } from "react"
 
 import {ViewEntryContext, ViewStackContext, type ViewEntryApi} from "./context"
-import type {ViewChromeProps, ViewDef, ViewForm, ViewNav, ViewStack, ViewTarget} from "./types"
+import type {
+    ViewChromeProps,
+    ViewDef,
+    ViewForm,
+    ViewNav,
+    ViewSaveResult,
+    ViewStack,
+    ViewTarget,
+} from "./types"
 import {UnsavedChangesDialog, type LeaveAnswer} from "./UnsavedChangesDialog"
 
 interface Entry {
@@ -73,9 +81,12 @@ export const ViewStackHost = ({
     entriesRef.current = entries
     const formsRef = useRef(forms)
     formsRef.current = forms
-    const savingRef = useRef<Promise<boolean> | null>(null)
+    const savingRef = useRef<Promise<ViewSaveResult> | null>(null)
     // One guarded navigation at a time, from its first wait to its stack update.
     const navigatingRef = useRef(false)
+    // A view that left by itself (`nav.cancel()`) while a save ran or the dialog asked: it leaves
+    // once that ends, if it is still on top.
+    const deferredCancelRef = useRef<number | null>(null)
     const hostRef = useRef<HTMLDivElement>(null)
 
     /** Navigation waits for a save in flight to resolve. */
@@ -85,10 +96,11 @@ export const ViewStackHost = ({
 
     /**
      * One save at a time; a second call while one runs is ignored (resolves false). A failure
-     * from the Save button marks the view; the dialog shows its own failures.
+     * from the Save button marks the view; the dialog shows its own failures. "stay" is a step
+     * that worked: no failure, and the view stays.
      */
     const runSave = useCallback(
-        async (entryKey: number, markFailure: boolean): Promise<boolean> => {
+        async (entryKey: number, markFailure: boolean): Promise<ViewSaveResult> => {
             const form = formsRef.current[entryKey]
             if (!form || savingRef.current) return false
             const run = (async () => {
@@ -101,11 +113,11 @@ export const ViewStackHost = ({
             savingRef.current = run
             setSaving(true)
             setFailedKey(null)
-            const ok = await run
+            const result = await run
             savingRef.current = null
             setSaving(false)
-            if (!ok && markFailure) setFailedKey(entryKey)
-            return ok
+            if (result === false && markFailure) setFailedKey(entryKey)
+            return result
         },
         [],
     )
@@ -143,14 +155,17 @@ export const ViewStackHost = ({
                 const answer = await ask(form, saveFailed)
                 if (answer === "keep") return false
                 if (answer === "discard") return "discarded"
-                if (await runSave(dirty.key, false)) return "saved"
+                const result = await runSave(dirty.key, false)
+                if (result === true) return "saved"
+                // A step of the form worked: the person stays on it, as with "Keep editing".
+                if (result === "stay") return false
                 saveFailed = true
             }
         },
         [ask, runSave],
     )
 
-    /** Replace the stack. Forms and titles of views that leave go with them. */
+    /** Set the whole stack. Forms and titles of views that leave go with them. */
     const setStack = useCallback((next: Entry[]) => {
         const kept = new Set(next.map((entry) => entry.key))
         const keep = <T,>(prev: Record<number, T>) => {
@@ -167,6 +182,14 @@ export const ViewStackHost = ({
         setFailedKey(null)
     }, [])
 
+    /** Run a cancel that arrived while a save ran or the dialog asked, if its view is still on top. */
+    const flushDeferredCancel = useCallback(() => {
+        const key = deferredCancelRef.current
+        deferredCancelRef.current = null
+        const current = entriesRef.current
+        if (key !== null && current.at(-1)?.key === key) setStack(current.slice(0, -1))
+    }, [setStack])
+
     /**
      * Runs one guarded navigation. Another one asked for meanwhile (a second click while the
      * dialog asks or a save runs) is dropped and resolves false.
@@ -180,9 +203,10 @@ export const ViewStackHost = ({
                 return await action()
             } finally {
                 navigatingRef.current = false
+                flushDeferredCancel()
             }
         },
-        [waitForSave],
+        [waitForSave, flushDeferredCancel],
     )
 
     const open = useCallback(
@@ -223,38 +247,73 @@ export const ViewStackHost = ({
     }, [exclusive, settle, setStack])
 
     const cancel = useCallback(() => {
-        if (savingRef.current || navigatingRef.current) return
+        if (savingRef.current || navigatingRef.current) {
+            deferredCancelRef.current = entriesRef.current.at(-1)?.key ?? null
+            return
+        }
         setStack(entriesRef.current.slice(0, -1))
     }, [setStack])
+
+    /**
+     * One editable form at a time: a child with its own form needs a clean parent. A picker
+     * ("immediate") opens over the dirty parent, which keeps its edits. After Save or Discard the
+     * parent mounts again, so no stale dirty form stays under the child. False: kept editing.
+     */
+    const parentForChild = useCallback(
+        async (parent: Entry, child: ViewDef<unknown>): Promise<Entry | false> => {
+            if (child.apply !== "on_save") return parent
+            const settled = await settle([parent])
+            if (!settled) return false
+            return settled === "clean" ? parent : remount(parent)
+        },
+        [settle],
+    )
 
     const push = useCallback(
         <C,>(parentKey: number, view: ViewDef<C>, params: C, target: ViewTarget) =>
             exclusive(async () => {
                 const current = entriesRef.current
                 if (current.length !== 1 || current[0].key !== parentKey) return false
-                let parent = current[0]
-                // One editable form at a time: a child with its own form needs a clean parent.
-                // A picker ("immediate") opens over the dirty parent, which keeps its edits.
-                // After Save or Discard the parent mounts again, so no stale dirty form stays
-                // under the child.
-                if (view.apply === "on_save") {
-                    const settled = await settle([parent])
-                    if (!settled) return false
-                    if (settled !== "clean") parent = remount(parent)
-                }
+                const parent = await parentForChild(current[0], view as ViewDef<unknown>)
+                if (!parent) return false
                 setStack([parent, newEntry(view as ViewDef<unknown>, params, target)])
                 return true
             }),
-        [exclusive, settle, setStack],
+        [exclusive, parentForChild, setStack],
+    )
+
+    /**
+     * The view `entryKey` gives its place to a new view at the same depth. Its own form asks
+     * first; at depth 2 a new view with a form also needs a clean parent, as `push` does.
+     */
+    const replace = useCallback(
+        <C,>(entryKey: number, view: ViewDef<C>, params: C, target: ViewTarget) =>
+            exclusive(async () => {
+                const current = entriesRef.current
+                if (current.at(-1)?.key !== entryKey) return false
+                if (!(await settle(current.slice(-1)))) return false
+                const parents: Entry[] = []
+                if (current.length === 2) {
+                    const parent = await parentForChild(current[0], view as ViewDef<unknown>)
+                    if (!parent) return false
+                    parents.push(parent)
+                }
+                setStack([...parents, newEntry(view as ViewDef<unknown>, params, target)])
+                return true
+            }),
+        [exclusive, settle, parentForChild, setStack],
     )
 
     const save = useCallback(async () => {
         const top = entriesRef.current.at(-1)
         if (!top || navigatingRef.current) return
-        if (await runSave(top.key, true)) {
+        if ((await runSave(top.key, true)) === true) {
+            deferredCancelRef.current = null
             setStack(entriesRef.current.filter((entry) => entry.key !== top.key))
+            return
         }
-    }, [runSave, setStack])
+        flushDeferredCancel()
+    }, [runSave, setStack, flushDeferredCancel])
 
     const dirty = saving || Object.values(forms).some((form) => form.dirty)
     const depth = entries.length as 0 | 1 | 2
@@ -317,6 +376,7 @@ export const ViewStackHost = ({
                                 setForms={setForms}
                                 setTitles={setTitles}
                                 push={push}
+                                replace={replace}
                                 back={back}
                                 cancel={cancel}
                             />
@@ -343,6 +403,7 @@ const MountedView = ({
     setForms,
     setTitles,
     push,
+    replace,
     back,
     cancel,
 }: {
@@ -354,6 +415,12 @@ const MountedView = ({
     setTitles: (update: (prev: Record<number, string>) => Record<number, string>) => void
     push: <C>(
         parentKey: number,
+        view: ViewDef<C>,
+        params: C,
+        target: ViewTarget,
+    ) => Promise<boolean>
+    replace: <C>(
+        entryKey: number,
         view: ViewDef<C>,
         params: C,
         target: ViewTarget,
@@ -383,10 +450,11 @@ const MountedView = ({
         () => ({
             depth,
             push: depth === 1 ? (view, params, target) => push(key, view, params, target) : null,
+            replace: (view, params, target) => replace(key, view, params, target),
             back,
             cancel,
         }),
-        [depth, key, push, back, cancel],
+        [depth, key, push, replace, back, cancel],
     )
     const Component = entry.view.Component
     return (

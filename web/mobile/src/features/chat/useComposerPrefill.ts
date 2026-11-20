@@ -5,15 +5,18 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtom} from "jotai"
 
 import {composeWithStarterPrompt} from "./composerPrefill"
+import {useConversationRole} from "./conversationRole"
 
 /**
  * Writes the config panel's "Create with AI" starter prompt into this composer, with the caret
- * after it, ready for the user to finish the sentence.
+ * after it, ready for the user to finish the sentence. Only the session's own composer takes it:
+ * the builder chat beside it ("embedded") leaves the request alone.
  */
 export const useComposerPrefill = (richInputRef: RefObject<RichChatInputHandle | null>) => {
     const [request, setRequest] = useAtom(composerPrefillRequestAtom)
+    const takesPrefill = useConversationRole() === "page"
     useEffect(() => {
-        if (!request) return
+        if (!request || !takesPrefill) return
         // The rich input mounts lazily and signals nothing when it is ready, so wait for its
         // handle. The request stays set until the text lands: a pick made while the
         // conversation is still loading is applied once the composer arrives, not dropped.
@@ -36,5 +39,5 @@ export const useComposerPrefill = (richInputRef: RefObject<RichChatInputHandle |
         // cancels it instead of writing the prompt twice.
         timer = window.setTimeout(apply, 0)
         return () => window.clearTimeout(timer)
-    }, [request, richInputRef, setRequest])
+    }, [request, richInputRef, setRequest, takesPrefill])
 }

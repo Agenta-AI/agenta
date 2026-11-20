@@ -1,0 +1,5 @@
+{
+    "cannotApply": "Este cambio no se puede aplicar a la versión actual del agente.",
+    "proposedValues": "Valores propuestos. No se pudieron cargar los valores actuales.",
+    "savedAs": "Guardado como v{{version}}"
+}

@@ -41,29 +41,21 @@ export function MarkdownEditorSkeleton() {
     )
 }
 
-/** The Files rail beside Name, Description and the SKILL.md editor: the shape of the skill form. */
+/** The file button, then Name, Description and the SKILL.md editor: the shape of the skill form. */
 export function SkillFormSkeleton() {
     return (
-        <div aria-busy className="flex h-full min-h-0 gap-4">
-            <div className="hidden w-[200px] shrink-0 flex-col gap-3 border-0 border-r border-solid border-colorBorderSecondary pr-3 sm:flex">
-                <SkeletonBlock className="h-3 w-12" />
-                <SkeletonBlock className="h-7" />
+        <div aria-busy className="flex h-full min-h-0 flex-col gap-4">
+            <SkeletonBlock className="h-8 w-32" />
+            <div className="flex flex-col gap-2">
+                <SkeletonBlock className="h-3 w-16" />
+                <SkeletonBlock className="h-8" />
             </div>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                    <SkeletonBlock className="h-3 w-16" />
-                    <SkeletonBlock className="h-8" />
-                </div>
-                <div className="flex flex-col gap-2">
-                    <SkeletonBlock className="h-3 w-24" />
-                    <SkeletonBlock className="h-16" />
-                </div>
-                <div className="flex min-h-0 flex-1 flex-col gap-2">
-                    <SkeletonBlock className="h-3 w-20" />
-                    <div className="min-h-0 flex-1">
-                        <MarkdownEditorSkeleton />
-                    </div>
-                </div>
+            <div className="flex flex-col gap-2">
+                <SkeletonBlock className="h-3 w-24" />
+                <SkeletonBlock className="h-16" />
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+                <MarkdownEditorSkeleton />
             </div>
         </div>
     )

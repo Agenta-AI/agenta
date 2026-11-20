@@ -47,11 +47,23 @@ export interface ViewNav {
      * opens over the dirty parent.
      */
     push: (<C>(view: ViewDef<C>, params: C, target: ViewTarget) => Promise<boolean>) | null
+    /**
+     * Put another view in this view's place, at the same depth (guarded like back). For a picker
+     * whose choice is the next step: the crumb shows the new view, and its Save or Back returns
+     * to this view's parent. A new view with a form needs a clean parent, as with `push`.
+     */
+    replace: <C>(view: ViewDef<C>, params: C, target: ViewTarget) => Promise<boolean>
     /** Guarded back: asks first when this view's form is dirty. */
     back: () => Promise<boolean>
     /** Cancel: discards the local form without asking, then goes back. */
     cancel: () => void
 }
+
+/**
+ * What a view's save answers: true when the edits landed, false when they did not, "stay" when
+ * one step of a form with several steps worked and the view stays open.
+ */
+export type ViewSaveResult = boolean | "stay"
 
 /** What an "on_save" view reports. An "immediate" view reports nothing. */
 export interface ViewForm {
@@ -59,9 +71,14 @@ export interface ViewForm {
     valid: boolean
     /**
      * Write the edits. Resolve true on success. From Save the stack then goes back; before a
-     * child form opens, the view mounts again from the saved data.
+     * child form opens, the view mounts again from the saved data. Resolve false on failure.
+     *
+     * Resolve "stay" for a step of a form with several steps: the step worked and the view stays
+     * open, with no failure text. A view that leaves by itself later (the last step ends outside
+     * the Save press) calls `nav.cancel()`. From the unsaved-changes dialog, "stay" keeps the
+     * person on the view, as "Keep editing" does.
      */
-    save: () => Promise<boolean>
+    save: () => Promise<ViewSaveResult>
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
     leaveDescription: string
     /** The Save button's label when the view names its action (for example "Connect"). */
@@ -70,7 +87,7 @@ export interface ViewForm {
 
 /** For the container's root and for the container itself. */
 export interface ViewStack {
-    /** Replace the stack with one view at depth 1. Resolves false when the person kept editing. */
+    /** Clear the stack and show one view at depth 1. Resolves false when the person kept editing. */
     open: <P>(view: ViewDef<P>, params: P, target: ViewTarget) => Promise<boolean>
     /** Leave every view. Resolves false when the person chose "Keep editing". */
     closeAll: () => Promise<boolean>
@@ -100,7 +117,7 @@ export interface ViewChromeProps {
     onBack: () => void
     /** Discard the top view's form and go back one level, without a question. */
     onCancel: () => void
-    /** Save the top view's form: ignored while a save runs; goes back one level on success. */
+    /** Save the top view's form: ignored while a save runs; goes back one level on true. */
     onSave: () => void
     children: ReactNode
 }

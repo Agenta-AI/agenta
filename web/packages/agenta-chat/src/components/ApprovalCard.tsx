@@ -2,11 +2,11 @@
  * The shared approval card — ONE design for a human-in-the-loop gate, rendered identically by the
  * desktop dock and mobile, in every mode.
  *
- * The card deliberately shows no payload, no diff, and no digest. A gate resolves to plain
- * language through `describeApproval`, and everything beyond the one-sentence ask folds behind a
- * single toggle. Hosts adapt transport only: how a response actually fires arrives as callbacks.
- * There is no `body` slot and no mode flag, because a second visual shape is exactly what this
- * card exists to remove.
+ * The card shows no raw payload. A gate resolves to plain language through `describeApproval`,
+ * and everything beyond the one-sentence ask folds behind a single toggle. An agent change is the
+ * one exception: its changes show in place, with the old and new values of the server preview.
+ * Hosts adapt transport only: how a response actually fires arrives as callbacks. There is no
+ * `body` slot and no mode flag.
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
@@ -24,6 +24,8 @@ import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 import {describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
+
+import {ChangeSections} from "./ChangeSections"
 
 export interface ApprovalCardProps {
     /** Pending gates for the paused turn — index 0 is the one a single decision answers. */
@@ -136,9 +138,11 @@ export const ApprovalCard = ({
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
     const homeSlug = useDriveHomeSlug()
+    // The server preview can land after the gate, so its arrival describes the gate again.
+    const hasChangePreview = current?.changePreview !== undefined
     const base = useMemo(
         () => (current ? describeApproval(current, undefined, homeSlug) : null),
-        [current?.approvalId, homeSlug],
+        [current?.approvalId, hasChangePreview, homeSlug],
     )
     // The catalog answers late, so re-describe once it names the slug (#6349). Disabled on "".
     const sourceKey = base?.sourceKey ?? ""
@@ -150,9 +154,20 @@ export const ApprovalCard = ({
     )
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.
+    // One agent change shows its changes in place; the rows behind the toggle would repeat them.
+    // A refused change with no rows still shows its notice.
+    const changes =
+        !batched && (preview?.changes?.length || preview?.cannotApply)
+            ? (preview.changes ?? [])
+            : null
     const items = useMemo(
-        () => (batched ? describeBatchItems(approvals, homeSlug) : (preview?.items ?? [])),
-        [batched, approvals, homeSlug, preview],
+        () =>
+            batched
+                ? describeBatchItems(approvals, homeSlug)
+                : changes
+                  ? []
+                  : (preview?.items ?? []),
+        [batched, approvals, homeSlug, preview, changes],
     )
 
     if (!current || !preview) return null
@@ -248,6 +263,14 @@ export const ApprovalCard = ({
             >
                 {preview.sentence}
             </span>
+
+            {changes ? (
+                <ChangeSections
+                    changes={changes}
+                    proposedValues={preview.proposedValues}
+                    cannotApply={preview.cannotApply}
+                />
+            ) : null}
 
             {items.length ? (
                 <div className="flex flex-col gap-2.5">

@@ -128,7 +128,13 @@ describe("Add integration: Connect, then attach", () => {
             createElement(IntegrationAddViewBody, {
                 params: {},
                 target: {kind: "agent_draft", revisionId: "rev-1"},
-                nav: {depth: 1, push, back: async () => true, cancel: () => undefined},
+                nav: {
+                    depth: 1,
+                    push,
+                    replace: async () => true,
+                    back: async () => true,
+                    cancel: () => undefined,
+                },
             }),
             store,
         )
@@ -148,7 +154,13 @@ describe("Add integration: Connect, then attach", () => {
             createElement(IntegrationAddViewBody, {
                 params: {},
                 target: {kind: "agent_draft", revisionId: "rev-1"},
-                nav: {depth: 1, push, back: async () => true, cancel: () => undefined},
+                nav: {
+                    depth: 1,
+                    push,
+                    replace: async () => true,
+                    back: async () => true,
+                    cancel: () => undefined,
+                },
             }),
             store,
         )

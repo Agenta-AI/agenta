@@ -16,6 +16,7 @@ import {
     type ViewChromeProps,
     type ViewDef,
     type ViewProps,
+    type ViewSaveResult,
     type ViewStack,
     type ViewTarget,
 } from "../../src/view-stack"
@@ -50,7 +51,7 @@ const deferred = () => {
     return {promise, resolve}
 }
 
-let saveImpl: () => Promise<boolean> = async () => true
+let saveImpl: () => Promise<ViewSaveResult> = async () => true
 const seen: {target?: ViewTarget; push?: unknown}[] = []
 
 const FormBody = ({params, target, nav}: ViewProps<{name: string}>) => {
@@ -69,6 +70,7 @@ const FormBody = ({params, target, nav}: ViewProps<{name: string}>) => {
                 {`field ${params.name}`}
                 <input value={value} onChange={(e) => setValue(e.target.value)} />
             </label>
+            <button onClick={nav.cancel}>leave by itself</button>
             {nav.push ? (
                 <>
                     <button onClick={() => void nav.push!(pickerView, {name: "picker"}, target)}>
@@ -90,9 +92,16 @@ const formView: ViewDef<{name: string}> = defineView({
     Component: FormBody,
 })
 
-const PickerBody = ({params, nav}: ViewProps<{name: string}>) => {
+const PickerBody = ({params, nav, target}: ViewProps<{name: string}>) => {
     useViewTitle(params.name)
-    return <div>{nav.push ? "picker can push" : "picker at depth 2"}</div>
+    return (
+        <div>
+            {nav.push ? "picker can push" : "picker at depth 2"}
+            <button onClick={() => void nav.replace(formView, {name: "chosen"}, target)}>
+                choose
+            </button>
+        </div>
+    )
 }
 const pickerView: ViewDef<{name: string}> = defineView({
     id: "test.picker",
@@ -153,6 +162,47 @@ describe("ViewStackHost", () => {
         expect(screen.getByText("crumb:Agent")).toBeTruthy()
         expect(screen.getByText("crumb:skill")).toBeTruthy()
         expect(stackRef?.depth).toBe(2)
+    })
+
+    it("replaces a picker with its chosen form at the same depth; Save returns to the parent", async () => {
+        seen.length = 0
+        saveImpl = async () => true
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        fireEvent.click(screen.getByText("open picker"))
+        await screen.findByText("picker at depth 2")
+        fireEvent.click(screen.getByText("choose"))
+        await screen.findByLabelText("field chosen")
+        expect(screen.getByText("here:chosen")).toBeTruthy()
+        expect(screen.queryByText("picker at depth 2")).toBeNull()
+        expect(stackRef?.depth).toBe(2)
+        type("chosen", "x")
+        answer("Save")
+        await screen.findByText("here:skill")
+        expect(stackRef?.depth).toBe(1)
+    })
+
+    it("a form chosen in a picker over a dirty parent asks about the parent first", async () => {
+        saveImpl = async () => true
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("open picker"))
+        await screen.findByText("picker at depth 2")
+        fireEvent.click(screen.getByText("choose"))
+        await waitFor(() => expect(dialog()).toBeTruthy())
+        expect(screen.getByText("leave skill")).toBeTruthy()
+        answer("Keep editing")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByText("picker at depth 2")).toBeTruthy()
+        fireEvent.click(screen.getByText("choose"))
+        await waitFor(() => expect(dialog()).toBeTruthy())
+        answer("Discard")
+        await screen.findByLabelText("field chosen")
+        // The parent mounted again from saved data, so only the new form can be dirty.
+        expect(stackRef?.dirty).toBe(false)
     })
 
     it("takes the breadcrumb title from useViewTitle", async () => {
@@ -344,6 +394,44 @@ describe("ViewStackHost", () => {
         expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
         ok = true
         answer("Save")
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it('a step that resolves "stay" keeps the view, shows no failure and takes input again', async () => {
+        let result: ViewSaveResult = "stay"
+        saveImpl = async () => result
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        answer("Save")
+        await waitFor(() =>
+            expect(screen.getByRole("button", {name: "Save"}).hasAttribute("disabled")).toBe(false),
+        )
+        expect(screen.queryByRole("alert")).toBeNull()
+        expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
+        // From the unsaved-changes dialog, "stay" keeps the person on the view.
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        result = true
+        answer("Save")
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it("a view that leaves by itself while the dialog asks leaves once the question ends", async () => {
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        // The view's step ends (for example the sign-in window reports back) under the dialog.
+        fireEvent.click(screen.getByText("leave by itself"))
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        answer("Keep editing")
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
     })
 
