@@ -806,7 +806,12 @@ const ProviderConnectionCard = ({
                     <PasswordInput
                         {...common}
                         autoFocus={!connection && field.key === firstSecretField}
-                        className={cn(FIELD_TYPE_SCALE, rejected && "border-colorErrorBorder")}
+                        // Red stays while the field has focus: the focus border would hide it.
+                        className={cn(
+                            FIELD_TYPE_SCALE,
+                            rejected &&
+                                "border-colorErrorBorder focus-within:border-colorErrorBorder focus-within:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
+                        )}
                         autoComplete="new-password"
                         value={value}
                         onValueChange={change}
@@ -933,10 +938,13 @@ const ProviderConnectionCard = ({
                     <div className="flex flex-col gap-1">
                         <span className="font-medium text-colorText">{protocolText.label}</span>
                         <Segmented
-                            size="sm"
                             className="self-start"
                             disabled={readOnly}
-                            options={protocolText.options}
+                            // 28px options with 12px text (F11 f7).
+                            options={protocolText.options.map((option) => ({
+                                ...option,
+                                className: "text-[12px]",
+                            }))}
                             // An undeclared record shows the default without having declared it;
                             // pressing an option is what makes the statement.
                             value={protocol ?? DEFAULT_ENDPOINT_PROTOCOL}

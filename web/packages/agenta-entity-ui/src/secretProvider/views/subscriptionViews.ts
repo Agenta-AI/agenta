@@ -38,6 +38,8 @@ export const SubscriptionOwnerContext = createContext<SubscriptionOwner | null>(
 export const subscriptionSignInView = defineView<SubscriptionViewParams>({
     id: "project.modelProviders.subscriptionSignIn",
     apply: "immediate",
+    // Cancel is in the view's card (F11 f8), and the view goes back by itself once signed in.
+    actionRow: false,
     Component: lazyView(() => import("./SubscriptionSignInViewBody")),
 })
 

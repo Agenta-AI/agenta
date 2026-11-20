@@ -28,7 +28,6 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
-import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
@@ -36,9 +35,8 @@ import {
     ModelPickerList,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
-import {Button} from "@agenta/ui/ui"
 import {useOptionalViewStack} from "@agenta/ui/view-stack"
-import {Faders, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
@@ -104,7 +102,7 @@ const ModelPickerControl = ({
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
-    const t = useT(configItemsCatalog, providerListCatalog, uiLlmProviderCatalog, commonCatalog)
+    const t = useT(configItemsCatalog, providerListCatalog, commonCatalog)
     const layout = useContext(ModelPickerLayoutContext)
     const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
     const candidateState = useAtomValue(candidateAtom)
@@ -282,12 +280,7 @@ const ModelPickerControl = ({
                         label: t("common.signIn"),
                         onClick: openModelProviders,
                     }}
-                    panelFooter={
-                        <Button variant="outline" className="w-full" onClick={openModelProviders}>
-                            <Faders size={14} />
-                            {t("ui.llmProvider.manageProviders")}
-                        </Button>
-                    }
+                    onManageProviders={openModelProviders}
                 />
                 {drawer}
             </>

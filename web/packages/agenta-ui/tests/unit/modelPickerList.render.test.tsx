@@ -52,6 +52,7 @@ const groups: ProviderGroup[] = [
 const renderList = (props: Partial<Parameters<typeof ModelPickerList>[0]> = {}) => {
     const onChange = vi.fn()
     const onSignIn = vi.fn()
+    const onManage = vi.fn()
     render(
         <ModelPickerList
             options={groups}
@@ -59,11 +60,11 @@ const renderList = (props: Partial<Parameters<typeof ModelPickerList>[0]> = {}) 
             searchPlaceholder="Search models"
             selectedKey="a:sonnet"
             disabledGroupAction={{label: "Sign in", onClick: onSignIn}}
-            panelFooter={<button>Manage model providers</button>}
+            onManageProviders={onManage}
             {...props}
         />,
     )
-    return {onChange, onSignIn}
+    return {onChange, onSignIn, onManage}
 }
 
 describe("ModelPickerList", () => {
@@ -71,7 +72,7 @@ describe("ModelPickerList", () => {
         renderList()
         expect(screen.getByText("Agenta")).toBeTruthy()
         expect(screen.getByText("Built-in")).toBeTruthy()
-        expect(screen.getByText("Claude Code")).toBeTruthy()
+        expect(screen.getByText("via Claude Code")).toBeTruthy()
         expect(screen.getByText("claude-sonnet-5-5")).toBeTruthy()
         expect(screen.getByText("google/gemini-3.8-flash")).toBeTruthy()
         expect(screen.getByText("Manage model providers")).toBeTruthy()
@@ -101,5 +102,71 @@ describe("ModelPickerList", () => {
             target: {value: "zzz"},
         })
         expect(screen.getByText("No data")).toBeTruthy()
+    })
+
+    it("the panel puts the harness on its own line and draws no logo", () => {
+        renderList()
+        const head = screen.getByText("Anthropic").parentElement as HTMLElement
+        expect(head.textContent).toBe("AnthropicOrganization")
+        expect(head.querySelector("svg")).toBeNull()
+        // The harness line is text only: no glyph tile.
+        expect(screen.getByText("via Claude Code").querySelector("svg")).toBeNull()
+    })
+
+    it("the popover draws one head line: logo, name, tag, and the harness at the right", () => {
+        renderList({layout: "popover"})
+        const head = screen.getByText("Anthropic").parentElement as HTMLElement
+        expect(head.textContent).toBe("AnthropicOrganizationvia Claude Code")
+        expect(screen.getByText("via Claude Code").className).toContain("ml-auto")
+        expect(head.querySelector("svg")).not.toBeNull()
+    })
+
+    it("the Subscription tag is the same bordered tag as the others", () => {
+        renderList()
+        expect(screen.getByText("Subscription").className).toBe(
+            screen.getByText("Organization").className,
+        )
+    })
+
+    it("Manage model providers is a button under the list", () => {
+        const {onManage} = renderList()
+        fireEvent.click(screen.getByRole("button", {name: "Manage model providers"}))
+        expect(onManage).toHaveBeenCalledOnce()
+        cleanup()
+        renderList({onManageProviders: undefined})
+        expect(screen.queryByText("Manage model providers")).toBeNull()
+    })
+
+    it("opens with the current model's group head at the top of the list", () => {
+        // jsdom has no layout: every box is placed by hand, relative to the list's top at 100.
+        const rects = new Map<string, {top: number; height: number}>([
+            ["list", {top: 100, height: 300}],
+            ["section", {top: 400, height: 100}],
+            ["row", {top: 432, height: 50}],
+        ])
+        const box = (name: string) => {
+            const {top, height} = rects.get(name) as {top: number; height: number}
+            return {top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top}
+        }
+        const original = Element.prototype.getBoundingClientRect
+        Element.prototype.getBoundingClientRect = function (this: Element) {
+            if (this.tagName === "SECTION") return box("section") as DOMRect
+            if (this.getAttribute("aria-pressed") === "true") return box("row") as DOMRect
+            if (this.className.toString().includes("overflow-y-auto")) return box("list") as DOMRect
+            return original.call(this)
+        }
+        Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+            configurable: true,
+            get: () => 300,
+        })
+        try {
+            renderList()
+            const list = document.querySelector(".overflow-y-auto") as HTMLElement
+            // The group head starts 300px into the list.
+            expect(list.scrollTop).toBe(300)
+        } finally {
+            Element.prototype.getBoundingClientRect = original
+            delete (HTMLElement.prototype as {clientHeight?: number}).clientHeight
+        }
     })
 })
