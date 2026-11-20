@@ -1,5 +1,3 @@
-import {v4 as uuidv4} from "uuid"
-
 export const CLOUD_CONFIG = {
     session_recording: {
         maskAllInputs: false,
@@ -68,65 +66,69 @@ export const POSTHOG_CONFIG = {
     capture_pageview: false as const,
 }
 
-let fallbackDistinctId: string | undefined
-
-export const generateOrRetrieveDistinctId = (): string => {
-    try {
-        if (typeof localStorage !== "undefined") {
-            const stored = localStorage.getItem("posthog_distinct_id")
-            if (stored) return stored
-            const id = uuidv4()
-            localStorage.setItem("posthog_distinct_id", id)
-            return id
-        }
-    } catch {
-        // Blocked storage must not prevent the app from loading.
-    }
-    return (fallbackDistinctId ??= uuidv4())
-}
-
 /** `GET /instance/telemetry`: whether to send events, and the identity to send them under. */
 export interface InstanceTelemetry {
     enabled: boolean
     distinct_id: string | null
     /** Set on self-hosted instances only. */
     groups: {instance: string} | null
+    /** Set on cloud only: added to every event, so events can be split by region and deployment. */
+    properties: Record<string, string> | null
+}
+
+const parseStringRecord = (value: unknown): Record<string, string> | null => {
+    if (!value || typeof value !== "object") return null
+    const entries = Object.entries(value).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+    )
+    return entries.length ? Object.fromEntries(entries) : null
 }
 
 export const parseInstanceTelemetry = (data: unknown): InstanceTelemetry => {
-    const body = (data ?? {}) as {enabled?: unknown; distinct_id?: unknown; groups?: unknown}
+    const body = (data ?? {}) as {
+        enabled?: unknown
+        distinct_id?: unknown
+        groups?: unknown
+        properties?: unknown
+    }
     const instance = (body.groups as {instance?: unknown} | null | undefined)?.instance
     return {
         enabled: body.enabled === true,
         distinct_id: typeof body.distinct_id === "string" ? body.distinct_id : null,
         groups: typeof instance === "string" ? {instance} : null,
+        properties: parseStringRecord(body.properties),
     }
 }
 
-/** Cloud keeps its email identity and settings. Only known when telemetry is on: off, `groups` is null everywhere. */
+/** Cloud keeps its own settings. Only known when telemetry is on: off, `groups` is null everywhere. */
 export const isCloudTelemetry = (telemetry: InstanceTelemetry) =>
     telemetry.enabled && telemetry.groups === null
 
 interface IdentityClient {
     get_distinct_id: () => string
     reset: () => void
-    identify: (id: string) => void
+    identify: (id: string, properties?: Record<string, unknown>) => void
     group: (type: string, key: string) => void
+    register: (properties: Record<string, string>) => void
 }
 
 /**
- * Self-hosted: identify with the API's id before the first event. A browser that holds
- * another id (for example an email from before) starts over, so nothing stored under
- * that id is sent again.
+ * Identify with the API's id before the first event: the user id on cloud,
+ * `<instance_id>:<user_id>` on self-hosted. Every device of a user then sends the same
+ * id, so PostHog sees one person. A browser that holds another id (a device id or an
+ * email from before) starts over, so nothing stored under that id is sent again.
  */
 export const adoptInstanceIdentity = (
     client: IdentityClient,
     telemetry: InstanceTelemetry | null,
+    personProperties?: Record<string, unknown>,
 ) => {
     if (!telemetry?.distinct_id) return
     if (client.get_distinct_id() !== telemetry.distinct_id) client.reset()
-    client.identify(telemetry.distinct_id)
+    if (personProperties) client.identify(telemetry.distinct_id, personProperties)
+    else client.identify(telemetry.distinct_id)
     if (telemetry.groups) client.group("instance", telemetry.groups.instance)
+    if (telemetry.properties) client.register(telemetry.properties)
 }
 
 export interface AnalyticsUser {
@@ -134,23 +136,16 @@ export interface AnalyticsUser {
     username?: string | null
 }
 
-/**
- * The id and person properties to identify with. `id` is the id the API gives the
- * browser. Cloud identifies by email with email and username properties; self-hosted
- * sends no email or username.
- */
-export function analyticsIdentity(
+/** The person properties to identify with: email and username on cloud, none on self-hosted. */
+export function analyticsPersonProperties(
     user: AnalyticsUser | null | undefined,
     cloud: boolean,
-    id: string,
-) {
+): Record<string, unknown> | undefined {
+    if (!cloud) return undefined
     const properties: Record<string, unknown> = {}
-    if (cloud && user?.email) properties.email = user.email
-    if (cloud && user?.username) properties.username = user.username
-    return {
-        id: cloud && user?.email ? user.email : id,
-        properties: Object.keys(properties).length ? properties : undefined,
-    }
+    if (user?.email) properties.email = user.email
+    if (user?.username) properties.username = user.username
+    return Object.keys(properties).length ? properties : undefined
 }
 
 export {captureFirstAgentIntent, classifyAgentIntent} from "./onboarding"

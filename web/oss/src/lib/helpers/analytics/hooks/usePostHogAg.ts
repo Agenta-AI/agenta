@@ -1,10 +1,6 @@
 import {useCallback, useMemo, useRef} from "react"
 
-import {
-    analyticsIdentity,
-    generateOrRetrieveDistinctId,
-    isCloudTelemetry,
-} from "@agenta/shared/analytics"
+import {analyticsPersonProperties, isCloudTelemetry} from "@agenta/shared/analytics"
 import {getDefaultStore, useAtom, useAtomValue} from "jotai"
 import {type PostHog} from "posthog-js"
 
@@ -26,14 +22,11 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const telemetry = useAtomValue(instanceTelemetryAtom)
     const cloud = telemetry ? isCloudTelemetry(telemetry) : false
     const instanceGroup = telemetry?.groups?.instance ?? null
-    const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
-    const {id: analyticsId, properties: personProps} = useMemo(
-        () => analyticsIdentity(user, cloud, telemetry?.distinct_id ?? ""),
-        [user, cloud, telemetry?.distinct_id],
-    )
+    // Cloud and self-hosted both identify with the id the API gives.
+    const analyticsId = telemetry?.distinct_id ?? ""
+    const personProps = useMemo(() => analyticsPersonProperties(user, cloud), [user, cloud])
     const identifiedRef = useRef<string | null>(null)
     const personPropsIdentifiedRef = useRef<string | null>(null)
-    const aliasedRef = useRef(false)
 
     const identifiedPersonPropsKey = useMemo(() => {
         return personProps ? `${analyticsId}:${JSON.stringify(personProps)}` : null
@@ -68,16 +61,13 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     }, [posthog, trackingEnabled])
 
     useIsomorphicLayoutEffect(() => {
-        if (!user?.email) {
-            personPropsIdentifiedRef.current = null
-            aliasedRef.current = false
-        }
+        if (!user?.email) personPropsIdentifiedRef.current = null
     }, [user?.email])
 
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
         // No answer from the API yet (or a new user): no identity to send.
-        if (!telemetry?.distinct_id || !analyticsId) return
+        if (!analyticsId) return
         const shouldIdentify =
             identifiedRef.current !== analyticsId ||
             (identifiedPersonPropsKey !== null &&
@@ -85,27 +75,13 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
         if (!shouldIdentify) return
 
-        if (cloud && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
-            posthog.alias?.(analyticsId, baseDistinctId)
-            aliasedRef.current = true
-        }
-
         identifiedRef.current = analyticsId
         if (identifiedPersonPropsKey) {
             personPropsIdentifiedRef.current = identifiedPersonPropsKey
         }
         identify(analyticsId, personProps)
         if (instanceGroup) posthog.group?.("instance", instanceGroup)
-    }, [
-        analyticsId,
-        baseDistinctId,
-        cloud,
-        identify,
-        instanceGroup,
-        personProps,
-        posthog,
-        user?.email,
-    ])
+    }, [analyticsId, identify, instanceGroup, personProps, posthog])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog

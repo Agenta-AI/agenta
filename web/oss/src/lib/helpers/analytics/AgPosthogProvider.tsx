@@ -4,8 +4,8 @@ import {
     CLOUD_CONFIG,
     POSTHOG_CONFIG,
     SELF_HOSTED_CONFIG,
-    generateOrRetrieveDistinctId,
     adoptInstanceIdentity,
+    analyticsPersonProperties,
     isCloudTelemetry,
     parseInstanceTelemetry,
 } from "@agenta/shared/analytics"
@@ -85,13 +85,12 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                     if (process.env.NODE_ENV === "development") posthog.debug()
                     if (!initCapturedRef.current) {
                         initCapturedRef.current = true
-                        const distinctId = generateOrRetrieveDistinctId()
-                        if (cloud && distinctId) {
-                            posthog.identify?.(distinctId)
-                        } else if (!cloud) {
-                            // Here, not in usePostHogAg: it must run before the first page view.
-                            adoptInstanceIdentity(posthog, telemetry)
-                        }
+                        // Here, not in usePostHogAg: it must run before the first page view.
+                        adoptInstanceIdentity(
+                            posthog,
+                            telemetry,
+                            analyticsPersonProperties(user, cloud),
+                        )
                         posthog.capture?.("$pageview", {$current_url: window.location.href})
                     }
                 },
@@ -105,7 +104,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
         } finally {
             setLoadingPosthog(false)
         }
-    }, [loadingPosthog, posthogClient, setPosthogClient, telemetry, cloud])
+    }, [loadingPosthog, posthogClient, setPosthogClient, telemetry, cloud, user])
 
     useEffect(() => {
         // Initialize PostHog everywhere except auth routes (but DO initialize on post-signup for survey)

@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
     alias: vi.fn(),
     identify: vi.fn(),
     group: vi.fn(),
+    register: vi.fn(),
     optOut: vi.fn(),
     get: vi.fn(),
     reset: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock("posthog-js", () => ({
         alias: state.alias,
         identify: state.identify,
         group: state.group,
+        register: state.register,
         get_distinct_id: () => state.distinctId,
         opt_out_capturing: state.optOut,
         reset: state.reset,
@@ -63,10 +65,12 @@ let root: Root
 let queryClient: QueryClient
 
 const CLOUD_USER = {id: "user-1", email: "person@example.test", username: "Person"}
-const cloudTelemetry = (email = CLOUD_USER.email) => ({
+const CLOUD_PROPERTIES = {cloud_region: "US", cloud_url: "https://us.cloud.agenta.ai"}
+const cloudTelemetry = () => ({
     enabled: true,
-    distinct_id: email,
+    distinct_id: CLOUD_USER.id,
     groups: null,
+    properties: CLOUD_PROPERTIES,
 })
 
 const render = async () => {
@@ -87,6 +91,12 @@ const render = async () => {
 
 beforeEach(async () => {
     vi.clearAllMocks()
+    state.identify.mockImplementation((id: string) => {
+        state.distinctId = id
+    })
+    state.reset.mockImplementation(() => {
+        state.distinctId = "anonymous-after-reset"
+    })
     state.key = "test-project-key"
     state.user = CLOUD_USER
     state.telemetry = cloudTelemetry()
@@ -96,6 +106,7 @@ beforeEach(async () => {
     state.path = "/w/ws/p/project/sessions/one"
     state.listeners.clear()
     localStorage.clear()
+    // A device id from before this change; it must never be sent again.
     localStorage.setItem("posthog_distinct_id", "desktop-visitor")
     window.history.replaceState({}, "", `/m${state.path}`)
     vi.stubGlobal(
@@ -108,6 +119,7 @@ beforeEach(async () => {
             alias: state.alias,
             identify: state.identify,
             group: state.group,
+            register: state.register,
             get_distinct_id: () => state.distinctId,
             opt_out_capturing: state.optOut,
             reset: state.reset,
@@ -140,7 +152,10 @@ describe("mobile PostHog parity", () => {
         )
         // Cloud keeps feature flags (the maintenance notice reads them).
         expect(state.init.mock.calls[0][1]).not.toHaveProperty("advanced_disable_flags")
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor")
+        expect(state.identify).not.toHaveBeenCalledWith("desktop-visitor")
+        expect(state.identify.mock.invocationCallOrder[0]).toBeLessThan(
+            state.capture.mock.invocationCallOrder[0],
+        )
         expect(state.capture.mock.calls.filter(([event]) => event === "$pageview")).toEqual([
             ["$pageview", {$current_url: window.location.href}],
         ])
@@ -157,25 +172,33 @@ describe("mobile PostHog parity", () => {
         expect(state.init).not.toHaveBeenCalled()
     })
 
-    it("identifies a cloud profile by email and keeps desktop identity and properties", async () => {
+    it("identifies a cloud profile by user id, with email and username as properties", async () => {
         await render()
         expect(state.get).toHaveBeenCalledWith("https://agenta.example.test/api/instance/telemetry")
-        expect(state.alias).toHaveBeenCalledWith("person@example.test", "desktop-visitor")
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", {
-            email: CLOUD_USER.email,
-            username: CLOUD_USER.username,
-        })
+        expect(state.identify.mock.calls).toEqual([
+            ["user-1", {email: CLOUD_USER.email, username: CLOUD_USER.username}],
+        ])
+        expect(state.alias).not.toHaveBeenCalled()
         expect(state.group).not.toHaveBeenCalled()
-        const count = state.identify.mock.calls.length
         await render()
-        expect(state.identify).toHaveBeenCalledTimes(count)
+        expect(state.identify).toHaveBeenCalledTimes(1)
         state.user = {...CLOUD_USER, username: "Renamed"}
         await render()
-        expect(state.alias).toHaveBeenCalledTimes(1)
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", {
+        expect(state.alias).not.toHaveBeenCalled()
+        expect(state.identify).toHaveBeenLastCalledWith("user-1", {
             email: CLOUD_USER.email,
             username: "Renamed",
         })
+        // The browser already holds the user id: no new start.
+        expect(state.reset).toHaveBeenCalledTimes(1)
+    })
+
+    it("tags every cloud browser event with the region and the deployment", async () => {
+        await render()
+        expect(state.register).toHaveBeenCalledWith(CLOUD_PROPERTIES)
+        expect(state.register.mock.invocationCallOrder[0]).toBeLessThan(
+            state.capture.mock.invocationCallOrder[0],
+        )
     })
 
     it("loads nothing and sends nothing when the instance turned telemetry off", async () => {
@@ -241,8 +264,9 @@ describe("mobile PostHog parity", () => {
             source: "composer",
             $set: {first_agent_intent_v1: "research"},
         })
+        const resets = state.reset.mock.calls.length
         await resetAnalytics()
-        expect(state.reset).toHaveBeenCalledTimes(1)
+        expect(state.reset).toHaveBeenCalledTimes(resets + 1)
     })
 
     it("does not mark the device theme captured when tracking is disabled", async () => {

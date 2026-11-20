@@ -54,6 +54,7 @@ The distinct id is the instance id. The event has these properties and no others
 |---|---|
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
 | `$ip` | Empty. The event itself carries no IP address. |
+| `$process_person_profile` | `false`. PostHog does not make a person for the instance. |
 
 The API removes the properties the PostHog library adds on its own (its name and version, the Python version and the operating system).
 

@@ -2,11 +2,7 @@ import {useEffect, useRef} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {setAgentCreationFailureReporter} from "@agenta/entities/workflow/agentCreationTelemetry"
-import {
-    adoptInstanceIdentity,
-    analyticsIdentity,
-    generateOrRetrieveDistinctId,
-} from "@agenta/shared/analytics"
+import {adoptInstanceIdentity, analyticsPersonProperties} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -20,7 +16,6 @@ export const Analytics = () => {
     const {user} = useProfile()
     const [client, setClient] = useAtom(posthogAtom)
     const identityRef = useRef<string | null>(null)
-    const aliasedIdRef = useRef<string | null>(null)
     const initialPageviewRef = useRef(false)
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
     // The API decides whether this instance sends events, and under which id.
@@ -31,7 +26,6 @@ export const Analytics = () => {
     const optedOut = !keyed || telemetry?.enabled === false
     const cloud = telemetry ? isCloudTelemetry(telemetry) : false
     const distinctId = telemetry?.distinct_id ?? null
-    const instanceGroup = telemetry?.groups?.instance ?? null
 
     useEffect(() => {
         if (!enabled || authRoute) return
@@ -46,29 +40,18 @@ export const Analytics = () => {
 
     useEffect(() => {
         if (!client || !enabled || authRoute || !distinctId) return
-        if (!user?.email) aliasedIdRef.current = null
-        const baseId = generateOrRetrieveDistinctId()
-        const {id, properties} = analyticsIdentity(user, cloud, distinctId)
-        const key = JSON.stringify([id, properties, instanceGroup])
+        // Cloud and self-hosted both identify with the id the API gives, so every device
+        // of a user is one person. Cloud adds the email and username as person properties.
+        const properties = analyticsPersonProperties(user, cloud)
+        const key = JSON.stringify([telemetry, properties])
         if (identityRef.current === key) return
         try {
-            if (
-                cloud &&
-                user?.email &&
-                baseId !== id &&
-                aliasedIdRef.current !== id &&
-                client.get_distinct_id() !== id
-            ) {
-                client.alias(id, baseId)
-                aliasedIdRef.current = id
-            }
-            if (cloud) client.identify(id, properties)
-            else adoptInstanceIdentity(client, telemetry)
+            adoptInstanceIdentity(client, telemetry, properties)
             identityRef.current = key
         } catch {
             // A blocked analytics client must not affect profile hydration.
         }
-    }, [client, enabled, cloud, authRoute, user, distinctId, instanceGroup, telemetry])
+    }, [client, enabled, cloud, authRoute, user, distinctId, telemetry])
 
     useEffect(() => {
         if (!client || !enabled) return
@@ -106,10 +89,7 @@ export const Analytics = () => {
     }, [client, enabled, authRoute])
 
     useEffect(() => {
-        if (authRoute) {
-            identityRef.current = null
-            aliasedIdRef.current = null
-        }
+        if (authRoute) identityRef.current = null
         if (optedOut) client?.opt_out_capturing()
     }, [authRoute, client, optedOut])
 

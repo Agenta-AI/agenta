@@ -1,6 +1,7 @@
 import asyncio
 from functools import lru_cache
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 from uuid import UUID, uuid5
 
 from posthog import Posthog
@@ -18,6 +19,8 @@ INSTANCE_INSTALLED_EVENT = "instance_installed"
 # Exactly what the install ping sends besides the instance id. The docs page lists it.
 INSTANCE_INSTALLED_PROPERTIES = {"$geoip_disable": True, "$ip": ""}
 INSTALL_PING_TIMEOUT_SECONDS = 5
+# Set to false on events that are not about a person, so PostHog creates no person.
+NO_PERSON_PROFILE = "$process_person_profile"
 
 # What the PostHog library adds to every event. Instance events send only their own
 # properties, so these are dropped before the send.
@@ -47,23 +50,74 @@ async def telemetry_enabled() -> bool:
     return (await telemetry_status()).enabled
 
 
-async def distinct_id_for(user_id: UUID, email: str) -> str:
+async def distinct_id_for(user_id: UUID) -> str:
+    """Cloud: the user id, so one person on two devices or two emails is one person.
+    Self-hosted: `<instance_id>:<user_id>`, so two instances never share a person."""
+
     if env.stripe.enabled:
-        return email
+        return str(user_id)
     return f"{await get_instance_id()}:{user_id}"
 
 
-async def instance_telemetry_for(user_id: UUID, email: str) -> InstanceTelemetry:
+def deployment_url() -> str:
+    return env.agenta.web_url or env.agenta.api_url
+
+
+def cloud_region(url: str) -> str:
+    """The cloud region a web URL belongs to: `EU`, `US`, or `Other`."""
+
+    try:
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+        hostname = (parsed.hostname or "").lower()
+    except Exception:
+        hostname = ""
+
+    if (
+        hostname == "cloud.agenta.ai"
+        or hostname == "eu.cloud.agenta.ai"
+        or hostname.endswith(".eu.cloud.agenta.ai")
+        or hostname == "staging.preview.agenta.dev"
+    ):
+        return "EU"
+
+    if (
+        hostname == "us.cloud.agenta.ai"
+        or hostname.endswith(".us.cloud.agenta.ai")
+        or hostname == "testing.preview.agenta.dev"
+    ):
+        return "US"
+
+    return "Other"
+
+
+def cloud_event_properties() -> Dict[str, str]:
+    """Cloud only: the region and the deployment that every cloud event carries.
+
+    Each cloud deployment has its own web URL, so the URL names the deployment and
+    the region comes from it. Self-hosted events carry neither: the result is empty.
+    """
+
+    if not env.stripe.enabled:
+        return {}
+    url = deployment_url()
+    return {"cloud_region": cloud_region(url), "cloud_url": url}
+
+
+async def instance_telemetry_for(user_id: UUID) -> InstanceTelemetry:
     """What the browser needs to send the same identity as the API."""
 
     if not await telemetry_enabled():
         return InstanceTelemetry(enabled=False)
     if env.stripe.enabled:
-        return InstanceTelemetry(enabled=True, distinct_id=email)
+        return InstanceTelemetry(
+            enabled=True,
+            distinct_id=await distinct_id_for(user_id),
+            properties=cloud_event_properties(),
+        )
     instance_id = str(await get_instance_id())
     return InstanceTelemetry(
         enabled=True,
-        distinct_id=await distinct_id_for(user_id, email),
+        distinct_id=await distinct_id_for(user_id),
         groups={"instance": instance_id},
     )
 
@@ -98,13 +152,14 @@ async def capture(
 
     For instance events only (install ping, telemetry heartbeat). Per-user events use
     the queued client from `_load_posthog()`. A fixed `uuid` lets PostHog drop a copy.
+    An instance is not a person, so PostHog makes no person profile for these events.
     """
 
     sent = await asyncio.to_thread(
         _sync_client(timeout).capture,
         event,
         distinct_id=distinct_id,
-        properties=properties,
+        properties={**properties, NO_PERSON_PROFILE: False},
         uuid=uuid,
     )
     # The client catches its own send errors and returns None instead of the event uuid.
