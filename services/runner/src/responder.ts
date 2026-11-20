@@ -350,10 +350,10 @@ export class ConversationDecisions implements StoredPermissionDecisions {
 export class ApprovalResponder implements Responder {
   /**
    * Server answers kept for the next gate of the same call, keyed by `approvedCallKey` plus the
-   * tool call id. A call can meet two gates (the harness gate, then the runner's tool seam), and
-   * the second must not ask the server again. The id alone is not enough: some harnesses reuse
-   * short ids, so a key by id could answer a later call with other arguments. The second gate
-   * takes the entry out.
+   * tool call id, so a harness that raises the gate of one call again does not ask the server
+   * again. The id alone is not enough: some harnesses reuse short ids, so a key by id could
+   * answer a later call with other arguments. The next gate of the call takes the entry out, and
+   * a gate with no tool call id keeps nothing.
    */
   private readonly gateAnswers = new Map<string, GateAnswer>();
 

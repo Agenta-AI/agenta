@@ -70,7 +70,9 @@ export function buildExecutableToolGate({
       };
       const verdict = await responder.onPermission({
         id: request.id,
-        toolCallId: request.toolCallId,
+        // No tool call id: the seam's id is minted per request and is not the harness's id, so a
+        // kept server answer could never match it. A session write that the harness gate already
+        // asked about is asked again here.
         availableReplies: ["once", "reject"],
         gate,
         raw: { spec: request.spec },
@@ -88,7 +90,14 @@ export function buildExecutableToolGate({
         );
       }
       if (preApproved) return { kind: "allow" };
-      if (verdict.kind === "allow") return { kind: "allow" };
+      if (verdict.kind === "allow") {
+        // A server allow at the harness gate also left a grant. Spend it here, so it cannot
+        // later answer a call with the same arguments that the server sends to a card.
+        if (verdict.gateAnswerBasis !== undefined) {
+          executionGrants?.consume(request.spec.name, request.input);
+        }
+        return { kind: "allow" };
+      }
       if (verdict.kind === "deny") {
         // A server deny at the gate is a policy refusal too (a denied target), never a person's.
         const byPolicy =

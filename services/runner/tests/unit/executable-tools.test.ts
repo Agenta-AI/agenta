@@ -342,7 +342,10 @@ describe("buildExecutableToolGate with a harness-gate execution grant", () => {
 });
 
 describe("buildExecutableToolGate with a server answer at the gate", () => {
-  function serverSeam(permission: "allow" | "deny") {
+  function serverSeam(
+    permission: "allow" | "deny",
+    executionGrants?: ApprovedExecutionGrants,
+  ) {
     let pauses = 0;
     const permissionPlan: PermissionPlan = {
       default: "allow_reads",
@@ -367,6 +370,7 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
         throw new Error("no card may be recorded");
       },
       permissionPlan,
+      executionGrants,
     });
     return { gate, pauses: () => pauses };
   }
@@ -375,6 +379,18 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
     const { gate, pauses } = serverSeam("allow");
     assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
     assert.equal(pauses(), 0);
+  });
+
+  it("spends the grant that the harness gate left on a server allow", async () => {
+    const grants = new ApprovedExecutionGrants();
+    grants.grant("publish", input);
+    const { gate } = serverSeam("allow", grants);
+    assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
+    assert.equal(
+      grants.consume("publish", input),
+      false,
+      "no grant is left to answer a later call with the same arguments",
+    );
   });
 
   it("words a server deny as a policy refusal, not as a person's decline", async () => {
