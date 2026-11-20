@@ -59,12 +59,13 @@ const EvaluatorRunControls = () => {
                     onSelect={handleAppSelect}
                     size="small"
                     placeholder={selectedAppLabel ?? "Select app"}
+                    placement="bottomRight"
                     popupFooter={popupFooter}
                 />
             )}
 
             {isAppMode && hasAppConnected && (
-                <Tooltip title="Disconnect app">
+                <Tooltip title="Disconnect app" mouseLeaveDelay={0}>
                     <Button
                         type="text"
                         size="small"
