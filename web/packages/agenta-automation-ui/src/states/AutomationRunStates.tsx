@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
@@ -44,7 +46,14 @@ export const AutomationRunListSkeleton = ({
  * Not an error and not a defect: a paused automation, or one whose schedule has not come round
  * yet, is in a perfectly good state — so this says what will happen rather than what is missing.
  */
-export const AutomationRunHistoryEmpty = ({filtered = false}: {filtered?: boolean}) => {
+export const AutomationRunHistoryEmpty = ({
+    filtered = false,
+    action,
+}: {
+    filtered?: boolean
+    /** One action under the text, for example "Run now". */
+    action?: ReactNode
+}) => {
     const t = useT(automationsEditorCatalog)
     return (
         // Centred in the column it fills, not stacked under the heading: the list's own height is
@@ -65,6 +74,7 @@ export const AutomationRunHistoryEmpty = ({filtered = false}: {filtered?: boolea
                     ? t("automations.editor.noRunsFilteredBody")
                     : t("automations.editor.noRunsBody")}
             </p>
+            {action ? <div className="mt-1">{action}</div> : null}
         </div>
     )
 }

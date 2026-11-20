@@ -74,22 +74,13 @@ export interface ScheduleDrawerState {
 export const triggerScheduleDrawerAtom = atom<ScheduleDrawerState | null>(null)
 
 // ---------------------------------------------------------------------------
-// Deliveries drawer state — opened against one subscription OR one schedule
-// (a delivery belongs to exactly one of the two; XOR, DB-enforced).
+// Delivery drawer state: one delivery, opened from a session row ("View delivery").
+// An automation's run history is the run history view of `@agenta/automation-ui`.
 // ---------------------------------------------------------------------------
 
-export interface OwnerDeliveriesDrawerState {
-    mode: "owner-history"
-    owner: {kind: "subscription" | "schedule"; id: string}
-    name?: string
-    // When opened from an agent playground: the agent's entityId. Enables the
-    // per-delivery "Run in playground" action (replays a captured delivery's
-    // inputs into that agent's chat session). Absent in workspace settings.
-    playgroundEntityId?: string
-}
 export interface ExactDeliveryDrawerState {
     mode: "exact-delivery"
     deliveryId: string
 }
-export type DeliveriesDrawerState = OwnerDeliveriesDrawerState | ExactDeliveryDrawerState
+export type DeliveriesDrawerState = ExactDeliveryDrawerState
 export const triggerDeliveriesDrawerAtom = atom<DeliveriesDrawerState | null>(null)

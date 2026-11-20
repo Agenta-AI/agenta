@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
@@ -31,6 +31,10 @@ export const AutomationRunList = ({
     error,
     onSelect,
     onRetry,
+    hasMore = false,
+    loadingMore = false,
+    onEndReached,
+    emptyAction,
 }: {
     runs: TriggerDelivery[]
     /** What the headings cut the list by. */
@@ -42,41 +46,79 @@ export const AutomationRunList = ({
     error?: unknown
     onSelect: (delivery: TriggerDelivery) => void
     onRetry?: () => void
+    /** More runs wait on the server; the list asks for them when its end scrolls into view. */
+    hasMore?: boolean
+    loadingMore?: boolean
+    onEndReached?: () => void
+    /** The action under "No runs yet" (the host's "Run now"). Not shown for a filtered list. */
+    emptyAction?: ReactNode
 }) => {
     const t = useT(automationsModelCatalog)
     // The group labels are text, so the groups are cut again when the language changes.
     const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs, t])
+    const scrollerRef = useRef<HTMLDivElement>(null)
+    const endRef = useRef<HTMLDivElement>(null)
+    const endReached = useRef(onEndReached)
+    endReached.current = onEndReached
+
+    // The end of the list in view asks for the next page. Observed inside the list's own
+    // scroller, so it works the same in a panel, a drawer and a page.
+    useEffect(() => {
+        const end = endRef.current
+        if (!hasMore || !end || typeof IntersectionObserver === "undefined") return
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) endReached.current?.()
+            },
+            {root: scrollerRef.current, rootMargin: "200px 0px"},
+        )
+        observer.observe(end)
+        return () => observer.disconnect()
+    }, [hasMore, runs.length])
 
     // `ag-scroll-quiet`: the bar stays invisible until the pointer is in the column. A permanent
     // one sat over the times and clipped them to "17:0".
     return (
-        <div className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+            ref={scrollerRef}
+            className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
             {isLoading ? (
                 <AutomationRunListSkeleton />
             ) : error ? (
                 <AutomationRunHistoryError onRetry={onRetry} />
             ) : groups.length ? (
-                groups.map((group) => (
-                    <section key={group.key} className="mb-1 last:mb-0">
-                        {group.label ? (
-                            <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[12px] font-medium capitalize text-muted-foreground">
-                                {group.label}
-                            </h2>
-                        ) : null}
-                        <div className="flex flex-col gap-0.5">
-                            {group.runs.map((delivery) => (
-                                <AutomationRunRow
-                                    key={delivery.id ?? delivery.event_id}
-                                    delivery={delivery}
-                                    selected={delivery.id === selectedId}
-                                    onSelect={() => onSelect(delivery)}
-                                />
-                            ))}
+                <>
+                    {groups.map((group) => (
+                        <section key={group.key} className="mb-1 last:mb-0">
+                            {group.label ? (
+                                <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[12px] font-medium capitalize text-muted-foreground">
+                                    {group.label}
+                                </h2>
+                            ) : null}
+                            <div className="flex flex-col gap-0.5">
+                                {group.runs.map((delivery) => (
+                                    <AutomationRunRow
+                                        key={delivery.id ?? delivery.event_id}
+                                        delivery={delivery}
+                                        selected={delivery.id === selectedId}
+                                        onSelect={() => onSelect(delivery)}
+                                    />
+                                ))}
+                            </div>
+                        </section>
+                    ))}
+                    {hasMore ? (
+                        <div ref={endRef} data-testid="run-list-end">
+                            {loadingMore ? <AutomationRunListSkeleton groups={1} rows={2} /> : null}
                         </div>
-                    </section>
-                ))
+                    ) : null}
+                </>
             ) : (
-                <AutomationRunHistoryEmpty filtered={filtered} />
+                <AutomationRunHistoryEmpty
+                    filtered={filtered}
+                    action={filtered ? undefined : emptyAction}
+                />
             )}
         </div>
     )

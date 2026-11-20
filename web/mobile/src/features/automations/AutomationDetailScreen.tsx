@@ -156,6 +156,15 @@ export const AutomationDetailScreen = ({
                                 />
                             }
                             renderConversation={renderConversation}
+                            runNow={
+                                automation ? (
+                                    <AutomationTestRunButton
+                                        automation={automation}
+                                        base={base}
+                                        dirty={dirty}
+                                    />
+                                ) : null
+                            }
                         />
                     ) : automation && preview ? (
                         <AutomationDetailBody

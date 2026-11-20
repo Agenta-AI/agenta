@@ -1,9 +1,10 @@
 import {useCallback} from "react"
 
-import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {AgentOperationsSections, type TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
-import {useSetAtom} from "jotai"
+import {useViewStack} from "@agenta/ui/view-stack"
+
+import {automationRunHistoryView} from "../automations/automationRunHistoryView"
 
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -11,21 +12,33 @@ import {useProjectPermissionState} from "../context/useProjectPermission"
 /** The Automations tab: the agent's automations and its recent files, as production shows them. */
 export const AutomationsTab = ({
     revisionId,
+    workspaceId,
     sessionId,
     filesScope,
     projectId,
 }: {
     revisionId: string
+    workspaceId: string
     sessionId: string
     filesScope: string
     projectId: string
 }) => {
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
-    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
+    const stack = useViewStack()
+    // The run history opens in the panel, as a view (no 960px drawer).
     const openRunHistory = useCallback(
         ({id, kind}: TriggerOwnerRef) =>
-            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"}),
-        [openDrawer],
+            void stack.open(
+                automationRunHistoryView,
+                {
+                    automationId: id,
+                    kind: kind === "schedule" ? "schedule" : "event",
+                    workspaceId,
+                    projectId,
+                },
+                {kind: "project"},
+            ),
+        [projectId, stack, workspaceId],
     )
     return (
         <div className="ag-scroll-no-bar h-full min-h-0 overflow-y-auto">

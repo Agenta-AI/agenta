@@ -559,6 +559,10 @@
         "failureStopped": "840abf73f310",
         "failureWithDetail": "e6ce80637395"
     },
+    "automations.runHistory": {
+        "openInNewTab": "2afea81ea379",
+        "openRunInNewTab": "a57d4f0a2c21"
+    },
     "automations.screens": {
         "pageTitle": "ad1fb9ec0cb3",
         "newAutomation": "db87a63d537e",

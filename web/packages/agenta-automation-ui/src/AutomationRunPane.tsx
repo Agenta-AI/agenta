@@ -4,7 +4,8 @@ import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
-import {ArrowLeft} from "@phosphor-icons/react"
+import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
+import {ArrowLeft, ArrowSquareOut} from "@phosphor-icons/react"
 
 import {ICON_LINK} from "./lib/interactive"
 import {cn} from "./lib/utils"
@@ -34,15 +35,18 @@ import {AutomationRunNoConversation} from "./states/AutomationRunStates"
 export const AutomationRunPane = ({
     delivery,
     renderConversation,
+    sessionHref,
     onBack,
 }: {
     delivery: TriggerDelivery
     /** The run's transcript, given its session — the host's chat surface. */
     renderConversation: (sessionId: string) => ReactNode
+    /** The run's session page; given, an icon opens it in a new tab. */
+    sessionHref?: (sessionId: string) => string
     /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
     onBack?: () => void
 }) => {
-    const t = useT(automationsEditorCatalog, automationsModelCatalog)
+    const t = useT(automationsEditorCatalog, automationsModelCatalog, automationsRunHistoryCatalog)
     const sessionId = runSessionId(delivery)
     const label = runLabel(delivery)
     // The same day-and-time vocabulary the rows speak, so the header names the row you picked.
@@ -87,6 +91,21 @@ export const AutomationRunPane = ({
                         </span>
                     ) : null}
                 </span>
+                {sessionId && sessionHref ? (
+                    <a
+                        href={sessionHref(sessionId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={t("automations.runHistory.openRunInNewTab")}
+                        title={t("automations.runHistory.openRunInNewTab")}
+                        className={cn(
+                            "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
+                            ICON_LINK,
+                        )}
+                    >
+                        <ArrowSquareOut aria-hidden size={15} />
+                    </a>
+                ) : null}
             </div>
             <div className="flex min-h-0 flex-1 flex-col">
                 {sessionId ? (

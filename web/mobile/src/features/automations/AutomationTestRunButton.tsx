@@ -1,15 +1,10 @@
-import {useMemo, useState} from "react"
-
 import type {Automation} from "@agenta/automation-ui"
-import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {Button} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
 
-import {useStartTaskSession} from "../chat/useStartTaskSession"
-
-import {runNowText} from "./runNowText"
+import {useAutomationRunNow} from "./useAutomationRunNow"
 
 /**
  * Run this automation now, without waiting for its trigger.
@@ -37,18 +32,7 @@ export const AutomationTestRunButton = ({
     dirty: boolean
 }) => {
     const t = useT(automationsScreensCatalog)
-    const startTask = useStartTaskSession(base)
-    const [starting, setStarting] = useState(false)
-
-    // Shape-agnostic: the message is read straight off the stored inputs, so no agent schema has
-    // to resolve before the button can be pressed.
-    const instruction = useMemo(
-        () => getScheduleMessagePreview(automation.raw.data?.inputs_fields).trim(),
-        [automation.raw.data?.inputs_fields],
-    )
-
-    const blocked = testRunBlockedReason({agentId: automation.agentId, instruction, dirty})
-    const blockedText = blocked ? t(TEST_RUN_BLOCKED_TEXT[blocked]) : undefined
+    const {blocked, blockedText, starting, run} = useAutomationRunNow(automation, base, {dirty})
 
     return (
         // A disabled button takes no pointer events, so the reason has to hang off something that
@@ -61,48 +45,11 @@ export const AutomationTestRunButton = ({
                 className="text-xs font-normal"
                 disabled={blocked !== null || starting}
                 title={blockedText ?? t("automations.screens.runNowTitle")}
-                onClick={async () => {
-                    if (!automation.agentId) return
-                    setStarting(true)
-                    const text = await runNowText(automation)
-                    setStarting(false)
-                    // Null: the deliveries call failed. Empty: the pills resolved to nothing.
-                    // Either way there is no message, so no session opens.
-                    if (text) void startTask(automation.agentId, text)
-                }}
+                onClick={() => void run()}
             >
                 <Play aria-hidden className="size-3" />
                 {t("automations.screens.runNow")}
             </Button>
         </span>
     )
-}
-
-/** The words for each reason, shared by the button and the list row's menu action. */
-export const TEST_RUN_BLOCKED_TEXT = {
-    agent: "automations.screens.blockedAgent",
-    instruction: "automations.screens.blockedInstruction",
-    dirty: "automations.screens.blockedDirty",
-} as const
-
-export type TestRunBlockedReason = keyof typeof TEST_RUN_BLOCKED_TEXT
-
-/**
- * Why a test run cannot start, or null when it can. Shared with the list row's menu action so
- * the two entry points refuse for the same reasons.
- */
-export const testRunBlockedReason = ({
-    agentId,
-    instruction,
-    dirty = false,
-}: {
-    agentId: string | null
-    instruction: string
-    dirty?: boolean
-}): TestRunBlockedReason | null => {
-    if (!agentId) return "agent"
-    // The run IS the instruction; with none there is nothing to send.
-    if (!instruction) return "instruction"
-    if (dirty) return "dirty"
-    return null
 }

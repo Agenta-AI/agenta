@@ -21,7 +21,6 @@ import {useCallback, type ReactNode} from "react"
 import {
     getScheduleMessagePreview,
     isEntityActive,
-    triggerDeliveriesDrawerAtom,
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
     useTriggerSchedule,
@@ -33,7 +32,6 @@ import {createT, useT} from "@agenta/i18n"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {useHasOpened} from "@agenta/ui/hooks"
 import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
@@ -44,24 +42,18 @@ import {
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {useAtom, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
+import {useSetAtom} from "jotai"
 
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
-// Carries the virtual table. Rendered from its first open, since rendering starts the download.
-const TriggerDeliveriesDrawer = dynamic(
-    () => import("../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"),
-    {ssr: false},
-)
 const tNow = createT(triggersCatalog)
 
 export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
-/** Which automation a row action names — the same pair the deliveries drawer is keyed by. */
+/** Which automation a row action names: a schedule or an event subscription, by id. */
 export interface TriggerOwnerRef {
     kind: "subscription" | "schedule"
     id: string
@@ -73,8 +65,8 @@ export interface TriggerManagementSectionProps {
     /** Read-only mode (e.g. a non-editable revision). */
     disabled?: boolean
     /**
-     * Where a row's "Run history" goes. A surface with an automation detail page (mobile) sends
-     * the reader there; absent, the history opens in the deliveries drawer over this panel.
+     * Where a row's "Run history" goes: the host opens the run history view. Absent, the rows
+     * offer no "Run history".
      */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
     /**
@@ -102,25 +94,7 @@ export function TriggerManagementSection({
 
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
-    const [deliveries, openDeliveries] = useAtom(triggerDeliveriesDrawerAtom)
-    const deliveriesOpened = useHasOpened(Boolean(deliveries))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
-
-    const openRunHistory = useCallback(
-        (owner: TriggerOwnerRef, name?: string | null) => {
-            if (onOpenRunHistory) {
-                onOpenRunHistory(owner)
-                return
-            }
-            openDeliveries({
-                mode: "owner-history",
-                owner,
-                name: name ?? undefined,
-                playgroundEntityId: entityId ?? undefined,
-            })
-        },
-        [onOpenRunHistory, openDeliveries, entityId],
-    )
 
     // A schedule (cron) has no external event to replay — simulate it with its own
     // configured inputs, exactly like the schedule drawer's "Run in playground".
@@ -153,15 +127,16 @@ export function TriggerManagementSection({
     const subscriptionMenu = useCallback(
         (record: TriggerSubscription): ReactNode => (
             <>
-                <DropdownMenuItem
-                    onSelect={() => {
-                        if (record.id)
-                            openRunHistory({kind: "subscription", id: record.id}, record.name)
-                    }}
-                >
-                    <ClockCounterClockwise size={16} />
-                    {tNow("entityUi.triggers.runHistory")}
-                </DropdownMenuItem>
+                {onOpenRunHistory ? (
+                    <DropdownMenuItem
+                        onSelect={() => {
+                            if (record.id) onOpenRunHistory({kind: "subscription", id: record.id})
+                        }}
+                    >
+                        <ClockCounterClockwise size={16} />
+                        {tNow("entityUi.triggers.runHistory")}
+                    </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem
                     disabled={disabled}
                     onSelect={() => {
@@ -226,7 +201,7 @@ export function TriggerManagementSection({
         ),
         [
             entityId,
-            openRunHistory,
+            onOpenRunHistory,
             openSubscriptionDrawer,
             refreshSubscription,
             revokeSubscription,
@@ -264,15 +239,16 @@ export function TriggerManagementSection({
                     {tNow("entityUi.triggers.runNow")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    onSelect={() => {
-                        if (record.id)
-                            openRunHistory({kind: "schedule", id: record.id}, record.name)
-                    }}
-                >
-                    <ClockCounterClockwise size={16} />
-                    {tNow("entityUi.triggers.runHistory")}
-                </DropdownMenuItem>
+                {onOpenRunHistory ? (
+                    <DropdownMenuItem
+                        onSelect={() => {
+                            if (record.id) onOpenRunHistory({kind: "schedule", id: record.id})
+                        }}
+                    >
+                        <ClockCounterClockwise size={16} />
+                        {tNow("entityUi.triggers.runHistory")}
+                    </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem
                     disabled={disabled}
                     onSelect={() => {
@@ -323,7 +299,7 @@ export function TriggerManagementSection({
             </>
         ),
         [
-            openRunHistory,
+            onOpenRunHistory,
             openScheduleDrawer,
             removeSchedule,
             simulateSchedule,
@@ -381,7 +357,6 @@ export function TriggerManagementSection({
                 drawer (no separate catalog drawer in the playground). When a
                 subscription/schedule is created here it default-binds to this agent. */}
             {automationDrawer}
-            {deliveriesOpened ? <TriggerDeliveriesDrawer /> : null}
         </div>
     )
 }
