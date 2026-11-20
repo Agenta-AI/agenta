@@ -64,8 +64,9 @@ export const ResultRows: Story = {
                 ...RESULT_PARTS.waiting,
                 ...RESULT_PARTS.saved,
                 ...RESULT_PARTS.denied,
-                ...RESULT_PARTS.conflict,
                 ...RESULT_PARTS.accessDenied,
+                // Last: only the last call of a turn offers Try again.
+                ...RESULT_PARTS.conflict,
             ],
         ],
         approvals: [GROUPED_CALLS[2]],
