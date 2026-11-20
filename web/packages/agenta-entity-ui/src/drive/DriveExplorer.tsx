@@ -108,9 +108,11 @@ const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
  * selection state; initialize with `initialPath` (callers remount per open, so mount-time init
  * is the reset).
  */
-/** The header and toolbar buttons keep their drawn size; each gets a 44 px hit area. */
-const TOUCH_HITS =
-    "contents [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-x-2 [&_button]:after:-inset-y-3 [&_button]:after:content-['']"
+/**
+ * On a touch screen the header and toolbar buttons are at least 44 x 44 px, so no hit area
+ * overlaps its neighbour; the icons keep their size.
+ */
+const TOUCH_SIZES = "contents [&_button]:min-h-11 [&_button]:min-w-11"
 
 export function DriveExplorer({
     drive,
@@ -410,9 +412,14 @@ export function DriveExplorer({
     // Row 2's slot for a running app's controls.
     const [appControlsEl, setAppControlsEl] = useState<HTMLDivElement | null>(null)
     // An app's access sheet stays inside this pane, so the chat beside it stays usable.
+    // Read only: a running app gets no write access, and its access menu offers none.
     const sheetHtmlAppEnv = useMemo(
-        () => ({...htmlAppEnv, sheetContainer: getPane}),
-        [htmlAppEnv, getPane],
+        () => ({
+            ...htmlAppEnv,
+            sheetContainer: getPane,
+            ...(readOnly ? {canEditMounts: false} : {}),
+        }),
+        [htmlAppEnv, getPane, readOnly],
     )
     // The app whose code is on screen; every other app opens running.
     const [htmlCodePath, setHtmlCodePath] = useState<string | null>(null)
@@ -690,7 +697,7 @@ export function DriveExplorer({
 
         const shownContentHeader =
             touch && contentHeader ? (
-                <div className={TOUCH_HITS}>{contentHeader}</div>
+                <div className={TOUCH_SIZES}>{contentHeader}</div>
             ) : (
                 contentHeader
             )
@@ -879,7 +886,7 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    <div className={touch ? TOUCH_HITS : "contents"}>
+                    <div className={touch ? TOUCH_SIZES : "contents"}>
                         <DriveHeader
                             selectedPath={selectedPath}
                             isFolder={selectedIsFolder}

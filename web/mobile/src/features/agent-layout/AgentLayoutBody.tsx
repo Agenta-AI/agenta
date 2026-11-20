@@ -334,7 +334,7 @@ export const AgentLayoutBody = ({
                                 // The header icon closes it on desktop, the phone header on a
                                 // phone.
                                 closeControl="none"
-                                expanded={filesLayout.expanded}
+                                expanded={!phone && filesLayout.expanded}
                                 // A phone has no wider pane, and Files is read only there.
                                 onToggleExpand={phone ? undefined : filesLayout.toggleExpand}
                                 readOnly={phone}
