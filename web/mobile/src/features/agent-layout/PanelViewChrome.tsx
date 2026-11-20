@@ -19,7 +19,7 @@ import {PanelCloseButton} from "./PanelCloseButton"
 export const PanelViewChrome = ({
     crumbs,
     apply,
-    readOnly,
+    hideActionRow,
     form,
     footerStartRef,
     onBack,
@@ -89,7 +89,7 @@ export const PanelViewChrome = ({
             )}
             {/* Edge to edge: each view pads itself. */}
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
-            {readOnly ? null : (
+            {hideActionRow ? null : (
                 <div
                     className={cn(
                         "shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4",

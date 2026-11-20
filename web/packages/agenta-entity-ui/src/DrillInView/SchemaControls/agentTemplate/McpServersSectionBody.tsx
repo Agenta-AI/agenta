@@ -103,7 +103,9 @@ export function McpServersSectionBody({
             const record = (item ?? {}) as Record<string, unknown>
             const endpoint = endpointForItem(item)
             const req = requirementFor(item)
-            const ref = mcpItemRef(item, items)
+            // Two identical entries share every address: then only the index names this one.
+            const address = mcpItemRef(item, items)
+            const ref = address && findMcpIndex(items, address) >= 0 ? address : null
             // An expired sign-in opens the server view, whose title offers "Reconnect".
             if (ref && req?.kind === "mcp_sign_in" && endpoint) {
                 openServer(ref)
@@ -116,7 +118,7 @@ export function McpServersSectionBody({
             }
             openServer(ref)
         },
-        [endpointForItem, openForm, openServer, requirementFor],
+        [endpointForItem, items, openForm, openServer, requirementFor],
     )
 
     return (

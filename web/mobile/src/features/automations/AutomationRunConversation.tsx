@@ -65,7 +65,7 @@ export const AutomationRunConversation = ({
                 // Per session — the pane swaps transcripts as runs are picked, and the engine's
                 // per-session state must not survive that swap.
                 key={conversationKey({sessionId, revisionId: entityId})}
-                embedded
+                parentOwnsShell
                 entityId={entityId}
                 sessionId={sessionId}
                 projectId={projectId}
