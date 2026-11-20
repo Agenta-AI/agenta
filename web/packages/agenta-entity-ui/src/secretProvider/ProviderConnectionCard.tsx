@@ -102,7 +102,7 @@ const SETTLE_MS = 800
  * model and harness rows (a label around a checkbox). A checkbox itself stays small.
  */
 const PHONE_TARGETS =
-    "[&_[data-slot=input-affix]]:min-h-11 [&_textarea]:min-h-11 [&_button:not([role=checkbox])]:min-h-11 [&_label]:min-h-11"
+    "[&_[data-slot=input-affix]]:min-h-11 [&_textarea]:min-h-11 [&_button:not([role=checkbox])]:min-h-11 [&_button:not([role=checkbox])]:min-w-11 [&_label]:min-h-11"
 
 /** The two ways to sign in to AWS Bedrock, and the fields of each. */
 type BedrockWay = "apiKey" | "accessKeys"
