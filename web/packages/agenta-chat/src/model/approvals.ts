@@ -15,21 +15,27 @@ export interface PendingApproval {
     input: unknown
     /** Workspace content the runner resolved and froze for this gate, when the call imports any. */
     manifest?: unknown
+    /** The server's dry run of an agent change (`data-approval-preview`), when the gate has one. */
+    changePreview?: unknown
 }
 
 interface ApprovalRef {
     id: string
 }
 
-/** Manifests keyed by toolCallId, from the egress's `data-approval-manifest` sibling parts. */
-const manifestsByToolCallId = (parts: UIMessage["parts"] = []): Map<string, unknown> => {
+/** The `data` field of each `type` sibling part, keyed by its `toolCallId`. */
+const dataPartsByToolCallId = (
+    parts: UIMessage["parts"] = [],
+    type: string,
+    field: "manifest" | "preview",
+): Map<string, unknown> => {
     const found = new Map<string, unknown>()
     for (const part of parts) {
-        if ((part as {type?: string}).type !== "data-approval-manifest") continue
+        if ((part as {type?: string}).type !== type) continue
         const data = (part as {data?: Record<string, unknown>}).data
         const toolCallId = data?.toolCallId
-        if (typeof toolCallId === "string" && data?.manifest !== undefined) {
-            found.set(toolCallId, data.manifest)
+        if (typeof toolCallId === "string" && data?.[field] !== undefined) {
+            found.set(toolCallId, data[field])
         }
     }
     return found
@@ -39,8 +45,9 @@ const manifestsByToolCallId = (parts: UIMessage["parts"] = []): Map<string, unkn
  * Pending approval gates across assistant messages, in transcript order.
  *
  * #5919 widened this from "the LAST assistant turn" to the whole transcript: a card parked several
- * turns up still holds the gate. The manifest lookup is per-message — the `data-approval-manifest`
- * parts are siblings of the tool call they describe, so they must be read from the same message.
+ * turns up still holds the gate. The manifest and preview lookups are per-message — the
+ * `data-approval-manifest` and `data-approval-preview` parts are siblings of the tool call they
+ * describe, so they must be read from the same message.
  */
 export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] => {
     const out: PendingApproval[] = []
@@ -65,7 +72,10 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
                       ),
                   )
                 : null
-        const manifests = manifestsByToolCallId(message.parts)
+        const manifests = dataPartsByToolCallId(message.parts, "data-approval-manifest", "manifest")
+        // The server preview rides the live stream only: after a reload the gate has none, and
+        // the card shows the proposed values.
+        const previews = dataPartsByToolCallId(message.parts, "data-approval-preview", "preview")
         for (const part of message.parts ?? []) {
             const p = part as ToolUIPart
             const approval = (p as {approval?: ApprovalRef}).approval
@@ -80,6 +90,7 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
                     toolName: partToolName(p),
                     input: p.input,
                     manifest: manifests.get(p.toolCallId),
+                    changePreview: previews.get(p.toolCallId),
                 })
             }
         }

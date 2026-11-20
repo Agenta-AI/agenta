@@ -1,0 +1,20 @@
+[
+    {
+        "id": "first-builder-edit-change-card-preview-light",
+        "story": "builderlayout-first-builder-edit-change-card--with-preview",
+        "width": 520,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=claude-opus-5-5"
+    },
+    {
+        "id": "first-builder-edit-change-card-no-preview-light",
+        "story": "builderlayout-first-builder-edit-change-card--no-preview",
+        "width": 520,
+        "height": 700,
+        "theme": "light",
+        "selector": "[data-testid=\"change-card\"]",
+        "ready": "text=Proposed values"
+    }
+]

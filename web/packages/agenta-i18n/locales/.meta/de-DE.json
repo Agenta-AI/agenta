@@ -771,6 +771,10 @@
     "billing.useBillingPortal": {
         "openFailed": "619868b8cfe7"
     },
+    "builder.panel": {
+        "newChat": "db18382a249e",
+        "close": "fa9f6a2f9336"
+    },
     "channels.actions": {
         "addSpaceFailed": "42aeaad2e436",
         "agentHasNoId": "6ca730169112",
@@ -1240,6 +1244,11 @@
         "view": "32434a2c2b53",
         "viewMore_one": "83acf6201743",
         "viewMore_other": "e14e337fa311"
+    },
+    "chat.changeCard": {
+        "cannotApply": "14cc625575f7",
+        "proposedValues": "755530ab7e31",
+        "savedAs": "98950ea2b030"
     },
     "chat.chatComposer": {
         "attachComingSoon": "10da6cd6c1b1",
