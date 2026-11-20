@@ -34,6 +34,19 @@ export const readBuilderChats = (userId: string, projectId: string, agentId: str
     readLinks(builderChatsKey(userId, projectId))[agentId] ?? []
 
 /**
+ * The agent this browser linked `sessionId` to, or null when no agent lists it or storage cannot
+ * be read.
+ */
+export const linkedAgentOf = (
+    userId: string,
+    projectId: string,
+    sessionId: string,
+): string | null => {
+    const links = readLinks(builderChatsKey(userId, projectId))
+    return Object.keys(links).find((agentId) => links[agentId]?.includes(sessionId)) ?? null
+}
+
+/**
  * Puts `sessionId` first in the list of `agentId`. A chat stays with its first agent: a chat already
  * listed under another agent is left there. True when the chat is new to the list and stored.
  */

@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {markSessionFresh} from "@agenta/chat/state"
 import {agentSharingQueryAtomFamily} from "@agenta/entities/sharing"
 import {
     agentWorkflowsListQueryStateAtom,
@@ -22,11 +21,12 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
-import {newId} from "@/lib/ids"
 
 import {useAgentRow} from "../agent-layout/useAgentRow"
 import {openMainSidebar} from "../agent-sidebar/selectedSidebar"
 import {builderChatHref} from "../builder/builderChatHref"
+import {linkedAgentOf} from "../builder/builderChatLink"
+import {newBuilderSessionId} from "../builder/newBuilderSession"
 import {SessionWorkspaceDrawers} from "../chat/SessionWorkspaceDrawers"
 import {ChatLoading} from "../chat/states/ChatStates"
 import {ChatUnreachable} from "../chat/states/ChatUnreachable"
@@ -48,20 +48,11 @@ import {createBuilderSidebarScope} from "./builderSidebarScope"
 import {
     latestContextAgent,
     latestResultAgent,
-    linkedAgentId,
     paneAgentId,
     parseTabParam,
     tabParam,
     type AgentRef,
 } from "./paneAgent"
-
-/** A new builder chat: a client-side id that becomes a server session on its first message. */
-const newBuilderSessionId = () => {
-    const id = newId()
-    // Never run: the conversation must not read its empty history as a pruned one.
-    markSessionFresh(id)
-    return id
-}
 
 /** The agents one chat's messages name. */
 interface ChatFacts {
@@ -130,7 +121,7 @@ export const BuilderPage = ({
     const resultAgent = facts?.sessionId === sessionId ? facts.result : null
     const contextAgent = facts?.sessionId === sessionId ? facts.context : null
     const linkedAgent = useMemo(
-        () => (userId ? linkedAgentId(userId, projectId, sessionId) : null),
+        () => (userId ? linkedAgentOf(userId, projectId, sessionId) : null),
         [projectId, sessionId, userId],
     )
     const tabRef = parseTabParam(tab)

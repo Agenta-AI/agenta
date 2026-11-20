@@ -2,9 +2,7 @@ import {isToolPart, partToolName} from "@agenta/chat/model"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import type {ToolUIPart, UIMessage} from "ai"
 
-import {builderChatsKey} from "../builder/builderChatLink"
-
-import {sentContextOf} from "./sentContext"
+import {sentContextOf} from "../builder/pageContext"
 
 /** An agent as the builder page names it. The name is empty when the source gives none. */
 export interface AgentRef {
@@ -88,29 +86,6 @@ export const latestContextAgent = (messages: readonly UIMessage[]): AgentRef | n
         if (message.role !== "user") continue
         const agent = sentContextOf(message)?.agent
         if (agent?.id) return {id: agent.id, name: agent.name ?? ""}
-    }
-    return null
-}
-
-/**
- * The agent this browser linked the chat to (design D12): the agent whose builder chats hold
- * `sessionId`. Null when none does or when storage cannot be read.
- */
-export const linkedAgentId = (
-    userId: string,
-    projectId: string,
-    sessionId: string,
-): string | null => {
-    try {
-        const parsed: unknown = JSON.parse(
-            window.localStorage.getItem(builderChatsKey(userId, projectId)) ?? "{}",
-        )
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
-        for (const [agentId, ids] of Object.entries(parsed)) {
-            if (Array.isArray(ids) && ids.includes(sessionId)) return agentId
-        }
-    } catch {
-        // Storage refused or not JSON: no link.
     }
     return null
 }

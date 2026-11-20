@@ -8,7 +8,7 @@
 import type {UIMessage} from "ai"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {builderChatsKey} from "@/features/builder/builderChatLink"
+import {builderChatsKey, linkedAgentOf} from "@/features/builder/builderChatLink"
 import {withContextLine} from "@/features/builder/pageContext"
 import {
     BUILDER_LAYOUT_KEY,
@@ -21,7 +21,6 @@ import {filterIdeas} from "@/features/builder-page/ideas"
 import {
     latestContextAgent,
     latestResultAgent,
-    linkedAgentId,
     paneAgentId,
     parseTabParam,
 } from "@/features/builder-page/paneAgent"
@@ -105,15 +104,15 @@ describe("latestContextAgent", () => {
     })
 })
 
-describe("linkedAgentId", () => {
+describe("linkedAgentOf", () => {
     it("finds the agent the browser linked the chat to", () => {
         window.localStorage.setItem(
             builderChatsKey("user-1", "project-1"),
             JSON.stringify({"agent-a": ["chat-1", "chat-2"], "agent-b": ["chat-3"]}),
         )
-        expect(linkedAgentId("user-1", "project-1", "chat-3")).toBe("agent-b")
-        expect(linkedAgentId("user-1", "project-1", "chat-9")).toBeNull()
-        expect(linkedAgentId("user-2", "project-1", "chat-3")).toBeNull()
+        expect(linkedAgentOf("user-1", "project-1", "chat-3")).toBe("agent-b")
+        expect(linkedAgentOf("user-1", "project-1", "chat-9")).toBeNull()
+        expect(linkedAgentOf("user-2", "project-1", "chat-3")).toBeNull()
     })
 })
 

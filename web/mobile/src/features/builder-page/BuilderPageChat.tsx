@@ -13,6 +13,7 @@ import {cn} from "@/lib/utils"
 import {rememberBuilderChat} from "../builder/builderChatLink"
 import {chipClass} from "../builder/chipText"
 import {withContextLine, type PageContext} from "../builder/pageContext"
+import {sentContextOf} from "../builder/pageContext"
 import {SentContextChip} from "../builder/SentContextChip"
 import {builderChatLinkVersionAtom} from "../builder/useBuilderChatList"
 import {ConversationRoleContext} from "../chat/conversationRole"
@@ -25,7 +26,6 @@ import type {HeroState} from "./hero/BuilderHero"
 import {NewBuilderChat} from "./NewBuilderChat"
 import {PageQuickActions} from "./PageQuickActions"
 import type {AgentRef} from "./paneAgent"
-import {sentContextOf} from "./sentContext"
 
 const sentContextChip = (message: UIMessage) => {
     const context = sentContextOf(message)
