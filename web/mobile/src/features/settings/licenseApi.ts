@@ -44,3 +44,23 @@ export const activateInstanceLicense = async (
     )
     return data
 }
+
+/** The API could not reach Agenta's registration service. */
+export const isRegistrationUnreachable = (error: unknown) => status(error) === 502
+
+/** The API refused the request body, which in this form means the email address. */
+export const isRegistrationRefused = (error: unknown) => [400, 422].includes(status(error) ?? 0)
+
+/** `POST /instance/license/registrations`: Agenta emails a free registration key. */
+export const createInstanceRegistration = async (
+    projectId: string,
+    email: string,
+    productUpdates: boolean,
+): Promise<{email: string}> => {
+    const {data} = await axios.post(
+        `${getAgentaApiUrl()}/instance/license/registrations`,
+        {email, product_updates: productUpdates},
+        {params: {project_id: projectId}},
+    )
+    return data
+}

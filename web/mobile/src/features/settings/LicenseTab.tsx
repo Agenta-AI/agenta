@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react"
 
+import {useProfile} from "@agenta/entities/profile"
 import {createT, richText, useT} from "@agenta/i18n"
 import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
 import {isEE} from "@agenta/shared/api"
@@ -9,14 +10,14 @@ import {ConfirmModal} from "./ConfirmModal"
 import {activateInstanceLicense, isInvalidLicenseKey} from "./licenseApi"
 import {LicenseKeyForm} from "./LicenseKeyForm"
 import {LicenseSummary} from "./LicenseSummary"
+import {RegistrationForm} from "./RegistrationForm"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {BillingLoadError} from "./states/BillingLoadError"
 import {LicenseAdminOnly} from "./states/LicenseAdminOnly"
 import {SettingsTabSkeleton} from "./states/SettingsTabSkeleton"
+import {UPGRADE_DOCS_URL} from "./upgradePrompt"
 import {useActivationLinkKey} from "./useActivationLinkKey"
 import {instanceLicenseQueryKey, useInstanceLicense} from "./useInstanceLicense"
-
-const UPGRADE_DOCS_URL = "https://docs.agenta.ai/self-host/upgrades/oss-to-ee-switch"
 
 const tNow = createT(settingsLicenseCatalog)
 
@@ -34,6 +35,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
     const t = useT(settingsLicenseCatalog)
     const queryClient = useQueryClient()
     const license = useInstanceLicense(projectId)
+    const {user} = useProfile()
     const [linkKey, dismissLinkKey] = useActivationLinkKey()
     const [error, setError] = useState<string | null>(null)
 
@@ -75,6 +77,20 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
     return (
         <div className="flex flex-col gap-5">
             <LicenseSummary license={license.data} />
+
+            {!license.data.license ? (
+                <section className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                        <h3 className="text-foreground m-0 text-sm font-medium">
+                            {t("settings.license.freeKeyTitle")}
+                        </h3>
+                        <p className="text-muted-foreground m-0 text-[13px]">
+                            {t("settings.license.freeKeyDescription")}
+                        </p>
+                    </div>
+                    <RegistrationForm projectId={projectId} defaultEmail={user?.email} />
+                </section>
+            ) : null}
 
             {!enterprise ? (
                 <p className="text-muted-foreground m-0 text-[13px]">

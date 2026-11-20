@@ -39,6 +39,8 @@ export interface AuditLogPageProps {
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
     /** The upgrade link on the locked state — routing and billing availability are the host's. */
     upgradeAction?: ReactNode
+    /** Where the audit log is available; see `UpgradeNotice`. */
+    upgradeAvailability?: ReactNode
     /** The roster that names each event's user. */
     members?: WorkspaceMember[]
     /** Marks your own events "(you)". */
@@ -56,6 +58,7 @@ export const AuditLogPage = ({
     entitlementsLoading = false,
     renderDateRange,
     upgradeAction,
+    upgradeAvailability,
     members,
     currentUserId,
 }: AuditLogPageProps) => {
@@ -90,6 +93,7 @@ export const AuditLogPage = ({
                 title={t("settings.audit.upgradeTitle")}
                 description={t("settings.audit.upgradeDescription")}
                 action={upgradeAction}
+                availability={upgradeAvailability}
             />
         )
     }

@@ -45,6 +45,8 @@ export interface AccessUpgradeNoticeProps {
     locked: AccessFeature[]
     /** The upgrade link — routing and billing availability are the host's to decide. */
     action?: ReactNode
+    /** Where the features are available; see `UpgradeNotice`. */
+    availability?: ReactNode
 }
 
 /**
@@ -53,7 +55,7 @@ export interface AccessUpgradeNoticeProps {
  * Three identical lock cards stacked down the page said nothing three times; a plan that
  * includes none of this has one thing to say, so it says it once and names what is missing.
  */
-export const AccessUpgradeNotice = ({locked, action}: AccessUpgradeNoticeProps) => {
+export const AccessUpgradeNotice = ({locked, action, availability}: AccessUpgradeNoticeProps) => {
     const t = useT(settingsAccessCatalog)
     if (locked.length === 0) return null
 
@@ -81,6 +83,7 @@ export const AccessUpgradeNotice = ({locked, action}: AccessUpgradeNoticeProps) 
                 ),
             })}
             action={action}
+            availability={availability}
         />
     )
 }
