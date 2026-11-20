@@ -83,6 +83,8 @@ interface Location {
     permission: boolean
     /** The tool a permission field is for, when it names one. */
     tool?: string
+    /** The stored name of the field the target ends on (`url`). */
+    leaf?: string
 }
 
 const SECTION_LABEL: Record<ApprovalChangeSection, Parameters<typeof t>[0]> = {
@@ -246,6 +248,7 @@ export const locateTarget = (target: unknown[], value?: unknown): Location => {
                 // A bare list (no selector) is the whole list, shown as its values.
                 wholeItem: Boolean(key) && rest.length === 0,
                 itemKey: name,
+                leaf: strings[strings.length - 1],
                 permission: Boolean(permission),
                 tool: permission?.tool,
             }
@@ -465,7 +468,7 @@ const risksOf = (
         newValue.some((server) => outside(server) && !known.has(serverName(server)))
     const newUrl =
         location.section === "mcps" &&
-        !location.wholeItem &&
+        location.leaf === "url" &&
         typeof newValue === "string" &&
         /^[a-z]+:\/\//i.test(newValue) &&
         newValue !== oldValue

@@ -496,6 +496,16 @@ describe("warning lines from the operation (task 25.2)", () => {
             describeConfigChanges([{operation: "set", target: url, value: "https://x.dev/mcp"}])
                 .changes[0].risks[0].kind,
         ).toBe("data_egress")
+        // A description that starts with a URL changes no server.
+        expect(
+            describeConfigChanges([
+                {
+                    operation: "set",
+                    target: [...T, {list: "mcps", key: "linear"}, "description"],
+                    value: "https://linear.app is where tickets live",
+                },
+            ]).changes[0].risks,
+        ).toEqual([])
         expect(
             describeConfigChanges([
                 {
