@@ -67,16 +67,18 @@ const sheetVariants = cva(
                     "inset-y-2 right-2 h-auto w-3/4 rounded-xl sm:max-w-sm",
                     "data-[state=open]:animate-sheet-in-right data-[state=closed]:animate-sheet-out-right",
                 ],
+                // The phone's sidebar sheet: the rail's own surface, radius 12 as the design draws it.
                 left: [
-                    "inset-y-2 left-2 h-auto w-3/4 rounded-xl sm:max-w-sm",
+                    "inset-y-2 left-2 h-auto w-3/4 rounded-[12px] bg-[var(--ag-sidebar-bg)] sm:max-w-sm",
                     "data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left",
                 ],
                 top: [
                     "inset-x-0 top-0 h-auto w-full border-b",
                     "data-[state=open]:animate-sheet-in-top data-[state=closed]:animate-sheet-out-top",
                 ],
+                // A shadow above it instead of a hairline, as the design draws the phone sheet.
                 bottom: [
-                    "inset-x-0 bottom-0 h-auto w-full border-t",
+                    "inset-x-0 bottom-0 h-auto w-full shadow-[0_-6px_24px_rgba(0,0,0,0.08)] dark:shadow-drawer-bottom",
                     "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
                 ],
                 // The app's form-panel idiom, promoted from web/mobile's local sheet: a full-width

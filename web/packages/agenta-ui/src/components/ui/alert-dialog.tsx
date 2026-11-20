@@ -5,11 +5,12 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import {X} from "lucide-react"
 
-import {Button, buttonVariants} from "./button"
+import {Button, ButtonSizeContext, buttonVariants} from "./button"
 import {cn} from "./utils"
 
 /**
- * AlertDialog — the shadcn confirm dialog on Radix; shares Dialog's chrome at a 384px width.
+ * AlertDialog — the shadcn confirm dialog on Radix, drawn on the canvas scale: 400px wide, a
+ * 14px/600 title, 13px secondary text and 28px buttons in a row under it, with no footer band.
  * Replaces antd Modal.confirm: Action = primary Button, Cancel = outline Button.
  */
 
@@ -73,15 +74,17 @@ function AlertDialogContent({
                     className={cn(
                         // Same chrome as DialogContent.
                         "relative pointer-events-auto font-portal",
-                        "box-border flex max-h-full w-full max-w-sm flex-col gap-4 overflow-y-auto",
-                        "rounded-xl bg-popover p-4 text-sm text-popover-foreground outline-none",
-                        "ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
+                        "box-border flex max-h-full w-full max-w-[400px] flex-col gap-2 overflow-y-auto",
+                        "rounded-[12px] bg-popover p-5 text-sm text-popover-foreground outline-none",
+                        "ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)] shadow-dialog",
                         "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
                         className,
                     )}
                     {...props}
                 >
-                    {children}
+                    <ButtonSizeContext.Provider value="compact">
+                        {children}
+                    </ButtonSizeContext.Provider>
                     {showCloseButton ? (
                         // Dismiss = cancel.
                         <AlertDialogPrimitive.Cancel data-slot="alert-dialog-close-x" asChild>
@@ -105,7 +108,7 @@ function AlertDialogHeader({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="alert-dialog-header"
-            className={cn("flex flex-col gap-2", className)}
+            className={cn("flex flex-col gap-1", className)}
             {...props}
         />
     )
@@ -115,11 +118,11 @@ function AlertDialogFooter({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="alert-dialog-footer"
-            // Same band as DialogFooter.
+            // The buttons sit in a row under the text, with no band. Stacked on a phone, where each
+            // one grows to the 44px touch minimum.
             className={cn(
-                "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl p-4 sm:flex-row sm:justify-end",
-                "border-0 border-t border-solid border-border",
-                "bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)]",
+                "mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+                "max-md:[&>*]:h-11",
                 className,
             )}
             {...props}
@@ -135,7 +138,7 @@ function AlertDialogTitle({
         <AlertDialogPrimitive.Title
             data-slot="alert-dialog-title"
             // m-0 resets the UA <h2> margin (preflight off).
-            className={cn("m-0 text-base font-medium leading-none", className)}
+            className={cn("m-0 text-sm font-semibold", className)}
             {...props}
         />
     )
@@ -149,7 +152,7 @@ function AlertDialogDescription({
         <AlertDialogPrimitive.Description
             data-slot="alert-dialog-description"
             // m-0 resets the UA <p> margin (preflight off).
-            className={cn("m-0 text-sm text-muted-foreground", className)}
+            className={cn("m-0 text-[13px] leading-5 text-colorTextSecondary", className)}
             {...props}
         />
     )
@@ -165,7 +168,7 @@ function AlertDialogAction({
         <AlertDialogPrimitive.Action
             data-slot="alert-dialog-action"
             asChild={asChild}
-            className={cn(!asChild && buttonVariants(), className)}
+            className={cn(!asChild && buttonVariants({size: "compact"}), className)}
             {...props}
         />
     )
@@ -181,7 +184,10 @@ function AlertDialogCancel({
         <AlertDialogPrimitive.Cancel
             data-slot="alert-dialog-cancel"
             asChild={asChild}
-            className={cn(!asChild && buttonVariants({variant: "outline"}), className)}
+            className={cn(
+                !asChild && buttonVariants({variant: "outline", size: "compact"}),
+                className,
+            )}
             {...props}
         />
     )

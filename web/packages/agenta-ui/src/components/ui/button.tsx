@@ -40,8 +40,9 @@ const buttonVariants = cva(
                     "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_srgb,var(--ag-colorFillSecondary),var(--ag-colorText)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
                 ghost: "bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent aria-expanded:text-accent-foreground",
                 // Hovers use `accent` (6%): `muted` is 4% here and vanishes on the warm rail.
+                // The palette's own error pair (pink fill, dark red text), as the canvas draws it.
                 destructive:
-                    "bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] text-error hover:bg-[color-mix(in_srgb,var(--ag-colorError)_20%,transparent)] focus-visible:border-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
+                    "bg-colorErrorBg text-error hover:bg-[color-mix(in_srgb,var(--ag-colorError)_8%,var(--ag-colorErrorBg))] focus-visible:border-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
                 "destructive-outline":
                     "border-error bg-background text-error hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] focus-visible:border-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
                 link: "bg-transparent text-primary underline-offset-4 hover:underline",
@@ -60,8 +61,28 @@ const buttonVariants = cva(
                 icon: "size-control p-0 text-btn-md rounded-control [&_svg:not([class*='size-'])]:size-btn-icon",
                 "icon-lg":
                     "size-control-lg p-0 text-btn-lg rounded-control [&_svg:not([class*='size-'])]:size-btn-icon",
+                // The canvas scale (design decision D1), for the surfaces the builder layout draws:
+                // a 28px control, radius 6, 13px text and a 16px glyph. `sm` keeps its 8px radius
+                // and 14px glyph because hundreds of other screens use it. The radii are literal
+                // pixels: `rounded-sm` and `rounded-md` differ between the two apps.
+                compact:
+                    "h-control-sm gap-1.5 px-btn-sm text-btn-sm rounded-[6px] has-[[data-icon=inline-start]]:pl-btn-icon-pad has-[[data-icon=inline-end]]:pr-btn-icon-pad [&_svg:not([class*='size-'])]:size-btn-icon",
+                // Below md the icon button is the canvas phone button: a 44px tap target, radius 8,
+                // 20px glyph.
+                "icon-compact":
+                    "size-control-sm p-0 text-btn-sm rounded-[6px] [&_svg:not([class*='size-'])]:size-btn-icon max-md:size-11 max-md:rounded-[8px] max-md:[&_svg:not([class*='size-'])]:size-5",
             },
         },
+        compoundVariants: [
+            // A quiet control on the canvas scale reads secondary until it is hovered or open.
+            {
+                variant: "ghost",
+                size: ["compact", "icon-compact"],
+                className:
+                    "text-colorTextSecondary hover:text-colorText aria-expanded:text-colorText",
+            },
+            {variant: "ghost", size: "compact", className: "px-2"},
+        ],
         defaultVariants: {variant: "default", size: "default"},
     },
 )
@@ -83,10 +104,19 @@ const inferIconSize = (children: React.ReactNode): "icon" | undefined => {
     return React.isValidElement(kids[0]) ? "icon" : undefined
 }
 
+/**
+ * The size a labelled Button takes when its caller passes none. A surface that draws all its
+ * buttons on one scale (the confirmation dialog) provides it, so every caller's footer follows.
+ * An explicit `size` still wins, and an icon-only button still infers `icon`.
+ */
+const ButtonSizeContext = React.createContext<ButtonProps["size"]>(undefined)
+
 function Button({className, variant = "default", size, asChild = false, ...props}: ButtonProps) {
     const Comp = asChild ? Slot : "button"
+    const contextSize = React.useContext(ButtonSizeContext)
     // `asChild` hands rendering to the child, so its single element is the button, not an icon.
-    const effectiveSize = size ?? (asChild ? undefined : inferIconSize(props.children))
+    const effectiveSize =
+        size ?? (asChild ? contextSize : (inferIconSize(props.children) ?? contextSize))
     return (
         <Comp
             data-slot="button"
@@ -98,4 +128,4 @@ function Button({className, variant = "default", size, asChild = false, ...props
     )
 }
 
-export {Button, buttonVariants}
+export {Button, ButtonSizeContext, buttonVariants}
