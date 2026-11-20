@@ -1396,14 +1396,15 @@ async def _resolve_other_agent(
     return workflow, head
 
 
-async def _allowed_on_agent(
-    *, project_id: UUID, agent_id: UUID, action: Permission
+async def _allowed_on_resource(
+    *, project_id: UUID, kind: Any, resource_id: UUID, action: Permission
 ) -> bool:
-    """The request principal's decision for `action` on one agent, the decision a route
-    makes before a per-agent read or write. The project permission is checked before
-    dispatch; this adds the agent's own policy. Without a request principal it is refused."""
+    """The request principal's decision for `action` on one resource, the decision a
+    route makes before a per-resource read or write. The project permission is checked
+    before dispatch; this adds the resource's own policy. Without a request principal it
+    is refused."""
     from oss.src.core.access.context import get_request_access
-    from oss.src.core.access.dtos import ResourceKind, ResourceRef
+    from oss.src.core.access.dtos import ResourceRef
     from oss.src.core.access.service import get_access_service
 
     access = get_request_access()
@@ -1413,9 +1414,23 @@ async def _allowed_on_agent(
         access=access,
         action=action,
         project_id=project_id,
-        resource=ResourceRef(kind=ResourceKind.AGENT, id=str(agent_id)),
+        resource=ResourceRef(kind=kind, id=str(resource_id)),
     )
     return decision.allowed
+
+
+async def _allowed_on_agent(
+    *, project_id: UUID, agent_id: UUID, action: Permission
+) -> bool:
+    """The request principal's decision for `action` on one agent."""
+    from oss.src.core.access.dtos import ResourceKind
+
+    return await _allowed_on_resource(
+        project_id=project_id,
+        kind=ResourceKind.AGENT,
+        resource_id=agent_id,
+        action=action,
+    )
 
 
 def _agent_summary(
@@ -2205,22 +2220,15 @@ def _drive_not_found() -> _Refusal:
 
 async def _allowed_on_drive(*, project_id: UUID, mount_id: UUID) -> bool:
     """The request principal's `VIEW_MOUNTS` decision on one drive: the check the mounts
-    route makes with `_require_mount` before it lists or reads files. Without a request
-    principal it is refused."""
-    from oss.src.core.access.context import get_request_access
-    from oss.src.core.access.dtos import ResourceKind, ResourceRef
-    from oss.src.core.access.service import get_access_service
+    route makes with `_require_mount` before it lists or reads files."""
+    from oss.src.core.access.dtos import ResourceKind
 
-    access = get_request_access()
-    if access is None:
-        return False
-    decision = await get_access_service().check_request(
-        access=access,
-        action=Permission.VIEW_MOUNTS,
+    return await _allowed_on_resource(
         project_id=project_id,
-        resource=ResourceRef(kind=ResourceKind.MOUNT, id=str(mount_id)),
+        kind=ResourceKind.MOUNT,
+        resource_id=mount_id,
+        action=Permission.VIEW_MOUNTS,
     )
-    return decision.allowed
 
 
 async def _would_widen(
@@ -2235,23 +2243,21 @@ async def _would_widen(
     )
 
 
-def _listed_drive_slugs(head: Any) -> Optional[List[tuple[str, bool]]]:
-    """The `(slug, is_home)` pairs of the agent's `drives` and `home_drive`, in order. None
-    for a configuration without `drives`, whose drive is the one created with the agent."""
+def _listed_drive_slugs(head: Any) -> List[tuple[str, bool]]:
+    """The `(slug, is_home)` pairs of the agent's `drives`, in order. The revision read
+    already fills the drive keys of a configuration stored before drives were
+    configurable, so a configuration without `drives` lists none, as the runtime mounts
+    none. A commit checks that `home_drive` names an entry of `drives`."""
     from oss.src.core.workflows.service import _agent_config
 
     agent = _agent_config(head.data) or {}
     entries = agent.get("drives")
-    if not isinstance(entries, list):
-        return None
     home = agent.get("home_drive")
     slugs: List[str] = []
-    for entry in entries:
+    for entry in entries if isinstance(entries, list) else []:
         slug = entry.get("slug") if isinstance(entry, dict) else None
         if isinstance(slug, str) and slug and slug not in slugs:
             slugs.append(slug)
-    if isinstance(home, str) and home and home not in slugs:
-        slugs.append(home)
     return [(slug, slug == home) for slug in slugs]
 
 
@@ -2298,24 +2304,13 @@ async def handle_list_agent_drives(
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
-    listed = _listed_drive_slugs(head)
-    found: List[tuple[Any, bool]] = []
-    if listed is None:
-        own = await mounts_service.fetch_agent_drive(
-            project_id=project_id, artifact_id=str(workflow.id)
-        )
-        if own is not None:
-            found.append((own, True))
-    else:
-        for slug, is_home in listed:
-            mount = await mounts_service.fetch_mount_by_slug(
-                project_id=project_id, slug=slug
-            )
-            if mount is not None:
-                found.append((mount, is_home))
-
     drives = []
-    for mount, is_home in found:
+    for slug, is_home in _listed_drive_slugs(head):
+        mount = await mounts_service.fetch_mount_by_slug(
+            project_id=project_id, slug=slug
+        )
+        if mount is None:
+            continue
         if not await _allowed_on_drive(project_id=project_id, mount_id=mount.id):
             continue
         if await _would_widen(session_caller, project_id=project_id, mount_id=mount.id):
@@ -2355,26 +2350,48 @@ def _drive_path(parsed: Dict[str, Any]) -> str:
             "`path` must be a string.",
             next_step="Send `path` relative to the drive root, or omit it.",
         )
-    return raw.strip().strip("/")
+    # File names may start or end with a space, so only the slashes are trimmed.
+    return raw.strip("/")
+
+
+def _is_hidden_drive_path(path: str) -> bool:
+    """`.git` plumbing and runner files: the folder answer hides them, so a read of
+    them answers as a path that does not exist."""
+    from oss.src.core.mounts.service import _is_git_plumbing, _is_internal_mount_path
+
+    return _is_git_plumbing(path) or _is_internal_mount_path(path)
+
+
+def _file_answer(
+    path: str,
+    text: Optional[str],
+    *,
+    is_truncated: bool = False,
+    is_binary: bool = False,
+    is_too_large: bool = False,
+) -> Dict[str, Any]:
+    return {
+        "kind": "file",
+        "path": path,
+        "text": text,
+        "is_truncated": is_truncated,
+        "is_binary": is_binary,
+        "is_too_large": is_too_large,
+    }
 
 
 def _file_text(path: str, content: str) -> Dict[str, Any]:
     """The `kind: file` answer for a file the mounts service read as text. A NUL byte or a
-    byte that is not UTF-8 (read as U+FFFD) marks a binary file, whose bytes are not
-    returned. Text longer than the limit is cut on a character boundary."""
+    byte that is not UTF-8 (the service reads it as U+FFFD) marks a binary file, whose
+    bytes are not returned; a text file that holds U+FFFD itself reads as binary too.
+    Text longer than the limit is cut on a character boundary."""
     if "\x00" in content or "\ufffd" in content:
-        return {
-            "kind": "file",
-            "path": path,
-            "text": None,
-            "is_binary": True,
-            "is_truncated": False,
-        }
+        return _file_answer(path, None, is_binary=True)
     encoded = content.encode("utf-8")
     is_truncated = len(encoded) > READ_DRIVE_TEXT_MAX_BYTES
     if is_truncated:
         content = encoded[:READ_DRIVE_TEXT_MAX_BYTES].decode("utf-8", "ignore")
-    return {"kind": "file", "path": path, "text": content, "is_truncated": is_truncated}
+    return _file_answer(path, content, is_truncated=is_truncated)
 
 
 async def handle_read_drive(
@@ -2434,6 +2451,8 @@ async def handle_read_drive(
                 "Ask the person to open the drive in a session that only they can see.",
             )
 
+        if path and _is_hidden_drive_path(path):
+            raise _drive_file_not_found()
         if path:
             try:
                 content = await mounts_service.read_file(
@@ -2442,12 +2461,7 @@ async def handle_read_drive(
                 return PlatformHandlerResult(content=_file_text(path, content.content))
             except MountFileTooLarge:
                 return PlatformHandlerResult(
-                    content={
-                        "kind": "file",
-                        "path": path,
-                        "text": None,
-                        "is_truncated": True,
-                    }
+                    content=_file_answer(path, None, is_too_large=True)
                 )
             except MountFileNotFound:
                 pass  # Not a file: read it as a folder.
@@ -2480,7 +2494,7 @@ async def handle_read_drive(
             "kind": "folder",
             "path": path,
             "entries": entries,
-            "is_truncated": len(files) > READ_DRIVE_MAX_ENTRIES,
+            "is_entry_list_truncated": len(files) > READ_DRIVE_MAX_ENTRIES,
         }
     )
 

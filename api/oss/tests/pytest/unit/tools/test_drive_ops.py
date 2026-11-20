@@ -19,6 +19,7 @@ from oss.src.core.access.context import reset_request_access, set_request_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.mounts.dtos import MountFile, MountFileContent, MountFileList
+from oss.src.core.mounts.service import validate_file_path
 from oss.src.core.mounts.types import MountFileNotFound, MountFileTooLarge
 from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
 from oss.src.core.tools import platform_handlers
@@ -54,7 +55,6 @@ class _Mounts:
         self.mounts = {}
         self.files = {}  # (mount_id, path) -> text, or an exception to raise
         self.listings = {}  # (mount_id, path or None) -> [MountFile]
-        self.agent_drives = {}  # artifact id (str) -> mount
 
     def add(self, visibility, *, slug, name, session_id=None):
         mount = SimpleNamespace(
@@ -82,10 +82,8 @@ class _Mounts:
             None,
         )
 
-    async def fetch_agent_drive(self, *, project_id, artifact_id):
-        return self.agent_drives.get(artifact_id)
-
     async def read_file(self, *, project_id, mount_id, path):
+        validate_file_path(path)  # The service's own path check.
         value = self.files.get((mount_id, path))
         if value is None:
             raise MountFileNotFound()
@@ -279,21 +277,13 @@ async def test_a_private_drive_is_left_out_of_a_project_visible_session(world):
     assert _slugs(content) == ["email-drafts"]
 
 
-async def test_a_configuration_without_drives_lists_the_drive_made_with_the_agent(
-    world,
-):
+async def test_a_configuration_without_drives_lists_none(world):
+    """The revision read fills the drive keys of a configuration stored before drives
+    were configurable; one still without `drives` mounts no drive at run time."""
     world.head = world._head(instructions={"agents_md": "x"})
-    world.mounts.agent_drives[str(world.agent.id)] = world.shared_drive
     content = await _list(world, world.access_of(world.ana, session=world.ana_private))
 
-    assert content["drives"] == [
-        {
-            "drive_id": str(world.shared_drive.id),
-            "slug": "email-drafts",
-            "name": "Email drafts",
-            "is_home": True,
-        }
-    ]
+    assert content["drives"] == []
 
 
 async def test_a_session_working_folder_is_never_listed(world):
@@ -329,14 +319,26 @@ async def test_read_the_root_folder_and_a_file(world):
             {"path": "README.md", "kind": "file", "size": 12},
             {"path": "drafts", "kind": "folder"},
         ],
-        "is_truncated": False,
+        "is_entry_list_truncated": False,
     }
     assert await _read(world, access, drive, "/drafts/welcome.md") == {
         "kind": "file",
         "path": "drafts/welcome.md",
         "text": "Hello Sam,\n",
         "is_truncated": False,
+        "is_binary": False,
+        "is_too_large": False,
     }
+
+
+async def test_a_path_keeps_its_spaces(world):
+    """A file name may start with a space; it never reads a file of another name."""
+    drive = world.shared_drive
+    world.mounts.files[(drive.id, "notes.md")] = "other file"
+    world.mounts.files[(drive.id, " notes.md")] = "spaced file"
+    access = world.access_of(world.ana, session=world.ana_shared)
+
+    assert (await _read(world, access, drive, " notes.md"))["text"] == "spaced file"
 
 
 async def test_read_a_sub_folder(world):
@@ -369,7 +371,7 @@ async def test_a_long_file_is_cut_and_a_large_folder_is_capped(world):
 
     folder = await _read(world, access, drive)
     assert len(folder["entries"]) == READ_DRIVE_MAX_ENTRIES
-    assert folder["is_truncated"] is True
+    assert folder["is_entry_list_truncated"] is True
 
 
 async def test_a_binary_file_and_a_file_above_the_route_cap_return_no_text(world):
@@ -382,19 +384,38 @@ async def test_a_binary_file_and_a_file_above_the_route_cap_return_no_text(world
         "kind": "file",
         "path": "logo.png",
         "text": None,
-        "is_binary": True,
         "is_truncated": False,
+        "is_binary": True,
+        "is_too_large": False,
     }
     assert await _read(world, access, drive, "dump.json") == {
         "kind": "file",
         "path": "dump.json",
         "text": None,
-        "is_truncated": True,
+        "is_truncated": False,
+        "is_binary": False,
+        "is_too_large": True,
     }
 
 
-@pytest.mark.parametrize("path", ["missing.md", "../escape.md"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "missing.md",
+        "../escape.md",
+        "drafts//x.md",
+        ".git/config",
+        "repo/.git/HEAD",
+        "agents/claude/state.json",
+        ".agenta-ready",
+    ],
+)
 async def test_a_path_that_does_not_exist_answers_drive_file_not_found(world, path):
+    """A missing path, a path the service refuses, and the `.git` plumbing and runner
+    files that the folder answer hides."""
+    for hidden in (".git/config", "repo/.git/HEAD", "agents/claude/state.json"):
+        world.mounts.files[(world.shared_drive.id, hidden)] = "url = token"
+    world.mounts.files[(world.shared_drive.id, ".agenta-ready")] = "1"
     content = await _read(
         world,
         world.access_of(world.ana, session=world.ana_shared),
@@ -425,6 +446,18 @@ async def test_a_session_working_folder_answers_drive_not_found(world):
     finally:
         reset_request_access(token)
     content = await _read(world, access, folder, "notes.md")
+    assert content["code"] == "drive_not_found"
+    assert "text" not in content
+
+
+async def test_an_archived_drive_answers_drive_not_found(world):
+    drive = world.shared_drive
+    drive.deleted_at = "2026-11-01T00:00:00Z"
+    world.mounts.files[(drive.id, "notes.md")] = "archived text"
+    content = await _read(
+        world, world.access_of(world.ana, session=world.ana_shared), drive, "notes.md"
+    )
+
     assert content["code"] == "drive_not_found"
     assert "text" not in content
 
@@ -511,10 +544,28 @@ async def test_a_grant_or_a_channel_makes_a_private_session_wider(world):
     world.world.add_grant(state=session, user_id=world.ben, role=SessionRole.VIEWER)
     assert await wider()
 
+    # A channel shows the text outside the project: wider than a project drive too.
     session = world.world.add_session(policy=world.private(world.ana), is_channel=True)
     assert await wider()
-    assert not await service.session_wider_than_drive(
+    assert await service.session_wider_than_drive(
         project_id=world.project_id,
         session_id=session.session_id,
+        mount_id=world.shared_drive.id,
+    )
+
+
+@pytest.mark.parametrize("drive", ["shared_drive", "ana_drive"])
+async def test_a_session_with_no_row_is_wider_than_any_drive(world, drive):
+    assert await world.world.service.session_wider_than_drive(
+        project_id=world.project_id,
+        session_id=str(uuid4()),
+        mount_id=getattr(world, drive).id,
+    )
+
+
+async def test_a_project_drive_is_not_narrower_than_a_project_visible_session(world):
+    assert not await world.world.service.session_wider_than_drive(
+        project_id=world.project_id,
+        session_id=world.ana_shared.session_id,
         mount_id=world.shared_drive.id,
     )

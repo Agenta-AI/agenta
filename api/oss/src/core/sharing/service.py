@@ -338,18 +338,17 @@ class SharingService(ResourcePolicyInterface):
         the calling session, so a drive is read only into a session that no other
         person reads.
 
-        A project-visible drive is never narrower than a session of its project. A
-        private drive is read by its owner only, so it is narrower than every session
-        that someone else reads: a project-visible session, a channel session (its
-        channel shows the text outside the project), a private session of another
-        owner, and a private session with a grant to another person. A session or a
-        drive with no row is treated as wider."""
+        A session or a drive with no row is treated as wider. A channel session is
+        wider than every drive: its channel shows the text to people outside the
+        project. Otherwise a project-visible drive is never narrower than a session of
+        its project. A private drive is read by its owner only, so it is narrower than
+        every session that someone else reads: a project-visible session, a private
+        session of another owner, and a private session with a grant to another
+        person."""
 
         drive = await self.fetch_mount_policy(project_id=project_id, mount_id=mount_id)
         if drive is None:
             return True
-        if drive.visibility == Visibility.PROJECT:
-            return False
         session = await self._session_access(
             project_id=project_id, session_id=session_id
         )
@@ -357,6 +356,8 @@ class SharingService(ResourcePolicyInterface):
             return True
         if session.is_channel or session.channel_binding_id is not None:
             return True
+        if drive.visibility == Visibility.PROJECT:
+            return False
         if session.policy.visibility != Visibility.PRIVATE:
             return True
         if session.policy.owner_user_id != drive.owner_user_id:
