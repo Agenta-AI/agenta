@@ -20,7 +20,9 @@ const catalog = vi.hoisted(() => ({
         isFetchingNextPage: false,
         requestMore: () => undefined,
     } as Record<string, unknown>,
-    form: [{resetFields: () => undefined}],
+    form: [{resetFields: () => undefined, getFieldsValue: () => catalog.defaults}],
+    /** The form's values before any change: the schema defaults. */
+    defaults: {} as Record<string, unknown>,
     event: null as {trigger_config: unknown} | null,
     /** What the form's getValues() answers: the valid values, or a rejection. */
     validate: (() => Promise.resolve({repo: "agenta"})) as () => Promise<Record<string, unknown>>,
@@ -58,6 +60,7 @@ let root: Root
 beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     catalog.event = null
+    catalog.defaults = {}
     catalog.validate = () => Promise.resolve({repo: "agenta"})
     catalog.events = {...catalog.events, hasNextPage: false, requestMore: () => undefined}
     container = document.createElement("div")
@@ -105,6 +108,16 @@ describe("EventInlineCard", () => {
         const onSelectEvent = vi.fn()
         await renderCard(onSelectEvent)
         expect(onSelectEvent).toHaveBeenLastCalledWith(blocked)
+    })
+
+    it("counts a required filter filled by its default", async () => {
+        catalog.event = {trigger_config: {required: ["repo"], properties: {repo: {}}}}
+        catalog.defaults = {repo: "agenta"}
+        const onSelectEvent = vi.fn()
+        await renderCard(onSelectEvent)
+        expect(onSelectEvent).toHaveBeenLastCalledWith(
+            expect.objectContaining({eventKey: "GITHUB_STAR_ADDED_EVENT"}),
+        )
     })
 
     it("holds back an event whose detail did not load", async () => {

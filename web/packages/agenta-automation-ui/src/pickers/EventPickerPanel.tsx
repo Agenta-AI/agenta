@@ -432,7 +432,9 @@ export const EventInlineCard = ({
         const connectionId = app.connectionId
         const block = () => onSelectEvent({connectionId, eventKey: "", triggerConfig: undefined})
         // No event detail (still loading, or the request failed) is not "no filters".
-        if (!eventKey || eventLoading || !event || requiredGaps(schema, values).length) {
+        // The form's own values first: a default fills a field without a change event.
+        const filled = {...(configForm.getFieldsValue(true) as Record<string, unknown>), ...values}
+        if (!eventKey || eventLoading || !event || requiredGaps(schema, filled).length) {
             block()
             return
         }
@@ -462,7 +464,7 @@ export const EventInlineCard = ({
         return () => {
             live = false
         }
-    }, [app, event, eventKey, eventLoading, onSelectEvent, schema, values])
+    }, [app, configForm, event, eventKey, eventLoading, onSelectEvent, schema, values])
 
     // Another app starts with no event; another event starts its filters from empty.
     const selectApp = (connectionId: string) => {
