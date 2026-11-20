@@ -1,7 +1,8 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
-import {nextCronRuns} from "@agenta/entities/gatewayTrigger"
-import {formatDate, formatRelativeTime, useT} from "@agenta/i18n"
+import {formatNextRun} from "@agenta/entities/gatewayTrigger"
+import {scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
+import {formatDate, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import {CaretRight} from "@phosphor-icons/react"
@@ -18,17 +19,6 @@ const GroupTitle = ({title, action}: {title: string; action?: ReactNode}) => (
         {action}
     </div>
 )
-
-const pad2 = (value: number) => String(value).padStart(2, "0")
-
-/** "in 14h", coarsening to days past a day. */
-const inTime = (next: Date, now: Date) => {
-    const minutes = Math.max(1, Math.round((next.getTime() - now.getTime()) / 60_000))
-    const options = {style: "narrow", numeric: "always"} as const
-    if (minutes < 60) return formatRelativeTime(minutes, "minute", options)
-    if (minutes < 1440) return formatRelativeTime(Math.floor(minutes / 60), "hour", options)
-    return formatRelativeTime(Math.floor(minutes / 1440), "day", options)
-}
 
 /** One row of the "Runs" card: a 72 px label, the value, and a chevron where it opens. */
 const RunsRow = ({
@@ -110,21 +100,24 @@ export const AutomationRunsSection = ({
         const id = setInterval(() => setTick((count) => count + 1), 60_000)
         return () => clearInterval(id)
     }, [])
-    // "Fri, Nov 20, 09:00 UTC · in 14h". A paused automation and an event have no next run.
+    // "Fri, Nov 20, 09:00 UTC · in 14 hours": the shared next-run line, with no "Next run" words,
+    // since the row's label says it. A paused automation and an event have no next run.
     const nextRun = useMemo(() => {
         if (automation.kind !== "schedule" || !automation.isActive || !automation.cron) return ""
-        const now = new Date()
-        const [next] = nextCronRuns(automation.cron, 1, now)
-        if (!next) return ""
-        return t("automations.editor.nextRunAt", {
-            date: formatDate(next, {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                timeZone: "UTC",
-            }),
-            time: `${pad2(next.getUTCHours())}:${pad2(next.getUTCMinutes())}`,
-            relative: inTime(next, now),
+        const text = scheduleTextNow()
+        return formatNextRun(automation.cron, {
+            ...text,
+            nextRun: (date, time, relative) =>
+                t("automations.editor.nextRunAt", {
+                    date: formatDate(date, {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        timeZone: "UTC",
+                    }),
+                    time,
+                    relative,
+                }),
         })
         // `t` changes with the language, so the line is built again in the new one.
     }, [automation.cron, automation.isActive, automation.kind, tick, t])

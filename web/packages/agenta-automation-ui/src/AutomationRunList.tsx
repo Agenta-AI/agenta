@@ -58,8 +58,8 @@ export const AutomationRunList = ({
     /** The action under "No runs yet" (the host's "Run now"). Not shown for a filtered list. */
     emptyAction?: ReactNode
     /**
-     * The panel's empty state (F05 f9): the text right under the heading, with no glyph, rather
-     * than centred in the column.
+     * The panel's empty state (F05 f9): the text near the top of the column, under the heading,
+     * with no glyph, rather than in the middle of the column's height.
      */
     plainEmpty?: boolean
     /** Phone: rows and buttons are at least 44 px high. */

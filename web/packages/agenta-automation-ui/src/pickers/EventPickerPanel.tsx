@@ -400,41 +400,40 @@ export const EventInlineCard = ({
     )
     const openCatalogDrawer = useSetAtom(triggerCatalogDrawerOpenAtom)
 
-    // The app is held here until an event is picked: the draft stores a connection and an event
-    // together.
-    const [connectionId, setConnectionId] = useState(automation.connectionId ?? "")
-    // The first connected app until one is picked, as the canvas shows the form with an app.
+    // The draft owns the app: the first connected app until one is picked, as the canvas shows
+    // the form with an app.
     const app =
-        apps.find((candidate) => candidate.connectionId === connectionId) ??
-        apps.find(
-            (candidate) =>
-                candidate.integrationKey ===
-                connections.find((connection) => connection.id === connectionId)?.integration_key,
-        ) ??
-        apps[0]
-    const eventKey =
-        app && app.connectionId === automation.connectionId ? (automation.eventKey ?? "") : ""
+        apps.find((candidate) => candidate.connectionId === automation.connectionId) ?? apps[0]
+    // The event and its filters wait here until the event's required filters are filled. Until
+    // then the draft holds no event, so "Create automation" stays blocked, as Done does in the
+    // picker.
+    const [eventKey, setEventKey] = useState(automation.eventKey ?? "")
+    const [values, setValues] = useState<Record<string, unknown>>({})
 
     const {events} = useTriggerCatalogEvents(app?.integrationKey ?? "")
-    const {event} = useTriggerEvent(app?.integrationKey ?? "", eventKey)
+    const {event, isLoading: eventLoading} = useTriggerEvent(app?.integrationKey ?? "", eventKey)
     const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
-
     const [configForm] = useSchemaFormInstance()
-    const emit = useCallback(
-        (nextEventKey: string, values?: Record<string, unknown>) => {
-            if (!app || !nextEventKey) return
-            onSelectEvent({
-                connectionId: app.connectionId,
-                eventKey: nextEventKey,
-                triggerConfig: values ? normalizeRepoFilters(schema, values) : undefined,
-            })
-        },
-        [app, onSelectEvent, schema],
-    )
 
-    // A different event starts its filters from empty.
+    useEffect(() => {
+        if (!app) return
+        const complete = Boolean(eventKey) && !eventLoading && !requiredGaps(schema, values).length
+        onSelectEvent({
+            connectionId: app.connectionId,
+            eventKey: complete ? eventKey : "",
+            triggerConfig: complete ? normalizeRepoFilters(schema, values) : undefined,
+        })
+    }, [app, eventKey, eventLoading, onSelectEvent, schema, values])
+
+    // Another app starts with no event; another event starts its filters from empty.
+    const selectApp = (connectionId: string) => {
+        if (connectionId === app?.connectionId) return
+        onSelectEvent({connectionId, eventKey: "", triggerConfig: undefined})
+        setEventKey("")
+    }
     useEffect(() => {
         configForm.resetFields()
+        setValues({})
     }, [configForm, eventKey])
 
     const accountOf = (id: string) => {
@@ -450,7 +449,7 @@ export const EventInlineCard = ({
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
                 <span className={label}>{t("automations.editor.app")}</span>
-                <Select value={app?.connectionId ?? ""} onValueChange={setConnectionId}>
+                <Select value={app?.connectionId ?? ""} onValueChange={selectApp}>
                     <SelectTrigger
                         className="h-auto min-h-11 py-1.5"
                         aria-label={t("automations.editor.app")}
@@ -475,7 +474,7 @@ export const EventInlineCard = ({
             </div>
             <div className="flex flex-col gap-1">
                 <span className={label}>{t("automations.editor.event")}</span>
-                <Select value={eventKey} disabled={!app} onValueChange={(next) => emit(next)}>
+                <Select value={eventKey} disabled={!app} onValueChange={setEventKey}>
                     <SelectTrigger aria-label={t("automations.editor.event")}>
                         <SelectValue />
                     </SelectTrigger>
@@ -493,7 +492,7 @@ export const EventInlineCard = ({
                     form={configForm}
                     schema={schema}
                     optionalLabel={(count) => t("automations.editor.optionalFilters", {count})}
-                    onValuesChange={(values) => emit(eventKey, values)}
+                    onValuesChange={setValues}
                 />
             ) : null}
         </div>

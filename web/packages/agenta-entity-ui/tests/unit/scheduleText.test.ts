@@ -9,6 +9,7 @@ import {
     defaultBuilderState,
     describeCadence,
     describeCron,
+    describeSchedule,
     formatNextRun,
     suggestScheduleName,
     summarizeSchedule,
@@ -106,6 +107,8 @@ describe.each([
         )
         expect(cronToBuilder("0 9 * * 0,5-6").state.weekdays).toEqual([0, 5, 6])
         expect(cronToBuilder("0 9 * * 5-2").representable).toBe(false)
+        expect(describeSchedule("0 9 * * 1-5", text)).toBe("Weekdays at 09:00 UTC")
+        expect(describeSchedule("0 9 1,15 * 1", text)).toBe("0 9 1,15 * 1 (UTC)")
         expect(summarizeSchedule(state({cadence: "custom", cron: "0 9 * * 1-5"}), text)).toBe(
             "0 9 * * 1-5",
         )
@@ -120,8 +123,9 @@ describe.each([
         expect(describeCron("30 */2 * * *", text)).toBe("Every 2 hours at :30 (UTC)")
         expect(describeCron("30 9 * * *", text)).toBe("Every day at 09:30 UTC")
         expect(describeCron("0 9 * * 1", text)).toBe("Every Monday at 09:00 UTC")
-        expect(describeCron("0 9 * * 1-5", text)).toBe("Weekdays at 09:00 UTC")
-        expect(describeCron("0 9 * * 1,3", text)).toBe("Monday, Wednesday at 09:00 UTC")
+        expect(describeCron("0 9 * * 1-5", text)).toBe(
+            "Monday, Tuesday, Wednesday, Thursday, Friday at 09:00 UTC",
+        )
         expect(describeCron("0 9 1,15 * *", text)).toBe("0 9 1,15 * * (UTC)")
         expect(describeCron("nonsense", text)).toBe("nonsense")
     })

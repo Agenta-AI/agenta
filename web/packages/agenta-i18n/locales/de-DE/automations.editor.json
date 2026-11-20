@@ -7,7 +7,6 @@
     "kindScheduleShort": "Zeitplan",
     "kindEvent": "Wenn etwas passiert",
     "kindEventShort": "Ereignis",
-    "kindFixed": "Der Auslösertyp einer Automatisierung steht nach dem Erstellen fest.",
     "helperPaused": "Pausiert: Sie läuft erst, wenn Sie sie einschalten.",
     "helperEvent": "Wird bei jedem Eintreffen dieses Ereignisses ausgeführt.",
     "instruction": "Anweisung",

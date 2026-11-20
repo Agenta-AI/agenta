@@ -2,11 +2,9 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
-    cronToBuilder,
-    describeCron,
+    describeSchedule,
     isEntityActive,
     nextCronRuns,
-    summarizeSchedule,
     type TriggerSchedule,
 } from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
@@ -56,16 +54,11 @@ export function ScheduleTriggerRow({
     const named = !!record.name?.trim()
     // Subtitle answers "when does this run?" — the cadence plus the next fire. Both parse the
     // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
-    // The builder's words first ("Weekdays at 09:00 UTC"), as the automation view says it; the
-    // longhand only for an expression the builder cannot show.
     const cadence = useMemo(
-        () => {
-            if (!cron) return tNow("entityUi.triggers.noScheduleSet")
-            const {state, representable} = cronToBuilder(cron)
-            return representable
-                ? summarizeSchedule(state, scheduleTextNow())
-                : describeCron(cron, scheduleTextNow())
-        },
+        () =>
+            cron
+                ? describeSchedule(cron, scheduleTextNow())
+                : tNow("entityUi.triggers.noScheduleSet"),
         // `t` re-words the cadence when the language changes.
         [cron, t],
     )

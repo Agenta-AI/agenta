@@ -84,6 +84,7 @@ export type {CronValidationResult} from "./core/cron"
 export {
     builderToCron,
     cronToBuilder,
+    describeSchedule,
     defaultBuilderState,
     describeCadence,
     formatNextRun,

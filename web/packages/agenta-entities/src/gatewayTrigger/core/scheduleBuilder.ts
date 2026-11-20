@@ -192,6 +192,15 @@ export function summarizeSchedule(state: ScheduleBuilderState, text: ScheduleTex
 }
 
 /**
+ * A cron in words: the builder's summary ("Weekdays at 09:00 UTC") when the builder can show the
+ * expression, else the longhand of {@link describeCron}.
+ */
+export function describeSchedule(cron: string, text: ScheduleText): string {
+    const {state, representable} = cronToBuilder(cron)
+    return representable ? summarizeSchedule(state, text) : describeCron(cron, text)
+}
+
+/**
  * "Next run Mon 17 Aug, 09:00 UTC · in 2 days" — the hint under the schedule row.
  * Hourly appends its daily run count, which is the number people actually check.
  * Empty when the expression has no computable next run, so the caller can fall back.

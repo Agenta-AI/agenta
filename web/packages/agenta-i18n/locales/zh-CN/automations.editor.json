@@ -7,7 +7,6 @@
     "kindScheduleShort": "定时任务",
     "kindEvent": "当某件事发生时",
     "kindEventShort": "事件",
-    "kindFixed": "自动化创建后，触发类型就不能更改。",
     "helperPaused": "已暂停：开启之前不会运行。",
     "helperEvent": "每次收到这个事件时运行。",
     "instruction": "指令",

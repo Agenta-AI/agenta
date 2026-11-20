@@ -95,6 +95,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     agentName={editor.agentName}
                     className="flex min-w-0 flex-col px-4 pb-6 pt-3.5"
                     panel
+                    hideSaveBar
                     onOpenRunHistory={openRuns}
                     failureReason={editor.failureReason}
                     dirty={editor.dirty}

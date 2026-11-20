@@ -1,8 +1,6 @@
 import {
-    cronToBuilder,
-    describeCron,
+    describeSchedule,
     isEntityActive,
-    summarizeSchedule,
     triggerBoundAgentId,
     type TriggerDelivery,
     type TriggerSchedule,
@@ -143,10 +141,8 @@ export function automationStatus(a: Automation, hasRecentFailure: boolean): Auto
 /**
  * "Weekdays at 09:00 UTC", or "When star added in Github" — never a cron expression.
  *
- * Schedules go through the same `cronToBuilder` → `summarizeSchedule` pair the detail screen's
- * `ScheduleBuilderField` renders in its collapsed row, so a row and the automation it opens never
- * describe the same cron two different ways. An expression the builder can't represent keeps
- * `describeCron`'s longhand.
+ * Schedules go through `describeSchedule`, as the automation rows do, so a row and the automation
+ * it opens never describe the same cron two different ways.
  */
 export function runsWhenLabel(
     a: Automation,
@@ -155,9 +151,7 @@ export function runsWhenLabel(
 ): string {
     if (a.kind !== "schedule") return eventPhrase(a.eventKey ?? "", tr)
 
-    const cron = a.cron ?? ""
-    const {state, representable} = cronToBuilder(cron)
-    return representable ? summarizeSchedule(state, text) : describeCron(cron, text)
+    return describeSchedule(a.cron ?? "", text)
 }
 
 /**

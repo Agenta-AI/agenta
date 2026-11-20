@@ -7,7 +7,6 @@
     "kindScheduleShort": "Schedule",
     "kindEvent": "When something happens",
     "kindEventShort": "Event",
-    "kindFixed": "An automation's trigger type is fixed once it's created.",
     "helperPaused": "Paused — it won't run until you switch it on.",
     "helperEvent": "Runs each time this event arrives.",
     "instruction": "Instruction",

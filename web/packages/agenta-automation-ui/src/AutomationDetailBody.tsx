@@ -98,8 +98,7 @@ export const AutomationDetailBody = ({
     runNow?: ReactNode
     /**
      * The panel's shape (F05 f5): a 16 px name with "On" and the switch at its right, the facts
-     * under it, no Agent field (the panel opens over the agent that runs it) and no save bar (the
-     * host's footer holds Delete, Discard and Save).
+     * under it, and no Agent field (the panel opens over the agent that runs it).
      */
     panel?: boolean
 }) => {
@@ -226,7 +225,7 @@ export const AutomationDetailBody = ({
             />
             {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
             form rather than a divider halfway down it. */}
-            {hideSaveBar || panel ? null : (
+            {hideSaveBar ? null : (
                 <AutomationSaveBar
                     dirty={dirty}
                     saving={saving}

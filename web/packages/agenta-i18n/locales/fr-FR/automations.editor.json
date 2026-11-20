@@ -7,7 +7,6 @@
     "kindScheduleShort": "Planification",
     "kindEvent": "Quand quelque chose se produit",
     "kindEventShort": "Événement",
-    "kindFixed": "Le type de déclencheur d’une automatisation est fixé une fois celle-ci créée.",
     "helperPaused": "En pause : elle ne s’exécutera pas tant que vous ne l’aurez pas activée.",
     "helperEvent": "S’exécute à chaque arrivée de cet événement.",
     "instruction": "Instruction",

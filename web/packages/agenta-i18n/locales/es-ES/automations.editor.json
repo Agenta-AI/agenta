@@ -7,7 +7,6 @@
     "kindScheduleShort": "Programación",
     "kindEvent": "Cuando ocurre algo",
     "kindEventShort": "Evento",
-    "kindFixed": "El tipo de disparador de una automatización no se puede cambiar una vez creada.",
     "helperPaused": "En pausa: no se ejecutará hasta que la actives.",
     "helperEvent": "Se ejecuta cada vez que llega este evento.",
     "instruction": "Instrucción",

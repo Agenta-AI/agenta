@@ -7,7 +7,6 @@
     "kindScheduleShort": "スケジュール",
     "kindEvent": "何かが起きたとき",
     "kindEventShort": "イベント",
-    "kindFixed": "自動化のトリガーの種類は、作成後に変更できません。",
     "helperPaused": "一時停止中: オンにするまで実行されません。",
     "helperEvent": "このイベントが届くたびに実行されます。",
     "instruction": "指示",
