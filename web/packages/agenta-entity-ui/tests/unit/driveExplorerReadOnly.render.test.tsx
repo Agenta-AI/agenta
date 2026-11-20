@@ -78,7 +78,9 @@ const renderExplorer = async (readOnly: boolean, initialPath = "", shown: object
                     <DriveExplorer
                         drive={shown as never}
                         initialPath={initialPath}
-                        onClose={() => undefined}
+                        // The phone Files pane has no close in its rows (the phone header closes it).
+                        onClose={readOnly ? undefined : () => undefined}
+                        chrome
                         readOnly={readOnly}
                         touch={readOnly}
                     />
@@ -167,6 +169,31 @@ describe("DriveExplorer on a phone (M03)", () => {
         expect(button).toBeTruthy()
         await act(async () => button?.click())
         expect(retry).toHaveBeenCalled()
+    })
+
+    it("keeps row 1 on a phone host whose close lives in that row", async () => {
+        const client = new QueryClient()
+        const store = createStore()
+        store.set(queryClientAtom, client)
+        await act(async () =>
+            root.render(
+                <QueryClientProvider client={client}>
+                    <Provider store={store}>
+                        <DriveExplorer
+                            drive={drive as never}
+                            initialPath=""
+                            onClose={() => undefined}
+                            readOnly
+                            touch
+                        />
+                    </Provider>
+                </QueryClientProvider>,
+            ),
+        )
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+        const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))
+        expect(labels).toContain("Close")
+        expect(labels).toContain("Back")
     })
 
     it("keeps row 1 on the desktop", async () => {

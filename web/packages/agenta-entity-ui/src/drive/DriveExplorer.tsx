@@ -692,7 +692,8 @@ export function DriveExplorer({
                   }
                 : undefined
 
-        headerInToolbar = Boolean(touch && chrome && selectedIsFolder)
+        // A host whose close lives in row 1 keeps row 1: the one row has no close.
+        headerInToolbar = Boolean(touch && chrome && selectedIsFolder && !onClose)
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -952,9 +953,7 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    {headerInToolbar ? (
-                        phoneRow
-                    ) : (
+                    {headerInToolbar ? null : (
                         <div className={touch ? TOUCH_HEADER : "contents"}>
                             <DriveHeader {...headerProps} />
                         </div>
@@ -978,6 +977,8 @@ export function DriveExplorer({
                         }}
                     />
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
+                        {/* Inside the key handler: Back and history keys work from the row too. */}
+                        {phoneRow}
                         {body}
                     </div>
                     {appAccess.dialog}
