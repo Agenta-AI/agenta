@@ -1,0 +1,90 @@
+[
+    {
+        "id": "phone-automations-m10-tab-light",
+        "story": "builderlayout-automations-phone-automations-tab--tab",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=New Zendesk ticket"
+    },
+    {
+        "id": "phone-automations-m10-tab-dark",
+        "story": "builderlayout-automations-phone-automations-tab--tab-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=New Zendesk ticket"
+    },
+    {
+        "id": "phone-automations-m11-add-sheet-light",
+        "story": "builderlayout-automations-phone-automations-tab--add-automation-sheet",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "ready": "text=Describe it and let AI set it up"
+    },
+    {
+        "id": "phone-automations-m11-add-sheet-dark",
+        "story": "builderlayout-automations-phone-automations-tab--add-automation-sheet-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "ready": "text=Describe it and let AI set it up"
+    },
+    {
+        "id": "phone-automations-long-name-light",
+        "story": "builderlayout-automations-phone-automations-tab--long-name",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=New Zendesk ticket"
+    },
+    {
+        "id": "phone-automations-empty-light",
+        "story": "builderlayout-automations-phone-automations-tab--empty",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=No automations yet"
+    },
+    {
+        "id": "phone-automations-viewer-light",
+        "story": "builderlayout-automations-phone-automations-tab--viewer",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=New Zendesk ticket"
+    },
+    {
+        "id": "phone-automations-run-history-list-light",
+        "story": "builderlayout-automations-phone-automations-tab--run-history-list",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Run history"
+    },
+    {
+        "id": "phone-automations-run-history-run-open-light",
+        "story": "builderlayout-automations-phone-automations-tab--run-history-run-open",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Yesterday had 23 tickets"
+    },
+    {
+        "id": "phone-automations-run-history-no-runs-light",
+        "story": "builderlayout-automations-phone-automations-tab--run-history-no-runs",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Run now"
+    }
+]

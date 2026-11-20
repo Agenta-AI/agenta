@@ -7,6 +7,7 @@ import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {Button} from "@agenta/ui/ui"
 
 import {AutomationRunRow} from "./AutomationRunRow"
+import {cn} from "./lib/utils"
 import {runGroups, type RunGrouping} from "./runListView"
 import {
     AutomationRunHistoryEmpty,
@@ -37,6 +38,7 @@ export const AutomationRunList = ({
     loadingMore = false,
     onEndReached,
     emptyAction,
+    phone = false,
 }: {
     runs: TriggerDelivery[]
     /** What the headings cut the list by. */
@@ -54,6 +56,8 @@ export const AutomationRunList = ({
     onEndReached?: () => void
     /** The action under "No runs yet" (the host's "Run now"). Not shown for a filtered list. */
     emptyAction?: ReactNode
+    /** Phone: rows and buttons are at least 44 px high. */
+    phone?: boolean
 }) => {
     const t = useT(automationsModelCatalog, automationsEditorCatalog)
     // The group labels are text, so the groups are cut again when the language changes.
@@ -106,6 +110,7 @@ export const AutomationRunList = ({
                                     delivery={delivery}
                                     selected={delivery.id === selectedId}
                                     onSelect={() => onSelect(delivery)}
+                                    phone={phone}
                                 />
                             ))}
                         </div>
@@ -124,7 +129,7 @@ export const AutomationRunList = ({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="text-xs font-normal"
+                        className={cn("text-xs font-normal", phone && "h-11")}
                         onClick={onRetry}
                     >
                         {t("automations.editor.tryAgain")}

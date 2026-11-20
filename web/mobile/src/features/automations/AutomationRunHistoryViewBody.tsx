@@ -8,6 +8,7 @@ import {
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {sessionRoutePath} from "@agenta/sessions/link"
+import {useIsPhone} from "@agenta/ui/phone"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useRouter} from "next/router"
 
@@ -20,6 +21,7 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
     const t = useT(automationsEditorCatalog)
     useViewTitle(t("automations.editor.runHistory"))
     const router = useRouter()
+    const phone = useIsPhone()
     const {automation, error, refetch} = useAutomation(params.automationId, params.kind)
     const base = `/w/${params.workspaceId}/p/${params.projectId}`
 
@@ -49,6 +51,7 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
                 automation={automation}
                 frame="panel"
                 initialRunId={params.runId}
+                phone={phone}
                 runHistoryHref={`${router.basePath}${base}/automations/${encodeURIComponent(params.automationId)}?view=runs`}
                 sessionHref={sessionHref}
                 runNow={
@@ -57,6 +60,7 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
                             automation={automation}
                             base={base}
                             dirty={Boolean(params.unsavedSettings)}
+                            phone={phone}
                         />
                     ) : null
                 }
