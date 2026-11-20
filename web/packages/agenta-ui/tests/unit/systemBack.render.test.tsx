@@ -236,6 +236,33 @@ describe("useSystemBack", () => {
         )
     })
 
+    it("keeps a newer back pending when an older one settles late", async () => {
+        const answers: ((left: boolean) => void)[] = []
+        const onBack = vi.fn()
+        render(
+            <Level
+                onBack={onBack}
+                ask={() => new Promise<boolean>((resolve) => answers.push(resolve))}
+            />,
+        )
+        await settle()
+        pop()
+        await settle()
+        // A jump away while the first question is open, then the level gets a new barrier.
+        pop({key: "earlier-page"})
+        restartSystemBack()
+        await settle()
+        pop()
+        await settle()
+        expect(onBack).toHaveBeenCalledTimes(2)
+        // The first question settles late: the second one still holds the guard.
+        await act(async () => answers[0](false))
+        pop()
+        await settle()
+        expect(onBack).toHaveBeenCalledTimes(2)
+        await act(async () => answers[1](false))
+    })
+
     it("lets the router take a jump to another page's entry", async () => {
         const onBack = vi.fn()
         render(<Level onBack={onBack} />)

@@ -40,7 +40,7 @@ let barrier: {page: unknown; run: string} | null = null
 /** Pops this module caused itself (the barrier leaving), which it must let pass. */
 let ownPops = 0
 /** A level's back is running (its question may be open): further backs are only undone. */
-let pending = false
+let pending: object | null = null
 let opened = 0
 let scheduled = false
 let installed = false
@@ -69,7 +69,7 @@ const pushBarrier = (run: string) =>
 /** Without a barrier no level's back can still be running: a question it left open lost its page. */
 const dropBarrier = () => {
     barrier = null
-    pending = false
+    pending = null
 }
 
 const anyOpen = () => [...owners.values()].some((owner) => owner.levels() > 0)
@@ -162,9 +162,11 @@ const onPopState = (event: PopStateEvent) => {
     if (pending) return
     const owner = topOwner()
     if (!owner) return
-    pending = true
+    // A token, so a back that settles after its barrier went cannot clear a newer one.
+    const running = {}
+    pending = running
     void Promise.resolve(owner.onBack()).finally(() => {
-        pending = false
+        if (pending === running) pending = null
     })
 }
 
@@ -238,7 +240,7 @@ export const resetSystemBackForTests = () => {
     steppedOver = null
     stepping = false
     ownPops = 0
-    pending = false
+    pending = null
     scheduled = false
     owners.clear()
 }
