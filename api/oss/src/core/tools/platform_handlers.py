@@ -35,9 +35,17 @@ from agenta.sdk.agents.platform.op_catalog import (
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import (
+    RequestAccess,
+    RequestCredentialKind,
+    RunEnvelope,
+)
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.admission import (
+    CHILD_RUN_BOUNDARY,
+    RunAdmission,
+    session_allowed,
+)
 from oss.src.core.sharing.dtos import AgentReadScope, Visibility
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
@@ -76,6 +84,8 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.dtos import (
     CommitWarning,
+    ReadConfigResponse,
+    ReadConfigRevision,
     WorkflowRevisionCommit,
     WorkflowRevisionDelta,
     WorkflowServiceBatchResponse,
@@ -819,10 +829,6 @@ async def handle_read_config(
 
 def _read_config_response(outcome: Any, *, is_draft: bool):
     """The read answer, shared by `read_config` and `read_agent_config`."""
-    from oss.src.apis.fastapi.workflows.models import (
-        ReadConfigResponse,
-        ReadConfigRevision,
-    )
     from oss.src.core.workflows.read_config import draft_warning
 
     revision = outcome.revision
@@ -1176,6 +1182,73 @@ def _not_found(raw: str) -> _Refusal:
     )
 
 
+# -- the calling run of a session op (design D31) ---------------------------------------
+
+RUN_CREDENTIAL_REQUIRED = "run_credential_required"
+
+
+@dataclass(frozen=True)
+class SessionCaller:
+    """The calling run of a session op, a drive op or `resolve_gate`, read from its
+    run credential and from nowhere else. These ops bind no caller id, so nothing in
+    the arguments can name another calling agent or session."""
+
+    envelope: RunEnvelope
+    # The calling session (the `run_session_id` claim). A target is a `session_id`.
+    run_session_id: str
+    # The calling agent (the `run_agent_id` claim; None when the run names no agent).
+    run_agent_id: Optional[UUID]
+
+
+def _run_credential_required(message: str) -> _Refusal:
+    return _Refusal(
+        AgentError(code=RUN_CREDENTIAL_REQUIRED, message=message, retryable=False)
+    )
+
+
+async def session_caller_of(access: Optional[RequestAccess]) -> SessionCaller:
+    """The one check every session op, drive op and `resolve_gate` passes before its
+    handler runs. Refuses with `run_credential_required` unless the request carries a
+    run credential with a `run_session_id` claim and the run authority may run that
+    session now: the claim was checked at the mint, but a renewal copies it and a
+    person can make the session private after the mint."""
+
+    if (
+        access is None
+        or access.credential_kind != RequestCredentialKind.RUN_CREDENTIAL
+        or access.envelope is None
+        or not access.run_session_id
+    ):
+        raise _run_credential_required("Only an agent run can call session tools.")
+    if not await session_allowed(
+        envelope=access.envelope,
+        session_id=access.run_session_id,
+        action=Permission.RUN_SESSIONS,
+    ):
+        raise _run_credential_required(
+            "This session is no longer open to the run's person."
+        )
+    return SessionCaller(
+        envelope=access.envelope,
+        run_session_id=access.run_session_id,
+        run_agent_id=access.run_agent_id,
+    )
+
+
+async def caller_may(
+    caller: SessionCaller, *, session_id: str, action: Permission
+) -> bool:
+    """Whether the caller's run authority has its own right on a target session:
+    `VIEW_SESSIONS` to read, list or wait, `RUN_SESSIONS` to send or cancel. Checked
+    for every target, whatever scope the op has."""
+
+    if action not in (Permission.VIEW_SESSIONS, Permission.RUN_SESSIONS):
+        raise ValueError(f"{action} is not a session target right.")
+    return await session_allowed(
+        envelope=caller.envelope, session_id=session_id, action=action
+    )
+
+
 def _reject_unknown_fields(
     arguments: Dict[str, Any], fields: Sequence[str], *, tool: str
 ) -> None:
@@ -1342,7 +1415,7 @@ async def _allowed_on_agent(
 
 
 def _agent_summary(
-    workflow: Any, *, project_id: UUID, workspace_id: Optional[UUID]
+    workflow: Any, *, project_id: UUID, organization_id: Optional[UUID]
 ) -> Dict[str, Any]:
     """The agent as every answer names it. `name` comes first, because it is what the model
     tells the person; `id` and `slug` are tool arguments. `url` opens the agent in the web
@@ -1350,7 +1423,7 @@ def _agent_summary(
     summary = {"name": workflow.name, "id": str(workflow.id), "slug": workflow.slug}
     url = agent_page_url(
         web_url=env.agenta.web_url,
-        workspace_id=workspace_id,
+        organization_id=organization_id,
         project_id=project_id,
         agent_id=workflow.id,
     )
@@ -1496,7 +1569,7 @@ async def handle_list_agents(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """The agents in the caller's project, one page at a time, in a fixed order.
@@ -1573,7 +1646,7 @@ async def handle_list_agents(
                 continue
             agent = {
                 **_agent_summary(
-                    workflow, project_id=project_id, workspace_id=workspace_id
+                    workflow, project_id=project_id, organization_id=organization_id
                 ),
                 "description": workflow.description,
                 "revision": _revision_summary(head),
@@ -1601,7 +1674,7 @@ async def handle_read_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Another agent's latest saved configuration, with the same answer `read_config` gives.
@@ -1659,7 +1732,7 @@ async def handle_read_agent_config(
     return PlatformHandlerResult(
         content={
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             **_read_config_response(outcome, is_draft=False).model_dump(
                 mode="json", exclude_none=True
@@ -1677,7 +1750,7 @@ async def handle_edit_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Commit ordered operations to another agent's latest revision. Never deploys.
@@ -1759,7 +1832,7 @@ async def handle_edit_agent_config(
         content={
             "status": outcome.status,
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             "revision": _revision_summary(revision),
             # The base the next edit of this agent sends: the head after this call.
@@ -1800,7 +1873,7 @@ async def handle_create_agent(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     first_agent_owner_user_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
@@ -1962,7 +2035,7 @@ async def handle_create_agent(
         content={
             "status": "created",
             "agent": _agent_summary(
-                created, project_id=project_id, workspace_id=workspace_id
+                created, project_id=project_id, organization_id=organization_id
             ),
             "visibility": result.visibility.value,
             "revision": _revision_summary(result.revision),
@@ -1986,7 +2059,7 @@ async def handle_preview_agent_change(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """What a waiting `edit_agent_config` or `create_agent` call would change, saving nothing.
@@ -2123,11 +2196,14 @@ class PlatformToolHandlerRegistration:
     # Handlers that commit a revision take the calling run's agent owner as
     # `first_agent_owner_user_id`.
     needs_agent_owner: bool = False
-    # Handlers that link to a page of the web app take the caller's `workspace_id`.
-    needs_workspace: bool = False
+    # Handlers that link to a page of the web app take the caller's `organization_id`.
+    needs_organization: bool = False
     # Handlers that show or name an agent take the caller's `agent_read_scope`: they answer
     # only about agents it shows.
     needs_agent_read_scope: bool = False
+    # Session ops, drive ops and `resolve_gate` take the calling run as `session_caller`
+    # (`session_caller_of`); without one the call answers `run_credential_required`.
+    needs_session_caller: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -2168,7 +2244,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_list_agents,
         elevated_permission=Permission.VIEW_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     READ_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
@@ -2176,7 +2252,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_read_agent_config,
         elevated_permission=Permission.VIEW_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     CREATE_AGENT_CALL_REF: PlatformToolHandlerRegistration(
@@ -2184,7 +2260,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_create_agent,
         elevated_permission=Permission.EDIT_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
         needs_agent_owner=True,
     ),
@@ -2193,7 +2269,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_edit_agent_config,
         elevated_permission=Permission.EDIT_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     # Reads the target like `read_agent_config` and writes nothing.
@@ -2283,8 +2359,9 @@ async def dispatch_platform_tool_handler(
     mounts_service: Any = None,
     envelope: Optional[RunEnvelope] = None,
     agent_owner_user_id: Optional[UUID] = None,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
+    access: Optional[RequestAccess] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -2305,10 +2382,15 @@ async def dispatch_platform_tool_handler(
         extra["envelope"] = envelope
         # A handler that starts a run admits it.
         extra["run_admission"] = run_admission
-    if registration.needs_workspace:
-        extra["workspace_id"] = workspace_id
+    if registration.needs_organization:
+        extra["organization_id"] = organization_id
     if registration.needs_agent_read_scope:
         extra["agent_read_scope"] = agent_read_scope
+    if registration.needs_session_caller:
+        try:
+            extra["session_caller"] = await session_caller_of(access)
+        except _Refusal as e:
+            return PlatformHandlerResult.failure(e.error)
     return await registration.handler(
         arguments=arguments,
         headers=headers,

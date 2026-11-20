@@ -99,18 +99,17 @@ open_servers AS (
       AND e.auth_mode = 'NONE'
 ),
 sign_ins AS (
-    SELECT e.slug AS endpoint_slug, s.id, s.name,
+    -- The name is the account the grant signed in as; a token has none.
+    SELECT e.slug AS endpoint_slug, s.id, g ->> 'account_name' AS name,
            CASE WHEN s.kind = 'MCP_TOKEN' THEN true ELSE (
-               SELECT coalesce(g ->> 'refresh_token', '') <> ''
-                      OR g ->> 'expires_at' IS NULL
-                      -- A malformed expiry reads as expired, never as an error.
-                      OR (
-                          g ->> 'expires_at' ~ '^[0-9]+(\.[0-9]+)?$'
-                          AND (g ->> 'expires_at')::double precision
-                              > extract(epoch FROM now())
-                      )
-               FROM (SELECT pgp_sym_decrypt(s.data, CAST(:key AS text))::jsonb -> 'grant'
-                     AS g) grant_data
+               coalesce(g ->> 'refresh_token', '') <> ''
+               OR g ->> 'expires_at' IS NULL
+               -- A malformed expiry reads as expired, never as an error.
+               OR (
+                   g ->> 'expires_at' ~ '^[0-9]+(\.[0-9]+)?$'
+                   AND (g ->> 'expires_at')::double precision
+                       > extract(epoch FROM now())
+               )
            ) END AS is_ready
     FROM mcps_endpoints e
     JOIN secrets s
@@ -120,6 +119,11 @@ sign_ins AS (
          (e.auth_mode = 'OAUTH' AND s.kind = 'OAUTH_GRANT' AND s.slug = {GRANT_SLUG_SQL})
          OR (e.auth_mode = 'API_KEY' AND s.kind = 'MCP_TOKEN' AND s.slug = {TOKEN_SLUG_SQL})
      )
+    CROSS JOIN LATERAL (
+        SELECT CASE WHEN s.kind = 'OAUTH_GRANT' THEN
+            pgp_sym_decrypt(s.data, CAST(:key AS text))::jsonb -> 'grant'
+        END AS g
+    ) grant_data
     WHERE e.project_id = CAST(:project_id AS uuid)
       AND e.slug = ANY(CAST(:mcp_texts AS text[]))
 )

@@ -205,6 +205,7 @@ async def test_the_chain_of_every_kind_in_one_statement(world):
                     "scopes": [],
                     "access_token": "a",
                     "expires_at": int(time.time()) - 60,
+                    "account_name": "alice@example.com",
                 }
             },
         ),
@@ -286,8 +287,11 @@ async def test_the_chain_of_every_kind_in_one_statement(world):
         expired_grant.id,
         False,  # expired, no refresh token
     )
+    # The name is the account the grant signed in as, not the row's label.
+    assert linear.name == "alice@example.com"
     notion = by_key["mcp_server:user/notion"]
     assert notion.match == AccountMatch.SIGN_IN and notion.is_ready is True
+    assert notion.name is None
 
     # A server with no sign-in method is ready with no account, and stays out of the
     # claim.

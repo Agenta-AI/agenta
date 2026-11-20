@@ -22,6 +22,7 @@ from oss.src.apis.fastapi.shared.personal import require_person, signed_in_perso
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
+from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.principals import child_envelope
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
@@ -1693,12 +1694,14 @@ class ToolsRouter:
                     if required_agent_owner(call_ref=call_ref)
                     else None
                 ),
-                workspace_id=_workspace_id(request),
+                organization_id=_organization_id(request),
                 agent_read_scope=(
                     await agent_read_scope_for_request(request)
                     if required_agent_read_scope(call_ref=call_ref)
                     else None
                 ),
+                # The calling run of a session op comes from the credential only.
+                access=get_request_access(),
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)
@@ -2185,11 +2188,11 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 
 
-def _workspace_id(request: Request) -> Optional[UUID]:
-    """The caller's workspace, for links into the web app; None when the credential has none."""
-    workspace_id = getattr(request.state, "workspace_id", None)
+def _organization_id(request: Request) -> Optional[UUID]:
+    """The caller's organization, for links into the web app; None when the credential has none."""
+    organization_id = getattr(request.state, "organization_id", None)
     try:
-        return UUID(str(workspace_id)) if workspace_id else None
+        return UUID(str(organization_id)) if organization_id else None
     except ValueError:
         return None
 

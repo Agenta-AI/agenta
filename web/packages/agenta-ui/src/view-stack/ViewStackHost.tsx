@@ -377,7 +377,7 @@ export const ViewStackHost = ({
                     <Chrome
                         crumbs={crumbs}
                         apply={top.view.apply}
-                        readOnly={
+                        hideActionRow={
                             (phone && Boolean(top.view.readOnlyOnPhone)) ||
                             top.view.actionRow === false ||
                             topForm?.actionRow === false

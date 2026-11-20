@@ -13,6 +13,8 @@ export interface WorkflowRevisionQueryRequest {
     workflow_revision_refs?: (AgentaApi.Reference[] | null) | undefined;
     /** When true, include archived revisions. */
     include_archived?: (boolean | null) | undefined;
+    /** When false, omit each revision's `data` from the response. */
+    include_data?: (boolean | null) | undefined;
     /** Divide matching revisions by artifact or variant and select one revision from each group. */
     grouping?: (AgentaApi.RevisionGrouping | null) | undefined;
     /** Cursor-based pagination controls. */
