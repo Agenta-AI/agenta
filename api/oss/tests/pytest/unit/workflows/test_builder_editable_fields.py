@@ -40,7 +40,6 @@ from oss.src.core.workflows.types import (
     InvalidAgentHarnessError,
     StaticFieldNotEditableError,
     StaticWorkflowReadOnly,
-    StaticWorkflowSlug,
 )
 from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.workflows.dbes import (
@@ -347,13 +346,31 @@ async def test_a_delta_on_another_field_is_refused(service, store, target):
 
 @pytest.mark.asyncio
 async def test_a_scoped_commit_on_the_builder_is_refused(service, store):
-    with pytest.raises(StaticWorkflowSlug):
+    with pytest.raises(StaticWorkflowReadOnly) as caught:
         await service.commit_workflow_revision_checked(
             project_id=uuid4(),
             user_id=uuid4(),
             workflow_revision_commit=_full_commit({"llm": LLM}, CODE.id),
             scope_policy=lambda target: None,
         )
+
+    assert "agent's tools" in caught.value.to_detail()["next_step"]
+
+
+@pytest.mark.asyncio
+async def test_the_agent_commit_tool_answers_the_coded_refusal(service, store):
+    from oss.src.core.tools import platform_handlers
+
+    with pytest.raises(platform_handlers._Refusal) as caught:
+        await platform_handlers._commit_as_agent(
+            workflows_service=service,
+            project_id=uuid4(),
+            user_id=uuid4(),
+            commit=_delta_commit(["parameters", "agent", "llm"], LLM, CODE.id),
+        )
+
+    assert caught.value.error.code == "static_workflow_read_only"
+    assert caught.value.error.details == {"slug": BUILDER_AGENT_SLUG}
 
 
 @pytest.mark.asyncio
@@ -412,17 +429,17 @@ async def test_a_commit_that_changes_no_editable_field_stores_nothing(service, s
 
 @pytest.mark.asyncio
 async def test_other_writes_on_the_builder_stay_refused(service):
-    with pytest.raises(StaticWorkflowSlug):
+    with pytest.raises(StaticWorkflowReadOnly):
         await service.archive_workflow(
             project_id=uuid4(), user_id=uuid4(), workflow_id=CODE.workflow_id
         )
-    with pytest.raises(StaticWorkflowSlug):
+    with pytest.raises(StaticWorkflowReadOnly):
         await service.archive_workflow_variant(
             project_id=uuid4(),
             user_id=uuid4(),
             workflow_variant_id=CODE.workflow_variant_id,
         )
-    with pytest.raises(StaticWorkflowSlug):
+    with pytest.raises(StaticWorkflowReadOnly):
         await service.commit_workflow_revision(
             project_id=uuid4(),
             user_id=uuid4(),
@@ -435,7 +452,7 @@ async def test_a_stored_builder_revision_cannot_be_archived(service, store):
     project_id = uuid4()
     outcome = await _commit(service, project_id, _full_commit({"llm": LLM}, CODE.id))
 
-    with pytest.raises(StaticWorkflowSlug):
+    with pytest.raises(StaticWorkflowReadOnly):
         await service.archive_workflow_revision(
             project_id=project_id,
             user_id=uuid4(),
@@ -742,25 +759,81 @@ async def test_a_version_reads_the_projects_commit(service, store):
             workflow_ref=Reference(slug=BUILDER_AGENT_SLUG),
             workflow_revision_ref=Reference(slug=BUILDER_AGENT_SLUG, version=version),
         )
-        for version in ("0", "1", "7")
+        for version in ("0", "1", "v1", "7")
     }
 
     assert by_version["0"].id == first
     assert by_version["1"].id == second
     assert by_version["1"].version == "1"
+    # A catalogue version names no commit.
+    assert by_version["v1"] is None
     assert by_version["7"] is None
 
 
 @pytest.mark.asyncio
-async def test_the_code_version_answers_its_version_until_the_first_commit(
-    service, store
-):
-    project_id = uuid4()
+async def test_a_version_without_a_commit_reads_nothing(service, store):
     refs = {"workflow_revision_ref": Reference(slug=BUILDER_AGENT_SLUG, version="v1")}
 
-    assert (await _read(service, project_id, **refs)).id == CODE.id
+    assert await _read(service, uuid4(), **refs) is None
+
+
+@pytest.mark.asyncio
+async def test_another_workflows_revision_with_the_builder_slug_does_not_resolve(
+    service, store
+):
+    """The security check of the resolver: a stored id is the builder's only when its
+    row belongs to the builder's artifact."""
+    project_id = uuid4()
+    other = Revision(
+        id=uuid4(),
+        slug="other",
+        version="0",
+        artifact_id=uuid4(),
+        variant_id=uuid4(),
+        data={"parameters": {"agent": {"llm": LLM}}},
+    )
+    store.revisions[project_id] = [other]
+    ref = Reference(id=other.id, slug=BUILDER_AGENT_SLUG)
+
+    assert await _read(service, project_id, workflow_revision_ref=ref) is None
+    with pytest.raises(AgentReferenceUnresolved):
+        await service.resolve_agent_artifact_id(
+            project_id=project_id,
+            references=[
+                SessionReference(
+                    key="workflow_revision", id=other.id, slug=BUILDER_AGENT_SLUG
+                )
+            ],
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_fork_of_the_builder_by_slug_is_refused(service, store):
+    from oss.src.core.workflows.dtos import WorkflowVariantFork
+
+    project_id = uuid4()
     await _committed(service, project_id)
-    assert await _read(service, project_id, **refs) is None
+    service.workflows_dao.fetch_variant = AsyncMock(
+        return_value=SimpleNamespace(
+            model_dump=lambda **_: {
+                "id": str(CODE.workflow_variant_id),
+                "artifact_id": str(CODE.workflow_id),
+                "slug": BUILDER_AGENT_SLUG,
+            }
+        )
+    )
+    service._inject_artifact_flags_into_variant = AsyncMock(
+        side_effect=lambda **kwargs: kwargs["variant"]
+    )
+
+    with pytest.raises(StaticWorkflowReadOnly):
+        await service.fork_workflow_variant(
+            project_id=project_id,
+            user_id=uuid4(),
+            workflow_variant_fork=WorkflowVariantFork(slug="mine"),
+            workflow_variant_ref=Reference(slug=BUILDER_AGENT_SLUG),
+        )
+    service.workflows_dao.fork_variant.assert_not_awaited()
 
 
 @pytest.mark.asyncio

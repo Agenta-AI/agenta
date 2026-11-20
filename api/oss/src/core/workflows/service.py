@@ -2083,7 +2083,7 @@ class WorkflowsService:
         if specific is not None:
             level, reference = specific
             static_id = await self._static_artifact_id(
-                project_id=project_id, reference=reference
+                project_id=project_id, level=level, reference=reference
             )
             if static_id is not None:
                 return static_id
@@ -2137,31 +2137,25 @@ class WorkflowsService:
         self,
         *,
         project_id: UUID,
+        level: str,
         reference: Reference,
     ) -> Optional[UUID]:
-        """The fixed artifact id of the static (code-defined) workflow `reference`
-        names. A stored revision id of a static workflow with editable fields counts,
-        when that revision is the workflow's in this project."""
+        """The fixed artifact id of the static (code-defined) workflow `reference` names
+        at `level`, by the same rules as every other static read
+        (`_resolve_static_revision`). None for a reference that is not static."""
 
-        if self.static_catalog is None:
+        ref = Reference(id=reference.id, slug=reference.slug)
+        is_static, revision = await self._resolve_static_revision(
+            project_id=project_id,
+            workflow_ref=ref if level == "artifact" else None,
+            workflow_variant_ref=ref if level == "variant" else None,
+            workflow_revision_ref=ref if level == "revision" else None,
+        )
+        if not is_static:
             return None
-        if not (
-            self.static_catalog.is_static_slug(reference.slug)
-            or self.static_catalog.is_static_id(reference.id)
-        ):
-            return None
-        code = self._static_code_revision(reference)
-        if code is None:
+        if revision is None:
             raise AgentReferenceUnresolved()
-        if reference.id is not None and not self.static_catalog.is_static_id(
-            reference.id
-        ):
-            stored = await self._stored_static_revision(
-                project_id=project_id, code=code, revision_id=reference.id
-            )
-            if stored is None:
-                raise AgentReferenceUnresolved()
-        return code.workflow_id
+        return revision.workflow_id
 
     def _static_code_revision(
         self, *refs: Optional[Reference]
@@ -2177,7 +2171,7 @@ class WorkflowsService:
                 return self.static_catalog.retrieve_revision(id=ref.id)
         return None
 
-    async def _stored_static_revision(
+    async def _merged_static_revision_by_id(
         self,
         *,
         project_id: UUID,
@@ -2211,8 +2205,9 @@ class WorkflowsService:
         """Resolve a reference to a static workflow with editable fields in one project.
 
         Its versions are the project's commits, as for any agent: a stored revision id
-        or a version reads that commit, and no revision id and no version reads the
-        latest. Every read is the code version with the commit's editable fields on top.
+        or a commit version reads that commit, and no revision id and no version reads
+        the latest. A catalogue version such as "v1" names no commit. Every read is the
+        code version with the commit's editable fields on top.
         The catalogue revision id reads the latest, so a reference taken before the
         project's first commit still resolves. With no commit the code version answers.
         """
@@ -2230,7 +2225,7 @@ class WorkflowsService:
 
         revision_id = workflow_revision_ref.id if workflow_revision_ref else None
         if revision_id is not None and revision_id != code.id:
-            return await self._stored_static_revision(
+            return await self._merged_static_revision_by_id(
                 project_id=project_id, code=code, revision_id=revision_id
             )
 
@@ -2248,9 +2243,7 @@ class WorkflowsService:
             project_id=project_id,
             variant_ref=Reference(id=code.workflow_variant_id),
             revision_ref=(
-                Reference(version=normalize_static_version(version))
-                if version is not None
-                else None
+                Reference(version=str(version)) if version is not None else None
             ),
             include_archived=False,
         )
@@ -2258,18 +2251,8 @@ class WorkflowsService:
             return self._merge_static_revision(
                 WorkflowRevision(**stored.model_dump(mode="json"))
             )
-        if version is None:
-            return code
-        # A version the project has no commit for: only the code version itself, and
-        # only while the project has no commit at all.
-        if normalize_static_version(version) != normalize_static_version(code.version):
-            return None
-        head = await self.workflows_dao.fetch_revision(
-            project_id=project_id,
-            variant_ref=Reference(id=code.workflow_variant_id),
-            include_archived=False,
-        )
-        return code if head is None else None
+        # No commit: the code version is the latest. A version names a commit only.
+        return code if version is None else None
 
     async def _resolve_environment_agent(
         self,
@@ -3047,6 +3030,7 @@ class WorkflowsService:
         )
         if not source_variant:
             raise VariantForkError("Fork source variant could not be resolved.")
+        self._reject_static_id(source_variant.artifact_id)
 
         source_revision_id: Optional[UUID] = None
         if workflow_revision_ref is not None:
@@ -3308,9 +3292,11 @@ class WorkflowsService:
 
         Returns ``(is_static, revision)``. When ``is_static`` is True the reference is in the
         static namespace (by reserved ``__ag__*`` slug, or by a synthetic catalogue id) and the
-        caller must NOT fall through to the DB — even when ``revision`` is None (an unknown version,
-        a non-matching paired ref, or no catalogue injected), so a user can never shadow static
-        content. The static-slug detection is a pure function independent of the catalogue, so a
+        caller must NOT fall through to the general DB lookup — even when ``revision`` is None
+        (an unknown version, a non-matching paired ref, or no catalogue injected), so a user can
+        never shadow static content. A static workflow with editable fields reads the project's
+        commits of those fields (`_project_static_revision`); its code version never comes from
+        the DB. The static-slug detection is a pure function independent of the catalogue, so a
         static slug short-circuits even when no catalogue is wired (``revision`` is then None).
         A revision-level reference resolves to its ``version``; an artifact / variant reference
         resolves to ``latest`` (or to a pinned ``version``). A non-static reference returns
@@ -3449,10 +3435,12 @@ class WorkflowsService:
             return None
 
         # Static workflows live under the reserved `__ag__*` slug namespace (or a synthetic
-        # catalogue id) and are served from code, never from Postgres. Resolve them before any DB
-        # lookup so a user can never shadow static content. A reserved reference never falls
-        # through to the DB, even when its version is unknown, a paired ref is non-matching, or no
-        # catalogue is injected; a non-reserved reference falls through unchanged.
+        # catalogue id) and their code version is served from code, never from Postgres.
+        # Resolve them before the general DB lookup so a user can never shadow static
+        # content; one with editable fields reads only the project's commits of those
+        # fields. A reserved reference never falls through to the general lookup, even when
+        # its version is unknown, a paired ref is non-matching, or no catalogue is injected;
+        # a non-reserved reference falls through unchanged.
         is_reserved, static_revision = await self._resolve_static_revision(
             project_id=project_id,
             workflow_ref=workflow_ref,
@@ -3942,7 +3930,13 @@ class WorkflowsService:
             # Only the human and SDK route commits a static workflow's fields. A scoped
             # caller (an agent's tool) stays refused, as for any other static write.
             if scope_policy is not None:
-                raise StaticWorkflowReadOnly(static_revision.slug)
+                raise StaticWorkflowReadOnly(
+                    static_revision.slug,
+                    next_step=(
+                        "An agent's tools cannot change this workflow. Leave it "
+                        "unchanged and do not send this change again."
+                    ),
+                )
             return await self._commit_static_revision(
                 project_id=project_id,
                 user_id=user_id,
@@ -4153,13 +4147,15 @@ class WorkflowsService:
         )
         candidate.data = stored_data
 
+        # Before the first commit there is no stored head for the in-lock check to compare
+        # with. A commit that only repeats the code version stores nothing, so it does not
+        # create the rows or pin the harness kind.
         if not has_stored_head and self._canonical_revision_record(
             data=_editable_fields(
                 code_revision.data.model_dump(mode="json", exclude_none=True), paths
             ),
             flags=None,
         ) == self._canonical_revision_record(data=stored_data, flags=None):
-            # Nothing stored yet and nothing to store: the code version stands.
             return CommitOutcome(
                 revision=head,
                 status="no_change",

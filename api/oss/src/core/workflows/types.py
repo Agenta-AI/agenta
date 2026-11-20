@@ -62,22 +62,27 @@ class StaticWorkflowSlug(WorkflowError):
         )
 
 
-class StaticWorkflowReadOnly(StaticWorkflowSlug):
+class StaticWorkflowReadOnly(WorkflowError):
     """Raised when a write names a static workflow by id: an edit, an archive, a fork, a
-    variant or a revision created outside the commit, or a scoped commit.
+    variant or a revision created outside the commit, or a commit from an agent's tool.
 
     A static workflow is defined in code. A project may commit only the editable fields of
     one that lists them, through the commit endpoint; every other write is refused. A
-    subclass of :class:`StaticWorkflowSlug`, so a route that maps that refusal maps this one
-    too.
+    sibling of :class:`StaticWorkflowSlug`, which refuses a reserved slug the caller sent.
     """
 
     code = "static_workflow_read_only"
 
-    def __init__(self, slug: str):
+    _NEXT_STEP = (
+        "Commit only the workflow's editable fields through the commit endpoint, or "
+        "leave this workflow unchanged."
+    )
+
+    def __init__(self, slug: str, *, next_step: Optional[str] = None):
+        self.slug = slug
+        self.next_step = next_step or self._NEXT_STEP
         super().__init__(
-            slug,
-            message=f"The workflow '{slug}' is defined by Agenta and cannot be changed here.",
+            f"The workflow '{slug}' is defined by Agenta and cannot be changed here."
         )
 
     def to_detail(self) -> Dict[str, Any]:
@@ -86,10 +91,7 @@ class StaticWorkflowReadOnly(StaticWorkflowSlug):
             "code": self.code,
             "message": self.message,
             "retryable": False,
-            "next_step": (
-                "Commit only the workflow's editable fields through the commit endpoint, "
-                "or leave this workflow unchanged."
-            ),
+            "next_step": self.next_step,
             "details": {"slug": self.slug},
         }
 

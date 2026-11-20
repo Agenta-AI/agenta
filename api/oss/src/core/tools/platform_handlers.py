@@ -895,6 +895,7 @@ async def _commit_as_agent(
         InvalidAgentConnectionError,
         InvalidAgentHarnessError,
         InvalidAgentInstructionsError,
+        StaticWorkflowReadOnly,
         StaticWorkflowSlug,
     )
 
@@ -966,6 +967,8 @@ async def _commit_as_agent(
                 details={"slug": e.slug} if e.slug else {},
             )
         ) from e
+    except StaticWorkflowReadOnly as e:
+        raise _Refusal(AgentError(**e.to_detail())) from e
     except StaticWorkflowSlug as e:
         raise _Refusal(
             AgentError(

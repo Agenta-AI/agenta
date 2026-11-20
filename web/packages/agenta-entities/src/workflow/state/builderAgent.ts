@@ -22,17 +22,18 @@ const BUILDER_AGENT_REVISION_KEY = ["workflows", "builder-agent-revision"] as co
  * commits the builder's model, and the revision it reads is the code version with that commit
  * on top. When it has no model yet, the first read commits the new-agent default
  * (`ensureBuilderAgentModel`), so both builder chats get it from this one place. The key holds
- * the number of project connections, so a connection added from the chat's "connect a model"
- * strip reads again and commits the default then. (Each form that adds a connection would
- * otherwise have to invalidate this query itself.) A read that finds a model commits nothing;
- * two reads that both commit end in one conflict, and the second one reads the first's commit.
+ * whether the project has a connection, so the first connection, added from the chat's
+ * "connect a model" strip, reads again and commits the default then. (Each form that adds a
+ * connection would otherwise have to invalidate this query itself.) A read that finds a model
+ * commits nothing; two reads that both commit end in one conflict, and the second one reads
+ * the first's commit.
  */
 export const builderAgentRevisionIdQueryAtom = atomWithQuery<string | null>((get) => {
     const projectId = get(projectIdAtom)
     const userId = get(userAtom)?.id ?? null
-    const connections = get(vaultSecretsQueryAtom).data?.length ?? 0
+    const hasConnection = (get(vaultSecretsQueryAtom).data?.length ?? 0) > 0
     return {
-        queryKey: [...BUILDER_AGENT_REVISION_KEY, projectId, connections],
+        queryKey: [...BUILDER_AGENT_REVISION_KEY, projectId, hasConnection],
         queryFn: async () => {
             if (!projectId || !userId) return null
             const read = await retrieveWorkflowRevision({
