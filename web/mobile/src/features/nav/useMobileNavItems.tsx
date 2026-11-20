@@ -2,6 +2,7 @@ import {createElement, useCallback, useEffect, useMemo, type ReactNode} from "re
 
 import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
+import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import agentSectionsCatalog from "@agenta/i18n/catalogs/nav.agentSections"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
@@ -55,6 +56,7 @@ import {
     RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
+    SparkleIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -249,6 +251,7 @@ export const useRailSessionRowWrapper = (projectURL: string) => {
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog)
+    const tBuilder = useT(builderPageCatalog)
     // Sessions this client created ride the shared local seam until the server lists them.
     useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
@@ -305,6 +308,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: t("navigation.items.home"),
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
+            },
+            {
+                key: "mobile-builder",
+                title: tBuilder("builder.page.builder"),
+                icon: createElement(SparkleIcon, {size: 16}),
+                link: `${projectURL}/builder`,
             },
             ...developerSlots.afterHome,
             {
@@ -371,7 +380,16 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             },
             ...developerSlots.afterSessions,
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots, t],
+        [
+            loadMoreSessions,
+            source,
+            projectURL,
+            wrapSessionRow,
+            paletteShortcut,
+            developerSlots,
+            t,
+            tBuilder,
+        ],
     )
 }
 
