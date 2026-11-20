@@ -40,36 +40,7 @@ import {SelectedMark} from "./DriveMenuMark"
 export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
 export const ROW_ICON_BTN_ON = "bg-accent text-colorText"
 
-export const DriveHeader = ({
-    selectedPath,
-    isFolder,
-    rootLabel,
-    onNavigate,
-    canGoBack,
-    canGoForward,
-    onBack,
-    onForward,
-    copyText,
-    ids,
-    showOrigin,
-    showTemporary,
-    onToggleTemporary,
-    showHidden,
-    onToggleHidden,
-    inGitScope,
-    showGitignored,
-    onToggleGitignored,
-    treeVisible,
-    onToggleTree,
-    onClose,
-    closeVariant = "close",
-    expanded,
-    onToggleExpand,
-    expandPlacement = "leading",
-    partialErrored,
-    onRetry,
-    retrying,
-}: {
+export interface DriveHeaderProps {
     selectedPath: string | null
     isFolder: boolean
     rootLabel: string
@@ -101,7 +72,38 @@ export const DriveHeader = ({
     partialErrored?: boolean
     onRetry?: () => void
     retrying?: boolean
-}) => {
+}
+
+export const DriveHeader = ({
+    selectedPath,
+    isFolder,
+    rootLabel,
+    onNavigate,
+    canGoBack,
+    canGoForward,
+    onBack,
+    onForward,
+    copyText,
+    ids,
+    showOrigin,
+    showTemporary,
+    onToggleTemporary,
+    showHidden,
+    onToggleHidden,
+    inGitScope,
+    showGitignored,
+    onToggleGitignored,
+    treeVisible,
+    onToggleTree,
+    onClose,
+    closeVariant = "close",
+    expanded,
+    onToggleExpand,
+    expandPlacement = "leading",
+    partialErrored,
+    onRetry,
+    retrying,
+}: DriveHeaderProps) => {
     const t = useT(driveExplorerCatalog)
     const expandLabel =
         expandPlacement === "before-options"
@@ -207,69 +209,18 @@ export const DriveHeader = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[220px]">
-                    {/* Plain items with a right-side check; `preventDefault` keeps the menu open. */}
-                    {showOrigin ? (
-                        <DropdownMenuItem
-                            role="menuitemcheckbox"
-                            aria-checked={showTemporary}
-                            onSelect={(e) => {
-                                e.preventDefault()
-                                onToggleTemporary()
-                            }}
-                        >
-                            <ClockCountdown />
-                            {t("entityUi.driveExplorer.showTemporaryFiles")}
-                            <SelectedMark on={showTemporary} />
-                        </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem
-                        role="menuitemcheckbox"
-                        aria-checked={showHidden}
-                        onSelect={(e) => {
-                            e.preventDefault()
-                            onToggleHidden()
-                        }}
-                    >
-                        <EyeSlash />
-                        {t("entityUi.driveExplorer.showHiddenFiles")}
-                        <SelectedMark on={showHidden} />
-                    </DropdownMenuItem>
-                    {inGitScope ? (
-                        <DropdownMenuItem
-                            role="menuitemcheckbox"
-                            aria-checked={showGitignored}
-                            onSelect={(e) => {
-                                e.preventDefault()
-                                onToggleGitignored()
-                            }}
-                        >
-                            <GitBranch />
-                            {t("entityUi.driveExplorer.showGitignoredFiles")}
-                            <SelectedMark on={showGitignored} />
-                        </DropdownMenuItem>
-                    ) : null}
-                    {ids.length ? <DropdownMenuSeparator /> : null}
-                    {ids.map((id) => (
-                        <DropdownMenuItem
-                            key={id.key}
-                            onSelect={() =>
-                                copyText(
-                                    id.value,
-                                    t("entityUi.driveExplorer.labelCopied", {label: id.label}),
-                                )
-                            }
-                        >
-                            <Copy />
-                            <span className="flex flex-col gap-0.5 py-0.5">
-                                <span className="text-xs font-medium">
-                                    {t("entityUi.driveExplorer.copyLabel", {label: id.label})}
-                                </span>
-                                <span className="font-mono text-[12px] text-colorTextTertiary">
-                                    {id.value}
-                                </span>
-                            </span>
-                        </DropdownMenuItem>
-                    ))}
+                    <DriveViewOptionItems
+                        copyText={copyText}
+                        ids={ids}
+                        showOrigin={showOrigin}
+                        showTemporary={showTemporary}
+                        onToggleTemporary={onToggleTemporary}
+                        showHidden={showHidden}
+                        onToggleHidden={onToggleHidden}
+                        inGitScope={inGitScope}
+                        showGitignored={showGitignored}
+                        onToggleGitignored={onToggleGitignored}
+                    />
                 </DropdownMenuContent>
             </DropdownMenu>
             <Tooltip
@@ -314,5 +265,133 @@ export const DriveHeader = ({
                 </Tooltip>
             ) : null}
         </div>
+    )
+}
+
+type ViewOptionProps = Pick<
+    DriveHeaderProps,
+    | "copyText"
+    | "ids"
+    | "showOrigin"
+    | "showTemporary"
+    | "onToggleTemporary"
+    | "showHidden"
+    | "onToggleHidden"
+    | "inGitScope"
+    | "showGitignored"
+    | "onToggleGitignored"
+>
+
+/** The "View options" entries: file filters, then the inspector's raw ids. */
+const DriveViewOptionItems = ({
+    copyText,
+    ids,
+    showOrigin,
+    showTemporary,
+    onToggleTemporary,
+    showHidden,
+    onToggleHidden,
+    inGitScope,
+    showGitignored,
+    onToggleGitignored,
+}: ViewOptionProps) => {
+    const t = useT(driveExplorerCatalog)
+    return (
+        <>
+            {/* Plain items with a right-side check; `preventDefault` keeps the menu open. */}
+            {showOrigin ? (
+                <DropdownMenuItem
+                    role="menuitemcheckbox"
+                    aria-checked={showTemporary}
+                    onSelect={(e) => {
+                        e.preventDefault()
+                        onToggleTemporary()
+                    }}
+                >
+                    <ClockCountdown />
+                    {t("entityUi.driveExplorer.showTemporaryFiles")}
+                    <SelectedMark on={showTemporary} />
+                </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+                role="menuitemcheckbox"
+                aria-checked={showHidden}
+                onSelect={(e) => {
+                    e.preventDefault()
+                    onToggleHidden()
+                }}
+            >
+                <EyeSlash />
+                {t("entityUi.driveExplorer.showHiddenFiles")}
+                <SelectedMark on={showHidden} />
+            </DropdownMenuItem>
+            {inGitScope ? (
+                <DropdownMenuItem
+                    role="menuitemcheckbox"
+                    aria-checked={showGitignored}
+                    onSelect={(e) => {
+                        e.preventDefault()
+                        onToggleGitignored()
+                    }}
+                >
+                    <GitBranch />
+                    {t("entityUi.driveExplorer.showGitignoredFiles")}
+                    <SelectedMark on={showGitignored} />
+                </DropdownMenuItem>
+            ) : null}
+            {ids.length ? <DropdownMenuSeparator /> : null}
+            {ids.map((id) => (
+                <DropdownMenuItem
+                    key={id.key}
+                    onSelect={() =>
+                        copyText(
+                            id.value,
+                            t("entityUi.driveExplorer.labelCopied", {label: id.label}),
+                        )
+                    }
+                >
+                    <Copy />
+                    <span className="flex flex-col gap-0.5 py-0.5">
+                        <span className="text-xs font-medium">
+                            {t("entityUi.driveExplorer.copyLabel", {label: id.label})}
+                        </span>
+                        <span className="font-mono text-[12px] text-colorTextTertiary">
+                            {id.value}
+                        </span>
+                    </span>
+                </DropdownMenuItem>
+            ))}
+        </>
+    )
+}
+
+/**
+ * Row 1's controls as menu entries, for a phone: one row carries the crumb and the folder controls
+ * (as drawn), and Back, Forward, the view options and the file tree move into "More actions".
+ */
+export const DriveHeaderMenuItems = (props: DriveHeaderProps) => {
+    const t = useT(driveExplorerCatalog)
+    return (
+        <>
+            <DropdownMenuItem disabled={!props.canGoBack} onSelect={props.onBack}>
+                <CaretLeft />
+                {t("entityUi.driveExplorer.back")}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!props.canGoForward} onSelect={props.onForward}>
+                <CaretRight />
+                {t("entityUi.driveExplorer.forward")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+                role="menuitemcheckbox"
+                aria-checked={props.treeVisible}
+                onSelect={props.onToggleTree}
+            >
+                <Sidebar />
+                {t("entityUi.driveExplorer.showFileTree")}
+                <SelectedMark on={props.treeVisible} />
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DriveViewOptionItems {...props} />
+        </>
     )
 }

@@ -16,6 +16,7 @@ import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {isCommentModeChord} from "@agenta/shared/previewPicker"
 import {getShortcut, isOnScreen, isOverlayOpen, shortcutText} from "@agenta/shared/utils"
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     DropdownMenu,
@@ -44,7 +45,7 @@ import {
     MarkdownLogo,
     PencilSimple,
     Play,
-    SortAscending,
+    SlidersHorizontal,
     SquaresFour,
     TextAa,
     TextAlignLeft,
@@ -59,7 +60,13 @@ import {useDriveSessionId} from "./driveSessionContext"
 import {isCommentableKind, usePreviewCommentMode} from "./previewCommentMode"
 
 /** Row 2's text buttons: the kit's ghost sm, muted until hover. */
-const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:text-colorText"
+const ROW_TEXT_BTN =
+    "h-[26px] gap-1 px-2 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText"
+/** A phone's 36 px controls; a transparent ::after grows each hit area to 44 px. */
+const PHONE_HIT = "relative after:absolute after:-inset-1 after:content-['']"
+const PHONE_PILL = `h-9 rounded-md p-0.5 ${PHONE_HIT}`
+const PHONE_PILL_TRIGGER = "h-full rounded-[5px] px-2.5 py-0 [&_svg]:size-4"
+const PHONE_TEXT_BTN = `h-9 gap-1 px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_HIT}`
 
 type BrowserKey = CatalogKey<typeof driveBrowserCatalog>
 
@@ -92,14 +99,14 @@ interface ToolbarMode {
 }
 
 /** An icon-only pill at the row's 26px control height (icons carry `size-3.5`, the trigger's default is 16px). */
-const IconPill = ({value, options, onChange}: ToolbarMode) => {
+const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: boolean}) => {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
         <Tabs value={value} onValueChange={onChange}>
             <TabsList
                 variant="pill"
                 aria-label={t("entityUi.driveBrowser.view")}
-                className="h-[26px] rounded-md p-0.5"
+                className={phone ? PHONE_PILL : "h-[26px] rounded-md p-0.5"}
             >
                 {options.map((o) => (
                     <TabsTrigger
@@ -107,7 +114,7 @@ const IconPill = ({value, options, onChange}: ToolbarMode) => {
                         value={o.value}
                         aria-label={o.label}
                         title={o.label}
-                        className="h-full rounded-[5px] px-1.5 py-0"
+                        className={phone ? PHONE_PILL_TRIGGER : "h-full rounded-[5px] px-1.5 py-0"}
                     >
                         {o.icon}
                     </TabsTrigger>
@@ -151,6 +158,11 @@ type DriveToolbarProps =
           downloadingAll?: boolean
           /** Read only (a phone): no write entries in the ⋯ menu. */
           readOnly?: boolean
+          /**
+           * A phone: one 52 px row with the crumb at the left; row 1's controls (Back, Forward,
+           * the file tree, the view options) come first in the ⋯ menu.
+           */
+          phone?: {crumb: ReactNode; menu: ReactNode}
       }
     | {
           variant: "markdown"
@@ -378,10 +390,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
             onDownloadAll,
             downloadingAll,
             readOnly,
+            phone,
         } = props
-        return (
-            <Row>
+        const controls = (
+            <>
                 <IconPill
+                    phone={Boolean(phone)}
                     value={view}
                     onChange={(v) => setView(v as DriveViewMode)}
                     options={[
@@ -403,9 +417,9 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             variant="ghost"
                             size="sm"
                             aria-label={t("entityUi.driveBrowser.sort")}
-                            className={ROW_TEXT_BTN}
+                            className={phone ? PHONE_TEXT_BTN : ROW_TEXT_BTN}
                         >
-                            <SortAscending />
+                            <SlidersHorizontal className="size-3.5" />
                             {t(SORT_LABELS[sort])}
                             <CaretDown weight="bold" className="size-3 opacity-70" />
                         </Button>
@@ -420,54 +434,74 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <span className="flex-1" />
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("entityUi.driveBrowser.moreActions")}
-                            title={t("entityUi.driveBrowser.more")}
-                            className={ROW_ICON_BTN}
-                        >
-                            <DotsThreeVertical size={14} weight="bold" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                        align="end"
-                        className="min-w-[180px]"
-                        // New / Rename open a name field; the menu must not pull focus back to its trigger.
-                        onCloseAutoFocus={(e) => e.preventDefault()}
+            </>
+        )
+        const more = (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("entityUi.driveBrowser.moreActions")}
+                        title={t("entityUi.driveBrowser.more")}
+                        className={cn(ROW_ICON_BTN, phone ? "size-11" : "size-6 rounded-md")}
                     >
-                        {/* Same entries as the blank-space right-click menu (DriveFolderMenu). */}
-                        {driveFolderMenuEntries({
-                            actions,
-                            onCopyPath,
-                            onCopyLink,
-                            onDownloadAll,
-                            downloadingAll,
-                            readOnly,
-                        }).map((entry, i) =>
-                            entry === "separator" ? (
-                                <DropdownMenuSeparator key={`sep-${i}`} />
-                            ) : (
-                                <DropdownMenuItem
-                                    key={entry.key}
-                                    disabled={entry.disabled}
-                                    onSelect={entry.onSelect}
-                                >
-                                    {entry.icon}
-                                    {entry.label}
-                                    {entry.shortcut ? (
-                                        <DropdownMenuShortcut>
-                                            {entry.shortcut}
-                                        </DropdownMenuShortcut>
-                                    ) : null}
-                                </DropdownMenuItem>
-                            ),
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                        <DotsThreeVertical size={14} weight="bold" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    align="end"
+                    className="min-w-[180px]"
+                    // New / Rename open a name field; the menu must not pull focus back to its trigger.
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                    {phone ? (
+                        <>
+                            {phone.menu}
+                            <DropdownMenuSeparator />
+                        </>
+                    ) : null}
+                    {/* Same entries as the blank-space right-click menu (DriveFolderMenu). */}
+                    {driveFolderMenuEntries({
+                        actions,
+                        onCopyPath,
+                        onCopyLink,
+                        onDownloadAll,
+                        downloadingAll,
+                        readOnly,
+                    }).map((entry, i) =>
+                        entry === "separator" ? (
+                            <DropdownMenuSeparator key={`sep-${i}`} />
+                        ) : (
+                            <DropdownMenuItem
+                                key={entry.key}
+                                disabled={entry.disabled}
+                                onSelect={entry.onSelect}
+                            >
+                                {entry.icon}
+                                {entry.label}
+                                {entry.shortcut ? (
+                                    <DropdownMenuShortcut>{entry.shortcut}</DropdownMenuShortcut>
+                                ) : null}
+                            </DropdownMenuItem>
+                        ),
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        )
+        if (phone)
+            return (
+                <div className="box-border flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-3 pr-1">
+                    <div className="flex min-w-0 flex-1 items-center">{phone.crumb}</div>
+                    {controls}
+                    {more}
+                </div>
+            )
+        return (
+            <Row>
+                {controls}
+                <span className="flex-1" />
+                {more}
             </Row>
         )
     }

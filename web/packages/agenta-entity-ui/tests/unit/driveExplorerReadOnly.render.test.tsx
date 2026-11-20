@@ -136,3 +136,32 @@ describe("DriveExplorer read only", () => {
         expect(menu.Delete).toBe(true)
     })
 })
+
+describe("DriveExplorer on a phone (M03)", () => {
+    it("draws one row: the crumb, Grid and List, the sort, and More actions", async () => {
+        await renderExplorer(true)
+        // No row 1: its Back, Forward, View options and file tree buttons are not in the row.
+        const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))
+        expect(labels).not.toContain("Back")
+        expect(labels).not.toContain("View options")
+        expect(labels).toContain("Sort")
+        expect(host.textContent).toContain("All files")
+    })
+
+    it("keeps Back, Forward and the file tree in More actions", async () => {
+        await renderExplorer(true)
+        const menu = await folderMenu()
+        expect(menu).toHaveProperty("Back")
+        expect(menu).toHaveProperty("Forward")
+        expect(menu["Download all.zip"]).toBe(true)
+        const tree = document.querySelector('[role="menuitemcheckbox"]')
+        expect(tree?.textContent).toContain("file tree")
+    })
+
+    it("keeps row 1 on the desktop", async () => {
+        await renderExplorer(false)
+        const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))
+        expect(labels).toContain("Back")
+        expect(labels).toContain("View options")
+    })
+})

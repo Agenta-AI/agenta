@@ -54,13 +54,13 @@ import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {driveRootLabel} from "./DriveBreadcrumb"
+import {DriveBreadcrumb, driveRootLabel} from "./DriveBreadcrumb"
 import {DriveEditorSkeleton} from "./DriveEditorFrame"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
 import {type DriveFolderMenuProps} from "./DriveFolderMenu"
-import {DriveHeader} from "./DriveHeader"
+import {DriveHeader, DriveHeaderMenuItems, type DriveHeaderProps} from "./DriveHeader"
 import {
     type DriveItemWriteActions,
     useCopyDrivePath,
@@ -615,6 +615,38 @@ export function DriveExplorer({
     // erroring while the session's own files loaded (or vice-versa) — still has a tree to browse, so
     // it falls through and renders the tree; its retry rides row 1 (see DriveHeader's
     // `partialErrored` slot), NOT a new banner row that would shove the content down.
+    // Row 1 of the pane. On a phone, a folder draws it inside its toolbar row (one row, as drawn).
+    const headerProps: DriveHeaderProps = {
+        selectedPath,
+        isFolder: selectedIsFolder,
+        rootLabel,
+        onNavigate: select,
+        canGoBack,
+        canGoForward,
+        onBack: goBack,
+        onForward: goForward,
+        copyText,
+        ids: driveIds ?? [],
+        showOrigin,
+        showTemporary,
+        onToggleTemporary: () => setShowTemporary((v) => !v),
+        showHidden,
+        onToggleHidden: toggleShowHiddenPref,
+        inGitScope,
+        showGitignored,
+        onToggleGitignored: toggleShowGitignoredPref,
+        treeVisible,
+        onToggleTree: toggleTree,
+        onClose,
+        closeVariant,
+        expanded: drawerExpanded,
+        onToggleExpand,
+        expandPlacement,
+        partialErrored: drive.partialErrored,
+        onRetry: drive.retry,
+        retrying: drive.isFetching,
+    }
+    let headerInToolbar = false
     let body: ReactNode
     if (drive.errored && drive.fileCount === 0) {
         body = <DriveErrorState drive={drive} />
@@ -653,6 +685,7 @@ export function DriveExplorer({
                   }
                 : undefined
 
+        headerInToolbar = Boolean(touch && chrome && selectedIsFolder)
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -662,6 +695,22 @@ export function DriveExplorer({
                 sort={sort}
                 setSort={setSort}
                 {...folderMenu}
+                phone={
+                    headerInToolbar
+                        ? {
+                              crumb: (
+                                  <DriveBreadcrumb
+                                      variant="icons"
+                                      shown={selectedPath ?? ""}
+                                      rootLabel={rootLabel}
+                                      isFile={false}
+                                      onNavigate={select}
+                                  />
+                              ),
+                              menu: <DriveHeaderMenuItems {...headerProps} />,
+                          }
+                        : undefined
+                }
             />
         ) : editableMarkdown ? (
             <DriveToolbar
@@ -703,7 +752,7 @@ export function DriveExplorer({
         )
 
         const shownContentHeader =
-            touch && contentHeader ? (
+            touch && contentHeader && !headerInToolbar ? (
                 <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
             ) : (
                 contentHeader
@@ -894,36 +943,7 @@ export function DriveExplorer({
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
                     <div className={touch ? TOUCH_HEADER : "contents"}>
-                        <DriveHeader
-                            selectedPath={selectedPath}
-                            isFolder={selectedIsFolder}
-                            rootLabel={rootLabel}
-                            onNavigate={select}
-                            canGoBack={canGoBack}
-                            canGoForward={canGoForward}
-                            onBack={goBack}
-                            onForward={goForward}
-                            copyText={copyText}
-                            ids={driveIds ?? []}
-                            showOrigin={showOrigin}
-                            showTemporary={showTemporary}
-                            onToggleTemporary={() => setShowTemporary((v) => !v)}
-                            showHidden={showHidden}
-                            onToggleHidden={toggleShowHiddenPref}
-                            inGitScope={inGitScope}
-                            showGitignored={showGitignored}
-                            onToggleGitignored={toggleShowGitignoredPref}
-                            treeVisible={treeVisible}
-                            onToggleTree={toggleTree}
-                            onClose={onClose}
-                            closeVariant={closeVariant}
-                            expanded={drawerExpanded}
-                            onToggleExpand={onToggleExpand}
-                            expandPlacement={expandPlacement}
-                            partialErrored={drive.partialErrored}
-                            onRetry={drive.retry}
-                            retrying={drive.isFetching}
-                        />
+                        {headerInToolbar ? null : <DriveHeader {...headerProps} />}
                     </div>
                     <input
                         ref={uploadInputRef}
