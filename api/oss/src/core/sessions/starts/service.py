@@ -13,7 +13,7 @@ from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
-from oss.src.core.sessions.executions.senders import is_sent_by_person
+from oss.src.core.sessions.executions.senders import server_input_waits
 from oss.src.core.sessions.inputs.dtos import (
     PendingInput,
     PendingInputKind,
@@ -40,12 +40,10 @@ from oss.src.core.sessions.streams.dtos import SessionStreamCreate
 from oss.src.core.sessions.types import SessionCallingSession
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
-from oss.src.core.sessions.turns.dtos import SessionTurnQuery
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.access.prefetch import request_memo_scope
 from oss.src.core.sharing.admission import TEMPLATE_START_BOUNDARY, RunAdmission
 from oss.src.core.sharing.dtos import AccessPolicy
-from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import invoke_never_dispatched
@@ -100,9 +98,11 @@ class SessionStartsService:
         self,
         *,
         project_id: UUID,
-        execution_id: str,
+        lock_id: str,
     ) -> AsyncIterator[None]:
-        key = f"agenta:session-start:{project_id}:{execution_id}"
+        """`lock_id` names what the lock serializes: one start's execution, or one
+        session for `enqueue_session_input`."""
+        key = f"agenta:session-start:{project_id}:{lock_id}"
         token = uuid4().hex
         acquired = False
         try:
@@ -356,7 +356,7 @@ class SessionStartsService:
         admitted_agent_id: Optional[UUID],
     ) -> tuple[PendingInput, bool]:
         """Write and promote the input for `execution_id`, then invoke it once. Call it
-        under `_start_lock` for that execution, after the run was admitted.
+        under `_start_lock`, after the run was admitted.
 
         Returns the input and whether the turn had already started (a replay). Raises
         `SessionStartNotDurable` when the turn cannot be shown to have started; a retry
@@ -438,64 +438,6 @@ class SessionStartsService:
 
         return claimed, False
 
-    async def _person_stopped_latest_turn(
-        self, *, project_id: UUID, session_id: str, execution_id: str
-    ) -> bool:
-        """True when a Stop ended `execution_id`. A Steer also stops a turn, but its
-        reply runs next, so it is not a person stopping the session."""
-        execution = await self._executions.fetch_execution(
-            project_id=project_id,
-            session_id=session_id,
-            execution_id=execution_id,
-        )
-        if execution is None or execution.terminal_outcome != "stopped":
-            return False
-        return not await self._cancelled_by_steer(
-            project_id=project_id,
-            session_id=session_id,
-            execution_id=execution_id,
-        )
-
-    async def _server_input_waits(self, *, project_id: UUID, session_id: str) -> bool:
-        """The one rule for a server input: it starts no turn when a person ended the
-        session, when a person stopped its latest turn, or when no person sent any of
-        its last `turns_without_person_limit` turns. It then waits in the queue and runs
-        after the person's next turn."""
-        stream = await self._streams.get_by_session_id_including_archived(
-            project_id=project_id,
-            session_id=session_id,
-        )
-        if stream is not None and stream.deleted_at is not None:
-            return True
-        limit = env.agenta.sessions.turns_without_person_limit
-        turns = await self._turns.query_turns(
-            project_id=project_id,
-            query=SessionTurnQuery(session_id=session_id),
-            windowing=Windowing(limit=limit, order="descending"),
-        )
-        if not turns:
-            return False
-        latest = turns[0]
-        if latest.turn_id is not None and await self._person_stopped_latest_turn(
-            project_id=project_id,
-            session_id=session_id,
-            execution_id=str(latest.turn_id),
-        ):
-            return True
-        if len(turns) < limit:
-            return False
-        for turn in turns:
-            if turn.turn_id is not None and await is_sent_by_person(
-                executions_dao=self._executions,
-                inputs_dao=self._inputs_dao,
-                turns_dao=self._turns,
-                project_id=project_id,
-                session_id=session_id,
-                execution_id=str(turn.turn_id),
-            ):
-                return False
-        return True
-
     async def enqueue_session_input(
         self,
         *,
@@ -517,7 +459,7 @@ class SessionStartsService:
         dispatched at once, admitted at `dispatch_boundary`, when the session is idle. A
         queued row that a later settle promotes is admitted at
         `QUEUED_DISPATCH_BOUNDARY`. A server input (`kind` other than `message`) also
-        waits under `_server_input_waits`.
+        waits while `server_input_waits` holds, here and at the queue promotion.
 
         One row per key in the session: a repeat writes nothing and answers the first
         row. Raises `SessionInputEnvelopeMismatch` for an envelope of another project,
@@ -527,7 +469,7 @@ class SessionStartsService:
         if run_envelope.authority.project_id != project_id:
             raise SessionInputEnvelopeMismatch()
         if not is_reserved_input_key(idempotency_key):
-            raise ValueError("A server input key must start with 'ag:'.")
+            raise ValueError("A key that server code builds must start with 'ag:'.")
         # A copy: validation rewrites nested references in the dict it reads. The row
         # stores the request's canonical form, taken before the admission resolves the
         # target, as `start_once` stores its first message.
@@ -547,9 +489,21 @@ class SessionStartsService:
             )
         )
 
-        async with self._start_lock(project_id=project_id, execution_id=execution_id):
-            if kind != PendingInputKind.message and await self._server_input_waits(
-                project_id=project_id, session_id=session_id
+        # One lock per session, not per key: two inputs with different keys must not
+        # both find the session idle and both dispatch. The second one, once the lock is
+        # free, sees the first turn running and waits as `pending`.
+        async with self._start_lock(
+            project_id=project_id, lock_id=f"{_INPUT_NAMESPACE}:{session_id}"
+        ):
+            if kind != PendingInputKind.message and await server_input_waits(
+                streams_dao=self._streams,
+                executions_dao=self._executions,
+                inputs_dao=self._inputs_dao,
+                turns_dao=self._turns,
+                cancelled_by_steer=self._cancelled_by_steer,
+                project_id=project_id,
+                session_id=session_id,
+                turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
             ):
                 waiting = await self._inputs.queue_input(
                     project_id=project_id,
@@ -682,7 +636,7 @@ class SessionStartsService:
 
         async with self._start_lock(
             project_id=project_id,
-            execution_id=execution_id,
+            lock_id=execution_id,
         ):
             # The session row comes before every claim, so a database failure here
             # leaves nothing claimed and a retry with the same key can still invoke. A

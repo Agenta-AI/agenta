@@ -75,6 +75,10 @@ from oss.src.core.sessions.executions.dtos import (
 )
 from oss.src.core.sessions.records.dtos import RunnerEnding
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.executions.senders import (
+    server_input_waits,
+    turn_first_execution,
+)
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionStatus,
@@ -88,6 +92,7 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputRemoved,
 )
+from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -104,6 +109,7 @@ from oss.src.dbs.redis.sessions.locks import (
     forget_turn_admissions,
     reconcile_stopped_turn,
 )
+from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -203,6 +209,8 @@ class SessionCommandsService:
         delivery: ControlDeliveryPort,
         executions_dao: Optional[SessionExecutionsDAOInterface] = None,
         inputs_dao: Optional[SessionInputsDAOInterface] = None,
+        streams_dao: Optional[SessionStreamsDAOInterface] = None,
+        turns_dao: Optional[SessionTurnsDAOInterface] = None,
     ) -> None:
         self._dao = commands_dao
         self._streams = streams_service
@@ -211,6 +219,9 @@ class SessionCommandsService:
         self._delivery = delivery
         self._executions = executions_dao
         self._inputs = inputs_dao
+        # Both set: a turn end applies the server input hold rule before it promotes.
+        self._streams_dao = streams_dao
+        self._turns = turns_dao
 
     # -- admission ---------------------------------------------------------- #
 
@@ -1103,32 +1114,16 @@ class SessionCommandsService:
         execution: SessionExecutionSettlement,
         transaction: Any,
     ) -> Optional[str]:
-        """The session turn a paused execution belongs to, or None when the chain is broken.
-
-        Each approval resume is a new execution whose parent is the paused one. Walk the
-        parents back to the execution that started the turn: the first one that was not
-        created by an approval. A queued input's continuation also has a parent (the turn
-        before it), but it starts its own turn, so the walk stops there. The chain is broken
-        when a parent row is missing or an execution id comes back (a cycle).
-        """
-        visited = {execution.execution_id}
-        while (
-            execution.source_interaction_id is not None
-            and execution.parent_execution_id is not None
-        ):
-            if execution.parent_execution_id in visited:
-                return None
-            visited.add(execution.parent_execution_id)
-            parent = await self._executions.fetch_execution(
-                project_id=project_id,
-                session_id=session_id,
-                execution_id=execution.parent_execution_id,
-                transaction=transaction,
-            )
-            if parent is None:
-                return None
-            execution = parent
-        return execution.execution_id
+        """The session turn a paused execution belongs to, or None when the chain is
+        broken (`turn_first_execution`)."""
+        first = await turn_first_execution(
+            executions_dao=self._executions,
+            project_id=project_id,
+            session_id=session_id,
+            execution=execution,
+            transaction=transaction,
+        )
+        return first.execution_id if first is not None else None
 
     async def _mark_continuation_recoverable(
         self,
@@ -1858,6 +1853,29 @@ class SessionCommandsService:
 
     # -- settlement --------------------------------------------------------- #
 
+    async def _server_inputs_held(
+        self, *, project_id: UUID, session_id: str, transaction: Any
+    ) -> bool:
+        """True when a server input waits in the queue and `server_input_waits` holds."""
+        if self._streams_dao is None or self._turns is None:
+            return False
+        if not await self._inputs.has_pending_server_input(
+            project_id=project_id,
+            session_id=session_id,
+            transaction=transaction,
+        ):
+            return False
+        return await server_input_waits(
+            streams_dao=self._streams_dao,
+            executions_dao=self._executions,
+            inputs_dao=self._inputs,
+            turns_dao=self._turns,
+            cancelled_by_steer=self.cancelled_by_steer,
+            project_id=project_id,
+            session_id=session_id,
+            turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+        )
+
     async def _promote_next_input(
         self,
         *,
@@ -1873,6 +1891,19 @@ class SessionCommandsService:
             return None
 
         execution_id = str(uuid4())
+        # A turn end promotes the next row on its own, so a server input there obeys the
+        # same hold rule as in `enqueue_session_input`. A held row stays `pending`, and
+        # a person's queued message behind it still runs. Send now (`input_id`) is a
+        # person's choice and is not held.
+        messages_only = (
+            input_id is None
+            and only_policy is None
+            and await self._server_inputs_held(
+                project_id=project_id,
+                session_id=session_id,
+                transaction=transaction,
+            )
+        )
         pending_input = await self._inputs.promote_next(
             project_id=project_id,
             session_id=session_id,
@@ -1880,6 +1911,7 @@ class SessionCommandsService:
             input_id=input_id,
             only_policy=only_policy,
             transaction=transaction,
+            messages_only=messages_only,
         )
         if pending_input is None:
             return None
