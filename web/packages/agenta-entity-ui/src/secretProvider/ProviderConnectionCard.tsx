@@ -810,7 +810,7 @@ const ProviderConnectionCard = ({
                         className={cn(
                             FIELD_TYPE_SCALE,
                             rejected &&
-                                "border-colorErrorBorder focus-within:border-colorErrorBorder focus-within:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
+                                "border-colorErrorBorder focus-within:border-colorErrorBorder focus-within:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)] dark:focus-within:ring-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)]",
                         )}
                         autoComplete="new-password"
                         value={value}
