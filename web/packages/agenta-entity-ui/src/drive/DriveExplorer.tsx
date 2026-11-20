@@ -54,13 +54,18 @@ import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {driveRootLabel} from "./DriveBreadcrumb"
+import {DriveBreadcrumb, driveRootLabel} from "./DriveBreadcrumb"
 import {DriveEditorSkeleton} from "./DriveEditorFrame"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
 import {type DriveFolderMenuProps} from "./DriveFolderMenu"
-import {DriveHeader} from "./DriveHeader"
+import {
+    DriveHeader,
+    DriveHeaderMenuItems,
+    type DriveHeaderProps,
+    DrivePartialError,
+} from "./DriveHeader"
 import {
     type DriveItemWriteActions,
     useCopyDrivePath,
@@ -615,6 +620,40 @@ export function DriveExplorer({
     // erroring while the session's own files loaded (or vice-versa) — still has a tree to browse, so
     // it falls through and renders the tree; its retry rides row 1 (see DriveHeader's
     // `partialErrored` slot), NOT a new banner row that would shove the content down.
+    // Row 1 of the pane. On a phone, a folder draws it inside its toolbar row (one row, as drawn).
+    const headerProps: DriveHeaderProps = {
+        selectedPath,
+        isFolder: selectedIsFolder,
+        rootLabel,
+        onNavigate: select,
+        canGoBack,
+        canGoForward,
+        onBack: goBack,
+        onForward: goForward,
+        copyText,
+        ids: driveIds ?? [],
+        showOrigin,
+        showTemporary,
+        onToggleTemporary: () => setShowTemporary((v) => !v),
+        showHidden,
+        onToggleHidden: toggleShowHiddenPref,
+        inGitScope,
+        showGitignored,
+        onToggleGitignored: toggleShowGitignoredPref,
+        treeVisible,
+        onToggleTree: toggleTree,
+        onClose,
+        closeVariant,
+        expanded: drawerExpanded,
+        onToggleExpand,
+        expandPlacement,
+        partialErrored: drive.partialErrored,
+        onRetry: drive.retry,
+        retrying: drive.isFetching,
+    }
+    let headerInToolbar = false
+    // On a phone a folder's one row spans the tree and the content, as row 1 does elsewhere.
+    let phoneRow: ReactNode = null
     let body: ReactNode
     if (drive.errored && drive.fileCount === 0) {
         body = <DriveErrorState drive={drive} />
@@ -653,6 +692,8 @@ export function DriveExplorer({
                   }
                 : undefined
 
+        // A host whose close lives in row 1 keeps row 1: the one row has no close.
+        headerInToolbar = Boolean(touch && chrome && selectedIsFolder && !onClose)
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -662,6 +703,25 @@ export function DriveExplorer({
                 sort={sort}
                 setSort={setSort}
                 {...folderMenu}
+                phone={
+                    headerInToolbar
+                        ? {
+                              crumb: (
+                                  <>
+                                      <DriveBreadcrumb
+                                          variant="icons"
+                                          shown={selectedPath ?? ""}
+                                          rootLabel={rootLabel}
+                                          isFile={false}
+                                          onNavigate={select}
+                                      />
+                                      <DrivePartialError {...headerProps} />
+                                  </>
+                              ),
+                              menu: <DriveHeaderMenuItems {...headerProps} />,
+                          }
+                        : undefined
+                }
             />
         ) : editableMarkdown ? (
             <DriveToolbar
@@ -702,12 +762,12 @@ export function DriveExplorer({
             />
         )
 
-        const shownContentHeader =
-            touch && contentHeader ? (
-                <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
-            ) : (
-                contentHeader
-            )
+        if (headerInToolbar) phoneRow = contentHeader
+        const shownContentHeader = headerInToolbar ? null : touch && contentHeader ? (
+            <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
+        ) : (
+            contentHeader
+        )
 
         // The content column: the folder's children, an editor, or a preview.
         const contentPane =
@@ -893,38 +953,11 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    <div className={touch ? TOUCH_HEADER : "contents"}>
-                        <DriveHeader
-                            selectedPath={selectedPath}
-                            isFolder={selectedIsFolder}
-                            rootLabel={rootLabel}
-                            onNavigate={select}
-                            canGoBack={canGoBack}
-                            canGoForward={canGoForward}
-                            onBack={goBack}
-                            onForward={goForward}
-                            copyText={copyText}
-                            ids={driveIds ?? []}
-                            showOrigin={showOrigin}
-                            showTemporary={showTemporary}
-                            onToggleTemporary={() => setShowTemporary((v) => !v)}
-                            showHidden={showHidden}
-                            onToggleHidden={toggleShowHiddenPref}
-                            inGitScope={inGitScope}
-                            showGitignored={showGitignored}
-                            onToggleGitignored={toggleShowGitignoredPref}
-                            treeVisible={treeVisible}
-                            onToggleTree={toggleTree}
-                            onClose={onClose}
-                            closeVariant={closeVariant}
-                            expanded={drawerExpanded}
-                            onToggleExpand={onToggleExpand}
-                            expandPlacement={expandPlacement}
-                            partialErrored={drive.partialErrored}
-                            onRetry={drive.retry}
-                            retrying={drive.isFetching}
-                        />
-                    </div>
+                    {headerInToolbar ? null : (
+                        <div className={touch ? TOUCH_HEADER : "contents"}>
+                            <DriveHeader {...headerProps} />
+                        </div>
+                    )}
                     <input
                         ref={uploadInputRef}
                         type="file"
@@ -944,6 +977,8 @@ export function DriveExplorer({
                         }}
                     />
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
+                        {/* Inside the key handler: Back and history keys work from the row too. */}
+                        {phoneRow}
                         {body}
                     </div>
                     {appAccess.dialog}

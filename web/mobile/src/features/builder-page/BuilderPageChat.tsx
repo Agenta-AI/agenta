@@ -40,6 +40,7 @@ const sentContextChip = (message: UIMessage) => {
 export const BuilderPageChat = ({
     builderRevisionId,
     sessionId,
+    isNew,
     userId,
     workspaceId,
     projectId,
@@ -47,9 +48,12 @@ export const BuilderPageChat = ({
     activeTabKey,
     onFirstSend,
     onMessagesChanged,
+    dialogContainer,
 }: {
     builderRevisionId: string
     sessionId: string
+    /** A new chat, not one opened from the address: a chat that loads its messages is not new. */
+    isNew: boolean
     userId: string
     workspaceId: string
     projectId: string
@@ -60,6 +64,8 @@ export const BuilderPageChat = ({
     /** The first message of a new chat left the composer. */
     onFirstSend: (agent: AgentRef | null) => void
     onMessagesChanged: (messages: UIMessage[]) => void
+    /** Where "Browse ideas" opens: the page beside the sidebar (B02). */
+    dialogContainer: HTMLElement | null
 }) => {
     const t = useT(builderPageCatalog, builderContextCatalog)
     const store = useStore()
@@ -165,15 +171,16 @@ export const BuilderPageChat = ({
                     inputRef={inputRef}
                     hideSlashCommands
                     composerPlaceholder={
-                        hasMessages
-                            ? t("builder.page.placeholder")
-                            : t("builder.page.placeholderNew")
+                        isNew && !hasMessages
+                            ? t("builder.page.placeholderNew")
+                            : t("builder.page.placeholder")
                     }
                     composerHeaderExtra={chip}
                     emptyState={<NewBuilderChat heroState={heroState} />}
-                    belowComposer={
-                        hasMessages ? null : (
-                            <div className="px-3 pb-3">
+                    // Above the composer (B01), only in a new chat once it has loaded.
+                    aboveComposer={
+                        isNew ? (
+                            <div className="px-3 pb-2.5">
                                 <PageQuickActions
                                     onFill={fillComposer}
                                     onPickAgent={(agent) => {
@@ -183,12 +190,13 @@ export const BuilderPageChat = ({
                                     onBrowseIdeas={() => setIdeasOpen(true)}
                                 />
                             </div>
-                        )
+                        ) : null
                     }
                     userMessageAccessory={sentContextChip}
                     onMessagesChanged={handleMessages}
                 />
                 <BrowseIdeasDialog
+                    container={dialogContainer}
                     open={ideasOpen}
                     onOpenChange={setIdeasOpen}
                     onPick={(prompt) => {

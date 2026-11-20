@@ -16,10 +16,10 @@ export const NewBuilderChat = ({heroState}: {heroState: HeroState}) => {
     return (
         <div className="flex flex-col items-center text-center" data-testid="builder-page-new-chat">
             <BuilderHero state={heroState} className="size-[180px]" />
-            <h1 className="m-0 mt-2 text-[28px] font-semibold tracking-tight text-colorText">
+            <h1 className="m-0 mt-1.5 text-[28px] leading-[34px] font-semibold tracking-tight text-colorText">
                 {t("builder.page.builder")}
             </h1>
-            <p className="m-0 mt-2 max-w-[440px] text-sm text-colorTextSecondary">
+            <p className="m-0 mt-1 max-w-[420px] text-sm text-colorTextSecondary">
                 {t("builder.page.heroLine")}
             </p>
         </div>

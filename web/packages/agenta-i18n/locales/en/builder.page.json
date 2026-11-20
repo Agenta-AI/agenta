@@ -1,6 +1,5 @@
 {
     "builder": "Builder",
-    "back": "Back",
     "newChat": "New chat",
     "chats": "Chats",
     "chatsLoading": "Loading chats…",

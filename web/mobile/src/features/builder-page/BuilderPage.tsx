@@ -29,6 +29,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AgentPicker} from "./AgentPicker"
+import {BuilderChatTitle} from "./BuilderChatTitle"
 import {
     PANE_MAX_WIDTH,
     PANE_MIN_WIDTH,
@@ -171,6 +172,9 @@ export const BuilderPage = ({
         [projectId, workspaceId],
     )
 
+    // Dialog layer over the page, not the sidebar (B02); `contained` mode is non-modal and blurs.
+    const [dialogHost, setDialogHost] = useState<HTMLDivElement | null>(null)
+
     const header = useSessionHeader(projectId, routeChatId ?? "")
     const title = (routeChatId && header.data?.name?.trim()) || t("builder.page.newChat")
 
@@ -186,6 +190,7 @@ export const BuilderPage = ({
                 key={sessionId}
                 builderRevisionId={builderRevisionId}
                 sessionId={sessionId}
+                isNew={routeChatId !== sessionId}
                 userId={userId}
                 workspaceId={workspaceId}
                 projectId={projectId}
@@ -193,6 +198,7 @@ export const BuilderPage = ({
                 activeTabKey={tabs.state.active}
                 onFirstSend={onFirstSend}
                 onMessagesChanged={tabs.onMessagesChanged}
+                dialogContainer={dialogHost}
             />
         )
 
@@ -206,26 +212,37 @@ export const BuilderPage = ({
     const [dragWidth, setDragWidth] = useState<number | null>(null)
     const chatColumn = (
         <section aria-label={title} className="flex h-full min-h-0 min-w-0 flex-col">
-            <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
+            <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 md:pl-4">
                 <NavDrawer
                     workspaceId={workspaceId}
                     projectId={projectId}
                     scope={builderSidebar ? scope : undefined}
                 />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-colorText">
-                    {title}
-                </span>
+                {routeChatId && routeChatId === sessionId ? (
+                    <BuilderChatTitle
+                        title={title}
+                        session={header.data}
+                        sessionId={sessionId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        userId={userId}
+                    />
+                ) : (
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-colorText">
+                        {title}
+                    </span>
+                )}
                 {activeTab && !paneOpen ? (
                     <SimpleTooltip title={t("builder.page.openItems")}>
                         <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-compact"
                             aria-label={t("builder.page.openItems")}
                             onClick={() =>
                                 phone ? setPhonePane(true) : setLayout({hidden: false})
                             }
                         >
-                            <SidebarSimple size={16} className="-scale-x-100" />
+                            <SidebarSimple className="-scale-x-100" />
                         </Button>
                     </SimpleTooltip>
                 ) : null}
@@ -238,11 +255,11 @@ export const BuilderPage = ({
                         trigger={
                             <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon-compact"
                                 aria-label={t("builder.page.openItem")}
                                 title={t("builder.page.openItem")}
                             >
-                                <Plus size={16} />
+                                <Plus />
                             </Button>
                         }
                     />
@@ -259,7 +276,7 @@ export const BuilderPage = ({
             aria-label={t("builder.page.openItems")}
             className="flex h-full min-h-0 min-w-0 flex-col border-0 border-l border-solid border-colorBorderSecondary bg-colorBgContainer"
         >
-            <div className="flex h-11 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2">
+            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
                 <BuilderTabStrip
                     tabs={tabs.state.tabs}
                     active={tabs.state.active}
@@ -281,26 +298,25 @@ export const BuilderPage = ({
                     }}
                 />
                 {phone ? null : (
-                    <SimpleTooltip title={t("builder.page.fullScreen")}>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("builder.page.fullScreen")}
-                            aria-pressed={layout.fullScreen}
-                            onClick={() => setLayout({fullScreen: !layout.fullScreen})}
-                        >
-                            {layout.fullScreen ? (
-                                <ArrowsInSimple size={16} />
-                            ) : (
-                                <ArrowsOutSimple size={16} />
-                            )}
-                        </Button>
-                    </SimpleTooltip>
+                    <>
+                        <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorderSecondary" />
+                        <SimpleTooltip title={t("builder.page.fullScreen")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-compact"
+                                aria-label={t("builder.page.fullScreen")}
+                                aria-pressed={layout.fullScreen}
+                                onClick={() => setLayout({fullScreen: !layout.fullScreen})}
+                            >
+                                {layout.fullScreen ? <ArrowsInSimple /> : <ArrowsOutSimple />}
+                            </Button>
+                        </SimpleTooltip>
+                    </>
                 )}
                 <SimpleTooltip title={t("builder.page.hideOpenItems")}>
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-compact"
                         aria-label={t("builder.page.hideOpenItems")}
                         onClick={() =>
                             phone
@@ -308,7 +324,7 @@ export const BuilderPage = ({
                                 : setLayout({hidden: true, fullScreen: false})
                         }
                     >
-                        <SidebarSimple size={16} className="-scale-x-100" />
+                        <SidebarSimple className="-scale-x-100" />
                     </Button>
                 </SimpleTooltip>
             </div>
@@ -342,7 +358,7 @@ export const BuilderPage = ({
                 projectId={projectId}
                 scope={builderSidebar ? scope : undefined}
             >
-                <div className="h-full min-h-0" data-testid="builder-page">
+                <div className="relative h-full min-h-0" data-testid="builder-page">
                     {/* One tree for every layout: a change of layout never remounts the chat. */}
                     <SplitPane
                         className="h-full"
@@ -363,6 +379,10 @@ export const BuilderPage = ({
                         paneClassName={paneOpen ? undefined : "hidden"}
                         fill={chatColumn}
                         fillClassName={paneFull ? "hidden" : undefined}
+                    />
+                    <div
+                        ref={setDialogHost}
+                        className="pointer-events-none absolute inset-0 z-50 [contain:layout]"
                     />
                 </div>
             </AppShell>

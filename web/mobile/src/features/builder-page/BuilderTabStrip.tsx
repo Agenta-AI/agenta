@@ -1,8 +1,8 @@
-import {useLayoutEffect, useMemo, useRef, useState} from "react"
+import {Fragment, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {formatNumber, useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown, Plus} from "@phosphor-icons/react"
 
 import {AgentPicker} from "./AgentPicker"
@@ -14,6 +14,11 @@ import type {AgentRef} from "./paneAgent"
 /** Room kept at the end of the row for "N more" and "+". */
 const MORE_WIDTH = 92
 const PLUS_WIDTH = 36
+/** The space between two tabs: 8 px, a 1 px line, 8 px (B03). */
+const TAB_GAP = 17
+
+/** The line between two tabs, and before "N more". */
+const tabSeparator = <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorder" />
 
 /** The label a tab shows: its name, else the agent list's name, else the kind. */
 export type TabLabel = (tab: BuilderTab) => string
@@ -77,7 +82,7 @@ export const BuilderTabStrip = ({
                 widths,
                 room: rowWidth - PLUS_WIDTH,
                 moreWidth: MORE_WIDTH,
-                gap: 4,
+                gap: TAB_GAP,
             }),
         [active, rowWidth, tabs, widths],
     )
@@ -96,7 +101,7 @@ export const BuilderTabStrip = ({
     }
 
     return (
-        <div ref={rowRef} className="relative flex min-w-0 flex-1 items-center gap-1">
+        <div ref={rowRef} className="relative flex min-w-0 flex-1 items-center gap-2">
             <div
                 ref={measureRef}
                 aria-hidden
@@ -115,7 +120,7 @@ export const BuilderTabStrip = ({
                 ref={tablistRef}
                 role="tablist"
                 aria-label={t("builder.page.openItems")}
-                className="flex min-w-0 items-center gap-1"
+                className="flex min-w-0 items-center gap-2"
                 onKeyDown={(event) => {
                     // Arrow keys move the focus between the shown tabs; Enter or Space opens one.
                     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
@@ -131,21 +136,24 @@ export const BuilderTabStrip = ({
                         ?.focus()
                 }}
             >
-                {visible.map((key) => {
+                {visible.map((key, index) => {
                     const tab = byKey.get(key)
                     if (!tab) return null
                     return (
-                        <BuilderTabButton
-                            key={key}
-                            tab={tab}
-                            label={label(tab)}
-                            active={key === active}
-                            onActivate={() => onActivate(key)}
-                            onClose={() => void closeAndRefocus(key)}
-                        />
+                        <Fragment key={key}>
+                            {index > 0 ? tabSeparator : null}
+                            <BuilderTabButton
+                                tab={tab}
+                                label={label(tab)}
+                                active={key === active}
+                                onActivate={() => onActivate(key)}
+                                onClose={() => void closeAndRefocus(key)}
+                            />
+                        </Fragment>
                     )
                 })}
             </div>
+            {hiddenTabs.length > 0 ? tabSeparator : null}
             {hiddenTabs.length > 0 ? (
                 <Popover open={moreOpen} onOpenChange={setMoreOpen}>
                     <PopoverTrigger asChild>
@@ -153,10 +161,10 @@ export const BuilderTabStrip = ({
                             type="button"
                             aria-haspopup="menu"
                             title={hiddenTabs.map(label).join(", ")}
-                            className="flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 text-[13px] text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                            className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-[6px] border-0 bg-transparent px-2 text-[12px] leading-5 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
                         >
                             {t("builder.page.moreTabs", {count: formatNumber(hiddenTabs.length)})}
-                            <CaretDown aria-hidden size={12} />
+                            <CaretDown aria-hidden size={12} className="text-colorTextTertiary" />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="flex w-60 flex-col p-1">
@@ -190,14 +198,15 @@ export const BuilderTabStrip = ({
             <AgentPicker
                 onPick={onOpenAgent}
                 trigger={
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
+                        size="icon-compact"
                         aria-label={t("builder.page.openItem")}
                         title={t("builder.page.openItem")}
-                        className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                        className="shrink-0"
                     >
-                        <Plus aria-hidden size={16} />
-                    </button>
+                        <Plus aria-hidden />
+                    </Button>
                 }
             />
         </div>
