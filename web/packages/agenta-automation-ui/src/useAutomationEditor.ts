@@ -4,7 +4,7 @@ import {buildAutomationEdit} from "./automationEdit"
 import {agentBindingLookup, agentLabel, useAutomationText} from "./automationModel"
 import {useAutomation} from "./useAutomation"
 import {useAutomationDraft} from "./useAutomationDraft"
-import {useAutomationRuns} from "./useAutomationRuns"
+import {useRecentAutomationRuns} from "./useAutomationRuns"
 import {useAutomations} from "./useAutomations"
 
 /**
@@ -53,7 +53,7 @@ export const useAutomationEditor = (automationId: string | undefined) => {
 
     // The runs answer two questions a host asks: how many there have been, and whether the last
     // one failed. Same hook and same cache the run history reads.
-    const {caption: runHistoryCaption, failureReason} = useAutomationRuns(automation)
+    const {caption: runHistoryCaption, failureReason} = useRecentAutomationRuns(automation)
 
     // The label is text, so it is built again when the language changes.
     const text = useAutomationText()
