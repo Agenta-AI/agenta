@@ -1,33 +1,15 @@
 import {useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {formatNumber, useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
-import {
-    AppWindow,
-    CaretDown,
-    Lightning,
-    Plus,
-    Robot,
-    Wrench,
-    X,
-    type Icon,
-} from "@phosphor-icons/react"
-
-import {cn} from "@/lib/utils"
+import {CaretDown, Plus} from "@phosphor-icons/react"
 
 import {AgentPicker} from "./AgentPicker"
-import {builderTabKey, type BuilderTab, type BuilderTabKind} from "./builderTabs"
+import {BUILDER_TAB_ICONS, BuilderTabButton} from "./BuilderTabButton"
+import {builderTabKey, type BuilderTab} from "./builderTabs"
 import {fitTabs} from "./fitTabs"
 import type {AgentRef} from "./paneAgent"
-import {PrivateMark} from "./PrivateMark"
-
-const KIND_ICONS: Record<BuilderTabKind, Icon> = {
-    agent: Robot,
-    automation: Lightning,
-    tool: Wrench,
-    app: AppWindow,
-}
 
 /** Room kept at the end of the row for "N more" and "+". */
 const MORE_WIDTH = 92
@@ -35,71 +17,6 @@ const PLUS_WIDTH = 36
 
 /** The label a tab shows: its name, else the agent list's name, else the kind. */
 export type TabLabel = (tab: BuilderTab) => string
-
-/** One tab of the strip: icon, name (cut with an ellipsis, full on hover), lock, dot, close. */
-const TabButton = ({
-    tab,
-    label,
-    active,
-    onActivate,
-    onClose,
-}: {
-    tab: BuilderTab
-    label: string
-    active: boolean
-    onActivate?: () => void
-    onClose?: () => void
-}) => {
-    const t = useT(builderPageCatalog)
-    const KindIcon = KIND_ICONS[tab.kind]
-    return (
-        <div
-            role="tab"
-            aria-selected={active}
-            tabIndex={active ? 0 : -1}
-            title={label}
-            data-tab-key={builderTabKey(tab)}
-            onClick={onActivate}
-            onKeyDown={(event) => {
-                // Keys on the close button are the button's own.
-                if (event.target !== event.currentTarget) return
-                if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault()
-                    onActivate?.()
-                }
-            }}
-            className={cn(
-                "flex h-8 min-w-[7.5rem] max-w-[200px] shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2 pr-1 text-[13px]",
-                active
-                    ? "bg-colorFillSecondary font-medium text-colorText"
-                    : "text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
-            )}
-        >
-            <KindIcon aria-hidden size={14} className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{label}</span>
-            {tab.kind === "agent" ? <PrivateMark agentId={tab.id} /> : null}
-            {tab.dot ? (
-                <span
-                    data-testid="builder-tab-dot"
-                    aria-label={t("builder.page.changedByBuilder")}
-                    className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
-                />
-            ) : null}
-            <button
-                type="button"
-                aria-label={t("builder.page.closeTab", {name: label})}
-                title={t("builder.page.closeTab", {name: label})}
-                onClick={(event) => {
-                    event.stopPropagation()
-                    onClose?.()
-                }}
-                className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:bg-colorFillSecondary hover:text-colorText"
-            >
-                <X aria-hidden size={12} />
-            </button>
-        </div>
-    )
-}
 
 /**
  * The strip of builder tabs at the top of the pane (B03): one tab per item open in this chat
@@ -174,7 +91,7 @@ export const BuilderTabStrip = ({
                 className="pointer-events-none invisible absolute left-0 top-0 flex gap-1"
             >
                 {tabs.map((tab) => (
-                    <TabButton
+                    <BuilderTabButton
                         key={builderTabKey(tab)}
                         tab={tab}
                         label={label(tab)}
@@ -205,7 +122,7 @@ export const BuilderTabStrip = ({
                     const tab = byKey.get(key)
                     if (!tab) return null
                     return (
-                        <TabButton
+                        <BuilderTabButton
                             key={key}
                             tab={tab}
                             label={label(tab)}
@@ -225,13 +142,13 @@ export const BuilderTabStrip = ({
                             title={hiddenTabs.map(label).join(", ")}
                             className="flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 text-[13px] text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
                         >
-                            {t("builder.page.moreTabs", {count: String(hiddenTabs.length)})}
+                            {t("builder.page.moreTabs", {count: formatNumber(hiddenTabs.length)})}
                             <CaretDown aria-hidden size={12} />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="flex w-60 flex-col p-1">
                         {hiddenTabs.map((tab) => {
-                            const KindIcon = KIND_ICONS[tab.kind]
+                            const KindIcon = BUILDER_TAB_ICONS[tab.kind]
                             return (
                                 <button
                                     key={builderTabKey(tab)}

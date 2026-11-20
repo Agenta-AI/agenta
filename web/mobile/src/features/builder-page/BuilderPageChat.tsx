@@ -44,6 +44,7 @@ export const BuilderPageChat = ({
     workspaceId,
     projectId,
     paneAgent,
+    activeTabKey,
     onFirstSend,
     onMessagesChanged,
 }: {
@@ -54,6 +55,8 @@ export const BuilderPageChat = ({
     projectId: string
     /** The agent of the pane, the default context of a message. */
     paneAgent: AgentRef | null
+    /** The key of the active builder tab: a change resets the chip to follow it. */
+    activeTabKey: string | null
     /** The first message of a new chat left the composer. */
     onFirstSend: (agent: AgentRef | null) => void
     onMessagesChanged: (messages: UIMessage[]) => void
@@ -71,11 +74,10 @@ export const BuilderPageChat = ({
     const [heroState, setHeroState] = useState<HeroState>("idle")
     const chipAgent = chipRemoved ? null : (pickedAgent ?? paneAgent)
     // Another active tab: the chip follows its agent, and an earlier pick or removal no longer holds.
-    const paneAgentId = paneAgent?.id ?? null
     useEffect(() => {
         setPickedAgent(null)
         setChipRemoved(false)
-    }, [paneAgentId])
+    }, [activeTabKey])
 
     const handleMessages = useCallback(
         (messages: UIMessage[]) => {

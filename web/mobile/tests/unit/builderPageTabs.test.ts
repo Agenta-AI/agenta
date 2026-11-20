@@ -5,8 +5,11 @@
  * memory; the cap of 50; closing the active tab; the address; storage per chat; and the row fit
  * with "N more".
  */
+import {createElement, type ReactNode} from "react"
+
 import {act, renderHook} from "@testing-library/react"
 import type {UIMessage} from "ai"
+import {createStore, Provider} from "jotai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
@@ -20,9 +23,10 @@ import {
     followBuilderResults,
     MAX_BUILDER_TABS,
     openBuilderTab,
-    readBuilderTabs,
-    writeBuilderTabs,
+    builderTabsAtomFamily,
+    parseBuilderTabs,
     type BuilderTab,
+    type BuilderTabsState,
 } from "@/features/builder-page/builderTabs"
 import {fitTabs} from "@/features/builder-page/fitTabs"
 import type {AgentResult} from "@/features/builder-page/paneAgent"
@@ -39,7 +43,20 @@ const result = (toolCallId: string, id: string, saved = true): AgentResult => ({
     saved,
 })
 
+/** Tabs as the browser stores them. */
+const writeTabs = (sessionId: string, state: BuilderTabsState) =>
+    window.localStorage.setItem(builderTabsStorageKey(sessionId), JSON.stringify(state))
+const storedTabs = (sessionId: string) =>
+    parseBuilderTabs(
+        JSON.parse(window.localStorage.getItem(builderTabsStorageKey(sessionId)) ?? "null"),
+    )
+/** A fresh store per hook, so each test reads the browser storage again. */
+const wrapper = ({children}: {children: ReactNode}) =>
+    createElement(Provider, {store: createStore()}, children)
+
 afterEach(() => {
+    builderTabsAtomFamily.setShouldRemove(() => true)
+    builderTabsAtomFamily.setShouldRemove(null)
     window.localStorage.clear()
     router.replace.mockClear()
 })
@@ -154,19 +171,19 @@ describe("useBuilderTabs and the address", () => {
     const stored = () => {
         let state = openBuilderTab(EMPTY_BUILDER_TABS, agent("a"))
         state = openBuilderTab(state, agent("b"))
-        writeBuilderTabs("chat-1", activateBuilderTab(state, "agent:a"))
+        writeTabs("chat-1", activateBuilderTab(state, "agent:a"))
     }
 
     it("a link with a tab wins over the stored active tab", () => {
         stored()
-        const hook = renderHook(() => useBuilderTabs({...base, tab: "agent:b"}))
+        const hook = renderHook(() => useBuilderTabs({...base, tab: "agent:b"}), {wrapper})
         expect(hook.result.current.state.active).toBe("agent:b")
         expect(router.replace).not.toHaveBeenCalled()
     })
 
     it("an address with no tab shows the stored active tab", () => {
         stored()
-        renderHook(() => useBuilderTabs({...base, tab: undefined}))
+        renderHook(() => useBuilderTabs({...base, tab: undefined}), {wrapper})
         expect(router.replace).toHaveBeenCalledWith(
             "/w/w/p/p/builder/chat-1?tab=agent%3Aa",
             undefined,
@@ -175,8 +192,15 @@ describe("useBuilderTabs and the address", () => {
     })
 
     it("a chat whose messages name no agent opens the agent the browser linked it to", () => {
-        const hook = renderHook(() =>
-            useBuilderTabs({...base, routeChatId: null, linkedAgentId: "linked", tab: undefined}),
+        const hook = renderHook(
+            () =>
+                useBuilderTabs({
+                    ...base,
+                    routeChatId: null,
+                    linkedAgentId: "linked",
+                    tab: undefined,
+                }),
+            {wrapper},
         )
         // History still loading: no tab yet.
         act(() => hook.result.current.onMessagesChanged([]))
@@ -187,13 +211,13 @@ describe("useBuilderTabs and the address", () => {
     })
 
     it("closing the last tab clears the tab from the address, so a reload does not reopen it", () => {
-        writeBuilderTabs("chat-1", openBuilderTab(EMPTY_BUILDER_TABS, agent("a")))
-        const hook = renderHook(() => useBuilderTabs({...base, tab: "agent:a"}))
+        writeTabs("chat-1", openBuilderTab(EMPTY_BUILDER_TABS, agent("a")))
+        const hook = renderHook(() => useBuilderTabs({...base, tab: "agent:a"}), {wrapper})
         act(() => hook.result.current.close("agent:a"))
         expect(router.replace).toHaveBeenLastCalledWith("/w/w/p/p/builder/chat-1", undefined, {
             shallow: true,
         })
-        expect(readBuilderTabs("chat-1").closed).toEqual(["agent:a"])
+        expect(storedTabs("chat-1").closed).toEqual(["agent:a"])
     })
 })
 
@@ -202,36 +226,37 @@ describe("builder tab storage", () => {
         let state = followBuilderResult(EMPTY_BUILDER_TABS, agent("a", "Lead finder"))
         state = followBuilderResult(state, agent("b", "Email writer"))
         state = activateBuilderTab(state, "agent:b")
-        writeBuilderTabs("chat-1", state)
-        expect(readBuilderTabs("chat-1")).toEqual(state)
-        expect(readBuilderTabs("chat-2")).toEqual(EMPTY_BUILDER_TABS)
+        createStore().set(builderTabsAtomFamily("chat-1"), state)
+        expect(storedTabs("chat-1")).toEqual(state)
+        expect(createStore().get(builderTabsAtomFamily("chat-2"))).toEqual(EMPTY_BUILDER_TABS)
     })
 
-    it("keeps each chat's tabs for this visit when storage refuses reads", () => {
+    it("keeps each chat's tabs for this visit when storage refuses", () => {
         const state = openBuilderTab(EMPTY_BUILDER_TABS, agent("a"))
-        writeBuilderTabs("chat-blocked", state)
-        const refuse = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-            throw new Error("blocked")
-        })
-        expect(readBuilderTabs("chat-blocked")).toEqual(state)
-        expect(readBuilderTabs("chat-other")).toEqual(EMPTY_BUILDER_TABS)
-        refuse.mockRestore()
+        const refuse = [
+            vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+                throw new Error("blocked")
+            }),
+            vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+                throw new Error("blocked")
+            }),
+        ]
+        const store = createStore()
+        store.set(builderTabsAtomFamily("chat-blocked"), state)
+        expect(store.get(builderTabsAtomFamily("chat-other"))).toEqual(EMPTY_BUILDER_TABS)
+        expect(store.get(builderTabsAtomFamily("chat-blocked"))).toEqual(state)
+        refuse.forEach((spy) => spy.mockRestore())
     })
 
     it("reads a broken value as no tabs", () => {
-        window.localStorage.setItem(builderTabsStorageKey("chat-1"), "{not json")
-        expect(readBuilderTabs("chat-1")).toEqual(EMPTY_BUILDER_TABS)
-        window.localStorage.setItem(
-            builderTabsStorageKey("chat-1"),
-            JSON.stringify({
-                tabs: [
-                    {kind: "thing", id: "x"},
-                    {kind: "agent", id: "a"},
-                ],
-                active: "nope",
-            }),
-        )
-        const read = readBuilderTabs("chat-1")
+        expect(parseBuilderTabs("{not json")).toEqual(EMPTY_BUILDER_TABS)
+        const read = parseBuilderTabs({
+            tabs: [
+                {kind: "thing", id: "x"},
+                {kind: "agent", id: "a"},
+            ],
+            active: "nope",
+        })
         expect(read.tabs.map(builderTabKey)).toEqual(["agent:a"])
         expect(read.active).toBe("agent:a")
     })

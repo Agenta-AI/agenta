@@ -180,6 +180,7 @@ export const BuilderPage = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 paneAgent={paneAgent}
+                activeTabKey={tabs.state.active}
                 onFirstSend={onFirstSend}
                 onMessagesChanged={tabs.onMessagesChanged}
             />
