@@ -18,31 +18,19 @@ export function resolveCodexMode(requested: string | undefined): CodexMode {
     : DEFAULT_CODEX_MODE;
 }
 
-/**
- * The codex-acp mode id each Agenta mode sets. codex-acp 2.x renamed the presets: its `agent`
- * id is now "Auto review", where a reviewer model (Guardian) approves actions instead of the
- * user, and the old `agent` preset (workspace write, the user approves) is `workspace-write`.
- */
-const CODEX_ACP_MODE_IDS: Record<CodexMode, string> = {
-  agent: "workspace-write",
-  "read-only": "read-only",
-  "agent-full-access": "agent-full-access",
-};
-
 /** Apply the ACP session mode without letting a bridge failure fail the run. */
 export async function applyCodexMode(
   session: any,
   mode: CodexMode,
   log?: (message: string) => void,
 ): Promise<CodexMode | undefined> {
-  const acpMode = CODEX_ACP_MODE_IDS[mode];
   try {
-    await session.setConfigOption("mode", acpMode);
-    log?.(`[codex-mode] applied mode=${mode} (codex-acp ${acpMode})`);
+    await session.setConfigOption("mode", mode);
+    log?.(`[codex-mode] applied mode=${mode}`);
     return mode;
   } catch (error) {
     const message = String((error as Error)?.message ?? error);
-    log?.(`[codex-mode] setConfigOption failed mode=${mode} (codex-acp ${acpMode}): ${message}`);
+    log?.(`[codex-mode] setConfigOption failed mode=${mode}: ${message}`);
     return undefined;
   }
 }
