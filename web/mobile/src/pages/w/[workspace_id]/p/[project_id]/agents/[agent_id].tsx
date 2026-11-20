@@ -37,7 +37,7 @@ export default function AgentOverviewPage() {
                 key={agentId}
                 workspaceId={workspaceId}
                 projectId={projectId}
-                agentId={agentId}
+                lockedAgentId={agentId}
             />
         )
     if (view === "analytics")

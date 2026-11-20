@@ -34,7 +34,7 @@ vi.mock("@agenta/ui/filter-menu", () => ({
 vi.mock("@agenta/entity-ui/agent", () => ({AgentGlyph: () => null}))
 
 const {SessionFilterMenu} = await import("@/features/sessions/SessionFilterMenu")
-const {AGENT_SESSION_LIST_VIEW} = await import("@/features/sessions/sessionListView")
+const {LOCKED_AGENT_SESSION_LIST_VIEW} = await import("@/features/sessions/sessionListView")
 
 const section = (key: string) =>
     (captured.sections as Section[]).find((candidate) => candidate.key === key)!
@@ -59,12 +59,12 @@ const mount = () =>
             <Provider store={store}>
                 <SessionFilterAtomsContext.Provider value={own}>
                     <SessionFilterMenu
-                        view={AGENT_SESSION_LIST_VIEW}
+                        view={LOCKED_AGENT_SESSION_LIST_VIEW}
                         onChange={() => undefined}
                         agents={[{id: "support", name: "Support triage"}]}
                         onReset={() => undefined}
                         lockedAgent={{id: "support", name: "Support triage"}}
-                        defaultView={AGENT_SESSION_LIST_VIEW}
+                        defaultView={LOCKED_AGENT_SESSION_LIST_VIEW}
                     />
                 </SessionFilterAtomsContext.Provider>
             </Provider>,

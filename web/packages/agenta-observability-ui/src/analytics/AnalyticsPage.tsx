@@ -9,8 +9,9 @@ import {
     defaultRange,
     isRangeLocked,
     analyticsHasAgentsAtom,
+    AnalyticsViewAtomsContext,
     sharedAnalyticsViewAtoms,
-    type AnalyticsFilters,
+    useAnalyticsViewAtoms,
     type AnalyticsFocus,
     type AnalyticsMetric,
     type AnalyticsRetention,
@@ -22,7 +23,6 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {AnalyticsEmptyState} from "./AnalyticsEmptyState"
 import {AnalyticsToolbar} from "./AnalyticsToolbar"
-import {AnalyticsViewContext, useAnalyticsView} from "./analyticsView"
 import {FailureRateCard} from "./cards/FailureRateCard"
 import {
     CostCard,
@@ -48,11 +48,13 @@ export interface AnalyticsPageProps {
     /** Opens a run's trace from the drawer's runs list. */
     onOpenTrace?: (traceId: string) => void
     /**
-     * The Analytics page of one agent. The Agent filter is locked to it and shows as `chip`, the
-     * "Failures by agent" card is hidden, and the page keeps its own range, filters and grouping,
-     * so the shared Analytics view does not change.
+     * The Analytics page of one agent. The page shows only this agent's runs and keeps its own
+     * range, filters and grouping, so the shared Analytics view does not change. It has no Agent
+     * filter or grouping and no "Failures by agent" card.
      */
-    lockedAgent?: {id: string; chip: ReactNode}
+    lockedAgentId?: string
+    /** Shown in place of the Agent filter on the page of one agent. */
+    lockedAgentChip?: ReactNode
 }
 
 const WHAT_KEYS = {
@@ -63,17 +65,15 @@ const WHAT_KEYS = {
 } as const satisfies Record<EmptyWhat, string>
 
 export const AnalyticsPage = (props: AnalyticsPageProps) => {
-    const lockedAgentId = props.lockedAgent?.id
+    const {lockedAgentId} = props
     // Picked once: the host remounts the page for another agent.
     const [view] = useState(() =>
-        lockedAgentId
-            ? createAnalyticsViewAtoms({agent: [lockedAgentId], model: []})
-            : sharedAnalyticsViewAtoms,
+        lockedAgentId ? createAnalyticsViewAtoms(lockedAgentId) : sharedAnalyticsViewAtoms,
     )
     return (
-        <AnalyticsViewContext.Provider value={view}>
+        <AnalyticsViewAtomsContext.Provider value={view}>
             <AnalyticsPageBody {...props} />
-        </AnalyticsViewContext.Provider>
+        </AnalyticsViewAtomsContext.Provider>
     )
 }
 
@@ -84,26 +84,22 @@ const AnalyticsPageBody = ({
     creatingAgent,
     createAgentError,
     onOpenTrace,
-    lockedAgent,
+    lockedAgentId,
+    lockedAgentChip,
 }: AnalyticsPageProps) => {
-    const view = useAnalyticsView()
+    const view = useAnalyticsViewAtoms()
     const [range, setRange] = useAtom(view.range)
     const [custom, setCustom] = useAtom(view.custom)
     const t = useT(analyticsCatalog)
     const {label: rangeLabel, inline: rangeInline} = useRangeLabel()
     const [filters, setFilters] = useAtom(view.filters)
+    // What the charts read: the reader's filters, and the locked agent on the page of one agent.
+    const queryFilters = useAtomValue(view.queryFilters)
     const window = useAtomValue(view.window)
     const agents = useAtomValue(analyticsHasAgentsAtom)
     const openDrawer = useSetAtom(view.drawer)
     const [group, setGroup] = useAtom(view.group)
     const [rangeOpen, setRangeOpen] = useState(false)
-    // What "no filters" means here: nothing, or the locked agent alone.
-    const lockedAgentId = lockedAgent?.id
-    const baseFilters = useMemo<AnalyticsFilters>(
-        () => (lockedAgentId ? {agent: [lockedAgentId], model: []} : EMPTY_FILTERS),
-        [lockedAgentId],
-    )
-
     // Without a tick the window freezes at first read: runs after `newest` would never show.
     const setNow = useSetAtom(view.now)
     useEffect(() => {
@@ -116,9 +112,9 @@ const AnalyticsPageBody = ({
     const projectId = useAtomValue(projectIdAtom)
     const lastProject = useRef(projectId)
     useEffect(() => {
-        if (lastProject.current !== projectId) setFilters(baseFilters)
+        if (lastProject.current !== projectId) setFilters(EMPTY_FILTERS)
         lastProject.current = projectId
-    }, [baseFilters, projectId, setFilters])
+    }, [projectId, setFilters])
     useEffect(() => () => openDrawer(null), [openDrawer])
 
     // A plan that keeps less history than the open range moves the page to what it keeps.
@@ -127,7 +123,7 @@ const AnalyticsPageBody = ({
             setRange(defaultRange(retention))
     }, [custom, range, retention, setRange])
 
-    const {data, split, keyColor} = usePageAnalytics(window, filters, group)
+    const {data, split, keyColor} = usePageAnalytics(window, queryFilters, group)
 
     const agentName = useAgentNames(
         useMemo(
@@ -135,9 +131,8 @@ const AnalyticsPageBody = ({
             [data.agentOrder, filters.agent],
         ),
     )
-    // The locked agent is the page, not a filter the reader set.
-    const filtered = (!lockedAgentId && filters.agent.length > 0) || filters.model.length > 0
-    const clearFilters = useCallback(() => setFilters(baseFilters), [baseFilters, setFilters])
+    const filtered = filters.agent.length > 0 || filters.model.length > 0
+    const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), [setFilters])
     const emptyText = useCallback(
         (what: EmptyWhat) =>
             filtered
@@ -163,7 +158,7 @@ const AnalyticsPageBody = ({
         [openDrawer, group, lockedAgentId],
     )
 
-    const failures = useFailureReasons(window, filters, data.overview.totals.failed)
+    const failures = useFailureReasons(window, queryFilters, data.overview.totals.failed)
 
     const labels = useMemo(
         () => data.starts.map((s) => shortLabel(window, s)),
@@ -257,7 +252,8 @@ const AnalyticsPageBody = ({
                 onFiltersChange={setFilters}
                 group={group}
                 onGroupChange={setGroup}
-                lockedAgent={lockedAgent}
+                lockedAgentChip={lockedAgentId ? lockedAgentChip : undefined}
+                queryFilters={queryFilters}
                 window={window}
                 agentName={agentName}
                 rangeOpen={rangeOpen}
@@ -271,7 +267,7 @@ const AnalyticsPageBody = ({
                     </span>
                     <span className="min-w-0 flex-1 truncate">
                         {[
-                            filters.agent.length && !lockedAgentId
+                            filters.agent.length
                                 ? t("observabilityUi.analytics.filterAgent", {
                                       names: filters.agent.map(agentName).join(", "),
                                   })

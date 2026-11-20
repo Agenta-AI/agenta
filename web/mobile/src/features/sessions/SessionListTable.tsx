@@ -83,7 +83,7 @@ const WIDE_COLUMNS: ListTableColumn[] = [
 ]
 const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
 /** The Sessions page of one agent: every row has that agent, so there is no Agent column. */
-const AGENT_PAGE_WIDE_COLUMNS = WIDE_COLUMNS.filter((column) => column.key !== "agent")
+const LOCKED_AGENT_WIDE_COLUMNS = WIDE_COLUMNS.filter((column) => column.key !== "agent")
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
@@ -115,7 +115,7 @@ export const SessionListTable = ({
     onNewSession,
     onClearSearch,
     onResetView,
-    agentId,
+    lockedAgentId,
 }: {
     group: SessionGrouping
     /** ISO floor from the Last activity facet; undefined = no bound. */
@@ -136,13 +136,13 @@ export const SessionListTable = ({
     onClearSearch: () => void
     /** Undoes every facet, the grouping and the search. */
     onResetView: () => void
-    /** The page's one agent (the Sessions page of an agent): the list shows only its sessions,
-     *  and the table has no Agent column. */
-    agentId?: string
+    /** The Sessions page of one agent: the list shows only its sessions, and the table has no
+     *  Agent column. */
+    lockedAgentId?: string
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const list = useSessionsList({
-        agentId,
+        agentId: lockedAgentId,
         activityFloor,
         // Release contract: the human list hides automation runs; the Type filter's "Automation
         // runs" swaps in the automation policy. Same policies the desktop list passes.
@@ -238,7 +238,11 @@ export const SessionListTable = ({
             >
                 <ListTable
                     columns={
-                        narrow ? NARROW_COLUMNS : agentId ? AGENT_PAGE_WIDE_COLUMNS : WIDE_COLUMNS
+                        narrow
+                            ? NARROW_COLUMNS
+                            : lockedAgentId
+                              ? LOCKED_AGENT_WIDE_COLUMNS
+                              : WIDE_COLUMNS
                     }
                     minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
                     // Sessions is the long list in this app — hundreds of rows, four screens of
@@ -256,7 +260,8 @@ export const SessionListTable = ({
                     onToggleGroup={toggleGroup}
                     groupActions={groupActions}
                     empty={
-                        // Nothing while unsettled; an empty project gets the onboarding.
+                        // Nothing while unsettled. An empty project gets the onboarding from the
+                        // screen; the Sessions page of one agent shows this state too.
                         list.isPlaceholder || probe.pending ? null : (
                             <SessionsNoMatch
                                 term={term || undefined}
@@ -268,7 +273,7 @@ export const SessionListTable = ({
                         <SessionRowCells
                             vm={vm}
                             narrow={narrow}
-                            hideAgent={Boolean(agentId)}
+                            hideAgent={Boolean(lockedAgentId)}
                             entries={verbs.menuFor(vm)}
                             onMenuSelect={verbs.onMenuSelect}
                             onRenameRow={verbs.onRenameRow}

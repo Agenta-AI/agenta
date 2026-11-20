@@ -63,18 +63,18 @@ const verbs = {
 }
 const agentRun = {key: "recent:support", label: "Support triage", rows: [{agentId: "support"}]}
 
-const mount = (agentId?: string) =>
+const mount = (lockedAgentId?: string) =>
     act(() =>
         root.render(
             <SessionListTable
-                group={agentId ? "date" : "agent"}
+                group={lockedAgentId ? "date" : "agent"}
                 agentNames={new Map([["support", "Support triage"]])}
                 agentNamesReady
                 verbs={verbs}
-                onNewSession={agentId ? undefined : () => undefined}
+                onNewSession={lockedAgentId ? undefined : () => undefined}
                 onClearSearch={() => undefined}
                 onResetView={() => undefined}
-                agentId={agentId}
+                lockedAgentId={lockedAgentId}
             />,
         ),
     )

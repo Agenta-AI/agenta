@@ -1,8 +1,7 @@
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
+import {useAnalyticsViewAtoms} from "@agenta/observability/analytics"
 import {useAtomValue} from "jotai"
-
-import {useAnalyticsView} from "./analyticsView"
 
 /**
  * The open range as the reader's words, and the same words ready to sit inside a sentence. A
@@ -10,7 +9,7 @@ import {useAnalyticsView} from "./analyticsView"
  */
 export const useRangeLabel = () => {
     const t = useT(analyticsCatalog)
-    const view = useAnalyticsView()
+    const view = useAnalyticsViewAtoms()
     const range = useAtomValue(view.range)
     const custom = useAtomValue(view.custom)
     const customLabel = useAtomValue(view.rangeLabel)

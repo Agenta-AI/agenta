@@ -44,7 +44,7 @@ export interface SessionListView {
 export const DEFAULT_SESSION_LIST_VIEW: SessionListView = {group: "agent", activity: "7d"}
 
 /** The Sessions page of one agent groups by date: every row has the same agent. */
-export const AGENT_SESSION_LIST_VIEW: SessionListView = {group: "date", activity: "7d"}
+export const LOCKED_AGENT_SESSION_LIST_VIEW: SessionListView = {group: "date", activity: "7d"}
 
 export const isDefaultSessionListView = (
     view: SessionListView,

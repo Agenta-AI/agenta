@@ -13,13 +13,13 @@ import {
     sum,
     type AnalyticsMetric,
     type AnalyticsPoint,
+    useAnalyticsViewAtoms,
 } from "@agenta/observability/analytics"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, X} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
-import {useAnalyticsView} from "../analyticsView"
 import {stackSeries} from "../cards/GroupedCard"
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
@@ -100,7 +100,7 @@ export interface AnalyticsDrawerProps {
 }
 
 export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
-    const [state, setState] = useAtom(useAnalyticsView().drawer)
+    const [state, setState] = useAtom(useAnalyticsViewAtoms().drawer)
     return (
         <Sheet open={state !== null} onOpenChange={(open) => !open && setState(null)}>
             <SheetContent
@@ -122,11 +122,13 @@ export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDra
 
 const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
     const t = useT(analyticsCatalog)
-    const view = useAnalyticsView()
+    const view = useAnalyticsViewAtoms()
     const [state, setState] = useAtom(view.drawer)
     const pageWindow = useAtomValue(view.window)
     const {label: rangeLabel} = useRangeLabel()
-    const [filters, setFilters] = useAtom(view.filters)
+    const [readerFilters, setFilters] = useAtom(view.filters)
+    // The data reads the page's filters with its locked agent; the reader edits only their own.
+    const filters = useAtomValue(view.queryFilters)
     const [hovered, setHovered] = useState<number | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(scrollRef)
@@ -210,14 +212,17 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
               {names: focusName ?? ""},
           )
         : null
+    // The reader's own filters: the locked agent is the page, not a filter.
     const pageChips = [
-        filters.agent.length
+        readerFilters.agent.length
             ? t("observabilityUi.analytics.filterAgent", {
-                  names: filters.agent.map(agentName).join(", "),
+                  names: readerFilters.agent.map(agentName).join(", "),
               })
             : null,
-        filters.model.length
-            ? t("observabilityUi.analytics.filterModel", {names: filters.model.join(", ")})
+        readerFilters.model.length
+            ? t("observabilityUi.analytics.filterModel", {
+                  names: readerFilters.model.join(", "),
+              })
             : null,
     ].filter((c): c is string => Boolean(c))
 
@@ -301,7 +306,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setFilters({...filters, [focus.dim]: [focus.key]})
+                                        setFilters({...readerFilters, [focus.dim]: [focus.key]})
                                         setState(null)
                                     }}
                                     className="h-6 cursor-pointer border-0 bg-transparent px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"

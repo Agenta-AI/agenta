@@ -44,7 +44,7 @@ export const AgentAnalyticsScreen = ({
                         <AnalyticsTab
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            agentId={agentId}
+                            lockedAgentId={agentId}
                         />
                     </div>
                 </ScreenScaffold>

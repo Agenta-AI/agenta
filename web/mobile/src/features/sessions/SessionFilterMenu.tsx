@@ -278,9 +278,8 @@ export const SessionFilterMenu = ({
 
     // Search is its own field in the toolbar, so it does not dot this button — a control that
     // looks touched because someone typed next to it says nothing about what the menu holds.
-    // The locked agent is the page, not a filter.
     const active =
-        (!lockedAgent && Boolean(agentId)) ||
+        Boolean(agentId) ||
         status !== "all" ||
         mode ||
         archivedOnly ||

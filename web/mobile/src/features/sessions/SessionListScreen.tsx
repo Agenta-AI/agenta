@@ -38,7 +38,7 @@ import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
 import {
     activityFloorIso,
-    AGENT_SESSION_LIST_VIEW,
+    LOCKED_AGENT_SESSION_LIST_VIEW,
     DEFAULT_SESSION_LIST_VIEW,
     type SessionListView,
 } from "./sessionListView"
@@ -58,7 +58,7 @@ import {useSessionRowMenu} from "./useSessionRowMenu"
 export const SessionListScreen = ({
     workspaceId,
     projectId,
-    agentId,
+    lockedAgentId,
 }: {
     workspaceId: string
     projectId: string
@@ -66,15 +66,19 @@ export const SessionListScreen = ({
      * The Sessions page of one agent: the Agent filter is locked to it, the page groups by date
      * and has no Agent column. Its filters are its own, so the all-sessions page keeps its own.
      */
-    agentId?: string
+    lockedAgentId?: string
 }) => {
     // Picked once: the agent route remounts this screen for another agent.
     const [filterAtoms] = useState(() =>
-        agentId ? createSessionFilterAtoms() : sharedSessionFilterAtoms,
+        lockedAgentId ? createSessionFilterAtoms() : sharedSessionFilterAtoms,
     )
     return (
         <SessionFilterAtomsContext.Provider value={filterAtoms}>
-            <SessionListBody workspaceId={workspaceId} projectId={projectId} agentId={agentId} />
+            <SessionListBody
+                workspaceId={workspaceId}
+                projectId={projectId}
+                lockedAgentId={lockedAgentId}
+            />
         </SessionFilterAtomsContext.Provider>
     )
 }
@@ -82,15 +86,15 @@ export const SessionListScreen = ({
 const SessionListBody = ({
     workspaceId,
     projectId,
-    agentId: lockedAgentId,
+    lockedAgentId,
 }: {
     workspaceId: string
     projectId: string
-    agentId?: string
+    lockedAgentId?: string
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const filterAtoms = useSessionFilterAtoms()
-    const defaultView = lockedAgentId ? AGENT_SESSION_LIST_VIEW : DEFAULT_SESSION_LIST_VIEW
+    const defaultView = lockedAgentId ? LOCKED_AGENT_SESSION_LIST_VIEW : DEFAULT_SESSION_LIST_VIEW
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
@@ -108,7 +112,7 @@ const SessionListBody = ({
     // atoms anyway.
     const [view, setView] = useFilterMenuView<SessionListView>({
         // The agent page keeps its grouping apart from the all-sessions page.
-        key: lockedAgentId ? "agenta:sessions:agent-view" : "agenta:sessions:view",
+        key: lockedAgentId ? "agenta:sessions:locked-agent-view" : "agenta:sessions:view",
         fallback: defaultView,
         persist: ["group"],
     })
@@ -289,7 +293,7 @@ const SessionListBody = ({
                                     verbs={verbs}
                                     // The agent page has "New session" in its sidebar already.
                                     onNewSession={lockedAgentId ? undefined : startBlank}
-                                    agentId={lockedAgentId}
+                                    lockedAgentId={lockedAgentId}
                                     onClearSearch={clearSearch}
                                     onResetView={resetView}
                                 />

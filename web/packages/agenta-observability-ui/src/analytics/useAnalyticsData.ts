@@ -51,7 +51,13 @@ export const useAnalyticsBuckets = (
     window: AnalyticsWindow,
     filters: AnalyticsFilters,
     focus: AnalyticsFocus | null = null,
-) => useAtomValue(analyticsBucketsAtomFamily({name, window, filters, focus}))
+    enabled = true,
+) =>
+    useAtomValue(
+        analyticsBucketsAtomFamily(
+            enabled ? {name, window, filters, focus} : {name, window, filters, focus, enabled},
+        ),
+    )
 
 const AGENT_PATHS = [PATH.agentApp, PATH.agentWorkflow]
 

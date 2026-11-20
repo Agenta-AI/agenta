@@ -22,8 +22,18 @@ vi.mock("@agenta/ui/filter-menu", () => ({
         return null
     },
 }))
+const bucketCalls = vi.hoisted(() => [] as {name: string; enabled?: boolean}[])
 vi.mock("../../src/analytics/useAnalyticsData", () => ({
-    useAnalyticsBuckets: () => ({data: [], isPending: false, fetchStatus: "idle"}),
+    useAnalyticsBuckets: (
+        name: string,
+        _window: unknown,
+        _filters: unknown,
+        _focus: unknown,
+        enabled?: boolean,
+    ) => {
+        bucketCalls.push({name, enabled})
+        return {data: [], isPending: false, fetchStatus: "idle"}
+    },
     useAgentNames: () => (id: string) => id,
 }))
 vi.mock("@agenta/observability/analytics", async (importOriginal) => {
@@ -50,7 +60,7 @@ afterEach(async () => {
     host.remove()
 })
 
-const mount = (lockedAgent?: {id: string; chip: React.ReactNode}) =>
+const mount = (lockedAgentChip?: React.ReactNode) =>
     act(async () =>
         root.render(
             <AnalyticsToolbar
@@ -60,7 +70,7 @@ const mount = (lockedAgent?: {id: string; chip: React.ReactNode}) =>
                 onCustomChange={() => undefined}
                 rangeLabel="Last 7 days"
                 retention={null}
-                filters={{agent: lockedAgent ? [lockedAgent.id] : [], model: []}}
+                filters={{agent: [], model: []}}
                 onFiltersChange={onFiltersChange}
                 group="none"
                 onGroupChange={() => undefined}
@@ -68,19 +78,23 @@ const mount = (lockedAgent?: {id: string; chip: React.ReactNode}) =>
                 agentName={(id) => id}
                 rangeOpen={false}
                 onRangeOpenChange={() => undefined}
-                lockedAgent={lockedAgent}
+                lockedAgentChip={lockedAgentChip}
             />,
         ),
     )
 
 describe("AnalyticsToolbar", () => {
     it("locks the agent: no Agent filter row, no Agent grouping, the chip shows", async () => {
-        await mount({id: "support", chip: <span data-testid="chip" />})
+        await mount(<span data-testid="chip" />)
         expect(captured.filter?.sections.map((s) => s.key)).toEqual(["model"])
         expect(captured.group?.options.map((o) => o.value)).toEqual(["none", "model", "provider"])
         expect(host.querySelector('[data-testid="chip"]')).not.toBeNull()
+        // No agent counts for a filter the page does not offer.
+        expect(bucketCalls.filter((c) => c.name === "agents").every((c) => c.enabled === false)).toBe(
+            true,
+        )
         captured.filter?.onReset()
-        expect(onFiltersChange).toHaveBeenCalledWith({agent: ["support"], model: []})
+        expect(onFiltersChange).toHaveBeenCalledWith({agent: [], model: []})
     })
 
     it("offers the Agent filter and grouping on the Settings page", async () => {

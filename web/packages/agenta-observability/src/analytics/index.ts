@@ -56,5 +56,7 @@ export {
     analyticsDrawerAtom,
     createAnalyticsViewAtoms,
     sharedAnalyticsViewAtoms,
+    AnalyticsViewAtomsContext,
+    useAnalyticsViewAtoms,
     type AnalyticsViewAtoms,
 } from "./state"

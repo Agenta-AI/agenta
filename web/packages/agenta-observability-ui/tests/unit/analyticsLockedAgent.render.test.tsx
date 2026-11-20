@@ -25,9 +25,11 @@ interface ToolbarProps {
     onFiltersChange: (filters: AnalyticsFilters) => void
     onGroupChange: (group: AnalyticsGroup) => void
     onRangeChange: (range: AnalyticsRangeKey) => void
-    lockedAgent?: {id: string}
+    lockedAgentChip?: unknown
+    queryFilters: AnalyticsFilters
 }
 const toolbar = vi.hoisted(() => ({props: null as unknown}))
+const pageQuery = vi.hoisted(() => ({filters: null as unknown}))
 
 vi.mock("../../src/analytics/AnalyticsToolbar", () => ({
     AnalyticsToolbar: (props: unknown) => {
@@ -55,7 +57,10 @@ vi.mock("../../src/analytics/useAnalyticsData", () => {
         status: {overview: {pending: false, error: false}},
     }
     return {
-        usePageAnalytics: () => ({data, split: {}, keyColor: () => ""}),
+        usePageAnalytics: (_window: unknown, filters: unknown) => {
+            pageQuery.filters = filters
+            return {data, split: {}, keyColor: () => ""}
+        },
         useAgentNames: () => (id: string) => id,
         useFailureReasons: () => null,
     }
@@ -79,31 +84,38 @@ afterEach(async () => {
     host.remove()
 })
 
-const mount = (lockedAgent?: {id: string; chip: null}) =>
+const mount = (lockedAgentId?: string) =>
     act(async () =>
         root.render(
             <Provider store={store}>
-                <AnalyticsPage retention={null} lockedAgent={lockedAgent} />
+                <AnalyticsPage
+                    retention={null}
+                    lockedAgentId={lockedAgentId}
+                    lockedAgentChip={lockedAgentId ? <span data-testid="chip" /> : undefined}
+                />
             </Provider>,
         ),
     )
 
 describe("AnalyticsPage locked to one agent", () => {
-    it("filters on the agent and hides Failures by agent", async () => {
-        await mount({id: "support", chip: null})
-        expect(props().filters).toEqual({agent: ["support"], model: []})
-        expect(props().lockedAgent?.id).toBe("support")
+    it("reads only the agent's runs, keeps the reader's filters empty, hides Failures by agent", async () => {
+        await mount("support")
+        expect(pageQuery.filters).toEqual({agent: ["support"], model: []})
+        expect(props().filters).toEqual(EMPTY_FILTERS)
+        expect(props().queryFilters).toEqual({agent: ["support"], model: []})
+        expect(props().lockedAgentChip).toBeDefined()
         expect(host.querySelector('[data-testid="failures-by-agent"]')).toBeNull()
     })
 
     it("never writes the shared view", async () => {
-        await mount({id: "support", chip: null})
+        await mount("support")
         await act(async () => {
-            props().onFiltersChange({agent: ["support"], model: ["gpt-5"]})
+            props().onFiltersChange({agent: [], model: ["gpt-5"]})
             props().onGroupChange("model")
             props().onRangeChange("30d")
         })
-        expect(props().filters).toEqual({agent: ["support"], model: ["gpt-5"]})
+        expect(props().filters).toEqual({agent: [], model: ["gpt-5"]})
+        expect(pageQuery.filters).toEqual({agent: ["support"], model: ["gpt-5"]})
         expect(store.get(analyticsFiltersAtom)).toEqual(EMPTY_FILTERS)
         expect(store.get(analyticsGroupAtom)).toBe("none")
         expect(store.get(analyticsRangeAtom)).toBe("7d")
@@ -111,6 +123,7 @@ describe("AnalyticsPage locked to one agent", () => {
 
     it("keeps the Settings page on the shared view, with Failures by agent", async () => {
         await mount()
+        expect(pageQuery.filters).toEqual(EMPTY_FILTERS)
         await act(async () => props().onGroupChange("model"))
         expect(store.get(analyticsGroupAtom)).toBe("model")
         expect(host.querySelector('[data-testid="failures-by-agent"]')).not.toBeNull()

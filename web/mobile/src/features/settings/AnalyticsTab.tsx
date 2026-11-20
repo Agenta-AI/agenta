@@ -14,11 +14,11 @@ interface Props {
     workspaceId: string
     projectId: string
     /** The Analytics page of one agent: the Agent filter is locked to it. */
-    agentId?: string
+    lockedAgentId?: string
 }
 
 /** Mobile binding: plan retention, the upgrade link, agent creation and the trace drawer. */
-export const AnalyticsTab = ({workspaceId, projectId, agentId}: Props) => {
+export const AnalyticsTab = ({workspaceId, projectId, lockedAgentId}: Props) => {
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const billingEnabled = isBillingEnabled()
@@ -32,7 +32,7 @@ export const AnalyticsTab = ({workspaceId, projectId, agentId}: Props) => {
             onUpgrade={
                 !billingEnabled
                     ? undefined
-                    : agentId
+                    : lockedAgentId
                       ? // The agent page is not in Settings: open the Billing tab there.
                         () => void router.push(`${base}/settings?tab=billing`)
                       : () =>
@@ -44,7 +44,8 @@ export const AnalyticsTab = ({workspaceId, projectId, agentId}: Props) => {
                                 },
                             )
             }
-            lockedAgent={agentId ? {id: agentId, chip: <AgentChip agentId={agentId} />} : undefined}
+            lockedAgentId={lockedAgentId}
+            lockedAgentChip={lockedAgentId ? <AgentChip agentId={lockedAgentId} /> : undefined}
             onCreateAgent={() => void newAgent.create()}
             creatingAgent={newAgent.creating}
             createAgentError={newAgent.error}
