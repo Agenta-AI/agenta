@@ -99,6 +99,9 @@ const storageFacts = (secret: SecretResponseDto) => ({
     writeOnly: secret.write_only ?? undefined,
     hasKey: secret.value_status.configured,
     keyPreview: secret.value_status.preview ?? undefined,
+    ...(secret.value_status.configured_keys
+        ? {storedCredentialKeys: secret.value_status.configured_keys}
+        : {}),
     managementPolicy: secret.management?.policy,
     // An organization or a person's row carries its owner; a project row stays as it always was.
     ...(secret.owner?.kind === "organization" || secret.owner?.kind === "user"
