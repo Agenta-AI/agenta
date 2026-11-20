@@ -1,10 +1,12 @@
+import {useRef} from "react"
+
 import {
     isOrganizationConnection,
     providerConnectionsAtom,
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import {providerConnectionView, providerListView} from "@agenta/entity-ui/secretProvider"
-import {ViewDrawerHost} from "@agenta/ui/view-stack"
+import {ViewDrawerHost, type ViewRequest} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 /**
@@ -24,32 +26,32 @@ export const RunErrorProviderDrawer = ({
 }) => {
     const connections = useAtomValue(providerConnectionsAtom)
     const vault = useAtomValue(vaultSecretsQueryAtom)
-    if (!open) return null
-    const connectionId = providerKind
-        ? connections.find((item) => item.kind === providerKind && !isOrganizationConnection(item))
-              ?.id
-        : undefined
-    // The drawer opens its view once, so it waits for the vault lookup: a form for a new
-    // connection opens only when a current lookup found none.
-    if (providerKind && !connectionId && (vault.isPending || vault.isFetching)) return null
-    const lookupFailed = vault.isError && !Array.isArray(vault.data)
-    // The drawer opens its view once; a closed drawer leaves, and the next open mounts a new one.
-    if (!providerKind || lookupFailed) {
-        return (
-            <ViewDrawerHost
-                request={{view: providerListView, params: {}, target: {kind: "project"}}}
-                onClosed={onClose}
-            />
-        )
+    // The drawer opens its view once. The choice of view is made once per opening, so the vault
+    // refresh after a save does not close and reopen the drawer.
+    const chosen = useRef<ViewRequest<unknown> | null>(null)
+    if (!open) {
+        chosen.current = null
+        return null
     }
-    return (
-        <ViewDrawerHost
-            request={{
-                view: providerConnectionView,
-                params: {kind: providerKind, ...(connectionId ? {connectionId} : {})},
-                target: {kind: "project"},
-            }}
-            onClosed={onClose}
-        />
-    )
+    if (!chosen.current) {
+        const connectionId = providerKind
+            ? connections.find(
+                  (item) => item.kind === providerKind && !isOrganizationConnection(item),
+              )?.id
+            : undefined
+        // A form for a new connection opens only when a current lookup found none.
+        if (providerKind && !connectionId && (vault.isPending || vault.isFetching)) return null
+        const lookupFailed = vault.isError && !Array.isArray(vault.data)
+        chosen.current = (
+            !providerKind || lookupFailed
+                ? {view: providerListView, params: {}, target: {kind: "project"}}
+                : {
+                      view: providerConnectionView,
+                      params: {kind: providerKind, ...(connectionId ? {connectionId} : {})},
+                      target: {kind: "project"},
+                  }
+        ) as ViewRequest<unknown>
+    }
+    // A closed drawer leaves, and the next open mounts a new one.
+    return <ViewDrawerHost request={chosen.current} onClosed={onClose} />
 }

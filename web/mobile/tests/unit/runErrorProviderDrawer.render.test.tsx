@@ -71,6 +71,17 @@ describe("RunErrorProviderDrawer", () => {
         expect(render()).toBe('form {"kind":"openai"}')
     })
 
+    it("keeps the open form while the vault refreshes after a save", () => {
+        expect(render()).toBe('form {"kind":"openai"}')
+        state.vault = {isPending: false, isFetching: true, isError: false, data: []}
+        act(() =>
+            root!.render(
+                <RunErrorProviderDrawer open onClose={() => undefined} providerKind="openai" />,
+            ),
+        )
+        expect(host!.querySelector('[role="dialog"]')?.textContent).toBe('form {"kind":"openai"}')
+    })
+
     it("opens the provider list, with its Try again, when the vault cannot be read", () => {
         state.vault = {isPending: false, isFetching: false, isError: true, data: undefined}
         expect(render()).toBe("list {}")
