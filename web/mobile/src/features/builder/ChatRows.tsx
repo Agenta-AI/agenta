@@ -16,7 +16,7 @@ export const useChatAgeLabel = () => {
     }
 }
 
-/** One chat in "Recent chats", the title menu's list and "Chat history": its title and age. */
+/** One chat in "Recent chats" and "Chat history": its title and age. */
 export const ChatRow = ({
     row,
     now,

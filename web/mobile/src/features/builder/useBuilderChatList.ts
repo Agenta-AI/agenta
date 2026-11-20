@@ -6,29 +6,28 @@ import {atom, useAtomValue} from "jotai"
 import {forgetBuilderChats, readBuilderChats} from "./builderChatLink"
 import type {BuilderChatRow} from "./openRule"
 
-/** Moves when this browser links a chat to an agent, so the lists read the link again. */
+/** Moves when this browser links a new chat to an agent, so the lists read the link again. */
 export const builderChatLinkVersionAtom = atom(0)
 
 const NO_EXPANSIONS = [] as const
 
 /**
  * The stored builder chats of one agent, as the sessions query returns them: newest activity
- * first, `limit` per page, with the title search of the query. No stored chat: no request.
+ * first, with the title search of the query. No stored chat: no request.
+ *
+ * One request returns every stored chat: the query answers an id set in one page (it pages only
+ * past the set's size), and the link keeps at most 50 chats per agent.
  */
 export const useBuilderChatList = ({
     userId,
     projectId,
     agentId,
-    limit,
     search = "",
-    enabled = true,
 }: {
     userId: string
     projectId: string
     agentId: string
-    limit: number
     search?: string
-    enabled?: boolean
 }) => {
     const version = useAtomValue(builderChatLinkVersionAtom)
     const chatIds = useMemo(
@@ -37,14 +36,17 @@ export const useBuilderChatList = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [userId, projectId, agentId, version],
     )
+    // Sorted for the request: the server orders by activity, and a chat moving to the front of
+    // the link must not mint a new query.
+    const requestIds = useMemo(() => [...chatIds].sort(), [chatIds])
     const hasChats = chatIds.length > 0
+    const query = search.trim()
     const list = useSessionList({
         originPolicy: "all",
         expansions: NO_EXPANSIONS,
-        sessionIds: hasChats ? chatIds : undefined,
-        search: search.trim(),
-        limit,
-        enabled: enabled && hasChats,
+        sessionIds: hasChats ? requestIds : undefined,
+        search: query,
+        enabled: hasChats,
     })
     const pages = list.data?.pages
     // A page the server refused comes back as null; the list then failed.
@@ -55,14 +57,9 @@ export const useBuilderChatList = ({
         [pages, chatIds],
     )
 
-    // One full unfiltered first page that is short means every other stored id is gone: deleted,
-    // or no longer readable. Those leave the link.
-    const complete =
-        !search.trim() &&
-        !list.isPlaceholderData &&
-        pages?.length === 1 &&
-        !failed &&
-        rows.length < limit
+    // The unfiltered answer holds every stored chat the person can still read. The others are
+    // deleted or no longer readable, and leave the link.
+    const complete = !query && !list.isPlaceholderData && pages !== undefined && !failed
     useEffect(() => {
         if (!complete) return
         const returned = new Set(rows.map((row) => row.session_id))
@@ -78,13 +75,10 @@ export const useBuilderChatList = ({
         chatIds,
         rows,
         /** Waiting for the first answer of a query that runs. */
-        pending: hasChats && enabled && list.isPending,
+        pending: hasChats && list.isPending,
         /** The rows shown are an earlier list's while this one loads. */
-        stale: hasChats && enabled && list.isPlaceholderData,
+        stale: hasChats && list.isPlaceholderData,
         failed: hasChats && failed,
         retry: () => void list.refetch(),
-        hasMore: Boolean(list.hasNextPage),
-        loadingMore: list.isFetchingNextPage,
-        loadMore: () => void list.fetchNextPage(),
     }
 }

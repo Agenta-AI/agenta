@@ -290,6 +290,24 @@ describe("BuilderPanel: which chat opens", () => {
         expect(recent.textContent).toContain("Try again")
     })
 
+    it("drops a stored chat the query no longer returns", async () => {
+        window.localStorage.setItem(
+            `agenta:builder:chats:${user()}:p1`,
+            JSON.stringify({"agent-1": ["gone", "kept"]}),
+        )
+        list.rows = [{session_id: "kept", updated_at: hoursAgo(100)}]
+        await render()
+        expect(readBuilderChats(user(), "p1", "agent-1")).toEqual(["kept"])
+    })
+
+    it("asks for the stored ids in one stable order, whatever the link order", async () => {
+        rememberBuilderChat(user(), "p1", "agent-1", "b")
+        rememberBuilderChat(user(), "p1", "agent-1", "a")
+        list.rows = [{session_id: "a", updated_at: hoursAgo(1)}]
+        await render()
+        expect(list.asked.at(-1)?.sessionIds).toEqual(["a", "b"])
+    })
+
     it("never shows the chat of another agent", async () => {
         rememberBuilderChat(user(), "p1", "agent-1", "chat-1")
         list.rows = [{session_id: "chat-1", updated_at: hoursAgo(1)}]

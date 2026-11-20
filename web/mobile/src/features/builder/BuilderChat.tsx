@@ -95,7 +95,7 @@ export const BuilderChat = ({
     if (chat.agentId !== agentId) setChat({agentId, id: null})
     const [view, setView] = useState<"chat" | "history">("chat")
 
-    const recent = useBuilderChatList({userId, projectId, agentId, limit: TITLE_MENU_CHATS})
+    const recent = useBuilderChatList({userId, projectId, agentId})
     const liveness = useLivenessPoll(projectId)
     const isRunning = useCallback(
         (chatId: string) =>
@@ -139,8 +139,8 @@ export const BuilderChat = ({
                 ...(page ? {page} : {}),
                 has_unsaved_draft: store.get(viewFormDirtyAtom),
             }
-            rememberBuilderChat(userId, projectId, agentId, chatId)
-            bumpLinkVersion((version) => version + 1)
+            if (rememberBuilderChat(userId, projectId, agentId, chatId))
+                bumpLinkVersion((version) => version + 1)
             return withContextLine(context, text)
         },
         [store, queryClient, agentId, agentName, userId, projectId, chatId, bumpLinkVersion],
@@ -215,7 +215,7 @@ export const BuilderChat = ({
             <BuilderHeader
                 title={title}
                 history={view === "history"}
-                menuRows={recent.rows}
+                menuRows={recent.rows.slice(0, TITLE_MENU_CHATS)}
                 onBack={() => setView("chat")}
                 onOpenChat={show}
                 onOpenHistory={() => setView("history")}
