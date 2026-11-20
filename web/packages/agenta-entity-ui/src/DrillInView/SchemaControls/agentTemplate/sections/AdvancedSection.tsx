@@ -1,7 +1,13 @@
 import type {ReactNode} from "react"
 
-import {SlidersHorizontal} from "@phosphor-icons/react"
+import type {SchemaProperty} from "@agenta/entities/shared"
+import type {ViewDef} from "@agenta/ui/view-stack"
+import {GearSix} from "@phosphor-icons/react"
 
+import {SectionPageRow} from "../SectionPageRow"
+import {advancedView, type AdvancedViewParams} from "../views/advancedViews"
+
+import {useAdvancedPartRows} from "./AdvancedPartRows"
 import type {AgentTemplateT, ModelHarness, SectionIndicatorFor, SectionResult} from "./types"
 
 export interface AdvancedSectionParams {
@@ -10,8 +16,11 @@ export interface AdvancedSectionParams {
     sectionIndicator: SectionIndicatorFor
     /** The inline "what changed" body. Null when the section is clean. */
     advancedChangeBody: ReactNode
-    /** Opens "Advanced" (F04 f9): the list of its parts. */
-    openAdvanced: () => void
+    /** Opens "Advanced" (F04 f9, the list of its parts) or one part's view (the page card). */
+    openAdvanced: (view: ViewDef<AdvancedViewParams>) => void
+    schema: SchemaProperty | null | undefined
+    config: Record<string, unknown>
+    revisionId: string | null
 }
 
 /** Advanced: a row that opens its view when clean, the changes not saved yet inline otherwise. */
@@ -21,18 +30,54 @@ export const advancedSection = ({
     sectionIndicator,
     advancedChangeBody,
     openAdvanced,
+    schema,
+    config,
+    revisionId,
 }: AdvancedSectionParams): SectionResult =>
     mh.hasAdvanced && {
         key: "advanced",
-        icon: <SlidersHorizontal size={16} />,
+        icon: <GearSix size={14} />,
         title: t("entityUi.agentTemplate.advanced"),
         indicator: sectionIndicator("advanced"),
         // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
         defaultOpen: false,
-        summary: mh.advancedSummary,
+        // No summary: the row names nothing (canvas S02, B03); its view lists the parts.
         // Changes not saved yet → show them inline (dropping `onOpen` is what expands a section).
         // Nothing changed → the row opens the view.
+        // On the page: one row per part (canvas A04: Execution, Agenta tools).
+        pageContent: (
+            <AdvancedPageRows
+                schema={schema}
+                config={config}
+                revisionId={revisionId}
+                onOpen={openAdvanced}
+            />
+        ),
         ...(advancedChangeBody
             ? {content: advancedChangeBody}
-            : {onOpen: openAdvanced, content: null}),
+            : {onOpen: () => openAdvanced(advancedView), content: null}),
     }
+
+const AdvancedPageRows = ({
+    schema,
+    config,
+    revisionId,
+    onOpen,
+}: Pick<AdvancedSectionParams, "schema" | "config" | "revisionId"> & {
+    onOpen: AdvancedSectionParams["openAdvanced"]
+}) => {
+    const rows = useAdvancedPartRows(schema, config, revisionId)
+    return (
+        <>
+            {rows.map((row) => (
+                <SectionPageRow
+                    key={row.key}
+                    icon={row.icon}
+                    title={row.title}
+                    summary={row.summary}
+                    onClick={() => onOpen(row.view)}
+                />
+            ))}
+        </>
+    )
+}

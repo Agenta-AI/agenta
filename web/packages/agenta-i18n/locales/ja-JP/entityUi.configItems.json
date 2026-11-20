@@ -50,5 +50,6 @@
     "countServer_other": "{{count}} 件のサーバー",
     "countSkill_other": "{{count}} 件のスキル",
     "countTool_other": "{{count}} 件のツール",
-    "change": "変更"
+    "change": "変更",
+    "policyHint": "エージェントが確認なしで実行できること"
 }

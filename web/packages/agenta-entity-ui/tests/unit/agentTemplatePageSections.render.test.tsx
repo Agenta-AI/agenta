@@ -9,11 +9,13 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {AgentTemplateSectionList} from "../../src/DrillInView/SchemaControls/agentTemplate/AgentTemplateSectionList"
-import {SectionPageAction} from "../../src/DrillInView/SchemaControls/agentTemplate/SectionPageAction"
 import {
     SectionListLayoutContext,
     type SectionListLayout,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/sectionListLayout"
+import AgentConfigSkeleton from "../../src/DrillInView/SchemaControls/agentTemplate/AgentConfigSkeleton"
+import {InstructionsFileRow} from "../../src/DrillInView/SchemaControls/agentTemplate/ItemRow"
+import {SectionPageAction} from "../../src/DrillInView/SchemaControls/agentTemplate/SectionPageAction"
 
 beforeAll(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -90,9 +92,9 @@ describe("AgentTemplateSectionList on the Configuration page", () => {
     it("keeps the section's change dot after its title", () => {
         renderList("page")
         const title = container.querySelector("[data-config-section=skills] h3")!
-        expect(title.querySelector("span[aria-hidden]")).not.toBeNull()
+        expect(title.querySelector("[data-section-indicator=draft]")).not.toBeNull()
         const model = container.querySelector("[data-config-section=model-harness] h3")!
-        expect(model.querySelector("span[aria-hidden]")).toBeNull()
+        expect(model.querySelector("[data-section-indicator]")).toBeNull()
     })
 
     it("draws a section that opens a view as one row that opens it", () => {
@@ -104,6 +106,36 @@ describe("AgentTemplateSectionList on the Configuration page", () => {
         expect(row.textContent).toBe("ModelClaude Code · Claude Sonnet 5.5")
         act(() => row.click())
         expect(openModel).toHaveBeenCalledTimes(1)
+    })
+
+    it("shows the instructions file flat: name and word count, then the start of the file", () => {
+        const file = createElement(InstructionsFileRow, {
+            filename: "AGENTS.md",
+            content: "# Role\nYou triage tickets.\n\n# Guardrails\nNever send a reply.",
+            onOpen: vi.fn(),
+        })
+        act(() =>
+            root.render(createElement(SectionListLayoutContext.Provider, {value: "page"}, file)),
+        )
+        const bold = [...container.querySelectorAll(".font-semibold")].map((e) => e.textContent)
+        expect(bold).toEqual(["Role", "Guardrails"])
+        expect(container.textContent).toContain("AGENTS.md")
+        expect(container.textContent).toContain("You triage tickets.")
+        // No card of its own inside the section card.
+        expect(container.querySelector(".rounded-lg")).toBeNull()
+    })
+
+    it("loads in the page's shape: one card per section", () => {
+        act(() =>
+            root.render(
+                createElement(
+                    SectionListLayoutContext.Provider,
+                    {value: "page"},
+                    createElement(AgentConfigSkeleton),
+                ),
+            ),
+        )
+        expect(container.querySelectorAll(".rounded-\\[10px\\]").length).toBe(6)
     })
 
     it("keeps the accordion without the page layout", () => {

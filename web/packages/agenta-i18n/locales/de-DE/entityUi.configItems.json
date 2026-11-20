@@ -57,5 +57,6 @@
     "countSkill_other": "{{count}} Skills",
     "countTool_one": "{{count}} Werkzeug",
     "countTool_other": "{{count}} Werkzeuge",
-    "change": "Ändern"
+    "change": "Ändern",
+    "policyHint": "Was der Agent ohne Nachfrage tun darf"
 }

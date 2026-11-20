@@ -4,12 +4,23 @@
  * Three states: loading, load error (retryable), and the list. Every version is selectable —
  * each one is diffed against its predecessor, so the newest has something to show too.
  */
-import {useT} from "@agenta/i18n"
+import {formatRelativeTime, useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import type {AgentVersionRow} from "@agenta/playground/state"
-import {timeAgo} from "@agenta/shared/utils"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"
+
+/** A version's age in words, as the canvas writes it (S06): "2 hours ago", "1 day ago". */
+const versionAge = (iso: string): string => {
+    const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000))
+    const long = {style: "long", numeric: "always"} as const
+    if (seconds < 60) return formatRelativeTime(0, "second", {style: "long", numeric: "auto"})
+    const minutes = Math.round(seconds / 60)
+    if (minutes < 60) return formatRelativeTime(-minutes, "minute", long)
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return formatRelativeTime(-hours, "hour", long)
+    return formatRelativeTime(-Math.round(hours / 24), "day", long)
+}
 
 const SKELETON_ROWS = [
     {title: "38%", body: "88%"},
@@ -107,7 +118,7 @@ export const VersionList = ({
                             )}
                         >
                             <span className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium text-colorText">
+                                <span className="text-[12px] font-medium text-colorText">
                                     v{row.version}
                                 </span>
                                 {/* One tag, one meaning: the newest revision. */}
@@ -122,12 +133,12 @@ export const VersionList = ({
                                         textColors.tertiary,
                                     )}
                                 >
-                                    {row.createdAt ? timeAgo(Date.parse(row.createdAt)) : ""}
+                                    {row.createdAt ? versionAge(row.createdAt) : ""}
                                 </span>
                             </span>
                             <span
                                 className={cn(
-                                    "line-clamp-2 text-xs leading-snug",
+                                    "line-clamp-2 text-[12px] leading-4",
                                     textColors.secondary,
                                 )}
                             >

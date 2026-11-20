@@ -31,6 +31,7 @@ export const PhoneViewChrome = ({
     apply,
     readOnly,
     form,
+    footerStartRef,
     onBack,
     onCancel,
     onSave,
@@ -49,6 +50,7 @@ export const PhoneViewChrome = ({
                     onBack={onBack}
                     onCancel={onCancel}
                     onSave={onSave}
+                    startRef={footerStartRef}
                 />
             </div>
         )}
