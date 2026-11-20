@@ -3,13 +3,16 @@
  * a few busy agents, the rail is too short to scroll, and the agents whose sessions are on later
  * pages never load. `hasUnloadedAgent` says when the rail must ask for the next page itself.
  */
+import {QueryClient} from "@tanstack/react-query"
 import {createStore} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import {describe, expect, it, vi} from "vitest"
 
+const querySessions = vi.hoisted(() => vi.fn())
 vi.mock("@agenta/entities/session", () => ({
-    querySessions: vi.fn(),
-    querySessionsFlatPage: vi.fn(),
-    queryInteractions: vi.fn(),
+    querySessions: (...args: unknown[]) => querySessions(...args),
+    querySessionsFlatPage: vi.fn(async () => ({count: 0, sessions: [], windowing: {}})),
+    queryInteractions: vi.fn(async () => []),
     livenessPollInterval: () => false,
 }))
 
@@ -17,7 +20,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     return {
         agentWorkflowsListQueryStateAtom: atom({data: [], isPending: false}),
-        appWorkflowsListQueryAtom: atom({data: {refs: []}}),
+        appWorkflowsListQueryAtom: atom({data: {refs: [{id: "support"}, {id: "email"}]}}),
         workflowMolecule: {selectors: {artifactName: () => atom(null)}},
     }
 })
@@ -122,24 +125,67 @@ describe("hasUnloadedAgent", () => {
     })
 })
 
+const BASE_FILTERS = {agentIds: [], status: "all", activity: "7d", type: "chat", groupBy: "agent"}
+
+const settle = async () => {
+    for (let index = 0; index < 20; index++) await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+/**
+ * A first page of 50 chats, all with "support"; the ranking query (200 chats) also knows a chat
+ * with "email" from yesterday, which is on a later page.
+ */
+const busyFirstPage = async (scope: string) => {
+    const {sidebarSessionsNeedNextPageAtomFamily} = await import("../../src/dynamic/sessionsSource")
+    const {sidebarAlwaysOpenGroupsAtomFamily} = await import("../../src/state")
+    const {SESSIONS_SIDEBAR_KEY} = await import("../../src/constants")
+    const now = Date.now()
+    const at = (minutes: number) => new Date(now - minutes * 60_000).toISOString()
+    const support = Array.from({length: 50}, (_, index) => ({
+        session_id: `support-${index}`,
+        agent: "support",
+        updated_at: at(index),
+    }))
+    querySessions.mockImplementation(async (args: {limit?: number}) =>
+        args.limit === 200
+            ? [...support, {session_id: "email-1", agent: "email", updated_at: at(24 * 60)}]
+            : support,
+    )
+    const store = createStore()
+    store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
+    store.set(sidebarAlwaysOpenGroupsAtomFamily(scope), [SESSIONS_SIDEBAR_KEY])
+    const atomForScope = sidebarSessionsNeedNextPageAtomFamily(scope)
+    store.sub(atomForScope, () => undefined)
+    await settle()
+    return {store, atomForScope}
+}
+
 describe("sidebarSessionsNeedNextPageAtomFamily", () => {
+    it("asks for the next page while an agent with a recent chat has no row", async () => {
+        filters.value = {...BASE_FILTERS}
+        const {store, atomForScope} = await busyFirstPage("mobile-main")
+        expect(store.get(atomForScope)).toBe(true)
+    })
+
+    it("stops after the automatic page cap", async () => {
+        filters.value = {...BASE_FILTERS}
+        const {sidebarSessionPageCountAtomFamily, MAX_AUTO_SESSION_PAGES} =
+            await import("../../src/dynamic/sessionsSource")
+        const {store, atomForScope} = await busyFirstPage("mobile-main")
+        store.set(sidebarSessionPageCountAtomFamily("mobile-main"), {
+            pages: MAX_AUTO_SESSION_PAGES,
+            boundary: new Date().toISOString(),
+        })
+        expect(store.get(atomForScope)).toBe(false)
+    })
+
     it.each([
         ["grouped by date", {groupBy: "date"}],
         ["on the automation list", {type: "automation"}],
         ["with a status filter", {status: "running"}],
     ])("asks for nothing %s", async (_label, change) => {
-        const {sidebarSessionsNeedNextPageAtomFamily} =
-            await import("../../src/dynamic/sessionsSource")
-        filters.value = {
-            agentIds: [],
-            status: "all",
-            activity: "7d",
-            type: "chat",
-            groupBy: "agent",
-            ...change,
-        }
-        expect(createStore().get(sidebarSessionsNeedNextPageAtomFamily("auto-fill-test"))).toBe(
-            false,
-        )
+        filters.value = {...BASE_FILTERS, ...change}
+        const {store, atomForScope} = await busyFirstPage("mobile-main")
+        expect(store.get(atomForScope)).toBe(false)
     })
 })
