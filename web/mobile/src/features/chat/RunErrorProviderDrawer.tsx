@@ -9,7 +9,8 @@ import {useAtomValue} from "jotai"
 
 /**
  * The provider form in a drawer over the chat: the failed provider's own connection when the
- * project has one, else a new connection of that provider, else the provider list. The form
+ * project has one, else a new connection of that provider. With no provider, or when the vault
+ * cannot be read, the provider list opens instead; it says so and offers "Try again". The form
  * checks the key by itself, and Save stores the connection in the project.
  */
 export const RunErrorProviderDrawer = ({
@@ -24,11 +25,16 @@ export const RunErrorProviderDrawer = ({
     const connections = useAtomValue(providerConnectionsAtom)
     const vault = useAtomValue(vaultSecretsQueryAtom)
     if (!open) return null
-    // The drawer opens its view once, so it waits for the vault: the failed provider's own
-    // connection must be known before the form opens. A failed load opens a new form.
-    if (providerKind && vault.isPending) return null
+    const connectionId = providerKind
+        ? connections.find((item) => item.kind === providerKind && !isOrganizationConnection(item))
+              ?.id
+        : undefined
+    // The drawer opens its view once, so it waits for the vault lookup: a form for a new
+    // connection opens only when a current lookup found none.
+    if (providerKind && !connectionId && (vault.isPending || vault.isFetching)) return null
+    const lookupFailed = vault.isError && !Array.isArray(vault.data)
     // The drawer opens its view once; a closed drawer leaves, and the next open mounts a new one.
-    if (!providerKind) {
+    if (!providerKind || lookupFailed) {
         return (
             <ViewDrawerHost
                 request={{view: providerListView, params: {}, target: {kind: "project"}}}
@@ -36,9 +42,6 @@ export const RunErrorProviderDrawer = ({
             />
         )
     }
-    const connectionId = connections.find(
-        (item) => item.kind === providerKind && !isOrganizationConnection(item),
-    )?.id
     return (
         <ViewDrawerHost
             request={{

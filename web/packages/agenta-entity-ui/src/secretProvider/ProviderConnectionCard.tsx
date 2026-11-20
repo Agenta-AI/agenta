@@ -528,6 +528,8 @@ const ProviderConnectionCard = ({
 
     const changeBedrockWay = (next: BedrockWay) => {
         setBedrockWay(next)
+        // A delayed check of the other way would answer for the wrong keys.
+        clearTimeout(settleTimer.current ?? undefined)
         keyCheck.drop()
     }
 
