@@ -44,19 +44,23 @@ const {writer, listeners} = vi.hoisted(() => ({
 }))
 
 // A writer that renders again on each write, as the real draft atom does.
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", async () => {
-    const {useSyncExternalStore} = await import("react")
-    const subscribe = (listener: () => void) => {
-        listeners.add(listener)
-        return () => void listeners.delete(listener)
-    }
-    return {
-        useAgentConfigWriter: () => {
-            useSyncExternalStore(subscribe, () => writer.agent)
-            return writer
-        },
-    }
-})
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (original) => {
+        const {useSyncExternalStore} = await import("react")
+        const subscribe = (listener: () => void) => {
+            listeners.add(listener)
+            return () => void listeners.delete(listener)
+        }
+        return {
+            ...(await original<object>()),
+            useAgentConfigWriter: () => {
+                useSyncExternalStore(subscribe, () => writer.agent)
+                return writer
+            },
+        }
+    },
+)
 
 // Names come from the workflow artifacts: only "Email writer" (wf-email) resolves here; icons do not.
 const empty = atom("")

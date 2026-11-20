@@ -118,6 +118,29 @@ describe("AgentTemplateSectionList on a phone", () => {
         expect(add).toHaveBeenCalledOnce()
     })
 
+    it("shows no add control on a phone for a section read only there", () => {
+        act(() =>
+            root.render(
+                createElement(
+                    PhoneSectionsContext.Provider,
+                    {value: {shownKey: "mcp", show: vi.fn()}},
+                    createElement(AgentTemplateSectionList, {
+                        sections: [
+                            {
+                                key: "mcp",
+                                title: "MCP servers",
+                                hideExtraOnPhone: true,
+                                extra: createElement("button", {type: "button"}, "Add"),
+                                content: createElement("p", null, "server rows"),
+                            },
+                        ],
+                    }),
+                ),
+            ),
+        )
+        expect(container.textContent).toBe("server rows")
+    })
+
     it("keeps the accordion without the phone context", () => {
         renderList(null)
         expect(container.querySelector("[data-testid=phone-section-list]")).toBeNull()

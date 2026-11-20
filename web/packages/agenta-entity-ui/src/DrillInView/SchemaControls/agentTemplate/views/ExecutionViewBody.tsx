@@ -51,13 +51,20 @@ const ExecutionViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
                 align="center"
                 path="sandbox.kind"
             >
-                <EnumSelectControl
-                    schema={sandboxProps.kind}
-                    options={sandboxOptions}
-                    value={shownSandboxKind}
-                    onChange={(value) => setKind(value as string | null)}
-                    disabled={writer.readOnly}
-                />
+                {/* Read only (a phone): the value as text, no control. */}
+                {writer.readOnly ? (
+                    <span className="text-sm text-colorText">
+                        {sandboxOptions.find((o) => o.value === shownSandboxKind)?.label ??
+                            shownSandboxKind}
+                    </span>
+                ) : (
+                    <EnumSelectControl
+                        schema={sandboxProps.kind}
+                        options={sandboxOptions}
+                        value={shownSandboxKind}
+                        onChange={(value) => setKind(value as string | null)}
+                    />
+                )}
             </RailField>
         </div>
     )

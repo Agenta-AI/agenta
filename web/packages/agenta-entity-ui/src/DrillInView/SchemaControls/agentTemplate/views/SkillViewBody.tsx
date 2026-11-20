@@ -137,7 +137,7 @@ const AgentOnlySkillBody = ({
  * One skill of the agent, found by key in the list as it is now: a builder save that removes it
  * never puts another skill here. A registry skill renders the registry body of the skills bridge.
  */
-const SkillViewBody = ({params, target, nav}: ViewProps<SkillViewParams>) => {
+const SkillViewBody = ({params, target, nav, readOnly}: ViewProps<SkillViewParams>) => {
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const {skills: bridge} = useDrillInUI()
     const entry = findSkillByKey(skillsOf(writer.agent), params.item.key)
@@ -145,7 +145,7 @@ const SkillViewBody = ({params, target, nav}: ViewProps<SkillViewParams>) => {
     const RegistryBody = bridge?.RegistrySkillBody
 
     if (entry && slug && RegistryBody) {
-        return <RegistryBody params={{slug}} target={target} nav={nav} />
+        return <RegistryBody params={{slug}} target={target} nav={nav} readOnly={readOnly} />
     }
     if (entry && !isEmbedRefSkill(entry)) {
         return (

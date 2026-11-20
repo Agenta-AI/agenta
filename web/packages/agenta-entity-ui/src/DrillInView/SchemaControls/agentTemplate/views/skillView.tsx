@@ -22,6 +22,7 @@ export interface SkillViewParams {
 export const skillView = defineView<SkillViewParams>({
     id: "agent.skill",
     apply: "on_save",
+    readOnlyOnPhone: true,
     wide: true,
     Component: lazyView(
         () => import("./SkillViewBody"),

@@ -46,9 +46,13 @@ const {writer, fx} = vi.hoisted(() => ({
     },
 }))
 
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter", () => ({
-    useAgentConfigWriter: () => writer,
-}))
+vi.mock(
+    "../../src/DrillInView/SchemaControls/agentTemplate/useAgentConfigWriter",
+    async (original) => ({
+        ...(await original<object>()),
+        useAgentConfigWriter: () => writer,
+    }),
+)
 vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
     getEnabledSandboxProviders: () => fx.environments,
@@ -590,6 +594,18 @@ describe("Advanced", () => {
             ),
         )
         expect((writer.agent.sandbox as {kind: string}).kind).toBe("local")
+    })
+
+    it("Execution: read only shows the sandbox as text, with no select and no Revert", async () => {
+        writer.schema = sandboxSchema(["local", "daytona"])
+        writer.agent = {sandbox: {kind: "daytona"}}
+        writer.readOnly = true
+        fx.committed = {agent: {sandbox: {kind: "local"}}}
+        await openIn(executionView, {}, AGENT)
+        await findByText("here:Execution")
+        expect(document.querySelector('[role="combobox"]')).toBeNull()
+        expect(byText("Daytona")).toBeTruthy()
+        expect(saveButton("Revert")).toBeFalsy()
     })
 
     it("Agenta tools: a preset resets every tool, and Save applies the form", async () => {

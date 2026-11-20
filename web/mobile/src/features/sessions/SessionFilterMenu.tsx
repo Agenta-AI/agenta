@@ -295,7 +295,7 @@ export const SessionFilterMenu = ({
             triggerAriaLabel={t("sessions.mobileList.filterAndGroup")}
             size="default"
             // The square icon size is 28; the search field is 32.
-            triggerClassName="size-8"
+            triggerClassName="size-8 max-md:size-11"
             active={active}
             onReset={onReset}
             resetDisabled={!active}
