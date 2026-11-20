@@ -1,6 +1,9 @@
 import {useEffect, useState} from "react"
 
-import {workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
+import {
+    workflowLatestRevisionIdAtomFamily,
+    workflowLatestRevisionQueryAtomFamily,
+} from "@agenta/entities/workflow"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {useAtomValue} from "jotai"
 
@@ -12,6 +15,7 @@ import {useAtomValue} from "jotai"
  */
 export const useConfigurationRevision = (agentId: string) => {
     const latest = useAtomValue(workflowLatestRevisionIdAtomFamily(agentId))
+    const query = useAtomValue(workflowLatestRevisionQueryAtomFamily(agentId))
     const [pinned, setPinned] = useState<string | null>(null)
     // Hold the first latest revision the query answers with.
     useEffect(() => {
@@ -25,5 +29,7 @@ export const useConfigurationRevision = (agentId: string) => {
             }),
         [agentId, revisionId],
     )
-    return {revisionId, pin: setPinned}
+    // No revision once the lookup has settled: it failed, or found none.
+    const failed = !revisionId && !query.isPending && !query.isFetching
+    return {revisionId, pin: setPinned, failed, retry: () => void query.refetch()}
 }

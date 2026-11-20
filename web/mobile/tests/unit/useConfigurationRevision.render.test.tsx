@@ -22,12 +22,16 @@ vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     const value = atom<string | null>("rev-4")
     latest.atom = value
-    return {workflowLatestRevisionIdAtomFamily: () => value}
+    const query = atom({isPending: false, isFetching: false, refetch: async () => undefined})
+    return {
+        workflowLatestRevisionIdAtomFamily: () => value,
+        workflowLatestRevisionQueryAtomFamily: () => query,
+    }
 })
 
 const {useConfigurationRevision} = await import("@/features/agent-pages/useConfigurationRevision")
 
-let seen: {revisionId: string | null; pin: (id: string) => void}
+let seen: {revisionId: string | null; pin: (id: string) => void; failed: boolean}
 const Probe = () => {
     seen = useConfigurationRevision("support")
     return null
@@ -56,6 +60,7 @@ const latestAtom = () => latest.atom as ReturnType<typeof atom<string | null>>
 describe("useConfigurationRevision", () => {
     it("starts on the agent's latest revision", () => {
         expect(seen.revisionId).toBe("rev-4")
+        expect(seen.failed).toBe(false)
     })
 
     it("follows its own auto-save, even while the latest query is stale", () => {

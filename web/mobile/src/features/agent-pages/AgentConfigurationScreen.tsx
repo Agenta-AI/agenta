@@ -1,12 +1,16 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {AgentEditorContext, type AgentEditor} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {SkeletonBlock} from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -15,6 +19,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {AccessTab} from "../agent-layout/AccessTab"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {SessionWorkspaceDrawers} from "../chat/SessionWorkspaceDrawers"
+import {startBlankSession} from "../chat/useStartBlankSession"
 import {useTriggerTestRun} from "../chat/useTriggerTestRun"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -45,9 +50,10 @@ export const AgentConfigurationScreen = ({
     tab: ConfigurationTab
 }) => {
     const t = useT(agentSidebarCatalog, agentLayoutPanelCatalog)
+    const tControls = useT(schemaControlsCatalog)
     useBindProjectContext(projectId)
     const router = useRouter()
-    const {revisionId, pin} = useConfigurationRevision(agentId)
+    const {revisionId, pin, failed, retry} = useConfigurationRevision(agentId)
     // The API refuses a Viewer's edits; editing stays open while the check is in flight.
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
     const readOnly = !editAccess.pending && !editAccess.allowed
@@ -55,6 +61,12 @@ export const AgentConfigurationScreen = ({
         () => (revisionId ? {revisionId, readOnly} : null),
         [readOnly, revisionId],
     )
+    // "Create with AI" asks a chat composer to start the sentence; this page has none, so it opens
+    // a new session of the agent, whose composer takes the request.
+    const prefill = useAtomValue(composerPrefillRequestAtom)
+    useEffect(() => {
+        if (prefill) startBlankSession(`/w/${workspaceId}/p/${projectId}`, agentId)
+    }, [agentId, prefill, projectId, workspaceId])
     // An automation's "Test run" starts a new session of this agent, as from the panel.
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     const openTab = (next: ConfigurationTab) =>
@@ -73,6 +85,12 @@ export const AgentConfigurationScreen = ({
             <div className="max-w-[560px]">
                 <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
             </div>
+        ) : failed ? (
+            <LoadError
+                framed
+                title={tControls("entityUi.schemaControls.configCouldNotLoad")}
+                onRetry={retry}
+            />
         ) : !revisionId ? (
             loading
         ) : tab === "agent" ? (
