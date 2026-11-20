@@ -302,7 +302,8 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                     </button>
                                 </span>
                             ) : null}
-                            {focus ? (
+                            {/* The page of one agent has no Agent filter to apply. */}
+                            {focus && !(focus.dim === "agent" && view.lockedAgentId) ? (
                                 <button
                                     type="button"
                                     onClick={() => {
