@@ -176,9 +176,12 @@ export const SessionHeader = ({
                         />
                     ) : null}
                     {/* The version status: the save state, a failed save with its retry, and
-                        the offer of a newer version. */}
+                        the offer of a newer version. It keeps its drawn size; the hit area of
+                        each of its buttons grows to 44 px, as for the share control. */}
                     {revisionStatus ? (
-                        <span className="flex shrink-0 items-center">{revisionStatus}</span>
+                        <span className="flex shrink-0 items-center [&_button]:relative [&_button]:after:absolute [&_button]:after:-inset-2.5 [&_button]:after:content-[]">
+                            {revisionStatus}
+                        </span>
                     ) : null}
                     <div className="min-w-0 flex-1" />
                     {icon("files", t("agentLayout.header.files"), <FolderSimple size={20} />)}
