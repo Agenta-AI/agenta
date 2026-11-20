@@ -16,7 +16,7 @@
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
-import {useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useContext, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {subscriptionPairModelsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
 import {
@@ -212,22 +212,18 @@ const ModelPickerControl = ({
 
     // In a container with a view stack (the panel, a view drawer), Model providers takes the
     // Model view's place; elsewhere the provider drawer opens. Both run `providerSaved` after a
-    // save: the drawer through `onSaved`, the stack through the follow-up the save view runs.
+    // save: the drawer through `onSaved`, the stack through the follow-up its form view runs.
     const stack = useOptionalViewStack()
     const store = useStore()
     const openModelProviders = useCallback(() => {
         drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
         if (stack) {
-            store.set(providerSaveFollowUpAtom, {run: providerSaved})
+            store.set(providerSaveFollowUpAtom, {host: stack.open, run: providerSaved})
             void stack.open(providerListView, {}, {kind: "project"})
             return
         }
         setDrawerOpen(true)
     }, [connections, providerSaved, stack, store])
-    // Back on the picker with no save: the follow-up is stale.
-    useEffect(() => {
-        store.set(providerSaveFollowUpAtom, null)
-    }, [store])
 
     const drawer = (
         <ProviderDrawer

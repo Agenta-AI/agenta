@@ -139,8 +139,10 @@ const Opener = () => {
             <button onClick={() => void stack.open(providerListView, {}, {kind: "project"})}>
                 open
             </button>
-            {/* What a model picker does before it opens Model providers. */}
-            <button onClick={() => setFollowUp({run: fixture.afterSave})}>arm</button>
+            {/* What a model picker in this stack does before it opens Model providers. */}
+            <button onClick={() => setFollowUp({host: stack.open, run: fixture.afterSave})}>
+                arm
+            </button>
         </>
     )
 }
@@ -264,6 +266,34 @@ describe("Model providers list", {timeout: 30_000}, () => {
 
         expect(afterSave).toHaveBeenCalledTimes(1)
         expect(afterSave).toHaveBeenCalledWith("new-id")
+
+        // A second save in the same visit does not run it again.
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await findByText("here:OpenAI")
+        await click(byText("Save connection"))
+        await findByText("here:Model providers")
+        expect(afterSave).toHaveBeenCalledTimes(1)
+    })
+
+    it("leaving Model providers without a save drops the follow-up", async () => {
+        const afterSave = vi.fn()
+        fixture.afterSave = afterSave
+        await openList()
+        await click(byText("arm"))
+        // Back to the root: the list closes.
+        await click(byText("crumb:Agent"))
+        await click(byText("open"))
+        await findByText("here:Model providers")
+        await click(byText("Add a provider or subscription"))
+        await findByText("here:Add")
+        await click(byText("OpenAI", "button span"))
+        await findByText("here:OpenAI")
+        await click(byText("Save connection"))
+        await findByText("here:Model providers")
+
+        expect(afterSave).not.toHaveBeenCalled()
     })
 
     it("a failed save keeps the form open", async () => {

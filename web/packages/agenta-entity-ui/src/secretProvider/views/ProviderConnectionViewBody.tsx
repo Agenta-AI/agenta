@@ -14,7 +14,12 @@ import {
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
-import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {
+    useOptionalViewStack,
+    useViewForm,
+    useViewTitle,
+    type ViewProps,
+} from "@agenta/ui/view-stack"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import ProviderConnectionCard, {type ProviderCardSaveState} from "../ProviderConnectionCard"
@@ -37,6 +42,7 @@ const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionViewPa
     const ownerChoiceFor = useContext(ProviderOwnerChoiceContext)
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)
     const store = useStore()
+    const stackOpen = useOptionalViewStack()?.open
     useViewTitle(
         connection?.name ?? providerDisplayTitle(params.kind, providerTitleForKind(params.kind)),
     )
@@ -60,10 +66,10 @@ const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionViewPa
             // A project save does not refresh the vault by itself; the list and the picker
             // read it.
             await refreshVault()
-            // The model picker that sent the person here switches a new local agent to the new
-            // connection's model, as the provider drawer's save did.
+            // The model picker that opened Model providers in this stack switches a new local
+            // agent to the new connection's model.
             const followUp = store.get(providerSaveFollowUpAtom)
-            if (followUp) {
+            if (followUp && followUp.host === stackOpen) {
                 store.set(providerSaveFollowUpAtom, null)
                 void followUp.run(savedId.current)
             }
