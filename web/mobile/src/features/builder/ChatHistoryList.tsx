@@ -68,8 +68,10 @@ export const ChatHistoryList = ({
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
-                    allowClear
-                    className={phone ? "h-11 text-[15px]" : undefined}
+                    // On a phone the field is the 44 px hit area itself: the input fills its
+                    // height, and the 14 px clear button gives way to the keyboard's delete.
+                    allowClear={!phone}
+                    className={phone ? "h-[46px] items-stretch py-0 text-[15px]" : undefined}
                 />
             </div>
             <div
