@@ -1,7 +1,8 @@
 """The builder agent's static catalogue entry (`__ag__builder`).
 
 Pins that the entry resolves in any project without a database read, that its tool approvals
-are the platform defaults, that it lists exactly its own learning drive and no home drive, that
+are the platform defaults, that it holds the client tools that ask the person for input or a
+connection, that it lists exactly its own learning drive and no home drive, that
 the runtime parses it, and that its text carries no secret or host.
 """
 
@@ -16,7 +17,9 @@ from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.tools import ToolResolver
+from agenta.sdk.agents.tools.models import ClientToolConfig
 
+from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tools import platform_handlers
@@ -29,13 +32,35 @@ from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import (
     StaticWorkflowCatalog,
+    request_connection_tool,
     request_input_tool,
 )
+
+
+_CLIENT_TOOLS = ["request_input", "request_connection"]
 
 
 def _agent() -> dict:
     revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
     return revision.data.parameters["agent"]
+
+
+async def _resolved_template() -> AgentTemplate:
+    """The entry as a run sees it: embeds resolved from the static catalogue, no database."""
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao, static_catalog=StaticWorkflowCatalog()
+    )
+    service.embeds_service = EmbedsService(workflows_service=service)
+
+    resolved, _ = await service.resolve_workflow_revision(
+        project_id=uuid4(),
+        workflow_ref=Reference(slug=BUILDER_AGENT_SLUG),
+    )
+
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+    return AgentTemplate.from_params(resolved.data.parameters)
 
 
 def test_entry_is_a_static_agent():
@@ -137,22 +162,60 @@ def test_instructions_ask_who_a_new_agent_is_for():
     assert "visibility: project" in instructions
 
 
-def test_runtime_parses_the_entry():
-    template = AgentTemplate.from_params(
-        StaticWorkflowCatalog()
-        .retrieve_revision(slug=BUILDER_AGENT_SLUG)
-        .data.parameters
+def test_entry_lists_the_two_client_tools_inline():
+    """The choice form and the connect card are the static client tools the build kit
+    offers, listed inline so the builder does not depend on resolving an embed."""
+    client_tools = [tool for tool in _agent()["tools"] if tool["type"] == "client"]
+
+    assert client_tools == [request_input_tool(), request_connection_tool()]
+    assert [tool["render"]["kind"] for tool in client_tools] == [
+        "elicitation",
+        "connect",
+    ]
+
+
+_LATER_TOOLS = ["request_secret", "run_agent", "read_session", "read_traces"]
+
+
+def _builder_text() -> str:
+    agent = _agent()
+    return json.dumps(
+        {"instructions": agent["instructions"], "skills": agent["skills"]}
     )
+
+
+def test_text_names_the_two_client_tools():
+    instructions = _agent()["instructions"]["agents_md"]
+
+    for name in _CLIENT_TOOLS:
+        assert f"`{name}`" in instructions, name
+
+
+def test_text_names_no_tool_the_builder_does_not_have():
+    text = _builder_text()
+
+    for name in _LATER_TOOLS:
+        assert name not in text, name
+        assert not any(
+            name in (tool.get("name"), tool.get("op")) for tool in _agent()["tools"]
+        ), name
+
+
+@pytest.mark.asyncio
+async def test_runtime_parses_the_entry():
+    template = await _resolved_template()
 
     assert template.instructions
     assert [skill.name for skill in template.skills] == [
         "manage-project-agents",
         "builder-learning",
     ]
-    assert {getattr(tool, "op", None) for tool in template.tools} == {
-        *(tool["op"] for tool in _platform_tools()),
-        None,  # the request_input client tool
-    }
+    assert [
+        tool.op for tool in template.tools if not isinstance(tool, ClientToolConfig)
+    ] == list(BUILDER_AGENT_TOOLS)
+    assert [
+        tool.name for tool in template.tools if isinstance(tool, ClientToolConfig)
+    ] == _CLIENT_TOOLS
 
 
 _FORBIDDEN = [
@@ -167,10 +230,7 @@ _FORBIDDEN = [
 
 
 def test_text_has_no_secret_host_or_script():
-    agent = _agent()
-    text = json.dumps(
-        {"instructions": agent["instructions"], "skills": agent["skills"]}
-    )
+    text = _builder_text()
 
     for pattern in _FORBIDDEN:
         assert not pattern.search(text), pattern.pattern
@@ -181,6 +241,7 @@ def test_manage_skill_bundles_the_config_field_reference():
     files = {f["path"]: f["content"] for f in skills["manage-project-agents"]["files"]}
 
     assert files["references/config-fields.md"].endswith(AGENT_CONFIG_FIELDS_REFERENCE)
+    assert files["references/playbooks.md"].startswith("# Playbooks")
 
 
 def test_a_run_by_slug_carries_the_builder_artifact_id():
@@ -272,12 +333,9 @@ async def test_the_builder_cannot_read_or_edit_itself(handler, by):
 @pytest.mark.parametrize("mode", ["allow", "allow_reads", "ask"])
 async def test_the_four_agent_tools_resolve_for_a_run(mode):
     """The agent tools are not Agenta tools, so the builder holds them as platform
-    entries; a run's resolver must still give it all four, with their approvals."""
-    template = AgentTemplate.from_params(
-        StaticWorkflowCatalog()
-        .retrieve_revision(slug=BUILDER_AGENT_SLUG)
-        .data.parameters
-    )
+    entries; a run's resolver must still give it all four, with their approvals, and the
+    two client tools beside them."""
+    template = await _resolved_template()
     resolver = ToolResolver(
         platform_resolver=AgentaPlatformToolResolver(
             connection=PlatformConnection(
@@ -295,17 +353,7 @@ async def test_the_four_agent_tools_resolve_for_a_run(mode):
     assert permissions["edit_agent_config"] == "ask"
     assert permissions["list_agents"] == "allow"
     assert permissions["read_agent_config"] == "allow"
-    assert set(permissions) == {*BUILDER_AGENT_TOOLS, "request_input"}
-
-
-def test_the_builder_asks_its_decisions_with_the_request_input_form():
-    """The choice form is today's elicitation form: the static `request_input` client
-    tool, the one the build kit offers, listed inline."""
-    (tool,) = [tool for tool in _agent()["tools"] if tool["type"] == "client"]
-
-    assert tool == request_input_tool()
-    assert tool["name"] == "request_input"
-    assert tool["render"] == {"kind": "elicitation"}
+    assert set(permissions) == set(BUILDER_AGENT_TOOLS) | set(_CLIENT_TOOLS)
 
 
 def test_learning_skill_keeps_private_content_out_of_the_shared_drive():

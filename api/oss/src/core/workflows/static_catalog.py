@@ -197,6 +197,11 @@ def _client_tool_revision() -> WorkflowRevision:
     )
 
 
+def request_connection_tool() -> Dict[str, Any]:
+    """The `request_connection` client tool entry, for an agent that lists it inline."""
+    return _client_tool_revision().data.parameters["tool"]
+
+
 def _request_secret_revision() -> WorkflowRevision:
     return WorkflowRevision(
         name="Request secret",
