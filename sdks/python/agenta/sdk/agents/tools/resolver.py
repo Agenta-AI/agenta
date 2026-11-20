@@ -47,7 +47,6 @@ from .models import (
     ToolSpec,
     effective_permission,
     stricter_permission,
-    target_permission,
 )
 from ..permission_rules import PermissionRule
 
@@ -272,8 +271,11 @@ def gate_session_writes(
     entry_permissions: Dict[str, Permission] = {}
     for config in tool_configs:
         if isinstance(config, ReferenceToolConfig) and config.permission is not None:
-            entry_permissions[config.slug] = target_permission(
-                config.permission, entry_permissions.get(config.slug)
+            earlier = entry_permissions.get(config.slug)
+            entry_permissions[config.slug] = (
+                config.permission
+                if earlier is None
+                else stricter_permission(earlier, config.permission)
             )
     gated: List[ToolSpec] = []
     for spec in tool_specs:
