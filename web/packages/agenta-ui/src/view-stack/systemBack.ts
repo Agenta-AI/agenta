@@ -44,6 +44,13 @@ let pending = false
 let opened = 0
 let scheduled = false
 let installed = false
+/**
+ * The old barrier the module last stepped back over, while the person stays just below it. A pop
+ * onto that same barrier then moves forward, so a forward goes past it instead of bouncing back.
+ */
+let steppedOver: string | null = null
+/** The pop of the module's own step lands next; it does not end `steppedOver`. */
+let stepping = false
 // Not crypto.randomUUID: it is missing on a plain-HTTP origin.
 const LOAD = Math.random().toString(36).slice(2)
 let runs = 0
@@ -103,14 +110,21 @@ const onPopState = (event: PopStateEvent) => {
     const stamp = (event.state as Stamp | null)?.agSystemBackRun
     if (!barrier) {
         // The barrier of levels that closed (an old page, a closed panel) shows nothing of its
-        // own. Step over it: a back reaches the page under it in one press, and a forward
-        // returns to where it came from.
+        // own. Step over it in the direction of travel: back the first time, so a back reaches
+        // the page under it in one press; forward when the person comes back onto it from
+        // below, so a forward reaches the page after it.
         if (stamp) {
             event.stopImmediatePropagation()
-            window.history.back()
-        }
+            const forward = steppedOver === stamp
+            steppedOver = forward ? null : stamp
+            stepping = true
+            if (forward) window.history.forward()
+            else window.history.back()
+        } else if (stepping) stepping = false
+        else steppedOver = null
         return
     }
+    steppedOver = null
     // Still on the barrier (a forward cannot pass it): nothing to do.
     if (stamp === barrier.run) {
         event.stopImmediatePropagation()
@@ -190,6 +204,8 @@ export const useSystemBack = (levels: number, rank: SystemBackRank, onBack: () =
 /** For tests: forget the barrier and every owner. */
 export const resetSystemBackForTests = () => {
     barrier = null
+    steppedOver = null
+    stepping = false
     ownPops = 0
     pending = false
     scheduled = false

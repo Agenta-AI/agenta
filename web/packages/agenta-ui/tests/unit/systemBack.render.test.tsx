@@ -164,6 +164,26 @@ describe("useSystemBack", () => {
         expect(router).not.toHaveBeenCalled()
     })
 
+    it("steps forward over an old entry when the person comes back onto it from below", async () => {
+        const forward = vi.spyOn(window.history, "forward").mockImplementation(() => undefined)
+        const {unmount} = render(<Level />)
+        await settle()
+        const earlier = lastPushed()
+        unmount()
+        await settle()
+        // The pop of that history.back (mocked here).
+        pop()
+        // Back from the next page onto the old entry: step back over it.
+        pop(earlier)
+        expect(back).toHaveBeenCalledTimes(2)
+        // The pop of that step lands under it.
+        pop()
+        // Forward onto the old entry again: step forward, toward the next page.
+        pop(earlier)
+        expect(forward).toHaveBeenCalledTimes(1)
+        expect(back).toHaveBeenCalledTimes(2)
+    })
+
     it("lets the router take a jump to another page's entry", async () => {
         const onBack = vi.fn()
         render(<Level onBack={onBack} />)
