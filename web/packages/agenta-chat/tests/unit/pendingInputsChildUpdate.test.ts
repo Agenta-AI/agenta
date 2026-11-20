@@ -30,7 +30,7 @@ describe("child update rows", () => {
         })
         expect(pendingInputToQueuedMessage(row)).toMatchObject({
             id: "input-1",
-            serverKind: "child_update",
+            kind: "child_update",
             editable: false,
             childUpdate: {sessionId: "child", status: "failed"},
         })
@@ -41,10 +41,25 @@ describe("child update rows", () => {
             const row = input(kind, {role: "user", content: "hi", child_update: part})
             expect(childUpdateOfInput(row)).toBeNull()
             const queued = pendingInputToQueuedMessage(row)
-            expect(queued?.serverKind).toBeUndefined()
+            expect(queued?.kind).toBe("message")
             expect(queued?.childUpdate).toBeUndefined()
             expect(queued?.editable).toBe(true)
         }
+    })
+
+    it("reads the part from the last message only", () => {
+        const row = input("child_update", {role: "user", content: "marked text"})
+        row.content = {
+            data: {
+                inputs: {
+                    messages: [
+                        {role: "user", content: "older", child_update: part},
+                        {role: "user", content: "marked text"},
+                    ],
+                },
+            },
+        }
+        expect(childUpdateOfInput(row)).toBeNull()
     })
 
     it("keeps an unknown status as an update with no status", () => {
@@ -59,6 +74,6 @@ describe("child update rows", () => {
     it("returns no part when the row has no child session id", () => {
         const row = input("child_update", {role: "user", content: "marked text", child_update: {}})
         expect(childUpdateOfInput(row)).toBeNull()
-        expect(pendingInputToQueuedMessage(row)).toMatchObject({serverKind: "child_update"})
+        expect(pendingInputToQueuedMessage(row)).toMatchObject({kind: "child_update"})
     })
 })

@@ -204,39 +204,6 @@ describe("sessionsQueryResponseSchema (envelope)", () => {
     })
 })
 
-describe("sessions that another session created", () => {
-    it("keeps the calling_session origin and its record", () => {
-        const out = sessionsQueryResponseSchema.parse({
-            count: 1,
-            sessions: [
-                {
-                    ...wireRow,
-                    origin: "calling_session",
-                    calling_session: {
-                        id: "55555555-5555-5555-5555-555555555555",
-                        turn_id: "66666666-6666-6666-6666-666666666666",
-                        agent_id: "77777777-7777-7777-7777-777777777777",
-                        revision_id: "88888888-8888-8888-8888-888888888888",
-                    },
-                },
-            ],
-        })
-        expect(out.sessions[0].origin).toBe("calling_session")
-        expect(out.sessions[0].calling_session).toEqual({
-            id: "55555555-5555-5555-5555-555555555555",
-            turn_id: "66666666-6666-6666-6666-666666666666",
-            agent_id: "77777777-7777-7777-7777-777777777777",
-            revision_id: "88888888-8888-8888-8888-888888888888",
-        })
-    })
-
-    it("degrades a malformed calling_session record without failing the row", () => {
-        const out = sessionStreamSchema.parse({...wireRow, calling_session: {turn_id: 3}})
-        expect(out.calling_session).toBeUndefined()
-        expect(out.session_id).toBe(wireRow.session_id)
-    })
-})
-
 describe("queued input kind", () => {
     const row = {
         id: "input-1",

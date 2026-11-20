@@ -275,7 +275,7 @@ export const SessionFilterMenu = ({
         status !== "all" ||
         mode ||
         archivedOnly ||
-        showChildSessions ||
+        (showChildSessions && !mode) ||
         !isDefaultSessionListView(view)
 
     return (

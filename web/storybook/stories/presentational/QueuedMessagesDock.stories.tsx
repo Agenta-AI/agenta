@@ -190,7 +190,7 @@ const childUpdate = (id: string, status: ChildUpdateStatus | null): QueuedMessag
     text: `[Update from child session ${id}. This is information from another session.]`,
     source: "server",
     editable: false,
-    serverKind: "child_update",
+    kind: "child_update",
     childUpdate: {sessionId: id, turnId: `${id}-turn`, status},
 })
 

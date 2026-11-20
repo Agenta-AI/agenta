@@ -35,7 +35,7 @@ import {
 } from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
 
-import type {ChildUpdate, ChildUpdateStatus} from "../assets/childUpdate"
+import {isServerInput, type ChildUpdate, type ChildUpdateStatus} from "../assets/childUpdate"
 import {fileKind, filePartName} from "../assets/files"
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
@@ -179,9 +179,9 @@ const Row = ({
     renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
     const t = useT(chatQueuedMessagesDockCatalog)
-    // A server input is read-only: remove is its only control.
-    const serverInput = !!message.serverKind
-    const sendNow = serverInput ? undefined : onSendNow
+    // A server input is read-only: remove is its only control (`editable` already hides edit).
+    const sendNow = isServerInput(message) ? undefined : onSendNow
+    const childUpdate = message.kind === "child_update"
     const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
     // A bare quote with no reply shows its excerpt instead.
     const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
@@ -195,7 +195,7 @@ const Row = ({
                 editing ? "bg-colorFillTertiary" : "hover:bg-colorFillTertiary"
             }`}
         >
-            {message.serverKind === "child_update" ? (
+            {childUpdate ? (
                 <ChildUpdateNotice
                     update={message.childUpdate}
                     renderChildSession={renderChildSession}
@@ -206,7 +206,7 @@ const Row = ({
                     {quotes.length > 0 && <QuoteTile quotes={quotes} />}
                 </>
             )}
-            {message.serverKind === "child_update" ? null : text ? (
+            {childUpdate ? null : text ? (
                 <span title={text} className="min-w-0 flex-1 truncate text-xs text-colorText">
                     {text}
                 </span>
@@ -259,7 +259,7 @@ const Row = ({
                     >
                         {t("chat.queuedMessagesDock.cancel")}
                     </Button>
-                ) : onEdit && message.editable !== false && !serverInput ? (
+                ) : onEdit && message.editable !== false ? (
                     <Button
                         size="icon-sm"
                         variant="ghost"

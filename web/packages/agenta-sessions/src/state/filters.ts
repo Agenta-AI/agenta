@@ -43,8 +43,7 @@ export const sessionFiltersActiveExceptAgentAtom = atom(
         get(sessionStatusFilterAtom) !== "all" ||
         get(sessionShowArchivedAtom) ||
         get(sessionArchivedOnlyAtom) ||
-        get(sessionShowTriggeredAtom) ||
-        get(sessionShowChildSessionsAtom),
+        get(sessionShowTriggeredAtom),
 )
 
 export const sessionFiltersActiveAtom = atom(

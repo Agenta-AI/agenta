@@ -171,10 +171,10 @@ export const SessionRowCells = ({
                             {vm.title}
                         </span>
                         {vm.isChildSession ? (
-                            <SimpleTooltip title={t("sessions.mobileList.createdBySession")}>
+                            <SimpleTooltip title={t("sessions.mobileList.childSessionMark")}>
                                 <span
                                     role="img"
-                                    aria-label={t("sessions.mobileList.createdBySession")}
+                                    aria-label={t("sessions.mobileList.childSessionMark")}
                                     className="flex shrink-0 text-muted-foreground"
                                 >
                                     <ArrowBendDownRight size={12} aria-hidden />

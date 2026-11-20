@@ -33,10 +33,11 @@ export const sessionListRequestFilters = (
 })
 
 /**
- * The session list hides child sessions (origin `calling_session`) unless the reader asks for
- * them. Only the human list narrows: the automations list already shows trigger sessions alone.
+ * The policy of a list that hides child sessions (origin `calling_session`) unless the reader's
+ * switch shows them. Only the human list narrows: the automations list holds trigger sessions
+ * alone.
  */
-export const withChildSessionsPolicy = (
+export const childSessionsListPolicy = (
     policy: SessionListRequestPolicy,
     showChildSessions: boolean,
 ): SessionListRequestPolicy =>

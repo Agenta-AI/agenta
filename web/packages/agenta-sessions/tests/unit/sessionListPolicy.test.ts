@@ -12,7 +12,7 @@ import {
     sessionListRequestFilters,
     shouldLoadMoreForHiddenRows,
     startedSessions,
-    withChildSessionsPolicy,
+    childSessionsListPolicy,
 } from "../../src/state/sessionListPolicy"
 
 const streamRow = (row: Partial<SessionStream>): SessionStream =>
@@ -278,7 +278,7 @@ describe("child sessions in the session list", () => {
     const automation = {origin: "trigger-only", expansions: ["trigger"]} as const
 
     it("hides sessions that another session created by default", () => {
-        const policy = withChildSessionsPolicy(human, false)
+        const policy = childSessionsListPolicy(human, false)
         expect(sessionListRequestFilters(policy).excludeOrigins).toEqual([
             "trigger",
             "calling_session",
@@ -286,13 +286,13 @@ describe("child sessions in the session list", () => {
     })
 
     it("shows them, still without automation runs, when the switch is on", () => {
-        const policy = withChildSessionsPolicy(human, true)
+        const policy = childSessionsListPolicy(human, true)
         expect(sessionListRequestFilters(policy).excludeOrigins).toEqual(["trigger"])
     })
 
     it("leaves the automations list and the unfiltered surfaces alone", () => {
-        expect(withChildSessionsPolicy(automation, false)).toBe(automation)
+        expect(childSessionsListPolicy(automation, false)).toBe(automation)
         const all = {origin: "all", expansions: []} as const
-        expect(withChildSessionsPolicy(all, false)).toBe(all)
+        expect(childSessionsListPolicy(all, false)).toBe(all)
     })
 })

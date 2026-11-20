@@ -102,7 +102,7 @@ it("shows a child update as a read-only notice that names the child session", ()
                     text: "[Update from child session c2f1 (Email writer). ...]",
                     source: "server",
                     editable: false,
-                    serverKind: "child_update",
+                    kind: "child_update",
                     childUpdate: {sessionId: "c2f1", turnId: "t1", status: "completed"},
                 },
             ]}
@@ -126,8 +126,20 @@ it("labels a child update without a structured part, and keeps another server ki
     render(
         <QueuedMessagesDock
             queued={[
-                {id: "update-2", text: "model text", source: "server", serverKind: "child_update"},
-                {id: "later-kind", text: "a reminder", source: "server", serverKind: "reminder"},
+                {
+                    id: "update-2",
+                    text: "model text",
+                    source: "server",
+                    editable: false,
+                    kind: "child_update",
+                },
+                {
+                    id: "later-kind",
+                    text: "a reminder",
+                    source: "server",
+                    editable: false,
+                    kind: "reminder",
+                },
             ]}
             onRemove={vi.fn()}
             onEdit={vi.fn()}

@@ -47,10 +47,10 @@ export interface QueuedMessage {
     /** An edit of this row is still saving. */
     saving?: boolean
     /**
-     * The input's kind when the server wrote it (anything but `message`). Such a row is
-     * read-only: it can be removed, never edited or sent by hand.
+     * The input's kind, on a row from the server queue (`message` when the server sent none).
+     * Any other kind is a server input: it can be removed, never edited or sent by hand.
      */
-    serverKind?: string
+    kind?: string
     /** The structured part of a `child_update` row; absent when the row carries none. */
     childUpdate?: ChildUpdate
 }

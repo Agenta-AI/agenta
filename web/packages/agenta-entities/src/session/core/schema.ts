@@ -141,14 +141,6 @@ export const sessionDeliverySchema = z.object({
     id: z.string(),
 })
 
-/** The session whose agent created this one (origin `calling_session`). */
-export const sessionCallingSessionSchema = z.object({
-    id: z.string(),
-    turn_id: z.string().nullish(),
-    agent_id: z.string().nullish(),
-    revision_id: z.string().nullish(),
-})
-
 export const sessionMessagePreviewSchema = z.object({
     text: z.string(),
     source: z.string().nullish(),
@@ -206,7 +198,6 @@ export const sessionStreamSchema = z.object({
     origin: sessionOriginSchema.nullish().catch(undefined),
     trigger: sessionTriggerSchema.nullish().catch(undefined),
     delivery: sessionDeliverySchema.nullish().catch(undefined),
-    calling_session: sessionCallingSessionSchema.nullish().catch(undefined),
     // Sharing (M3): who may see the session. `owner_user_id` is null for an ownerless session
     // (channel, API key, trigger). An unknown visibility degrades to undefined, as above.
     visibility: visibilitySchema.nullish().catch(undefined),
@@ -360,7 +351,6 @@ export type SessionOrigin = z.infer<typeof sessionOriginSchema>
 export type SessionTriggerKind = z.infer<typeof sessionTriggerKindSchema>
 export type SessionExpansion = z.infer<typeof sessionExpansionSchema>
 export type SessionTrigger = z.infer<typeof sessionTriggerSchema>
-export type SessionCallingSession = z.infer<typeof sessionCallingSessionSchema>
 export type SessionDelivery = z.infer<typeof sessionDeliverySchema>
 export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
 export type SessionWindowing = z.infer<typeof sessionWindowingSchema>

@@ -26,7 +26,7 @@ import {
     selectedSessionListPolicy,
     sessionGroupRows,
     shouldLoadMoreForHiddenRows,
-    withChildSessionsPolicy,
+    childSessionsListPolicy,
     type SessionListRequestPolicy,
 } from "./sessionListPolicy"
 import {
@@ -83,6 +83,11 @@ export interface UseSessionsListArgs {
     defaultPolicy: SessionListRequestPolicy
     automationPolicy: SessionListRequestPolicy
     /**
+     * Hide child sessions (origin `calling_session`) unless the "show child sessions" switch is
+     * on. Only the Sessions page has that switch, so only it opts in; other lists are unchanged.
+     */
+    hideChildSessions?: boolean
+    /**
      * Route-supplied agent scope (`/apps/[app_id]/sessions`). Overrides the agent filter rather
      * than writing to it, so the project page's filter is never left holding a value the user
      * did not choose.
@@ -114,6 +119,7 @@ export const useSessionsList = ({
     activityFloor,
     defaultPolicy,
     automationPolicy,
+    hideChildSessions = false,
 }: UseSessionsListArgs) => {
     const t = useT(sessionsStatusCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -127,7 +133,10 @@ export const useSessionsList = ({
     const showChildSessions = useAtomValue(sessionShowChildSessionsAtom)
     const projectFiltersActive = useAtomValue(sessionFiltersActiveAtom)
     const scopedFiltersActive = useAtomValue(sessionFiltersActiveExceptAgentAtom)
-    const filtersActive = scopedAgentId ? scopedFiltersActive : projectFiltersActive
+    // The child sessions switch counts only on a list that reads it, and not in automations mode.
+    const filtersActive =
+        (scopedAgentId ? scopedFiltersActive : projectFiltersActive) ||
+        (hideChildSessions && showChildSessions && !showTriggered)
     const resetFilters = useSetAtom(resetSessionFiltersAtom)
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
 
@@ -141,10 +150,10 @@ export const useSessionsList = ({
         [pendingBySession],
     )
 
-    const policy = withChildSessionsPolicy(
-        selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy),
-        showChildSessions,
-    )
+    const selectedPolicy = selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy)
+    const policy = hideChildSessions
+        ? childSessionsListPolicy(selectedPolicy, showChildSessions)
+        : selectedPolicy
     const shared = {
         originPolicy: policy.origin,
         expansions: policy.expansions,

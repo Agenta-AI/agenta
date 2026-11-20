@@ -90,7 +90,6 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         return null
     if (typeof display === "string") text = display
 
-    const serverInput = isServerInput(input)
     const childUpdate = childUpdateOfInput(input)
     return {
         id: input.id,
@@ -100,9 +99,9 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         policy: input.policy,
         source: "server",
         clientId: input.idempotency_key ?? null,
+        kind: input.kind ?? "message",
         // A server input is read-only: removable, never edited.
-        editable: input.state === "pending" && display === undefined && !serverInput,
-        ...(serverInput ? {serverKind: input.kind ?? undefined} : {}),
+        editable: input.state === "pending" && display === undefined && !isServerInput(input),
         ...(childUpdate ? {childUpdate} : {}),
         // Promoted: its turn is starting, so it can no longer be removed, edited or sent again.
         ...(input.state === "promoted"

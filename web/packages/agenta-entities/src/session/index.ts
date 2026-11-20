@@ -96,7 +96,6 @@ export {
     type SessionExpansion,
     type SessionTrigger,
     type SessionDelivery,
-    type SessionCallingSession,
     type SessionMessagePreview,
     type SessionWindowing,
     type PendingSessionInput,
