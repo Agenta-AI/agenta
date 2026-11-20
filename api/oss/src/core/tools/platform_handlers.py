@@ -1138,8 +1138,13 @@ EDIT_AGENT_CONFIG_CALL_REF = "tools.agenta.edit_agent_config"
 # Not a model tool: the runner calls it when the approval gate of one of the two writes
 # above opens, and puts the answer on the approval card.
 PREVIEW_AGENT_CHANGE_CALL_REF = "tools.agenta.preview_agent_change"
+# Not a model tool: the runner calls it when the gate of a session write would show a card
+# (`core/tools/gate.py`).
+RESOLVE_GATE_CALL_REF = "tools.agenta.resolve_gate"
 # The handlers only the runner calls. Every other handler backs an op of the SDK catalog.
-RUNNER_ONLY_CALL_REFS = frozenset({PREVIEW_AGENT_CHANGE_CALL_REF})
+RUNNER_ONLY_CALL_REFS = frozenset(
+    {PREVIEW_AGENT_CHANGE_CALL_REF, RESOLVE_GATE_CALL_REF}
+)
 
 _FIND_AGENT_STEP = (
     "Call list_agents and pass the agent's `slug` or `id` as `agent`, not its name."
@@ -2182,6 +2187,32 @@ def _arguments_include_delta(arguments: Any) -> bool:
     return isinstance(arguments, dict) and arguments.get("delta") is not None
 
 
+async def handle_resolve_gate(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+    session_caller: SessionCaller,
+    gate_reader: Any = None,
+) -> PlatformHandlerResult:
+    """The server's answer at the gate of a session write: `{permission, basis}`."""
+    from oss.src.core.tools.gate import resolve_gate
+
+    if gate_reader is None:
+        raise PlatformToolHandlerRefused("resolve_gate is unavailable.")
+    answer = await resolve_gate(
+        caller=session_caller,
+        project_id=project_id,
+        arguments=arguments,
+        reader=gate_reader,
+    )
+    return PlatformHandlerResult(content=answer.model_dump(mode="json"))
+
+
 @dataclass(frozen=True)
 class PlatformToolHandlerRegistration:
     call_ref: str
@@ -2206,6 +2237,8 @@ class PlatformToolHandlerRegistration:
     # Session ops, drive ops and `resolve_gate` take the calling run as `session_caller`
     # (`session_caller_of`); without one the call answers `run_credential_required`.
     needs_session_caller: bool = False
+    # `resolve_gate` takes the router's `GateReader` as `gate_reader`.
+    needs_gate_reader: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -2281,6 +2314,15 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_preview_agent_change,
         elevated_permission=Permission.VIEW_WORKFLOWS,
         needs_agent_read_scope=True,
+    ),
+    # Writes nothing. Guarded by the run credential check (design D31), like the session
+    # ops it answers for.
+    RESOLVE_GATE_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=RESOLVE_GATE_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_resolve_gate,
+        needs_session_caller=True,
+        needs_gate_reader=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
@@ -2364,6 +2406,7 @@ async def dispatch_platform_tool_handler(
     workspace_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
+    gate_reader: Any = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -2393,6 +2436,8 @@ async def dispatch_platform_tool_handler(
             extra["session_caller"] = await session_caller_of(access)
         except _Refusal as e:
             return PlatformHandlerResult.failure(e.error)
+    if registration.needs_gate_reader:
+        extra["gate_reader"] = gate_reader
     return await registration.handler(
         arguments=arguments,
         headers=headers,

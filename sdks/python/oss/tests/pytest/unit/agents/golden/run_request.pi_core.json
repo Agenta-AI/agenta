@@ -73,6 +73,22 @@
         "args_into": "data.inputs"
       }
     }
+,
+    {
+      "name": "start_session",
+      "description": "Start a session with another agent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permission": "ask",
+      "kind": "callback",
+      "callRef": "tools.agenta.start_session",
+      "configuredPermission": "allow",
+      "targetPermissions": {
+        "email-writer": "ask"
+      }
+    }
   ],
   "toolCallback": {
     "endpoint": "https://api.example/tools/call",

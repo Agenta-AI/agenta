@@ -181,6 +181,7 @@ from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
+from oss.src.core.tools.gate import GateReader
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
 from oss.src.core.account_choices.lifecycle import AccountsLifecycle
@@ -1316,6 +1317,13 @@ tools = ToolsRouter(
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
+    gate_reader=GateReader(
+        streams_dao=session_streams_dao,
+        executions_dao=session_executions_dao,
+        inputs_dao=session_inputs_dao,
+        turns_dao=session_turns_dao,
+        workflows_service=workflows_service,
+    ),
 )
 
 triggers = TriggersRouter(

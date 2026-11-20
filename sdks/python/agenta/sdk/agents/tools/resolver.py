@@ -39,9 +39,14 @@ from .models import (
     ReferenceToolConfig,
     ResolvedGatewayPolicy,
     ResolvedToolSet,
+    SESSION_WRITE_CALL_REFS,
+    CallbackToolSpec,
+    Permission,
     ToolCallback,
     ToolConfig,
     ToolSpec,
+    effective_permission,
+    target_permission,
 )
 
 log = get_module_logger(__name__)
@@ -213,6 +218,48 @@ def _expand_agenta_tools(
             present.add(op)
             added.append(PlatformToolConfig(op=op, permission=permission))
     return added
+
+
+def gate_session_writes(
+    tool_specs: Sequence[ToolSpec],
+    tool_configs: Sequence[ToolConfig],
+    *,
+    permission_default: PermissionMode,
+) -> List[ToolSpec]:
+    """Send the session writes to the runner as ``ask`` unless their own permission is
+    ``deny``, so that the runner's gate asks the server (``resolve_gate``, design D34).
+
+    Each of them carries ``configured_permission`` (its permission before this change)
+    and ``target_permissions`` (the permission set on each Subagent entry, by the entry's
+    slug; the stricter one when two entries share a slug)."""
+    entry_permissions: Dict[str, Permission] = {}
+    for config in tool_configs:
+        if isinstance(config, ReferenceToolConfig) and config.permission is not None:
+            entry_permissions[config.slug] = target_permission(
+                entry_permissions.get(config.slug, config.permission),
+                config.permission,
+            )
+    gated: List[ToolSpec] = []
+    for spec in tool_specs:
+        if (
+            not isinstance(spec, CallbackToolSpec)
+            or spec.call_ref not in SESSION_WRITE_CALL_REFS
+        ):
+            gated.append(spec)
+            continue
+        configured = effective_permission(
+            spec.permission, spec.read_only, permission_default
+        )
+        gated.append(
+            spec.model_copy(
+                update={
+                    "permission": "deny" if configured == "deny" else "ask",
+                    "configured_permission": configured,
+                    "target_permissions": dict(entry_permissions),
+                }
+            )
+        )
+    return gated
 
 
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
@@ -448,6 +495,9 @@ class ToolResolver:
             gateway_policy = connection_resolution.gateway_policy
             warnings.extend(connection_resolution.warnings)
 
+        tool_specs = gate_session_writes(
+            tool_specs, tool_configs, permission_default=permission_default
+        )
         _validate_unique_names(tool_specs)
         return ResolvedToolSet(
             tool_specs=tool_specs,
