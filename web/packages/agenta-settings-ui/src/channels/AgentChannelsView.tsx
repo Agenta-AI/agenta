@@ -105,33 +105,42 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                         <ChannelGroup title={t("agentPages.channels.connected")}>
                             {connected.map(({platform, summary}) => {
                                 const mine = agentConnectionsOf(connections, platform)
-                                const sub =
-                                    mine.length > 1 && !summary.needsAttention
-                                        ? mine
-                                              .map((c) => connectionLabel(c, hostedHandle))
-                                              .join(", ")
-                                        : summary.sub
+                                // Any of the agent's connections can need attention, not only
+                                // the one the platform summary is about.
+                                const broken =
+                                    [
+                                        summary,
+                                        ...mine.map((c) =>
+                                            summarizeConnection(platform, c, agentId),
+                                        ),
+                                    ].find((s) => s.needsAttention) ?? null
+                                // "Reconnect" only when a connection lost its access; other
+                                // problems are fixed in the manage view.
+                                const revoked = [connections[platform], ...mine].some(
+                                    (c) => c?.status === "revoked",
+                                )
+                                const sub = broken
+                                    ? broken.sub
+                                    : mine.length > 1
+                                      ? mine.map((c) => connectionLabel(c, hostedHandle)).join(", ")
+                                      : summary.sub
                                 return (
                                     <ChannelRow
                                         key={platform}
                                         platform={platform}
                                         sub={sub}
                                         subClass={
-                                            summary.needsAttention
-                                                ? summary.subClass
-                                                : "text-muted-foreground"
+                                            broken ? broken.subClass : "text-muted-foreground"
                                         }
                                         tag={
-                                            summary.needsAttention ? (
+                                            broken ? (
                                                 <span className="rounded bg-colorErrorBg px-1.5 py-0.5 text-xs text-colorError">
                                                     {t("common.needsAttention")}
                                                 </span>
                                             ) : null
                                         }
                                         action={
-                                            summary.needsAttention
-                                                ? t("common.reconnect")
-                                                : t("common.manage")
+                                            revoked ? t("common.reconnect") : t("common.manage")
                                         }
                                         onClick={() => open(platform)}
                                     />

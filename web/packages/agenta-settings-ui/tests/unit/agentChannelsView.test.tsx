@@ -18,7 +18,13 @@ vi.mock("../../src/channels/lazyPanel", () => ({
 
 import {AgentChannelsView} from "../../src/channels/AgentChannelsView"
 import {EMPTY_CONNECTIONS, NOOP_ACTIONS} from "../../src/channels/helpers"
-import {AGENT_ID, AGENT_NAME, slackHere, slackRevoked} from "../../src/channels/storyFixtures"
+import {
+    AGENT_ID,
+    AGENT_NAME,
+    slackHere,
+    slackRevoked,
+    telegramBotRemoved,
+} from "../../src/channels/storyFixtures"
 import type {ChannelConnections} from "../../src/channels/types"
 
 let root: Root
@@ -71,6 +77,23 @@ describe("AgentChannelsView", () => {
 
     it("marks a broken channel with Needs attention and Reconnect", async () => {
         await render({...EMPTY_CONNECTIONS, slack: slackRevoked})
+        expect(row("slack").textContent).toContain("Needs attention")
+        expect(row("slack").textContent).toContain("Reconnect")
+    })
+
+    it("marks a channel whose bot was removed from a chat, with Manage", async () => {
+        await render({...EMPTY_CONNECTIONS, telegram: telegramBotRemoved})
+        expect(row("telegram").textContent).toContain("Needs attention")
+        expect(row("telegram").textContent).toContain("Manage")
+        expect(row("telegram").textContent).not.toContain("Reconnect")
+    })
+
+    it("marks the platform when a second connection of the agent is broken", async () => {
+        await render({
+            ...EMPTY_CONNECTIONS,
+            slack: slackHere,
+            agentConnections: {slack: [slackHere, {...slackRevoked, connectionId: "cx-2"}]},
+        })
         expect(row("slack").textContent).toContain("Needs attention")
         expect(row("slack").textContent).toContain("Reconnect")
     })
