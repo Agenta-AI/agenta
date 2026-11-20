@@ -24,10 +24,13 @@ import {
     useSessionFilesPane,
 } from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
+import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
+import agentLayoutPhoneCatalog from "@agenta/i18n/catalogs/agentLayout.phone"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {userAtom} from "@agenta/shared/state"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {useAtom, useAtomValue, useStore, type ExtractAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -90,6 +93,7 @@ export const AgentLayoutBody = ({
     conversation,
 }: AgentLayoutProps) => {
     const tControls = useT(uiControlsCatalog)
+    const tPhone = useT(agentLayoutPhoneCatalog, agentLayoutHeaderCatalog)
     const confirmLeave = useConfirmLeave()
     const user = useAtomValue(userAtom)
     const panelKey = panelStateKey(user?.id ?? "anonymous", projectId)
@@ -312,19 +316,31 @@ export const AgentLayoutBody = ({
             }}
         >
             {mounted.has("files") || isFiles ? (
-                <div className={isFiles ? "h-full min-h-0" : "hidden"}>
-                    <DriveLinkContext.Provider value={driveLink.copyLink}>
-                        <SessionFilesPane
-                            scope={filesScope}
-                            sessionId={sessionId}
-                            onSelectionChange={driveLink.onSelectionChange}
-                            // The header icon closes it on desktop; on a phone the header is
-                            // covered, so the pane's own back arrow does.
-                            closeControl={phone ? "back" : "none"}
-                            expanded={filesLayout.expanded}
-                            onToggleExpand={filesLayout.toggleExpand}
+                <div className={isFiles ? "flex h-full min-h-0 flex-col" : "hidden"}>
+                    {/* On a phone Files covers the session: the phone header returns to it. */}
+                    {phone ? (
+                        <PhoneScreenHeader
+                            title={tPhone("agentLayout.header.files")}
+                            backTitle={tPhone("agentLayout.phone.session")}
+                            onBack={() => void close()}
                         />
-                    </DriveLinkContext.Provider>
+                    ) : null}
+                    <div className="min-h-0 flex-1">
+                        <DriveLinkContext.Provider value={driveLink.copyLink}>
+                            <SessionFilesPane
+                                scope={filesScope}
+                                sessionId={sessionId}
+                                onSelectionChange={driveLink.onSelectionChange}
+                                // The header icon closes it on desktop, the phone header on a
+                                // phone.
+                                closeControl="none"
+                                expanded={filesLayout.expanded}
+                                // A phone has no wider pane, and Files is read only there.
+                                onToggleExpand={phone ? undefined : filesLayout.toggleExpand}
+                                readOnly={phone}
+                            />
+                        </DriveLinkContext.Provider>
+                    </div>
                 </div>
             ) : null}
             {canConfigure && (mounted.has("configuration") || content === "configuration") ? (

@@ -50,7 +50,9 @@ vi.mock("@/features/chat/SessionWorkspaceDrawers", () => ({SessionWorkspaceDrawe
 vi.mock("@agenta/entity-ui/drive", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entity-ui/drive")>()),
     DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
-    SessionFilesPane: () => <div data-testid="files" />,
+    SessionFilesPane: ({readOnly}: {readOnly?: boolean}) => (
+        <div data-testid="files" data-read-only={String(Boolean(readOnly))} />
+    ),
     useSessionFilesPane: () => ({
         open: files.open,
         close: files.close,
@@ -241,6 +243,28 @@ describe("the session screen on the agent layout", () => {
             store.set(composerPrefillRequestAtom, {id: 1, text: "Add a skill"})
         })
         expect(panel.className).toContain("hidden")
+    })
+
+    it("on a phone shows Files read only under the phone header, whose back arrow closes it", async () => {
+        files.close.mockClear()
+        files.open = true
+        media.width = 390
+        await render(createStore())
+        expect(q("files")[0]?.getAttribute("data-read-only")).toBe("true")
+        const back = host.querySelector('button[aria-label="Back to Session"]') as HTMLButtonElement
+        expect(back.textContent).toBe("Session")
+        expect(host.querySelector("h1")?.textContent).toBe("Files")
+        await act(async () => back.click())
+        expect(files.close).toHaveBeenCalledTimes(1)
+        files.open = false
+    })
+
+    it("keeps Files editable on the desktop, with no phone header", async () => {
+        files.open = true
+        await render(createStore())
+        expect(q("files")[0]?.getAttribute("data-read-only")).toBe("false")
+        expect(q("phone-screen-header")).toHaveLength(0)
+        files.open = false
     })
 
     it("puts files staged by a drop aside on a swap and gives them back when Files opens", async () => {

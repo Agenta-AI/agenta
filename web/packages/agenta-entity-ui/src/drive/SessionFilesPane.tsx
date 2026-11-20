@@ -87,6 +87,7 @@ export function SessionFilesPane({
     expanded = false,
     onToggleExpand,
     onSelectionChange,
+    readOnly = false,
 }: {
     scope: string
     sessionId: string
@@ -98,6 +99,8 @@ export function SessionFilesPane({
     closeControl?: "collapse" | "back" | "none"
     expanded?: boolean
     onToggleExpand?: () => void
+    /** Open and download only (a phone): the explorer offers no write. */
+    readOnly?: boolean
 }) {
     const {open, close} = useSessionFilesPane(scope, sessionId)
     const [quickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
@@ -185,6 +188,7 @@ export function SessionFilesPane({
                 driveIds={driveIds}
                 stagedFiles={staged}
                 onStagedChange={setStaged}
+                readOnly={readOnly}
             />
         </div>
     )

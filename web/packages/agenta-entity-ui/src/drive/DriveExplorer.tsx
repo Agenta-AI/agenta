@@ -128,6 +128,7 @@ export function DriveExplorer({
     initialShowTree = true,
     treePersistKey,
     closeVariant = "close",
+    readOnly = false,
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -163,6 +164,8 @@ export function DriveExplorer({
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
     closeVariant?: "close" | "collapse" | "back"
+    /** Open and download only: no upload, drop, paste, new item, rename, delete or edit (a phone). */
+    readOnly?: boolean
 }) {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const chrome = chromeProp ?? onClose != null
@@ -227,7 +230,7 @@ export function DriveExplorer({
     const revealUpload = useRef<(path: string) => void>(() => undefined)
     const onUploaded = useCallback((path: string) => revealUpload.current(path), [])
     const {
-        canUpload,
+        canUpload: uploadsAllowed,
         uploadInputRef,
         uploadFiles,
         pendingUploadByPath,
@@ -239,6 +242,8 @@ export function DriveExplorer({
         retryUpload,
         dismissUpload,
     } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange, onUploaded})
+    // Every write below (upload, drop, paste, new item, rename, delete, edit) shares this gate.
+    const canUpload = uploadsAllowed && !readOnly
 
     const {
         lazyTree,
