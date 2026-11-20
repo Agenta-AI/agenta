@@ -12,7 +12,11 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {sessionsQueryResponseSchema, sessionStreamSchema} from "../../src/session/core/schema"
+import {
+    pendingSessionInputSchema,
+    sessionsQueryResponseSchema,
+    sessionStreamSchema,
+} from "../../src/session/core/schema"
 
 /** A fully-populated `/sessions/query` row exactly as the backend serializes it today:
  * `SessionListItem` (`SessionStream` + `Identifier`/`Header`/`Lifecycle` + `references`),
@@ -200,6 +204,28 @@ describe("sessionsQueryResponseSchema (envelope)", () => {
     })
 })
 
+describe("queued input kind", () => {
+    const row = {
+        id: "input-1",
+        session_id: "session-1",
+        content: {},
+        position: 0,
+        state: "pending",
+        policy: "queue",
+    }
+
+    it("keeps the kind, and reads a row without one as unset", () => {
+        expect(pendingSessionInputSchema.parse({...row, kind: "child_update"}).kind).toBe(
+            "child_update",
+        )
+        expect(pendingSessionInputSchema.parse(row).kind).toBeUndefined()
+    })
+
+    it("degrades a malformed kind instead of failing the snapshot", () => {
+        expect(pendingSessionInputSchema.parse({...row, kind: 7}).kind).toBeUndefined()
+    })
+})
+
 describe("drift guard: a renamed wire key is silently dropped, not rejected", () => {
     // This is the failure mode the whole file exists to catch early: zod schemas built from
     // `.nullish()` fields don't fail on an unknown key, they just parse it away. If the backend
@@ -222,5 +248,23 @@ describe("drift guard: a renamed wire key is silently dropped, not rejected", ()
         const out = sessionStreamSchema.parse(renamed)
         expect(out.references).toBeUndefined()
         expect((out as Record<string, unknown>).refs).toBeUndefined()
+    })
+})
+
+describe("sessionStreamSchema origin", () => {
+    it.each(["manual", "trigger", "channel", "api", "calling_session"])(
+        "keeps the origin %s",
+        (origin) => {
+            expect(sessionStreamSchema.parse({...wireRow, origin}).origin).toBe(origin)
+        },
+    )
+
+    it("reads an unknown origin as undefined and keeps the row", () => {
+        const out = sessionsQueryResponseSchema.parse({
+            count: 1,
+            sessions: [{...wireRow, origin: "not-an-origin"}],
+        })
+        expect(out.sessions).toHaveLength(1)
+        expect(out.sessions[0].origin).toBeUndefined()
     })
 })

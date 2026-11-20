@@ -91,6 +91,7 @@ export const SessionListScreen = ({
         activityFloor,
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+        hideChildSessions: true,
     })
 
     // Debounced: the search is a server predicate on two queries, so every keystroke would

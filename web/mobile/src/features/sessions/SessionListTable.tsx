@@ -141,6 +141,7 @@ export const SessionListTable = ({
         // runs" swaps in the automation policy. Same policies the desktop list passes.
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+        hideChildSessions: true,
     })
     const {toggle: togglePin} = useSessionPins()
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
