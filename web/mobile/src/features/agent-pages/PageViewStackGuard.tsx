@@ -13,7 +13,8 @@ export interface PageViewStackGuardApi {
 /**
  * Keeps an open view form on the page from being lost. Any navigation while a form has edits,
  * Back and Forward included, asks first with the stack's own unsaved-changes dialog. On "Keep
- * editing" after Back or Forward, the browser goes back to this page's history entry. The page
+ * editing" after Back or Forward, the page puts its own address back (a new entry; the browser
+ * cannot tell which way or how far it moved). The page
  * asks before its own tab switch, then passes it with `allowNext`.
  */
 export const PageViewStackGuard = ({
@@ -55,6 +56,8 @@ export const PageViewStackGuard = ({
                 bypass.current = false
                 return
             }
+            // The page's address now, before the router moves.
+            const here = router.asPath
             // Back and Forward have moved the browser already; a link click has not.
             const historyMove =
                 url.split("#")[0] === window.location.pathname + window.location.search
@@ -64,8 +67,8 @@ export const PageViewStackGuard = ({
                     const go = historyMove ? router.replace : router.push
                     void go(url, undefined, {shallow}).catch(() => undefined)
                 } else if (historyMove) {
-                    // Back to this page's entry: the form stays, at its own address.
-                    window.history.forward()
+                    // The form stays, at its own address.
+                    void router.push(here, undefined, {shallow: true}).catch(() => undefined)
                 } else {
                     bypass.current = false
                 }

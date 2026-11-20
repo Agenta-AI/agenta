@@ -21,6 +21,7 @@ const router = vi.hoisted(() => {
     const handlers = new Map<string, Set<(...args: unknown[]) => void>>()
     return {
         handlers,
+        asPath: "/agents/a?view=configuration&tab=automations",
         push: vi.fn(async () => true),
         replace: vi.fn(async () => true),
         events: {
@@ -98,6 +99,20 @@ afterEach(() => {
 })
 
 describe("PageViewStackGuard", () => {
+    it("lets Back go on with replace after Discard", async () => {
+        window.history.replaceState(null, "", "/m/agents/a?view=configuration&tab=agent")
+        await act(async () => {
+            start("/m/agents/a?view=configuration&tab=agent", true)
+        })
+        await act(async () => button("Discard")!.click())
+        expect(router.replace).toHaveBeenCalledWith(
+            "/m/agents/a?view=configuration&tab=agent",
+            undefined,
+            {shallow: true},
+        )
+        expect(router.push).not.toHaveBeenCalled()
+    })
+
     it("stops a link away from the page, asks, and goes on after Discard", async () => {
         let aborted = false
         await act(async () => {
@@ -108,18 +123,19 @@ describe("PageViewStackGuard", () => {
         expect(router.push).toHaveBeenCalledWith("/m/settings", undefined, {shallow: false})
     })
 
-    it("stops Back too, and on Keep editing returns to the page's entry", async () => {
+    it("stops Back too, and on Keep editing puts the page's address back", async () => {
         // Back has moved the browser already, to a shallow tab entry of this page.
         window.history.replaceState(null, "", "/m/agents/a?view=configuration&tab=agent")
-        const forward = vi.spyOn(window.history, "forward").mockImplementation(() => undefined)
         let aborted = false
         await act(async () => {
             aborted = start("/m/agents/a?view=configuration&tab=agent", true)
         })
         expect(aborted).toBe(true)
         await act(async () => button("Keep editing")!.click())
-        expect(forward).toHaveBeenCalledTimes(1)
-        expect(router.push).not.toHaveBeenCalled()
-        forward.mockRestore()
+        expect(router.push).toHaveBeenCalledWith(
+            "/agents/a?view=configuration&tab=automations",
+            undefined,
+            {shallow: true},
+        )
     })
 })
