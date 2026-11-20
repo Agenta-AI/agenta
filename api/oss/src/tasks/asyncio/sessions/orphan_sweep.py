@@ -46,6 +46,7 @@ from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.core.sessions.records.dtos import (
+    EXECUTION_LOST_ERROR_CODE,
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
     RunnerEnding,
@@ -104,7 +105,7 @@ SWEEP_BATCH_SIZE: int = env.agenta.sessions.watchdog.batch_size
 # The error class the watchdog stamps on the turn it settles. One of the `RunErrorCode`
 # values in services/runner/src/engines/sandbox_agent/errors.ts; the client reads it to offer
 # a retry rather than parsing the message.
-LOST_ERROR_CODE = "execution_lost"
+LOST_ERROR_CODE = EXECUTION_LOST_ERROR_CODE
 
 # The line the user reads in place of the answer the dead runner never gave. Identical to
 # `EXECUTION_LOST_MESSAGE` in services/runner/src/engines/sandbox_agent/errors.ts, which the

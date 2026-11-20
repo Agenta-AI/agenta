@@ -2122,9 +2122,10 @@ own agent, a slug or id from `list_agents`), `origins` (how the session was crea
 (text in the session name), and `created_after` and `created_before` (ISO 8601 times).
 
 The <sessions> field has one JSON object per line: `session_id`, `name`, `agent`, `origin`
-with its object (`calling_session` or `trigger`), `status` of the newest turn (`running`,
+with its object (`calling_session`, or `trigger` and `delivery`), `status` of the newest turn (`running`,
 `completed`, `failed`, `cancelled`, `lost`, `paused`) and `last_message`, a short preview.
-When the result has a `cursor`, call again with that `cursor` for the next page.
+When the result has a `cursor`, call again with that `cursor` and the same filters for the
+next page.
 
 {_SESSION_DATA_NOTE}"""
 
@@ -2133,14 +2134,18 @@ _READ_SESSION_DESCRIPTION = f"""Read one session, also while it runs.
 Send `session_id` from `list_sessions`. The lines give `status` of the newest turn and its
 `turn_id`, `revision`, `cancelled_by` (`person` or `calling_session`) for a cancelled turn,
 `error.code` for a failed or lost turn, `waiting_for` for a paused turn, `totals` (tokens and
-cost summed over every turn) and `is_turn_list_truncated`. The <turns> field lists the 20
+cost summed over every turn) and `is_turn_list_truncated`. The <session> field holds the
+session's id, name, agent and origin. The <error.message> field holds the reason of a
+failed or lost turn. The <turns> field lists the 20
 newest turns, one JSON object per line, each with `turn_id`, `turn_index`, `revision`,
 times, `status`, `stop_reason`, `cancelled_by`, `error`, tokens, `cost`, `trace_id`,
 `origin` and `sender`. A token or cost that is not known yet is null. The <steps> field
 holds the messages and tool steps after `cursor`, one JSON object per line, cut when long.
 
-Call again with the returned `cursor` to get only newer steps. `has_more_steps: true` means
-more steps are already stored. Pass a `turn_id` to `read_session_spans` for the spans of a
+`limit` counts stored records; records that are not steps are not shown, so a page can hold
+fewer steps than `limit`. Every result has a `cursor`: call again with it to get only the
+steps stored after this page. `has_more_steps: true` means more steps are already stored;
+false means you have read everything stored so far. Pass a `turn_id` to `read_session_spans` for the spans of a
 turn.
 
 {_SESSION_DATA_NOTE}"""
@@ -2149,7 +2154,8 @@ _READ_SESSION_SPANS_DESCRIPTION = f"""Read the spans of one turn of a session: e
 call and tool call with its name, status, timing, tokens and cost.
 
 Send `session_id` and a `turn_id` from `read_session`. The <spans> field has one JSON object
-per line, newest first. When the result has a `cursor`, call again with it for the next
+per line, newest first, with `span_id`, `parent_id`, `name`, `span_type`, `span_status`
+(`ok`, `error`, `unset`), times, tokens, `cost` and `error_message`. When the result has a `cursor`, call again with it for the next
 page. Spans arrive when the turn ends: a turn that still runs answers `is_pending: true` and
 no spans.
 
@@ -2160,8 +2166,9 @@ LIST_SESSIONS_DEFAULT_LIMIT = 20
 LIST_SESSIONS_MAX_LIMIT = 50
 READ_SESSION_DEFAULT_LIMIT = 50
 READ_SESSION_MAX_LIMIT = 200
-READ_SPANS_DEFAULT_LIMIT = 100
-READ_SPANS_MAX_LIMIT = 1000
+# The span query's own default and maximum (`AGENTA_API_TRACING_QUERY_*_LIMIT`).
+READ_SESSION_SPANS_DEFAULT_LIMIT = 100
+READ_SESSION_SPANS_MAX_LIMIT = 1000
 
 _SESSION_ID_SCHEMA: Dict[str, Any] = {
     "type": "string",
@@ -2270,8 +2277,8 @@ _READ_SESSION_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
         },
         "cursor": _SESSION_CURSOR_SCHEMA,
         "limit": _limit_schema(
-            default=READ_SPANS_DEFAULT_LIMIT,
-            maximum=READ_SPANS_MAX_LIMIT,
+            default=READ_SESSION_SPANS_DEFAULT_LIMIT,
+            maximum=READ_SESSION_SPANS_MAX_LIMIT,
             noun="Spans",
         ),
     },

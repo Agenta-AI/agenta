@@ -3,7 +3,8 @@
 Two jobs, one owner each:
 
 - `execution_ending` maps the code's words for how an execution ended (its `done` and
-  `error` records) to the tool's status words. `turn_endings` applies it per turn. The
+  `error` records) to the tool's status words. `turn_endings` applies it per turn and
+  `execution_endings` per execution. The
   session tools, the child update and the result file read status only through these.
 - `render_marked_form` builds the one model-facing form for text that comes from another
   session: a header that marks it as data, one line per field, and delimited fields for
@@ -18,7 +19,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from oss.src.core.sessions.records.dtos import TERMINAL_RECORD_TYPE, SessionRecord
+from oss.src.core.sessions.records.dtos import (
+    EXECUTION_LOST_ERROR_CODE,
+    TERMINAL_RECORD_TYPE,
+    SessionRecord,
+)
 
 
 class SessionToolStatus(str, Enum):
@@ -37,9 +42,6 @@ class CancelledBy(str, Enum):
     calling_session = "calling_session"
 
 
-# The error code the orphan sweep writes for an execution that no runner closed
-# (`tasks/asyncio/sessions/orphan_sweep.py`, `LOST_ERROR_CODE`).
-EXECUTION_LOST_ERROR_CODE = "execution_lost"
 # `error.message` is the reason only, cut here; the error record's `detail` never goes out.
 ERROR_MESSAGE_MAX_CHARS = 300
 
@@ -100,6 +102,26 @@ def execution_ending(
             error=parsed,
         )
     return ExecutionEnding(status=SessionToolStatus.completed)
+
+
+def execution_endings(
+    ending_records: Sequence[SessionRecord],
+) -> Dict[str, Optional[ExecutionEnding]]:
+    """The ending of each execution (record `turn_id`) that has ending records."""
+
+    done: Dict[str, Mapping[str, Any]] = {}
+    error: Dict[str, Mapping[str, Any]] = {}
+    for record in ending_records:
+        if not record.turn_id:
+            continue
+        target = done if record.record_type == TERMINAL_RECORD_TYPE else error
+        target[record.turn_id] = record.attributes or {}
+    return {
+        execution_id: execution_ending(
+            done=done.get(execution_id), error=error.get(execution_id)
+        )
+        for execution_id in {**error, **done}
+    }
 
 
 @dataclass

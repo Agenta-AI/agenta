@@ -25,7 +25,17 @@ import binascii
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+)
 from uuid import UUID
 
 import httpx
@@ -38,10 +48,13 @@ from agenta.sdk.agents.platform.op_catalog import (
     LIST_SESSIONS_MAX_LIMIT,
     READ_SESSION_DEFAULT_LIMIT,
     READ_SESSION_MAX_LIMIT,
-    READ_SPANS_DEFAULT_LIMIT,
-    READ_SPANS_MAX_LIMIT,
+    READ_SESSION_SPANS_DEFAULT_LIMIT,
+    READ_SESSION_SPANS_MAX_LIMIT,
 )
 from agenta.sdk.engines.tracing.propagation import inject
+
+if TYPE_CHECKING:
+    from oss.src.core.sessions.service import SessionsService
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
 from oss.src.core.access.dtos import (
@@ -56,7 +69,6 @@ from oss.src.core.sharing.admission import (
     session_allowed,
 )
 from oss.src.core.sharing.dtos import (
-    OWNERLESS_PROJECT_POLICY,
     AgentReadScope,
     Visibility,
 )
@@ -66,7 +78,8 @@ from oss.src.core.sessions.session_results import (
     ERROR_MESSAGE_MAX_CHARS,
     ExecutionEnding,
     SessionToolStatus,
-    execution_ending,
+    escape_field,
+    execution_endings,
     header_name,
     render_marked_form,
     turn_endings,
@@ -2220,9 +2233,12 @@ STEP_MESSAGE_MAX_CHARS = 8_000
 STEP_INPUT_MAX_CHARS = 4_096
 STEP_OUTPUT_MAX_CHARS = 16_384
 # The runner cuts a tool result at 100 KB for the model (`services/runner/src/tools/
-# callback.ts`). A read stops adding steps or spans below that, so the cursor it returns
-# points at the first one left out and nothing is lost to the runner's cut.
+# callback.ts`). A rendered read, its header and every field included, stays below this, so
+# the cursor it returns points at the first step or span left out and nothing is lost to
+# the runner's cut.
 SESSION_READ_BUDGET_BYTES = 80_000
+# Room for the lines that are set after the page is cut (`cursor`, `has_more_steps`).
+_PAGE_LINES_RESERVE_BYTES = 1_024
 
 _LIST_SESSIONS_FIELDS = (
     "agent",
@@ -2409,38 +2425,41 @@ def _datetime_argument(arguments: Dict[str, Any], field: str) -> Optional[dateti
 def _check_project(caller: SessionCaller, project_id: UUID) -> None:
     """Every read stays in the project of the run credential."""
     if caller.envelope.authority.project_id != project_id:
-        raise _run_credential_required("Only an agent run can call session tools.")
+        raise _run_credential_required(
+            "The run credential belongs to another project than this request."
+        )
 
 
 async def _calling_readers(
     *, caller: SessionCaller, project_id: UUID
-) -> SharedItemReaders:
-    """Who can read the calling session. A calling session with no row reads as the
-    widest item, so every private source is refused, never let through."""
-    readers = await get_sharing_service().session_readers(
+) -> Optional[SharedItemReaders]:
+    """Who can read the calling session. None when it has no row."""
+    return await get_sharing_service().session_readers(
         project_id=project_id, session_id=caller.run_session_id
     )
-    if readers is None:
-        return SharedItemReaders(policy=OWNERLESS_PROJECT_POLICY, is_channel=True)
-    return readers
 
 
 async def _source_would_widen(
-    *, project_id: UUID, calling: SharedItemReaders, session_id: str
+    *, project_id: UUID, calling: Optional[SharedItemReaders], session_id: str
 ) -> bool:
     """`is_wider(calling session, source)`: whether the source's text would reach
-    people who cannot read the source. A source with no row is refused."""
+    people who cannot read the source. A source with no row is refused. A calling
+    session with no row has unknown readers, so it gets only project-visible text."""
     source = await get_sharing_service().session_readers(
         project_id=project_id, session_id=session_id
     )
-    return source is None or is_wider(calling, source)
+    if source is None:
+        return True
+    if calling is None:
+        return source.policy.visibility == Visibility.PRIVATE
+    return is_wider(calling, source)
 
 
 async def _readable_source(
     *,
     caller: SessionCaller,
     project_id: UUID,
-    sessions_service: Any,
+    sessions_service: Optional[SessionsService],
     session_id: str,
 ) -> Any:
     """The source session of a read, after the checks of design D23 in their order: a
@@ -2523,8 +2542,11 @@ def _agent_entry(
     reference = _agent_reference_of(references)
     if reference is None:
         return None
-    entry = {"id": str(reference.id), "slug": reference.slug, "name": None}
-    entry["name"] = names.get(reference.id)
+    entry = {
+        "id": str(reference.id),
+        "slug": reference.slug,
+        "name": names.get(reference.id),
+    }
     return {key: value for key, value in entry.items() if value is not None}
 
 
@@ -2545,6 +2567,9 @@ def _origin_entry(stream: Any) -> Dict[str, Any]:
     trigger = getattr(stream, "trigger", None)
     if trigger is not None:
         entry["trigger"] = {"id": str(trigger.id), "kind": trigger.kind.value}
+    delivery = getattr(stream, "delivery", None)
+    if delivery is not None:
+        entry["delivery"] = {"id": str(delivery.id)}
     return entry
 
 
@@ -2590,7 +2615,7 @@ async def handle_list_sessions(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
     session_caller: SessionCaller,
-    sessions_service: Any,
+    sessions_service: Optional[SessionsService],
 ) -> PlatformHandlerResult:
     """The sessions in the caller's scope that its run authority can see, newest first,
     one page at a time. A session that fewer people can read than the calling session
@@ -2677,18 +2702,13 @@ async def handle_list_sessions(
                 "`search` must be text.", next_step="Send `search` as a string."
             )
 
-        windowing = Windowing(
-            limit=limit,
-            newest=_datetime_argument(parsed, "created_before"),
-            oldest=_datetime_argument(parsed, "created_after"),
-        )
+        created_after = _datetime_argument(parsed, "created_after")
+        created_before = _datetime_argument(parsed, "created_before")
+        windowing = Windowing(limit=limit)
         if parsed.get("cursor") is not None:
             cursor = _decode_windowing_cursor(parsed["cursor"])
             windowing = Windowing(
-                limit=limit,
-                next=cursor["next"],
-                newest=cursor["newest"],
-                oldest=cursor["oldest"],
+                limit=limit, next=cursor["next"], newest=cursor["newest"]
             )
             if windowing.newest is None:
                 raise _invalid_cursor()
@@ -2722,6 +2742,8 @@ async def handle_list_sessions(
                 if calling_session_id or agent_ids is not None
                 else None
             ),
+            created_after=created_after,
+            created_before=created_before,
         ),
         options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
         windowing=windowing,
@@ -2733,7 +2755,7 @@ async def handle_list_sessions(
         activity = last.updated_at or last.created_at
         if last.id is not None and activity is not None:
             next_cursor = _encode_windowing_cursor(
-                Windowing(next=last.id, newest=activity, oldest=windowing.oldest)
+                Windowing(next=last.id, newest=activity)
             )
 
     calling = await _calling_readers(caller=caller, project_id=project_id)
@@ -2745,15 +2767,8 @@ async def handle_list_sessions(
             continue
         kept.append(stream)
 
-    endings = await asyncio.gather(
-        *(
-            _newest_ending(
-                sessions_service=sessions_service,
-                project_id=project_id,
-                session_id=stream.session_id,
-            )
-            for stream in kept
-        )
+    endings = await _newest_endings(
+        sessions_service=sessions_service, project_id=project_id, streams=kept
     )
     names = await _agent_names(
         workflows_service=workflows_service,
@@ -2766,9 +2781,16 @@ async def handle_list_sessions(
         ],
     )
     items = []
-    for stream, ending in zip(kept, endings):
+    for stream in kept:
         preview = getattr(stream, "last_message", None)
-        status = _newest_status(stream=stream, ending=ending, waiting_for=())
+        # A session that never ran a turn has no status.
+        status = (
+            _newest_status(
+                stream=stream, ending=endings.get(stream.turn_id), waiting_for=()
+            )
+            if stream.turn_id
+            else None
+        )
         item = {
             "session_id": stream.session_id,
             "name": stream.name,
@@ -2815,29 +2837,23 @@ async def _visible_agent_id(
     return workflows[0].id if workflows else None
 
 
-async def _newest_ending(
-    *, sessions_service: Any, project_id: UUID, session_id: str
-) -> Optional[ExecutionEnding]:
-    """The ending of the session's newest execution, from its ending records."""
+async def _newest_endings(
+    *, sessions_service: SessionsService, project_id: UUID, streams: Sequence[Any]
+) -> Dict[str, Optional[ExecutionEnding]]:
+    """The ending of each listed session's newest execution (its `turn_id`), in one
+    read of their ending records."""
     records_service = sessions_service.records_service
-    if records_service is None:
-        return None
-    records = await records_service.get_ending_records(
-        project_id=project_id, session_id=session_id
+    executions = {stream.session_id: stream.turn_id for stream in streams}
+    execution_ids = [value for value in executions.values() if value]
+    if records_service is None or not execution_ids:
+        return {}
+    return execution_endings(
+        await records_service.get_ending_records_of_executions(
+            project_id=project_id,
+            session_ids=list(executions),
+            execution_ids=execution_ids,
+        )
     )
-    if not records:
-        return None
-    newest = records[-1].turn_id
-    done = None
-    error = None
-    for record in records:
-        if record.turn_id != newest:
-            continue
-        if record.record_type == "done":
-            done = record.attributes or {}
-        else:
-            error = record.attributes or {}
-    return execution_ending(done=done, error=error)
 
 
 # -- read_session -------------------------------------------------------------------------
@@ -2989,17 +3005,53 @@ def _step_of(record: Any, *, turn_id: Optional[str]) -> Optional[Dict[str, Any]]
     return {key: value for key, value in step.items() if value is not None}
 
 
-def _cursor_offset(arguments: Dict[str, Any]) -> int:
+@dataclass(frozen=True)
+class _StepsCursor:
+    """Where a `read_session` page starts: the records committed in the sequence window
+    (`after_sequence`, `through_sequence`], from `offset` in send order. A window that
+    is read to its end moves on to the records committed after it, so a record that
+    commits late, before an earlier one in send order, is still read once."""
+
+    after_sequence: int = 0
+    through_sequence: Optional[int] = None  # None: up to the newest commit
+    offset: int = 0
+
+    def encode(self) -> str:
+        return f"{self.after_sequence}.{self.through_sequence or 0}.{self.offset}"
+
+
+def _steps_cursor(arguments: Dict[str, Any]) -> _StepsCursor:
     raw = arguments.get("cursor")
     if raw is None:
-        return 0
+        return _StepsCursor()
     try:
-        offset = int(str(raw))
+        after, through, offset = (int(part) for part in str(raw).split("."))
     except ValueError as e:
         raise _invalid_cursor() from e
-    if offset < 0:
+    if min(after, through, offset) < 0 or (through and through < after):
         raise _invalid_cursor()
-    return offset
+    return _StepsCursor(
+        after_sequence=after, through_sequence=through or None, offset=offset
+    )
+
+
+def _fitted_step(step: Dict[str, Any], budget: int) -> Dict[str, Any]:
+    """A step whose line alone is above the budget, with its long text cut further."""
+    step = dict(step)
+    for key in ("output", "input", "text"):
+        while (
+            isinstance(step.get(key), str)
+            and step[key]
+            and _field_line_bytes("steps", step) > budget
+        ):
+            step[key] = step[key][: len(step[key]) // 2]
+            step["is_truncated"] = True
+    return step
+
+
+def _field_line_bytes(field: str, value: Dict[str, Any]) -> int:
+    """The bytes one JSON line adds to a delimited field, as the marked form escapes it."""
+    return len(escape_field(field, _json_line(value)).encode()) + 1
 
 
 async def handle_read_session(
@@ -3012,7 +3064,7 @@ async def handle_read_session(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
     session_caller: SessionCaller,
-    sessions_service: Any,
+    sessions_service: Optional[SessionsService],
 ) -> PlatformHandlerResult:
     """One session: its provenance, the status of its newest turn and what it waits
     for, `totals` summed over every turn, the newest turns, and the steps after
@@ -3035,7 +3087,7 @@ async def handle_read_session(
         limit = _limit_argument(
             parsed, default=READ_SESSION_DEFAULT_LIMIT, maximum=READ_SESSION_MAX_LIMIT
         )
-        offset = _cursor_offset(parsed)
+        cursor = _steps_cursor(parsed)
         stream = await _readable_source(
             caller=caller,
             project_id=project_id,
@@ -3107,27 +3159,16 @@ async def handle_read_session(
     read_state = await records_service.get_read_state(
         project_id=project_id, session_id=session_id
     )
+    latest = max(read_state.latest_sequence, cursor.after_sequence)
+    through = cursor.through_sequence or latest
     page = await records_service.get_records_page(
         project_id=project_id,
         session_id=session_id,
-        offset=offset,
+        offset=cursor.offset,
         limit=limit,
-        through_sequence=read_state.latest_sequence,
+        through_sequence=through,
+        after_sequence=cursor.after_sequence,
     )
-    steps: List[str] = []
-    used = 0
-    consumed = 0
-    for record in page.records:
-        step = _step_of(record, turn_id=turn_of_record(record.turn_id))
-        if step is not None:
-            line = _json_line(step)
-            size = len(line.encode()) + 1
-            if steps and used + size > SESSION_READ_BUDGET_BYTES:
-                break
-            steps.append(line)
-            used += size
-        consumed += 1
-    has_more = consumed < len(page.records) or page.next_offset is not None
 
     names = await _agent_names(
         workflows_service=workflows_service,
@@ -3147,59 +3188,93 @@ async def handle_read_session(
         **_origin_entry(stream),
     }
     revision = _revision_entry(newest.references) if newest else None
-    text = render_marked_form(
-        subject=(
-            f"Read of session {session_id} "
-            f"({header_name((agent or {}).get('name') or (agent or {}).get('slug'))})"
-        ),
-        lines=[
-            ("status", newest_status),
-            ("turn_id", newest_id),
-            (
-                "revision",
-                (
-                    f"{revision.get('version')} ({revision['id']})"
-                    if revision and revision.get("version")
-                    else (revision or {}).get("id")
-                ),
-            ),
-            (
-                "cancelled_by",
-                newest_ending.cancelled_by
-                if newest_status == SessionToolStatus.cancelled and newest_ending
-                else None,
-            ),
-            (
-                "error.code",
-                newest_ending.error["code"]
-                if newest_ending
-                and newest_ending.error
-                and newest_status in (SessionToolStatus.failed, SessionToolStatus.lost)
-                else None,
-            ),
-            ("waiting_for", waiting_for or None),
-            ("totals", _totals(turns)),
-            ("is_turn_list_truncated", len(turns) > READ_SESSION_TURNS_LIMIT),
-            ("cursor", str(offset + consumed)),
-            ("has_more_steps", has_more),
-        ],
-        fields=[
-            (
-                "session",
-                _json_line({k: v for k, v in session_entry.items() if v is not None}),
-            ),
-            ("turns", "\n".join(_json_line(entry) for entry in turn_entries)),
-            (
-                "error.message",
-                newest_ending.error["message"]
-                if newest_ending
-                and newest_ending.error
-                and newest_status in (SessionToolStatus.failed, SessionToolStatus.lost)
-                else None,
-            ),
-            ("steps", "\n".join(steps)),
-        ],
+    failed = bool(
+        newest_ending
+        and newest_ending.error
+        and newest_status in (SessionToolStatus.failed, SessionToolStatus.lost)
     )
+
+    def render(steps: List[str], *, next_cursor: str, has_more: bool) -> str:
+        return render_marked_form(
+            subject=(
+                f"Read of session {session_id} "
+                f"({header_name((agent or {}).get('name') or (agent or {}).get('slug'))})"
+            ),
+            lines=[
+                ("status", newest_status),
+                ("turn_id", newest_id),
+                (
+                    "revision",
+                    (
+                        f"{revision.get('version')} ({revision['id']})"
+                        if revision and revision.get("version")
+                        else (revision or {}).get("id")
+                    ),
+                ),
+                (
+                    "cancelled_by",
+                    newest_ending.cancelled_by
+                    if newest_status == SessionToolStatus.cancelled and newest_ending
+                    else None,
+                ),
+                ("error.code", newest_ending.error["code"] if failed else None),
+                ("waiting_for", waiting_for or None),
+                ("totals", _totals(turns)),
+                ("is_turn_list_truncated", len(turns) > READ_SESSION_TURNS_LIMIT),
+                ("cursor", next_cursor),
+                ("has_more_steps", has_more),
+            ],
+            fields=[
+                (
+                    "session",
+                    _json_line(
+                        {k: v for k, v in session_entry.items() if v is not None}
+                    ),
+                ),
+                ("turns", "\n".join(_json_line(entry) for entry in turn_entries)),
+                ("error.message", newest_ending.error["message"] if failed else None),
+                ("steps", "\n".join(steps)),
+            ],
+        )
+
+    # What the page may add: the budget less the rest of the rendered result.
+    budget = (
+        SESSION_READ_BUDGET_BYTES
+        - len(render([], next_cursor="", has_more=False).encode())
+        - _PAGE_LINES_RESERVE_BYTES
+    )
+    steps: List[str] = []
+    used = 0
+    consumed = 0
+    for record in page.records:
+        step = _step_of(record, turn_id=turn_of_record(record.turn_id))
+        if step is not None:
+            size = _field_line_bytes("steps", step)
+            if used + size > budget:
+                if steps:
+                    break
+                step = _fitted_step(step, budget)
+                size = _field_line_bytes("steps", step)
+            steps.append(_json_line(step))
+            used += size
+        consumed += 1
+
+    if consumed < len(page.records) or page.next_offset is not None:
+        next_cursor = _StepsCursor(
+            after_sequence=cursor.after_sequence,
+            through_sequence=through,
+            offset=cursor.offset + consumed,
+        )
+        has_more = True
+    elif through == 0:
+        # Only unsequenced rows so far: they sort first, so the offset stays valid.
+        next_cursor = _StepsCursor(offset=cursor.offset + consumed)
+        has_more = False
+    else:
+        # The window is read to its end: the next read starts after it.
+        next_cursor = _StepsCursor(after_sequence=through)
+        has_more = latest > through
+    text = render(steps, next_cursor=next_cursor.encode(), has_more=has_more)
     return PlatformHandlerResult(content=text)
 
 
@@ -3233,8 +3308,9 @@ def _span_entry(span: Any) -> Dict[str, Any]:
         "span_id": span.span_id,
         "parent_id": span.parent_id,
         "name": name,
-        "type": span_type,
-        "status": {
+        # The tracing words, named apart from the session status words and `error`.
+        "span_type": span_type,
+        "span_status": {
             "STATUS_CODE_OK": "ok",
             "STATUS_CODE_ERROR": "error",
         }.get(status, "unset"),
@@ -3244,7 +3320,7 @@ def _span_entry(span: Any) -> Dict[str, Any]:
         "output_tokens": _int(_span_metric(span, "tokens", "completion")),
         "total_tokens": _int(_span_metric(span, "tokens", "total")),
         "cost": _span_metric(span, "costs", "total"),
-        "error": error if status == "STATUS_CODE_ERROR" else None,
+        "error_message": error if status == "STATUS_CODE_ERROR" else None,
     }
     return {key: value for key, value in entry.items() if value is not None}
 
@@ -3259,7 +3335,7 @@ async def handle_read_session_spans(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
     session_caller: SessionCaller,
-    sessions_service: Any,
+    sessions_service: Optional[SessionsService],
 ) -> PlatformHandlerResult:
     """The spans of one turn of a session, newest first, one page at a time, with the
     scope of `read_session`. Spans land when the turn's trace completes, so a running
@@ -3285,7 +3361,9 @@ async def handle_read_session_spans(
             )
         turn_id = raw_turn_id.strip()
         limit = _limit_argument(
-            parsed, default=READ_SPANS_DEFAULT_LIMIT, maximum=READ_SPANS_MAX_LIMIT
+            parsed,
+            default=READ_SESSION_SPANS_DEFAULT_LIMIT,
+            maximum=READ_SESSION_SPANS_MAX_LIMIT,
         )
         cursor = (
             _decode_windowing_cursor(parsed["cursor"])
@@ -3352,26 +3430,33 @@ async def handle_read_session_spans(
         return list(spans or []), next_windowing
 
     spans, next_windowing = await page(limit)
-    lines = [_json_line(_span_entry(span)) for span in spans]
-    fits = 0
-    used = 0
-    for line in lines:
-        used += len(line.encode()) + 1
-        if fits and used > SESSION_READ_BUDGET_BYTES:
-            break
-        fits += 1
-    if fits < len(lines):
-        # Read the page again at the size that fits, so the cursor the span query
-        # returns starts at the first span left out.
-        spans, next_windowing = await page(fits)
-        lines = [_json_line(_span_entry(span)) for span in spans]
-
+    entries = [_span_entry(span) for span in spans]
     note = None
     if not spans and cursor is None:
         note = (
             "No span of this session carries this turn_id. A turn stored before spans "
             "carried turn ids cannot be read by turn."
         )
+    fixed = render_marked_form(
+        subject=subject,
+        lines=[("turn_id", turn_id), ("is_pending", False), ("count", len(spans))],
+        fields=[("spans", "")],
+    )
+    budget = SESSION_READ_BUDGET_BYTES - len(fixed.encode()) - _PAGE_LINES_RESERVE_BYTES
+    fits = 0
+    used = 0
+    for entry in entries:
+        used += _field_line_bytes("spans", entry)
+        if fits and used > budget:
+            break
+        fits += 1
+    if fits < len(entries):
+        # Read the page again at the size that fits, so the cursor the span query
+        # returns starts at the first span left out.
+        spans, next_windowing = await page(fits)
+        entries = [_span_entry(span) for span in spans]
+    lines = [_json_line(entry) for entry in entries]
+
     return PlatformHandlerResult(
         content=render_marked_form(
             subject=subject,
@@ -3620,7 +3705,7 @@ async def dispatch_platform_tool_handler(
     workspace_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
-    sessions_service: Any = None,
+    sessions_service: Optional[SessionsService] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:

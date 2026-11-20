@@ -30,6 +30,7 @@ from oss.src.core.tools.platform_handlers import (
     READ_SESSION_CALL_REF,
     READ_SESSION_SPANS_CALL_REF,
     SESSION_NOT_FOUND,
+    SESSION_READ_BUDGET_BYTES,
     SHARING_WOULD_WIDEN,
     TURN_NOT_FOUND,
     SessionCaller,
@@ -56,6 +57,7 @@ class _Sessions:
         self.records = {}
         self.interactions = {}
         self.queries = []
+        self.windowings = []
         self.streams_service = SimpleNamespace(fetch=self._fetch)
         self.turns_service = SimpleNamespace(query_turns=self._query_turns)
         self.interactions_service = SimpleNamespace(
@@ -63,6 +65,7 @@ class _Sessions:
         )
         self.records_service = SimpleNamespace(
             get_ending_records=self._ending_records,
+            get_ending_records_of_executions=self._ending_records_of_executions,
             get_read_state=self._read_state,
             get_records_page=self._records_page,
         )
@@ -83,13 +86,48 @@ class _Sessions:
             if record.record_type in ("done", "error")
         ]
 
+    async def _ending_records_of_executions(
+        self, *, project_id, session_ids, execution_ids
+    ):
+        return [
+            record
+            for session_id in session_ids
+            for record in self.records.get(session_id, [])
+            if record.record_type in ("done", "error")
+            and record.turn_id in execution_ids
+        ]
+
     async def _read_state(self, *, project_id, session_id):
-        return SessionRecordsReadState(latest_sequence=0, history_complete=True)
+        sequences = [
+            record.sequence or 0 for record in self.records.get(session_id, [])
+        ]
+        return SessionRecordsReadState(
+            latest_sequence=max(sequences, default=0), history_complete=True
+        )
 
     async def _records_page(
-        self, *, project_id, session_id, offset, limit, through_sequence
+        self,
+        *,
+        project_id,
+        session_id,
+        offset,
+        limit,
+        through_sequence,
+        after_sequence=0,
     ):
-        rows = self.records.get(session_id, [])
+        # The list is in send order; `sequence` is commit order, as in the DAO.
+        rows = [
+            record
+            for record in self.records.get(session_id, [])
+            if (
+                (record.sequence is None or record.sequence <= through_sequence)
+                if after_sequence == 0
+                else (
+                    record.sequence is not None
+                    and after_sequence < record.sequence <= through_sequence
+                )
+            )
+        ]
         page = rows[offset : offset + limit]
         more = offset + limit < len(rows)
         return SessionRecordsPage(
@@ -104,6 +142,7 @@ class _Sessions:
         self, *, project_id, read_scope, query, options, windowing
     ):
         self.queries.append(query)
+        self.windowings.append(windowing)
         rows = list(self.streams.values())
         if query.calling_session is not None and query.calling_session.agent_ids:
             rows = [
@@ -143,7 +182,13 @@ class _World:
         return self.world.project_id
 
     def add_session(
-        self, policy, *, calling_agent_id=None, name="A session", is_running=False
+        self,
+        policy,
+        *,
+        calling_agent_id=None,
+        name="A session",
+        is_running=False,
+        turn_id=None,
     ):
         state = self.world.add_session(policy=policy)
         self.sessions.streams[state.session_id] = SimpleNamespace(
@@ -171,7 +216,7 @@ class _World:
             ),
             trigger=None,
             flags=SimpleNamespace(is_running=is_running),
-            turn_id=None,
+            turn_id=turn_id,
             updated_at=NOW,
             created_at=NOW,
             last_message=SimpleNamespace(text="Here is the draft"),
@@ -210,8 +255,9 @@ def world(monkeypatch) -> _World:
     return world
 
 
-def _record(execution_id, record_type, *, source="agent", **attributes):
+def _record(execution_id, record_type, *, source="agent", sequence=None, **attributes):
     return SessionRecord(
+        sequence=sequence,
         record_id=uuid4(),
         session_id="s",
         project_id=uuid4(),
@@ -372,7 +418,7 @@ async def test_the_builder_reads_a_session_the_person_opened(world):
         "cost": 0.01,
     }
     assert lines["is_turn_list_truncated"] == "false"
-    assert lines["cursor"] == "8"
+    assert lines["cursor"] == "0.0.8"
     assert lines["has_more_steps"] == "false"
     assert _field(text, "error.message") == "Too many requests"
 
@@ -594,11 +640,11 @@ async def test_steps_stop_below_the_budget_and_the_cursor_resumes(world):
     ]
     caller = world.caller(world.ana, session=calling, agent_id=BUILDER_AGENT_ID)
     result = await _read(world, caller, session_id=source.session_id)
-    assert len(result.content.encode()) < 100_000
+    assert len(result.content.encode()) < SESSION_READ_BUDGET_BYTES
     lines = _lines(result.content)
     assert lines["has_more_steps"] == "true"
     shown = len(_field(result.content, "steps").splitlines())
-    assert lines["cursor"] == str(shown)
+    assert lines["cursor"] == f"0.0.{shown}"
     step = json.loads(_field(result.content, "steps").splitlines()[0])
     assert len(step["output"]) == 16_384 and step["is_truncated"] is True
 
@@ -668,7 +714,9 @@ async def test_a_configured_agent_lists_the_sessions_it_created(world):
     agent = uuid4()
     calling = world.add_session(world.private(world.ana))
     world.add_session(world.shared(world.ana))
-    copy = world.add_session(world.shared(world.ana), calling_agent_id=agent)
+    copy = world.add_session(
+        world.shared(world.ana), calling_agent_id=agent, turn_id=str(uuid4())
+    )
     items = _items(
         await _list(world, world.caller(world.ana, session=calling, agent_id=agent))
     )
@@ -796,7 +844,7 @@ async def test_the_spans_of_an_ended_turn(world):
     (span,) = [
         json.loads(line) for line in _field(result.content, "spans").splitlines()
     ]
-    assert span["status"] == "error" and span["error"] == "boom"
+    assert span["span_status"] == "error" and span["error_message"] == "boom"
     assert span["total_tokens"] == 15 and span["cost"] == 0.002
 
 
@@ -901,5 +949,105 @@ async def test_a_page_over_the_budget_is_read_again_at_the_size_that_fits(world)
         limit=400,
     )
     assert len(tracing.limits) == 2 and tracing.limits[1] < 400
-    assert len(result.content.encode()) < 100_000
+    assert len(result.content.encode()) < SESSION_READ_BUDGET_BYTES
     assert _lines(result.content)["cursor"]
+
+
+async def test_a_record_that_commits_late_is_still_read(world):
+    """A tool result can commit before its tool call. The read that saw only the result
+    still gets the call on its next read, though the call sorts first in send order."""
+    calling = world.add_session(world.private(world.ana))
+    source = world.add_session(world.shared(world.ana), is_running=True)
+    turn = _turn(0)
+    world.sessions.turns[source.session_id] = [turn]
+    world.sessions.records[source.session_id] = [
+        _record(str(turn.turn_id), "tool_result", id="c1", output="ok", sequence=1)
+    ]
+    caller = world.caller(world.ana, session=calling, agent_id=BUILDER_AGENT_ID)
+    first = await _read(world, caller, session_id=source.session_id)
+    assert _lines(first.content)["has_more_steps"] == "false"
+
+    world.sessions.records[source.session_id].insert(
+        0, _record(str(turn.turn_id), "tool_call", id="c1", name="search", sequence=2)
+    )
+    second = await _read(
+        world,
+        caller,
+        session_id=source.session_id,
+        cursor=_lines(first.content)["cursor"],
+    )
+    steps = [json.loads(line) for line in _field(second.content, "steps").splitlines()]
+    assert [step["step"] for step in steps] == ["tool_call"]
+
+
+async def test_one_large_step_is_cut_to_fit_the_budget(world):
+    calling = world.add_session(world.private(world.ana))
+    source = world.add_session(world.shared(world.ana))
+    # Control characters take six bytes each in JSON.
+    world.sessions.records[source.session_id] = [
+        _record("x", "tool_result", id="c1", output="\x01" * 16_384)
+    ]
+    result = await _read(
+        world,
+        world.caller(world.ana, session=calling, agent_id=BUILDER_AGENT_ID),
+        session_id=source.session_id,
+    )
+    assert len(result.content.encode()) < SESSION_READ_BUDGET_BYTES
+    (step,) = [
+        json.loads(line) for line in _field(result.content, "steps").splitlines()
+    ]
+    assert step["is_truncated"] is True and 0 < len(step["output"]) < 16_384
+
+
+async def test_a_session_that_never_ran_has_no_status(world):
+    agent = uuid4()
+    calling = world.add_session(world.private(world.ana))
+    world.add_session(world.shared(world.ana), calling_agent_id=agent)
+    (item,) = _items(
+        await _list(world, world.caller(world.ana, session=calling, agent_id=agent))
+    )
+    assert "status" not in item
+
+
+async def test_the_list_reads_status_from_the_newest_execution(world):
+    """The newest execution has no ending yet: the list says running, as the read
+    does, not the ending of the turn before it."""
+    agent = uuid4()
+    calling = world.add_session(world.private(world.ana))
+    older, newest = str(uuid4()), str(uuid4())
+    child = world.add_session(
+        world.shared(world.ana), calling_agent_id=agent, turn_id=newest
+    )
+    world.sessions.records[child.session_id] = [_record(older, "done")]
+    (item,) = _items(
+        await _list(world, world.caller(world.ana, session=calling, agent_id=agent))
+    )
+    assert item["status"] == "running"
+
+
+async def test_creation_bounds_filter_on_creation_not_on_activity(world):
+    calling = world.add_session(world.private(world.ana))
+    await _list(
+        world,
+        world.caller(world.ana, session=calling, agent_id=BUILDER_AGENT_ID),
+        created_after="2026-11-19T00:00:00Z",
+        created_before="2026-11-20T00:00:00Z",
+    )
+    (query,) = world.sessions.queries
+    assert query.created_after == datetime(2026, 11, 19, tzinfo=timezone.utc)
+    assert query.created_before == datetime(2026, 11, 20, tzinfo=timezone.utc)
+    assert world.sessions.windowings[-1].oldest is None
+    assert world.sessions.windowings[-1].newest is None
+
+
+async def test_a_calling_session_with_no_row_reads_only_shared_sessions(world):
+    shared = world.add_session(world.shared(world.ben))
+    private = world.add_session(world.private(world.ana))
+    caller = SessionCaller(
+        envelope=world.caller(world.ana, session=shared, agent_id=None).envelope,
+        run_session_id="s-without-a-row",
+        run_agent_id=BUILDER_AGENT_ID,
+    )
+    assert (await _read(world, caller, session_id=shared.session_id)).ok
+    refused = await _read(world, caller, session_id=private.session_id)
+    assert _error(refused)["code"] == SHARING_WOULD_WIDEN
