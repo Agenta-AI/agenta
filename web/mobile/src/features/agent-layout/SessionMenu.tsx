@@ -180,7 +180,8 @@ export const SessionMenu = ({
             <PopoverTrigger asChild>
                 <Button
                     variant="outline"
-                    className="h-7 min-w-0 max-w-[240px] gap-2 rounded-[6px] pl-2.5 pr-2 text-[13px] font-medium max-md:h-11"
+                    size="compact"
+                    className="min-w-0 max-w-[240px] gap-2 pl-2.5 pr-2 font-medium max-md:h-11"
                     title={title}
                 >
                     {statusDot}

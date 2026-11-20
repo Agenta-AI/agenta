@@ -311,23 +311,7 @@ export const AgentLayoutBody = ({
     const filesExpanded = isFiles && filesLayout.expanded
 
     const panelBody = (
-        <div
-            ref={panelRef}
-            tabIndex={-1}
-            data-testid="agent-panel"
-            className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
-            onKeyDown={(event) => {
-                // A view goes back first (the view stack handles it); a menu or dialog closes
-                // itself. What is left closes the panel.
-                if (event.key !== "Escape" || event.defaultPrevented) return
-                const layer = (event.target as HTMLElement).closest?.(
-                    '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
-                )
-                if (layer && layer !== event.currentTarget) return
-                event.preventDefault()
-                void close()
-            }}
-        >
+        <>
             {mounted.has("files") || isFiles ? (
                 <div className={isFiles ? "flex h-full min-h-0 flex-col" : "hidden"}>
                     {/* On a phone Files covers the session: the phone header returns to it. */}
@@ -380,7 +364,7 @@ export const AgentLayoutBody = ({
                     />
                 </div>
             ) : null}
-        </div>
+        </>
     )
 
     const open = content !== null
@@ -432,6 +416,8 @@ export const AgentLayoutBody = ({
                     // Under 1100 px the panel lies over the conversation, below the session
                     // header: the header icons that swap the panel stay in reach.
                     overlayTop={pushWidth ? undefined : "top-12"}
+                    panelRef={panelRef}
+                    onClose={() => void close()}
                 >
                     {panelBody}
                 </AgentPanelFrame>

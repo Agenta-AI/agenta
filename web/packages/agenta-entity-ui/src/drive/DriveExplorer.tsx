@@ -60,7 +60,12 @@ import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
 import {type DriveFolderMenuProps} from "./DriveFolderMenu"
-import {DriveHeader, DriveHeaderMenuItems, type DriveHeaderProps} from "./DriveHeader"
+import {
+    DriveHeader,
+    DriveHeaderMenuItems,
+    type DriveHeaderProps,
+    DrivePartialError,
+} from "./DriveHeader"
 import {
     type DriveItemWriteActions,
     useCopyDrivePath,
@@ -699,13 +704,16 @@ export function DriveExplorer({
                     headerInToolbar
                         ? {
                               crumb: (
-                                  <DriveBreadcrumb
-                                      variant="icons"
-                                      shown={selectedPath ?? ""}
-                                      rootLabel={rootLabel}
-                                      isFile={false}
-                                      onNavigate={select}
-                                  />
+                                  <>
+                                      <DriveBreadcrumb
+                                          variant="icons"
+                                          shown={selectedPath ?? ""}
+                                          rootLabel={rootLabel}
+                                          isFile={false}
+                                          onNavigate={select}
+                                      />
+                                      <DrivePartialError {...headerProps} />
+                                  </>
                               ),
                               menu: <DriveHeaderMenuItems {...headerProps} />,
                           }

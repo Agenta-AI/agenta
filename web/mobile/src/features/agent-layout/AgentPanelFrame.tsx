@@ -2,6 +2,7 @@ import type {
     KeyboardEvent as ReactKeyboardEvent,
     PointerEvent as ReactPointerEvent,
     ReactNode,
+    RefObject,
 } from "react"
 
 import {useT} from "@agenta/i18n"
@@ -24,9 +25,10 @@ export interface PanelResize {
 }
 
 /**
- * The right panel's frame: full height at the right edge of its host, beside the page header (the
- * header ends at the panel edge), with the resize edge. In overlay mode it starts under
- * `overlayTop`, so the header icons it would cover stay in reach.
+ * The right panel: full height at the right edge of its host, beside the page header (the header
+ * ends at the panel edge), with the resize edge. In overlay mode it starts under `overlayTop`, so
+ * the header icons it would cover stay in reach. Escape closes it unless a view, menu or dialog
+ * inside takes the key first.
  */
 export const AgentPanelFrame = ({
     open,
@@ -34,6 +36,8 @@ export const AgentPanelFrame = ({
     width,
     resize,
     overlayTop,
+    panelRef,
+    onClose,
     children,
 }: {
     open: boolean
@@ -43,6 +47,9 @@ export const AgentPanelFrame = ({
     resize: PanelResize | null
     /** A class that sets the top of the overlay (the header height). */
     overlayTop?: string
+    /** The panel element; the host focuses it when the panel opens, so Escape reaches it. */
+    panelRef: RefObject<HTMLDivElement | null>
+    onClose: () => void
     children: ReactNode
 }) => {
     const tControls = useT(uiControlsCatalog)
@@ -117,7 +124,25 @@ export const AgentPanelFrame = ({
                     onKeyDown={keyResize}
                 />
             ) : null}
-            {children}
+            <div
+                ref={panelRef}
+                tabIndex={-1}
+                data-testid="agent-panel"
+                className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
+                onKeyDown={(event) => {
+                    // A view goes back first (the view stack handles it); a menu or dialog closes
+                    // itself. What is left closes the panel.
+                    if (event.key !== "Escape" || event.defaultPrevented) return
+                    const layer = (event.target as HTMLElement).closest?.(
+                        '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
+                    )
+                    if (layer && layer !== event.currentTarget) return
+                    event.preventDefault()
+                    onClose()
+                }}
+            >
+                {children}
+            </div>
         </div>
     )
 }

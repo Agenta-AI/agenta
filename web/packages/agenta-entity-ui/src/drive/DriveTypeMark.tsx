@@ -55,14 +55,12 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
     if (size === "tile")
         return (
             // The same 56 px mark on a phone (M03 draws the full page there too).
-            <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center">
-                <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
-                    <Page size={56} />
-                    <span
-                        className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
-                    >
-                        {fileTypeChip(path)}
-                    </span>
+            <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
+                <Page size={56} />
+                <span
+                    className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
+                >
+                    {fileTypeChip(path)}
                 </span>
             </span>
         )

@@ -66,7 +66,7 @@ afterEach(() => {
     host.remove()
 })
 
-const renderExplorer = async (readOnly: boolean, initialPath = "") => {
+const renderExplorer = async (readOnly: boolean, initialPath = "", shown: object = drive) => {
     // One client for the provider and the Jotai queries, as an app host wires them.
     const client = new QueryClient()
     const store = createStore()
@@ -76,7 +76,7 @@ const renderExplorer = async (readOnly: boolean, initialPath = "") => {
             <QueryClientProvider client={client}>
                 <Provider store={store}>
                     <DriveExplorer
-                        drive={drive as never}
+                        drive={shown as never}
                         initialPath={initialPath}
                         onClose={() => undefined}
                         readOnly={readOnly}
@@ -156,6 +156,17 @@ describe("DriveExplorer on a phone (M03)", () => {
         expect(menu["Download all.zip"]).toBe(true)
         const tree = document.querySelector('[role="menuitemcheckbox"]')
         expect(tree?.textContent).toContain("file tree")
+    })
+
+    it("keeps the warning and Retry of a failed mount in the row", async () => {
+        const retry = vi.fn()
+        await renderExplorer(true, "", {...drive, partialErrored: true, retry})
+        const button = [...host.querySelectorAll("button")].find(
+            (b) => b.getAttribute("aria-label") === "Try loading files again",
+        )
+        expect(button).toBeTruthy()
+        await act(async () => button?.click())
+        expect(retry).toHaveBeenCalled()
     })
 
     it("keeps row 1 on the desktop", async () => {

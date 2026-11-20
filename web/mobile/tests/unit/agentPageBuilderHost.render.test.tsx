@@ -128,7 +128,7 @@ describe("the builder panel on an agent page", () => {
         expect(frame().className).toContain("hidden")
     })
 
-    it("gives every agent page header its Builder icon, with no prop from the page", async () => {
+    it("gives an agent page header in the host its Builder icon, with no prop from the page", async () => {
         await act(async () =>
             root.render(
                 <Provider store={createStore()}>

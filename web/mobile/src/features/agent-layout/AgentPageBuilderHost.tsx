@@ -137,32 +137,17 @@ export const AgentPageBuilderHost = ({
                                       },
                                   }
                         }
+                        panelRef={panelRef}
+                        onClose={() => void close()}
                     >
-                        <div
-                            ref={panelRef}
-                            tabIndex={-1}
-                            data-testid="agent-panel"
-                            className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
-                            onKeyDown={(event) => {
-                                // A menu or dialog closes itself; what is left closes the panel.
-                                if (event.key !== "Escape" || event.defaultPrevented) return
-                                const layer = (event.target as HTMLElement).closest?.(
-                                    '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
-                                )
-                                if (layer && layer !== event.currentTarget) return
-                                event.preventDefault()
-                                void close()
-                            }}
-                        >
-                            {/* No builder code loads on a page that never opens it. */}
-                            {used ? (
-                                <BuilderPanel
-                                    agentId={agentId}
-                                    workspaceId={workspaceId}
-                                    projectId={projectId}
-                                />
-                            ) : null}
-                        </div>
+                        {/* No builder code loads on a page that never opens it. */}
+                        {used ? (
+                            <BuilderPanel
+                                agentId={agentId}
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        ) : null}
                     </AgentPanelFrame>
                 </div>
             </AgentPanelContext.Provider>

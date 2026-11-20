@@ -182,19 +182,11 @@ export const DriveHeader = ({
                     onNavigate={onNavigate}
                 />
             </div>
-            {/* One mount failed but the drive still browses: a compact warning + retry. */}
-            {partialErrored && onRetry ? (
-                <Tooltip title={t("entityUi.driveExplorer.someFilesFailed")}>
-                    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-                        <WarningCircle
-                            size={14}
-                            weight="fill"
-                            className="shrink-0 text-colorWarning"
-                        />
-                        <DriveRetryButton onRetry={onRetry} busy={retrying} />
-                    </span>
-                </Tooltip>
-            ) : null}
+            <DrivePartialError
+                partialErrored={partialErrored}
+                onRetry={onRetry}
+                retrying={retrying}
+            />
             {expandPlacement === "before-options" ? expandButton : null}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -393,5 +385,23 @@ export const DriveHeaderMenuItems = (props: DriveHeaderProps) => {
             <DropdownMenuSeparator />
             <DriveViewOptionItems {...props} />
         </>
+    )
+}
+
+/** One mount failed but the drive still browses: a compact warning and Retry. */
+export const DrivePartialError = ({
+    partialErrored,
+    onRetry,
+    retrying,
+}: Pick<DriveHeaderProps, "partialErrored" | "onRetry" | "retrying">) => {
+    const t = useT(driveExplorerCatalog)
+    if (!partialErrored || !onRetry) return null
+    return (
+        <Tooltip title={t("entityUi.driveExplorer.someFilesFailed")}>
+            <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+                <WarningCircle size={14} weight="fill" className="shrink-0 text-colorWarning" />
+                <DriveRetryButton onRetry={onRetry} busy={retrying} />
+            </span>
+        </Tooltip>
     )
 }

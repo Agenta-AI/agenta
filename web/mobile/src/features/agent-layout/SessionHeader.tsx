@@ -6,10 +6,11 @@ import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {agentDisplayNameAtomFamily} from "@agenta/navigation"
 import {agentAutoCommitStatusAtomFamily} from "@agenta/playground/state"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {cn} from "@agenta/ui/styles"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {FolderSimple, Hammer, LockSimpleIcon, SlidersHorizontal} from "@phosphor-icons/react"
+import {FolderSimple, LockSimpleIcon, SlidersHorizontal} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -171,7 +172,7 @@ export const SessionHeader = ({
                         ? icon(
                               "builder",
                               t("agentLayout.header.builder"),
-                              <Hammer className="size-5" />,
+                              <BuilderIcon className="size-5" />,
                           )
                         : null}
                 </div>
@@ -263,7 +264,11 @@ export const SessionHeader = ({
                   )
                 : null}
             {showAgentActions && panel.available.builder
-                ? icon("builder", t("agentLayout.header.builder"), <Hammer className="size-4" />)
+                ? icon(
+                      "builder",
+                      t("agentLayout.header.builder"),
+                      <BuilderIcon className="size-4" />,
+                  )
                 : null}
         </header>
     )
