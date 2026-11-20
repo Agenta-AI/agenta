@@ -89,8 +89,6 @@ vi.mock("@agenta/entities/workflow", async () => {
 const list = vi.hoisted(() => ({
     rows: [] as {session_id: string; name?: string; updated_at?: string}[],
     failed: false,
-    /** The list on screen is the last query's, kept while this one loads. */
-    placeholder: false,
     asked: [] as {sessionIds?: string[]; search?: string; enabled?: boolean}[],
 }))
 vi.mock("@agenta/sessions/state", () => ({
@@ -99,14 +97,13 @@ vi.mock("@agenta/sessions/state", () => ({
         const ids = options.sessionIds ?? []
         const rows = list.rows.filter(
             (row) =>
-                (list.placeholder || ids.includes(row.session_id)) &&
+                ids.includes(row.session_id) &&
                 (!options.search || row.name?.includes(options.search)),
         )
         return {
             data: options.enabled ? {pages: [list.failed ? null : {sessions: rows}]} : undefined,
             isPending: !options.enabled,
             isError: false,
-            isPlaceholderData: list.placeholder,
             refetch: vi.fn(),
             hasNextPage: false,
             isFetchingNextPage: false,
@@ -200,7 +197,6 @@ beforeEach(() => {
     seen.filled = []
     list.rows = []
     list.failed = false
-    list.placeholder = false
     list.asked = []
     live.running = []
     headers.rows = {}

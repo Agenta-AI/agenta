@@ -76,7 +76,7 @@ describe("the chat link", () => {
             throw new Error("denied")
         })
         expect(readBuilderChats("u1", "p1", "agent-1")).toEqual([])
-        expect(() => rememberBuilderChat("u1", "p1", "agent-1", "c1")).not.toThrow()
+        expect(rememberBuilderChat("u1", "p1", "agent-1", "c1")).toBe(false)
     })
 })
 
