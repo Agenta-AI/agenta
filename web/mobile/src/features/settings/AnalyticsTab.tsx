@@ -6,7 +6,6 @@ import {isBillingEnabled} from "@agenta/shared/api"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {useAgentRow} from "../agent-layout/useAgentRow"
 import {LockedAgentChip} from "../agent-pages/LockedAgentChip"
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 
@@ -45,16 +44,13 @@ export const AnalyticsTab = ({workspaceId, projectId, lockedAgentId}: Props) => 
                             )
             }
             lockedAgentId={lockedAgentId}
-            lockedAgentChip={lockedAgentId ? <AgentChip agentId={lockedAgentId} /> : undefined}
+            lockedAgentChip={
+                lockedAgentId ? <LockedAgentChip agentId={lockedAgentId} /> : undefined
+            }
             onCreateAgent={() => void newAgent.create()}
             creatingAgent={newAgent.creating}
             createAgentError={newAgent.error}
             onOpenTrace={(traceId) => openTrace({traceId})}
         />
     )
-}
-
-const AgentChip = ({agentId}: {agentId: string}) => {
-    const {row} = useAgentRow(agentId)
-    return <LockedAgentChip name={row?.name || row?.slug || ""} />
 }

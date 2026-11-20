@@ -10,6 +10,7 @@ import {
     rankKeys,
     sum,
     analyticsModelProvidersAtomFamily,
+    useAnalyticsViewAtoms,
     type AnalyticsCustomRange,
     type AnalyticsFilters,
     type AnalyticsGroup,
@@ -105,7 +106,7 @@ export interface AnalyticsToolbarProps {
     agentName: (id: string) => string
     rangeOpen: boolean
     onRangeOpenChange: (open: boolean) => void
-    /** The page of one agent: no Agent filter or grouping, and this chip in their place. */
+    /** Shown on the page of one agent, where the Agent filter and grouping are not offered. */
     lockedAgentChip?: ReactNode
     /** What the charts read; the filter counts read it too, so they count this page's runs. */
     queryFilters?: AnalyticsFilters
@@ -130,7 +131,8 @@ export const AnalyticsToolbar = ({
     lockedAgentChip,
     queryFilters = filters,
 }: AnalyticsToolbarProps) => {
-    const locked = lockedAgentChip !== undefined
+    // The view decides, as on the page: the page of one agent made its own view with that agent.
+    const locked = Boolean(useAnalyticsViewAtoms().lockedAgentId)
     const t = useT(analyticsCatalog)
     const groupOptions: FilterMenuOption<AnalyticsGroup>[] = (
         locked
@@ -260,7 +262,7 @@ export const AnalyticsToolbar = ({
                 icon={<Rows size={ICON} />}
             />
 
-            {lockedAgentChip}
+            {locked ? lockedAgentChip : null}
 
             {active.map((dim) => {
                 const values = filters[dim.key].map((key) => label(dim.key, key))

@@ -84,10 +84,11 @@ const AnalyticsPageBody = ({
     creatingAgent,
     createAgentError,
     onOpenTrace,
-    lockedAgentId,
     lockedAgentChip,
 }: AnalyticsPageProps) => {
     const view = useAnalyticsViewAtoms()
+    // The view decides: the page of one agent made its own view with that agent.
+    const {lockedAgentId} = view
     const [range, setRange] = useAtom(view.range)
     const [custom, setCustom] = useAtom(view.custom)
     const t = useT(analyticsCatalog)
@@ -252,7 +253,7 @@ const AnalyticsPageBody = ({
                 onFiltersChange={setFilters}
                 group={group}
                 onGroupChange={setGroup}
-                lockedAgentChip={lockedAgentId ? lockedAgentChip : undefined}
+                lockedAgentChip={lockedAgentChip}
                 queryFilters={queryFilters}
                 window={window}
                 agentName={agentName}

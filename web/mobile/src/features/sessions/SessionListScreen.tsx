@@ -280,7 +280,7 @@ const SessionListBody = ({
                                                 defaultView={defaultView}
                                             />
                                             {lockedAgent ? (
-                                                <LockedAgentChip name={lockedAgent.name} />
+                                                <LockedAgentChip agentId={lockedAgent.id} />
                                             ) : null}
                                         </>
                                     }

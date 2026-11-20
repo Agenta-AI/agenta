@@ -3,12 +3,16 @@ import lockedFilterCatalog from "@agenta/i18n/catalogs/agentPages.lockedFilter"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {LockSimple} from "@phosphor-icons/react"
 
+import {useAgentRow} from "../agent-layout/useAgentRow"
+
 /**
  * The Agent filter of a page locked to one agent (the Sessions and Analytics pages of an agent).
  * It names the agent and cannot be removed.
  */
-export const LockedAgentChip = ({name}: {name: string}) => {
+export const LockedAgentChip = ({agentId}: {agentId: string}) => {
     const t = useT(lockedFilterCatalog)
+    const {row} = useAgentRow(agentId)
+    const name = row?.name || row?.slug || ""
     return (
         <SimpleTooltip title={t("agentPages.lockedFilter.onlyThisAgent")}>
             <span

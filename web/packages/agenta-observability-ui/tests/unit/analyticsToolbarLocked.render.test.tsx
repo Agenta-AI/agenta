@@ -36,11 +36,16 @@ vi.mock("../../src/analytics/useAnalyticsData", () => ({
     },
     useAgentNames: () => (id: string) => id,
 }))
+const lock = vi.hoisted(() => ({agentId: null as string | null}))
 vi.mock("@agenta/observability/analytics", async (importOriginal) => {
     const actual = await importOriginal<Record<string, unknown>>()
     const {atom} = await import("jotai")
     const empty = atom({data: null})
-    return {...actual, analyticsModelProvidersAtomFamily: () => empty}
+    return {
+        ...actual,
+        analyticsModelProvidersAtomFamily: () => empty,
+        useAnalyticsViewAtoms: () => ({lockedAgentId: lock.agentId}),
+    }
 })
 
 const {AnalyticsToolbar} = await import("../../src/analytics/AnalyticsToolbar")
@@ -60,8 +65,9 @@ afterEach(async () => {
     host.remove()
 })
 
-const mount = (lockedAgentChip?: React.ReactNode) =>
-    act(async () =>
+const mount = (lockedAgentChip?: React.ReactNode) => {
+    lock.agentId = lockedAgentChip ? "support" : null
+    return act(async () =>
         root.render(
             <AnalyticsToolbar
                 range="7d"
@@ -82,6 +88,7 @@ const mount = (lockedAgentChip?: React.ReactNode) =>
             />,
         ),
     )
+}
 
 describe("AnalyticsToolbar", () => {
     it("locks the agent: no Agent filter row, no Agent grouping, the chip shows", async () => {
@@ -90,9 +97,9 @@ describe("AnalyticsToolbar", () => {
         expect(captured.group?.options.map((o) => o.value)).toEqual(["none", "model", "provider"])
         expect(host.querySelector('[data-testid="chip"]')).not.toBeNull()
         // No agent counts for a filter the page does not offer.
-        expect(bucketCalls.filter((c) => c.name === "agents").every((c) => c.enabled === false)).toBe(
-            true,
-        )
+        expect(
+            bucketCalls.filter((c) => c.name === "agents").every((c) => c.enabled === false),
+        ).toBe(true)
         captured.filter?.onReset()
         expect(onFiltersChange).toHaveBeenCalledWith({agent: [], model: []})
     })
