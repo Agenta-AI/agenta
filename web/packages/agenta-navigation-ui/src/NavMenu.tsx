@@ -243,7 +243,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 data-sticky-heading="true"
                 className={clsx(
                     // Sentence case, as the design writes the day labels ("Today", "Yesterday").
-                    "m-0 w-full shrink-0 pb-1 pl-5 pr-5 pt-1.5 text-[12px] leading-4 select-none",
+                    "m-0 w-full shrink-0 pb-1 pl-5 pr-5 pt-1.5 text-[12px] leading-5 select-none",
                     phone ? "text-colorTextTertiary" : "text-colorTextQuaternary",
                     STICKY_HEADING,
                 )}
@@ -261,7 +261,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             // ENTITY (an agent), and shouting a proper noun misspells it.
             data-sticky-heading="true"
             className={clsx(
-                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2.5 text-[12px] text-colorTextSecondary hover:text-colorText",
+                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2.5 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText",
                 phone && "min-h-11",
                 STICKY_HEADING,
             )}
@@ -450,7 +450,8 @@ const LeafRow = memo(function LeafRow({
             // decides the winner rather than this list does.
             className={cn(
                 ROW_BASE,
-                phone && PHONE_ROW_CLASS,
+                // The phone sheet's 44 px rows sit edge to edge, as the design draws them.
+                phone && `${PHONE_ROW_CLASS} mb-0`,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
                 item.rowAction && "pr-0",
@@ -750,13 +751,13 @@ const NavMenuImpl = ({
                     <SectionHeading item={item} selected={selected} onItemSelect={onItemSelect} />
                     {item.scrollChildren ? (
                         <ScrollGroupChildren
-                            className={SECTION_CHILDREN}
+                            className={clsx(SECTION_CHILDREN, "pt-1")}
                             onReachEnd={item.onReachEnd}
                         >
                             {(item.submenu ?? []).map((child) => renderItem(child, depth + 1))}
                         </ScrollGroupChildren>
                     ) : (
-                        <div className={clsx(SECTION_CHILDREN, DRAG_GHOST)}>
+                        <div className={clsx(SECTION_CHILDREN, "pt-1", DRAG_GHOST)}>
                             {(item.submenu ?? []).map((child) => renderItem(child, depth + 1))}
                         </div>
                     )}
@@ -766,7 +767,8 @@ const NavMenuImpl = ({
 
         if (hasChildren) {
             const open = openKeys.includes(item.key)
-            const childrenClass = item.alwaysOpen ? SECTION_CHILDREN : GROUP_CHILDREN
+            // A section's rows start 4 px under its row, as the design's list does.
+            const childrenClass = item.alwaysOpen ? clsx(SECTION_CHILDREN, "pt-1") : GROUP_CHILDREN
             return (
                 <Fragment key={item.key}>
                     <div
@@ -775,7 +777,7 @@ const NavMenuImpl = ({
                         // own class like any other row.
                         className={cn(
                             ROW_BASE,
-                            phone && PHONE_ROW_CLASS,
+                            phone && `${PHONE_ROW_CLASS} mb-0`,
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                             "pr-0",

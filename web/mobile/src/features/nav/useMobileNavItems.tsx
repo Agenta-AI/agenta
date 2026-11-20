@@ -445,7 +445,7 @@ export const useMobileBottomNavItems = (
                           suffix: version
                               ? createElement(
                                     "span",
-                                    {className: "text-xs leading-4 text-colorTextTertiary"},
+                                    {className: "text-[12px] leading-4 text-colorTextTertiary"},
                                     `v${version}`,
                                 )
                               : undefined,

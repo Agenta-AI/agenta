@@ -69,7 +69,7 @@ export const createBuilderSidebarScope = (
                         : sessionBullet("idle"),
                     suffix: createElement(
                         "span",
-                        {className: "text-xs leading-4 text-colorTextSecondary"},
+                        {className: "text-[12px] leading-4 text-colorTextSecondary"},
                         chatDayLabel(row.updated_at, now, words),
                     ),
                     link: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),

@@ -96,7 +96,7 @@ export const AgentSidebarSwitcher = ({
                                     {name}
                                 </span>
                                 <span
-                                    className={`text-xs text-colorTextSecondary ${phone ? "leading-4" : "leading-3"}`}
+                                    className={`text-[12px] text-colorTextSecondary ${phone ? "leading-4" : "leading-3"}`}
                                 >
                                     {t("agentSidebar.agent")}
                                 </span>

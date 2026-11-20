@@ -43,10 +43,8 @@ export const SidebarToggleButton = ({
                 // extending only the POINTER area, which left a hover fill visibly smaller than
                 // the thing you were pointing at.
                 // The secondary ink, as the design draws the rail's icon buttons.
-                "shrink-0 !size-7 !p-0 !text-colorTextSecondary hover:!text-colorText",
+                "shrink-0 !size-7 !rounded-sm !p-0 !text-colorTextSecondary hover:!text-colorText",
                 // The phone sheet's close is a 44 px target (the sheet sets it) with a 20 px X.
-                // 4px nearer the rail's right edge on the expanded rail only; collapsed, it centres.
-                !collapsed && "-mr-1",
                 className,
             )}
             aria-label={
@@ -56,11 +54,14 @@ export const SidebarToggleButton = ({
             }
             icon={
                 onDismiss ? (
-                    <X size={phone ? 20 : 16} />
+                    // A size class: the button sizes any glyph without one.
+                    <X className={phone ? "size-5" : "size-4"} />
                 ) : (
                     <Sidebar
-                        size={16}
-                        className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
+                        className={clsx(
+                            "size-4 transition-transform",
+                            collapsed ? "rotate-180" : "",
+                        )}
                     />
                 )
             }

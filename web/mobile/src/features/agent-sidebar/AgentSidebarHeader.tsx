@@ -65,7 +65,7 @@ export const SidebarNewButton = ({
             </div>
         )
     return (
-        <div className={`w-full shrink-0 px-2 ${phone ? "pb-2 pt-1" : "pb-2 pt-2"}`}>
+        <div className={`w-full shrink-0 px-2 ${phone ? "pb-1 pt-1" : "pb-1 pt-2"}`}>
             <Link
                 href={href}
                 onClick={onClick}

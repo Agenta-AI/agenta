@@ -214,8 +214,8 @@ export const agentSidebarItems = ({
             // Always open with no icon: the rail draws it as a small heading link, not a row.
             alwaysOpen: true,
             scrollChildren: true,
-            // No number until the count loads.
-            suffix: total !== null ? formatNumber(total) : undefined,
+            // No number until the count loads; the phone sheet draws none.
+            suffix: total !== null && !phone ? formatNumber(total) : undefined,
             // The filters live on the Sessions page of this agent.
             groupAction: createElement(
                 Link,
