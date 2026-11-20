@@ -62,6 +62,9 @@ describe("describeRunError", () => {
         expect(error.kind).toBe("key")
         expect(error.paragraphs[0]).toBe("The model provider rejected the OpenAI key.")
         expect(error.provider?.kind).toBe("openai")
+        // The runner's sentence stays in the fold, not under the headline.
+        expect(error.quote).toBeNull()
+        expect(error.raw).toBe(text)
         // The connection form of a custom route has no provider name in the sentence.
         expect(
             formatRunError(

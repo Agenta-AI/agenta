@@ -163,6 +163,9 @@ const recognise = (
     return null
 }
 
+/** The runner's sentence for a refused model credential: "pi_core: model authentication failed …". */
+const RUNNER_AUTH_SENTENCE = /^\s*[a-z_]+: model authentication failed/i
+
 const STATUS_PREFIX = /^\s*(\d{3})\s*:\s*/
 
 /** Bounded so a hostile run of text cannot make the scan slow. */
@@ -287,7 +290,10 @@ export const formatRunError = (
     const told = humanizeNumbers(whole || !isBig(view.message) ? view.message : view.headline)
     if (view.remedy) {
         // Recognised: our sentence and remedy, with the provider's own words between them.
-        const quote = told && told !== view.headline ? told : null
+        // The runner's own refused-credential sentence names harness ids and the vault; it
+        // goes to the fold, not under the headline.
+        const quote =
+            told && told !== view.headline && !RUNNER_AUTH_SENTENCE.test(reason) ? told : null
         return {
             paragraphs: [view.headline, view.remedy],
             quote,
