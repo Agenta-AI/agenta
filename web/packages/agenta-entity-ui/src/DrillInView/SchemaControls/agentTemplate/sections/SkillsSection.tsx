@@ -51,7 +51,6 @@ export const skillsSection = ({
         title: fieldTitle("skills", t("entityUi.agentTemplate.skills")),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(skills.length, "skill") || tNow("common.none"),
-        // The phone row (M07) names them: "ticket-triage, plain-writing".
         phoneSummary:
             skills
                 .map((skill) => skillCommandName(skill) ?? describeSkill(skill).name)

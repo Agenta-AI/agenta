@@ -143,6 +143,9 @@ export const AgentTemplateSectionList = ({
 }
 
 /** A section's title as text, for its header on a phone; the key when the title is not text. */
+/** The phone row's summary line. */
+const summaryOf = (s: AgentTemplateSectionDescriptor) => s.phoneSummary ?? s.summary
+
 const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
     typeof s.title === "string" ? s.title : s.key
 
@@ -215,9 +218,9 @@ const PhoneSectionList = ({
                             ) : null}
                             {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
                         </span>
-                        {(s.phoneSummary ?? s.summary) ? (
+                        {summaryOf(s) ? (
                             <span className="truncate text-xs text-colorTextSecondary">
-                                {s.phoneSummary ?? s.summary}
+                                {summaryOf(s)}
                             </span>
                         ) : null}
                     </span>

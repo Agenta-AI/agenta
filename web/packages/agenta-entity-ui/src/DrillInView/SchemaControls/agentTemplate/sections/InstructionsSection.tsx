@@ -8,6 +8,7 @@ import type {PanelSectionKey} from "../sectionChanges"
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
 const tItems = createT(configItemsCatalog)
+const FILENAME = "AGENTS.md"
 
 export interface InstructionsSectionParams {
     t: AgentTemplateT
@@ -37,9 +38,9 @@ export const instructionsSection = ({
               tooltip: t("entityUi.agentTemplate.editedNotSaved"),
           }
         : undefined
-    // The phone row (M07): "AGENTS.md · 33 words", as the file row inside counts them.
+    // Counted as the file row inside counts them.
     const words = (agentsMd ?? "").trim().split(/\s+/).filter(Boolean).length
-    const phoneSummary = `AGENTS.md · ${
+    const phoneSummary = `${FILENAME} · ${
         words > 0
             ? tItems("entityUi.configItems.wordCount", {count: words})
             : tItems("entityUi.configItems.empty")
@@ -56,7 +57,7 @@ export const instructionsSection = ({
             content: (
                 <div className="flex flex-col gap-2">
                     <InstructionsFileRow
-                        filename="AGENTS.md"
+                        filename={FILENAME}
                         content={agentsMd ?? ""}
                         onOpen={openInstruction}
                         status={instructionsStatus}
