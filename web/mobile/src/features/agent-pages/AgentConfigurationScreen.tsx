@@ -206,8 +206,10 @@ export const AgentConfigurationScreen = ({
                             value={tab}
                             className={cn(
                                 `flex h-full min-h-0 min-w-0 flex-col pb-6 pt-3 ${SESSIONS_PAGE_FRAME}`,
-                                // On a phone the Agent and Automations tabs run edge to edge (M07, M10).
-                                phone && tab !== "access" ? "px-0 pt-0" : "px-4",
+                                // On a phone the Agent and Automations tabs run edge to edge.
+                                phone && (tab === "agent" || tab === "automations")
+                                    ? "px-0 pt-0"
+                                    : "px-4",
                             )}
                         >
                             {/* The same host parts (model providers, skills, subagents) and edit
