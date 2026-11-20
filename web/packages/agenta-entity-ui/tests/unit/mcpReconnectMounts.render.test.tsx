@@ -11,8 +11,9 @@
  * carry the Reconnect affordance stand in for themselves too, since each reads a tool
  * catalogue on open and this file has no server.
  *
- * The three mounts in this package are here. The Settings row menu and the chat notice card
- * are mounted from their own packages and covered in their own suites, the same way.
+ * The two dialog mounts in this package are here. The agent's "Add MCP server" and server views
+ * open the connect view instead (covered in mcpViews.render.test.tsx). The Settings row menu and
+ * the chat notice card are mounted from their own packages and covered in their own suites.
  */
 import {act, createElement} from "react"
 
@@ -76,15 +77,6 @@ vi.mock("../../src/mcpEndpoint/McpPermissionDrawer", () => ({
         createElement("button", {onClick: onReconnect}, "Reconnect from the drawer"),
 }))
 
-vi.mock("../../src/mcpEndpoint/McpAddServerDrawer", () => ({
-    default: ({onReconnect}: {onReconnect?: (option: unknown) => void}) =>
-        createElement(
-            "button",
-            {onClick: () => onReconnect?.({slug: "octolens", name: "Octolens"})},
-            "Reconnect from the add drawer",
-        ),
-}))
-
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()),
     mcpEndpointsQueryAtom: {},
@@ -112,7 +104,6 @@ vi.mock("jotai", async (importOriginal) => ({
 
 import GatewayConnectToolWidget from "../../src/clientTools/GatewayConnectToolWidget"
 import {McpServerFormView} from "../../src/DrillInView/SchemaControls/McpServerFormView"
-import {McpServersSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/McpServersSectionBody"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -173,25 +164,6 @@ const mounts: [string, () => Promise<void>][] = [
             )
             await click("Set permissions")
             await click("Reconnect from the drawer")
-        },
-    ],
-    [
-        "the agent rail's section, from the add drawer's row",
-        async () => {
-            await show(
-                createElement(McpServersSectionBody, {
-                    items: [],
-                    onChangeItems: vi.fn(),
-                    openForm: vi.fn(),
-                    removeItem: vi.fn(),
-                    closeEditor: vi.fn(),
-                    statusFor: () => undefined,
-                    addOpen: true,
-                    onAddClose: vi.fn(),
-                    onAddOpen: vi.fn(),
-                }),
-            )
-            await click("Reconnect from the add drawer")
         },
     ],
     [
