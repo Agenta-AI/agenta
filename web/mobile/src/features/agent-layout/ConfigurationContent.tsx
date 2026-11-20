@@ -18,7 +18,7 @@ import {selectedRevisionAtomFamily} from "../chat/selectedRevision"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {useAgentPanel} from "./agentPanelContext"
-import {ConfigurationRoot} from "./ConfigurationRoot"
+import {ConfigurationRoot, shownConfigTab} from "./ConfigurationRoot"
 import {PanelViewChrome} from "./PanelViewChrome"
 import {StackGuards} from "./StackGuards"
 
@@ -66,7 +66,7 @@ export const ConfigurationContent = (props: ConfigurationContentProps) => {
             onWorkflowRevisionCommitted={pinRevision}
         >
             {/* Read again each time the Agent tab opens, so a change in the Channels tab shows. */}
-            {panel.configTab === "agent" ? (
+            {shownConfigTab(panel) === "agent" ? (
                 <AgentChannelPresence agentId={props.agentId} onChange={setHasChannel} />
             ) : null}
             <AgentEditorContext.Provider value={editor}>

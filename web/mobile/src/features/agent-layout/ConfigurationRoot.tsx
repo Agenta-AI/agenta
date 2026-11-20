@@ -30,6 +30,10 @@ const TABS: {key: ConfigTab; label: "agent" | "automations" | "channels" | "acce
 // Channels is a page of its own on a phone (the agent sidebar opens it).
 const PHONE_TABS = TABS.filter((tab) => tab.key !== "channels")
 
+/** The tab on screen: a phone has no Channels tab, so a stored Channels shows Agent. */
+export const shownConfigTab = (panel: {phone: boolean; configTab: ConfigTab}): ConfigTab =>
+    panel.phone && panel.configTab === "channels" ? "agent" : panel.configTab
+
 /**
  * The root of the Configuration content: the four tabs and the open tab's body. On a phone (M07)
  * it is a full screen: the back arrow to the session, three tabs with the version status at the
@@ -54,7 +58,7 @@ export const ConfigurationRoot = ({
     const panel = useAgentPanel()
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const tabs = panel.phone ? PHONE_TABS : TABS
-    const configTab = panel.phone && panel.configTab === "channels" ? "agent" : panel.configTab
+    const configTab = shownConfigTab(panel)
     const selectTab = (tab: ConfigTab) => {
         onCloseSection()
         panel.setConfigTab(tab)
