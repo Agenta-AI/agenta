@@ -10,6 +10,7 @@ import {
 
 import {ViewEntryContext, ViewStackContext, type ViewEntryApi} from "./context"
 import {useReportOpenViewItem} from "./openItem"
+import {useSystemBack} from "./systemBack"
 import type {
     ViewChromeProps,
     ViewDef,
@@ -70,8 +71,8 @@ export const ViewStackHost = ({
     /** Escape with an empty stack: the panel closes itself; a page passes nothing. */
     onEscapeAtRoot?: () => void
     /**
-     * The container is a phone screen. Today it only applies `readOnlyOnPhone` (the view gets
-     * `readOnly`); the container still picks its chrome.
+     * The container is a phone screen: it applies `readOnlyOnPhone` (the view gets `readOnly`),
+     * and the browser back closes the top view. The container still picks its chrome.
      */
     phone?: boolean
     children: ReactNode
@@ -321,6 +322,9 @@ export const ViewStackHost = ({
         }
         flushDeferredCancel()
     }, [runSave, setStack, flushDeferredCancel])
+
+    // On a phone each open view is a level of the browser back, guarded like the back arrow.
+    useSystemBack(phone ? entries.length : 0, "view", back)
 
     const dirty = saving || Object.values(forms).some((form) => form.dirty)
     const depth = entries.length as 0 | 1 | 2

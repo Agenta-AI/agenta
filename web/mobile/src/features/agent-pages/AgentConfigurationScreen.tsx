@@ -12,7 +12,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
-import {DrawerViewChrome, ViewStackHost} from "@agenta/ui/view-stack"
+import {DrawerViewChrome, useSystemBack, ViewStackHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -75,6 +75,11 @@ export const AgentConfigurationScreen = ({
     // On a phone (M07) the Agent tab is a list of rows, and a row opens its section as a screen.
     const phone = useIsPhone()
     const sectionScreen = usePhoneSectionScreen(phone)
+    // A section's screen is a level of the browser back, as its back arrow.
+    useSystemBack(sectionScreen.shown ? 1 : 0, "section", () => {
+        sectionScreen.close()
+        return true
+    })
     const shownSection = sectionScreen.shown
     const openTab = async (next: ConfigurationTab) => {
         const guard = automationsGuard.current
