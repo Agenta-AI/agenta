@@ -45,10 +45,7 @@ export const createBuilderSidebarScope = (
         const sessionId = Array.isArray(chat) ? chat[0] : undefined
         // A new chat marks no row: "New chat" is a button, not a place.
         const selectedKeyOverride = sessionId ? builderChatRowKey(sessionId) : undefined
-        return useMemo(
-            () => (selectedKeyOverride ? {mode: "route", selectedKeyOverride} : {mode: "route"}),
-            [selectedKeyOverride],
-        )
+        return useMemo(() => ({mode: "route", selectedKeyOverride}), [selectedKeyOverride])
     }
 
     const useSections = (): SidebarSection[] => {

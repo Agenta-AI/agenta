@@ -25,6 +25,11 @@ import {useRailScope} from "./railScope"
  */
 const drawerExpandedAtom = atom(false)
 
+/** The agent's sidebar, unless the tab already shows an agent sidebar. */
+const showAgentSidebar = (agentId: string) => {
+    if (currentSidebar().kind === "main") openAgentSidebar(agentId, "main")
+}
+
 /**
  * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet. Below 768 px
  * it is the phone's 300 px sidebar sheet with 44 px rows; up to lg it is sized to the rail's own
@@ -57,19 +62,30 @@ export const NavDrawer = ({
     useEffect(() => {
         if (liveChatOpen) setOpen(false)
     }, [liveChatOpen])
-    // On a phone the menu button inside an agent opens that agent's sidebar; "Back" in the sheet
-    // still shows the main sidebar, until the sheet closes. A screen with its own rail keeps it.
+    // On a phone the menu button inside an agent opens that agent's sidebar. "Back" in the sheet
+    // shows the main sidebar; the next tap on the menu inside an agent shows the agent's again.
+    // A screen with its own rail keeps it.
     const pageAgentId = usePageAgentId(projectId)
-    const agentSheet = phone && !scopeOverride && pageAgentId !== null
-    useEffect(() => {
-        // Load the agent sidebar's code ahead of the tap, so the sheet opens on it.
-        if (agentSheet) void import("../agent-sidebar/agentSidebarScope")
-    }, [agentSheet])
+    const agentSheet = phone && !scopeOverride
+    // The menu opened before the session's agent was known (its row still loading).
+    const [awaitingAgent, setAwaitingAgent] = useState(false)
     const onOpenChange = (next: boolean) => {
-        if (next && agentSheet && currentSidebar().kind === "main")
-            openAgentSidebar(pageAgentId!, "main")
+        if (next && agentSheet) {
+            if (pageAgentId) showAgentSidebar(pageAgentId)
+            else setAwaitingAgent(true)
+        }
+        if (!next) setAwaitingAgent(false)
         setOpen(next)
     }
+    useEffect(() => {
+        if (!open || !awaitingAgent || !pageAgentId) return
+        setAwaitingAgent(false)
+        showAgentSidebar(pageAgentId)
+    }, [awaitingAgent, open, pageAgentId])
+    useEffect(() => {
+        // Fetch the agent sidebar's code ahead of the tap, so it is cached when the sheet opens.
+        if (agentSheet && pageAgentId) void import("../agent-sidebar/agentSidebarScope")
+    }, [agentSheet, pageAgentId])
     const scope = useRailScope(workspaceId, projectId, scopeOverride)
     const router = useRouter()
     // A pick in a rail flyout navigates from a button, which the shell's link-click close misses.

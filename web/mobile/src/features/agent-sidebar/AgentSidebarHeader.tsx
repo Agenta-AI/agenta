@@ -35,21 +35,36 @@ export const SidebarTopRow = ({
 
 /**
  * "New session" and "New chat": a full-width outlined button under the sidebar's header. A link,
- * so a modified click opens the bare page in another tab; a plain click runs `onClick`.
+ * so a modified or middle click opens the bare page in another tab; a plain click runs `onPlainClick`
+ * in place of following the link.
  * Collapsed, it is the plus alone.
  */
 export const SidebarNewButton = ({
     label,
     href,
     collapsed,
-    onClick,
+    onPlainClick,
 }: {
     label: string
     href: string
     collapsed: boolean
-    onClick?: (event: MouseEvent) => void
+    onPlainClick?: () => void
 }) => {
     const phone = useContext(SidebarLayoutContext) === "phone"
+    const onClick = onPlainClick
+        ? (event: MouseEvent) => {
+              if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+              )
+                  return
+              event.preventDefault()
+              onPlainClick()
+          }
+        : undefined
     if (collapsed)
         return (
             <div className="flex w-full shrink-0 justify-center pt-2">
