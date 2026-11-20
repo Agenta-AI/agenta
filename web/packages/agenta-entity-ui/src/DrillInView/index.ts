@@ -491,6 +491,7 @@ export {
 } from "./SchemaControls/agentTemplate/phoneSections"
 export type {PhoneSection, PhoneSectionsApi} from "./SchemaControls/agentTemplate/phoneSections"
 export {SectionListLayoutContext} from "./SchemaControls/agentTemplate/sectionListLayout"
+export {SectionPageAction} from "./SchemaControls/agentTemplate/SectionPageAction"
 export type {SectionListLayout} from "./SchemaControls/agentTemplate/sectionListLayout"
 export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
