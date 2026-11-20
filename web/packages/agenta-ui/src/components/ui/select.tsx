@@ -66,8 +66,8 @@ const selectTriggerVariants = cva(
                 sm: "h-control px-input-sm text-field-md rounded-control-sm",
                 default: "h-control px-input text-field-md rounded-control",
                 lg: "h-control-lg px-input-lg text-field-lg rounded-control-lg",
-                // The canvas select (design decision D1): 34px, radius 6, 13px text, an up-down
-                // icon. The trigger is a button, so iOS does not zoom on it: 14px below md.
+                // The canvas select: 34px, radius 6, 13px, an up-down icon. A button does not
+                // make iOS zoom, so 14px below md, as the phone design draws it.
                 compact: "h-[34px] px-2.5 text-[13px] rounded-[6px] max-md:text-sm",
             },
         },
@@ -178,8 +178,8 @@ function SelectItem({
     size = "default",
     ...props
 }: React.ComponentProps<typeof SelectPrimitive.Item> & {
-    /** `compact` is the canvas menu row (design decision D1): 32px, 13px text, the selected row
-     *  stays white with a medium weight and a 14px check. Pair it with a compact trigger. */
+    /** `compact` is the canvas menu row: 32px, 13px, the selected row has no fill (only hover
+     *  fills a row), a medium weight and a 14px check. Pair it with a compact trigger. */
     size?: "default" | "compact"
 }) {
     const compact = size === "compact"

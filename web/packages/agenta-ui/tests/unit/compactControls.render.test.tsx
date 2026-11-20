@@ -9,7 +9,7 @@ import {Select, SelectTrigger, SelectValue} from "../../src/components/ui/select
 
 /**
  * The canvas draws form fields at 34px, search fields at 30px and selects at 34px, all radius 6
- * and 13px text (design decision D1). `compact` and `compact-search` are opt-in; the default sizes
+ * and 13px text. `compact` and `compact-search` are opt-in; the default sizes
  * do not change.
  */
 afterEach(cleanup)

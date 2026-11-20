@@ -36,10 +36,8 @@ const inputVariants = cva(
                 sm: "h-7 rounded-md px-2 py-0.5",
                 default: "h-8 rounded-lg px-2.5 py-1",
                 lg: "h-9 rounded-lg px-3 py-1.5",
-                // The canvas scale (design decision D1) for the surfaces the builder layout draws:
-                // `compact` is the canvas form field (34px, radius 6, 13px text) and `compact-search`
-                // the canvas search field in lists and pickers (30px). Below md the text stays 16px
-                // so iOS Safari does not zoom. The radius is literal pixels: `rounded-md` differs
+                // The canvas form field (34px, radius 6, 13px) and search field (30px). Below md
+                // the text stays 16px so iOS does not zoom. Literal radius: `rounded-md` differs
                 // between the two apps.
                 compact: "h-[34px] rounded-[6px] px-2.5 py-0 md:text-[13px]",
                 "compact-search": "h-[30px] rounded-[6px] px-2 py-0 md:text-[13px]",
