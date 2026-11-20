@@ -4,7 +4,7 @@ import {richText, useT} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {copyToClipboard} from "@agenta/ui"
 import {Button, Input} from "@agenta/ui/ui"
-import {Check, Copy, WarningCircle} from "@phosphor-icons/react"
+import {Check, WarningCircle} from "@phosphor-icons/react"
 
 import {SignInStep} from "./SignInStep"
 import type {SubscriptionTokenState} from "./useSubscriptionToken"
@@ -32,7 +32,8 @@ const CopyCommand = () => {
                 // A refused clipboard falls back to a selection copy; "Copied" shows only on success.
                 onClick={() => void copyToClipboard(SETUP_COMMAND).then(setCopied)}
             >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {/* Text only, as the canvas draws it (F11 f10); the check marks a done copy. */}
+                {copied ? <Check size={14} /> : null}
                 {copied
                     ? t("entityUi.subscriptionSignIn.copied")
                     : t("entityUi.subscriptionSignIn.copy")}
