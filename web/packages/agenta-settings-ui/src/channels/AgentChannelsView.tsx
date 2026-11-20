@@ -262,7 +262,7 @@ const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPan
                 <SheetContent
                     side="right"
                     aria-describedby={undefined}
-                    className="inset-0 w-full max-w-none rounded-none bg-colorBgContainer shadow-none sm:max-w-none"
+                    className="inset-0 w-full max-w-none rounded-none bg-colorBgContainer pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-none sm:max-w-none"
                     data-testid="agent-channels-open-view-phone"
                 >
                     <SheetTitle className="sr-only">{title}</SheetTitle>
