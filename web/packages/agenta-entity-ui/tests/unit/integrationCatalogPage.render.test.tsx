@@ -13,6 +13,7 @@ const flags = {is_active: true, is_valid: true}
 const {state} = vi.hoisted(() => ({
     state: {
         connections: [] as Record<string, unknown>[],
+        connectionsLoading: false,
         personal: [] as Record<string, unknown>[] | null,
     },
 }))
@@ -28,7 +29,11 @@ vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
         requestMore: () => undefined,
         setCategory: () => undefined,
     }),
-    useToolConnectionsQuery: () => ({connections: state.connections}),
+    // While loading, the real hook hands a new empty list on every render.
+    useToolConnectionsQuery: () =>
+        state.connectionsLoading
+            ? {connections: [], isLoading: true}
+            : {connections: state.connections, isLoading: false},
     usePersonalToolConnections: () => ({connections: state.personal}),
     useToolCatalogCategories: () => ({
         categories: [{id: "crm", name: "crm"}],
@@ -76,6 +81,7 @@ beforeEach(() => {
     // jsdom has no scrolling; the chip row keeps its selected chip in view.
     Element.prototype.scrollIntoView = vi.fn()
     state.connections = []
+    state.connectionsLoading = false
     state.personal = []
     host = document.createElement("div")
     document.body.appendChild(host)
@@ -227,5 +233,37 @@ describe("the integration list on the Settings page", () => {
         expect(confirmConnectionAction).toHaveBeenCalledWith("delete", pending)
         // The catalog runs no dialog of its own.
         expect(text()).not.toContain("Delete connection:")
+    })
+
+    // A new atom per render loops through useAtomValue; with the old code this case never ends.
+    it("settles while the connections load, through a chip and a search", async () => {
+        state.connectionsLoading = true
+        state.personal = [{id: "p1", slug: "gmail-me", name: "Me", integration_key: "gmail", flags}]
+        const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await mount(
+            createElement(IntegrationCatalog, {
+                layout: "page",
+                onConnect: vi.fn(),
+                yours: yours(),
+                projectHeading: createElement("span", null, "Project Alpha"),
+            }),
+        )
+        // No pinned heading over a list that has not loaded.
+        expect(text()).not.toContain("Project Alpha")
+        const crm = [...document.querySelectorAll<HTMLElement>("[aria-pressed]")].find(
+            (chip) => chip.textContent === "CRM",
+        )
+        await click(crm!)
+        const search = document.querySelector<HTMLInputElement>("input")!
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+            setter?.call(search, "gm")
+            search.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        const loops = errors.mock.calls.filter((call) =>
+            String(call[0]).includes("Maximum update depth"),
+        )
+        errors.mockRestore()
+        expect(loops).toEqual([])
     })
 })

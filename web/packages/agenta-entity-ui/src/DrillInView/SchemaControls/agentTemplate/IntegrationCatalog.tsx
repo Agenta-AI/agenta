@@ -627,7 +627,7 @@ export function IntegrationCatalog({
         requestMore,
         setCategory,
     } = useToolCatalogIntegrations()
-    const {connections} = useToolConnectionsQuery()
+    const {connections, isLoading: connectionsLoading} = useToolConnectionsQuery()
 
     // The hook ignores a query under three characters server-side; the connected list filters on
     // the raw query instead, so a two-letter search still narrows what the author already has.
@@ -705,7 +705,8 @@ export function IntegrationCatalog({
             namesByIntegration,
         ],
     )
-    // The server searches from three characters; below that, narrow what has loaded.
+    // Below three characters the server does not search, so narrow what has loaded.
+    const narrowedLocally = searching && query.trim().length < 3
     const catalogRows = useMemo(() => {
         const needle = query.trim().toLowerCase()
         if (!needle || needle.length >= 3) return allRows
@@ -772,11 +773,14 @@ export function IntegrationCatalog({
         !catalogLoading &&
         connectedGroups.length === 0 &&
         yoursGroups.length === 0 &&
-        catalogRows.length === 0
-    // Under a heading such as the project switch the group stays, except in a search.
-    // A search or a category shows only what it matched: no pinned heading, no empty note.
+        catalogRows.length === 0 &&
+        // More pages may still hold a match for a local narrowing.
+        !hasNextPage
+    // A heading such as the project switch pins its group, until it loads or while a search or a
+    // category shows only what it matched (no pinned heading, no empty note).
     const filtering = searching || category !== null
-    const showConnected = connectedGroups.length > 0 || (Boolean(projectHeading) && !filtering)
+    const showConnected =
+        connectedGroups.length > 0 || (Boolean(projectHeading) && !filtering && !connectionsLoading)
     const yoursFooter =
         yours?.error ?? (!filtering && yoursGroups.length === 0 ? yours?.empty : null)
 
@@ -898,11 +902,16 @@ export function IntegrationCatalog({
                     ) : null}
 
                     {/* Hidden when empty: the Connected matches, or the empty state, say it all. */}
-                    {catalogLoading || catalogRows.length > 0 ? (
+                    {catalogLoading || catalogRows.length > 0 || hasNextPage ? (
                         <div className="flex flex-col gap-2">
                             <SubSectionHeader
                                 label={t("entityUi.integrationDrawer.allApps")}
-                                count={catalogLoading ? undefined : (total ?? catalogRows.length)}
+                                // A local narrowing shows fewer rows than the server total.
+                                count={
+                                    catalogLoading || narrowedLocally
+                                        ? undefined
+                                        : (total ?? catalogRows.length)
+                                }
                             />
                             {catalogLoading ? (
                                 <CatalogRowSkeleton />
