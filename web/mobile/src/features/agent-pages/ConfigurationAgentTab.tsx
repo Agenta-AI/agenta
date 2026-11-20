@@ -3,7 +3,6 @@ import {useRef} from "react"
 import {ModelSetupBanner} from "@agenta/chat/components"
 import {SectionListLayoutContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
-import {useIsPhone} from "@agenta/ui/phone"
 
 import {useOpenModelSetup} from "../chat/useOpenModelSetup"
 
@@ -24,7 +23,6 @@ export const ConfigurationAgentTab = ({
     readOnly: boolean
 }) => {
     const openModelSetup = useOpenModelSetup()
-    const phone = useIsPhone()
     const scrollRef = useRef<HTMLDivElement>(null)
     return (
         <div
@@ -39,19 +37,14 @@ export const ConfigurationAgentTab = ({
                 <aside className="sticky top-7 max-md:hidden">
                     <ConfigurationSectionNav contentRef={scrollRef} />
                 </aside>
-                {/* On a desktop each section is its own card (A04); on a phone the sections are
-                rows that run edge to edge (M07). */}
                 <div
                     data-testid="configuration-agent-tab"
                     // The panel's field wrappers give the sections a 16 px inset and a white ground;
-                    // the page cards sit on the page ground at the column's edges instead.
-                    className={
-                        phone
-                            ? "min-w-0"
-                            : "-mx-4 min-w-0 [&_.ag-drill-in-field-list]:bg-transparent"
-                    }
+                    // the page cards sit on the page ground at the column's edges instead. A phone
+                    // shows its section rows (M07), which take priority over the page layout.
+                    className="-mx-4 min-w-0 md:[&_.ag-drill-in-field-list]:bg-transparent max-md:mx-0"
                 >
-                    <SectionListLayoutContext.Provider value={phone ? null : "page"}>
+                    <SectionListLayoutContext.Provider value="page">
                         <AgentBuildPanel
                             revisionId={revisionId}
                             disabled={readOnly}
