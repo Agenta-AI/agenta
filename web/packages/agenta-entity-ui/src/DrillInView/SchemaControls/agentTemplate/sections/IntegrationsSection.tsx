@@ -8,6 +8,7 @@ import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
 import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
+import {SectionPageAction} from "../SectionPageAction"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -65,6 +66,10 @@ export const integrationsSection = ({
                     manualHint={t("entityUi.agentTemplate.browseIntegrationsHint")}
                     manualIcon={<Wrench size={16} />}
                 />
+            ) : undefined,
+        pageAction:
+            !disabled && openAddIntegration ? (
+                <SectionPageAction action="add" onClick={openAddIntegration} />
             ) : undefined,
         // On a phone the one primary action at the bottom opens the catalog (M08).
         phoneAction:
