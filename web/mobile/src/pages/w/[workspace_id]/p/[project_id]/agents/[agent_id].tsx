@@ -4,13 +4,17 @@ import {useRouter} from "next/router"
 import {isAgentOverviewEnabled, OPEN_PLAYGROUND} from "@/features/agents/agentEntry"
 import {AgentOverviewScreen} from "@/features/agents/AgentOverviewScreen"
 import {AgentPlaygroundRedirect} from "@/features/agents/AgentPlaygroundRedirect"
+import {SessionsPageSkeleton} from "@/features/sessions/states/SessionsPageSkeleton"
 
 // The agent pages load only when opened, so the agent route stays as light as it was.
-const AgentSessionsPage = dynamic(() =>
-    import("@/features/sessions/SessionListScreen").then((m) => m.SessionListScreen),
+// The page frame shows while a chunk loads, not a blank body.
+const AgentSessionsPage = dynamic(
+    () => import("@/features/sessions/SessionListScreen").then((m) => m.SessionListScreen),
+    {loading: () => <SessionsPageSkeleton />},
 )
-const AgentAnalyticsPage = dynamic(() =>
-    import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),
+const AgentAnalyticsPage = dynamic(
+    () => import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),
+    {loading: () => <SessionsPageSkeleton />},
 )
 
 export default function AgentOverviewPage() {
