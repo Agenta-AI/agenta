@@ -35,9 +35,17 @@ from agenta.sdk.agents.platform.op_catalog import (
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import (
+    RequestAccess,
+    RequestCredentialKind,
+    RunEnvelope,
+)
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.admission import (
+    CHILD_RUN_BOUNDARY,
+    RunAdmission,
+    session_allowed,
+)
 from oss.src.core.sharing.dtos import AgentReadScope, Visibility
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
@@ -1176,6 +1184,73 @@ def _not_found(raw: str) -> _Refusal:
     )
 
 
+# -- the calling run of a session op (design D31) ---------------------------------------
+
+RUN_CREDENTIAL_REQUIRED = "run_credential_required"
+
+
+@dataclass(frozen=True)
+class SessionCaller:
+    """The calling run of a session op, a drive op or `resolve_gate`, read from its
+    run credential and from nowhere else. These ops bind no caller id, so nothing in
+    the arguments can name another calling agent or session."""
+
+    envelope: RunEnvelope
+    # The `run_session_id` claim: the calling session.
+    session_id: str
+    # The `run_agent_id` claim: the calling agent (None when the run names no agent).
+    agent_id: Optional[UUID]
+
+
+def _run_credential_required(message: str) -> _Refusal:
+    return _Refusal(
+        AgentError(code=RUN_CREDENTIAL_REQUIRED, message=message, retryable=False)
+    )
+
+
+async def session_caller_of(access: Optional[RequestAccess]) -> SessionCaller:
+    """The one check every session op, drive op and `resolve_gate` passes before its
+    handler runs. Refuses with `run_credential_required` unless the request carries a
+    run credential with a `run_session_id` claim and the run authority may run that
+    session now: the claim was checked at the mint, but a renewal copies it and a
+    person can make the session private after the mint."""
+
+    if (
+        access is None
+        or access.credential_kind != RequestCredentialKind.RUN_CREDENTIAL
+        or access.envelope is None
+        or not access.run_session_id
+    ):
+        raise _run_credential_required("Only an agent run can call session tools.")
+    if not await session_allowed(
+        envelope=access.envelope,
+        session_id=access.run_session_id,
+        action=Permission.RUN_SESSIONS,
+    ):
+        raise _run_credential_required(
+            "This session is no longer open to the run's person."
+        )
+    return SessionCaller(
+        envelope=access.envelope,
+        session_id=access.run_session_id,
+        agent_id=access.run_agent_id,
+    )
+
+
+async def caller_may(
+    caller: SessionCaller, *, session_id: str, action: Permission
+) -> bool:
+    """Whether the caller's run authority has its own right on a target session:
+    `VIEW_SESSIONS` to read, list or wait, `RUN_SESSIONS` to send or cancel. Checked
+    for every target, whatever scope the op has."""
+
+    if action not in (Permission.VIEW_SESSIONS, Permission.RUN_SESSIONS):
+        raise ValueError(f"{action} is not a session target right.")
+    return await session_allowed(
+        envelope=caller.envelope, session_id=session_id, action=action
+    )
+
+
 def _reject_unknown_fields(
     arguments: Dict[str, Any], fields: Sequence[str], *, tool: str
 ) -> None:
@@ -2128,6 +2203,9 @@ class PlatformToolHandlerRegistration:
     # Handlers that show or name an agent take the caller's `agent_read_scope`: they answer
     # only about agents it shows.
     needs_agent_read_scope: bool = False
+    # Session ops, drive ops and `resolve_gate` take the calling run as `session_caller`
+    # (`session_caller_of`); without one the call answers `run_credential_required`.
+    needs_session_caller: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -2285,6 +2363,7 @@ async def dispatch_platform_tool_handler(
     agent_owner_user_id: Optional[UUID] = None,
     workspace_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
+    access: Optional[RequestAccess] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -2309,6 +2388,11 @@ async def dispatch_platform_tool_handler(
         extra["workspace_id"] = workspace_id
     if registration.needs_agent_read_scope:
         extra["agent_read_scope"] = agent_read_scope
+    if registration.needs_session_caller:
+        try:
+            extra["session_caller"] = await session_caller_of(access)
+        except _Refusal as e:
+            return PlatformHandlerResult.failure(e.error)
     return await registration.handler(
         arguments=arguments,
         headers=headers,

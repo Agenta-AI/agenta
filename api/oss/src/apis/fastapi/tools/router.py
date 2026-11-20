@@ -22,6 +22,7 @@ from oss.src.apis.fastapi.shared.personal import require_person, signed_in_perso
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
+from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.principals import child_envelope
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
@@ -1699,6 +1700,8 @@ class ToolsRouter:
                     if required_agent_read_scope(call_ref=call_ref)
                     else None
                 ),
+                # The calling run of a session op comes from the credential only.
+                access=get_request_access(),
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)

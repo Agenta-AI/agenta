@@ -551,6 +551,7 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             envelope=getattr(state, "run_envelope", None),
             run_accounts=getattr(state, "run_accounts", None) or (),
             run_agent_id=run_agent_id_of_request(request),
+            run_session_id=run_session_id_of_request(request),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
@@ -572,6 +573,24 @@ def run_agent_id_of_request(request: Request) -> Optional[UUID]:
 
     value = getattr(request.state, "run_agent_id", None)
     return value if isinstance(value, UUID) else None
+
+
+def _run_session_id_from_claim(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise ValueError("run_session_id must be a non-empty string")
+    return value
+
+
+def run_session_id_of_request(request: Request) -> Optional[str]:
+    """The session the presenting run credential runs in (its `run_session_id` claim).
+    None for every caller that is not an agent run, for a run the mint could not bind
+    to a session (`bind_run_session`), and for a credential minted before the claim
+    existed."""
+
+    value = getattr(request.state, "run_session_id", None)
+    return value if isinstance(value, str) and value else None
 
 
 def request_run_envelope(request: Request) -> Optional[RunEnvelope]:
@@ -1522,6 +1541,12 @@ async def verify_secret_token(
             )
         except ValueError as exc:
             raise DecodeError("Secret token carries an invalid run agent.") from exc
+        try:
+            request.state.run_session_id = _run_session_id_from_claim(
+                auth_context.get("run_session_id")
+            )
+        except ValueError as exc:
+            raise DecodeError("Secret token carries an invalid run session.") from exc
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1619,6 +1644,7 @@ async def sign_secret_token(
     envelope: RunEnvelope,
     run_accounts: Optional[List[dict]] = None,
     run_agent_id: Optional[UUID] = None,
+    run_session_id: Optional[str] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
 
@@ -1627,6 +1653,11 @@ async def sign_secret_token(
 
     `run_agent_id` is the run's `run_agent_id` claim: the agent the run executes, as
     the invoke resolved it. Written only when set; `run_agent_id_of_request` reads it.
+
+    `run_session_id` is the run's `run_session_id` claim: the session the run belongs
+    to. Pass only the value `bind_run_session` returned, or the claim of the run
+    credential being renewed. Written only when set; `run_session_id_of_request` reads
+    it.
 
     `envelope` is required: every run credential carries its principal, authority and
     run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
@@ -1705,6 +1736,9 @@ async def sign_secret_token(
 
         if run_agent_id is not None:
             auth_context["run_agent_id"] = str(run_agent_id)
+
+        if run_session_id is not None:
+            auth_context["run_session_id"] = run_session_id
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 

@@ -15,6 +15,7 @@ from agenta.sdk.utils.exceptions import display_exception
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.agents.accounts import read_user_items
+from agenta.sdk.middlewares.routing.otel import baggage_value
 
 import agenta as ag
 
@@ -172,6 +173,35 @@ async def _run_accounts_params(request: Request) -> Dict[str, Any]:
     return params
 
 
+async def _run_session_params(request: Request) -> Dict[str, Any]:
+    """The session of a turn (`.../invoke`), for the credential's `run_session_id`
+    claim. Read where the invoke prelude reads it (`apply_invoke_prelude`): the body's
+    `session_id`, else the `x-ag-session-id` header, else the `ag.session.id` baggage.
+    Empty when the request is not a turn or names no session: the credential then names
+    no session, also when the running normalizer mints one for the turn later."""
+    url = getattr(request, "url", None)
+    if getattr(request, "method", None) != "POST" or not str(
+        getattr(url, "path", "")
+    ).endswith("/invoke"):
+        return {}
+    session_id = None
+    if "json" in (request.headers.get("content-type") or ""):
+        try:
+            body = await request.json()
+        except Exception:  # pylint: disable=broad-except
+            body = None
+        if isinstance(body, dict) and isinstance(body.get("session_id"), str):
+            session_id = body["session_id"]
+    if not session_id:
+        otel = getattr(request.state, "otel", None) or {}
+        session_id = (
+            request.headers.get("x-ag-session-id")
+            or (otel.get("baggage") or {}).get("ag.session.id")
+            or baggage_value(request.headers.get("baggage"), "ag.session.id")
+        )
+    return {"session_id": session_id} if session_id else {}
+
+
 async def get_credentials(
     request: Request,
     host: str,
@@ -236,6 +266,9 @@ async def get_credentials(
         ## ACCOUNTS: the "user" items of the configuration this turn runs, so the
         ## credential carries the run person's accounts for them (no keys, no read).
         params.update(await _run_accounts_params(request))
+        ## SESSION: the turn's session, which the credential names when the API
+        ## allows it (its `run_session_id` claim).
+        params.update(await _run_session_params(request))
         ## ACTION
         params["action"] = "run_service"
         ## RESOURCE

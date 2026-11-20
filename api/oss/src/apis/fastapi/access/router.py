@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from oss.src.middlewares.auth import (
     run_agent_id_of_request,
+    run_session_id_of_request,
     SECRET_RESOLVE_GRANT,
     request_run_envelope,
     sign_secret_token,
@@ -26,6 +27,7 @@ from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import RbacEntitlementUnavailable
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
+from oss.src.core.sharing.admission import bind_run_session
 from oss.src.apis.fastapi.access.models import AccessRolesResponse
 
 if TYPE_CHECKING:
@@ -213,6 +215,23 @@ class AccessRouter:
             )
         return run_agent_id
 
+    async def _run_session_id_of_exchange(
+        self, request: Request, *, envelope: RunEnvelope, session_id: Optional[str]
+    ) -> Optional[str]:
+        """The `run_session_id` claim of the credential this exchange returns. A run
+        credential carries its own claim on, unchanged, and never takes the named
+        session. A first mint (a turn the agent service runs for an API key or a
+        browser session) names the turn's session only when `bind_run_session` allows
+        it."""
+
+        access = get_request_access()
+        if (
+            access is not None
+            and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+        ):
+            return run_session_id_of_request(request)
+        return await bind_run_session(envelope=envelope, session_id=session_id)
+
     @intercept_exceptions()
     async def fetch_roles(self) -> AccessRolesResponse:
         """Return the effective role catalog per scope (organization, workspace,
@@ -243,6 +262,7 @@ class AccessRouter:
         without_grants: bool = Query(False),
         workflow_id: Optional[UUID] = Query(None),
         item_keys: Optional[List[str]] = Query(None),
+        session_id: Optional[str] = Query(None),
     ):
         """Evaluate a permission against the AUTHENTICATED scope.
 
@@ -251,6 +271,10 @@ class AccessRouter:
         `project_id` query param the auth middleware reads — a session with no explicit
         `project_id` is scoped to the default project, and any other `scope_id` is denied
         regardless of the caller's role there.
+
+        `session_id` is the session of the turn the agent service starts. A first mint
+        writes it as the `run_session_id` claim only when `bind_run_session` allows; a
+        renewal ignores it and carries its own claim.
         """
         ctx = get_auth_context()
         project_id = str(ctx.scope.project_id)
@@ -352,6 +376,9 @@ class AccessRouter:
             envelope=envelope,
             run_agent_id=await self._run_agent_id_of_exchange(
                 request, envelope=envelope, workflow_id=workflow_id
+            ),
+            run_session_id=await self._run_session_id_of_exchange(
+                request, envelope=envelope, session_id=session_id
             ),
         )
         return Allow(f"Secret {secret_token}")

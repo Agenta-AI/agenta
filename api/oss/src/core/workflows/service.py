@@ -198,6 +198,7 @@ from oss.src.core.sharing.dtos import (
 )
 from oss.src.core.mounts.agent_drives import fill_agent_drive_keys
 from oss.src.core.mounts.types import is_static_agent_drive_slug
+from oss.src.core.sharing.admission import bind_run_session
 from oss.src.core.sharing.service import (
     get_sharing_service,
     invalidate_sharing_caches,
@@ -4969,6 +4970,11 @@ class WorkflowsService:
                 ),
             ),
             run_agent_id=run_agent_id,
+            # The session the run belongs to, when the run authority may run it.
+            run_session_id=await bind_run_session(
+                envelope=envelope,
+                session_id=getattr(request, "session_id", None),
+            ),
         )
 
         credentials = f"Secret {secret_token}"

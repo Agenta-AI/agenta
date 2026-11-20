@@ -202,6 +202,8 @@ class RequestAccess(BaseModel):
     run_accounts: Tuple[RunAccount, ...] = ()
     # run_credential only: the agent the run executes (the `run_agent_id` claim).
     run_agent_id: Optional[UUID] = None
+    # run_credential only: the session the run belongs to (the `run_session_id` claim).
+    run_session_id: Optional[str] = None
 
 
 class UserPrincipals(BaseModel):
