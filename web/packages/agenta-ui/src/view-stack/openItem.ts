@@ -41,9 +41,9 @@ export const useReportOpenViewItem = (
     const name = open ? titles[open.key] : undefined
     useEffect(() => {
         if (!report) return
+        if (!list || !key) report(null)
         // Wait for the view's title, so the name is never the bare key.
-        if (list && key && !name) return
-        report(list && key && name ? {list, key, name} : null)
+        else if (name) report({list, key, name})
     }, [report, list, key, name])
     // Nothing is open once the host leaves.
     useEffect(() => (report ? () => report(null) : undefined), [report])

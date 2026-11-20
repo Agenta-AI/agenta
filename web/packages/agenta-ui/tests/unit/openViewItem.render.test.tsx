@@ -84,7 +84,8 @@ describe("ReportOpenViewItemContext", () => {
         const report = vi.fn()
         mount(report)
         await act(async () => void stack.open(itemView, {item: zendesk, title: "Zendesk"}, AGENT))
-        await act(async () => void pushPicker?.())
+        await act(async () => void pushPicker!())
+        expect(stack.depth).toBe(2)
         expect(report).toHaveBeenLastCalledWith({...zendesk, name: "Zendesk"})
     })
 
