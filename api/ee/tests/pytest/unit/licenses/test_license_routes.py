@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 import oss.src.apis.fastapi.licenses.router as licenses_router
+from oss.src.utils.env import env
 from oss.src.apis.fastapi.licenses.models import InstanceLicenseActivateRequest
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
 
@@ -85,7 +86,7 @@ async def test_put_answers_400_for_a_key_that_is_not_valid(wired):
 async def test_put_answers_409_when_the_key_is_in_the_environment(
     wired, signing_key, monkeypatch
 ):
-    monkeypatch.setattr(licenses_router.env.license, "key", sign_key(signing_key))
+    monkeypatch.setattr(env.license, "key", sign_key(signing_key))
 
     with pytest.raises(HTTPException) as error:
         await licenses_router.LicensesRouter().activate_instance_license(
@@ -106,9 +107,7 @@ async def test_get_and_put_agree_on_the_environment_key(
     wired.dao.read.return_value = SimpleNamespace(key=stored)
     assert (await router.fetch_instance_license(request=None)).source == "database"
 
-    monkeypatch.setattr(
-        licenses_router.env.license, "key", sign_key(signing_key, customer="Env")
-    )
+    monkeypatch.setattr(env.license, "key", sign_key(signing_key, customer="Env"))
 
     response = await router.fetch_instance_license(request=None)
     assert response.source == "environment"
@@ -150,7 +149,8 @@ async def test_an_api_key_of_the_instance_admin_gets_403(wired, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_with_stripe_the_routes_answer_404(wired, cloud):
+async def test_on_cloud_the_routes_answer_404(wired, cloud, monkeypatch):
+    monkeypatch.setattr(licenses_router, "is_ee", lambda: True)
     with pytest.raises(HTTPException) as error:
         await licenses_router.LicensesRouter().fetch_instance_license(request=None)
 

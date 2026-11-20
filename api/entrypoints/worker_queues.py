@@ -670,6 +670,11 @@ async def main_async() -> int:
         validate_required_env_vars()
 
         if is_ee():
+            from ee.src.core.licenses.cloud import (  # noqa: PLC0415
+                validate_cloud_license,
+            )
+
+            validate_cloud_license()
             bootstrap_entitlements_services()
 
         bootstrap_access()

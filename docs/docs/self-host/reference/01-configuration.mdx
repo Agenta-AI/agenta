@@ -1392,7 +1392,7 @@ is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`, or, when that 
 owner of the oldest organization. A key in `AGENTA_LICENSE_KEY` takes priority over a key added in
 the app, and the License page then shows the key but does not let you change it.
 
-Without Stripe, the plan of every organization comes from the key. With no valid key, or after the
+On a self-hosted instance, the plan of every organization comes from the key. With no valid key, or after the
 key expires, the instance runs on `self_hosted_community`, which has no enterprise features. No data
 is deleted when a key expires. `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
 `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key.
@@ -1544,6 +1544,10 @@ SendGrid is used only when SMTP is not fully configured.
 | `STRIPE_API_KEY` | `stripe.api_key` | `stripe.apiKey` |
 | `STRIPE_WEBHOOK_SECRET` | `stripe.webhook_secret` | `stripe.webhookSecret` |
 | `STRIPE_WEBHOOK_TARGET` | `stripe.webhook_target` | `stripe.webhookTarget` |
+
+Stripe is for Agenta cloud billing. Do not set `STRIPE_API_KEY` on a self-hosted instance: the API
+and the workers refuse to start when `STRIPE_API_KEY` is set and `AGENTA_LICENSE_KEY` is not a
+cloud license key.
 
 ## supertokens
 

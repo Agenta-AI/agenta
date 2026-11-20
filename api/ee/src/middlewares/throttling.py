@@ -11,6 +11,7 @@ from ee.src.core.access.entitlements.types import (
     Tracker,
 )
 from ee.src.core.licenses.service import instance_plan
+from ee.src.core.licenses.cloud import is_cloud
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.settings import get_free_plan
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
@@ -236,7 +237,7 @@ async def _get_plan(organization_id: str) -> str | None:
     if not plan:
         return None
 
-    if not env.stripe.enabled:
+    if not is_cloud():
         # The cached plan could be older than the license key.
         plan = await instance_plan()
 

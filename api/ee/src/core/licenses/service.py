@@ -1,7 +1,7 @@
-"""The instance license and the plan it gives every organization when Stripe is off.
+"""The instance license and the plan it gives every organization outside cloud.
 
-Plan order: Stripe (cloud, handled by the callers), then a valid license key, then
-`self_hosted_community`. A key in `AGENTA_LICENSE_KEY` takes priority over a key added
+Plan order: cloud (`is_cloud()`, handled by the callers), then a valid license key,
+then `self_hosted_community`. A key in `AGENTA_LICENSE_KEY` takes priority over a key added
 in the app.
 """
 
@@ -16,6 +16,7 @@ from oss.src.utils.logging import get_module_logger
 from ee.src.core.licenses.interfaces import LicensesDAOInterface
 from ee.src.core.licenses.keys import parse_license_key
 from ee.src.core.licenses.types import (
+    CLOUD_PLAN,
     InvalidLicenseKey,
     LicenseKey,
     LicenseKeyInEnvironment,
@@ -64,6 +65,9 @@ class LicensesService:
             raise LicenseKeyInEnvironment()
 
         license_key = parse_license_key(key)
+        # A cloud key counts only from AGENTA_LICENSE_KEY (see `cloud.py`).
+        if license_key.plan == CLOUD_PLAN:
+            raise InvalidLicenseKey("plan")
         if license_key.is_expired():
             raise InvalidLicenseKey("expired")
 
@@ -121,5 +125,5 @@ async def active_license() -> Optional[LicenseKey]:
 
 
 async def instance_plan() -> str:
-    """The plan of every organization on an instance without Stripe."""
+    """The plan of every organization on an instance that is not cloud."""
     return await get_licenses_service().instance_plan()

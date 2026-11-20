@@ -12,11 +12,7 @@ from ee.src.core.subscriptions.service import SubscriptionsService
 async def test_cloud_signup_starts_on_the_free_plan_without_a_trial(monkeypatch):
     # No pricing entry carries `"trial": N`, so there is no reverse trial.
     monkeypatch.setattr(subscriptions_service_module, "trial_enabled", lambda: False)
-    monkeypatch.setattr(
-        type(subscriptions_service_module.env.stripe),
-        "enabled",
-        property(lambda self: True),
-    )
+    monkeypatch.setattr(subscriptions_service_module, "is_cloud", lambda: True)
     service = SubscriptionsService(subscriptions_dao=AsyncMock())
     service.start_plan = AsyncMock(return_value="subscription")
     service.start_reverse_trial = AsyncMock()

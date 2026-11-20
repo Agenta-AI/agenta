@@ -11,6 +11,7 @@ from oss.src.utils.env import env
 
 import ee.src.core.licenses.service as licenses_service_module
 from ee.src.core.licenses import keys
+from ee.src.core.licenses.cloud import is_cloud
 
 
 def _b64url(data: bytes) -> str:
@@ -54,6 +55,14 @@ def signing_key(monkeypatch) -> Ed25519PrivateKey:
     return private_key
 
 
+@pytest.fixture(autouse=True)
+def _fresh_is_cloud():
+    """`is_cloud()` is read once per process; each test sets its own environment."""
+    is_cloud.cache_clear()
+    yield
+    is_cloud.cache_clear()
+
+
 @pytest.fixture
 def self_hosted(monkeypatch):
     monkeypatch.setattr(env.stripe, "api_key", None)
@@ -63,7 +72,19 @@ def self_hosted(monkeypatch):
 
 
 @pytest.fixture
-def cloud(monkeypatch):
+def cloud(monkeypatch, signing_key):
+    """Agenta cloud: a cloud license key with no expiry in AGENTA_LICENSE_KEY, and Stripe."""
+    monkeypatch.setattr(
+        env.license,
+        "key",
+        sign_key(
+            signing_key,
+            plan="cloud",
+            customer="Agenta cloud",
+            seats=...,
+            expires_at=...,
+        ),
+    )
     monkeypatch.setattr(env.stripe, "api_key", "sk_test_unit")
 
 
