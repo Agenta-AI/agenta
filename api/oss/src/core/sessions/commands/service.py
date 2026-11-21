@@ -32,12 +32,10 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
-
-if TYPE_CHECKING:
-    from oss.src.core.access.service import AccessService
+from oss.src.core.access.service import AccessService, get_access_service
 from oss.src.core.access.dtos import RunApproval, RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import (
@@ -960,6 +958,12 @@ class SessionCommandsService:
                 error,
             )
         if (
+            not deliver
+            and admission.command is not None
+            and admission.command.state == SessionCommandState.pending
+        ):
+            await self._refuse_caller_continuation_without_access(admission)
+        if (
             deliver
             and admission.command is not None
             and admission.command.state == SessionCommandState.pending
@@ -977,6 +981,31 @@ class SessionCommandsService:
                 if await self._mark_continuation_recoverable(admission, receipt):
                     admission.execution_state = SessionExecutionState.recoverable
         return admission
+
+    async def _refuse_caller_continuation_without_access(
+        self, admission: InteractionContinuationAdmission
+    ) -> None:
+        """The caller runs this continuation itself, so it gets the recheck that
+        delivery makes (`deliverable_envelope`) here. A refused continuation is settled
+        as delivery settles it, and the caller receives it settled, so it does not run."""
+        command = admission.command
+        try:
+            await deliverable_envelope(access=get_access_service(), command=command)
+            return
+        except (MissingEnvelope, AccessDenied) as refusal:
+            receipt = await self._settle_refused_continuation(
+                command=command,
+                error=_refusal_error(refusal=refusal, command=command),
+            )
+        settled = (
+            await self._dao.fetch_command(
+                project_id=command.project_id, command_id=command.id
+            )
+            if receipt.status == "refused"
+            else None
+        )
+        admission.command = settled
+        admission.execution_state = SessionExecutionState.terminal
 
     async def _cancel_unresumable_interactions(
         self,
@@ -2543,7 +2572,7 @@ def _holds_answer(interaction: SessionInteraction, answer: dict[str, Any]) -> bo
 
 async def deliverable_envelope(
     *,
-    access: "AccessService",
+    access: AccessService,
     command: SessionCommand,
 ) -> RunEnvelope:
     """The envelope a continue_input / continue_interaction command runs under,
