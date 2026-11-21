@@ -3,6 +3,7 @@
 import warnings
 import httpx
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
+from hashlib import sha256
 from json import dumps
 from uuid import UUID
 from traceback import format_exception
@@ -309,15 +310,21 @@ async def record_inband_approval_answers(
     req: Request,
     request: WorkflowInvokeRequest,
 ) -> None:
-    """Record a person's in-band approval answer on its interaction row before the run.
+    """Record a person's in-band approval answer on its interaction row before the run,
+    and run this request as the continuation of the paused turn.
 
     The runner takes an approval decision only from a ``responded`` row, never from message
     text. A caller that answers a card inside the messages (the Vercel
-    ``tool-approval-response`` input) has no row written for it, so this sends each answer
-    to the transition route first, as ``responded``, with the credential the caller
+    ``tool-approval-response`` input) has no row written for it, so this sends the answers
+    to the respond route first, the route that the app uses, with the credential the caller
     presented to this service, not the exchanged one. The API decides whether that
-    credential may answer; a refusal leaves the row as it was, and the run starts anyway
-    (the card then shows again). Never raises.
+    credential may answer. It stores the answers and a continuation of the paused
+    execution, as for an answer in the app, but leaves the continuation to this request
+    (``delivery: caller``): the request then runs under the continuation's execution id,
+    command id and session turn id, so the resumed run belongs to the turn that paused.
+
+    A refusal leaves the rows as they were, and the run starts anyway as a new turn (the
+    card then shows again). Never raises.
 
     A delivery the API made itself (a continuation or a promoted input) is skipped: the API
     already stored the answer before it dispatched the run.
@@ -353,38 +360,103 @@ async def record_inband_approval_answers(
         async with httpx.AsyncClient(
             timeout=connection.timeout, cookies=cookies
         ) as client:
+            response = await client.post(
+                f"{api_base}/sessions/interactions/query",
+                headers=headers,
+                params=params,
+                json={
+                    "query": {
+                        "session_id": request.session_id,
+                        "kind": "user_approval",
+                    }
+                },
+            )
+            if response.status_code >= 400:
+                log.info(
+                    "[HITL] in-band approval answer not recorded",
+                    session_id=request.session_id,
+                    status_code=response.status_code,
+                )
+                return
+            rows = {
+                row.get("token"): row
+                for row in (response.json().get("interactions") or [])
+                if isinstance(row, dict) and row.get("token")
+            }
+            # One respond call per paused execution: the route continues one execution.
+            by_execution: Dict[str, List[Dict[str, Any]]] = {}
             for token, approved, tool_call_id in answers:
+                row = rows.get(token)
+                if not row or not row.get("id") or not row.get("turn_id"):
+                    continue
+                by_execution.setdefault(row["turn_id"], []).append(
+                    {
+                        "interaction_id": row["id"],
+                        "answer": {"approved": approved, "tool_call_id": tool_call_id},
+                    }
+                )
+            for execution_id, items in by_execution.items():
+                digest = sha256(
+                    dumps(items, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
                 response = await client.post(
-                    f"{api_base}/sessions/interactions/transition",
-                    headers=headers,
+                    f"{api_base}/sessions/interactions/{items[0]['interaction_id']}"
+                    "/respond",
+                    headers={
+                        **headers,
+                        "Idempotency-Key": f"inband-approval:{execution_id}:{digest}",
+                    },
                     params=params,
                     json={
-                        "session_id": request.session_id,
-                        "token": token,
-                        "status": "responded",
-                        "resolution": {
-                            "verdict": "approved" if approved else "denied",
-                            "tool_call_id": tool_call_id,
-                        },
+                        "answers": items,
+                        "expected_execution_id": execution_id,
+                        "delivery": "caller",
                     },
                 )
                 if response.status_code >= 400:
                     log.info(
                         "[HITL] in-band approval answer not recorded",
                         session_id=request.session_id,
-                        token=token,
+                        execution_id=execution_id,
                         status_code=response.status_code,
                     )
                     # The API asks this service to slow down: stop, and the remaining
                     # cards show again.
                     if response.status_code == 429:
                         break
-    except httpx.HTTPError as error:
+                    continue
+                _run_as_continuation(request, response.json())
+    except (httpx.HTTPError, ValueError) as error:
         log.warning(
             "[HITL] in-band approval answer not recorded",
             session_id=request.session_id,
             error=type(error).__name__,
         )
+
+
+def _run_as_continuation(request: WorkflowInvokeRequest, admission: Any) -> None:
+    """Make this request the continuation that the respond route stored and left to it.
+
+    Only a continuation that nobody delivered yet (command `pending`) is taken. Without
+    one (another gate of the turn still waits, or the answer was already continued) the
+    request runs as before."""
+    if not isinstance(admission, dict) or (request.meta or {}).get(
+        "control_command_id"
+    ):
+        return
+    command = admission.get("command") or {}
+    execution = admission.get("execution") or {}
+    if command.get("state") != "pending" or not command.get("id"):
+        return
+    if not execution.get("id"):
+        return
+    continuation = {
+        "run_id": execution["id"],
+        "control_command_id": command["id"],
+    }
+    if execution.get("session_turn_id"):
+        continuation["session_turn_id"] = execution["session_turn_id"]
+    request.meta = {**(request.meta or {}), **continuation}
 
 
 async def admit_session_input(
@@ -394,7 +466,10 @@ async def admit_session_input(
 ) -> Optional[Response]:
     if request.on_busy is None or request.session_id is None:
         return None
-    if isinstance(request.meta, dict) and request.meta.get("promoted_input_id"):
+    if isinstance(request.meta, dict) and (
+        request.meta.get("promoted_input_id") or request.meta.get("control_command_id")
+    ):
+        # Already admitted: a promoted input, or the continuation of a paused turn.
         return None
 
     connection = PlatformConnection(authorization=credentials)
