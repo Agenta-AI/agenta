@@ -27,7 +27,7 @@ Program tier. Milestones ship to the same release (v0.130.1). M1, M2 and M3 can 
 ## M3. One migration runner
 
 - [ ] 3.1 The `ee` runner owns the sequence (legacy chain, `core_oss`, adoption step, `core_ee`, tracing chains); the `oss` runner module only calls it, with a docstring that records why. The runner ignores `ALEMBIC_CFG_PATH_CORE` for the legacy chain.
-- [ ] 3.2 Pick the legacy chain from the database state (skip it at `park00000000` or on an empty database; on any older or unknown revision, stop before any change with a message that asks for an upgrade to v0.129.x first).
+- [ ] 3.2 Pick the legacy chain from the database state (on an empty database run the EE legacy chain, which creates the initial schema; skip it at `park00000000`; on any older or unknown revision, stop before any change with a message that asks for an upgrade to v0.129.x first).
 - [ ] 3.3 Detect adoption (no `alembic_version_ee`, no `subscriptions`); run the membership materialize step after `core_oss` and before `core_ee`.
 - [ ] 3.4 CI replay: fresh, OSS v0.104.0, OSS v0.129.x, EE v0.129.x, and an OSS start interrupted during the materialize step; check schema heads and member project access before and after.
 
