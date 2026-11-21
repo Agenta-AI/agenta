@@ -13,8 +13,6 @@ import {
 
 export interface RevertConfirmDialogProps {
     open: boolean
-    /** Ignored: the dialog centres on the window. The drawer still passes its panel. */
-    container?: HTMLElement | null
     selectedVersion: number | null
     latestVersion: number | null
     onCancel: () => void
