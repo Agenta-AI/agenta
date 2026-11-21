@@ -4,17 +4,22 @@
 // provider keeps the email it sends.
 //
 // Worker secrets (set with `wrangler secret put`, never committed):
-//   LICENSE_SIGNING_KEY  Ed25519 private key, PKCS#8 PEM
+//   LICENSE_SIGNING_KEY  Ed25519 private key of the registration key pair, PKCS#8 PEM
 //   LOOPS_API_KEY        Loops API key for the transactional email
+// Worker variable (`vars` in both wrangler configs, not secret):
+//   LOOPS_TRANSACTIONAL_ID  id of the Loops transactional email that carries the key
 
 export const REGISTRATION_PATH = "/api/license-registrations";
 
 const KEY_PREFIX = "agenta_license_v1";
 const REGISTERED_PLAN = "self_hosted_registered";
 
-// The Loops transactional email that carries the key. Create it in Loops with the
-// data variables `licenseKey` and `activationUrl`, then put its id here.
-const LOOPS_TRANSACTIONAL_ID = "REPLACE_WITH_LOOPS_TRANSACTIONAL_ID";
+// The id the API knows the registration key pair by (`SIGNING_KEYS` in
+// api/ee/src/core/licenses/keys.py). The API accepts that key pair only for
+// `self_hosted_registered`. Change it together with LICENSE_SIGNING_KEY when the key
+// pair rotates.
+export const REGISTRATION_SIGNING_KEY_ID = "registration-1";
+
 const LOOPS_URL = "https://app.loops.so/api/v1/transactional";
 
 /** A Workers rate limit binding. */
@@ -25,6 +30,9 @@ export interface RateLimiter {
 export interface RegistrationEnv {
   LICENSE_SIGNING_KEY?: string;
   LOOPS_API_KEY?: string;
+  // The Loops transactional email, made with the data variables `licenseKey` and
+  // `activationUrl`.
+  LOOPS_TRANSACTIONAL_ID?: string;
   REGISTRATION_IP_LIMIT?: RateLimiter;
   REGISTRATION_EMAIL_LIMIT?: RateLimiter;
 }
@@ -119,6 +127,7 @@ export async function signRegistrationKey(
 ): Promise<string> {
   const payload = {
     key_id: crypto.randomUUID(),
+    signing_key_id: REGISTRATION_SIGNING_KEY_ID,
     plan: REGISTERED_PLAN,
     customer: email,
     seats: null,
@@ -146,7 +155,10 @@ export function activationUrl(webUrl: string, licenseKey: string): string {
   return `${webUrl.replace(/\/+$/, "")}/m/settings?tab=license#key=${licenseKey}`;
 }
 
-export function loopsMailSender(apiKey: string): MailSender {
+export function loopsMailSender(
+  apiKey: string,
+  transactionalId: string,
+): MailSender {
   return {
     async send(email) {
       const response = await fetch(LOOPS_URL, {
@@ -156,7 +168,7 @@ export function loopsMailSender(apiKey: string): MailSender {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          transactionalId: LOOPS_TRANSACTIONAL_ID,
+          transactionalId,
           email: email.to,
           // The person asked for product updates when they registered.
           addToAudience: true,
@@ -271,7 +283,9 @@ async function register(
 
   const sender =
     mailSender ??
-    (env.LOOPS_API_KEY ? loopsMailSender(env.LOOPS_API_KEY) : null);
+    (env.LOOPS_API_KEY && env.LOOPS_TRANSACTIONAL_ID
+      ? loopsMailSender(env.LOOPS_API_KEY, env.LOOPS_TRANSACTIONAL_ID)
+      : null);
   if (!env.LICENSE_SIGNING_KEY || !sender) {
     return error(503, "unavailable", "Registration is not available.");
   }

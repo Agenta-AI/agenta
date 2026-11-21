@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import worker from "./index";
 import {
   REGISTRATION_PATH,
@@ -130,6 +130,7 @@ describe("handleRegistration", () => {
 
     const payload = JSON.parse(new TextDecoder().decode(fromBase64url(body)));
     expect(payload).toMatchObject({
+      signing_key_id: "registration-1",
       plan: "self_hosted_registered",
       customer: "ada@example.com",
       seats: null,
@@ -165,6 +166,18 @@ describe("handleRegistration", () => {
 
     expect(response.status).toBe(503);
     expect(sent).toHaveLength(0);
+  });
+
+  it.each([
+    ["the Loops API key", { LOOPS_TRANSACTIONAL_ID: "tmpl_unit" }],
+    ["the Loops template id", { LOOPS_API_KEY: "loops_unit" }],
+  ])("answers 503 when %s is not set", async (_, loops) => {
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem, ...loops }),
+    );
+
+    expect(response.status).toBe(503);
   });
 
   it("answers 502 when the email cannot be sent", async () => {
@@ -297,6 +310,42 @@ describe("handleRegistration", () => {
     );
 
     expect(response.status).toBe(405);
+  });
+});
+
+describe("Loops email", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends the template id from the worker environment", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response("{}", { status: 200 });
+    });
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({
+        LICENSE_SIGNING_KEY: privatePem,
+        LOOPS_API_KEY: "loops_unit",
+        LOOPS_TRANSACTIONAL_ID: "tmpl_unit",
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("https://app.loops.so/api/v1/transactional");
+    expect(
+      (calls[0].init.headers as Record<string, string>).Authorization,
+    ).toBe("Bearer loops_unit");
+    const body = JSON.parse(calls[0].init.body as string);
+    expect(body).toMatchObject({
+      transactionalId: "tmpl_unit",
+      email: "ada@example.com",
+    });
+    expect(body.dataVariables.licenseKey).toMatch(/^agenta_license_v1\./);
   });
 });
 

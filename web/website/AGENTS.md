@@ -129,8 +129,13 @@ self-hosted instance asks for a free registration key. The worker checks the bod
 link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. It stores nothing and answers
 `202 {}`. It runs before the negotiation `try/catch`, so a failure answers JSON and never falls
 back to an asset. Worker secrets, set with `wrangler secret put` and never committed:
-`LICENSE_SIGNING_KEY` (the Ed25519 private key, PKCS#8 PEM) and `LOOPS_API_KEY`. Without them
-the route answers 503. The Loops email template id is the constant `LOOPS_TRANSACTIONAL_ID`.
+`LICENSE_SIGNING_KEY` (the private key of the registration key pair, Ed25519, PKCS#8 PEM) and
+`LOOPS_API_KEY`. The Loops email template id is the plain worker variable
+`LOOPS_TRANSACTIONAL_ID`, in the `vars` block of both wrangler configs (not a secret; preview and
+production can use different templates). Without any of the three the route answers 503. The key
+it signs carries `signing_key_id: "registration-1"`; the API accepts that key pair only for the
+`self_hosted_registered` plan, so this worker can never mint a paid or cloud key. The
+release private key never goes in this worker.
 The route is public, so it refuses a body over 2 KiB (413) and checks two rate limit bindings
 from the `ratelimits` block of both wrangler configs before it signs: `REGISTRATION_IP_LIMIT`
 (per caller IP) and `REGISTRATION_EMAIL_LIMIT` (per email). Over a limit it answers 429; with a

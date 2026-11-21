@@ -14,6 +14,12 @@
   // stays pure SSG; this worker only picks a prebuilt representation and sets
   // agent-facing headers. See worker/index.ts.
   "main": "./worker/index.ts",
+  // Plain variables for POST /api/license-registrations (see web/website/AGENTS.md).
+  // LOOPS_TRANSACTIONAL_ID is the Loops email that carries the key; empty, the route
+  // answers 503.
+  "vars": {
+    "LOOPS_TRANSACTIONAL_ID": "",
+  },
   // Limits for POST /api/license-registrations (see web/website/AGENTS.md). Preview and
   // production use different namespace ids so they do not share counters.
   "ratelimits": [
