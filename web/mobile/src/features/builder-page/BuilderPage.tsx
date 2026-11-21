@@ -163,8 +163,12 @@ export const BuilderPage = ({
 
     const [builderSidebarHidden, setBuilderSidebarHidden] = useAtom(builderSidebarHiddenAtom)
     // Another chat, or the page opening: the builder sidebar shows again. "Builder" in the main
-    // sidebar shows it too, also when the route stays the same.
-    useEffect(() => setBuilderSidebarHidden(false), [sessionId, setBuilderSidebarHidden])
+    // sidebar shows it too, also when the route stays the same. Reset on leaving as well, so the
+    // next visit does not paint the main sidebar for one frame.
+    useEffect(() => {
+        setBuilderSidebarHidden(false)
+        return () => setBuilderSidebarHidden(false)
+    }, [sessionId, setBuilderSidebarHidden])
     const scope = useMemo(
         () =>
             createBuilderSidebarScope(workspaceId, projectId, () => {
