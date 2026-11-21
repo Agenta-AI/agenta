@@ -2258,7 +2258,7 @@ async def handle_list_agent_drives(
     timeout_ms: int = DRIVE_OPS_DEFAULT_TIMEOUT_MS,
     mounts_service: Any = None,
     agent_read_scope: Optional[AgentReadScope] = None,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     session_caller: SessionCaller,
 ) -> PlatformHandlerResult:
     """The drives of another agent that the run authority can see, from the agent's head
@@ -2309,7 +2309,7 @@ async def handle_list_agent_drives(
     return PlatformHandlerResult(
         content={
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             "drives": drives,
         }
@@ -2617,7 +2617,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_list_agent_drives,
         elevated_permission=Permission.VIEW_MOUNTS,
         needs_mounts=True,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
         needs_session_caller=True,
     ),
