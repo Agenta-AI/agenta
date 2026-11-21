@@ -41,7 +41,10 @@ export const advancedSection = ({
         indicator: sectionIndicator("advanced"),
         // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
         defaultOpen: false,
-        // No summary: the row names nothing (canvas S02, B03); its view lists the parts.
+        // The agent's sandbox (canvas F01, M07: "Sandbox: Daytona"); the view lists the parts.
+        summary: mh.sandboxSummary,
+        // A view opens, but the row ends with the triangle of the rows around it (canvas F01).
+        drawerAffordance: "triangle",
         // Changes not saved yet → show them inline (dropping `onOpen` is what expands a section).
         // Nothing changed → the row opens the view.
         // On the page: one row per part (canvas A04: Execution, Agenta tools).

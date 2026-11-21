@@ -43,6 +43,7 @@ import {
 
 import {useAdvancedParts} from "./advancedParts"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
+import {sandboxSummary} from "./sections/AdvancedPartRows"
 import {useAdvancedSectionBody} from "./sections/AdvancedSectionBody"
 import {modelSectionBody} from "./sections/ModelSectionBody"
 import {permissionsSectionBody} from "./sections/PermissionsSectionBody"
@@ -312,15 +313,12 @@ export function useModelHarness({
     // ("<connection>/<deployment>/..."), which neither the catalog nor the schema knows it by, so
     // both are also asked about its bare id — the summary must read as a model name either way.
     const bareModel = modelId ? bareConnectionModelId(modelId) : null
-    const modelSummary =
-        [
-            enumLabel(harnessProps.kind, harness.kind),
-            modelLabel(capabilities, harnessValue, modelId) ??
-                modelLabel(capabilities, harnessValue, bareModel) ??
-                enumLabel(props.llm, bareModel),
-        ]
-            .filter(Boolean)
-            .join(" · ") || undefined
+    const harnessName = enumLabel(harnessProps.kind, harness.kind)
+    const modelName =
+        modelLabel(capabilities, harnessValue, modelId) ??
+        modelLabel(capabilities, harnessValue, bareModel) ??
+        enumLabel(props.llm, bareModel)
+    const modelSummary = [harnessName, modelName].filter(Boolean).join(" · ") || undefined
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     // Shared with the composer's `/permissions` palette, so the two lists cannot drift.
@@ -418,6 +416,14 @@ export function useModelHarness({
         hasModelOrHarness,
         mcpSupported,
         modelSummary,
+        // The Configuration page's Model card (canvas A04): the readable name, the raw id and
+        // the harness it runs through.
+        // A label that only repeats the id (a model outside the catalog) is no name.
+        modelCard: {
+            name: modelName && modelName !== bareModel ? modelName : undefined,
+            id: bareModel,
+            harness: harnessName || undefined,
+        },
         modelHarnessBody,
         hasAdvanced,
         hasExecutionGroup,
@@ -426,5 +432,7 @@ export function useModelHarness({
         runnerPermissionSummary,
         runnerPermissionLabel,
         advancedChangeBody,
+        // The Advanced row's summary (canvas F01, M07: "Sandbox: Daytona").
+        sandboxSummary: sandboxSummary(advancedParts.sandbox),
     }
 }

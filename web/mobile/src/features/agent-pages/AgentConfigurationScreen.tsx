@@ -104,6 +104,8 @@ export const AgentConfigurationScreen = ({
                 historyWorkflowId={agentId}
                 onUpdate={pin}
                 phone={phone}
+                // The desktop header: "vN · when", then "Saved as vN" (canvas A04).
+                page={!phone}
                 backTitle={t("agentLayout.header.configuration")}
                 className={phone ? "shrink-0" : undefined}
             />
@@ -125,8 +127,9 @@ export const AgentConfigurationScreen = ({
         ) : (
             <div
                 className={cn(
-                    "mx-auto box-border flex min-h-0 w-full max-w-[760px] flex-1 flex-col pt-3.5",
-                    inset && "px-4",
+                    "mx-auto box-border flex min-h-0 w-full max-w-[760px] flex-1 flex-col",
+                    // A body that pads its own rows also pads its own top.
+                    inset && "px-4 pt-3.5",
                 )}
             >
                 {node}
@@ -245,7 +248,8 @@ export const AgentConfigurationScreen = ({
                                     {/* The tab row sits in the page column, on its own strip. */}
                                     <div className="box-border h-10 shrink-0 border-0 border-b border-solid border-colorBorderSecondary bg-background">
                                         <div className={`flex h-full ${CONFIGURATION_PAGE_COLUMN}`}>
-                                            <TabsList className="h-full gap-[18px] p-0">
+                                            {/* Canvas `.ltabs`: 16 px between tabs, 2 px inside each (A04). */}
+                                            <TabsList className="h-full gap-4 p-0">
                                                 {CONFIGURATION_TABS.map((key) => (
                                                     <TabsTrigger
                                                         key={key}

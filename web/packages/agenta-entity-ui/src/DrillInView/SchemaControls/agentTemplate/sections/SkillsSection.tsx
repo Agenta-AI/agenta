@@ -3,7 +3,7 @@ import {useState} from "react"
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
-import {Compass} from "@phosphor-icons/react"
+import {Book, Compass} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
 import {ConfigItemList} from "../ConfigItemList"
@@ -52,6 +52,7 @@ export const skillsSection = ({
         title: fieldTitle("skills", t("entityUi.agentTemplate.skills")),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(skills.length, "skill") || tNow("common.none"),
+        empty: skills.length === 0,
         phoneSummary:
             skills
                 .map((skill) => skillCommandName(skill) ?? describeSkill(skill).name)
@@ -83,7 +84,7 @@ const SkillsAddMenu = ({t, onManual}: {t: AgentTemplateT; onManual: () => void})
             onManual={onManual}
             manualTitle={t("entityUi.agentTemplate.addManually")}
             manualHint={tNew("entityUi.skillNew.addManuallyHint")}
-            manualIcon={<Compass size={16} />}
+            manualIcon={<Book size={14} />}
         />
     )
 }
