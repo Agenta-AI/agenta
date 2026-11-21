@@ -78,7 +78,7 @@ Everything else works as on OSS, with no limit on users. SSO login that you conf
 
 Before this release, an EE instance without a key gave every organization the enterprise plan. After the upgrade, an instance without a key runs on the Community plan. If you upgrade an EE instance and do not add a key:
 
-- Every organization moves to the Community plan. The plan stored for each organization does not change, so adding a key later restores the features.
+- Every organization moves to the Community plan. Adding a key later turns the enterprise features back on.
 - The **Access & Security** and **Audit Log** settings show the enterprise features as locked.
 - Invitations and role changes offer only admin and member. Members who already have another role keep it.
 - SSO providers, verified domains and sign-in settings that organizations saved before the upgrade stay in the database. Owners cannot change them until you add a key.
@@ -86,7 +86,7 @@ Before this release, an EE instance without a key gave every organization the en
 
 If your instance sets `STRIPE_API_KEY`, remove it before you upgrade. Stripe is for Agenta Cloud billing. The API and the workers do not start when `STRIPE_API_KEY` is set and `AGENTA_LICENSE_KEY` is not a cloud license key.
 
-To keep the enterprise features, add a key before or right after the upgrade. To get a key, [talk to us](https://agenta.ai/contact).
+To keep the enterprise features without a gap, set `AGENTA_LICENSE_KEY` when you deploy the upgrade. To get a key, [talk to us](https://agenta.ai/contact).
 
 ## Reference
 
