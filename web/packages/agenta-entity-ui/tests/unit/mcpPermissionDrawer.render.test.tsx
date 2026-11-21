@@ -310,13 +310,10 @@ describe("a server just added to an agent", () => {
         expect(labelled("Default permission")?.textContent).not.toContain("Custom")
     })
 
-    it("says every row follows the agent policy, with no provenance to add", async () => {
-        // There is no governing value to name here, so the row says which value it holds rather
-        // than "Inherits" something the policy does not state.
+    it("says every row follows the agent policy", async () => {
         await render({policy: justAdded})
 
         expect(labelled("Permission for get_issue")?.textContent).toContain("Follow agent policy")
-        expect(labelled("Permission for get_issue")?.textContent).not.toContain("Inherits")
     })
 
     it("summarises both groups as following the agent policy", async () => {
@@ -483,7 +480,7 @@ describe("a policy whose per-tool table arrives under the runner's field names",
             "delete_issue",
         ]) {
             const row = labelled(`Permission for ${tool}`)
-            expect(row?.textContent).toContain("Inherits ask")
+            expect(row?.textContent).toContain("Follow agent policy")
             expect(row?.textContent).not.toContain("Allow")
         }
     })
@@ -574,7 +571,7 @@ describe("Ask for write and delete — the preset that writes what it says", () 
 
     it("shows the grant on the rows it just named, not an inherited value", async () => {
         // The preset's whole claim is per tool, so the rows have to carry it: a read-only row
-        // still reading "Inherits ask" after the pick would say the opposite of what was picked.
+        // still reading "Follow agent policy" after the pick would say the opposite of what was picked.
         const onChange = await render({policy: {permission: "allow"}})
 
         await choose(labelled("Default permission"), "Ask for write and delete")
@@ -582,7 +579,9 @@ describe("Ask for write and delete — the preset that writes what it says", () 
 
         for (const tool of ["get_current_user", "get_issue", "list_issues", "list_comments"]) {
             expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Allow")
-            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain("Inherits")
+            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain(
+                "Follow agent policy",
+            )
         }
     })
 
@@ -593,7 +592,7 @@ describe("Ask for write and delete — the preset that writes what it says", () 
         await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
 
         for (const tool of ["create_issue", "delete_issue"]) {
-            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Inherits ask")
+            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Follow agent policy")
         }
     })
 
@@ -960,8 +959,8 @@ describe("a saved per-tool value the drawer cannot draw", () => {
         const control = labelled("Permission for get_issue")
         expect(control?.textContent).toBeTruthy()
         // `Allow` is not a decision, so `get_issue` falls to the declared table's floor, and
-        // the row says so the way every inheriting row does.
-        expect(control?.textContent).toContain("Inherits ask")
+        // the row reads like every other row with no rule of its own.
+        expect(control?.textContent).toContain("Follow agent policy")
     })
 
     it("does not let the server permission govern a table that was declared", async () => {
