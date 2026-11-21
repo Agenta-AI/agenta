@@ -224,14 +224,14 @@ if (!match) {{
   process.exit(1);
 }}
 if (match[2] === patched) {{
-  console.log("codex-acp approval patch: already on-request");
+  console.log("codex-acp approval patch: already " + patched);
 }} else {{
   writeFileSync(
     file,
     source.slice(0, match.index) + match[1] + '"' + patched + '"' + match[3] +
       source.slice(match.index + match[0].length)
   );
-  console.log("codex-acp approval patch: agent-full-access now sends on-request approvals");
+  console.log("codex-acp approval patch: agent-full-access now sends " + patched + " approvals");
 }}
 // Re-read and assert, so the snapshot can never ship cold approvals on a silent write failure.
 const after = new RegExp({json.dumps(PATCH_SPEC["pattern"])}).exec(readFileSync(file, "utf8"));
