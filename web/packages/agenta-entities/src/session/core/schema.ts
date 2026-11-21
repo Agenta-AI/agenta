@@ -198,6 +198,16 @@ export const sessionStreamSchema = z.object({
     origin: sessionOriginSchema.nullish().catch(undefined),
     trigger: sessionTriggerSchema.nullish().catch(undefined),
     delivery: sessionDeliverySchema.nullish().catch(undefined),
+    // The session whose agent created this one; set only when the origin is `calling_session`.
+    calling_session: z
+        .object({
+            id: z.string(),
+            turn_id: z.string().nullish(),
+            agent_id: z.string().nullish(),
+            revision_id: z.string().nullish(),
+        })
+        .nullish()
+        .catch(undefined),
     // Sharing (M3): who may see the session. `owner_user_id` is null for an ownerless session
     // (channel, API key, trigger). An unknown visibility degrades to undefined, as above.
     visibility: visibilitySchema.nullish().catch(undefined),

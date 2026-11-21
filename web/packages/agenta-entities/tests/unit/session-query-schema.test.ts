@@ -259,6 +259,30 @@ describe("sessionStreamSchema origin", () => {
         },
     )
 
+    it("keeps the calling session of a child session", () => {
+        const callingSession = {
+            id: "sess-parent",
+            turn_id: "turn-1",
+            agent_id: "66666666-6666-6666-6666-666666666666",
+            revision_id: "77777777-7777-7777-7777-777777777777",
+        }
+        const out = sessionStreamSchema.parse({
+            ...wireRow,
+            origin: "calling_session",
+            calling_session: callingSession,
+        })
+        expect(out.calling_session).toEqual(callingSession)
+    })
+
+    it("reads a malformed calling session as undefined and keeps the row", () => {
+        const out = sessionsQueryResponseSchema.parse({
+            count: 1,
+            sessions: [{...wireRow, calling_session: {turn_id: "turn-1"}}],
+        })
+        expect(out.sessions).toHaveLength(1)
+        expect(out.sessions[0].calling_session).toBeUndefined()
+    })
+
     it("reads an unknown origin as undefined and keeps the row", () => {
         const out = sessionsQueryResponseSchema.parse({
             count: 1,
