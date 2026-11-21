@@ -386,6 +386,13 @@ class WireResolvedToolSpec(_WireModel):
     render: Optional[WireRenderHint] = None
     read_only: Optional[bool] = Field(default=None, alias="readOnly")
     permission: Optional[str] = None
+    # Session writes only: what the runner forwards to `resolve_gate`.
+    configured_permission: Optional[str] = Field(
+        default=None, alias="configuredPermission"
+    )
+    target_permissions: Optional[Dict[str, str]] = Field(
+        default=None, alias="targetPermissions"
+    )
 
 
 class WireGatewayTool(_WireModel):

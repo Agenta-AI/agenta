@@ -13,7 +13,3 @@ export const needsSetupStatus = (req: AgentRequirementItem): ItemRowStatus => ({
     reason: needsSetupReasonText(req.reason) ?? undefined,
     needsSetup: true,
 })
-
-/** Whether a row status is the needs-setup tag (so a click opens the fix, not the plain editor). */
-export const isNeedsSetupStatus = (status: ItemRowStatus | undefined): boolean =>
-    status?.needsSetup === true

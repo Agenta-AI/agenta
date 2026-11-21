@@ -29,9 +29,122 @@ export interface ApprovalPreviewItem {
 }
 
 /**
+ * The server's dry run of a versioned agent change (`edit_agent_config`, `create_agent`): the
+ * change-set engine applied to the call's base revision, nothing saved. It reaches the browser
+ * as the stream part `data-approval-preview` (`{toolCallId, approvalId, preview}`). Values are
+ * bounded (4 KB each, a diff 16 KB, the whole preview 64 KB); past the bound a change keeps only
+ * `path`, `operation_indexes` and `kind`, and `truncated` is set.
+ */
+export interface ChangePreview {
+    /** The whole change set applies to the base. */
+    applies: boolean
+    base?: {id: string; version: string | number}
+    /** Each operation's status; `applies: null` = not checked (the engine stopped before it). */
+    operations: {index: number; applies: boolean | null; error?: ChangePreviewError}[]
+    /** Empty when the change set cannot apply. */
+    changes: ChangePreviewChange[]
+    truncated?: boolean
+    /** The engine refused the change set as a whole (no operation index). */
+    error?: ChangePreviewError
+}
+
+export interface ChangePreviewError {
+    code: string
+    message: string
+}
+
+/** One changed path. A list item is addressed by `{list, key}` in `path`. */
+export interface ChangePreviewChange {
+    path: unknown[]
+    operation_indexes: number[]
+    kind: "added" | "removed" | "changed"
+    old?: unknown
+    new?: unknown
+    /** A unified diff, for text over 400 characters. */
+    diff?: string
+    truncated?: boolean
+}
+
+/** Risk kinds a change can add; each shows one warning line on the card. */
+export type ApprovalChangeRiskKind = "fewer_approvals" | "data_egress" | "cost" | "breakage"
+
+/** One warning line: the kind of risk and the line the card shows, ready to show. */
+export interface ApprovalChangeRiskLine {
+    kind: ApprovalChangeRiskKind
+    message: string
+}
+
+/**
+ * The section of the agent configuration a change lands in. It picks the card's icon; the words
+ * are in `ApprovalChange.path`.
+ */
+export type ApprovalChangeSection =
+    | "instructions"
+    | "model"
+    | "skills"
+    | "mcps"
+    | "integrations"
+    | "tools"
+    | "permissions"
+    | "settings"
+
+/** One file of an added skill. */
+export interface ApprovalChangeFile {
+    path: string
+    /** The file can run as a program. */
+    executable?: boolean
+}
+
+/**
+ * The detail of one change, in one of four forms. Values are display text, ready to show.
+ * - `text_diff`: a text field. `old` and `new` (or `diff`) come from the server preview; with no
+ *   preview, `fragmentsOnly` is set and `edits` holds the proposed fragments of `edit_text`, or
+ *   `new` holds the proposed text of a `set`.
+ * - `value_change`: a short value, named by `label` ("Model", "Close ticket"); `old` is absent
+ *   when the preview is missing.
+ * - `item`: a whole list item added or removed (a skill, a tool, an MCP server), with what the
+ *   card shows of it: its description, its address (an MCP server URL), its files.
+ * - `user_step`: a step the person does before the change (connect, paste a secret).
+ */
+export type ApprovalChangeDetail =
+    | {
+          kind: "text_diff"
+          old?: string
+          new?: string
+          diff?: string
+          fragmentsOnly?: boolean
+          edits?: {old?: string; new?: string}[]
+      }
+    | {kind: "value_change"; label?: string; old?: string; new?: string}
+    | {
+          kind: "item"
+          change: "added" | "removed"
+          name: string
+          description?: string
+          address?: string
+          files?: ApprovalChangeFile[]
+      }
+    | {kind: "user_step"; step: string}
+
+/** One change a card proposes (shared contract SC6). */
+export interface ApprovalChange {
+    title: string
+    /** Readable path segments, for example `["Skills", "release-qa", "SKILL.md"]`. */
+    path: string[]
+    section: ApprovalChangeSection
+    /** Absent for an operation the card cannot render: it shows its title and path only. */
+    detail?: ApprovalChangeDetail
+    /** "version": saved as part of a new version; "immediate": applies at once. */
+    effect: "version" | "immediate"
+    risks: ApprovalChangeRiskLine[]
+    /** The server preview names this operation as the one that cannot apply. */
+    fails?: boolean
+}
+
+/**
  * What the approval card renders — plain language, no payload. One shell serves every tool and
  * every host, so a describer returns DATA, never JSX: there is no mode in which the card shows
- * raw arguments, a diff, or a digest.
+ * raw arguments.
  */
 export interface ApprovalPreview {
     /** One sentence: what happens if you approve, and what it costs. */
@@ -40,12 +153,30 @@ export interface ApprovalPreview {
     items: ApprovalPreviewItem[]
     /** Integration slug the card looks up, then re-describes with `appName`. */
     sourceKey?: string
+    /** The configuration changes, for a tool that changes an agent's configuration. */
+    changes?: ApprovalChange[]
+    /** The changes show the proposed values: the server preview is missing for this call. */
+    proposedValues?: boolean
+    /** The server preview says the change set cannot apply to the current version. */
+    cannotApply?: boolean
+    /** The name of the agent the changes are for, as the card shows it. */
+    agentName?: string
+    /** The slug or id of an agent the card looks up, then re-describes with the agent's name. */
+    agentRef?: string
+    /** The card's own header, for a call that is more than its changes (`create_agent`). */
+    header?: {title: string; path: string[]}
+    /**
+     * The revision the change is made on: from the server preview, else the call's
+     * `base_revision_id`. The host reads its version and the agent's latest version.
+     */
+    base?: {revisionId?: string; version?: number}
 }
 
 /**
  * One approval registry entry: a pure function from the gate's payload to what the card says.
  * Returning `null` falls back to the generic describer, so a describer that cannot read its own
- * payload degrades instead of guessing.
+ * payload degrades instead of guessing. It stays pure: old values come only from the server
+ * preview the host passes, never from a fetch.
  *
  * `appName` is the catalog name, which answers late: resolve once, report `sourceKey`, get called
  * again with the name. Same contract as `resolveToolDisplay`.
@@ -54,6 +185,10 @@ export type ApprovalDescriber = (
     input: unknown,
     manifest: unknown,
     appName?: string,
+    /** The server preview of this call, when the gate carries one (`data-approval-preview`). */
+    changePreview?: unknown,
+    /** The name of the agent that `agentRef` of an earlier description named, once known. */
+    agentName?: string,
 ) => ApprovalPreview | null
 
 /** Best-effort tool family, inferred from the wire-name shape and the call's arguments. */
@@ -63,6 +198,8 @@ export type ToolKind = "gateway" | "mcp" | "platform" | "shell" | "file"
 export interface ToolActivity {
     running: string
     done: string
+    /** The sentence for a call that failed. Without it, a failed row keeps its running sentence. */
+    failed?: string
 }
 
 /** The closed set of activity-step glyphs, chosen by kind and canonical name, never per raw tool. */
@@ -110,6 +247,12 @@ export interface ToolDisplayEntry {
     kind?: ToolKind
     /** The row's sentence; a function gets the app's name (undefined until known) and may decline. */
     activity?: ToolActivity | ((appName?: string) => ToolActivity | undefined)
+    /** The row's sentence from the call itself, its arguments or result; wins over `activity`
+     * when it answers. `agentName` is the name of the agent that `agentRef` named, once known. */
+    describe?: (input: unknown, output: unknown, agentName?: string) => ToolActivity | undefined
+    /** The slug or id of an agent the call names: the row looks it up and resolves again with
+     * the agent's name. */
+    agentRef?: (input: unknown) => string | undefined
     /** The app this call is about; `action` is a tool it reported, or with `ran`, called. */
     app?: (input: unknown, output: unknown) => {slug?: string; action?: string; ran?: boolean}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
@@ -142,6 +285,8 @@ export interface ResolvedToolDisplay {
     frame?: ToolActivity
     /** The step glyph, from the override or the kind's default. */
     icon: ActivityIcon
+    /** The slug or id of an agent the call names; resolve again with its name once known. */
+    agentRef?: string
 }
 
 /**

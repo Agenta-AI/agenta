@@ -3,6 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
+import { TurnApprovalRows } from "../../src/sessions/interactions.ts";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
@@ -3918,6 +3919,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
       undefined,
       undefined,
       deps,
+      {
+        // The person's answer, as the API stored it on the gate's row.
+        approvalRows: new TurnApprovalRows(
+          [
+            {
+              token: "perm-1",
+              kind: "user_approval",
+              status: "responded",
+              data: {
+                request: { tool: "edit", args: {} },
+                resolution: { approved: true },
+              },
+            },
+          ],
+          async () => true,
+        ),
+      },
     );
     await flushPromises();
 

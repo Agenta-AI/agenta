@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import sessionsListStatesCatalog from "@agenta/i18n/catalogs/sessions.listStates"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SkeletonBlock} from "@agenta/ui/ui"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /** Mirrors a row's geometry so real rows replace it without shifting the list. */
@@ -62,7 +62,12 @@ export const SessionListLoadMore = ({
     const t = useT(sessionsListStatesCatalog)
     return (
         <div className="flex justify-center py-3">
-            <Button variant="outline" disabled={loading} onClick={onClick}>
+            <Button
+                variant="outline"
+                disabled={loading}
+                className={PHONE_TOUCH_TARGET_CLASS}
+                onClick={onClick}
+            >
                 {loading ? t("sessions.listStates.loadingMore") : t("sessions.listStates.loadMore")}
             </Button>
         </div>

@@ -63,6 +63,7 @@ export {
     CONFIG_REGION_BAR,
     ConfigRowCaret,
     ConfigRowTrailing,
+    ConfigRowTriangle,
     sectionIndicatorColor,
     useAccordionSectionOpen,
     useRecentFlag,

@@ -43,7 +43,12 @@ import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
-import {ConfigRowCaret, ConfigRowDrawerCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
+import {
+    ConfigRowCaret,
+    ConfigRowDrawerCaret,
+    ConfigRowTrailing,
+    ConfigRowTriangle,
+} from "./ConfigRowTrailing"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -177,6 +182,20 @@ export interface ConfigAccordionSectionProps {
      * transition.
      */
     bodyClassName?: string
+    /**
+     * Draw the row at a canvas scale. `"panel"`: the agent Configuration panel (canvas F01), a
+     * 40 px row with a 4 px inset, 13 px title, 12 px summary, a light divider and triangle carets.
+     * `"pane"`: the builder page pane (canvas B03), a 45 px full-width row with a 16 px inset,
+     * 14 px title and 13 px summary. Off keeps today's rows.
+     */
+    canvas?: "panel" | "pane"
+    /**
+     * A row that opens a view (`onOpen`) ends with a chevron; `"triangle"` gives it the canvas
+     * caret of the rows around it (the Advanced row, canvas F01).
+     */
+    drawerAffordance?: "chevron" | "triangle"
+    /** Tint the header row (the builder page's "Changed by the builder", canvas B03). */
+    highlight?: boolean
     /** Section body. */
     children?: ReactNode
 }
@@ -209,8 +228,25 @@ export function ConfigAccordionSection({
     revealDelayMs = 0,
     animateInitialOpen = false,
     bodyClassName = "flex flex-col gap-3 pb-4 pt-3",
+    canvas,
+    drawerAffordance = "chevron",
+    highlight = false,
     children,
 }: ConfigAccordionSectionProps) {
+    const divider =
+        canvas === "pane"
+            ? "border-colorBorderSecondary"
+            : canvas
+              ? "border-[var(--ag-colorSplit)]"
+              : "border-[var(--ag-c-EAEFF5)]"
+    const titleSize =
+        size === "compact"
+            ? "text-xs"
+            : canvas === "pane"
+              ? "text-sm leading-5"
+              : canvas
+                ? "text-[13px] leading-5"
+                : "text-sm"
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
     // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
     // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.
@@ -335,14 +371,9 @@ export function ConfigAccordionSection({
                           "border-0 border-b border-solid transition-colors duration-300 ease-out",
                           banded
                               ? "border-transparent bg-[var(--ag-colorFillQuaternary)]"
-                              : cn(
-                                    "bg-transparent",
-                                    noDivider
-                                        ? "border-transparent"
-                                        : "border-[var(--ag-c-EAEFF5)]",
-                                ),
+                              : cn("bg-transparent", noDivider ? "border-transparent" : divider),
                       )
-                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
+                    : !noDivider && cn("border-0 border-b border-solid", divider),
                 className,
             )}
         >
@@ -351,7 +382,11 @@ export function ConfigAccordionSection({
             <div
                 onClick={headerActs ? activate : undefined}
                 className={cn(
-                    "flex items-center justify-between gap-2 py-3 select-none",
+                    "flex items-center justify-between gap-2 select-none",
+                    // The section's 1 px divider is outside the row: 39 + 1 makes the canvas'
+                    // 40 px row (F01); the pane's row is 45 px plus the divider (B03).
+                    canvas === "pane" ? "h-[45px] px-4" : canvas ? "h-[39px] px-1" : "py-3",
+                    highlight && "bg-[var(--ag-colorInfoBg)]",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
@@ -386,12 +421,7 @@ export function ConfigAccordionSection({
                         on top is revealed through a moving mask (config-shimmer keyframe), so a
                         glint sweeps the letters without fading the real text. */}
                     <span className="relative flex min-w-0">
-                        <span
-                            className={cn(
-                                "min-w-0 truncate font-medium",
-                                size === "compact" ? "text-xs" : "text-sm",
-                            )}
-                        >
+                        <span className={cn("min-w-0 truncate font-medium", titleSize)}>
                             {title}
                         </span>
                         {indicator?.pulse ? (
@@ -399,7 +429,7 @@ export function ConfigAccordionSection({
                                 aria-hidden
                                 className={cn(
                                     "animate-config-shimmer pointer-events-none absolute inset-0 truncate font-medium",
-                                    size === "compact" ? "text-xs" : "text-sm",
+                                    titleSize,
                                 )}
                                 style={{
                                     color: dotColor ?? undefined,
@@ -439,9 +469,17 @@ export function ConfigAccordionSection({
                                 <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                             )
                         ) : opensDrawer ? (
-                            <ConfigRowDrawerCaret />
+                            canvas && drawerAffordance === "triangle" ? (
+                                <ConfigRowTriangle />
+                            ) : (
+                                <ConfigRowDrawerCaret />
+                            )
                         ) : collapsible ? (
-                            <ConfigRowCaret open={isOpen} />
+                            canvas ? (
+                                <ConfigRowTriangle open={isOpen} />
+                            ) : (
+                                <ConfigRowCaret open={isOpen} />
+                            )
                         ) : null
                     }
                 >
@@ -452,7 +490,12 @@ export function ConfigAccordionSection({
                         // clipped even "1 file" to "1 f…". `preserveTitle` swaps which half yields.
                         <span
                             className={cn(
-                                "text-right text-xs text-colorTextDescription",
+                                "text-right",
+                                canvas === "pane"
+                                    ? "text-[13px] leading-5 text-colorTextSecondary"
+                                    : canvas
+                                      ? "text-[12px] leading-4 text-colorTextSecondary"
+                                      : "text-xs text-colorTextDescription",
                                 preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
                             )}
                         >

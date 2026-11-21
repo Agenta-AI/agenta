@@ -20,6 +20,8 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
+import {childUpdateOfRecord, type ChildUpdate} from "./childUpdate"
+
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
  *
@@ -114,6 +116,8 @@ interface DraftMessage {
     runErrorCode?: string
     /** The terminal `done` carried `stopReason:"cancelled"` — a user Stop, not a failure. */
     runStopped?: boolean
+    /** A user row whose turn a child update started: the server part its record carries. */
+    childUpdate?: ChildUpdate
 }
 
 interface TranscriptIndex {
@@ -610,6 +614,15 @@ function applyEvent(
                     },
                 })
             }
+            // The server preview of an agent write rides the same event: the card shows its old
+            // and new values from the records the durable send path renders.
+            if (reqPayload.preview !== undefined) {
+                draft.parts.push({
+                    type: "data-approval-preview",
+                    id: `${toolCallId}:preview`,
+                    data: {toolCallId, approvalId: str(payload.id), preview: reqPayload.preview},
+                })
+            }
             return
         }
         case "interaction_response": {
@@ -650,6 +663,19 @@ function applyEvent(
                 mediaType: str(payload.mediaType),
                 filename: str(payload.filename) || undefined,
             })
+            return
+        }
+        case "data": {
+            // The runner's mark of a call the person's approval choice ran with no card. The
+            // live stream projects the same event as a `data-auto-approved` part; replay rebuilds
+            // it so the call keeps its approved-automatically row (design D32).
+            if (
+                payload.name === "auto-approved" &&
+                payload.data &&
+                typeof payload.data === "object"
+            ) {
+                draft.parts.push({type: "data-auto-approved", data: payload.data})
+            }
             return
         }
         case "mcp_server_failed": {
@@ -847,6 +873,10 @@ export function transcriptToMessages(
             if (Number.isFinite(at)) current.createdAt = at
         }
         if (traceId && !current.traceId) current.traceId = traceId
+        if (role === "user") {
+            const childUpdate = childUpdateOfRecord(row)
+            if (childUpdate) current.childUpdate = childUpdate
+        }
         applyEvent(current, p, index, row.session_id, row.project_id)
         if (
             p.type === "error" &&
@@ -906,6 +936,7 @@ export function transcriptToMessages(
             // one here from records would change what `latestTurnId` reports.
             if (d.role === "user" && d.executionId) metadata.turnId = d.executionId
             if (d.role === "user" && d.createdAt !== undefined) metadata.createdAt = d.createdAt
+            if (d.role === "user" && d.childUpdate) metadata.childUpdate = d.childUpdate
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,

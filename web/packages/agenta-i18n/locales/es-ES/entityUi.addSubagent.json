@@ -2,7 +2,6 @@
     "removeAsSubagent": "Quitar {{name}} como subagente",
     "addAsSubagent": "Añadir {{name}} como subagente",
     "noDescription": "Sin descripción",
-    "appsConnectedTo": "Aplicaciones conectadas a {{name}}",
     "add": "Añadir",
     "addSubagents": "Añadir subagentes",
     "pickAgents": "· Elige los agentes a los que puede llamar este agente.",

@@ -1,5 +1,6 @@
 {
     "alwaysAutoApprove": "Sempre aprovar automaticamente",
+    "anAgent": "um agente",
     "answerSavedRetry": "Resposta salva, é preciso tentar de novo",
     "answerSavedRetryHint": "A resposta foi salva. Envie sua próxima mensagem para tentar continuar de novo.",
     "answerSavedWaiting": "A resposta foi salva. Aguardando a próxima atualização do agente…",
@@ -15,6 +16,9 @@
     "redirect": "Redirecionar",
     "seeWhatChanges": "Ver o que muda ({{count}})",
     "seeWhatRuns": "Ver o que será executado ({{count}})",
+    "startSession": "Iniciar uma sessão de {{agent}}. A nova sessão roda sozinha.",
+    "startSessionMessage": "Primeira mensagem",
+    "startSessionName": "Nome da sessão",
     "steerHint": "Negue esta etapa e diga ao agente o que fazer no lugar. Sua nota é executada como a próxima mensagem.",
     "steerPlaceholder": "p. ex. grave em staging, não em produção, ou peça outra coisa totalmente diferente"
 }

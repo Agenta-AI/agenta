@@ -35,6 +35,10 @@ from oss.src.core.mounts.dtos import MountFileSeed
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import AttachmentError
+from oss.src.core.sessions.inputs.types import (
+    SessionInputKeyReserved,
+    is_reserved_input_key,
+)
 from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.shared.exceptions import EntityCreationIdempotencyConflict
 from oss.src.core.shared.idempotency import request_fingerprint, request_key_hash
@@ -129,6 +133,10 @@ class AgentTemplateLoader:
         request_key = command.request_key.strip()
         if not request_key:
             raise ValueError("request_key must not be empty")
+        # The first message is a session input keyed by this request key, and `ag:`
+        # keys are server keys.
+        if is_reserved_input_key(request_key):
+            raise SessionInputKeyReserved()
         return request_key
 
     @staticmethod
