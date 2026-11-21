@@ -169,9 +169,10 @@ async def get_projects(
     except Exception as exc:  # pylint: disable=bare-except
         log.error(exc)
 
+        # Not 404: /m reads a 404 as "no project", which would hide a failed read.
         return JSONResponse(
-            status_code=404,
-            content={"message": "No projects found."},
+            status_code=500,
+            content={"message": "Could not list projects."},
         )
 
 

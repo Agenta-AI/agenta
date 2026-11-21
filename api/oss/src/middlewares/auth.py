@@ -211,6 +211,7 @@ _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
 _ORGANIZATIONLESS_READ_PATHS = frozenset(
     {
         "/profile",
+        "/profile/",
         "/api/profile",
         "/projects",
         "/projects/",

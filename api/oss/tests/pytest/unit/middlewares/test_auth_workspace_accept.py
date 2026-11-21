@@ -507,14 +507,16 @@ async def test_bearer_without_parameters_reads_nothing_more_for_a_default_member
 # --- a person without an organization ------------------------------------------- #
 
 
-@pytest.mark.parametrize("path", ["/projects/", "/api/projects/", "/profile"])
+@pytest.mark.parametrize(
+    "path", ["/projects/", "/api/projects/", "/profile", "/profile/"]
+)
 async def test_bearer_without_organization_reads_the_profile_and_projects(world, path):
     # Sign-up at the instance's organization limit leaves the person without one.
     world.state.oldest_organization = None
 
     state = await _bearer(world, path=path)
 
-    assert state.user_id
+    assert str(state.user_id) == str(world.user)
     assert state.project_id is None
     assert state.organization_id is None
     assert world.reads == ["fetch_oldest_organization_id"]

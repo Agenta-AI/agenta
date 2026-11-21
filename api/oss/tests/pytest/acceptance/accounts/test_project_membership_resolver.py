@@ -99,8 +99,11 @@ def test_role_change_takes_effect_at_once(admin_api, team):
     resp = admin_api(
         "POST", "/projects/", headers=team.headers("viewer"), json={"name": "R2"}
     )
-    assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"]["code"] == "project_limit_reached"
+    if is_ee():
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["detail"]["code"] == "project_limit_reached"
+    else:
+        assert resp.status_code == 201, resp.text
 
 
 def test_owner_cannot_be_demoted_through_the_role_endpoint(admin_api, team):

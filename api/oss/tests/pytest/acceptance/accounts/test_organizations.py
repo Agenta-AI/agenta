@@ -12,6 +12,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.utils.common import is_ee
+
 
 def _create_org(authed_api, admin_api, name):
     """An organization owned by the caller, through the platform admin route: the
@@ -84,6 +86,9 @@ def _owner_key_headers(authed_api, admin_api, organization_id):
 
 @pytest.mark.usefixtures("cls_account")
 class TestOrganizationLifecycle:
+    @pytest.mark.skipif(
+        not is_ee(), reason="the organization limit runs on the enterprise path"
+    )
     def test_create_organization_is_refused_at_the_instance_limit(self, authed_api):
         # A test stack has no license key: the instance already holds its one
         # organization, so the public route refuses another one.

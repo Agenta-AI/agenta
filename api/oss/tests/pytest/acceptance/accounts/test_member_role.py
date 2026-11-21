@@ -339,8 +339,11 @@ def test_member_creates_and_renames_a_project_but_cannot_delete_or_make_default(
         headers=team["headers"]["member"],
         json={"name": f"member-{uuid4().hex[:8]}"},
     )
-    assert created.status_code == 403, created.text
-    assert created.json()["detail"]["code"] == "project_limit_reached"
+    if is_ee():
+        assert created.status_code == 403, created.text
+        assert created.json()["detail"]["code"] == "project_limit_reached"
+    else:
+        assert created.status_code == 201, created.text
     new_id = create_project(
         admin_api, organization_id=team["organization_id"], name="member"
     )
