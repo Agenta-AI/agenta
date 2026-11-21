@@ -40,13 +40,16 @@ from starlette.datastructures import UploadFile
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
 from oss.src.core.access.context import fresh_request_memo, get_request_access
-from oss.src.core.access.dtos import RunApproval
 from oss.src.core.sessions.streams.types import (
     SessionCreationRequiresCallingSessionRecord,
     SessionCreationRequiresRunCredential,
 )
 from oss.src.core.tools.dtos import AgentError
-from oss.src.core.access.principals import access_denied_error, missing_envelope_error
+from oss.src.core.access.principals import (
+    access_denied_error,
+    approval_from_request,
+    missing_envelope_error,
+)
 from oss.src.core.access.types import MissingEnvelope
 from oss.src.middlewares.auth import request_run_envelope
 from oss.src.apis.fastapi.sharing.utils import (
@@ -153,12 +156,15 @@ from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
     SessionInputBusy,
+    SessionInputEditRefused,
     SessionInputIdempotencyConflict,
+    SessionInputKeyReserved,
     SessionInputNotFound,
     SessionInputNotRemovable,
     SessionInputNotEditable,
     SessionInputContentInvalid,
     SessionInputRemoved,
+    is_reserved_input_key,
 )
 from oss.src.core.sessions.inputs.dtos import PendingInputState
 from oss.src.core.sessions.attachments.dtos import Attachment
@@ -608,11 +614,13 @@ class SessionStreamsRouter:
         interactions_service: SessionInteractionsService,
         run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
+        commands_service: Optional[SessionCommandsService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
         self._run_admission = run_admission
         self._records_service = records_service
+        self._commands_service = commands_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -752,6 +760,14 @@ class SessionStreamsRouter:
             action=Permission.RUN_SESSIONS,
             session_id=payload.session_id,
         )
+        if mode == CommandMode.cancel:
+            await self._record_running_turn_stop(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=payload.session_id,
+                expected_execution_id=payload.expected_execution_id,
+                arrived_at_ms=arrived_at_ms,
+            )
         try:
             response = await self._service.command(
                 arrived_at_ms=arrived_at_ms,
@@ -799,6 +815,58 @@ class SessionStreamsRouter:
                 )
 
         return response
+
+    async def _record_running_turn_stop(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        expected_execution_id: Optional[str],
+        arrived_at_ms: int,
+    ) -> None:
+        """Record this Stop as the durable cancel command of `POST
+        /sessions/{session_id}/cancel`, for the turn that runs now.
+
+        The stop below clears the live flags in the database, so the orphan sweep no
+        longer sees the turn, and nothing wrote an ending when the runner was gone. With
+        the command, a runner that is alive settles the turn as it does for the cancel
+        route, and when no runner answers, the abandoned-command sweep settles it and the
+        sweep writes the missing `done`. Only a running turn: this stop never ends a
+        paused one unless the caller names it. Before the stop, so a failed write leaves
+        the turn running for a retry."""
+        if self._commands_service is None:
+            return
+        # The route check found no row: a turn running now is in a session created since,
+        # which this request has no right to stop.
+        if session_was_missing(project_id=project_id, session_id=session_id):
+            return
+        # Read from Redis, as the stop below does: the row's turn and start time are
+        # written later and by another clock, so a check against them can refuse a turn
+        # that the stop below then stops, and that turn gets no ending.
+        turn_id, started_at_ms = await self._service.running_turn_start(
+            project_id=project_id, session_id=session_id
+        )
+        if turn_id is None:
+            return
+        # The same two guards as the stop below, which cannot undo this command: a Stop
+        # that names a turn stops only that turn, and an unnamed Stop never stops a turn
+        # that started after it arrived. An unknown start does not refuse, as below.
+        if expected_execution_id is not None:
+            if expected_execution_id != turn_id:
+                return
+        elif started_at_ms is not None and started_at_ms > arrived_at_ms:
+            return
+        try:
+            await self._commands_service.request_cancel(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                expected_execution_id=turn_id,
+            )
+        except ExecutionExpectationFailed:
+            # The turn ended or another one runs now; the stop below gives the answer.
+            pass
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -905,6 +973,28 @@ class SessionStreamsRouter:
         ):
             return {"ok": True}
 
+        # The kill writes no ending for the execution that runs now, so it is settled
+        # `stopped` by the watchdog, and the orphan sweep writes the missing `done` when
+        # the runner writes none. It is settled before the kill: the kill clears the
+        # flags and soft-deletes the row, so a retry after a failed settle could not
+        # find the execution again. Only the live flag decides: neither the execution
+        # row nor the stored records can prove a turn runs (a paused execution has no
+        # outcome, and its paused `done` can still be on its way to the database).
+        stream = await self._service.fetch(
+            project_id=UUID(str(project_id)),
+            session_id=session_id,
+        )
+        if (
+            stream is not None
+            and stream.flags.is_running
+            and stream.turn_id
+            and self._commands_service is not None
+        ):
+            await self._commands_service.settle_execution_killed(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                execution_id=stream.turn_id,
+            )
         await self._service.kill(
             project_id=UUID(str(project_id)),
             user_id=UUID(str(user_id)),
@@ -1640,13 +1730,15 @@ class RecordsRouter:
             # The runner cannot tell a Steer from a Stop: both abort the turn the same way. The
             # cancel command can, so name the cause on the record and the transcript does not
             # call a turn the user's own reply replaced "Stopped".
+            # `cancel_session` marks its cancel command the same way.
             try:
-                if await self.commands_service.cancelled_by_steer(
+                cancelled_by = await self.commands_service.cancel_cause(
                     project_id=UUID(project_id),
                     session_id=body.session_id,
                     execution_id=body.turn_id,
-                ):
-                    attributes = {**(attributes or {}), "cancelledBy": "steer"}
+                )
+                if cancelled_by is not None:
+                    attributes = {**(attributes or {}), "cancelledBy": cancelled_by}
             except Exception:  # noqa: BLE001 - the cause is a label; the record must land
                 log.warning(
                     "cancel cause lookup failed session=%s turn=%s",
@@ -1817,8 +1909,12 @@ class InteractionsRouter:
 
         resolution = body.resolution
         # `resolved` is approval-only whether or not an answer rides along, so the row lookup
-        # runs for a bare `resolved` transition too.
-        if resolution is not None or body.status == SessionInteractionStatus.resolved:
+        # runs for a bare `resolved` transition too. A bare `responded` needs the row to
+        # refuse it on an approval.
+        if resolution is not None or body.status in (
+            SessionInteractionStatus.resolved,
+            SessionInteractionStatus.responded,
+        ):
             interactions = await self.interactions_service.query_interactions(
                 project_id=project_id,
                 query=SessionInteractionQuery(session_id=body.session_id),
@@ -1855,6 +1951,22 @@ class InteractionsRouter:
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=e.errors(include_context=False),
                     ) from e
+            # Only a person or a channel answers an approval. An agent run settles an
+            # answer that it consumed (`resolved`), but it may not record one
+            # (`responded`, with or without a resolution), and it may not replace the
+            # answer a row already holds.
+            if (
+                source.kind == SessionInteractionKind.user_approval
+                and approval_from_request(
+                    principal=request.state.principal,
+                    credential_kind=getattr(request.state, "credential_kind", None),
+                    user_id=UUID(str(request.state.user_id)),
+                ).is_run_credential
+            ):
+                if body.status == SessionInteractionStatus.responded:
+                    raise FORBIDDEN_EXCEPTION
+                if source.status == SessionInteractionStatus.responded:
+                    resolution = None
 
         try:
             interaction = await self.interactions_service.transition_interaction(
@@ -2003,6 +2115,16 @@ class InteractionsRouter:
         )
         if not authorized:
             raise FORBIDDEN_EXCEPTION
+        # The approver is the answering request's principal and acting user. An agent
+        # run may not answer an interaction: refuse its credential before anything is
+        # stored, so no stored command carries `is_run_credential`.
+        approved_by = approval_from_request(
+            principal=request.state.principal,
+            credential_kind=getattr(request.state, "credential_kind", None),
+            user_id=UUID(str(user_id)),
+        )
+        if approved_by.is_run_credential:
+            raise FORBIDDEN_EXCEPTION
 
         if body.answers is not None and interaction_id not in {
             item.interaction_id for item in body.answers
@@ -2065,11 +2187,6 @@ class InteractionsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Interaction not found",
             )
-        # The approver is the answering request's principal and acting user.
-        approved_by = RunApproval(
-            principal=request.state.principal,
-            user_id=UUID(str(user_id)),
-        )
         try:
             if body.answers is not None:
                 admission = await self.commands_service.respond_interactions(
@@ -2079,6 +2196,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
             else:
                 admission = await self.commands_service.respond_interaction(
@@ -2089,6 +2207,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
         except MissingEnvelope:
             # Parked before this release: the interaction was cancelled (committed).
@@ -2131,6 +2250,9 @@ class InteractionsRouter:
                     "awaiting_interactions"
                     if getattr(admission, "waiting_for_interactions", False)
                     else admission.execution_state.value
+                ),
+                session_turn_id=(getattr(admission.command, "data", None) or {}).get(
+                    "session_turn_id"
                 ),
             ),
         )
@@ -3159,6 +3281,9 @@ class SessionsRootRouter:
             resource=session_resource(session_id),
         ):
             raise _pending_input_not_found(input_id=str(input_id))
+        # The editor is the sender of this request's own envelope, not the user behind
+        # its credential: an API key carries no sender.
+        envelope = request_run_envelope(request)
         try:
             item = await self.inputs_service.update(
                 project_id=project_id,
@@ -3166,6 +3291,7 @@ class SessionsRootRouter:
                 session_id=session_id,
                 input_id=input_id,
                 update=payload,
+                sender=envelope.sender if envelope is not None else None,
             )
         except SessionInputNotFound as error:
             raise HTTPException(
@@ -3175,6 +3301,16 @@ class SessionsRootRouter:
                     "message": str(error),
                     "retryable": False,
                     "details": {"input_id": str(input_id)},
+                },
+            ) from error
+        except SessionInputEditRefused as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "pending_input_edit_refused",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": error.input_id, "reason": error.reason},
                 },
             ) from error
         except SessionInputNotEditable as error:
@@ -3403,6 +3539,17 @@ def _handle_input_exceptions():
                         "details": {"current_execution_id": error.current_execution_id},
                     },
                 ) from error
+            except SessionInputKeyReserved as error:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "code": "idempotency_key_reserved",
+                        "message": str(error),
+                        "retryable": False,
+                        "next_step": "Send a key that does not start with 'ag:'.",
+                        "details": {"field": "Idempotency-Key"},
+                    },
+                ) from error
             except SessionInputIdempotencyConflict as error:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -3586,6 +3733,9 @@ class SessionControlRouter:
             idempotency_key = (
                 idempotency_key.strip()[:_MAX_IDEMPOTENCY_KEY_CHARACTERS] or None
             )
+        # `ag:` keys are server keys; a client may not take one first.
+        if is_reserved_input_key(idempotency_key):
+            raise SessionInputKeyReserved()
         admission = await self._inputs_service.admit(
             project_id=project_id,
             user_id=UUID(str(user_id)) if user_id else None,
@@ -3792,6 +3942,7 @@ class SessionsRouter:
             interactions_service=interactions_service,
             run_admission=run_admission,
             records_service=records_service,
+            commands_service=commands_service,
         )
         self.records = RecordsRouter(
             records_service=records_service,

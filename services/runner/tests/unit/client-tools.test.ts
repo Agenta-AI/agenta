@@ -14,9 +14,9 @@ import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
 import {
   ApprovalResponder,
   ConversationDecisions,
-  extractApprovalDecisions,
   extractClientToolOutputs,
 } from "../../src/responder.ts";
+import { answeredDecisions } from "../utils/answered-decisions.ts";
 import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.ts";
 import {
   bareToolName,
@@ -444,7 +444,7 @@ describe("buildClientToolRelay with the real responder (history-driven)", () => 
     const responder = new ApprovalResponder(
       { default: "allow", rules: [] },
       new ConversationDecisions(
-        extractApprovalDecisions(request),
+        answeredDecisions(request),
         extractClientToolOutputs(request),
       ),
     );

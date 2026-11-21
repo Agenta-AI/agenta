@@ -1,0 +1,4 @@
+{
+    "waitingToConfirm": "Waiting for {{name}} to confirm",
+    "waitingToConfirmBody": "After you enter the code in {{name}}, the sign-in arrives here a few seconds later. You do not need to do anything on this page. This page returns to the list by itself when the sign-in arrives."
+}

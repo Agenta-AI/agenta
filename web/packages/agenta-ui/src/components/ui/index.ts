@@ -234,6 +234,7 @@ export {DatePicker, type DatePickerProps} from "./date-picker"
 export {DateTimePicker, type DateTimePickerProps} from "./date-time-picker"
 export {TimePicker, type TimePickerProps} from "./time-picker"
 export {
+    PHONE_TOUCH_TARGET_CLASS,
     touchTargetExpansion,
     touchTargetHeight,
     touchTargetHitArea,

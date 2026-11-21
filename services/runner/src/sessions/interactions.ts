@@ -7,7 +7,7 @@
 import { fetchControlPlane } from "./control-plane-fetch.ts";
 import { apiBase } from "../apiBase.ts";
 import type { StoredPermissionDecision } from "../permission-plan.ts";
-import { approvedCallKey } from "../responder.ts";
+import { approvalKeyDigest, approvedCallKey } from "../responder.ts";
 
 export type InteractionKind = "user_approval" | "user_input" | "client_tool";
 
@@ -218,11 +218,10 @@ export async function resolveInteraction(
 /**
  * At the start of a new session turn, cancel prior turns' still-pending gates: if the user
  * sent a new message instead of answering a pending approval, that gate is orphaned. Spares
- * the current turn's own gates via `turn_id`, plus any prior-turn gates this turn answers
- * in-band via `tokens` — an in-band answer never transitioned the row off `pending` (only the
- * interactions-plane respond endpoint does), and the resume resolves it after consuming the
- * decision; sweeping it first would record the granted gate as `cancelled` and 404 the
- * resolve. Fire-and-forget, single attempt — best effort, never blocks the turn.
+ * the current turn's own gates via `turn_id`, plus the parked gates a live resume carries
+ * forward via `tokens`: they stay parked in the same process and still wait for an answer.
+ * An answered gate is never pending (the person's answer moved it to `responded`), so the
+ * sweep never touches it. Fire-and-forget, single attempt — best effort, never blocks the turn.
  */
 export async function cancelStaleInteractions(
   sessionId: string,
@@ -351,6 +350,22 @@ export type SeededDecision = {
 };
 
 /**
+ * The decision map the gate consumes, built from the rows this turn claimed. A FIFO list per
+ * key, so two identical calls that were each answered each resolve from their own row.
+ */
+export function decisionMapOf(
+  seeded: readonly SeededDecision[],
+): Map<string, unknown[]> {
+  const map = new Map<string, unknown[]>();
+  for (const entry of seeded) {
+    const decisions = map.get(entry.key) ?? [];
+    decisions.push(entry.decision);
+    map.set(entry.key, decisions);
+  }
+  return map;
+}
+
+/**
  * The answered rows this session holds, as decision-map entries.
  *
  * Session scope is a security boundary, not a convenience: a row from ANOTHER session is another
@@ -362,37 +377,6 @@ export type SeededDecision = {
  * keyed to a specific call. Anything else is skipped rather than guessed at — a malformed row
  * must never widen what the agent may run.
  */
-/**
- * Merge seeded rows into the transcript's decision map and answer which ones landed.
- *
- * History wins on a collision: an envelope this turn actually received in band is the fresher
- * fact, and a durable row for the same call is that same answer read from a slower plane. Only
- * the entries returned here were adopted, so only those should be settled on the plane.
- */
-export function seedDecisionMap(
-  map: Map<string, unknown[]>,
-  seeded: readonly SeededDecision[],
-): SeededDecision[] {
-  const adopted: SeededDecision[] = [];
-  // Snapshot the TRANSCRIPT's keys before appending anything. Testing `map.has` as we go would
-  // make this loop's own first append look like history, so a second decision under the same
-  // key would be dropped again — the bug surviving its own fix.
-  const fromTranscript = new Set(map.keys());
-  for (const entry of seeded) {
-    if (fromTranscript.has(entry.key)) continue;
-    // Append rather than replace. The decision store is a FIFO LIST per key precisely so two
-    // identical calls each resolve (`extractApprovalDecisions` pushes for the same reason), and
-    // the seeded path was the only one collapsing a key to a single decision. Two identical
-    // calls could each claim a durable row while only one answer reached the map, so the second
-    // call asked the human again for something they had already answered.
-    const decisions = map.get(entry.key) ?? [];
-    decisions.push(entry.decision);
-    map.set(entry.key, decisions);
-    adopted.push(entry);
-  }
-  return adopted;
-}
-
 export function decisionsFromInteractionRows(
   rows: readonly InteractionRow[],
 ): SeededDecision[] {
@@ -403,7 +387,8 @@ export function decisionsFromInteractionRows(
     if (!token) continue;
     const request = row.data?.request;
     if (!request || typeof request.tool !== "string" || !request.tool) continue;
-    if (request.args === undefined || request.args === null) continue;
+    // No `args` is a call with no arguments (the write drops an undefined value);
+    // `approvedCallKey` keys it as `{}`, the same key the gate computes.
     const decision =
       verdictOf(row.data?.resolution) ?? verdictOf(row.resolution);
     if (!decision) continue;
@@ -419,34 +404,107 @@ export function decisionsFromInteractionRows(
 }
 
 /**
- * The durable decisions this session holds, read and CLAIMED, ready to seed a turn.
+ * The approval answers one turn may use: the session's `responded` rows, read once before the
+ * coordinator picks the warm or the cold path, and claimed at most once each.
  *
- * Claim, not read: each row is transitioned to `resolved` before its decision is handed back,
- * and a row that would not settle is dropped. A lost claim costs the user one re-approval; an
- * unclaimed row that stayed `responded` would let the next turn seed the same human answer
- * again and run the tool twice. The failure mode is pointed at the first of those on purpose.
+ * The row is the only source of an approval decision. An approval envelope in the request
+ * messages is a copy of the row at best, so the runner never takes a verdict from message text
+ * alone. The warm resume asks `verifiedDecision` (the envelope must agree with the row), and the
+ * cold gate takes `claimAll`.
  *
- * Call this BEFORE `runTurn`. It performs I/O, and `runTurn` must not suspend before its
- * permission responder is attached — see the invariant at the top of that function.
+ * Claim, not read: a row is transitioned to `resolved` before its decision is handed back, and a
+ * row that would not settle is dropped. A lost claim costs the user one re-approval; an unclaimed
+ * row that stayed `responded` would let the next turn seed the same human answer again and run
+ * the tool twice. The claims are memoized, so a warm resume that falls back to cold, or a stall
+ * retry, keeps the answers this turn already claimed instead of asking the person again.
  */
-export async function loadDurableDecisions(
-  sessionId: string | undefined,
-  credential: string | undefined,
-  log: (msg: string) => void,
-): Promise<SeededDecision[]> {
-  if (!sessionId || !credential) return [];
-  const candidates = decisionsFromInteractionRows(
-    await queryInteractions(sessionId, () => credential),
-  );
-  const claimed: SeededDecision[] = [];
-  for (const entry of candidates) {
-    if (await resolveInteraction(sessionId, entry.token, () => credential)) {
-      claimed.push(entry);
-      continue;
-    }
-    log(
-      `[HITL] durable decision NOT claimed, leaving the gate to re-raise: session=${sessionId} token=${entry.token} key=${entry.key}`,
+export class TurnApprovalRows {
+  private readonly answered: ReadonlyMap<string, SeededDecision>;
+  private readonly claims = new Map<string, Promise<boolean>>();
+
+  constructor(
+    rows: readonly InteractionRow[],
+    private readonly claimRow: (token: string) => Promise<boolean>,
+    private readonly log: (msg: string) => void = () => {},
+  ) {
+    this.answered = new Map(
+      decisionsFromInteractionRows(rows).map((entry) => [entry.token, entry]),
     );
   }
-  return claimed;
+
+  /** No rows: a run with no session, or a plane that could not be read. Fails closed. */
+  static empty(): TurnApprovalRows {
+    return new TurnApprovalRows([], async () => false);
+  }
+
+  /**
+   * The verdict an approval envelope may carry for this gate, or undefined.
+   *
+   * The envelope counts only when it names the gate's own row, that row is `responded`, the
+   * verdicts agree, and the row's call (tool and arguments) is the gate's call. Anything else is
+   * not an answer, and the gate keeps its card.
+   */
+  verifiedDecision(
+    envelope: StoredPermissionDecision | undefined,
+    gate: { interactionToken: string; toolName: string | undefined; args: unknown },
+  ): "allow" | "deny" | undefined {
+    const token = envelope?.interactionToken;
+    if (!envelope || !token || token !== gate.interactionToken) return undefined;
+    const row = this.answered.get(token);
+    if (!row || row.decision.decision !== envelope.decision) return undefined;
+    if (row.key !== approvedCallKey(gate.toolName, gate.args)) return undefined;
+    return row.decision.decision;
+  }
+
+  /** Claim one answered row (`responded` to `resolved`). True only when this turn holds it. */
+  claim(token: string): Promise<boolean> {
+    if (!this.answered.has(token)) return Promise.resolve(false);
+    let claim = this.claims.get(token);
+    if (!claim) {
+      claim = this.claimRow(token);
+      this.claims.set(token, claim);
+    }
+    return claim;
+  }
+
+  /**
+   * Every answered row of the session, claimed, ready to seed the cold gate. A row this turn
+   * already claimed (on the warm path, or in an earlier attempt) is included again.
+   *
+   * Call this BEFORE `runTurn`. It performs I/O, and `runTurn` must not suspend before its
+   * permission responder is attached — see the invariant at the top of that function.
+   */
+  async claimAll(): Promise<SeededDecision[]> {
+    const claimed: SeededDecision[] = [];
+    for (const entry of this.answered.values()) {
+      if (await this.claim(entry.token)) {
+        claimed.push(entry);
+        continue;
+      }
+      this.log(
+        `[HITL] approval row NOT claimed, leaving the gate to re-raise: token=${entry.token} key=${approvalKeyDigest(entry.key)}`,
+      );
+    }
+    return claimed;
+  }
+}
+
+/**
+ * Read this session's rows for one turn. No session or no credential means no rows, so the turn
+ * takes no approval decision at all; a failed read does the same (`queryInteractions` degrades to
+ * an empty list).
+ */
+export async function loadTurnApprovalRows(
+  sessionId: string | undefined,
+  credential: string | undefined,
+  log: (msg: string) => void = () => {},
+): Promise<TurnApprovalRows> {
+  if (!sessionId || !credential) return TurnApprovalRows.empty();
+  const auth = () => credential;
+  const rows = await queryInteractions(sessionId, auth);
+  return new TurnApprovalRows(
+    rows,
+    (token) => resolveInteraction(sessionId, token, auth),
+    log,
+  );
 }

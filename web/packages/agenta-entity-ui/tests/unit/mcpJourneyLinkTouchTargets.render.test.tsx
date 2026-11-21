@@ -64,7 +64,6 @@ describe("the probe result card's Change", () => {
         await act(async () => {
             root.render(
                 createElement(ProbeResultCard, {
-                    url: "https://mcp.linear.app/mcp",
                     mode: "oauth",
                     onChange: vi.fn(),
                 }),
@@ -84,7 +83,6 @@ describe("the probe result card's Change", () => {
         await act(async () => {
             root.render(
                 createElement(ProbeResultCard, {
-                    url: "https://mcp.linear.app/mcp",
                     mode: "oauth",
                     onChange: vi.fn(),
                 }),
@@ -101,7 +99,6 @@ describe("the probe result card's Change", () => {
         await act(async () => {
             root.render(
                 createElement(ProbeResultCard, {
-                    url: "https://mcp.linear.app/mcp",
                     mode: "oauth",
                 }),
             )

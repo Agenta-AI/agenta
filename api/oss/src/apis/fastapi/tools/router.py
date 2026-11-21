@@ -22,6 +22,7 @@ from oss.src.apis.fastapi.shared.personal import require_person, signed_in_perso
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
+from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.principals import child_envelope
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
@@ -91,6 +92,7 @@ from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.gate import GateReader
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
     COMMIT_REVISION_CALL_REF,
@@ -98,6 +100,7 @@ from oss.src.core.tools.platform_handlers import (
     LIST_STARTERS_CALL_REF,
     READ_CONFIG_CALL_REF,
     required_agent_owner,
+    required_agent_read_scope,
     required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
@@ -115,6 +118,7 @@ from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import (
     agent_owner_for_request,
+    agent_read_scope_for_request,
     allow_agent,
     allow_resource,
     artifact_id_of,
@@ -421,6 +425,7 @@ class ToolsRouter:
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
+        gate_reader: Optional[GateReader] = None,
     ):
         self.tools_service = tools_service
         # Admits each child run (the parent's principal and the child's agent).
@@ -432,6 +437,8 @@ class ToolsRouter:
         self.tracing_service = tracing_service
         # Drive-backed platform handlers (create_app, list_starters) write through it.
         self.mounts_service = mounts_service
+        # Reads the session facts `resolve_gate` answers from.
+        self.gate_reader = gate_reader
 
         self.router = APIRouter()
 
@@ -1691,6 +1698,15 @@ class ToolsRouter:
                     if required_agent_owner(call_ref=call_ref)
                     else None
                 ),
+                organization_id=_organization_id(request),
+                agent_read_scope=(
+                    await agent_read_scope_for_request(request)
+                    if required_agent_read_scope(call_ref=call_ref)
+                    else None
+                ),
+                # The calling run of a session op comes from the credential only.
+                access=get_request_access(),
+                gate_reader=self.gate_reader,
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)
@@ -1710,8 +1726,9 @@ class ToolsRouter:
         # session holding a stale configuration and the playground showing an old revision
         # until something else invalidated it. The handler says whether it wrote; this
         # reuses the emitter already here rather than growing a second one.
-        if response.committed_revision:
+        if response.committed_revision or response.committed_other_agent_revision:
             await invalidate_cache(project_id=request.state.project_id)
+        if response.committed_revision:
             await _emit_committed_revision_data_event_from_outputs(
                 request=request,
                 outputs=response.committed_revision,
@@ -2174,6 +2191,15 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _organization_id(request: Request) -> Optional[UUID]:
+    """The caller's organization, for links into the web app; None when the credential has none."""
+    organization_id = getattr(request.state, "organization_id", None)
+    try:
+        return UUID(str(organization_id)) if organization_id else None
+    except ValueError:
+        return None
 
 
 def _json_for_inline_script(value: Any) -> str:

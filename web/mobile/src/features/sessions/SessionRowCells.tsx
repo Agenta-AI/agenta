@@ -88,7 +88,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
             title={vm.status.label}
             className="relative flex shrink-0 text-muted-foreground"
         >
-            <Glyph size={15} aria-hidden />
+            <Glyph size={14} aria-hidden />
             <span
                 aria-hidden
                 className={cn(
@@ -109,6 +109,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
 export const SessionRowCells = ({
     vm,
     narrow,
+    hideAgent = false,
     entries,
     onMenuSelect,
     onRenameRow,
@@ -117,6 +118,8 @@ export const SessionRowCells = ({
     vm: SessionRowVm
     /** Below `sm` the table drops the Status and Agent columns — see `SessionListTable`. */
     narrow: boolean
+    /** The Sessions page of one agent has no Agent column. */
+    hideAgent?: boolean
     /** The shared verbs for this row, from `useSessionRowMenu`. */
     entries: SessionMenuEntry[]
     onMenuSelect: (vm: SessionRowVm, key: string) => void
@@ -227,7 +230,7 @@ export const SessionRowCells = ({
                 </span>
             )}
 
-            {narrow ? null : vm.agentId ? (
+            {narrow || hideAgent ? null : vm.agentId ? (
                 <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
                     {/* The agent's own mark, not a generic robot — the same tile the automations
                         table and the agent picker draw. */}

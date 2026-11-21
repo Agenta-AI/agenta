@@ -36,8 +36,10 @@ function SheetOverlay({className, ...props}: React.ComponentProps<typeof SheetPr
         <SheetPrimitive.Overlay
             data-slot="sheet-overlay"
             className={cn(
-                // Same mask as Dialog.
+                // On a phone the light blurred scrim the design draws over a sheet; from md up the
+                // flat dark mask it draws behind a drawer (the version history).
                 "fixed inset-0 isolate z-40 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]",
+                "md:bg-black/45 md:supports-[backdrop-filter]:backdrop-blur-none",
                 "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
                 className,
             )}
@@ -67,16 +69,18 @@ const sheetVariants = cva(
                     "inset-y-2 right-2 h-auto w-3/4 rounded-xl sm:max-w-sm",
                     "data-[state=open]:animate-sheet-in-right data-[state=closed]:animate-sheet-out-right",
                 ],
+                // The phone's sidebar sheet: the rail's own surface, radius 12 as the design draws it.
                 left: [
-                    "inset-y-2 left-2 h-auto w-3/4 rounded-xl sm:max-w-sm",
+                    "inset-y-2 left-2 h-auto w-3/4 rounded-[12px] bg-[var(--ag-sidebar-bg)] shadow-[0_0_0_1px_rgba(36,36,36,0.08),0_9px_28px_8px_rgba(0,0,0,0.08)] dark:shadow-drawer-left sm:max-w-sm",
                     "data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left",
                 ],
                 top: [
                     "inset-x-0 top-0 h-auto w-full border-b",
                     "data-[state=open]:animate-sheet-in-top data-[state=closed]:animate-sheet-out-top",
                 ],
+                // A shadow above it instead of a hairline, as the design draws the phone sheet.
                 bottom: [
-                    "inset-x-0 bottom-0 h-auto w-full border-t",
+                    "inset-x-0 bottom-0 h-auto w-full shadow-[0_-6px_24px_rgba(0,0,0,0.08)] dark:shadow-drawer-bottom",
                     "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
                 ],
                 // The app's form-panel idiom, promoted from web/mobile's local sheet: a full-width

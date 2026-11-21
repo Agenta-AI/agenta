@@ -1,0 +1,29 @@
+[
+    {
+        "id": "phone-config-m07-light",
+        "story": "builderlayout-m07-configuration-on-a-phone--agent-tab",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Saved as v4"
+    },
+    {
+        "id": "phone-config-m07-dark",
+        "story": "builderlayout-m07-configuration-on-a-phone--agent-tab-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Saved as v4"
+    },
+    {
+        "id": "phone-config-section-light",
+        "story": "builderlayout-m07-configuration-on-a-phone--section-screen",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Skills rows"
+    }
+]

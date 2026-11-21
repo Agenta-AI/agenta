@@ -1,133 +1,71 @@
-import {useCallback} from "react"
+import {useContext} from "react"
 
-import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {ModelSetupBanner} from "@agenta/chat/components"
-import {configPanelCollapsedAtom} from "@agenta/chat/state"
-import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
-import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
-import {useT} from "@agenta/i18n"
-import chatMobileConfigCatalog from "@agenta/i18n/catalogs/chat.mobileConfig"
+import {AgentEditorContext, SectionListLayoutContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
-import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
-import {shortcutAria} from "@agenta/shared/utils"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {Sidebar} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
 
-import {useProjectPermissionState} from "../context/useProjectPermission"
-
-import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
-import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
- * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
- * SHARED Files region — the same three components the desktop playground renders.
+ * The Agent tab of the panel: the SHARED config panel, the same sections the desktop playground
+ * renders.
  *
- * The drive is session-scoped, so the session is passed straight in: this surface already knows
- * which conversation it is (the desktop has to resolve it from its open tabs instead).
+ * No "Configuration" header bar: the tab already names the content, and the save status and
+ * version show in the session header, as production (auto-save, no Save button). Auto-save does
+ * not depend on this pane: `agentAutoCommit.ts` registers on the draft write when it loads.
  *
- * Deploy and the overflow menu are absent, not reproduced: both still read this app's app-layer
- * state on the desktop side, and the header takes them as slots precisely so a surface that
- * cannot offer them simply does not.
+ * The DrillIn bridge sits above it, around the panel's view stack (`ConfigurationContent`).
  */
 export const ConfigPane = ({
     entityId,
-    sessionId,
-    filesScope,
-    projectId,
+    column = false,
 }: {
     entityId: string
-    sessionId: string
-    filesScope: string
-    projectId: string
+    /**
+     * A wide host (the builder page pane, B03): the sections are full-width 45 px rows in a
+     * centered 760 px column.
+     */
+    column?: boolean
 }) => {
-    const t = useT(chatMobileConfigCatalog)
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const openModelSetup = useOpenModelSetup()
-    // A commit made here pins the new revision to this session.
-    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
-    // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
-    // rather than navigating away from the conversation.
-    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
-    // The API refuses a Viewer's edits; this keeps the editor from offering them. The editor stays
-    // open while the check is in flight, so the people who may edit do not see it lock and unlock.
-    const editAccess = useProjectPermissionState(projectId, "edit_workflows")
-    const openRunHistory = useCallback(
-        ({id, kind}: TriggerOwnerRef) => {
-            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"})
-        },
-        [openDrawer],
+    // The edit right comes from the container (ConfigurationContent), which its open views share.
+    const readOnly = useContext(AgentEditorContext)?.readOnly ?? false
+
+    const panel = (
+        <AgentBuildPanel
+            className={column ? "mx-auto w-full max-w-[760px]" : undefined}
+            revisionId={entityId}
+            disabled={readOnly}
+            // Automations and files have their own places in the panel.
+            operations={false}
+            stickyHeaderTop={0}
+            banner={
+                // The alert keeps a gap under the tabs; it collapses with the banner.
+                <div className="px-4 [&_[data-slot=alert]]:mt-3">
+                    <ModelSetupBanner
+                        revisionId={entityId}
+                        layout="alert"
+                        onSetUp={openModelSetup}
+                    />
+                </div>
+            }
+            // The operational sections (and their drawers) live in the Automations tab.
+            automationDrawer={null}
+        />
     )
 
     return (
-        <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
-            <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pinRevision}>
-                <AgentBuildPanel
-                    revisionId={entityId}
-                    disabled={!editAccess.pending && !editAccess.allowed}
-                    stickyHeaderTop={48}
-                    banner={
-                        <div className="px-4">
-                            <ModelSetupBanner
-                                revisionId={entityId}
-                                layout="alert"
-                                onSetUp={openModelSetup}
-                            />
-                        </div>
-                    }
-                    storage={
-                        <StorageSection
-                            revisionId={entityId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
-                    }
-                    storageHeader={
-                        <StorageFilesHeader
-                            revisionId={entityId}
-                            sessionId={sessionId}
-                            scope={filesScope}
-                        />
-                    }
-                    // `SessionWorkspace` mounts the drawers: a linked one must open with this pane collapsed.
-                    automationDrawer={null}
-                    onOpenRunHistory={openRunHistory}
-                    header={
-                        <AgentConfigHeader
-                            revisionId={entityId}
-                            // `/m` mounts the auto-commit engine, so this header shows Save
-                            // rather than Commit. The desktop playground keeps Commit.
-                            autoSave
-                            // The desktop's collapse: the header owns "«", the top bar owns the
-                            // "»" that brings the panel back. Without a way OUT, the restore
-                            // control in the bar could never be reached.
-                            trailing={
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            {t("chat.mobileConfig.hideConfiguration")}{" "}
-                                            <ShortcutKeys id="panel.config" tone="inverse" />
-                                        </span>
-                                    }
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label={t("chat.mobileConfig.hideConfiguration")}
-                                        aria-keyshortcuts={shortcutAria("panel.config")}
-                                        onClick={() => setConfigCollapsed(true)}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <Sidebar size={16} weight="fill" mirrored />
-                                    </Button>
-                                </SimpleTooltip>
-                            }
-                        />
-                    }
-                />
-            </DrillInBridgeProvider>
+        // On a phone the size container lets a section screen fill the pane (its primary action at
+        // the bottom).
+        <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]">
+            {/* Only the wide host sets a layout: the Configuration page sets "page" above this. */}
+            {column ? (
+                <SectionListLayoutContext.Provider value="pane">
+                    {panel}
+                </SectionListLayoutContext.Provider>
+            ) : (
+                panel
+            )}
         </div>
     )
 }
