@@ -1,0 +1,34 @@
+---
+title: Update notices
+sidebar_label: Update notices
+description: How a self-hosted Agenta instance shows newer releases and security warnings, and how to turn the update check off
+slug: /self-host/update-notices
+---
+
+A self-hosted Agenta instance shows its users when a newer release is available, and warns organization owners and admins when a newer release fixes a security issue. This page explains what users see, where the data comes from, and how to turn it off. Agenta Cloud shows no "Update available" row and no security warning, because Agenta upgrades it.
+
+## What users see
+
+- **Newer releases.** The **What's new?** dialog lists releases newer than the version you run, marked "Not installed".
+- **Update available.** When a newer release exists, the help menu shows a dot on its icon and an "Update available" row with "How to upgrade". The row opens the [upgrade guide](/self-host/upgrading).
+- **Security warning.** When a newer release fixes a security issue, a bar at the top of the app shows "Security update available. Upgrade to" with the version, and a "Read the notes" link. Only organization owners and admins see it. When a user closes the bar, it stays hidden for seven days in that browser.
+- **Notices.** Agenta can publish short notices, for example about a known problem in some versions. A notice shows at the top of the **What's new?** section of the help menu, only on the versions, editions and plans it names. When a user opens a notice, it stays hidden in that browser.
+
+## Where the data comes from
+
+When a signed-in user opens the app, the app asks your API for the release list. The API downloads the public release feed at `https://agenta.ai/releases.json` and keeps it for 12 hours. After a failed download, it tries again after one hour. Each API process keeps its own copy.
+
+The download is a plain request. It sends no instance id, no version and no other data about your instance. It is separate from telemetry, and `AGENTA_TELEMETRY_ENABLED` does not change it.
+
+If the API cannot reach `agenta.ai`, for example on a network with no internet access, the app shows only the releases that shipped with your version, and no warnings.
+
+## Turn the update check off
+
+Set the switch on the API and restart it.
+
+- Docker Compose: add `AGENTA_UPDATE_CHECK_ENABLED=false` to your `.env` file.
+- Helm: set `releases.updateCheckEnabled: false` in your values file.
+
+With the check off, the API does not download the feed. The app shows only the releases that shipped with your version. It shows no "Update available" row, no security warning and no notices.
+
+All settings are listed in [Configuration](/self-host/configuration#releases).
