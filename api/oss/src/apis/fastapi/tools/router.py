@@ -91,6 +91,7 @@ from oss.src.core.gateway.connections.exceptions import (
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.mounts.service import MountsService
+from oss.src.core.sessions.service import SessionsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.gate import GateReader
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
@@ -425,6 +426,7 @@ class ToolsRouter:
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
+        sessions_service: Optional[SessionsService] = None,
         gate_reader: Optional[GateReader] = None,
     ):
         self.tools_service = tools_service
@@ -437,6 +439,8 @@ class ToolsRouter:
         self.tracing_service = tracing_service
         # Drive-backed platform handlers (create_app, list_starters) write through it.
         self.mounts_service = mounts_service
+        # The session read handlers (list_sessions, read_session, read_session_spans).
+        self.sessions_service = sessions_service
         # Reads the session facts `resolve_gate` answers from.
         self.gate_reader = gate_reader
 
@@ -1706,6 +1710,7 @@ class ToolsRouter:
                 ),
                 # The calling run of a session op comes from the credential only.
                 access=get_request_access(),
+                sessions_service=self.sessions_service,
                 gate_reader=self.gate_reader,
             )
         except AdmissionDenied as refusal:
@@ -1742,6 +1747,10 @@ class ToolsRouter:
                 content=(
                     content.model_dump_json(exclude_none=True)
                     if isinstance(content, BaseModel)
+                    # Text goes to the model as it is: the marked form of a session
+                    # read is text, not a JSON string.
+                    else content
+                    if isinstance(content, str)
                     else json.dumps(content)
                 ),
             ),

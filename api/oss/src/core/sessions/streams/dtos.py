@@ -237,6 +237,8 @@ class SessionStreamQuery(BaseModel):
     origins: Optional[list[SessionOrigin]] = None
     exclude_origins: Optional[list[SessionOrigin]] = None
     calling_session: Optional[SessionCallingSessionQuery] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
 
 
 class CommandMode(str, Enum):

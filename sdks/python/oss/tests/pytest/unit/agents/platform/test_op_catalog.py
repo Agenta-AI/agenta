@@ -86,6 +86,9 @@ def test_catalog_ships_platform_builder_ops():
         "edit_agent_config",
         "list_agent_drives",
         "read_drive",
+        "list_sessions",
+        "read_session",
+        "read_session_spans",
     }
 
 
