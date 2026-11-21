@@ -2,6 +2,7 @@ import {AutomationRunConversationUnavailable} from "@agenta/automation-ui"
 import dynamic from "next/dynamic"
 
 import {conversationKey} from "../chat/conversationKey"
+import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
 import {ChatLoading} from "../chat/states/ChatStates"
 import {useAgentEntity} from "../chat/useAgentEntity"
@@ -20,10 +21,9 @@ const CatalogDrawer = dynamic(
 /**
  * The run's session, as the chat screen already draws it.
  *
- * A MOUNT, not a rebuild: `LiveConversation` is the app's conversation surface, and it carries
- * the real composer, attachments, drafts and slash commands. Hand-rendering bubbles here would
- * produce a transcript that looks like chat and cannot be replied to — an automation's run is a
- * session like any other, and it is answerable.
+ * A MOUNT, not a rebuild: `LiveConversation` is the app's conversation surface, with its cards,
+ * attachments and turns. An automation's run is read here with no composer (F05); its approval
+ * and connect cards still answer. The builder page's pane session keeps the composer.
  *
  * Split out from the pane so the hooks below only ever run for a run that HAS a session; a
  * delivery with no transcript never enters this component (see `runSessionId`).
@@ -33,12 +33,15 @@ export const AutomationRunConversation = ({
     projectId,
     workspaceId,
     agentId,
+    withComposer = false,
 }: {
     sessionId: string
     projectId: string
     workspaceId: string
     /** The automation's bound agent — the run's own session may have no turns to name one. */
     agentId: string | null
+    /** The builder page's pane session takes replies; an automation's run is read only (F05). */
+    withComposer?: boolean
 }) => {
     const {
         entityId,
@@ -57,17 +60,20 @@ export const AutomationRunConversation = ({
     }
 
     return (
-        <>
+        // "embedded": a run's conversation sits beside the page's own (the session in the
+        // panel's host), so a key press with the focus in neither answers only the page's card.
+        <ConversationRoleContext.Provider value="embedded">
             <LiveConversation
                 // Per session — the pane swaps transcripts as runs are picked, and the engine's
                 // per-session state must not survive that swap.
                 key={conversationKey({sessionId, revisionId: entityId})}
-                embedded
+                parentOwnsShell
                 entityId={entityId}
                 sessionId={sessionId}
                 projectId={projectId}
                 workspaceId={workspaceId}
                 agentId={resolvedAgentId}
+                hideComposer={!withComposer}
                 running={running}
                 stopStateLoading={liveness.isLoading}
                 sessionTurnId={liveStream?.turn_id}
@@ -75,6 +81,6 @@ export const AutomationRunConversation = ({
                 sharedReader={sharedReader}
             />
             <CatalogDrawer />
-        </>
+        </ConversationRoleContext.Provider>
     )
 }

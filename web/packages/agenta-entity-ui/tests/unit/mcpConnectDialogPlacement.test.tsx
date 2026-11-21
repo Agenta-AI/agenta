@@ -17,10 +17,7 @@ import {createPortal} from "react-dom"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {
-    McpAddServerDrawer,
-    type McpConnectionOption,
-} from "../../src/mcpEndpoint/McpAddServerDrawer"
+import {McpAddServerList, type McpConnectionOption} from "../../src/mcpEndpoint/McpAddServerList"
 
 const OPTIONS: McpConnectionOption[] = [
     {slug: "acme", name: "Acme", host: "mcp.example.test", status: "connected"},
@@ -91,7 +88,7 @@ describe("where the MCP connect dialog is mounted", () => {
     })
 })
 
-describe("McpAddServerDrawer", () => {
+describe("McpAddServerList", () => {
     it("reports the connect request rather than mounting the journey itself", async () => {
         const onEdit = vi.fn()
         const onReconnect = vi.fn()
@@ -100,13 +97,10 @@ describe("McpAddServerDrawer", () => {
                 "div",
                 null,
                 createElement(Row, {onEdit}),
-                // Mounted as a SIBLING of the rows, which is how AgentTemplateControl
-                // mounts it. Inside a row it would misbehave for the reason above, and the
-                // drawer cannot defend itself against that: its own portal does not escape
-                // the React tree, so only the host's placement can.
-                createElement(McpAddServerDrawer, {
-                    open: true,
-                    onClose: () => undefined,
+                // Mounted as a SIBLING of the rows, as its view mounts it. Inside a row it
+                // would misbehave for the reason above, and the list cannot defend itself
+                // against that, so only the host's placement can.
+                createElement(McpAddServerList, {
                     options: OPTIONS,
                     onAdd: () => undefined,
                     onConnectServer: () => undefined,
@@ -128,9 +122,7 @@ describe("McpAddServerDrawer", () => {
 
     it("renders no connect journey of its own, so nothing it mounts can reach a row", async () => {
         await render(
-            createElement(McpAddServerDrawer, {
-                open: true,
-                onClose: () => undefined,
+            createElement(McpAddServerList, {
                 options: OPTIONS,
                 onAdd: () => undefined,
                 onConnectServer: () => undefined,
@@ -140,8 +132,8 @@ describe("McpAddServerDrawer", () => {
 
         // The journey's own dialog title, which would be on the page if it were here. The
         // string this used to name was retired with the scope checklist, so the assertion
-        // passed whatever the drawer mounted.
+        // passed whatever the list mounted. The list has no shell of its own, so no dialog at all.
         expect(document.body.textContent).not.toContain("Connect MCP server")
-        expect(document.querySelectorAll("[role='dialog']")).toHaveLength(1)
+        expect(document.querySelectorAll("[role='dialog']")).toHaveLength(0)
     })
 })

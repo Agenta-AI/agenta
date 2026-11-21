@@ -1,8 +1,9 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useId, useRef, useState} from "react"
 
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n"
+import {formatDate, formatRelativeTime, useT} from "@agenta/i18n"
 import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
+import revisionStatusCatalog from "@agenta/i18n/catalogs/playground.revisionStatus"
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitScheduledAtomFamily,
@@ -12,9 +13,11 @@ import {
     type LatestVersion,
 } from "@agenta/playground/state"
 import {projectIdAtom} from "@agenta/shared/state"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/styles"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"
 
 import {openAgentVersionHistoryAtom, versionHistoryOpenAtomFamily} from "../AgentVersionHistory"
@@ -26,6 +29,32 @@ const AgentVersionHistoryDrawer = dynamic(
     () => import("../AgentVersionHistory").then((m) => m.AgentVersionHistoryDrawer),
     {ssr: false},
 )
+
+/**
+ * The mounted chips of each workflow, oldest first. One history drawer opens per workflow: the
+ * newest chip draws it (on a phone the Configuration screen's chip covers the session header's,
+ * which stays mounted), so one tap never opens two drawers.
+ */
+const historyChipsAtomFamily = atomFamily((_workflowId: string) => atom<string[]>([]))
+
+/**
+ * When a version was saved, as the Configuration page header writes it (canvas A04): "Today
+ * 09:12", "Yesterday 17:40", else "Nov 3 09:12". Null when the date is missing or not a date.
+ */
+const savedWhen = (iso: string | null | undefined, now: Date = new Date()): string | null => {
+    const at = iso ? new Date(iso) : null
+    if (!at || Number.isNaN(at.getTime())) return null
+    // A 24-hour clock, as the canvas writes it ("09:12").
+    const time = formatDate(at, {hour: "2-digit", minute: "2-digit", hourCycle: "h23"})
+    const startOf = (date: Date) =>
+        new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+    const days = Math.round((startOf(now) - startOf(at)) / 86_400_000)
+    if (days === 0 || days === 1) {
+        const day = formatRelativeTime(-days, "day", {numeric: "auto"})
+        return `${day.charAt(0).toLocaleUpperCase()}${day.slice(1)} ${time}`
+    }
+    return `${formatDate(at, {month: "short", day: "numeric"})} ${time}`
+}
 
 /** Wraps in a tooltip only when there is something to say beyond the visible label. */
 const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
@@ -48,6 +77,25 @@ export interface AgentRevisionStatusProps {
     autoUpdate?: boolean
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
+    /**
+     * Lay out for a phone: the chip says "Saved as vN" and has a 44 px hit area, the version
+     * history covers the screen with a back arrow, and a save state that needs attention ("Not
+     * saved") shows its words, not only its icon.
+     */
+    phone?: boolean
+    /** On a phone, the name of the screen the history's back arrow returns to. */
+    backTitle?: string
+    /**
+     * Lay out for a footer (the Configuration panel, canvas S02): a "History" button and the
+     * status as a bordered "Saved as vN". Needs `historyWorkflowId`.
+     */
+    footer?: boolean
+    /**
+     * Lay out for the Configuration page header (canvas A04): the version and when it was saved
+     * as a history button ("v4 · Today 09:12"), then the status as a bordered "Saved as vN".
+     * Needs `historyWorkflowId`.
+     */
+    page?: boolean
     className?: string
 }
 
@@ -67,9 +115,13 @@ export const AgentRevisionStatus = ({
     onUpdate,
     autoUpdate = false,
     checkKey,
+    phone = false,
+    backTitle,
+    footer = false,
+    page = false,
     className,
 }: AgentRevisionStatusProps) => {
-    const t = useT(headerCatalog)
+    const t = useT(headerCatalog, revisionStatusCatalog)
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
     // the same agent is driven from another surface (the desktop playground and `/m` share one
     // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
@@ -89,6 +141,15 @@ export const AgentRevisionStatus = ({
     const autoCommitScheduled = useAtomValue(agentAutoCommitScheduledAtomFamily(revisionId || ""))
     const retrySave = useSetAtom(flushAgentAutoCommitAtom)
 
+    const chipId = useId()
+    const historyChips = useAtomValue(historyChipsAtomFamily(historyWorkflowId || ""))
+    const setHistoryChips = useSetAtom(historyChipsAtomFamily(historyWorkflowId || ""))
+    useEffect(() => {
+        if (!historyWorkflowId) return
+        setHistoryChips((chips) => [...chips, chipId])
+        return () => setHistoryChips((chips) => chips.filter((id) => id !== chipId))
+    }, [historyWorkflowId, chipId, setHistoryChips])
+    const drawsHistory = historyChips[historyChips.length - 1] === chipId
     const historyOpen = useAtomValue(versionHistoryOpenAtomFamily(historyWorkflowId || ""))
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     // Latched, not unmounted on close: tearing the drawer out mid-close skips its slide-out.
@@ -100,8 +161,9 @@ export const AgentRevisionStatus = ({
         setHistoryOpens((n) => n + 1)
     }, [historyOpen])
 
-    // The only moments a newer version is looked for: the page becoming visible, a session
-    // switch (`checkKey`), and the drawer opening.
+    // The only moments a newer version is looked for: the page becoming visible, the window
+    // getting focus, a save of this agent (auto-save here, or a builder's committed result), a
+    // session switch (`checkKey`), and the drawer opening.
     const projectId = useAtomValue(projectIdAtom)
     const [latest, setLatest] = useState<LatestVersion | null>(null)
     const offersUpdate = Boolean(onUpdate)
@@ -112,6 +174,7 @@ export const AgentRevisionStatus = ({
     }, [offersUpdate, historyWorkflowId, projectId, checkKey, historyOpens])
 
     const version = (data?.version as number | null | undefined) ?? null
+    const savedAt = page ? savedWhen(data?.created_at) : null
     const commitMessage = data?.message?.trim() || null
     const newer =
         onUpdate &&
@@ -186,10 +249,107 @@ export const AgentRevisionStatus = ({
             ) : (
                 <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
             )}
-            {/* Words only for states that need attention; hidden on a narrow bar. */}
-            {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
+            {/* Words only for states that need attention; hidden on a narrow bar, except on a
+                phone, where the icon alone does not say that a save failed. */}
+            {showLabel ? (
+                <span className={phone ? undefined : "hidden sm:inline"}>{dot.label}</span>
+            ) : null}
         </>
     )
+
+    const historyDrawer =
+        historyWorkflowId && historyMounted && drawsHistory ? (
+            <AgentVersionHistoryDrawer
+                workflowId={historyWorkflowId}
+                revisionId={revisionId}
+                currentVersion={version}
+                onUpdate={onUpdate}
+                phone={phone}
+                backTitle={backTitle}
+            />
+        ) : null
+
+    // "Update to vN": a newer version saved elsewhere. On a phone the pill keeps its size and gets
+    // a 44 px high hit area.
+    const updatePill =
+        newer && !autoUpdateId ? (
+            <button
+                type="button"
+                onClick={() => onUpdate?.(newer.id)}
+                className={cn(
+                    "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
+                    phone &&
+                        "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
+                )}
+            >
+                {t("playground.agentHeader.updateAvailable", {version: newer.version})}
+            </button>
+        ) : null
+
+    // The bordered "Saved as vN" of the footer and the page header. A status, not an action:
+    // enabled only as the retry of a failed save.
+    const savedAsButton =
+        (footer || page) && version !== null ? (
+            <StatusWrap tip={failed ? dot.tip : null}>
+                <Button
+                    variant="outline"
+                    size="compact"
+                    disabled={!failed}
+                    aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
+                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                    className={cn(
+                        "disabled:opacity-100",
+                        failed ? "text-colorError" : "text-colorTextSecondary",
+                    )}
+                >
+                    {settled ? t("playground.revisionStatus.savedAs", {version}) : dot.label}
+                </Button>
+            </StatusWrap>
+        ) : null
+
+    if (footer) {
+        return (
+            <div className={cn("flex items-center gap-2", className)}>
+                {historyWorkflowId ? (
+                    <Button
+                        variant="ghost"
+                        size="compact"
+                        onClick={() => openHistory(historyWorkflowId)}
+                    >
+                        {t("playground.revisionStatus.history")}
+                    </Button>
+                ) : null}
+                {savedAsButton}
+                {historyDrawer}
+            </div>
+        )
+    }
+
+    if (page) {
+        return (
+            <div className={cn("flex items-center gap-2", className)}>
+                {historyWorkflowId && version !== null ? (
+                    <SimpleTooltip title={t("playground.agentHeader.versionHistory")}>
+                        <Button
+                            variant="ghost"
+                            size="compact"
+                            aria-label={t("playground.agentHeader.openVersionHistory")}
+                            onClick={() => openHistory(historyWorkflowId)}
+                        >
+                            <ClockCounterClockwise className="size-3.5" />
+                            <span className="font-mono text-[12px]">v{version}</span>
+                            {savedAt ? (
+                                <span className="text-colorTextTertiary">· {savedAt}</span>
+                            ) : null}
+                        </Button>
+                    </SimpleTooltip>
+                ) : null}
+                {updatePill}
+                {savedAsButton}
+                {historyDrawer}
+            </div>
+        )
+    }
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
@@ -204,21 +364,39 @@ export const AgentRevisionStatus = ({
                             status: dot.label,
                         })}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
+                        className={cn(
+                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText",
+                            phone
+                                ? "min-h-11 whitespace-nowrap pl-2 pr-0.5 text-[14px] leading-5"
+                                : "px-1.5 py-0.5 text-xs",
+                        )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
-                        <span className="flex items-center gap-1">
+                        <span className={cn("flex items-center", phone ? "gap-1.5" : "gap-1")}>
                             {/* A caret would promise a menu; this opens a drawer of history. */}
-                            <span className="relative flex shrink-0">
-                                <ClockCounterClockwise size={11} />
-                                {/* Save state as a badge on the icon, so it never trails the text. */}
-                                <span
-                                    className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
-                                />
-                            </span>
-                            v{version}
+                            {phone ? (
+                                // Canvas M07: a 14 px glyph and no dot; the words carry the state
+                                // ("Saved as vN", "Saving…").
+                                <ClockCounterClockwise size={14} className="shrink-0" />
+                            ) : (
+                                <span className="relative flex shrink-0">
+                                    <ClockCounterClockwise size={11} />
+                                    {/* Save state as a badge on the icon, so it never trails the
+                                        text. */}
+                                    <span
+                                        className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
+                                    />
+                                </span>
+                            )}
+                            {phone
+                                ? settled
+                                    ? t("playground.revisionStatus.savedAs", {version})
+                                    : dot.label
+                                : `v${version}`}
                         </span>
-                        {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
+                        {showLabel && !phone ? (
+                            <span className="hidden sm:inline">{dot.label}</span>
+                        ) : null}
                     </button>
                 </SimpleTooltip>
             ) : null}
@@ -262,24 +440,9 @@ export const AgentRevisionStatus = ({
                 )
             ) : null}
 
-            {newer && !autoUpdateId ? (
-                <button
-                    type="button"
-                    onClick={() => onUpdate?.(newer.id)}
-                    className="shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
-                >
-                    {t("playground.agentHeader.updateAvailable", {version: newer.version})}
-                </button>
-            ) : null}
+            {updatePill}
 
-            {historyWorkflowId && historyMounted ? (
-                <AgentVersionHistoryDrawer
-                    workflowId={historyWorkflowId}
-                    revisionId={revisionId}
-                    currentVersion={version}
-                    onUpdate={onUpdate}
-                />
-            ) : null}
+            {historyDrawer}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}
             {merged ? null : (
@@ -298,9 +461,11 @@ export const AgentRevisionStatus = ({
                                   }
                                 : undefined
                         }
-                        className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
-                            failed ? "cursor-pointer" : ""
-                        }`}
+                        className={cn(
+                            "flex items-center gap-1.5 text-xs text-colorTextTertiary",
+                            failed && "cursor-pointer",
+                            failed && phone && "min-h-11 min-w-11 justify-center",
+                        )}
                     >
                         {statusBody}
                     </span>

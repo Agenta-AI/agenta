@@ -7,12 +7,25 @@ import {type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import {Tag} from "@agenta/ui/components/presentational"
+import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    PHONE_TOUCH_TARGET_CLASS,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretRight, Trash} from "@phosphor-icons/react"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
+import {useSectionListLayout} from "./sectionListLayout"
+
+/**
+ * On the Configuration page (canvas A04) the rows are flat inside the section's one card: no
+ * border of their own, a line above each row. The card hides the first row's line.
+ */
+const PAGE_ROW = "gap-3 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3.5 py-3"
 
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
@@ -49,7 +62,7 @@ const STATUS_TAG_TONE = {
 // antd pins `.ant-tag`'s line-height in px (22.4), so overriding only the FONT size leaves it
 // intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-xs` drops
 // (tags rendered 20.3px instead of 24.4px until this was restated).
-const TAG_CLS = "m-0 text-xs leading-[22.4px]"
+const TAG_CLS = "m-0 text-[12px] leading-4"
 // Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
 const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
     new: "var(--ag-colorSuccess)",
@@ -150,15 +163,22 @@ export function ItemRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
+    const page = useSectionListLayout() === "page"
     // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
+            data-page-row={page || undefined}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
+                "group flex items-center transition-colors",
+                // `cn` does not drop a class another one overrides: the page row and the panel
+                // card take their padding and frame from one place each.
+                page
+                    ? PAGE_ROW
+                    : "gap-2.5 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
                 interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
@@ -183,23 +203,32 @@ export function ItemRow({
                         : undefined
                 }
                 className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity",
+                    "flex min-w-0 flex-1 items-center transition-opacity",
+                    page ? "gap-3" : "gap-2.5",
                     inactive && "opacity-50",
                 )}
             >
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-[13px] font-normal ${
-                            descriptor.monoName === false ? "" : "font-mono"
-                        }`}
+                        className={cn(
+                            "truncate font-normal leading-5",
+                            // Canvas A04: a page row's name is 14 px, a mono name 13 px; a panel
+                            // card's is 13 px (F01).
+                            page && descriptor.monoName === false ? "text-sm" : "text-[13px]",
+                            descriptor.monoName !== false && "font-mono",
+                        )}
                     >
                         {descriptor.name}
                     </div>
                     <RowSubtitle
                         status={status}
                         description={descriptor.description}
-                        className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]"
+                        // The needs-setup reason is a 12/20 line (canvas F01, the integration card).
+                        className={cn(
+                            "block truncate text-[12px] text-[var(--ag-colorTextTertiary)]",
+                            status?.reason ? "leading-5" : "leading-4",
+                        )}
                     />
                 </div>
             </div>
@@ -225,13 +254,24 @@ export function ItemRow({
                             onRemove()
                         }}
                         // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
-                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100"
+                        // 44 px tap area on a phone, the same 24 px box (PHONE_TOUCH_TARGET_CLASS).
+                        className={`${PHONE_TOUCH_TARGET_CLASS} flex size-6 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-danger-text)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100`}
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
                 {interactive ? (
-                    <CaretRight size={13} className="text-[var(--ag-colorTextQuaternary)]" />
+                    // Canvas F01: a panel card ends with an outline chevron; A04: a page row
+                    // ends with the triangle.
+                    page ? (
+                        <ConfigRowTriangle />
+                    ) : (
+                        <CaretRight
+                            aria-hidden
+                            size={12}
+                            className="shrink-0 text-colorTextTertiary"
+                        />
+                    )
                 ) : null}
             </div>
         </div>
@@ -305,7 +345,7 @@ export function ItemChildRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
+                        className={`${PHONE_TOUCH_TARGET_CLASS} flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100`}
                     >
                         <Trash size={14} />
                     </button>
@@ -317,9 +357,8 @@ export function ItemChildRow({
 }
 
 /**
- * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
- * content, clamped with an ellipsis. The whole row opens the editor drawer for the full content —
- * there is no inline expand, so it reads the same as the tool / MCP rows.
+ * An instructions markdown file row (canvas F01): avatar, the filename, and one line with the word
+ * count and the start of the (markdown-stripped) content. The whole row opens the editor.
  */
 export function InstructionsFileRow({
     filename,
@@ -333,12 +372,26 @@ export function InstructionsFileRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
-    const descriptor = describeInstruction(filename, content)
+    const page = useSectionListLayout() === "page"
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
     const meta =
         wordCount > 0
             ? t("entityUi.configItems.wordCount", {count: wordCount})
             : t("entityUi.configItems.empty")
+    if (page) {
+        return (
+            <InstructionsPagePreview
+                filename={filename}
+                content={content}
+                meta={meta}
+                onOpen={onOpen}
+                status={status}
+            />
+        )
+    }
+    const descriptor = describeInstruction(filename, content)
+    // An empty file has no preview: `descriptor.description` already says "Empty file".
+    const line = wordCount > 0 ? `${meta} · ${descriptor.description}` : meta
     return (
         <div
             role="button"
@@ -351,35 +404,86 @@ export function InstructionsFileRow({
                 }
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
-            // Same border and ground as the integration and subagent rows above: --ag-c-EAEFF5 is
-            // a fixed light hex, so this row's edge vanished against a dark section.
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2.5 transition-colors",
+                // Canvas F01: 8 px around, 10 px on the left (a 54 px card).
+                "group flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-2 pl-2.5 pr-2 transition-colors",
                 !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >
-            <ItemAvatar descriptor={descriptor} />
-            <div className="min-w-0 flex-1">
-                {/* Identity row: filename (color inherits → theme-correct) + a muted meta, so the
-                    name/type/size reads separately from the content preview below. */}
-                <div className="flex items-baseline gap-2">
-                    <span className="truncate font-mono text-[13px] font-medium leading-tight">
-                        {filename}
-                    </span>
-                    {/* antd's Typography carries `line-height: token.lineHeight` (5/3); a bare
-                        span would inherit the row's instead, so restate it. */}
-                    <span className="shrink-0 text-xs leading-[1.6667] text-colorTextDescription">
-                        {meta}
-                    </span>
+            {/* The "md" monogram, not the file glyph (canvas F01). */}
+            <ItemAvatar descriptor={{...descriptor, icon: undefined}} />
+            <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex items-center gap-2">
+                    <span className="truncate font-mono text-[13px] leading-5">{filename}</span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
-                {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
-                    clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
-                <span className="mt-1 line-clamp-2 text-xs leading-snug text-colorTextDescription">
-                    {descriptor.description}
+                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                    {line}
                 </span>
             </div>
-            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-zinc-5)]" />
+            <ConfigRowTriangle />
+        </div>
+    )
+}
+
+/** How many lines of the file the page shows; `max-h-44` also cuts one long paragraph there. */
+const PREVIEW_LINES = 6
+
+/**
+ * The instructions file on the Configuration page (canvas A04): the filename and the word count
+ * on a header line, then the start of the file with its headings in bold. The whole card opens
+ * the editor.
+ */
+function InstructionsPagePreview({
+    filename,
+    content,
+    meta,
+    onOpen,
+    status,
+}: {
+    filename: string
+    content: string
+    meta: string
+    onOpen: () => void
+    status?: ItemRowStatus
+}) {
+    const lines = content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, PREVIEW_LINES)
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onOpen()
+                }
+            }}
+            data-page-row
+            className="flex cursor-pointer flex-col hover:bg-colorFillQuaternary"
+        >
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3.5 py-3">
+                <span className="truncate font-mono text-[13px] leading-[18px]">{filename}</span>
+                {status ? <StatusTag status={status} /> : null}
+                <span className="ml-auto shrink-0 text-[12px] leading-4 text-colorTextTertiary">
+                    {meta}
+                </span>
+            </div>
+            <div className="flex max-h-44 flex-col gap-1 overflow-hidden px-3.5 py-3 text-sm text-colorText">
+                {lines.map((line, index) =>
+                    line.startsWith("#") ? (
+                        <span key={index} className="mt-1 font-semibold first:mt-0">
+                            {line.replace(/^#+\s*/, "")}
+                        </span>
+                    ) : (
+                        <span key={index}>{line}</span>
+                    ),
+                )}
+            </div>
         </div>
     )
 }

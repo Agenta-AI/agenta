@@ -11,7 +11,6 @@
     "remove": "Remove",
     "removeFromAgent": "Remove from agent",
     "thisServer": "This server",
-    "inheritsPermission": "Inherits {{permission}}",
     "selectConnection": "Select a connection to choose what this agent may do with it.",
     "couldNotReadTools": "Couldn't read this server's tools",
     "notConnectedYet": "{{name}} is not connected yet, so its tools cannot be listed.",

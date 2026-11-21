@@ -2,7 +2,7 @@ import {useCallback, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
+import {PHONE_TOUCH_TARGET_CLASS, Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
 import {CaretUpDown} from "@phosphor-icons/react"
 
 import {CAPTION_CLASS, EntryList, type SwitcherEntry} from "./ProjectOrgSwitcher"
@@ -45,6 +45,7 @@ export const ProjectSwitch = ({
                     className={cn(
                         "flex min-w-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 font-[inherit] text-inherit hover:text-foreground",
                         FOCUS_RING,
+                        PHONE_TOUCH_TARGET_CLASS,
                         className,
                     )}
                 >

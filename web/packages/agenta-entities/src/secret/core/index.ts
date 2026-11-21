@@ -26,6 +26,9 @@ export {
     subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 
+export type {BuiltinModelsRow, ModelProviderList, SubscriptionRow} from "./modelProviderList"
+export {buildModelProviderList, builtinModelsOf} from "./modelProviderList"
+
 export type {
     AgentSecretBinding,
     CreateSecretDto,
@@ -131,6 +134,7 @@ export {
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
+    storesAwsAccessKeys,
     maskSecret,
     nextConnectionName,
     providerModelCatalog,
