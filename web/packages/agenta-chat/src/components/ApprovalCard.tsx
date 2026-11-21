@@ -27,10 +27,11 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
+import {useAgentDisplayName, useAgentDisplayNames} from "../hooks/useAgentDisplayName"
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
 import {useChangeVersions} from "../hooks/useChangeVersions"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
-import {describeApproval, describeBatchItems} from "../model/approvalPreview"
+import {batchAgentRefs, describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
 import {changeCallState} from "../model/changeCallState"
 
@@ -167,9 +168,14 @@ export const ApprovalCard = ({
     const sourceKey = base?.sourceKey ?? ""
     const {integration} = useToolIntegrationDetail(sourceKey)
     const appName = sourceKey ? integration?.name : undefined
+    // A call that names an agent by its slug or id: describe it again with the agent's name.
+    const agentName = useAgentDisplayName(base?.agentRef)
     const preview = useMemo(
-        () => (current && appName ? describeApproval(current, appName, homeSlug) : base),
-        [current?.approvalId, appName, homeSlug, base],
+        () =>
+            current && (appName || agentName)
+                ? describeApproval(current, appName, homeSlug, agentName)
+                : base,
+        [current?.approvalId, appName, agentName, homeSlug, base],
     )
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.
@@ -192,16 +198,22 @@ export const ApprovalCard = ({
         return previews.every((one) => one.changes?.length) ? previews : null
         // Keyed on the ids and the preview arrivals: they are what change a batch's description.
     }, [batched, batchKey, homeSlug])
+    // Each batch row that names an agent names its own agent, not the first call's.
+    const batchRefs = useMemo(
+        () => (batched ? batchAgentRefs(approvals, homeSlug) : []),
+        [batched, batchKey, homeSlug],
+    )
+    const batchAgentNames = useAgentDisplayNames(batchRefs)
     const items = useMemo(
         () =>
             grouped
                 ? []
                 : batched
-                  ? describeBatchItems(approvals, homeSlug)
+                  ? describeBatchItems(approvals, homeSlug, batchAgentNames)
                   : changes
                     ? []
                     : (preview?.items ?? []),
-        [grouped, batched, approvals, homeSlug, preview, changes],
+        [grouped, batched, approvals, homeSlug, preview, changes, batchAgentNames],
     )
 
     // "Saves as v{base + 1}", and the conflict state when a newer version landed after the base.

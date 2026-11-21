@@ -88,5 +88,19 @@
     "agentaTools": "Outils Agenta",
     "agentaToolsHint": "Outils que votre agent peut utiliser partout où il s’exécute. Enregistrés avec l’agent.",
     "noAgentaTools": "Aucun outil Agenta disponible.",
-    "couldNotLoadAgentaTools": "Impossible de charger les outils Agenta. Rechargez la page pour réessayer."
+    "couldNotLoadAgentaTools": "Impossible de charger les outils Agenta. Rechargez la page pour réessayer.",
+    "startSessionName": "Démarrer une session d’un agent",
+    "startSessionDescription": "Démarre une nouvelle session d’un agent avec un premier message. La nouvelle session s’exécute seule.",
+    "sendSessionMessageName": "Envoyer un message à une session",
+    "sendSessionMessageDescription": "Envoie un message à une session que cet agent a démarrée.",
+    "waitForSessionsName": "Attendre des sessions",
+    "waitForSessionsDescription": "Attend que les sessions que cet agent a démarrées terminent leur tour.",
+    "cancelSessionName": "Annuler le tour d’une session",
+    "cancelSessionDescription": "Arrête le tour en cours d’une session que cet agent a démarrée.",
+    "listSessionsName": "Lister les sessions",
+    "listSessionsDescription": "Liste les sessions de ce projet que la personne peut ouvrir.",
+    "readSessionName": "Lire une session",
+    "readSessionDescription": "Lit les messages et le statut d’une session.",
+    "readSessionSpansName": "Lire les étapes d’une session",
+    "readSessionSpansDescription": "Lit les appels au modèle et les appels d’outils d’un tour d’une session."
 }

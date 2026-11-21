@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from oss.src.core.sessions.child_updates.dtos import (
     CHILD_UPDATE_PART_KEY,
     ChildTurnResult,
+    ChildTurnStatus,
     child_update_part,
 )
 
@@ -72,8 +73,43 @@ def _header(result: ChildTurnResult) -> str:
     )
 
 
+_NOT_FINISHED = "This turn is not finished. Do not report its work as done or tested."
+_WAITS_FOR = {
+    "user_approval": "It waits for a person to approve a tool call. Only a person can answer it.",
+    "user_input": "It waits for a person to answer a question. Only a person can answer it.",
+}
+_ENDED_HOW = {
+    ChildTurnStatus.failed: "failed",
+    ChildTurnStatus.cancelled: "was cancelled",
+    ChildTurnStatus.lost: "was lost",
+}
+
+
+def _note(result: ChildTurnResult) -> Optional[str]:
+    """One plain line for a turn that did not complete: its work is not done, and why.
+    A model must not read a paused or running turn as a finished one."""
+    if result.status == ChildTurnStatus.completed:
+        return None
+    if result.status == ChildTurnStatus.running:
+        return f"{_NOT_FINISHED} It still runs."
+    if result.status == ChildTurnStatus.paused:
+        kinds = [entry.kind for entry in result.waiting_for or []]
+        why = next(
+            (_WAITS_FOR[kind] for kind in kinds if kind in _WAITS_FOR),
+            "It waits for a person.",
+        )
+        return f"{_NOT_FINISHED} {why}"
+    return (
+        f"This turn {_ENDED_HOW[result.status]} before it finished its work. "
+        "Do not report its work as done or tested."
+    )
+
+
 def _lines(result: ChildTurnResult) -> List[str]:
     lines = [f"status: {result.status.value}"]
+    note = _note(result)
+    if note:
+        lines.append(f"note: {note}")
     if result.turn_id:
         lines.append(f"turn_id: {result.turn_id}")
     if result.revision is not None:

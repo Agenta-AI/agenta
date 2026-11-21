@@ -182,6 +182,7 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.core.tools.gate import GateReader
+from oss.src.core.tools.session_writes import SessionWriteServices
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
 from oss.src.core.account_choices.lifecycle import AccountsLifecycle
@@ -1706,6 +1707,20 @@ session_starts_service = SessionStartsService(
 )
 # A schedule's fire into an existing session puts its input on the session queue.
 _triggers_dispatcher.session_starts_service = session_starts_service
+# The session writes start child sessions and send them messages through the same
+# queue, and create the still-running schedules through the triggers service.
+tools.session_writes = SessionWriteServices(
+    streams_dao=session_streams_dao,
+    executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
+    turns_dao=session_turns_dao,
+    interactions_service=interactions_service,
+    records_service=records_service,
+    starts_service=session_starts_service,
+    commands_service=session_commands_service,
+    triggers_service=triggers_service,
+    workflows_service=workflows_service,
+)
 agent_template_catalog_path = (
     Path(__file__).resolve().parents[1]
     / "oss"

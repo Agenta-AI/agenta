@@ -111,11 +111,13 @@ const genericPreview = (approval: PendingApproval, homeSlug: string | null): App
 
 /** The plain-English copy for one gate. Never throws: a describer that fails falls back.
  * `appName` answers late, so the card resolves twice — same shape as `resolveToolDisplay`.
- * `homeSlug` names the home drive, whose files show under `agent-files/`. */
+ * `homeSlug` names the home drive, whose files show under `agent-files/`. `agentName` is the
+ * name of the agent that the preview's `agentRef` names, once the card has looked it up. */
 export const describeApproval = (
     approval: PendingApproval,
     appName?: string,
     homeSlug: string | null = null,
+    agentName?: string,
 ): ApprovalPreview => {
     // Canonical for the lookup: the same platform tool must resolve under every harness, so a
     // `mcp__agenta-tools__commit_revision` gate gets the commit describer too.
@@ -128,6 +130,7 @@ export const describeApproval = (
                 approval.manifest,
                 appName,
                 approval.changePreview,
+                agentName,
             )
             if (preview) return preview
         } catch {
@@ -145,11 +148,36 @@ export const describeApproval = (
 export const describeBatchItems = (
     approvals: PendingApproval[],
     homeSlug: string | null = null,
+    agentNames: Record<string, string | undefined> = {},
 ): ApprovalPreviewItem[] =>
     approvals.map((approval) => {
+        const preview = describeApproval(approval, undefined, homeSlug)
+        // A call that names an agent (`start_session`): its own sentence names its own agent.
+        if (preview.agentRef) {
+            const named = describeApproval(
+                approval,
+                undefined,
+                homeSlug,
+                agentNames[preview.agentRef],
+            )
+            return {title: named.sentence, detail: named.items[0]?.detail}
+        }
         const display = resolveToolDisplay(approval.toolName, approval.input)
         return {
             title: display.activity.running || display.label,
-            detail: describeApproval(approval, undefined, homeSlug).items[0]?.detail,
+            detail: preview.items[0]?.detail,
         }
     })
+
+/** The agent refs of a batch's calls, for the card to look the agents up by name. */
+export const batchAgentRefs = (
+    approvals: PendingApproval[],
+    homeSlug: string | null = null,
+): string[] => [
+    ...new Set(
+        approvals.flatMap((approval) => {
+            const ref = describeApproval(approval, undefined, homeSlug).agentRef
+            return ref ? [ref] : []
+        }),
+    ),
+]

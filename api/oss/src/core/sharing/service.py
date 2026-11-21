@@ -693,6 +693,33 @@ class SharingService(ResourcePolicyInterface):
         )
         return access
 
+    async def session_policy(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[AccessPolicy]:
+        """The session's current policy, through the same cache as every access
+        decision. None when no row exists."""
+
+        access = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        return None if access is None else access.policy
+
+    async def session_grants(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionGrant]:
+        """The session's grants, through the same cache as `session_policy`."""
+
+        access = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        return [] if access is None else list(access.grants)
+
     async def _session_access_or_tombstone(
         self,
         *,
@@ -1552,12 +1579,14 @@ async def cache_created_session_access(
     session_id: str,
     stream_id: Optional[UUID],
     policy: AccessPolicy,
+    grants: Sequence[SessionGrant] = (),
     is_channel: Optional[bool] = None,
     channel_binding_id: Optional[UUID] = None,
 ) -> None:
     """After the commit of the insert that created a session row: write its entry with a
-    plain SET, over a cached "no row" (a new row has no grants). A failure is logged and
-    never fails the insert; the entry then expires on its TTL."""
+    plain SET, over a cached "no row". `grants` are the grants the insert gave the row
+    (none, except a child's copy of its calling session's grants). A failure is logged
+    and never fails the insert; the entry then expires on its TTL."""
 
     try:
         if stream_id is None:
@@ -1565,7 +1594,7 @@ async def cache_created_session_access(
         value = CachedSessionAccess(
             stream_id=stream_id,
             policy=policy,
-            grants=[],
+            grants=list(grants),
             # The insert path knows it (a channel session is created by its installation's
             # run, see `created_session_access`); an owned session that no channel run
             # created is never one. None: read once from the row.

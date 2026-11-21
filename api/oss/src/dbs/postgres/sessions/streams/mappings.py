@@ -146,12 +146,17 @@ def _trigger_attribution_tags(
 def _calling_session_tags(
     calling_session: SessionCallingSession,
 ) -> Dict[str, str]:
-    return {
+    tags = {
         SESSION_CALLING_SESSION_ID_TAG_KEY: calling_session.id,
         SESSION_CALLING_SESSION_TURN_ID_TAG_KEY: calling_session.turn_id,
         SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY: str(calling_session.agent_id),
-        SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY: str(calling_session.revision_id),
     }
+    # A calling turn that ran an unsaved configuration names no revision.
+    if calling_session.revision_id is not None:
+        tags[SESSION_CALLING_SESSION_REVISION_ID_TAG_KEY] = str(
+            calling_session.revision_id
+        )
+    return tags
 
 
 def _strip_reserved_tags(

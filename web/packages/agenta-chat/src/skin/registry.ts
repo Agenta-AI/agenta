@@ -15,6 +15,7 @@
 import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
 import {createT, getActiveLanguage} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import toolActivityCatalog from "@agenta/i18n/catalogs/chat.toolActivity"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
@@ -171,6 +172,13 @@ const matchedTool = (output: unknown): {slug?: string; action?: string} => {
  * would rename THEIR nouns. A missing op still conjugates, so it costs plain wording, not wrong. */
 const PLATFORM_OPS = new Set([
     "annotate_trace",
+    "cancel_session",
+    "list_sessions",
+    "read_session",
+    "read_session_spans",
+    "send_session_message",
+    "start_session",
+    "wait_for_sessions",
     "list_channel_destinations",
     "read_channel_messages",
     "search_channel_messages",
@@ -340,6 +348,88 @@ const sentence = (id: SentenceId, values?: Record<string, string>): ToolActivity
     done: tNow(`chat.toolActivity.${id}Done`, values),
 })
 
+const tActivity = createT(chatActivityCatalog)
+
+/** The agent's name in the first line of a session tool's marked result:
+ * `[Update from child session <id> (<agent>). ...` or `[Read of session <id> (<agent>). ...`. */
+const SESSION_RESULT_HEADER =
+    /^\[(?:Update from child session|Read of session) \S+ \(([^()\n]+)\)\./
+
+const sessionAgentName = (output: unknown): string | undefined =>
+    typeof output === "string" ? SESSION_RESULT_HEADER.exec(output)?.[1]?.trim() : undefined
+
+/** The other session as the row names it: by its agent once the result names one. */
+const sessionLabel = (output: unknown): string => {
+    const agent = sessionAgentName(output)
+    return agent
+        ? tNow("chat.toolActivity.sessionOfAgent", {agent})
+        : tNow("chat.toolActivity.aSession")
+}
+
+/** The session tools act on ANOTHER session, which the glossary's "this chat" would misname. A
+ * failed call reads as failed, never as a call still starting. */
+const withFailure = (activity: ToolActivity): ToolActivity => ({
+    ...activity,
+    failed: tActivity("chat.activity.actionFailed", {action: activity.running}),
+})
+
+/** The slug or id of the agent a `start_session` call names. */
+const startSessionAgentRef = (input: unknown): string | undefined => {
+    const agent = isRecord(input) ? input.agent : undefined
+    return typeof agent === "string" && agent.trim() ? agent.trim() : undefined
+}
+
+/** The call names its agent by a slug or an id, never by its name: the row shows the name the
+ * result gives, else the name the host looked up, else "an agent". A refusal names no agent. */
+const describeStartSession = (
+    _input: unknown,
+    output: unknown,
+    agentName?: string,
+): ToolActivity => {
+    const agent = sessionAgentName(output) ?? agentName ?? tNow("chat.toolActivity.termWorkflow")
+    return {
+        running: tNow("chat.toolActivity.startSessionRunning", {agent}),
+        done: tNow("chat.toolActivity.startSessionDone", {agent}),
+        failed: tNow("chat.toolActivity.startSessionFailed"),
+    }
+}
+
+const describeSendSessionMessage = (_input: unknown, output: unknown): ToolActivity => {
+    const session = sessionLabel(output)
+    return withFailure({
+        running: tNow("chat.toolActivity.sendSessionRunning", {session}),
+        done: tNow("chat.toolActivity.sendSessionDone", {session}),
+    })
+}
+
+const describeWaitForSessions = (input: unknown): ToolActivity => {
+    const ids = isRecord(input) && Array.isArray(input.session_ids) ? input.session_ids : []
+    const count = Math.max(ids.length, 1)
+    return withFailure({
+        running: tNow("chat.toolActivity.waitSessionsRunning", {count}),
+        done: tNow("chat.toolActivity.waitSessionsDone", {count}),
+    })
+}
+
+const describeCancelSession = (_input: unknown, output: unknown): ToolActivity => {
+    const session = sessionLabel(output)
+    const nothing = toolOutputRecord(output)?.cancel_requested === false
+    return withFailure({
+        running: tNow("chat.toolActivity.cancelSessionRunning", {session}),
+        done: nothing
+            ? tNow("chat.toolActivity.cancelSessionNothingDone", {session})
+            : tNow("chat.toolActivity.cancelSessionDone", {session}),
+    })
+}
+
+const describeReadSession = (_input: unknown, output: unknown): ToolActivity => {
+    const session = sessionLabel(output)
+    return withFailure({
+        running: tNow("chat.toolActivity.readSessionRunning", {session}),
+        done: tNow("chat.toolActivity.readSessionDone", {session}),
+    })
+}
+
 /** A built-in entry names its sentence and verb; the text is looked up when a row resolves, so it
  * is in the language the reader has chosen at that moment. */
 type DefaultEntry = ToolDisplayEntry & {sentence?: SentenceId; verbId?: VerbId}
@@ -375,6 +465,11 @@ const DEFAULT_TOOL_DISPLAY: Record<string, DefaultEntry> = {
     },
     create_agent: {sentence: "createAgent", verbId: "create", summary: summarizeAgentCall},
     edit_agent_config: {sentence: "editAgent", verbId: "commit", summary: summarizeAgentCall},
+    start_session: {icon: "agent", describe: describeStartSession, agentRef: startSessionAgentRef},
+    send_session_message: {describe: describeSendSessionMessage},
+    wait_for_sessions: {describe: describeWaitForSessions},
+    cancel_session: {describe: describeCancelSession},
+    read_session: {describe: describeReadSession},
     // "Tested a run" misses the point — the run IS the agent under test.
     test_run: {sentence: "testAgent", verbId: "test"},
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
@@ -900,6 +995,7 @@ export const resolveToolDisplay = (
     input?: unknown,
     appName?: string,
     output?: unknown,
+    agentName?: string,
 ): ResolvedToolDisplay => {
     // Canonical for the override lookup, raw for the shape: the same platform tool must get its
     // wording under every harness, while a third-party MCP tool still reads as an MCP tool.
@@ -922,7 +1018,10 @@ export const resolveToolDisplay = (
     // built-in defaults never set either; they word a call through `activity` instead.
     const label = override?.label ?? parsed.label
     // Whichever sentence wins answers "is the app already in it?", which decides the chip.
+    const described = override?.describe?.(input, output, agentName)
+    const agentRef = override?.agentRef?.(input)
     const built =
+        (described ? {activity: described, namedApp: false} : null) ??
         overrideActivity(override, ownApp) ??
         (own?.action && ownApp ? reportedActivity(own.action, ownApp, !!own.ran) : null) ??
         parsed.activity
@@ -942,6 +1041,7 @@ export const resolveToolDisplay = (
         verb: built?.verb,
         frame: built?.frame ?? (built?.verb ? plainFrame(built.verb) : undefined),
         icon: override?.icon ?? resolveActivityIcon(kind, canonical),
+        ...(agentRef ? {agentRef} : {}),
     }
 }
 

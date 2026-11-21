@@ -31,6 +31,7 @@ from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.sharing.admission import RunAdmission
 from oss.src.core.store.storage import ObjectStore
+from oss.src.core.triggers.utils import purge_hidden_schedule
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
@@ -48,6 +49,7 @@ from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDA
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
     get_transactions_engine,
@@ -193,6 +195,7 @@ def build_session_child_updates_service() -> SessionChildUpdatesService:
         executions_dao=executions_dao,
         inputs_dao=inputs_dao,
     )
+    triggers_dao = TriggersDAO(engine=transactions_engine)
     starts_service = SessionStartsService(
         inputs_service=SessionInputsService(
             inputs_dao=inputs_dao,
@@ -230,9 +233,12 @@ def build_session_child_updates_service() -> SessionChildUpdatesService:
         starts_service=starts_service,
         result_files=mounts_service,
         agent_lookup=_agent_lookup,
-        # The still-running schedule is created and deleted through the triggers
-        # service of the session-target schedules (`purge_session_schedule`, PR 8499).
-        # Until the start and send handlers create such schedules, none exists.
-        delete_still_running_schedule=None,
+        # The start and send handlers create the still-running schedule; the producer
+        # deletes it by its derived id, as `TriggersService.purge_session_schedule` does.
+        delete_still_running_schedule=lambda project_id, schedule_id: (
+            purge_hidden_schedule(
+                dao=triggers_dao, project_id=project_id, schedule_id=schedule_id
+            )
+        ),
         cancel_cause=commands_service.cancel_cause,
     )

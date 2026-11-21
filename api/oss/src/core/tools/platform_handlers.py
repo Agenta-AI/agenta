@@ -53,6 +53,11 @@ from agenta.sdk.agents.platform.op_catalog import (
     READ_SESSION_SPANS_DEFAULT_LIMIT,
     READ_SESSION_SPANS_MAX_LIMIT,
 )
+from agenta.sdk.agents.tools.models import (
+    CANCEL_SESSION_CALL_REF,
+    SEND_SESSION_MESSAGE_CALL_REF,
+    START_SESSION_CALL_REF,
+)
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
@@ -136,9 +141,12 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.env import env
 from oss.src.utils.web_links import agent_page_url
 
-if TYPE_CHECKING:  # pragma: no cover - `gate.py` imports this module
+if (
+    TYPE_CHECKING
+):  # pragma: no cover - `gate.py` and `session_writes.py` import this module
     from oss.src.core.sessions.service import SessionsService
     from oss.src.core.tools.gate import GateReader
+    from oss.src.core.tools.session_writes import SessionWriteServices
 
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
@@ -2849,7 +2857,9 @@ def _origin_entry(stream: Any) -> Dict[str, Any]:
             "id": calling.id,
             "turn_id": calling.turn_id,
             "agent_id": str(calling.agent_id),
-            "revision_id": str(calling.revision_id),
+            "revision_id": (
+                str(calling.revision_id) if calling.revision_id is not None else None
+            ),
         }
     trigger = getattr(stream, "trigger", None)
     if trigger is not None:
@@ -3803,6 +3813,53 @@ async def handle_resolve_gate(
     return PlatformHandlerResult(content=answer.model_dump(mode="json"))
 
 
+# -- start_session / send_session_message / wait_for_sessions / cancel_session ------------
+#
+# The session writes live in `core/tools/session_writes.py`; these wrappers give them the
+# handler signature. They take the calling run as `session_caller`, like the reads.
+
+WAIT_FOR_SESSIONS_CALL_REF = "tools.agenta.wait_for_sessions"
+# The op budgets of design D4: the longest wait plus room for the work around it.
+START_SEND_TIMEOUT_MS = 75_000
+WAIT_FOR_SESSIONS_TIMEOUT_MS = 660_000
+CANCEL_SESSION_TIMEOUT_MS = 15_000
+
+
+def _session_write_handler(name: str) -> PlatformToolHandler:
+    async def handler(
+        *,
+        arguments: Any,
+        headers: Any = None,
+        project_id: UUID,
+        user_id: UUID,
+        workflows_service: Optional[WorkflowsService],
+        tracing_service: Optional[TracingService] = None,
+        timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
+        session_caller: SessionCaller,
+        session_writes: Optional[SessionWriteServices] = None,
+    ) -> PlatformHandlerResult:
+        from oss.src.core.tools import session_writes as writes  # noqa: PLC0415
+
+        if session_writes is None:
+            raise PlatformToolHandlerRefused(f"{name} is unavailable.")
+        return await getattr(writes, name)(
+            session_writes,
+            caller=session_caller,
+            project_id=project_id,
+            user_id=user_id,
+            arguments=arguments,
+        )
+
+    handler.__name__ = f"handle_{name}"
+    return handler
+
+
+handle_start_session = _session_write_handler("start_session")
+handle_send_session_message = _session_write_handler("send_session_message")
+handle_wait_for_sessions = _session_write_handler("wait_for_sessions")
+handle_cancel_session = _session_write_handler("cancel_session")
+
+
 @dataclass(frozen=True)
 class PlatformToolHandlerRegistration:
     call_ref: str
@@ -3831,6 +3888,8 @@ class PlatformToolHandlerRegistration:
     needs_sessions: bool = False
     # `resolve_gate` takes the router's `GateReader` as `gate_reader`.
     needs_gate_reader: bool = False
+    # The session writes take the router's `SessionWriteServices` as `session_writes`.
+    needs_session_writes: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -3980,6 +4039,41 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         needs_session_caller=True,
         needs_sessions=True,
     ),
+    # Session writes. A start, a send and a cancel act on sessions as the session routes
+    # do, with RUN_SESSIONS; a wait reads, with VIEW_SESSIONS. Each target session is
+    # checked again for its own right.
+    START_SESSION_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=START_SESSION_CALL_REF,
+        timeout_ms=START_SEND_TIMEOUT_MS,
+        handler=handle_start_session,
+        elevated_permission=Permission.RUN_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
+    ),
+    SEND_SESSION_MESSAGE_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=SEND_SESSION_MESSAGE_CALL_REF,
+        timeout_ms=START_SEND_TIMEOUT_MS,
+        handler=handle_send_session_message,
+        elevated_permission=Permission.RUN_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
+    ),
+    WAIT_FOR_SESSIONS_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=WAIT_FOR_SESSIONS_CALL_REF,
+        timeout_ms=WAIT_FOR_SESSIONS_TIMEOUT_MS,
+        handler=handle_wait_for_sessions,
+        elevated_permission=Permission.VIEW_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
+    ),
+    CANCEL_SESSION_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=CANCEL_SESSION_CALL_REF,
+        timeout_ms=CANCEL_SESSION_TIMEOUT_MS,
+        handler=handle_cancel_session,
+        elevated_permission=Permission.RUN_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
+    ),
 }
 
 # Model-facing definitions (name, description, JSON schema, context bindings, read_only) for
@@ -4047,6 +4141,7 @@ async def dispatch_platform_tool_handler(
     access: Optional[RequestAccess] = None,
     sessions_service: Optional[SessionsService] = None,
     gate_reader: Optional[GateReader] = None,
+    session_writes: Optional[SessionWriteServices] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -4080,6 +4175,8 @@ async def dispatch_platform_tool_handler(
         extra["sessions_service"] = sessions_service
     if registration.needs_gate_reader:
         extra["gate_reader"] = gate_reader
+    if registration.needs_session_writes:
+        extra["session_writes"] = session_writes
     return await registration.handler(
         arguments=arguments,
         headers=headers,

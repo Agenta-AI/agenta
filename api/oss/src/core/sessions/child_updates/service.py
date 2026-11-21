@@ -4,8 +4,8 @@ For each turn-ended signal it checks whether the execution is a turn that a call
 session sent into a child session, and if so it writes one `child_update` input into the
 calling session: the marked text of D33 plus the structured part `child_update`. When the
 turn ended, it also writes the result file of D8 into the calling session's working
-folder. It works inside the signal's `project_id` only, and it takes the update's
-authority from server-owned rows only.
+folder. It works inside the signal's `project_id` only, and it takes the update's authority from server-owned rows
+only.
 """
 
 import asyncio
@@ -257,6 +257,64 @@ class SessionChildUpdatesService:
                 ),
             )
 
+        message = child_update_message(
+            await self._full_result(
+                project_id=project_id,
+                user_id=user_id,
+                calling_session_id=calling_session_id,
+                session_id=session_id,
+                chain=chain,
+                status=status,
+                execution=execution,
+                execution_records=execution_records,
+                child_input=child_input,
+                context=context,
+            )
+        )
+
+        # 4. The update, through the one helper, with the calling turn's authority.
+        update_envelope = RunEnvelope(
+            authority=envelope.authority,
+            sender=envelope.sender,
+            context=RunContext(
+                origin=calling_turn.context.origin,
+                origin_id=calling_turn.context.origin_id,
+            ),
+            approved_by=None,
+        )
+        content = {
+            "session_id": calling_session_id,
+            "references": keyed_references(calling_turn.references)
+            or keyed_references(calling.references),
+            "data": {"inputs": {"messages": [message]}},
+        }
+        return await self._starts.enqueue_session_input(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=calling_session_id,
+            kind=PendingInputKind.child_update,
+            content=content,
+            idempotency_key=key,
+            run_envelope=update_envelope,
+            dispatch_boundary=QUEUED_DISPATCH_BOUNDARY,
+        )
+
+    async def _full_result(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        calling_session_id: str,
+        session_id: str,
+        chain: List[str],
+        status: ChildTurnStatus,
+        execution: Optional[SessionExecutionSettlement],
+        execution_records: List[List[SessionRecord]],
+        child_input: PendingInput,
+        context: Dict[str, str],
+    ) -> ChildTurnResult:
+        """The whole result of the child turn, and its result file when the turn ended.
+        A failed file write leaves no `result_path`."""
         child_turn = await self._turns.find_turn(
             project_id=project_id, session_id=session_id, turn_id=UUID(chain[0])
         )
@@ -271,8 +329,6 @@ class SessionChildUpdatesService:
             messages=messages,
             child_turn=child_turn,
         )
-
-        # 4. The result file, when the turn ended. A failure leaves no `result_path`.
         if status != ChildTurnStatus.paused:
             result.result_path = await self._write_result_file(
                 project_id=project_id,
@@ -285,33 +341,7 @@ class SessionChildUpdatesService:
                 messages=messages,
                 context=context,
             )
-
-        # 5. The update, through the one helper, with the calling turn's authority.
-        update_envelope = RunEnvelope(
-            authority=envelope.authority,
-            sender=envelope.sender,
-            context=RunContext(
-                origin=calling_turn.context.origin,
-                origin_id=calling_turn.context.origin_id,
-            ),
-            approved_by=None,
-        )
-        content = {
-            "session_id": calling_session_id,
-            "references": keyed_references(calling_turn.references)
-            or keyed_references(calling.references),
-            "data": {"inputs": {"messages": [child_update_message(result)]}},
-        }
-        return await self._starts.enqueue_session_input(
-            project_id=project_id,
-            user_id=user_id,
-            session_id=calling_session_id,
-            kind=PendingInputKind.child_update,
-            content=content,
-            idempotency_key=key,
-            run_envelope=update_envelope,
-            dispatch_boundary=QUEUED_DISPATCH_BOUNDARY,
-        )
+        return result
 
     async def _finish_existing(
         self, *, existing: PendingInput, context: Dict[str, str]

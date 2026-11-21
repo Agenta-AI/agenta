@@ -89,6 +89,10 @@ def test_catalog_ships_platform_builder_ops():
         "list_sessions",
         "read_session",
         "read_session_spans",
+        "start_session",
+        "send_session_message",
+        "wait_for_sessions",
+        "cancel_session",
     }
 
 

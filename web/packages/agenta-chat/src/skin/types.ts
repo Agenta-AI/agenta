@@ -161,6 +161,8 @@ export interface ApprovalPreview {
     cannotApply?: boolean
     /** The name of the agent the changes are for, as the card shows it. */
     agentName?: string
+    /** The slug or id of an agent the card looks up, then re-describes with the agent's name. */
+    agentRef?: string
     /** The card's own header, for a call that is more than its changes (`create_agent`). */
     header?: {title: string; path: string[]}
     /**
@@ -185,6 +187,8 @@ export type ApprovalDescriber = (
     appName?: string,
     /** The server preview of this call, when the gate carries one (`data-approval-preview`). */
     changePreview?: unknown,
+    /** The name of the agent that `agentRef` of an earlier description named, once known. */
+    agentName?: string,
 ) => ApprovalPreview | null
 
 /** Best-effort tool family, inferred from the wire-name shape and the call's arguments. */
@@ -194,6 +198,8 @@ export type ToolKind = "gateway" | "mcp" | "platform" | "shell" | "file"
 export interface ToolActivity {
     running: string
     done: string
+    /** The sentence for a call that failed. Without it, a failed row keeps its running sentence. */
+    failed?: string
 }
 
 /** The closed set of activity-step glyphs, chosen by kind and canonical name, never per raw tool. */
@@ -241,6 +247,12 @@ export interface ToolDisplayEntry {
     kind?: ToolKind
     /** The row's sentence; a function gets the app's name (undefined until known) and may decline. */
     activity?: ToolActivity | ((appName?: string) => ToolActivity | undefined)
+    /** The row's sentence from the call itself, its arguments or result; wins over `activity`
+     * when it answers. `agentName` is the name of the agent that `agentRef` named, once known. */
+    describe?: (input: unknown, output: unknown, agentName?: string) => ToolActivity | undefined
+    /** The slug or id of an agent the call names: the row looks it up and resolves again with
+     * the agent's name. */
+    agentRef?: (input: unknown) => string | undefined
     /** The app this call is about; `action` is a tool it reported, or with `ran`, called. */
     app?: (input: unknown, output: unknown) => {slug?: string; action?: string; ran?: boolean}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
@@ -273,6 +285,8 @@ export interface ResolvedToolDisplay {
     frame?: ToolActivity
     /** The step glyph, from the override or the kind's default. */
     icon: ActivityIcon
+    /** The slug or id of an agent the call names; resolve again with its name once known. */
+    agentRef?: string
 }
 
 /**

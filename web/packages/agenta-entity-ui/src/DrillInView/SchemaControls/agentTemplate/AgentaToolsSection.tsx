@@ -76,6 +76,34 @@ const AGENTA_TOOL_COPY: Record<string, {name: BuildKitKey; description: BuildKit
         name: "entityUi.buildKit.applySkillUpdateName",
         description: "entityUi.buildKit.applySkillUpdateDescription",
     },
+    start_session: {
+        name: "entityUi.buildKit.startSessionName",
+        description: "entityUi.buildKit.startSessionDescription",
+    },
+    send_session_message: {
+        name: "entityUi.buildKit.sendSessionMessageName",
+        description: "entityUi.buildKit.sendSessionMessageDescription",
+    },
+    wait_for_sessions: {
+        name: "entityUi.buildKit.waitForSessionsName",
+        description: "entityUi.buildKit.waitForSessionsDescription",
+    },
+    cancel_session: {
+        name: "entityUi.buildKit.cancelSessionName",
+        description: "entityUi.buildKit.cancelSessionDescription",
+    },
+    list_sessions: {
+        name: "entityUi.buildKit.listSessionsName",
+        description: "entityUi.buildKit.listSessionsDescription",
+    },
+    read_session: {
+        name: "entityUi.buildKit.readSessionName",
+        description: "entityUi.buildKit.readSessionDescription",
+    },
+    read_session_spans: {
+        name: "entityUi.buildKit.readSessionSpansName",
+        description: "entityUi.buildKit.readSessionSpansDescription",
+    },
 }
 
 /** What each preset sets a tool to. Deactivate leaves an empty map, never removes the entry. */

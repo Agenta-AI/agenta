@@ -6,7 +6,9 @@ Readers run on `engine.session()`, one statement each. Writers run in
 - agent writes lock `workflow_artifacts (project_id, id) FOR UPDATE`, then write
   `agent_access` and `channel_agents`;
 - session writes lock one `session_streams` row `FOR UPDATE`, then write the row and
-  `session_grants`.
+  `session_grants`;
+- a child session insert locks its calling session's row `FOR SHARE`, then writes the
+  child's `session_grants` (`copy_calling_session_grants`).
 
 A connection restore (`ChannelsDAO.unarchive_connection`) locks its `channel_connections`
 row first, then the artifacts in id order, then its `channel_agents` rows. No path takes
@@ -343,6 +345,24 @@ DELETE FROM session_grants
 WHERE project_id = :project_id
   AND stream_id = :stream_id
   AND user_id = ANY(CAST(:user_ids AS uuid[]))
+"""
+
+# A child session's lock on its calling session: FOR SHARE, so a sharing write on the
+# calling session (FOR UPDATE) either committed before the copy or waits for it.
+_LOCK_CALLING_SESSION_STATE_SQL = f"""
+SELECT {_SESSION_STATE_COLUMNS}
+FROM session_streams s
+WHERE s.project_id = :project_id AND s.session_id = :session_id
+FOR SHARE OF s
+"""
+
+_COPY_GRANTS_SQL = f"""
+INSERT INTO session_grants AS g
+    (project_id, stream_id, user_id, role, created_at, created_by_id)
+SELECT :project_id, :stream_id, c.user_id, c.role, now(), :user_id
+FROM session_grants c
+WHERE c.project_id = :project_id AND c.stream_id = :calling_stream_id
+RETURNING {_GRANT_COLUMNS}
 """
 
 _UPSERT_GRANTS_SQL = f"""
@@ -802,6 +822,48 @@ async def guard_agent_activation(
         and (user_id is None or policy.owner_user_id != user_id)
     ):
         raise SharedItemNotFound()
+
+
+async def copy_calling_session_grants(
+    session,
+    *,
+    project_id: UUID,
+    calling_session_id: str,
+    stream_id: UUID,
+    expected: AccessPolicy,
+    user_id: Optional[UUID],
+) -> List[SessionGrant]:
+    """Inside the transaction that inserts a child session row (`session` is an ORM
+    session or a connection): lock the calling session's row FOR SHARE, check that its
+    policy is still `expected` (`SharingConflict(current)` otherwise, which rolls the
+    insert back), then give the row `stream_id` the calling session's grants as they are
+    now, with their roles. The row and its grants commit together, and a grant that a
+    sharing write removed before the copy is not copied. `SharedItemNotFound` when the
+    calling session has no row."""
+
+    locked = (
+        await session.execute(
+            text(_LOCK_CALLING_SESSION_STATE_SQL),
+            _session_params(project_id=project_id, session_id=calling_session_id),
+        )
+    ).first()
+    if locked is None:
+        raise SharedItemNotFound()
+    calling = map_session_state_row_to_dto(locked)
+    if calling.policy != expected:
+        raise SharingConflict(current=calling.policy)
+    rows = (
+        await session.execute(
+            text(_COPY_GRANTS_SQL),
+            {
+                "project_id": project_id,
+                "stream_id": stream_id,
+                "calling_stream_id": calling.stream_id,
+                "user_id": user_id,
+            },
+        )
+    ).all()
+    return [map_session_grant_dbe_to_dto(row) for row in rows]
 
 
 async def _assign_legacy(

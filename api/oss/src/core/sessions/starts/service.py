@@ -9,7 +9,7 @@ from agenta.sdk.agents import Message
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import RunEnvelope, RunOrigin
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
@@ -38,8 +38,9 @@ from oss.src.core.sharing.service import (
     channel_binding_of,
     channel_session_policy,
     created_session_access,
+    invalidate_sharing_caches,
 )
-from oss.src.core.sessions.streams.dtos import SessionStreamCreate
+from oss.src.core.sessions.streams.dtos import SessionNameSource, SessionStreamCreate
 from oss.src.core.sessions.types import SessionCallingSession
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.types import (
@@ -69,6 +70,9 @@ end
 """
 _START_NAMESPACE = "session-start"
 _INPUT_NAMESPACE = "session-input"
+# The child admissions of one calling session wait up to 10 seconds for each other,
+# so the lock, a start and the longest short wait stay inside the tool call limit.
+_CALLING_SESSION_LOCK_ATTEMPTS = 200
 
 
 class SessionStartsService:
@@ -105,14 +109,16 @@ class SessionStartsService:
         *,
         project_id: UUID,
         lock_id: str,
+        attempts: int = 100,
     ) -> AsyncIterator[None]:
-        """`lock_id` names what the lock serializes: one start's execution, or one
-        session for `enqueue_session_input`."""
+        """`lock_id` names what the lock serializes: one start's execution, one
+        session for `enqueue_session_input`, or the child admissions of one calling
+        session. One attempt waits 50 ms."""
         key = f"agenta:session-start:{project_id}:{lock_id}"
         token = uuid4().hex
         acquired = False
         try:
-            for _ in range(100):
+            for _ in range(attempts):
                 acquired = bool(await self._lock_engine.set(key, token, nx=True, ex=60))
                 if acquired:
                     break
@@ -136,6 +142,25 @@ class SessionStartsService:
                 # The lock has a TTL. A release failure cannot make a durable start
                 # disappear, and the next retry will read the execution row.
                 pass
+
+    @asynccontextmanager
+    async def calling_session_lock(
+        self,
+        *,
+        project_id: UUID,
+        calling_session_id: str,
+    ) -> AsyncIterator[None]:
+        """Serialize the child admissions of one calling session: the count of its
+        running children or of its queued messages, and the start or the send that
+        adds one. Two concurrent calls cannot both pass a cap. The session tool
+        handlers hold it for the count and the dispatch only, never for a wait; a
+        call waits for it up to 10 seconds."""
+        async with self._start_lock(
+            project_id=project_id,
+            lock_id=f"calling:{calling_session_id}",
+            attempts=_CALLING_SESSION_LOCK_ATTEMPTS,
+        ):
+            yield
 
     async def _has_started(
         self,
@@ -229,12 +254,16 @@ class SessionStartsService:
         envelope: RunEnvelope,
         channel_binding_id: Optional[UUID] = None,
         calling_session: Optional[SessionCallingSession] = None,
+        name: Optional[str] = None,
+        grants_from_session_id: Optional[str] = None,
     ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
         heartbeat, a rename, another start with the same key) already created it: that
         row keeps its policy. True when this call created the row. An id a channel
         thread names is created only by its channel's run (`SessionIdTombstoned`
-        otherwise)."""
+        otherwise). With `grants_from_session_id`, the row this call creates gets that
+        session's grants in the insert's transaction, before any claim, so the first
+        turn runs with them and no row exists without them."""
         try:
             created = await self._streams.create(
                 project_id=project_id,
@@ -245,21 +274,31 @@ class SessionStartsService:
                     channel_binding_id=channel_binding_id,
                     run_envelope=envelope,
                     calling_session=calling_session,
+                    name=name,
+                    name_source=SessionNameSource.automatic if name else None,
                 ),
+                grants_from_session_id=grants_from_session_id,
             )
         except SessionStreamAlreadyExists:
             return False
         policy, in_channel, binding_id = created_session_access(
             created, requested=access, channel_binding_id=channel_binding_id
         )
+        grants = list(getattr(created, "created_grants", None) or [])
         await cache_created_session_access(
             project_id=project_id,
             session_id=session_id,
             stream_id=getattr(created, "id", None),
             policy=policy,
+            grants=grants,
             is_channel=in_channel,
             channel_binding_id=binding_id,
         )
+        if grants:
+            await invalidate_sharing_caches(
+                project_id=project_id,
+                grant_user_ids=[grant.user_id for grant in grants],
+            )
         return True
 
     async def _release_dispatch(
@@ -337,6 +376,7 @@ class SessionStartsService:
         envelope: RunEnvelope,
         session_id: str,
         workflow_id: UUID,
+        boundary: str = TEMPLATE_START_BOUNDARY,
     ) -> None:
         """Admit the replay of a completed start: the caller may run the session and
         the agent. Raises `AdmissionDenied` (a hidden item is not readable)."""
@@ -344,7 +384,7 @@ class SessionStartsService:
             envelope=envelope,
             session_id=session_id,
             agent_artifact_id=workflow_id,
-            boundary=TEMPLATE_START_BOUNDARY,
+            boundary=boundary,
         )
 
     async def _claim_and_dispatch(
@@ -423,6 +463,10 @@ class SessionStartsService:
                 run_id=execution_id,
                 strict_start=True,
                 admitted_agent_id=admitted_agent_id,
+                # A child session's turn keeps its sandbox warm for the next message
+                # from the calling session; `deliver_continue_input` does the same for
+                # a queued one.
+                keep_session_warm=envelope.context.origin == RunOrigin.CALLING_SESSION,
             )
         except Exception as exc:
             error = exc
@@ -639,6 +683,9 @@ class SessionStartsService:
         access: AccessPolicy | None = None,
         calling_session: SessionCallingSession | None = None,
         calling_turn_id: str | None = None,
+        boundary: str = TEMPLATE_START_BOUNDARY,
+        name: str | None = None,
+        grants_from_session_id: Optional[str] = None,
     ) -> SessionStartResult:
         """`access` is the first session's initial policy (the caller's requested
         visibility, through `initial_policy`). When given, the session row is created
@@ -650,7 +697,13 @@ class SessionStartsService:
         the run origin `calling_session` and an `access`, because only the row that
         the start creates carries the record. `calling_turn_id` is the first execution
         id of the calling turn; the first input row stores it for the producer of
-        child updates."""
+        child updates.
+
+        `boundary` is the admission point every check of this start logs (the template
+        loader's by default; `start_session` passes the child run's). `name` names the
+        session row that this start creates, and `grants_from_session_id` names the
+        session whose grants that row gets (a private child's copy of its calling
+        session's grants)."""
         if calling_session is not None and access is None:
             raise ValueError("a calling session record needs the initial policy")
         # The start runs as the request's principal; recheck before anything is
@@ -688,7 +741,7 @@ class SessionStartsService:
                 session_id=session_id,
                 project_id=project_id,
                 request=request,
-                boundary=TEMPLATE_START_BOUNDARY,
+                boundary=boundary,
             )
             if channel_binding_id is not None and access is not None:
                 access = await channel_session_policy(
@@ -712,13 +765,15 @@ class SessionStartsService:
                     envelope=envelope,
                     channel_binding_id=channel_binding_id,
                     calling_session=calling_session,
+                    name=name,
+                    grants_from_session_id=grants_from_session_id,
                 )
                 if not created:
                     await self._run_admission.admit(
                         envelope=envelope,
                         session_id=session_id,
                         agent_artifact_id=None,
-                        boundary=TEMPLATE_START_BOUNDARY,
+                        boundary=boundary,
                     )
 
             claimed, replayed = await self._claim_and_dispatch(

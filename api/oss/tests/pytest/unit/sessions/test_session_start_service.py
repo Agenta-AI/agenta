@@ -1036,3 +1036,117 @@ async def test_a_calling_session_record_without_a_policy_is_refused():
             ),
         )
     streams.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_session_tool_start_admits_at_its_boundary_names_the_row_and_keeps_warm():
+    """`start_session` admits the child at the child run's boundary, names the row it
+    creates, and its run origin `calling_session` asks the runner to keep the sandbox
+    warm. The template loader's start keeps its own boundary and a cold sandbox."""
+    from oss.src.core.access.dtos import RunContext, RunOrigin
+    from oss.src.core.sessions.streams.dtos import SessionNameSource
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    streams = AsyncMock()
+    service = _start_with_streams(streams, [])
+    admission = RecordingRunAdmission()
+    service._run_admission = admission
+    policy = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    await service.start_once(
+        **{
+            **_args(),
+            "envelope": ENVELOPE.model_copy(
+                update={
+                    "context": RunContext(
+                        origin=RunOrigin.CALLING_SESSION,
+                        origin_id="calling",
+                        parent_run_id="x1",
+                    )
+                }
+            ),
+        },
+        access=policy,
+        boundary="child_run",
+        name="Globex research",
+    )
+
+    assert admission.calls[0][1]["boundary"] == "child_run"
+    stream = streams.create.await_args.kwargs["stream"]
+    assert stream.name == "Globex research"
+    assert stream.name_source == SessionNameSource.automatic
+    invoke = service._workflows.invoke_workflow_detached.await_args.kwargs
+    assert invoke["keep_session_warm"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_template_start_keeps_its_boundary_and_a_cold_sandbox():
+    streams = AsyncMock()
+    service = _start_with_streams(streams, [])
+    admission = RecordingRunAdmission()
+    service._run_admission = admission
+
+    await service.start_once(**_args())
+
+    assert admission.calls[0][1]["boundary"] == "template_start"
+    invoke = service._workflows.invoke_workflow_detached.await_args.kwargs
+    assert invoke["keep_session_warm"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raced", [False, True])
+async def test_the_row_insert_copies_the_grants_before_the_invoke(monkeypatch, raced):
+    """A child of a private session gets the grants of its calling session in the
+    transaction that inserts its row, before the invoke: no row exists without them,
+    and nothing writes grants after the insert. A row that already existed is not
+    changed."""
+    import oss.src.core.sharing.service as sharing_module
+    from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+    from oss.src.core.sharing.dtos import (
+        AccessPolicy,
+        SessionGrant,
+        SessionRole,
+        Visibility,
+    )
+    from oss.tests.pytest.utils.sharing import SharingWorld
+
+    world = SharingWorld()
+    monkeypatch.setattr(sharing_module, "_sharing_service", world.service)
+    ben = uuid4()
+    policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=USER_ID)
+    events = []
+    creates = []
+    streams = AsyncMock()
+
+    async def create(**kwargs):
+        events.append("create")
+        creates.append(kwargs)
+        if raced:
+            raise SessionStreamAlreadyExists("s")
+        state = world.dao.add_session(
+            project_id=PROJECT_ID,
+            policy=policy,
+            session_id=kwargs["stream"].session_id,
+        )
+        return SimpleNamespace(
+            id=state.stream_id,
+            created_grants=[
+                SessionGrant(
+                    stream_id=state.stream_id,
+                    user_id=ben,
+                    role=SessionRole.PARTICIPANT,
+                )
+            ],
+        )
+
+    streams.create.side_effect = create
+
+    result = await _start_with_streams(streams, events).start_once(
+        **_args(), access=policy, grants_from_session_id="calling"
+    )
+
+    assert events == ["create", "invoke"]
+    assert creates[0]["grants_from_session_id"] == "calling"
+    # No grant write after the insert: the insert made them.
+    assert world.dao.grants == {}
+    assert result.replayed is False
