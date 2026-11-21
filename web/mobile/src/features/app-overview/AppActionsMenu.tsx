@@ -25,12 +25,7 @@ const RenameAppDialog = dynamic(
     {ssr: false},
 )
 
-/**
- * The actions of the app on its overview: Rename, Copy Slug, and Archive. Rename and Archive need
- * `edit_workflows`, so a reader sees only Copy Slug, and no menu at all for an app with no slug.
- * An evaluator gets Copy Slug only: archiving one must first check the evaluation runs that use it,
- * which the Evaluators list does.
- */
+/** The prompt's overview actions; Rename and Archive need `edit_workflows`, evaluators get Copy slug only. */
 export const AppActionsMenu = ({
     projectId,
     app,
@@ -57,9 +52,9 @@ export const AppActionsMenu = ({
 
     const askArchive = () =>
         confirm({
-            title: "Archive app",
-            message: `${app.name || app.slug || "This app"} will move to archived apps.`,
-            okText: "Archive app",
+            title: "Archive prompt",
+            message: `${app.name || app.slug || "This prompt"} will move to the archive.`,
+            okText: "Archive prompt",
             danger: true,
             onOk: archive,
         })
@@ -72,7 +67,7 @@ export const AppActionsMenu = ({
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={evaluator ? "Evaluator actions" : "App actions"}
+                        aria-label={evaluator ? "Evaluator actions" : "Prompt actions"}
                     >
                         <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
                     </Button>
@@ -87,7 +82,7 @@ export const AppActionsMenu = ({
                     {slug ? (
                         <DropdownMenuItem onSelect={() => void copySlug()}>
                             <Copy aria-hidden size={14} />
-                            Copy Slug
+                            Copy slug
                         </DropdownMenuItem>
                     ) : null}
                     {canEdit ? (
@@ -95,7 +90,7 @@ export const AppActionsMenu = ({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem variant="destructive" onSelect={askArchive}>
                                 <Trash aria-hidden size={14} />
-                                Archive app
+                                Archive prompt
                             </DropdownMenuItem>
                         </>
                     ) : null}

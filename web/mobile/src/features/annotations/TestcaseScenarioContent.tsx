@@ -23,7 +23,7 @@ export const TestcaseScenarioContent = ({testcaseId}: {testcaseId: string}) => {
     }
     const testcase = query.data
     if (!testcaseId || query.isError || !testcase) {
-        return <ScenarioMessage title="Testcase data not available" />
+        return <ScenarioMessage title="Test case data not available" />
     }
     const {inputs, expectedOutputs, outputs} = categorizeTestcaseFields(testcase.data)
     const groups = [
@@ -31,7 +31,7 @@ export const TestcaseScenarioContent = ({testcaseId}: {testcaseId: string}) => {
         {key: "expected", fields: expectedOutputs},
         {key: "outputs", fields: outputs},
     ].filter((group) => group.fields.length > 0)
-    if (groups.length === 0) return <ScenarioMessage title="No data available for this testcase" />
+    if (groups.length === 0) return <ScenarioMessage title="No data available for this test case" />
 
     return (
         <div className="flex flex-col gap-2 p-3">

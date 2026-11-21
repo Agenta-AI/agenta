@@ -66,7 +66,13 @@ export const useUnsavedGuard = ({
                 message,
                 onOk: () => {
                     bypass.current = true
-                    void router.push(url).catch(() => undefined)
+                    // The event URL carries the basePath; push adds it again (`/m/m/...`).
+                    const {basePath} = router
+                    const path =
+                        basePath && url.startsWith(basePath)
+                            ? url.slice(basePath.length) || "/"
+                            : url
+                    void router.push(path).catch(() => undefined)
                 },
             })
             router.events.emit("routeChangeError")

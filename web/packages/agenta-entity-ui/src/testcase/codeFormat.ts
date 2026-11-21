@@ -1,3 +1,4 @@
+import deepEqual from "fast-deep-equal"
 import {dump as dumpYaml, load as loadYaml} from "js-yaml"
 
 export type RootDrawerViewMode = "form" | "json" | "yaml"
@@ -15,4 +16,24 @@ export function parseCodeString<T = unknown>(value: string, format: CodeFormat, 
     } catch {
         return fallback
     }
+}
+
+/** Why the text does not parse, or null when it does. */
+export function codeParseError(value: string, format: CodeFormat): string | null {
+    try {
+        if (format === "yaml") loadYaml(value)
+        else JSON.parse(value)
+        return null
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return message.split("\n")[0] || "the text does not parse"
+    }
+}
+
+/** Whether the typed text already says `value`, so a resync would only reformat it. */
+export function textMatchesValue(text: string, format: CodeFormat, value: unknown): boolean {
+    const typed = parseCodeString<unknown>(text, format, undefined)
+    if (typed === undefined) return false
+    const record = typed && typeof typed === "object" && !Array.isArray(typed) ? typed : {}
+    return deepEqual(record, value)
 }

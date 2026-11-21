@@ -70,23 +70,24 @@ export const CompareRevisionsDialog = ({
         (a, b) =>
             Date.parse(a.createdAt ?? "") - Date.parse(b.createdAt ?? "") || a.version - b.version,
     )
-    const originalEntity = useAtomValue(workflowMolecule.selectors.data(original.revisionId))
-    const modifiedEntity = useAtomValue(workflowMolecule.selectors.data(modified.revisionId))
+    // Committed configs only: playground drafts must not show as the saved revision.
+    const originalEntity = useAtomValue(workflowMolecule.selectors.serverData(original.revisionId))
+    const modifiedEntity = useAtomValue(workflowMolecule.selectors.serverData(modified.revisionId))
     const loaded = Boolean(originalEntity && modifiedEntity)
 
     return (
         <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
             <DialogContent className="flex max-h-[85vh] w-[min(1080px,calc(100vw-32px))] max-w-none flex-col gap-4 sm:max-w-none">
                 <DialogHeader>
-                    <DialogTitle>Variant Comparison</DialogTitle>
+                    <DialogTitle>Compare revisions</DialogTitle>
                     <DialogDescription className="sr-only">
                         The configuration of two revisions, with the changes highlighted.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
                     <div className="flex shrink-0 flex-col gap-4 md:w-72">
-                        <VersionCard title="Original Version" tone="removed" row={original} />
-                        <VersionCard title="Modified Version" tone="added" row={modified} />
+                        <VersionCard title="Original version" tone="removed" row={original} />
+                        <VersionCard title="Modified version" tone="added" row={modified} />
                     </div>
                     <div className="min-h-[320px] min-w-0 flex-1 overflow-auto rounded-lg border border-solid border-border">
                         {loaded ? (

@@ -194,7 +194,7 @@ describe("New Evaluation from the playground", {timeout: 90_000}, () => {
 
         await openWizard()
 
-        expect(dialog()?.textContent).toContain("New Auto Evaluation")
+        expect(dialog()?.textContent).toContain("New auto evaluation")
         expect(chips("Application")).toEqual(["Capitals"])
         // One chip per shown revision, in the order of the page.
         expect(chips("Revision")).toEqual(["beta - v5", "alpha - v3"])

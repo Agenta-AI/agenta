@@ -30,7 +30,7 @@ export const TestsetsDateFilter = ({
         () => [
             {
                 key: "created",
-                label: "Date Created",
+                label: "Date created",
                 icon: <CalendarBlank size={ICON} />,
                 value: filter?.range ?? "all",
                 options: CREATED_RANGES.map((range) => ({value: range.value, label: range.label})),
@@ -59,7 +59,7 @@ export const TestsetsDateFilter = ({
             {filter ? (
                 <span className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
                     <span className="truncate">
-                        Date Created: {createdRangeLabel(filter.range)}
+                        Date created: {createdRangeLabel(filter.range)}
                     </span>
                     <Button
                         type="button"

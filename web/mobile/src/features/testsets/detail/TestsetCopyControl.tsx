@@ -108,7 +108,7 @@ export const TestsetCopyControl = ({
                 <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => void copy("id")}>Copy ID</DropdownMenuItem>
                     <DropdownMenuItem disabled={!revisionSlug} onSelect={() => void copy("slug")}>
-                        Copy Revision Slug
+                        Copy revision slug
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

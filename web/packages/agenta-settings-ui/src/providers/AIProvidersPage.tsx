@@ -20,6 +20,8 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {LoadFailed} from "../shared/LoadFailed"
+
 import {
     ProvidersPanel,
     type ProviderRemovalState,
@@ -65,7 +67,7 @@ export interface AIProvidersPageProps {
 /** The project's own connections: one row per connection, every provider stays connectable. */
 const useProjectProvidersSource = (): ProvidersSource => {
     const t = useT(settingsProvidersCatalog, commonCatalog)
-    const {loading, mutate} = useVaultSecret()
+    const {loading, loadFailed, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const deleteSecret = useSetAtom(deleteSecretAtom)
@@ -100,8 +102,14 @@ const useProjectProvidersSource = (): ProvidersSource => {
             removeFailed: (_failure: unknown, connection: ProviderConnection) =>
                 t("settings.providers.removeFailed", {name: connection.name}),
             onSaved: mutate,
+            failure: loadFailed ? (
+                <LoadFailed
+                    message={t("settings.providers.projectConnectionsLoadFailed")}
+                    onRetry={() => void mutate()}
+                />
+            ) : undefined,
         }
-    }, [connections, loading, capabilities, deleteSecret, mutate, t])
+    }, [connections, loading, loadFailed, capabilities, deleteSecret, mutate, t])
 }
 
 /**

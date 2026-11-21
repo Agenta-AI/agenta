@@ -13,19 +13,17 @@ export const QueueEmpty = ({
     <EmptyState
         className="py-14"
         image={<Tray aria-hidden size={28} />}
-        title="There's nothing to see here"
+        title="This queue is empty"
         description={
-            <>
-                Currently there are no runs &amp; annotations in this queue,
-                <br />
-                {isTraces ? "please add runs from traces." : "please add items from test sets."}
-            </>
+            isTraces
+                ? "Add traces to this queue from Observability."
+                : "Add test cases to this queue from a test set."
         }
     >
         {isTraces ? (
             <Button size="sm" asChild>
                 <Link href={observabilityHref} prefetch={false}>
-                    Go to observability
+                    Go to Observability
                 </Link>
             </Button>
         ) : null}

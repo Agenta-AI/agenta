@@ -47,7 +47,7 @@ export const TestsetRowMenu = ({
                     type="button"
                     size="icon-xs"
                     variant="ghost"
-                    aria-label="Testset actions"
+                    aria-label="Test set actions"
                     className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                 >
                     <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />

@@ -11,12 +11,15 @@
 // The picker sends the ACP adapter's config option values, which can differ from the
 // `value` printed here (for example `claude-fable-5-2` instead of `fable`). Use this
 // output to see WHICH models a build offers; read the adapter for the exact values.
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
 const sdkPath = process.argv[2];
 if (!sdkPath) {
   console.error("usage: node probe_claude_models.mjs <path to sdk.mjs>");
   process.exit(2);
 }
-const { query } = await import(sdkPath);
+const { query } = await import(pathToFileURL(resolve(sdkPath)).href);
 
 async function* idle() {
   await new Promise(() => {});

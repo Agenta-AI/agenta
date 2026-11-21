@@ -349,11 +349,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div
                                 className={clsx(
                                     "w-full min-h-0 flex-1",
-                                    // A group that scrolls its own rows owns the scrolling: the
-                                    // rail must NOT scroll too, or the entries after that group
-                                    // still leave the screen. Every other scope is unchanged.
+                                    // The scrolling group owns the spare height; the rail scrolls only on a short window.
                                     scrollsWithinAGroup
-                                        ? "flex flex-col overflow-hidden"
+                                        ? "flex flex-col overflow-y-auto"
                                         : "overflow-y-auto",
                                 )}
                             >

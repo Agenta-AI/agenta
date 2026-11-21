@@ -45,7 +45,7 @@ describe("the developer rows of the main rail", () => {
                     },
                     {
                         key: "developer-view-annotation-queues",
-                        title: "Annotation Queues",
+                        title: "Annotation queues",
                         link: `${P}/annotations`,
                     },
                 ],
