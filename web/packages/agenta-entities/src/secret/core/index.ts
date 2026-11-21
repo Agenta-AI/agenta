@@ -162,6 +162,7 @@ export {
     mountedSubscriptionDisplayName,
     mountedSubscriptionName,
     subscriptionPairModels,
+    subscriptionPairModelRows,
     subscriptionPairsFrom,
     subscriptionPlanName,
 } from "./subscriptionPairs"
