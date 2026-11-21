@@ -385,7 +385,6 @@ class RecordsService:
             execution_ids=execution_ids,
         )
 
-
     async def get_execution_records(
         self,
         *,

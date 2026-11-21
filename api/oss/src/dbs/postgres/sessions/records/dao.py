@@ -299,7 +299,6 @@ class RecordsDAO(RecordsDAOInterface):
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
 
-
     async def get_execution_records(
         self,
         *,
