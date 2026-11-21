@@ -55,7 +55,6 @@ class RecordsDAOInterface:
         """The `done` and `error` records of these executions, in send order."""
         raise NotImplementedError
 
-
     async def get_execution_records(
         self,
         *,

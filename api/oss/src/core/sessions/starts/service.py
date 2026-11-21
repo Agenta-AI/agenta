@@ -9,7 +9,7 @@ from agenta.sdk.agents import Message
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import RunEnvelope, RunOrigin
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
@@ -69,6 +69,9 @@ end
 """
 _START_NAMESPACE = "session-start"
 _INPUT_NAMESPACE = "session-input"
+# The child admissions of one calling session wait up to 10 seconds for each other,
+# so the lock, a start and the longest short wait stay inside the tool call limit.
+_CALLING_SESSION_LOCK_ATTEMPTS = 200
 
 
 class SessionStartsService:
@@ -105,14 +108,16 @@ class SessionStartsService:
         *,
         project_id: UUID,
         lock_id: str,
+        attempts: int = 100,
     ) -> AsyncIterator[None]:
-        """`lock_id` names what the lock serializes: one start's execution, or one
-        session for `enqueue_session_input`."""
+        """`lock_id` names what the lock serializes: one start's execution, one
+        session for `enqueue_session_input`, or the child admissions of one calling
+        session. One attempt waits 50 ms."""
         key = f"agenta:session-start:{project_id}:{lock_id}"
         token = uuid4().hex
         acquired = False
         try:
-            for _ in range(100):
+            for _ in range(attempts):
                 acquired = bool(await self._lock_engine.set(key, token, nx=True, ex=60))
                 if acquired:
                     break
@@ -136,6 +141,25 @@ class SessionStartsService:
                 # The lock has a TTL. A release failure cannot make a durable start
                 # disappear, and the next retry will read the execution row.
                 pass
+
+    @asynccontextmanager
+    async def calling_session_lock(
+        self,
+        *,
+        project_id: UUID,
+        calling_session_id: str,
+    ) -> AsyncIterator[None]:
+        """Serialize the child admissions of one calling session: the count of its
+        running children or of its queued messages, and the start or the send that
+        adds one. Two concurrent calls cannot both pass a cap. The session tool
+        handlers hold it for the count and the dispatch only, never for a wait; a
+        call waits for it up to 10 seconds."""
+        async with self._start_lock(
+            project_id=project_id,
+            lock_id=f"calling:{calling_session_id}",
+            attempts=_CALLING_SESSION_LOCK_ATTEMPTS,
+        ):
+            yield
 
     async def _has_started(
         self,
@@ -340,6 +364,7 @@ class SessionStartsService:
         envelope: RunEnvelope,
         session_id: str,
         workflow_id: UUID,
+        boundary: str = TEMPLATE_START_BOUNDARY,
     ) -> None:
         """Admit the replay of a completed start: the caller may run the session and
         the agent. Raises `AdmissionDenied` (a hidden item is not readable)."""
@@ -347,7 +372,7 @@ class SessionStartsService:
             envelope=envelope,
             session_id=session_id,
             agent_artifact_id=workflow_id,
-            boundary=TEMPLATE_START_BOUNDARY,
+            boundary=boundary,
         )
 
     async def _claim_and_dispatch(
@@ -364,7 +389,6 @@ class SessionStartsService:
         kind: PendingInputKind,
         admitted_agent_id: Optional[UUID],
         calling_turn_id: Optional[str] = None,
-        keep_session_warm: bool = False,
     ) -> tuple[PendingInput, bool]:
         """Write and promote the input for `execution_id`, then invoke it once. Call it
         under `_start_lock`, after the run was admitted.
@@ -427,7 +451,10 @@ class SessionStartsService:
                 run_id=execution_id,
                 strict_start=True,
                 admitted_agent_id=admitted_agent_id,
-                keep_session_warm=keep_session_warm,
+                # A child session's turn keeps its sandbox warm for the next message
+                # from the calling session; `deliver_continue_input` does the same for
+                # a queued one.
+                keep_session_warm=envelope.context.origin == RunOrigin.CALLING_SESSION,
             )
         except Exception as exc:
             error = exc
@@ -463,7 +490,6 @@ class SessionStartsService:
         run_envelope: RunEnvelope,
         dispatch_boundary: str,
         calling_turn_id: Optional[str] = None,
-        keep_session_warm: bool = False,
     ) -> SessionInputEnqueueResult:
         """Put one input that server code writes into an existing session.
 
@@ -488,9 +514,7 @@ class SessionStartsService:
 
         `calling_turn_id` is the first execution id of the calling turn of a child
         input. Only server code that sends a child input passes it; the row stores
-        it and no response returns it. `keep_session_warm` asks the runner to park the
-        session's sandbox after a turn that this call dispatches at once; only the
-        session tool handlers pass it."""
+        it and no response returns it."""
         if run_envelope.authority.project_id != project_id:
             raise SessionInputEnvelopeMismatch()
         if not is_reserved_input_key(idempotency_key):
@@ -626,7 +650,6 @@ class SessionStartsService:
                 kind=kind,
                 admitted_agent_id=agent_artifact_id,
                 calling_turn_id=calling_turn_id,
-                keep_session_warm=keep_session_warm,
             )
             return SessionInputEnqueueResult(
                 input_id=claimed.id,
@@ -650,7 +673,6 @@ class SessionStartsService:
         calling_turn_id: str | None = None,
         boundary: str = TEMPLATE_START_BOUNDARY,
         name: str | None = None,
-        keep_session_warm: bool = False,
     ) -> SessionStartResult:
         """`access` is the first session's initial policy (the caller's requested
         visibility, through `initial_policy`). When given, the session row is created
@@ -666,8 +688,7 @@ class SessionStartsService:
 
         `boundary` is the admission point every check of this start logs (the template
         loader's by default; `start_session` passes the child run's). `name` names the
-        session row that this start creates. `keep_session_warm` asks the runner to park
-        the sandbox after the first turn."""
+        session row that this start creates."""
         if calling_session is not None and access is None:
             raise ValueError("a calling session record needs the initial policy")
         # The start runs as the request's principal; recheck before anything is
@@ -751,7 +772,6 @@ class SessionStartsService:
                 kind=PendingInputKind.message,
                 admitted_agent_id=agent_artifact_id,
                 calling_turn_id=calling_turn_id,
-                keep_session_warm=keep_session_warm,
             )
             return SessionStartResult(
                 session_id=session_id,

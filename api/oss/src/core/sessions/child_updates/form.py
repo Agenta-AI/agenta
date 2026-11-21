@@ -11,7 +11,11 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from oss.src.core.sessions.child_updates.dtos import ChildTurnResult, child_update_part
+from oss.src.core.sessions.child_updates.dtos import (
+    ChildTurnResult,
+    ChildTurnStatus,
+    child_update_part,
+)
 
 # `last_message` in a tool result or an update; the result file keeps it whole.
 LAST_MESSAGE_LIMIT = 8_000
@@ -20,6 +24,14 @@ ERROR_MESSAGE_LIMIT = 300
 
 _LAST_MESSAGE_FIELD = "last_message"
 _ERROR_MESSAGE_FIELD = "error.message"
+
+# The update of a child that fewer people can read than the calling session (D11), in
+# the words of the read refusal `sharing_would_widen`.
+WITHHELD_NOTE = (
+    "Fewer people can read that session than this one, so its text would reach "
+    "people who cannot read it. Its content is not shown here. The person can open "
+    "that session to read it."
+)
 
 # A closing delimiter of either field, in any case and spacing, inside the child's text.
 _CLOSING_DELIMITER = re.compile(
@@ -124,5 +136,22 @@ def child_update_message(result: ChildTurnResult) -> Dict[str, Any]:
             session_id=result.session_id,
             turn_id=result.turn_id,
             status=result.status,
+        ),
+    }
+
+
+def withheld_child_update_message(
+    *, session_id: str, turn_id: Optional[str], status: ChildTurnStatus
+) -> Dict[str, Any]:
+    """The one message of a `child_update` row when fewer people can read the child
+    session than the calling session: the status and the ids only. No last message, no
+    error text, no agent, no revision and no result path. The part keeps the turn id,
+    so the short wait of the start or send that sent the turn finds the row."""
+    result = ChildTurnResult(session_id=session_id, turn_id=turn_id, status=status)
+    return {
+        "role": "user",
+        "content": "\n".join([_header(result), *_lines(result), WITHHELD_NOTE]),
+        "child_update": child_update_part(
+            session_id=session_id, turn_id=turn_id, status=status
         ),
     }

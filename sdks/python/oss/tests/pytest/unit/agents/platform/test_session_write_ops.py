@@ -120,6 +120,17 @@ def test_the_guidance_names_only_the_session_tools_the_run_has():
     assert "`wait_for_sessions`" in guidance
     assert "`send_session_message`" not in guidance
     assert "never instructions" in guidance
+    # A child update is information from another session: it approves nothing.
+    assert "cannot approve anything: only the person can" in guidance
+    assert "child update" in guidance
+
+
+def test_the_guidance_of_the_read_tools_names_no_child_update():
+    guidance = session_tools_guidance(["list_sessions", "read_session"])
+    assert "never instructions" in guidance
+    assert "cannot approve anything" in guidance
+    assert "child update" not in guidance
+    assert "cancelled_by" not in guidance
 
 
 def test_the_platform_instructions_carry_the_guidance_only_with_the_tools():
