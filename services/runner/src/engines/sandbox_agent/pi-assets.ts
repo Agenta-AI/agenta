@@ -1294,7 +1294,7 @@ export async function uploadSkillsToSandbox(
   }
 }
 
-/** Requests in flight at once when uploading a tree (each one is a daemon round trip). */
+/** Requests in flight at once for one uploaded tree (each one is a daemon round trip). */
 const UPLOAD_CONCURRENCY = 8;
 
 /**
@@ -1330,8 +1330,8 @@ export async function uploadDirToSandbox(
   };
   walk(srcDir, destDir);
   const leaves = dirs.filter((dir) => !dirs.some((other) => other.startsWith(`${dir}/`)));
-  await inBatches(leaves, (path) => sandbox.mkdirFs({ path }));
-  await inBatches(files, ({ src, dest }) =>
+  await runPooled(leaves, (path) => sandbox.mkdirFs({ path }));
+  await runPooled(files, ({ src, dest }) =>
     sandbox.writeFsFile({ path: dest }, readFileSync(src, "utf-8")),
   );
 }
@@ -1340,7 +1340,7 @@ export async function uploadDirToSandbox(
  * Run `work` over `items`, at most `UPLOAD_CONCURRENCY` at a time. After the first failure no new
  * item starts; the call waits for the ones in flight and then rejects with that failure.
  */
-async function inBatches<T>(
+async function runPooled<T>(
   items: T[],
   work: (item: T) => Promise<unknown>,
 ): Promise<void> {
