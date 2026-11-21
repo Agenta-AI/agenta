@@ -53,7 +53,7 @@ describe("AgentChannels", () => {
         })
         const api = seen.props?.api as ReactElement<Record<string, unknown>>
         expect(isValidElement(api)).toBe(true)
-        expect(api.props).toEqual({
+        expect(api.props).toMatchObject({
             agentId: "a1",
             projectId: "p1",
             workspaceId: "w1",

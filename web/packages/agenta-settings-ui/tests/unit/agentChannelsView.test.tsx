@@ -219,6 +219,18 @@ describe("AgentChannelsView", () => {
         expect(layer.querySelector('[data-testid="api-view"]')).not.toBeNull()
     })
 
+    it("keeps API and Embed while the channels load or fail to load", async () => {
+        const extra = {api: <div data-testid="api-view" />, embed: () => null}
+        await render(EMPTY_CONNECTIONS, {...extra, loading: true})
+        expect(row("api")).not.toBeNull()
+        expect(row("embed")).not.toBeNull()
+        expect(container.querySelector('[data-testid="agent-channels-slack"]')).toBeNull()
+        await render(EMPTY_CONNECTIONS, {...extra, loadError: "Could not load channels"})
+        expect(container.textContent).toContain("Try again")
+        await act(async () => row("api").click())
+        expect(container.querySelector('[data-testid="api-view"]')).not.toBeNull()
+    })
+
     it("shows skeleton rows while loading and Try again on a load error", async () => {
         await render(EMPTY_CONNECTIONS, {loading: true})
         expect(groups()).toEqual([])
