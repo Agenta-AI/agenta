@@ -5,6 +5,7 @@
     "chatHistory": "Chat history",
     "back": "Back",
     "chat": "Chat",
+    "backToChat": "Back to the chat",
     "question": "What should we change?",
     "intro": "I can change, test and explain {{agent}}.",
     "placeholder": "Ask the builder about this agent",

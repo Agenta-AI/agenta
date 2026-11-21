@@ -53,13 +53,13 @@ import {
     LightningIcon,
     PaperPlaneIcon,
     QuestionIcon,
-    RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
+import {Bot} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {sessionBullet} from "@/features/agent-sidebar/agentSidebarItems"
@@ -321,7 +321,8 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
-                icon: createElement(RobotIcon, {size: 16}),
+                // The canvas Agents glyph is an outline robot (Lucide); Phosphor's robot has a filled face.
+                icon: createElement(Bot, {size: 16}),
                 link: `${projectURL}/agents`,
                 // Start or open an agent without leaving the page: a "+" on the row, the same
                 // panel as a hover flyout on the collapsed rail.

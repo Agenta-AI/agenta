@@ -72,9 +72,10 @@ const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} shrink-0 w-[calc(1
 const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
 // The rail's own selection tokens, not neutral fills: a raised pill with a hairline in both
 // themes. The ring is inset rather than a border so the row's box never changes size
-// between states.
+// between states. The pointer over a selected row keeps the pill: the hover fill is for the
+// rows around it.
 const ROW_SELECTED =
-    "bg-[var(--ag-shell-selected-bg)] font-medium !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
+    "bg-[var(--ag-shell-selected-bg)] hover:bg-[var(--ag-shell-selected-bg)] font-medium !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
 const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
 // Guide line marks the group's extent, the way the old inline menu did.
 const GROUP_CHILDREN =
@@ -186,10 +187,15 @@ const RowLabel = memo(function RowLabel({
     // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
     // and both list groups hide their children there.
     const hover = item.tooltip ?? (typeof item.title === "string" ? item.title : undefined)
+    // The phone sheet cuts a long title with an ellipsis (M02); the rail fades it.
+    const phone = useContext(SidebarLayoutContext) === "phone"
     // `flex-1` pins the fade to the label's right edge, so long rows fade at one line.
     const content = (
         <span className="flex w-full items-center">
-            <span className="ag-text-fade min-w-0 flex-1" title={hover}>
+            <span
+                className={clsx(phone ? "truncate" : "ag-text-fade", "min-w-0 flex-1")}
+                title={hover}
+            >
                 {item.title} <TagChip tag={item.tag} />
             </span>
             {item.suffix ? <span className="ml-auto shrink-0 pl-2">{item.suffix}</span> : null}
@@ -261,7 +267,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             // ENTITY (an agent), and shouting a proper noun misspells it.
             data-sticky-heading="true"
             className={clsx(
-                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-1 pl-5 pr-2 pt-2.5 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText",
+                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-1 pl-5 pr-2 pt-3 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText",
                 phone && "min-h-11",
                 STICKY_HEADING,
             )}
@@ -663,7 +669,7 @@ const NavMenuImpl = ({
             if (!hasChildren) {
                 const icon = (
                     <div
-                        className={clsx(
+                        className={cn(
                             // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
                             // side and the icons read as tiles rather than as a nav.
                             "relative mx-auto flex size-7 items-center justify-center rounded-md",
@@ -699,7 +705,7 @@ const NavMenuImpl = ({
                             type="button"
                             aria-label={item.title}
                             disabled={item.disabled}
-                            className={clsx(
+                            className={cn(
                                 // [font-family:inherit]: preflight is off, so a bare <button>
                                 // renders Arial while the <div> rows around it render Inter.
                                 "mx-auto flex min-w-0 shrink-0 items-center rounded-md border-0 bg-transparent [font-family:inherit]",

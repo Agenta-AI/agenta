@@ -47,7 +47,7 @@ export const AnalyticsCard = ({
         >
             <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                    <span className="text-sm text-muted-foreground">{title}</span>
+                    <span className="text-[13px] leading-5 text-muted-foreground">{title}</span>
                     {controls}
                 </div>
                 {onExplore ? (
@@ -73,7 +73,7 @@ export const AnalyticsCard = ({
                             </span>
                         ) : null}
                         {caption ? (
-                            <span className="truncate text-xs text-muted-foreground">
+                            <span className="truncate text-[12px] leading-4 text-muted-foreground">
                                 {caption}
                             </span>
                         ) : null}
@@ -82,7 +82,8 @@ export const AnalyticsCard = ({
             </div>
             <div
                 className={cn(
-                    "relative mt-3",
+                    // Axis labels in the secondary ink, as the canvas draws them (A09).
+                    "relative mt-3 [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
                     !chartHeight && (loading || error || empty) && "h-36",
                 )}
                 style={chartHeight ? {height: chartHeight} : undefined}

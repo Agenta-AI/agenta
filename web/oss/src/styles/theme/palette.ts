@@ -40,7 +40,8 @@ const PAPER_SOFT = "#f0efed" // soft hairline, row dividers, list selection
 const HAIRLINE = "#e5e5e3" // strong hairline: card/section borders
 const CONTROL_BORDER = "#d7d7d7" // input/segmented/control borders
 const INK_FAINT = "#a3a19f" // disabled / faint labels
-const INK_TERTIARY = "#848b8c" // tertiary text + icons
+const INK_TERTIARY = "#6e7475" // tertiary text, descriptions + icons (the canvas t3 step)
+const INK_PLACEHOLDER = "#848b8c" // composer placeholder: one step lighter than tertiary text
 const INK_SECONDARY = "#676770" // secondary/body text
 const INK_HOVER = "#413f3f" // primary-button hover, strong tag text
 const INK = "#242424" // primary text, primary button
@@ -566,7 +567,7 @@ export const composer = {
     // ink — the faint step is the DISABLED tone (backwards for a focused field) and the
     // tertiary step both sits at the bare 3:1 border floor and matches the placeholder.
     focus: {light: INK_SECONDARY, dark: "rgba(194, 213, 74, 0.45)"},
-    placeholder: {light: INK_TERTIARY, dark: "#7e828a"},
+    placeholder: {light: INK_PLACEHOLDER, dark: "#7e828a"},
     sendDisabledBg: {light: PAPER_SOFT, dark: "#26282c"},
     sendDisabledFg: {light: INK_FAINT, dark: "#6e7176"},
     // Quiet warm bubble on the white chat canvas — the fill is nearly white, so the

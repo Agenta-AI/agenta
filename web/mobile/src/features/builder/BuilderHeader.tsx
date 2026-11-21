@@ -137,6 +137,7 @@ export const BuilderHeader = ({
                 title={isHistory ? t("builder.panel.chatHistory") : titleMenu}
                 onBack={isHistory ? onBack : onClose}
                 backTitle={isHistory ? t("builder.panel.chat") : backTitle}
+                backLabel={isHistory ? t("builder.panel.backToChat") : undefined}
                 trailing={newChat}
             />
         )

@@ -6,15 +6,15 @@
     /* --- core semantic --- */
     --ag-colorText: #242424;
     --ag-colorTextSecondary: #676770;
-    --ag-colorTextTertiary: #848b8c;
+    --ag-colorTextTertiary: #6e7475;
     --ag-colorTextQuaternary: #a3a19f;
     --ag-colorTextHeading: #242424;
     --ag-colorTextLabel: #676770;
-    --ag-colorTextDescription: #848b8c;
+    --ag-colorTextDescription: #6e7475;
     --ag-colorTextDisabled: #a3a19f;
     --ag-colorTextPlaceholder: #a3a19f;
     --ag-colorTextLightSolid: #ffffff;
-    --ag-colorIcon: #848b8c;
+    --ag-colorIcon: #6e7475;
     --ag-colorIconHover: #242424;
     --ag-colorBgContainer: #ffffff;
     --ag-colorBgElevated: #ffffff;
@@ -71,7 +71,7 @@
     --ag-zinc-3: #e5e5e3;
     --ag-zinc-4: #d7d7d7;
     --ag-zinc-5: #a3a19f;
-    --ag-zinc-6: #848b8c;
+    --ag-zinc-6: #6e7475;
     --ag-zinc-7: #676770;
     --ag-zinc-8: #413f3f;
     --ag-zinc-9: #242424;

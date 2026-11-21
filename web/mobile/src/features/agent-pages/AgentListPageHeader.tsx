@@ -1,7 +1,12 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {useIsPhone} from "@agenta/ui/phone"
+import {Button} from "@agenta/ui/ui"
 
+import {useOpenAgentBuilder} from "../agent-layout/AgentPageBuilderHost"
 import {NavDrawer} from "../nav/NavDrawer"
 import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 
@@ -17,7 +22,7 @@ export const AGENT_CHANNELS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[760p
 /**
  * The header of an agent's Sessions, Analytics and Channels pages: the agent pages header (a
  * 48 px bar; it shows the Builder icon when the builder panel host is on the page) on a desktop,
- * the phone page header on a phone.
+ * the phone page header on a phone (with the same Builder icon at the right).
  */
 export const AgentListPageHeader = ({
     title,
@@ -28,7 +33,9 @@ export const AgentListPageHeader = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(agentLayoutHeaderCatalog)
     const phone = useIsPhone()
+    const openBuilder = useOpenAgentBuilder()
     if (!phone) {
         return <AgentPagesHeader title={title} workspaceId={workspaceId} projectId={projectId} />
     }
@@ -37,13 +44,24 @@ export const AgentListPageHeader = ({
         <div
             className={`box-border flex h-[52px] shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-1 ${SESSIONS_PAGE_FRAME}`}
         >
-            {/* The 44 px menu button at x 4, the title 4 px after it (M13). */}
-            <div className="flex min-w-0 flex-1 items-center gap-1">
+            {/* The 44 px menu button at x 4, the title 10 px after it (M13). */}
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-5 text-foreground">
                     {title}
                 </h1>
             </div>
+            {openBuilder ? (
+                <Button
+                    variant="ghost"
+                    size="icon-compact"
+                    aria-label={t("agentLayout.header.builder")}
+                    className="shrink-0"
+                    onClick={openBuilder}
+                >
+                    <BuilderIcon />
+                </Button>
+            ) : null}
         </div>
     )
 }

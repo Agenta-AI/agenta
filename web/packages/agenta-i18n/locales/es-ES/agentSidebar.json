@@ -11,7 +11,7 @@
     "noSessionsMatch": "Ninguna sesión coincide con estos filtros",
     "retry": "Reintentar",
     "searchAgents": "Buscar agentes",
-    "seeAllSessions": "Ver todas las sesiones en una tabla",
+    "seeAllSessions": "Ver todas las sesiones",
     "sessions": "Sesiones",
     "showOlderSessionsShort": "Mostrar sesiones anteriores",
     "showOlderSessions_many": "Mostrar {{count}} sesiones anteriores",
