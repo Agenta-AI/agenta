@@ -13,7 +13,16 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.access.dtos import Decision, DecisionReason, RunOrigin, RunSender
+from oss.src.core.access.dtos import (
+    Decision,
+    DecisionReason,
+    PrincipalKind,
+    PrincipalRef,
+    ResourceKind,
+    ResourceRef,
+    RunOrigin,
+    RunSender,
+)
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.sessions.child_updates.dtos import ChildTurnResult, ChildTurnStatus
@@ -27,8 +36,9 @@ from oss.src.core.sessions.inputs.dtos import PendingInputKind, PendingInputStat
 from oss.src.core.sessions.inputs.types import carries_approval_answer
 from oss.src.core.sessions.types import SessionCallingSession, SessionReference
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY
-from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
 from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.core.sharing.widening import is_wider
 from oss.src.core.tools import session_writes as writes
 from oss.src.core.tools.platform_handlers import (
     CANCEL_SESSION_CALL_REF,
@@ -244,6 +254,12 @@ class _Starts:
                 agent_id=kwargs["workflow_id"],
                 is_running=True,
             )
+            # The real start gives the row it creates the copied grants.
+            state = self.world.sharing.dao.sessions[(self.world.project_id, session_id)]
+            for grant in kwargs.get("grants", ()):
+                self.world.sharing.add_grant(
+                    state=state, user_id=grant.user_id, role=grant.role
+                )
         # One input per request key, as the real start stores one row per key.
         input_id = self.inputs.setdefault(kwargs["request_key"], uuid4())
         self.world.store.started_inputs[input_id] = SimpleNamespace(
@@ -1615,9 +1631,107 @@ async def test_a_wait_returns_a_paused_child_and_leaves_other_sessions_rows(worl
     assert other_row.state == PendingInputState.pending
 
 
+async def _can_view(world, user_id, session_id):
+    reason = await world.sharing.service.evaluate(
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+        action=Permission.VIEW_SESSIONS,
+        project_id=world.project_id,
+        resource=ResourceRef(kind=ResourceKind.SESSION, id=session_id),
+    )
+    return reason is None
+
+
 @pytest.mark.asyncio
-async def test_a_participant_in_a_private_session_is_told_why_and_what_to_do(world):
-    # Ana's private session; Ben sent the calling turn. The child would be private to
+async def test_a_participant_starts_a_child_that_the_same_people_can_read(world):
+    # Ana's private session, where Ana added Ben as a participant; Ben sent the turn.
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research, user=world.ben)
+    calling_state = world.sharing.dao.sessions[(world.project_id, "s-calling")]
+    world.sharing.add_grant(
+        state=calling_state, user_id=world.ben, role=SessionRole.PARTICIPANT
+    )
+    cy = world.sharing.add_member(uuid4())
+    world.principals.human(cy)
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        wait_ms=0,
+        tool_call_id="t",
+    )
+    assert result.ok
+    start = world.starts.starts[0]
+    assert [(g.user_id, g.role) for g in start["grants"]] == [
+        (world.ben, SessionRole.PARTICIPANT)
+    ]
+    child_id = f"child-{start['request_key']}"
+    assert await _can_view(world, world.ben, child_id)
+    assert await _can_view(world, world.ana, child_id)
+    assert not await _can_view(world, cy, child_id)
+    # The same people read both sessions, so the child's updates keep their text.
+    service = world.sharing.service
+    calling = await service.session_readers(
+        project_id=world.project_id, session_id="s-calling"
+    )
+    child = await service.session_readers(
+        project_id=world.project_id, session_id=child_id
+    )
+    assert not is_wider(calling, child)
+    assert not is_wider(child, calling)
+
+
+@pytest.mark.asyncio
+async def test_a_child_of_a_project_session_copies_no_grants(world):
+    research = world.workflows.add("market-research")
+    shared = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=world.ana)
+    caller, _ = world.calling(agent=research, user=world.ben, policy=shared)
+    world.sharing.add_grant(
+        state=world.sharing.dao.sessions[(world.project_id, "s-calling")],
+        user_id=world.ben,
+        role=SessionRole.PARTICIPANT,
+    )
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        wait_ms=0,
+        tool_call_id="t",
+    )
+    assert result.ok
+    assert world.starts.starts[0]["access"] == shared
+    assert world.starts.starts[0]["grants"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_viewer_in_a_private_session_cannot_start_a_child(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research, user=world.ben)
+    world.sharing.add_grant(
+        state=world.sharing.dao.sessions[(world.project_id, "s-calling")],
+        user_id=world.ben,
+        role=SessionRole.VIEWER,
+    )
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t",
+    )
+    assert _error(result)["code"] == "access_denied"
+    assert world.starts.starts == []
+
+
+@pytest.mark.asyncio
+async def test_a_person_not_named_in_a_private_session_is_told_why_and_what_to_do(
+    world,
+):
+    # Ana's private session; Ben is not named on it. The child would be private to
     # Ana, so it may not run for Ben.
     research = world.workflows.add("market-research")
     caller, _ = world.calling(agent=research, user=world.ben)

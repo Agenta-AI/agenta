@@ -84,7 +84,12 @@ from oss.src.core.sessions.types import (
 )
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY
-from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+from oss.src.core.sharing.dtos import (
+    AccessPolicy,
+    SessionGrant,
+    SessionRole,
+    Visibility,
+)
 from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.sharing.widening import is_wider
 from oss.src.core.tools.dtos import AgentError, PlatformHandlerResult
@@ -287,9 +292,9 @@ def _agent_not_allowed(raw: str, allowed: Sequence[str]) -> _Refusal:
 
 
 def _access_denied_private() -> _Refusal:
-    """A child copies this session's sharing. A private session is its owner's alone,
-    so a child of it may run only for the owner: not for another person who sent the
-    turn, and not for a channel installation."""
+    """A child copies this session's sharing: its policy and, when private, the people
+    named on it. A child of a private session runs only for the owner or a participant:
+    not for another person who sent the turn, and not for a channel installation."""
     return _refusal(
         "access_denied",
         "This session is private to its owner, so a session that it starts would be "
@@ -794,17 +799,21 @@ def child_envelope(*, caller: SessionCaller, calling_execution_id: str) -> RunEn
     )
 
 
-def _authority_may_run(policy: AccessPolicy, caller: SessionCaller) -> bool:
-    """Whether the run authority may run a new session with this copied policy. A
-    private copy has no grants, so only its owner runs it; an installation (a private
-    agent's channel session) never does, and the start fails closed."""
+def _authority_may_run(
+    policy: AccessPolicy, grants: Sequence[SessionGrant], caller: SessionCaller
+) -> bool:
+    """Whether the run authority may run a new session with this copied policy and
+    these copied grants. A private copy runs for its owner and for a participant; an
+    installation (a private agent's channel session) never runs it, and the start
+    fails closed."""
     if policy.visibility != Visibility.PRIVATE:
         return True
     principal = caller.envelope.authority.principal
-    return (
-        principal.kind == PrincipalKind.HUMAN
-        and policy.owner_user_id is not None
-        and principal.id == policy.owner_user_id
+    if principal.kind != PrincipalKind.HUMAN:
+        return False
+    return principal.id == policy.owner_user_id or any(
+        grant.user_id == principal.id and grant.role == SessionRole.PARTICIPANT
+        for grant in grants
     )
 
 
@@ -1298,12 +1307,21 @@ async def start_session(
         revision = await start_revision(
             services=services, project_id=project_id, target=target
         )
-        readers = await get_sharing_service().session_readers(
+        sharing = get_sharing_service()
+        readers = await sharing.session_readers(
             project_id=project_id, session_id=caller.run_session_id
         )
-        # A session with no stored policy fails closed, as a policy the authority may
-        # not run with does.
-        if readers is None or not _authority_may_run(readers.policy, caller):
+        # A private child copies the people named on its calling session, so as many
+        # people read it. A session with no stored policy fails closed, as a policy the
+        # authority may not run with does.
+        grants = (
+            await sharing.session_grants(
+                project_id=project_id, session_id=caller.run_session_id
+            )
+            if readers is not None and readers.policy.visibility == Visibility.PRIVATE
+            else []
+        )
+        if readers is None or not _authority_may_run(readers.policy, grants, caller):
             raise _access_denied_private()
         policy = readers.policy
     except _Refusal as e:
@@ -1357,6 +1375,7 @@ async def start_session(
                 access=AccessPolicy(
                     visibility=policy.visibility, owner_user_id=policy.owner_user_id
                 ),
+                grants=grants,
                 calling_session=SessionCallingSession(
                     id=caller.run_session_id,
                     turn_id=calling.first_execution_id,
