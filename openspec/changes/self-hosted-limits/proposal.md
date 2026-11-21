@@ -2,7 +2,7 @@
 
 Status: draft, design rewritten for one image (2026-11-21). Target release: v0.130.1, together with the telemetry and license PRs. Stacked on #8238 (signed license keys) and #8242 (free registration key) until a `release/v0.130.1` branch exists.
 
-Decided by Mahmoud on 2026-11-21: the free key gives no project limit; a paid key means no project or organization limit; Agenta ships one image for both editions and the key check, plans and limits stay in `ee/`; a refused person sees a translated message with one next step by role; upgrades show no extra notice.
+Decided by Mahmoud on 2026-11-21: the free key gives no project limit; a paid key means no project or organization limit; Agenta ships one image for both editions and the key check, plans and limits stay in `ee/`; a refused person sees a translated message with one next step by role; upgrades show no extra notice; open source installs older than v0.104.0 upgrade through v0.129.x first; the classic /w web app keeps two builds; the Enterprise License wording is approved.
 
 ## Why
 
@@ -24,7 +24,7 @@ Existing installs keep every project and organization they have. Only new ones a
 - Project limit by plan, checked on every install. Refusal: HTTP 403 with `detail.code = "project_limit_reached"`.
 - Organization limit by plan, checked on `POST /organizations/` (HTTP 403, `detail.code = "instance_organization_limit_reached"`) and at sign-up, which skips the personal organization instead of failing.
 - `/m` shows both refusals translated in 7 locales, with a next step by role, and a clear screen for a person who has no organization.
-- The Enterprise License text (`ee/LICENSE` files) changes so the free plans may run the `ee/` code in production. The wording needs Mahmoud and a lawyer.
+- The Enterprise License text (`ee/LICENSE` files) changes so the free plans may run the `ee/` code in production, with the wording Mahmoud approved on 2026-11-21. A lawyer review is still advised.
 - Hosting files, the public and private image builds, CI and the docs follow.
 
 ## Capabilities

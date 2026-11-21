@@ -1,4 +1,4 @@
-<!-- review-loop: design=90ad8ccd4d39 lenses=simplify,naming -->
+<!-- review-loop: design=3a864fd9c1ab lenses=simplify,naming -->
 
 **Review loop result** for the one-image design at repo commit `9f7fc1cc42` (branch `feat/self-hosted-free-key`), 3 rounds plus one check of the round 3 fixes. An earlier review of the first design (key check moved into MIT code) ended Low on both lenses; that design was replaced when Mahmoud chose one image.
 
@@ -21,3 +21,5 @@
 **Left on purpose:**
 - A new install whose first start stops partway through the legacy core chain is refused on the next start. The message tells the operator to delete the empty databases and start again. This is a documented limit, not extra code.
 - The flat error shape `{code, message, limit}` stays, like `vault` and `mounts`.
+
+After the record, the spec changed only to record Mahmoud's answers to questions 6, 7 and 8 (the options the reviewed spec already used) and to add the approved Enterprise License wording. The design shape did not change, so no new round ran.

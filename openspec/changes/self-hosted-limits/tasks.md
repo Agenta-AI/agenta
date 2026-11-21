@@ -42,6 +42,6 @@ Program tier. Milestones ship to the same release (v0.130.1). M1, M2 and M3 can 
 
 ## M5. License text, docs and QA
 
-- [ ] 5.1 Enterprise License text in `ee/LICENSE`, `api/ee/LICENSE`, `web/ee/LICENSE`, `services/ee/LICENSE`, and the root `LICENSE` note, after Mahmoud and a lawyer approve the wording (decision Question 8).
+- [ ] 5.1 Enterprise License text in `ee/LICENSE`, `api/ee/LICENSE`, `web/ee/LICENSE`, `services/ee/LICENSE` and `hosting/docker-compose/ee/LICENSE`: replace the first paragraph with the wording in design Decision 8 (approved by Mahmoud 2026-11-21); flag a lawyer review in the PR.
 - [ ] 5.2 Docs: editions page `docs/docs/misc/01-opensource.mdx` (one image, plans, limits), license keys page `docs/docs/self-host/reference/04-license-keys.mdx` (every image reads keys), the OSS to EE switch page (replace with "add a key"), `docs/docs/self-host/upgrade-and-migrate/01-upgrading.mdx` (backup, first-start migration), the configuration reference (`AGENTA_LICENSE` is the database prefix choice, `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED`), `02-restrict-organization-creation.mdx` (one organization without a paid key), Helm and compose guides.
 - [ ] 5.3 QA in `/m` from fresh accounts: upgrade a real v0.129 OSS compose stack by pull and restart; data and member access intact; second project refused; free key added; second project created; second organization refused; second person signs up with and without an invitation; playground uses the env provider key. Record the headline journey.
