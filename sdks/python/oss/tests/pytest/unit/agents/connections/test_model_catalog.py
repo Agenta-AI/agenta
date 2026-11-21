@@ -533,18 +533,23 @@ def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_generated_model():
     assert sonnet.name == "Claude Sonnet 5.5"
 
 
-def test_gemini_4_argon_is_published_with_its_display_name():
-    # `builtin/agenta` serves google/gemini-4-argon. The picker matches a catalog entry whose id,
-    # minus its provider prefix, equals that id, as the OpenRouter Flash entries do.
+@pytest.mark.parametrize("model", ["argon", "carbon", "hydrogen", "neon"])
+def test_gemini_4_models_are_published_with_their_display_names(model):
+    # `builtin/agenta` serves google/gemini-4-<model>. The picker matches a catalog entry whose
+    # id, minus its provider prefix, equals that id, as the OpenRouter Flash entries do.
     entries = model_catalog_entries("pi_core")
     entry = next(
-        (item for item in entries if item["id"] == "openrouter/google/gemini-4-argon"),
+        (
+            item
+            for item in entries
+            if item["id"] == f"openrouter/google/gemini-4-{model}"
+        ),
         None,
     )
     assert entry is not None, (
-        "openrouter/google/gemini-4-argon missing from the pi catalog"
+        f"openrouter/google/gemini-4-{model} missing from the pi catalog"
     )
-    assert entry["name"] == "Gemini 4 Argon"
+    assert entry["name"] == f"Gemini 4 {model.capitalize()}"
     assert entry["provider"] == "openrouter"
 
 
