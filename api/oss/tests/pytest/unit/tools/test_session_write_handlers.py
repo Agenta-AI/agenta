@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.access.dtos import RunOrigin, RunSender
+from oss.src.core.access.dtos import Decision, DecisionReason, RunOrigin, RunSender
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.sessions.child_updates.dtos import ChildTurnResult, ChildTurnStatus
@@ -24,6 +24,7 @@ from oss.src.core.sessions.inputs.types import carries_approval_answer
 from oss.src.core.sessions.types import SessionCallingSession, SessionReference
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY
 from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.tools import session_writes as writes
 from oss.src.core.tools.platform_handlers import (
     CANCEL_SESSION_CALL_REF,
@@ -136,6 +137,8 @@ class _Store:
         self.executions = {}
         self.turns = {}
         self.inputs = {}
+        # The first input of each start, as `start_once` stores it.
+        self.started_inputs = {}
 
     async def get_by_session_id(self, *, project_id, session_id):
         return self.streams.get(session_id)
@@ -165,6 +168,12 @@ class _Store:
     async def list_pending(self, *, project_id, session_id, transaction=None):
         return [row for row in self.inputs.get(session_id, [])]
 
+    async def fetch_input(self, *, project_id, session_id, input_id):
+        for row in self.inputs.get(session_id, []):
+            if row.id == input_id:
+                return row
+        return self.started_inputs.get(input_id)
+
     async def fetch_by_idempotency_key(
         self, *, project_id, session_id, idempotency_key
     ):
@@ -191,6 +200,8 @@ class _Starts:
         self.started_keys = {}
         self.locks = {}
         self.lock_calls = []
+        self.replays = []
+        self.denied_replays = set()
 
     @asynccontextmanager
     async def calling_session_lock(self, *, project_id, calling_session_id):
@@ -200,7 +211,20 @@ class _Starts:
             yield
 
     async def fetch_started(self, *, project_id, request_key):
-        return self.started_keys.get(request_key)
+        started = self.started_keys.get(request_key)
+        # The real lookup answers a start that already ran as a replay.
+        return (
+            SimpleNamespace(**{**vars(started), "replayed": True}) if started else None
+        )
+
+    async def admit_replay(self, *, envelope, session_id, workflow_id, boundary):
+        self.replays.append((session_id, boundary))
+        if session_id in self.denied_replays:
+            raise AdmissionDenied(
+                decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+                readable=False,
+                boundary=boundary,
+            )
 
     async def start_once(self, **kwargs):
         self.starts.append(kwargs)
@@ -218,6 +242,12 @@ class _Starts:
             )
         # One input per request key, as the real start stores one row per key.
         input_id = self.inputs.setdefault(kwargs["request_key"], uuid4())
+        self.world.store.started_inputs[input_id] = SimpleNamespace(
+            id=input_id,
+            content={
+                "references": {"workflow_revision": {"id": str(kwargs["revision_id"])}}
+            },
+        )
         result = SimpleNamespace(
             session_id=session_id,
             execution_id=str(UUID(int=len(session_id))),
@@ -1628,6 +1658,24 @@ async def test_a_retried_start_after_a_new_revision_answers_the_first_start(worl
     assert first.ok and retry.ok
     assert len(world.starts.starts) == 1
     assert retry.content.splitlines()[0] == first.content.splitlines()[0]
+    # The retry names the revision that the first start stored, not the new one.
+    assert _lines(retry.content)["revision"] == _lines(first.content)["revision"]
+    assert str(research.latest) not in retry.content
+    assert world.starts.replays[0][1] == CHILD_RUN_BOUNDARY
+
+
+@pytest.mark.asyncio
+async def test_a_retried_start_is_admitted_again(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    arguments = dict(agent="market-research", text="Go", wait_ms=0, tool_call_id="t")
+    first = await _call(world, "start_session", caller, **arguments)
+    assert first.ok
+    # The child's owner made it private before the retry.
+    world.starts.denied_replays = {f"child-{world.starts.starts[0]['request_key']}"}
+    retry = await _call(world, "start_session", caller, **arguments)
+    assert _error(retry)["code"] == "access_denied"
+    assert world.triggers.created and len(world.triggers.created) == 1
 
 
 @pytest.mark.asyncio
@@ -1652,7 +1700,7 @@ async def test_a_start_that_cannot_be_confirmed_is_a_retryable_refusal(world):
         tool_call_id="t",
     )
     error = _error(result)
-    assert error["code"] == "session_start_not_durable"
+    assert error["code"] == "dispatch_not_confirmed"
     assert error["retryable"] is True
     assert "list_sessions" in error["next_step"]
 
@@ -1726,7 +1774,33 @@ async def test_a_wait_on_a_child_that_fewer_people_can_read_is_refused(world):
     result = await _call(
         world, "wait_for_sessions", caller, session_ids=[child.session_id]
     )
-    assert _error(result)["code"] == "sharing_would_widen"
+    error = _error(result)
+    assert error["code"] == "sharing_would_widen"
+    assert error["details"] == {"session_id": child.session_id}
+    assert "wait_for_sessions" in error["next_step"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_status_read_still_returns_the_removed_updates(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    globex = world.child(caller, agent=research)
+    initech = world.child(caller, agent=research)
+    world.update_row(caller, globex.session_id, status=ChildTurnStatus.completed)
+
+    async def broken(*, project_id, query):
+        raise RuntimeError("database gone")
+
+    world.services.interactions_service = SimpleNamespace(query_interactions=broken)
+    result = await _call(
+        world,
+        "wait_for_sessions",
+        caller,
+        session_ids=[globex.session_id, initech.session_id],
+    )
+    blocks = result.content.split("\n\n")
+    assert "completed answer" in result.content
+    assert _lines(blocks[-1])["status"] == "running"
 
 
 @pytest.mark.asyncio
@@ -1762,9 +1836,18 @@ async def test_a_queued_send_whose_turn_already_ended_removes_its_schedule(world
     world.starts.enqueue_state = PendingInputState.pending
     # The queue promoted the message and its turn ended before the schedule existed.
     ended = str(uuid4())
+    queued_id = uuid4()
+    original_enqueue = world.starts.enqueue_session_input
+
+    async def enqueue(**kwargs):
+        result = await original_enqueue(**kwargs)
+        result.input_id = queued_id
+        return result
+
+    world.starts.enqueue_session_input = enqueue
     world.store.inputs.setdefault(child.session_id, []).append(
         SimpleNamespace(
-            id=uuid4(),
+            id=queued_id,
             state=PendingInputState.promoted,
             kind=PendingInputKind.message,
             idempotency_key=f"ag:send:s-calling:{execution_id}:t",

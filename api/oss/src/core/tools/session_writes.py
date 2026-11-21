@@ -40,6 +40,7 @@ from oss.src.core.access.dtos import (
     RunEnvelope,
     RunOrigin,
 )
+from oss.src.core.access.context import fresh_request_memo
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.types import AccessDenied
@@ -100,7 +101,7 @@ from oss.src.core.tools.platform_handlers import (
     _not_found,
     _parse_arguments,
     _refuse_unknown_arguments,
-    _sharing_would_widen_read,
+    _calling_readers,
     _source_would_widen,
     caller_may,
 )
@@ -227,6 +228,16 @@ def _session_start_in_child() -> _Refusal:
     )
 
 
+def _sharing_would_widen_wait(session_id: str) -> _Refusal:
+    return _refusal(
+        "sharing_would_widen",
+        f"Fewer people can read the child session '{session_id}' than this one, so "
+        "its status would reach people who cannot read it.",
+        "Leave that session out of `wait_for_sessions`.",
+        details={"session_id": session_id},
+    )
+
+
 def _sharing_would_widen_send() -> _Refusal:
     return _refusal(
         "sharing_would_widen",
@@ -245,11 +256,23 @@ def _calling_turn_not_found(message: str) -> _Refusal:
     )
 
 
-def _start_not_confirmed() -> _Refusal:
+DISPATCH_NOT_CONFIRMED = "dispatch_not_confirmed"
+
+
+def _dispatch_not_confirmed(*, is_start: bool) -> _Refusal:
+    """The lock or the dispatch of a start or a send could not be confirmed. The work
+    may have started, so the next step names the read that tells."""
+    if is_start:
+        return _refusal(
+            DISPATCH_NOT_CONFIRMED,
+            "The server could not confirm that the child session started.",
+            "Check with `list_sessions` whether it started before you call this again.",
+            retryable=True,
+        )
     return _refusal(
-        "session_start_not_durable",
-        "The server could not confirm that the child session started.",
-        "Check with `list_sessions` whether it started before you call this again.",
+        DISPATCH_NOT_CONFIRMED,
+        "The server could not confirm that the message reached the child session.",
+        "Check with `read_session` whether the child got it before you send it again.",
         retryable=True,
     )
 
@@ -950,7 +973,6 @@ async def schedule_still_running(
     agent: Optional[ChildTurnAgent],
     revision: Optional[ChildTurnRevision],
     minutes: int,
-    child_input_key: Optional[str] = None,
 ) -> None:
     """Create the one hidden one-time schedule that sends the still-running update into
     the calling session after `minutes`. Its id comes from the project, the calling
@@ -959,9 +981,9 @@ async def schedule_still_running(
 
     The producer deletes it when the child's turn ends or pauses. When that happened
     before the schedule existed, the producer found nothing to delete, so the schedule
-    is removed here. A queued message (`child_input_key`, no execution yet) is read
-    again after the create: the queue may have promoted it, and its turn may have
-    ended, in the meantime. A failure is logged: the still-running update is a reminder, and
+    is removed here. A queued message (no execution yet) is read again after the
+    create: the queue may have promoted it, and its turn may have ended, in the
+    meantime. A failure is logged: the still-running update is a reminder, and
     the call already started the child's turn."""
     schedule_id = still_running_schedule_id(
         project_id=project_id,
@@ -1004,11 +1026,11 @@ async def schedule_still_running(
                 context=RunContext(origin=RunOrigin.SCHEDULE),
             ),
         )
-        if child_execution_id is None and child_input_key is not None:
-            queued = await services.inputs_dao.fetch_by_idempotency_key(
+        if child_execution_id is None:
+            queued = await services.inputs_dao.fetch_input(
                 project_id=project_id,
                 session_id=child_session_id,
-                idempotency_key=child_input_key,
+                input_id=child_input_id,
             )
             child_execution_id = (
                 queued.promoted_execution_id if queued is not None else None
@@ -1178,6 +1200,34 @@ def _queued_result(session_id: str) -> Dict[str, str]:
 # -- start_session ------------------------------------------------------------------------
 
 
+async def _stored_revision(
+    services: SessionWriteServices,
+    *,
+    project_id: UUID,
+    started: Any,
+    fallback: StartRevision,
+) -> StartRevision:
+    """The revision that a start stored on its first input."""
+    stored = await services.inputs_dao.fetch_input(
+        project_id=project_id, session_id=started.session_id, input_id=started.input_id
+    )
+    references = (stored.content or {}).get("references") if stored else None
+    raw = ((references or {}).get("workflow_revision") or {}).get("id")
+    try:
+        revision_id = UUID(str(raw))
+    except ValueError:
+        return fallback
+    if revision_id == fallback.id:
+        return fallback
+    revision = await services.workflows_service.fetch_workflow_revision(
+        project_id=project_id, workflow_revision_ref=Reference(id=revision_id)
+    )
+    version = getattr(revision, "version", None) if revision is not None else None
+    return StartRevision(
+        id=revision_id, version=str(version) if version is not None else None
+    )
+
+
 def start_key(
     *, calling_session_id: str, calling_execution_id: str, tool_call_id: str
 ) -> str:
@@ -1283,6 +1333,17 @@ async def start_session(
                         services=services, caller=caller, project_id=project_id
                     )
                 )
+            else:
+                # The replay is admitted as the start was: this authority may still
+                # run the child session and its agent.
+                await starts.admit_replay(
+                    envelope=child_envelope(
+                        caller=caller, calling_execution_id=calling.execution_id
+                    ),
+                    session_id=started.session_id,
+                    workflow_id=target.workflow.id,
+                    boundary=CHILD_RUN_BOUNDARY,
+                )
             started = started or await starts.start_once(
                 project_id=project_id,
                 user_id=user_id,
@@ -1312,11 +1373,18 @@ async def start_session(
     except AccessDenied as e:
         return PlatformHandlerResult.failure(_access_denied_from(caller, e))
     except SessionStartNotDurable:
-        return PlatformHandlerResult.failure(_start_not_confirmed().error)
+        return PlatformHandlerResult.failure(
+            _dispatch_not_confirmed(is_start=True).error
+        )
 
     agent = ChildTurnAgent(
         id=target.workflow.id, slug=target.workflow.slug, name=target.workflow.name
     )
+    if started.replayed:
+        # A retry names the revision that the first start stored, not the newest one.
+        revision = await _stored_revision(
+            services, project_id=project_id, started=started, fallback=revision
+        )
     child_revision = ChildTurnRevision(id=revision.id, version=revision.version)
     await schedule_still_running(
         services,
@@ -1509,7 +1577,9 @@ async def send_session_message(
     except AccessDenied as e:
         return PlatformHandlerResult.failure(_access_denied_from(caller, e))
     except SessionStartNotDurable:
-        return PlatformHandlerResult.failure(_start_not_confirmed().error)
+        return PlatformHandlerResult.failure(
+            _dispatch_not_confirmed(is_start=False).error
+        )
 
     started_turn = (
         enqueued.execution_id if enqueued.state == PendingInputState.promoted else None
@@ -1527,7 +1597,6 @@ async def send_session_message(
         agent=agent,
         revision=None,
         minutes=minutes,
-        child_input_key=idempotency_key if started_turn is None else None,
     )
     if started_turn is None:
         return PlatformHandlerResult(content=_queued_result(session_id))
@@ -1595,11 +1664,12 @@ async def wait_for_sessions(
                 action=Permission.VIEW_SESSIONS,
             )
         # A child that fewer people can read than this session now (its owner made it
-        # private) gives its status only through the updates it already sent.
-        if await _any_source_would_widen(
+        # private): its status would reach people who cannot read it.
+        narrower = await _narrower_child(
             caller=caller, project_id=project_id, session_ids=session_ids
-        ):
-            raise _sharing_would_widen_read()
+        )
+        if narrower is not None:
+            raise _sharing_would_widen_wait(narrower)
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1627,37 +1697,68 @@ async def wait_for_sessions(
         if session_id in texts:
             blocks.append(texts[session_id])
             continue
-        stream = await services.streams_dao.get_by_session_id(
-            project_id=project_id, session_id=session_id
-        )
-        if stream is None or await _any_source_would_widen(
-            caller=caller, project_id=project_id, session_ids=[session_id]
-        ):
-            # Gone, or made private during the wait: no details from it.
-            blocks.append(
-                _running_block(
-                    session_id=session_id, agent=None, revision=None, turn_id=None
-                )
-            )
-            continue
         blocks.append(
-            await current_block(services, project_id=project_id, stream=stream)
+            await _status_block(
+                services, caller=caller, project_id=project_id, session_id=session_id
+            )
         )
     return PlatformHandlerResult(content="\n\n".join(blocks))
 
 
-async def _any_source_would_widen(
-    *, caller: SessionCaller, project_id: UUID, session_ids: Sequence[str]
-) -> bool:
-    calling = await get_sharing_service().session_readers(
-        project_id=project_id, session_id=caller.run_session_id
+async def _status_block(
+    services: SessionWriteServices,
+    *,
+    caller: SessionCaller,
+    project_id: UUID,
+    session_id: str,
+) -> str:
+    """The current block of a child that gave no update in this wait. The access and
+    the sharing are read again without the request memo, which still holds the
+    policies from before the wait. A child that is gone, that this authority may no
+    longer see, or that fewer people can read now gives no details. A failed read
+    gives no details either, so the updates this wait already removed still return."""
+    no_details = _running_block(
+        session_id=session_id, agent=None, revision=None, turn_id=None
     )
+    try:
+        with fresh_request_memo():
+            if not await caller_may(
+                caller, session_id=session_id, action=Permission.VIEW_SESSIONS
+            ) or (
+                await _narrower_child(
+                    caller=caller, project_id=project_id, session_ids=[session_id]
+                )
+                is not None
+            ):
+                return no_details
+            stream = await services.streams_dao.get_by_session_id(
+                project_id=project_id, session_id=session_id
+            )
+            if stream is None:
+                return no_details
+            return await current_block(services, project_id=project_id, stream=stream)
+    except Exception:  # noqa: BLE001 - the removed updates must still return
+        log.warning(
+            "[SESSION-TOOLS] child status not read after a wait",
+            project_id=str(project_id),
+            session_id=session_id,
+            exc_info=True,
+        )
+        return no_details
+
+
+async def _narrower_child(
+    *, caller: SessionCaller, project_id: UUID, session_ids: Sequence[str]
+) -> Optional[str]:
+    """The first named child that fewer people can read than the calling session, as
+    the session reads decide it (`is_wider(calling session, child)`)."""
+    calling = await _calling_readers(caller=caller, project_id=project_id)
     for session_id in session_ids:
         if await _source_would_widen(
             project_id=project_id, calling=calling, session_id=session_id
         ):
-            return True
-    return False
+            return session_id
+    return None
 
 
 # -- cancel_session -----------------------------------------------------------------------

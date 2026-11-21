@@ -364,6 +364,7 @@ class SessionStartsService:
         envelope: RunEnvelope,
         session_id: str,
         workflow_id: UUID,
+        boundary: str = TEMPLATE_START_BOUNDARY,
     ) -> None:
         """Admit the replay of a completed start: the caller may run the session and
         the agent. Raises `AdmissionDenied` (a hidden item is not readable)."""
@@ -371,7 +372,7 @@ class SessionStartsService:
             envelope=envelope,
             session_id=session_id,
             agent_artifact_id=workflow_id,
-            boundary=TEMPLATE_START_BOUNDARY,
+            boundary=boundary,
         )
 
     async def _claim_and_dispatch(
