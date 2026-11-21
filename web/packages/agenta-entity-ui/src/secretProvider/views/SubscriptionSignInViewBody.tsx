@@ -9,6 +9,7 @@
  */
 import {useEffect, useRef, useState} from "react"
 
+import {copyToClipboard} from "@agenta/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
 import {useOrganizationProjectsDraft} from "../useOrganizationProjectsDraft"
@@ -93,7 +94,8 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
             statusLine={signIn.statusLine}
             error={error}
             lostPoll={lostPoll && !isReady}
-            onCopy={(code) => void navigator.clipboard?.writeText(code).then(() => setCopied(true))}
+            // A refused clipboard falls back to a selection copy; "Copied" shows only on success.
+            onCopy={(code) => void copyToClipboard(code).then(setCopied)}
             // The sign-in ends with the view (above), so Cancel only leaves.
             onCancel={() => nav.cancel()}
             onConnect={() => void connect()}

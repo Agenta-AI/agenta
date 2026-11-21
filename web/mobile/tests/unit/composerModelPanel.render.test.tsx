@@ -69,9 +69,6 @@ describe("ComposerModelPanel", () => {
         expect(current.querySelector("svg")).not.toBeNull()
         const other = screen.getByRole("button", {name: /Gemini 3.8 Flash/})
         expect(other.getAttribute("aria-pressed")).toBe("false")
-        // The current model is brought into view when the list opens.
-        expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({block: "nearest"})
-        expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts[0]).toBe(current)
         // The search field has its icon and names the command.
         expect(screen.getByText("/model")).toBeTruthy()
         expect(document.activeElement).toBe(screen.getByPlaceholderText("Search models"))

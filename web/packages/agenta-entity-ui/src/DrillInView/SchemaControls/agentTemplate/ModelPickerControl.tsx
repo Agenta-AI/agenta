@@ -28,7 +28,6 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
-import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
@@ -36,9 +35,8 @@ import {
     ModelPickerList,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
-import {Button} from "@agenta/ui/ui"
 import {useOptionalViewStack} from "@agenta/ui/view-stack"
-import {Faders, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
@@ -104,7 +102,7 @@ const ModelPickerControl = ({
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
-    const t = useT(configItemsCatalog, providerListCatalog, uiLlmProviderCatalog, commonCatalog)
+    const t = useT(configItemsCatalog, providerListCatalog, commonCatalog)
     const layout = useContext(ModelPickerLayoutContext)
     const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
     const candidateState = useAtomValue(candidateAtom)
@@ -236,18 +234,23 @@ const ModelPickerControl = ({
         />
     )
 
+    // The Model view gives the list its full width; the states that are not the list keep the
+    // view's 16px gutter.
+    const gutter = (node: ReactNode) =>
+        layout === "list" ? <div className="px-4">{node}</div> : node
+
     if (!allSourcesResolved) {
-        return (
+        return gutter(
             <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-colorTextTertiary">
                 {t("entityUi.configItems.loadingModels")}
-            </div>
+            </div>,
         )
     }
 
     // Nothing connected: the menu would be empty, so the pill IS the call to action. A project
     // already running on a subscription keeps its menu — it has models without a stored key.
     if (allSourcesResolved && rows.every((row) => row.models.length === 0)) {
-        return (
+        return gutter(
             <>
                 <button
                     type="button"
@@ -259,11 +262,11 @@ const ModelPickerControl = ({
                     {t("entityUi.configItems.setUpProviders")}
                 </button>
                 {drawer}
-            </>
+            </>,
         )
     }
 
-    if (!groups.length) return <>{fallback}</>
+    if (!groups.length) return gutter(<>{fallback}</>)
 
     const onPick = (value: string, metadata: Record<string, unknown> | undefined) =>
         onSelect(pickerSelectionFrom(value, metadata))
@@ -282,12 +285,7 @@ const ModelPickerControl = ({
                         label: t("common.signIn"),
                         onClick: openModelProviders,
                     }}
-                    panelFooter={
-                        <Button variant="outline" className="w-full" onClick={openModelProviders}>
-                            <Faders size={14} />
-                            {t("ui.llmProvider.manageProviders")}
-                        </Button>
-                    }
+                    onManageProviders={openModelProviders}
                 />
                 {drawer}
             </>

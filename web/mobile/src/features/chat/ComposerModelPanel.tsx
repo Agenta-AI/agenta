@@ -8,14 +8,11 @@ import {
 
 import {useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
-import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {
     ModelPickerList,
     type ProviderGroup,
     type ProviderOption,
 } from "@agenta/ui/select-llm-provider"
-import {Button} from "@agenta/ui/ui"
-import {Faders} from "@phosphor-icons/react"
 
 /**
  * The composer's model list (canvas page 8): one list grouped by connection, each model with its
@@ -45,7 +42,7 @@ export const ComposerModelPanel = ({
     /** The model button: a press on it is its own toggle, not a press outside. */
     triggerRef?: RefObject<HTMLElement | null>
 }) => {
-    const t = useT(chatMobileComposerCatalog, uiLlmProviderCatalog)
+    const t = useT(chatMobileComposerCatalog)
     const rootRef = useRef<HTMLDivElement | null>(null)
     // No trigger owns this list, so it closes itself on Escape and on a press outside it.
     useEffect(() => {
@@ -73,13 +70,10 @@ export const ComposerModelPanel = ({
     const [finePointer] = useState(
         () => typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches,
     )
-    // The current model in view when the list opens, as the design draws it.
+    // With no caret in the search, the list itself takes focus, so a keyboard attached to a
+    // tablet can still walk it. A focused list opens no touch keyboard. The list scrolls itself
+    // to the current model.
     useEffect(() => {
-        rootRef.current
-            ?.querySelector<HTMLElement>("li button[aria-pressed=true]")
-            ?.scrollIntoView({block: "nearest"})
-        // With no caret in the search, the list itself takes focus, so a keyboard attached to a
-        // tablet can still walk it. A focused list opens no touch keyboard.
         if (!finePointer) rootRef.current?.focus({preventScroll: true})
     }, [finePointer])
 
@@ -121,7 +115,9 @@ export const ComposerModelPanel = ({
             // An open layer for the chat's shortcuts (`isOverlayOpen`), as a Radix popover is.
             data-state="open"
             aria-label={t("chat.mobileComposer.searchModels")}
-            className="bg-popover text-popover-foreground shadow-overlay flex outline-none max-h-[min(540px,60dvh)] flex-col rounded-xl p-1.5"
+            // The canvas popover: radius 12 and a 1px ring in its shadow. The dark shadow token
+            // already draws its own ring.
+            className="bg-popover text-popover-foreground shadow-overlay ring-foreground/10 flex outline-none max-h-[min(540px,60dvh)] flex-col rounded-[12px] p-1.5 ring-1 dark:ring-0"
         >
             <ModelPickerList
                 options={groups}
@@ -131,14 +127,8 @@ export const ComposerModelPanel = ({
                 searchPlaceholder={t("chat.mobileComposer.searchModels")}
                 searchSuffix="/model"
                 autoFocusSearch={finePointer}
-                panelFooter={
-                    <div className="border-border border-0 border-t border-solid pt-2">
-                        <Button variant="outline" className="w-full" onClick={onManageProviders}>
-                            <Faders size={14} />
-                            {t("ui.llmProvider.manageProviders")}
-                        </Button>
-                    </div>
-                }
+                onManageProviders={onManageProviders}
+                layout="popover"
             />
             {onBackToCommands ? (
                 <div className="flex justify-end px-1 pt-1.5">
