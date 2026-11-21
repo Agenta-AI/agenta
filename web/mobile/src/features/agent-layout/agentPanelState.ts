@@ -9,7 +9,7 @@ export type ConfigTab = "agent" | "automations" | "channels" | "access"
 export interface AgentPanelState {
     /** null = closed */
     content: PanelContent | null
-    /** Width of Configuration and Builder. Files keeps its own production width. */
+    /** Width of the panel, the same for Files, Configuration and Builder. */
     width: number
     configTab: ConfigTab
 }
