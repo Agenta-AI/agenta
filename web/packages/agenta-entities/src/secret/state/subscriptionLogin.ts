@@ -2,7 +2,7 @@
 // Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
 
 import {getHostQueryClient} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -251,20 +251,15 @@ export const refreshVaultSecretsAtom = atom(null, async () => {
 })
 
 /** Refresh the connection lists; true when a refreshed list shows `secretId` signed in. */
-export const refreshSignedInAtom = atom(null, async (_get, set, secretId: string) => {
+export const refreshSignedInAtom = atom(null, async (get, set, secretId: string) => {
     await set(refreshVaultSecretsAtom)
     // Read the cache (list atoms update later); the org list has connections other projects use.
     const queryClient = getHostQueryClient()
-    return [
-        ["vault", "secrets"],
-        ["vault", "organization-secrets"],
-    ].some((queryKey) =>
-        queryClient
-            .getQueriesData<LlmProvider[]>({queryKey})
-            .some(([, rows]) =>
-                (Array.isArray(rows) ? rows : []).some(
-                    (row) => row.id === secretId && row.subscription?.loginState === "ready",
-                ),
-            ),
-    )
+    const owner = [get(userAtom)?.id, get(projectIdAtom)]
+    return ["secrets", "organization-secrets"].some((list) => {
+        const rows = queryClient.getQueryData<LlmProvider[]>(["vault", list, ...owner])
+        return (Array.isArray(rows) ? rows : []).some(
+            (row) => row.id === secretId && row.subscription?.loginState === "ready",
+        )
+    })
 })
