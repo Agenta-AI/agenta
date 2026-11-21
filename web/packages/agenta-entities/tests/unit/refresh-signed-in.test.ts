@@ -20,6 +20,13 @@ describe("refreshSignedInAtom", () => {
         await expect(createStore().set(refreshSignedInAtom, "s1")).resolves.toBe(true)
     })
 
+    it("finds an organization connection that only the organization list holds", async () => {
+        client.setQueryData(KEY, [])
+        client.setQueryData(["vault", "organization-secrets", "u1", "p1"], [row("ready")])
+        await expect(createStore().set(refreshSignedInAtom, "s1")).resolves.toBe(true)
+        client.removeQueries({queryKey: ["vault", "organization-secrets"]})
+    })
+
     it("is false when the list still shows it waiting for a sign-in", async () => {
         client.setQueryData(KEY, [row("pending_login")])
         await expect(createStore().set(refreshSignedInAtom, "s1")).resolves.toBe(false)

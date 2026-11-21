@@ -250,15 +250,21 @@ export const refreshVaultSecretsAtom = atom(null, async () => {
     ])
 })
 
-/** Refresh the connection lists; true when the refreshed project list shows `secretId` signed in. */
+/** Refresh the connection lists; true when a refreshed list shows `secretId` signed in. */
 export const refreshSignedInAtom = atom(null, async (_get, set, secretId: string) => {
     await set(refreshVaultSecretsAtom)
-    // Read from the cache: the list atoms hear about the refetch a task later.
-    return getHostQueryClient()
-        .getQueriesData<LlmProvider[]>({queryKey: ["vault", "secrets"]})
-        .some(([, rows]) =>
-            (rows ?? []).some(
-                (row) => row.id === secretId && row.subscription?.loginState === "ready",
+    // Read the cache (list atoms update later); the org list has connections other projects use.
+    const queryClient = getHostQueryClient()
+    return [
+        ["vault", "secrets"],
+        ["vault", "organization-secrets"],
+    ].some((queryKey) =>
+        queryClient
+            .getQueriesData<LlmProvider[]>({queryKey})
+            .some(([, rows]) =>
+                (Array.isArray(rows) ? rows : []).some(
+                    (row) => row.id === secretId && row.subscription?.loginState === "ready",
+                ),
             ),
-        )
+    )
 })

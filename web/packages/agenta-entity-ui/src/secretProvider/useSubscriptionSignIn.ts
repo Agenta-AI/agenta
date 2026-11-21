@@ -128,8 +128,7 @@ export const useSubscriptionSignIn = ({
         if (outcome === "succeeded") {
             setError(null)
             setFinishing(true)
-            // The view leaves only once the vault lists the connection ready; a failed refresh
-            // keeps it here with the lost-track line.
+            // Leave only once the vault lists it ready; otherwise show the lost-track line.
             void refreshSignedIn(attempt.secretId)
                 .catch(() => false)
                 .then((signedIn) => {

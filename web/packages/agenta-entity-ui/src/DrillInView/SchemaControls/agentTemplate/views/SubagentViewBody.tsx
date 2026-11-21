@@ -39,8 +39,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const tools = toolsOf(writer.agent)
-    // A write made elsewhere can drop a legacy copied `name`, which changes the entry's key; the
-    // view keeps finding its entry by its slug, when no other entry has that slug.
+    // By its slug when unique: a write elsewhere can drop the copied `name` that keyed it.
     const [itemRef] = useState<ConfigItemRef>(() => {
         const opened = findSubagentIndex(tools, params.item)
         return (opened < 0 ? null : uniqueSlugRef(tools[opened], tools)) ?? params.item
