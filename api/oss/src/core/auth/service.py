@@ -782,13 +782,13 @@ class AuthService:
 
         if flags and not await self._access_entitled(organization_id):
             # Without the access entitlement the owner cannot change the sign-in
-            # flags, so the deployment's sign-in methods apply instead.
+            # flags, so every email and social method of the deployment is allowed.
+            # SSO keeps its stored flag: SSO set up before a license expired still
+            # signs in.
             flags = {
                 **flags,
                 "allow_email": env.auth.email_enabled,
                 "allow_social": env.auth.oidc_enabled,
-                "allow_sso": False,
-                "allow_root": False,
             }
         return flags
 

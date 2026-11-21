@@ -80,7 +80,7 @@ async def test_stored_flags_apply_with_access_entitlement(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_only_sign_in_flags_follow_the_deployment(monkeypatch):
+async def test_only_email_and_social_flags_follow_the_deployment(monkeypatch):
     stored = {**STORED, "allow_root": True, "allow_sso": True, "auto_join": True}
     service = _service(monkeypatch, entitled=False, stored=stored)
 
@@ -89,7 +89,7 @@ async def test_only_sign_in_flags_follow_the_deployment(monkeypatch):
     assert flags == {
         "allow_email": True,
         "allow_social": True,
-        "allow_sso": False,
-        "allow_root": False,
+        "allow_sso": True,
+        "allow_root": True,
         "auto_join": True,
     }
