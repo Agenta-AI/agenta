@@ -16,6 +16,61 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.130.1: one image for every install {#upgrading-to-0130-1}
+
+From this release, open source and Enterprise installs run the same API, services and runner images, under the public names `ghcr.io/agenta-ai/agenta-api`, `agenta-services` and `agenta-runner`. A [license key](/self-host/license-keys) decides the plan. Without a key, an instance is on the Community plan, which allows 1 project per organization and 1 organization per instance. See [Editions](/misc/opensource) for what each plan gives.
+
+### Take a database dump first
+
+On an open source database, the first start adds tables and rows, and this cannot be undone in place. Take a dump of your core and tracing databases before you start the upgrade. To go back, restore the dump and deploy the 0.129.x images.
+
+### Upgrade
+
+Pull the new images and restart, as in the [standard upgrade](#standard-upgrade-process) or the [Helm chart upgrade](#helm-chart-upgrade). Keep your compose files, Helm values and Railway template as they are. You do not change images, env files or databases.
+
+Do not change `AGENTA_LICENSE`. It now only picks the default database names (`agenta_oss_*` or `agenta_ee_*`). A different value points the install at other, empty databases.
+
+### What the first start does on an open source database
+
+The migration job:
+
+1. Reads the version of the core database, and stops if it is older than v0.104.0 (see below).
+2. Runs the shared migrations.
+3. Writes a project membership row for every member in every project of their organization. The open source code gave every organization member every project. The full schema checks access per project, so these rows keep every member's access as it was.
+4. Adds the Enterprise tables, and one subscription for each organization.
+5. Runs the tracing migrations.
+
+If the job stops partway, the next start runs the steps that did not finish. You do not run `entrypoints.memberships_check --materialize` yourself.
+
+On an Enterprise database, the job runs the new migrations only, and writes no membership rows.
+
+### Installs older than v0.104.0
+
+The migration job cannot upgrade a database older than v0.104.0. It stops before it changes anything and logs:
+
+```text
+The core database is at legacy revision <revision>, which is older than v0.104.0. This image cannot upgrade it. Upgrade to v0.129.x first, then start this version. If this is a new install whose first start was interrupted, delete its databases and start again.
+```
+
+Upgrade to the latest 0.129.x release, let its migrations finish, then upgrade to 0.130.1.
+
+### The limits apply to new projects and organizations only
+
+Without a key, the instance runs on the Community plan. Projects and organizations that exist before the upgrade stay. After the upgrade:
+
+- An organization that has 1 project or more cannot create another one. The [free key](/self-host/license-keys#get-a-free-registration-key) removes this limit.
+- An instance that has 1 organization or more cannot get another one. A person who signs up gets no organization and joins one by invitation. A paid key removes this limit.
+
+See [Upgrade an open source instance](/self-host/license-keys#upgrade-an-open-source-instance) for the full list.
+
+### Enterprise: provider keys in the services environment
+
+Provider keys such as `OPENAI_API_KEY` that you set on the services container are now used by default on every install, when a project has no key of its own for that provider. Before, the Enterprise images ignored them unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` was `true`. To keep them off, set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false` on the services container. See [llm (provider API keys)](/self-host/configuration#llm-provider-api-keys).
+
+### Enterprise: images
+
+The Enterprise compose files and Helm chart now pull the public API, services and runner images. Only the Enterprise build of the classic web app (`ghcr.io/agenta-ai/internal-ee-agenta-web`) stays private. The private `internal-ee-agenta-api`, `internal-ee-agenta-services` and `internal-ee-agenta-runner` names still receive the same images, so older compose files and values keep working.
+
 ## Upgrading to 0.128.2: old workspace ids stop working
 
 This release stops reading the old workspace data. The tables stay in the database until a later release drops them. It adds two data migrations: one for projects, one for usage meters (Enterprise). Both repeat the 0.127.0 migrations for data that 0.126.0 pods wrote during that upgrade.
@@ -382,7 +437,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
 Before updating services, apply any database schema changes:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
+docker exec <api-container-name> python -m ee.databases.postgres.migrations.runner
 ```
 
 Replace `<api-container-name>` with your actual API container name (e.g., `agenta-oss-gh-api-1`).
@@ -620,15 +675,10 @@ docker ps | grep api
 Apply all pending migrations:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
+docker exec <api-container-name> python -m ee.databases.postgres.migrations.runner
 ```
 
-**Command Breakdown:**
-- `docker exec`: Runs commands inside an existing container
-- `-e PYTHONPATH=/app`: Sets the Python path for the application
-- `-w /app/oss/databases/postgres/migrations/core`: Sets the working directory to the migrations folder
-- `<api-container-name>`: Your actual API container name
-- `alembic -c alembic.ini upgrade head`: Runs all migrations to the latest version
+The command runs the same migration job that the `alembic` container runs at start: every core and tracing migration, in order.
 
 ### Verifying Migrations
 
