@@ -45,6 +45,25 @@ class RecordsDAOInterface:
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
+    async def get_ending_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionRecord]:
+        """The session's `done` and `error` records, in send order."""
+        raise NotImplementedError
+
+    async def get_ending_records_of_executions(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        """The `done` and `error` records of these executions, in send order."""
+        raise NotImplementedError
+
     async def get_records_page(
         self,
         *,
@@ -53,6 +72,7 @@ class RecordsDAOInterface:
         offset: int,
         limit: int,
         through_sequence: int,
+        after_sequence: int = 0,
     ) -> SessionRecordsPage:
         raise NotImplementedError
 

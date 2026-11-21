@@ -1312,12 +1312,22 @@ simple_queues = SimpleQueuesRouter(
     simple_queues_service=simple_queues_service,
 )
 
+sessions_service = SessionsService(
+    streams_service=session_streams_service,
+    turns_service=session_turns_service,
+    interactions_service=interactions_service,
+    mounts_service=mounts_service,
+    # Read-only, for the list's message preview — records themselves stay the records router's.
+    records_service=records_service,
+)
+
 tools = ToolsRouter(
     tools_service=tools_service,
     run_admission=run_admission,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
+    sessions_service=sessions_service,
     gate_reader=GateReader(
         streams_dao=session_streams_dao,
         executions_dao=session_executions_dao,
@@ -1675,15 +1685,6 @@ ai_services = AIServicesRouter(
 # SESSIONS ---------------------------------------------------------------------
 # Session header rename (name/description) lives on the streams router
 # (PUT /sessions/streams/header) via streams_service.set_header.
-
-sessions_service = SessionsService(
-    streams_service=session_streams_service,
-    turns_service=session_turns_service,
-    interactions_service=interactions_service,
-    mounts_service=mounts_service,
-    # Read-only, for the list's message preview — records themselves stay the records router's.
-    records_service=records_service,
-)
 
 session_inputs_service = SessionInputsService(
     inputs_dao=session_inputs_dao,

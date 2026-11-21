@@ -20,8 +20,11 @@ Contracts (``TestRun*``) live in ``core/tools/dtos.py``; exceptions in
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -31,6 +34,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Tuple,
 )
 from uuid import UUID
 
@@ -40,6 +44,12 @@ from pydantic import ValidationError
 from agenta.sdk.agents.platform.op_catalog import (
     LIST_AGENTS_DEFAULT_LIMIT,
     LIST_AGENTS_MAX_LIMIT,
+    LIST_SESSIONS_DEFAULT_LIMIT,
+    LIST_SESSIONS_MAX_LIMIT,
+    READ_SESSION_DEFAULT_LIMIT,
+    READ_SESSION_MAX_LIMIT,
+    READ_SESSION_SPANS_DEFAULT_LIMIT,
+    READ_SESSION_SPANS_MAX_LIMIT,
 )
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
@@ -55,7 +65,24 @@ from oss.src.core.sharing.admission import (
     RunAdmission,
     session_allowed,
 )
-from oss.src.core.sharing.dtos import AgentReadScope, Visibility
+from oss.src.core.sharing.dtos import (
+    AgentReadScope,
+    Visibility,
+)
+from oss.src.core.sharing.service import get_sharing_service
+from oss.src.core.sessions.session_results import (
+    ERROR_MESSAGE_MAX_CHARS,
+    ExecutionEnding,
+    SessionToolStatus,
+    escape_field,
+    execution_endings,
+    header_name,
+    render_marked_form,
+    turn_endings,
+)
+from oss.src.core.workflows.builder_agent import BUILDER_AGENT_NAME, BUILDER_AGENT_SLUG
+from oss.src.core.workflows.static_catalog import BUILDER_AGENT_ID, is_builder_agent
+from oss.src.dbs.redis.sessions.contract import validate_session_id
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
     CREATE_APP_DEFAULT_TIMEOUT_MS,
@@ -108,6 +135,7 @@ from oss.src.utils.env import env
 from oss.src.utils.web_links import agent_page_url
 
 if TYPE_CHECKING:  # pragma: no cover - `gate.py` imports this module
+    from oss.src.core.sessions.service import SessionsService
     from oss.src.core.tools.gate import GateReader
 
 
@@ -2181,6 +2209,1229 @@ async def handle_preview_agent_change(
 
 
 # ---------------------------------------------------------------------------
+# list_sessions / read_session / read_session_spans: other sessions, read only
+# ---------------------------------------------------------------------------
+#
+# The calling agent and the calling session come from the run credential (`session_caller`)
+# and from nowhere else; the ops bind no caller id. One function, `session_scope_for`, sets
+# which sessions the caller may list and read, and the model's filters only narrow it. Every
+# target is checked again for the run authority's own `VIEW_SESSIONS`. Every result that
+# carries another session's text is the marked form of design D33, with that text inside
+# delimited fields, and no result names an execution id.
+
+LIST_SESSIONS_CALL_REF = "tools.agenta.list_sessions"
+READ_SESSION_CALL_REF = "tools.agenta.read_session"
+READ_SESSION_SPANS_CALL_REF = "tools.agenta.read_session_spans"
+SESSION_READ_DEFAULT_TIMEOUT_MS = 15_000
+
+SESSION_NOT_FOUND = "session_not_found"
+TURN_NOT_FOUND = "turn_not_found"
+
+# A session name as the session tools show it, cut so that a long name cannot crowd out
+# the steps of a read.
+SESSION_NAME_MAX_CHARS = 200
+# The newest turns `read_session` lists; `totals` always covers every turn.
+READ_SESSION_TURNS_LIMIT = 20
+# Cuts of one step, as in the result file (design D8).
+STEP_MESSAGE_MAX_CHARS = 8_000
+STEP_INPUT_MAX_CHARS = 4_096
+STEP_OUTPUT_MAX_CHARS = 16_384
+# The runner cuts a tool result at 100 KB for the model (`services/runner/src/tools/
+# callback.ts`). A rendered read, its header and every field included, stays below this, so
+# the cursor it returns points at the first step or span left out and nothing is lost to
+# the runner's cut.
+SESSION_READ_BUDGET_BYTES = 80_000
+# Room for the lines that are set after the page is cut (`cursor`, `has_more_steps`).
+_PAGE_LINES_RESERVE_BYTES = 1_024
+
+_LIST_SESSIONS_FIELDS = (
+    "agent",
+    "origins",
+    "calling_agent_id",
+    "calling_session_id",
+    "is_running",
+    "search",
+    "created_after",
+    "created_before",
+    "cursor",
+    "limit",
+)
+_READ_SESSION_FIELDS = ("session_id", "cursor", "limit")
+_READ_SESSION_SPANS_FIELDS = ("session_id", "turn_id", "cursor", "limit")
+
+_READ_NOT_FOUND_STEP = "Check the id with `list_sessions`."
+
+
+@dataclass(frozen=True)
+class SessionScope:
+    """Which sessions a caller may list and read (design D23). The builder: every
+    session its run authority can see (`calling_agent_ids` None). Any other agent: the
+    sessions whose `calling_session.agent_id` is that agent, wherever they were started."""
+
+    calling_agent_ids: Optional[frozenset]
+
+    def admits(self, stream: Any) -> bool:
+        if self.calling_agent_ids is None:
+            return True
+        calling = getattr(stream, "calling_session", None)
+        return calling is not None and calling.agent_id in self.calling_agent_ids
+
+    def narrowed(self, requested: Optional[UUID]) -> Optional[List[UUID]]:
+        """The `calling_session.agent_ids` filter of a list: the forced scope and the
+        model's filter together. An empty list matches nothing."""
+        if self.calling_agent_ids is None:
+            return [requested] if requested is not None else None
+        if requested is None:
+            return sorted(self.calling_agent_ids, key=str)
+        return [requested] if requested in self.calling_agent_ids else []
+
+
+def session_scope_for(caller: SessionCaller) -> SessionScope:
+    """The one function that sets the list and read scope of the session tools."""
+
+    if is_builder_agent(caller.run_agent_id):
+        return SessionScope(calling_agent_ids=None)
+    # A run that names no agent (an inline configuration) created no session.
+    return SessionScope(
+        calling_agent_ids=(
+            frozenset({caller.run_agent_id})
+            if caller.run_agent_id is not None
+            else frozenset()
+        )
+    )
+
+
+def _session_not_found() -> _Refusal:
+    return _agent_refusal(
+        SESSION_NOT_FOUND,
+        "No session with this id is visible to this agent.",
+        _READ_NOT_FOUND_STEP,
+    )
+
+
+def _turn_not_found() -> _Refusal:
+    return _agent_refusal(
+        TURN_NOT_FOUND,
+        "That session has no turn with this `turn_id`.",
+        "Take the `turn_id` from `read_session`.",
+    )
+
+
+def _refuse_unknown_arguments(
+    arguments: Dict[str, Any], fields: Sequence[str], *, tool: str
+) -> None:
+    unknown = sorted(set(arguments) - set(fields))
+    if unknown:
+        names = ", ".join(f"`{key}`" for key in unknown)
+        listed = ", ".join(f"`{field}`" for field in fields)
+        raise _ArgumentsRefused(
+            f"{names} {'is not a field' if len(unknown) == 1 else 'are not fields'} "
+            f"of {tool}. Its fields are {listed}.",
+            next_step=f"Call {tool} again with only its own fields.",
+        )
+
+
+def _session_id_argument(arguments: Dict[str, Any]) -> str:
+    raw = arguments.get("session_id")
+    if not isinstance(raw, str) or not raw.strip():
+        raise _ArgumentsRefused(
+            "`session_id` is required: the id of the session to read.",
+            next_step=_READ_NOT_FOUND_STEP,
+        )
+    session_id = raw.strip()
+    if not validate_session_id(session_id):
+        raise _session_not_found()
+    return session_id
+
+
+def _limit_argument(arguments: Dict[str, Any], *, default: int, maximum: int) -> int:
+    limit = arguments.get("limit", default)
+    if (
+        isinstance(limit, bool)
+        or not isinstance(limit, int)
+        or not 1 <= limit <= maximum
+    ):
+        raise _ArgumentsRefused(
+            f"`limit` must be a whole number from 1 to {maximum}.",
+            next_step=f"Omit `limit` to get {default} per page.",
+        )
+    return limit
+
+
+def _invalid_cursor() -> _ArgumentsRefused:
+    return _ArgumentsRefused(
+        "`cursor` is not a cursor this tool returned.",
+        next_step="Pass the `cursor` of the previous result, or omit `cursor`.",
+    )
+
+
+def _encode_windowing_cursor(windowing: Windowing) -> str:
+    payload = {
+        "next": str(windowing.next) if windowing.next else None,
+        "newest": windowing.newest.isoformat() if windowing.newest else None,
+        "oldest": windowing.oldest.isoformat() if windowing.oldest else None,
+    }
+    raw = json.dumps({k: v for k, v in payload.items() if v is not None})
+    return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+
+
+def _decode_windowing_cursor(cursor: Any) -> Dict[str, Any]:
+    if not isinstance(cursor, str) or not cursor or len(cursor) > 512:
+        raise _invalid_cursor()
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
+        if not isinstance(payload, dict) or not payload.get("next"):
+            raise ValueError("no next")
+        return {
+            "next": UUID(str(payload["next"])),
+            "newest": (
+                datetime.fromisoformat(payload["newest"])
+                if payload.get("newest")
+                else None
+            ),
+            "oldest": (
+                datetime.fromisoformat(payload["oldest"])
+                if payload.get("oldest")
+                else None
+            ),
+        }
+    except (ValueError, TypeError, UnicodeDecodeError, binascii.Error) as e:
+        raise _invalid_cursor() from e
+
+
+def _datetime_argument(arguments: Dict[str, Any], field: str) -> Optional[datetime]:
+    raw = arguments.get(field)
+    if raw is None:
+        return None
+    try:
+        value = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError as e:
+        raise _ArgumentsRefused(
+            f"`{field}` must be a date and time in ISO 8601 form.",
+            next_step=f"Send `{field}` like 2026-11-20T09:00:00Z.",
+        ) from e
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def _check_project(caller: SessionCaller, project_id: UUID) -> None:
+    """Every read stays in the project of the run credential."""
+    if caller.envelope.authority.project_id != project_id:
+        raise _run_credential_required(
+            "The run credential belongs to another project than this request."
+        )
+
+
+async def _readable_source(
+    *,
+    caller: SessionCaller,
+    project_id: UUID,
+    sessions_service: Optional[SessionsService],
+    session_id: str,
+) -> Any:
+    """The source session of a read, after the checks of design D23 in their order: a
+    session outside the scope, unknown, or hidden from the run authority answers
+    `session_not_found`, so the error never says that a hidden session exists."""
+
+    if not await caller_may(
+        caller, session_id=session_id, action=Permission.VIEW_SESSIONS
+    ):
+        raise _session_not_found()
+    stream = await sessions_service.streams_service.fetch(
+        project_id=project_id, session_id=session_id
+    )
+    if stream is None or not session_scope_for(caller).admits(stream):
+        raise _session_not_found()
+    return stream
+
+
+# -- the session's agent and origin ---------------------------------------------------------
+
+
+def _reference_of(references: Optional[Sequence[Any]], key: str) -> Optional[Any]:
+    for reference in references or ():
+        if getattr(reference, "key", None) == key and getattr(reference, "id", None):
+            return reference
+    return None
+
+
+def _agent_reference_of(references: Optional[Sequence[Any]]) -> Optional[Any]:
+    return _reference_of(references, "workflow") or _reference_of(
+        references, "application"
+    )
+
+
+async def _agent_names(
+    *,
+    workflows_service: Optional[WorkflowsService],
+    project_id: UUID,
+    caller: SessionCaller,
+    agent_ids: Sequence[UUID],
+) -> Dict[UUID, str]:
+    """The names of the agents the run authority can see, one query for a page. An agent
+    it cannot see gets no name."""
+
+    names: Dict[UUID, str] = {}
+    wanted = []
+    for agent_id in dict.fromkeys(agent_ids):
+        if is_builder_agent(agent_id):
+            names[agent_id] = BUILDER_AGENT_NAME
+        else:
+            wanted.append(agent_id)
+    if not wanted or workflows_service is None:
+        return names
+    read_scope = await get_sharing_service().agent_read_scope(
+        principal=caller.envelope.authority.principal
+    )
+    workflows = await workflows_service.query_workflows(
+        project_id=project_id,
+        read_scope=read_scope,
+        workflow_refs=[Reference(id=agent_id) for agent_id in wanted],
+        include_archived=True,
+    )
+    for workflow in workflows:
+        if workflow.id is not None and workflow.name:
+            names[workflow.id] = workflow.name
+    return names
+
+
+def _agent_entry(
+    references: Optional[Sequence[Any]], names: Dict[UUID, str]
+) -> Optional[Dict[str, Any]]:
+    reference = _agent_reference_of(references)
+    if reference is None:
+        return None
+    entry = {
+        "id": str(reference.id),
+        "slug": reference.slug,
+        "name": names.get(reference.id),
+    }
+    return {key: value for key, value in entry.items() if value is not None}
+
+
+def _origin_entry(stream: Any) -> Dict[str, Any]:
+    """The session origin with its object (design D22)."""
+    origin = getattr(stream, "origin", None)
+    entry: Dict[str, Any] = {
+        "origin": (origin.value if origin is not None else "manual"),
+    }
+    calling = getattr(stream, "calling_session", None)
+    if calling is not None:
+        entry["calling_session"] = {
+            "id": calling.id,
+            "turn_id": calling.turn_id,
+            "agent_id": str(calling.agent_id),
+            "revision_id": str(calling.revision_id),
+        }
+    trigger = getattr(stream, "trigger", None)
+    if trigger is not None:
+        entry["trigger"] = {"id": str(trigger.id), "kind": trigger.kind.value}
+    delivery = getattr(stream, "delivery", None)
+    if delivery is not None:
+        entry["delivery"] = {"id": str(delivery.id)}
+    return entry
+
+
+def _newest_status(
+    *,
+    stream: Any,
+    ending: Optional[ExecutionEnding],
+    waiting_for: Sequence[Dict[str, Any]],
+) -> Optional[SessionToolStatus]:
+    """The status of a session's newest turn: paused while it waits for a person,
+    running while it runs or before its newest execution wrote its ending."""
+    if waiting_for:
+        return SessionToolStatus.paused
+    if stream.flags.is_running or ending is None:
+        return SessionToolStatus.running
+    return ending.status
+
+
+def _json_line(value: Dict[str, Any]) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
+
+
+def _cut(text: Any, limit: int) -> Tuple[Optional[str], bool]:
+    if text is None:
+        return None, False
+    if not isinstance(text, str):
+        text = _json_line(text) if isinstance(text, (dict, list)) else str(text)
+    if len(text) <= limit:
+        return text, False
+    return text[:limit], True
+
+
+# -- list_sessions ----------------------------------------------------------------------
+
+
+async def handle_list_sessions(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
+    session_caller: SessionCaller,
+    sessions_service: Optional[SessionsService],
+) -> PlatformHandlerResult:
+    """The sessions in the caller's scope that its run authority can see, newest first,
+    one page at a time."""
+
+    from oss.src.core.sessions.dtos import (  # noqa: PLC0415
+        SessionExpansion,
+        SessionQuery,
+        SessionQueryOptions,
+    )
+    from oss.src.core.sessions.streams.dtos import (  # noqa: PLC0415
+        SessionStreamQueryFlags,
+    )
+    from oss.src.core.sessions.types import (  # noqa: PLC0415
+        SessionCallingSessionQuery,
+        SessionOrigin,
+        SessionReference,
+    )
+
+    if sessions_service is None:
+        raise PlatformToolHandlerRefused("list_sessions is unavailable.")
+    caller = session_caller
+    try:
+        _check_project(caller, project_id)
+        parsed = _parse_arguments(arguments)
+        _refuse_unknown_arguments(parsed, _LIST_SESSIONS_FIELDS, tool="list_sessions")
+        limit = _limit_argument(
+            parsed, default=LIST_SESSIONS_DEFAULT_LIMIT, maximum=LIST_SESSIONS_MAX_LIMIT
+        )
+
+        turn_references = None
+        if parsed.get("agent") is not None:
+            raw, reference = _agent_reference(parsed)
+            agent_id = await _visible_agent_id(
+                workflows_service=workflows_service,
+                project_id=project_id,
+                caller=caller,
+                reference=reference,
+            )
+            if agent_id is None:
+                raise _not_found(raw)
+            turn_references = [SessionReference(id=agent_id)]
+
+        origins = parsed.get("origins")
+        if origins is not None:
+            try:
+                origins = [SessionOrigin(value) for value in origins]
+            except (TypeError, ValueError) as e:
+                raise _ArgumentsRefused(
+                    "`origins` must be a list of session origins.",
+                    next_step=(
+                        "Use the values manual, trigger, channel, api and "
+                        "calling_session."
+                    ),
+                ) from e
+
+        calling_agent_id = parsed.get("calling_agent_id")
+        if calling_agent_id is not None:
+            try:
+                calling_agent_id = UUID(str(calling_agent_id))
+            except ValueError as e:
+                raise _ArgumentsRefused(
+                    "`calling_agent_id` must be an agent id.",
+                    next_step="Pass the `id` of the agent from `list_agents`.",
+                ) from e
+        calling_session_id = parsed.get("calling_session_id")
+        if calling_session_id is not None and not (
+            isinstance(calling_session_id, str)
+            and validate_session_id(calling_session_id)
+        ):
+            raise _ArgumentsRefused(
+                "`calling_session_id` must be a session id.",
+                next_step="Pass a `session_id` that `list_sessions` returned.",
+            )
+        is_running = parsed.get("is_running")
+        if is_running is not None and not isinstance(is_running, bool):
+            raise _ArgumentsRefused(
+                "`is_running` must be true or false.",
+                next_step="Send `is_running` as a boolean, or omit it.",
+            )
+        search = parsed.get("search")
+        if search is not None and not isinstance(search, str):
+            raise _ArgumentsRefused(
+                "`search` must be text.", next_step="Send `search` as a string."
+            )
+
+        created_after = _datetime_argument(parsed, "created_after")
+        created_before = _datetime_argument(parsed, "created_before")
+        windowing = Windowing(limit=limit)
+        if parsed.get("cursor") is not None:
+            cursor = _decode_windowing_cursor(parsed["cursor"])
+            windowing = Windowing(
+                limit=limit, next=cursor["next"], newest=cursor["newest"]
+            )
+            if windowing.newest is None:
+                raise _invalid_cursor()
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    agent_ids = session_scope_for(caller).narrowed(calling_agent_id)
+    if agent_ids is not None and not agent_ids:
+        return PlatformHandlerResult(content=_render_session_list([], cursor=None))
+
+    sharing = get_sharing_service()
+    page = await sessions_service.query_sessions_page(
+        project_id=project_id,
+        read_scope=await sharing.session_read_scope(
+            project_id=project_id, principal=caller.envelope.authority.principal
+        ),
+        query=SessionQuery(
+            turn_references=turn_references,
+            search=search.strip() or None if search else None,
+            flags=(
+                SessionStreamQueryFlags(is_running=is_running)
+                if is_running is not None
+                else None
+            ),
+            origins=origins,
+            calling_session=(
+                SessionCallingSessionQuery(
+                    ids=[calling_session_id] if calling_session_id else None,
+                    agent_ids=agent_ids,
+                )
+                if calling_session_id or agent_ids is not None
+                else None
+            ),
+            created_after=created_after,
+            created_before=created_before,
+        ),
+        options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
+        windowing=windowing,
+    )
+    sessions = list(page.sessions)
+    next_cursor = None
+    if len(sessions) >= limit and sessions:
+        last = sessions[-1]
+        activity = last.updated_at or last.created_at
+        if last.id is not None and activity is not None:
+            next_cursor = _encode_windowing_cursor(
+                Windowing(next=last.id, newest=activity)
+            )
+
+    endings = await _newest_endings(
+        sessions_service=sessions_service, project_id=project_id, streams=sessions
+    )
+    names = await _agent_names(
+        workflows_service=workflows_service,
+        project_id=project_id,
+        caller=caller,
+        agent_ids=[
+            reference.id
+            for reference in (
+                _agent_reference_of(stream.references) for stream in sessions
+            )
+            if reference is not None
+        ],
+    )
+    items = []
+    for stream in sessions:
+        preview = getattr(stream, "last_message", None)
+        # A session that never ran a turn has no status.
+        status = (
+            _newest_status(
+                stream=stream, ending=endings.get(stream.turn_id), waiting_for=()
+            )
+            if stream.turn_id
+            else None
+        )
+        item = {
+            "session_id": stream.session_id,
+            "name": _cut(stream.name, SESSION_NAME_MAX_CHARS)[0],
+            "agent": _agent_entry(stream.references, names),
+            **_origin_entry(stream),
+            "status": status.value if status else None,
+            "last_message": preview.text if preview is not None else None,
+        }
+        items.append({key: value for key, value in item.items() if value is not None})
+    return PlatformHandlerResult(
+        content=_render_session_list(items, cursor=next_cursor)
+    )
+
+
+def _render_session_list(items: List[Dict[str, Any]], *, cursor: Optional[str]) -> str:
+    return render_marked_form(
+        subject="List of sessions",
+        lines=[("count", len(items)), ("cursor", cursor)],
+        fields=[("sessions", "\n".join(_json_line(item) for item in items))],
+    )
+
+
+async def _visible_agent_id(
+    *,
+    workflows_service: Optional[WorkflowsService],
+    project_id: UUID,
+    caller: SessionCaller,
+    reference: Reference,
+) -> Optional[UUID]:
+    """The id of the agent a `list_sessions` filter names, when the run authority can
+    see it."""
+    if reference.slug == BUILDER_AGENT_SLUG or is_builder_agent(reference.id):
+        return BUILDER_AGENT_ID
+    if workflows_service is None:
+        return None
+    workflows = await workflows_service.query_workflows(
+        project_id=project_id,
+        read_scope=await get_sharing_service().agent_read_scope(
+            principal=caller.envelope.authority.principal
+        ),
+        workflow_refs=[reference],
+        include_archived=True,
+    )
+    return workflows[0].id if workflows else None
+
+
+async def _newest_endings(
+    *, sessions_service: SessionsService, project_id: UUID, streams: Sequence[Any]
+) -> Dict[str, Optional[ExecutionEnding]]:
+    """The ending of each listed session's newest execution (its `turn_id`), in one
+    read of their ending records."""
+    records_service = sessions_service.records_service
+    executions = {stream.session_id: stream.turn_id for stream in streams}
+    execution_ids = [value for value in executions.values() if value]
+    if records_service is None or not execution_ids:
+        return {}
+    return execution_endings(
+        await records_service.get_ending_records_of_executions(
+            project_id=project_id,
+            session_ids=list(executions),
+            execution_ids=execution_ids,
+        )
+    )
+
+
+# -- read_session -------------------------------------------------------------------------
+
+
+def _waiting_for(interactions: Sequence[Any]) -> List[Dict[str, Any]]:
+    entries = []
+    for interaction in interactions:
+        request = interaction.data.request if interaction.data else None
+        entry = {
+            "interaction_id": str(interaction.id) if interaction.id else None,
+            "kind": interaction.kind.value,
+            "tool": request.tool if request is not None else None,
+        }
+        entries.append({key: value for key, value in entry.items() if value})
+    return entries
+
+
+def _usage_entry(turn: Any) -> Dict[str, Any]:
+    usage = turn.usage
+    return {
+        "input_tokens": usage.input_tokens if usage else None,
+        "output_tokens": usage.output_tokens if usage else None,
+        "total_tokens": usage.total_tokens if usage else None,
+        "cost": usage.cost if usage else None,
+    }
+
+
+def _totals(turns: Sequence[Any]) -> Dict[str, Any]:
+    """Summed at read time over every turn. A turn with no value for a field is left
+    out of that field's sum; a field no turn has stays null, never zero."""
+    totals: Dict[str, Any] = {"turn_count": len(turns)}
+    for field in ("input_tokens", "output_tokens", "total_tokens", "cost"):
+        values = [
+            getattr(turn.usage, field)
+            for turn in turns
+            if turn.usage is not None and getattr(turn.usage, field) is not None
+        ]
+        totals[field] = sum(values) if values else None
+    return totals
+
+
+def _revision_entry(references: Optional[Sequence[Any]]) -> Optional[Dict[str, Any]]:
+    reference = _reference_of(references, "workflow_revision") or _reference_of(
+        references, "application_revision"
+    )
+    if reference is None:
+        return None
+    entry = {"id": str(reference.id), "version": reference.version}
+    return {key: value for key, value in entry.items() if value is not None}
+
+
+def _turn_entry(
+    turn: Any, *, ending: Optional[ExecutionEnding], status: Any
+) -> Dict[str, Any]:
+    context = turn.context
+    entry = {
+        "turn_id": str(turn.turn_id) if turn.turn_id else None,
+        "turn_index": turn.turn_index,
+        "revision": _revision_entry(turn.references),
+        "start_time": turn.start_time.isoformat() if turn.start_time else None,
+        "end_time": turn.end_time.isoformat() if turn.end_time else None,
+        "status": status.value if status is not None else None,
+        "stop_reason": ending.stop_reason if ending else None,
+        "cancelled_by": (
+            ending.cancelled_by.value if ending and ending.cancelled_by else None
+        ),
+        "error": ending.error if ending else None,
+        **_usage_entry(turn),
+        "trace_id": str(turn.trace_id) if turn.trace_id else None,
+        "origin": context.origin.value if context is not None else None,
+        "sender": (
+            {"user_id": str(turn.sender.user_id)}
+            if turn.sender is not None and turn.sender.user_id is not None
+            else None
+        ),
+    }
+    # Usage stays in the entry as null when unknown: null is not zero.
+    return {
+        key: value
+        for key, value in entry.items()
+        if value is not None
+        or key in ("input_tokens", "output_tokens", "total_tokens", "cost")
+    }
+
+
+def _message_text(attributes: Dict[str, Any]) -> str:
+    text = attributes.get("text")
+    if isinstance(text, str):
+        return text
+    content = attributes.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            block["text"]
+            for block in content
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        )
+    return ""
+
+
+def _step_of(record: Any, *, turn_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """One record as one step, cut as in the result file. The record's execution id
+    never goes out; the step names its turn."""
+    attributes = record.attributes or {}
+    kind = record.record_type
+    step: Dict[str, Any] = {"step": kind, "turn_id": turn_id}
+    if kind == "message":
+        text, cut = _cut(_message_text(attributes), STEP_MESSAGE_MAX_CHARS)
+        step.update(
+            role="assistant"
+            if record.record_source == "agent"
+            else record.record_source,
+            text=text,
+            is_truncated=cut or None,
+        )
+    elif kind == "tool_call":
+        raw_input = attributes.get("rawInput")
+        text, cut = _cut(
+            raw_input if raw_input is not None else attributes.get("input"),
+            STEP_INPUT_MAX_CHARS,
+        )
+        step.update(
+            tool=attributes.get("name"),
+            tool_call_id=attributes.get("id"),
+            input=text,
+            is_truncated=cut or None,
+        )
+    elif kind == "tool_result":
+        text, cut = _cut(
+            attributes.get("output", attributes.get("data")), STEP_OUTPUT_MAX_CHARS
+        )
+        step.update(
+            tool_call_id=attributes.get("id"),
+            output=text,
+            is_error=bool(attributes.get("isError")) or None,
+            is_truncated=cut or None,
+        )
+    elif kind in ("interaction_request", "interaction_response"):
+        step.update(kind=attributes.get("kind"))
+    elif kind == "error":
+        message, _ = _cut(attributes.get("message"), ERROR_MESSAGE_MAX_CHARS)
+        step.update(code=attributes.get("code"), message=message)
+    elif kind == "done":
+        step.update(stop_reason=attributes.get("stopReason"))
+    else:
+        return None  # thoughts, usage, data: not steps
+    return {key: value for key, value in step.items() if value is not None}
+
+
+@dataclass(frozen=True)
+class _StepsCursor:
+    """Where a `read_session` page starts: the records committed in the sequence window
+    (`after_sequence`, `through_sequence`], from `offset` in send order. A window that
+    is read to its end moves on to the records committed after it, so a record that
+    commits late, before an earlier one in send order, is still read once."""
+
+    after_sequence: int = 0
+    through_sequence: Optional[int] = None  # None: up to the newest commit
+    offset: int = 0
+
+    def encode(self) -> str:
+        return f"{self.after_sequence}.{self.through_sequence or 0}.{self.offset}"
+
+
+def _steps_cursor(arguments: Dict[str, Any]) -> _StepsCursor:
+    raw = arguments.get("cursor")
+    if raw is None:
+        return _StepsCursor()
+    try:
+        after, through, offset = (int(part) for part in str(raw).split("."))
+    except ValueError as e:
+        raise _invalid_cursor() from e
+    if min(after, through, offset) < 0 or (through and through < after):
+        raise _invalid_cursor()
+    return _StepsCursor(
+        after_sequence=after, through_sequence=through or None, offset=offset
+    )
+
+
+def _fitted_step(step: Dict[str, Any], budget: int) -> Dict[str, Any]:
+    """A step whose line alone is above the budget, with its long text cut further."""
+    step = dict(step)
+    for key in ("output", "input", "text"):
+        while (
+            isinstance(step.get(key), str)
+            and step[key]
+            and _field_line_bytes("steps", step) > budget
+        ):
+            step[key] = step[key][: len(step[key]) // 2]
+            step["is_truncated"] = True
+    return step
+
+
+def _field_line_bytes(field: str, value: Dict[str, Any]) -> int:
+    """The bytes one JSON line adds to a delimited field, as the marked form escapes it."""
+    return len(escape_field(field, _json_line(value)).encode()) + 1
+
+
+async def handle_read_session(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
+    session_caller: SessionCaller,
+    sessions_service: Optional[SessionsService],
+) -> PlatformHandlerResult:
+    """One session: its provenance, the status of its newest turn and what it waits
+    for, `totals` summed over every turn, the newest turns, and the steps after
+    `cursor`. It reads a running session too; the records are stored as the turn runs."""
+
+    from oss.src.core.sessions.interactions.dtos import (  # noqa: PLC0415
+        SessionInteractionQuery,
+        SessionInteractionStatus,
+    )
+    from oss.src.core.sessions.turns.dtos import SessionTurnQuery  # noqa: PLC0415
+
+    if sessions_service is None or sessions_service.records_service is None:
+        raise PlatformToolHandlerRefused("read_session is unavailable.")
+    caller = session_caller
+    try:
+        _check_project(caller, project_id)
+        parsed = _parse_arguments(arguments)
+        _refuse_unknown_arguments(parsed, _READ_SESSION_FIELDS, tool="read_session")
+        session_id = _session_id_argument(parsed)
+        limit = _limit_argument(
+            parsed, default=READ_SESSION_DEFAULT_LIMIT, maximum=READ_SESSION_MAX_LIMIT
+        )
+        cursor = _steps_cursor(parsed)
+        stream = await _readable_source(
+            caller=caller,
+            project_id=project_id,
+            sessions_service=sessions_service,
+            session_id=session_id,
+        )
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    records_service = sessions_service.records_service
+    # The commit bound comes first: every record of the page is then older than the
+    # turns and endings read next, so each step finds its turn.
+    read_state = await records_service.get_read_state(
+        project_id=project_id, session_id=session_id
+    )
+    turns = sorted(
+        await sessions_service.turns_service.query_turns(
+            project_id=project_id, query=SessionTurnQuery(session_id=session_id)
+        ),
+        key=lambda turn: turn.turn_index,
+    )
+    turn_ids = [str(turn.turn_id) for turn in turns if turn.turn_id]
+    endings, turn_of = turn_endings(
+        turn_ids=turn_ids,
+        ending_records=await records_service.get_ending_records(
+            project_id=project_id, session_id=session_id
+        ),
+    )
+    waiting_for = _waiting_for(
+        await sessions_service.interactions_service.query_interactions(
+            project_id=project_id,
+            query=SessionInteractionQuery(
+                session_id=session_id, status=SessionInteractionStatus.pending
+            ),
+        )
+    )
+
+    newest = turns[-1] if turns else None
+    newest_id = str(newest.turn_id) if newest and newest.turn_id else None
+    newest_ending = endings.get(newest_id) if newest_id else None
+    newest_status = (
+        _newest_status(stream=stream, ending=newest_ending, waiting_for=waiting_for)
+        if newest is not None
+        else None
+    )
+    listed = turns[-READ_SESSION_TURNS_LIMIT:]
+    turn_entries = [
+        _turn_entry(
+            turn,
+            ending=endings.get(str(turn.turn_id)) if turn.turn_id else None,
+            status=(
+                newest_status
+                if turn is newest
+                else (
+                    endings[str(turn.turn_id)].status
+                    if turn.turn_id and endings.get(str(turn.turn_id))
+                    else None
+                )
+            ),
+        )
+        for turn in reversed(listed)
+    ]
+
+    def turn_of_record(execution_id: Optional[str]) -> Optional[str]:
+        if not execution_id:
+            return None
+        if execution_id in turn_of:
+            return turn_of[execution_id]
+        if execution_id in turn_ids:
+            return execution_id
+        # The newest execution, which has written no ending yet.
+        return newest_id if execution_id == stream.turn_id else None
+
+    latest = max(read_state.latest_sequence, cursor.after_sequence)
+    through = cursor.through_sequence or latest
+    page = await records_service.get_records_page(
+        project_id=project_id,
+        session_id=session_id,
+        offset=cursor.offset,
+        limit=limit,
+        through_sequence=through,
+        after_sequence=cursor.after_sequence,
+    )
+
+    names = await _agent_names(
+        workflows_service=workflows_service,
+        project_id=project_id,
+        caller=caller,
+        agent_ids=[
+            reference.id
+            for reference in [_agent_reference_of(stream.references)]
+            if reference is not None
+        ],
+    )
+    agent = _agent_entry(stream.references, names)
+    session_entry = {
+        "session_id": session_id,
+        "name": _cut(stream.name, SESSION_NAME_MAX_CHARS)[0],
+        "agent": agent,
+        **_origin_entry(stream),
+    }
+    revision = _revision_entry(newest.references) if newest else None
+    failed = bool(
+        newest_ending
+        and newest_ending.error
+        and newest_status in (SessionToolStatus.failed, SessionToolStatus.lost)
+    )
+
+    def render(steps: List[str], *, next_cursor: str, has_more: bool) -> str:
+        return render_marked_form(
+            subject=(
+                f"Read of session {session_id} "
+                f"({header_name((agent or {}).get('name') or (agent or {}).get('slug'))})"
+            ),
+            lines=[
+                ("status", newest_status),
+                ("turn_id", newest_id),
+                (
+                    "revision",
+                    (
+                        f"{revision.get('version')} ({revision['id']})"
+                        if revision and revision.get("version")
+                        else (revision or {}).get("id")
+                    ),
+                ),
+                (
+                    "cancelled_by",
+                    newest_ending.cancelled_by
+                    if newest_status == SessionToolStatus.cancelled and newest_ending
+                    else None,
+                ),
+                ("error.code", newest_ending.error["code"] if failed else None),
+                ("waiting_for", waiting_for or None),
+                ("totals", _totals(turns)),
+                ("is_turn_list_truncated", len(turns) > READ_SESSION_TURNS_LIMIT),
+                ("cursor", next_cursor),
+                ("has_more_steps", has_more),
+            ],
+            fields=[
+                (
+                    "session",
+                    _json_line(
+                        {k: v for k, v in session_entry.items() if v is not None}
+                    ),
+                ),
+                ("turns", "\n".join(_json_line(entry) for entry in turn_entries)),
+                ("error.message", newest_ending.error["message"] if failed else None),
+                ("steps", "\n".join(steps)),
+            ],
+        )
+
+    # What the page may add: the budget less the rest of the rendered result.
+    budget = (
+        SESSION_READ_BUDGET_BYTES
+        - len(render([], next_cursor="", has_more=False).encode())
+        - _PAGE_LINES_RESERVE_BYTES
+    )
+    steps: List[str] = []
+    used = 0
+    consumed = 0
+    for record in page.records:
+        step = _step_of(record, turn_id=turn_of_record(record.turn_id))
+        if step is not None:
+            size = _field_line_bytes("steps", step)
+            if used + size > budget:
+                if steps:
+                    break
+                step = _fitted_step(step, budget)
+                size = _field_line_bytes("steps", step)
+            steps.append(_json_line(step))
+            used += size
+        consumed += 1
+
+    if consumed < len(page.records) or page.next_offset is not None:
+        next_cursor = _StepsCursor(
+            after_sequence=cursor.after_sequence,
+            through_sequence=through,
+            offset=cursor.offset + consumed,
+        )
+        has_more = True
+    elif through == 0:
+        # No record is sequenced (none yet, or sequence writes are off): plain offset
+        # paging in send order, as before sequences existed.
+        next_cursor = _StepsCursor(offset=cursor.offset + consumed)
+        has_more = False
+    else:
+        # The window is read to its end: the next read starts after it.
+        next_cursor = _StepsCursor(after_sequence=through)
+        has_more = latest > through
+    text = render(steps, next_cursor=next_cursor.encode(), has_more=has_more)
+    return PlatformHandlerResult(content=text)
+
+
+# -- read_session_spans -----------------------------------------------------------------
+
+
+def _span_metric(span: Any, metric: str, key: str) -> Optional[float]:
+    node = _span_attrs(span)
+    for part in ("ag", "metrics", metric, "incremental", key):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(part)
+    return (
+        node if isinstance(node, (int, float)) and not isinstance(node, bool) else None
+    )
+
+
+def _span_entry(span: Any) -> Dict[str, Any]:
+    status = getattr(span.status_code, "value", span.status_code)
+    span_type = getattr(span.span_type, "value", span.span_type)
+    name, _ = _cut(span.span_name, 200)
+    error, _ = _cut(span.status_message, ERROR_MESSAGE_MAX_CHARS)
+
+    def _time(value: Any) -> Optional[str]:
+        return value.isoformat() if isinstance(value, datetime) else value
+
+    def _int(value: Optional[float]) -> Optional[int]:
+        return int(value) if value is not None else None
+
+    entry = {
+        "span_id": span.span_id,
+        "parent_id": span.parent_id,
+        "name": name,
+        # The tracing words, named apart from the session status words and `error`.
+        "span_type": span_type,
+        "span_status": {
+            "STATUS_CODE_OK": "ok",
+            "STATUS_CODE_ERROR": "error",
+        }.get(status, "unset"),
+        "start_time": _time(span.start_time),
+        "end_time": _time(span.end_time),
+        "input_tokens": _int(_span_metric(span, "tokens", "prompt")),
+        "output_tokens": _int(_span_metric(span, "tokens", "completion")),
+        "total_tokens": _int(_span_metric(span, "tokens", "total")),
+        "cost": _span_metric(span, "costs", "total"),
+        "error_message": error if status == "STATUS_CODE_ERROR" else None,
+    }
+    return {key: value for key, value in entry.items() if value is not None}
+
+
+async def handle_read_session_spans(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
+    session_caller: SessionCaller,
+    sessions_service: Optional[SessionsService],
+) -> PlatformHandlerResult:
+    """The spans of one turn of a session, newest first, one page at a time, with the
+    scope of `read_session`. Spans land when the turn's trace completes, so a running
+    turn answers `is_pending` and no spans."""
+
+    from oss.src.core.sessions.turns.dtos import SessionTurnQuery  # noqa: PLC0415
+
+    if sessions_service is None or tracing_service is None:
+        raise PlatformToolHandlerRefused("read_session_spans is unavailable.")
+    caller = session_caller
+    try:
+        _check_project(caller, project_id)
+        parsed = _parse_arguments(arguments)
+        _refuse_unknown_arguments(
+            parsed, _READ_SESSION_SPANS_FIELDS, tool="read_session_spans"
+        )
+        session_id = _session_id_argument(parsed)
+        raw_turn_id = parsed.get("turn_id")
+        if not isinstance(raw_turn_id, str) or not raw_turn_id.strip():
+            raise _ArgumentsRefused(
+                "`turn_id` is required: the turn whose spans to read.",
+                next_step="Take the `turn_id` from `read_session`.",
+            )
+        turn_id = raw_turn_id.strip()
+        limit = _limit_argument(
+            parsed,
+            default=READ_SESSION_SPANS_DEFAULT_LIMIT,
+            maximum=READ_SESSION_SPANS_MAX_LIMIT,
+        )
+        cursor = (
+            _decode_windowing_cursor(parsed["cursor"])
+            if parsed.get("cursor") is not None
+            else None
+        )
+        stream = await _readable_source(
+            caller=caller,
+            project_id=project_id,
+            sessions_service=sessions_service,
+            session_id=session_id,
+        )
+        turns = sorted(
+            await sessions_service.turns_service.query_turns(
+                project_id=project_id, query=SessionTurnQuery(session_id=session_id)
+            ),
+            key=lambda turn: turn.turn_index,
+        )
+        turn = next(
+            (item for item in turns if item.turn_id and str(item.turn_id) == turn_id),
+            None,
+        )
+        if turn is None:
+            raise _turn_not_found()
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    subject = f"Spans of turn {turn_id} of session {session_id}"
+    if turn is turns[-1] and stream.flags.is_running:
+        return PlatformHandlerResult(
+            content=render_marked_form(
+                subject=subject,
+                lines=[
+                    ("turn_id", turn_id),
+                    ("is_pending", True),
+                    (
+                        "note",
+                        "The turn still runs. Its spans arrive when the turn ends; "
+                        "read them again then.",
+                    ),
+                ],
+            )
+        )
+
+    async def page(size: int) -> Tuple[List[Any], Optional[Windowing]]:
+        spans, next_windowing = await tracing_service.query_spans_page(
+            project_id=project_id,
+            query=TracingQuery(
+                formatting=Formatting(focus=Focus.SPAN),
+                filtering=Filtering(
+                    conditions=[
+                        Condition(field="session_id", value=session_id),
+                        Condition(field="turn_id", value=turn_id),
+                    ]
+                ),
+                windowing=Windowing(
+                    limit=size,
+                    next=cursor["next"] if cursor else None,
+                    newest=cursor["newest"] if cursor else None,
+                    oldest=cursor["oldest"] if cursor else None,
+                ),
+            ),
+        )
+        return list(spans or []), next_windowing
+
+    spans, next_windowing = await page(limit)
+    entries = [_span_entry(span) for span in spans]
+    note = None
+    if not spans and cursor is None:
+        note = (
+            "No span of this session carries this turn_id. A turn stored before spans "
+            "carried turn ids cannot be read by turn."
+        )
+    fixed = render_marked_form(
+        subject=subject,
+        lines=[("turn_id", turn_id), ("is_pending", False), ("count", len(spans))],
+        fields=[("spans", "")],
+    )
+    budget = SESSION_READ_BUDGET_BYTES - len(fixed.encode()) - _PAGE_LINES_RESERVE_BYTES
+    fits = 0
+    used = 0
+    for entry in entries:
+        used += _field_line_bytes("spans", entry)
+        if fits and used > budget:
+            break
+        fits += 1
+    if fits < len(entries):
+        # Read the page again at the size that fits, so the cursor the span query
+        # returns starts at the first span left out.
+        spans, next_windowing = await page(fits)
+        entries = [_span_entry(span) for span in spans]
+    lines = [_json_line(entry) for entry in entries]
+
+    return PlatformHandlerResult(
+        content=render_marked_form(
+            subject=subject,
+            lines=[
+                ("turn_id", turn_id),
+                ("is_pending", False),
+                ("count", len(spans)),
+                (
+                    "cursor",
+                    _encode_windowing_cursor(next_windowing)
+                    if next_windowing is not None and next_windowing.next
+                    else None,
+                ),
+                ("note", note),
+            ],
+            fields=[("spans", "\n".join(lines))],
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
 # Registry — the only handlers a reserved call_ref can reach, plus their
 # per-handler policy (timeout budget, elevation). The API boundary consults
 # ``required_elevated_permission`` before ``dispatch_platform_tool_handler``.
@@ -2248,6 +3499,8 @@ class PlatformToolHandlerRegistration:
     # Session ops, drive ops and `resolve_gate` take the calling run as `session_caller`
     # (`session_caller_of`); without one the call answers `run_credential_required`.
     needs_session_caller: bool = False
+    # Handlers that read sessions take the router's SessionsService as `sessions_service`.
+    needs_sessions: bool = False
     # `resolve_gate` takes the router's `GateReader` as `gate_reader`.
     needs_gate_reader: bool = False
 
@@ -2352,6 +3605,32 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         needs_mounts=True,
         elevated_permission=Permission.VIEW_MOUNTS,
     ),
+    # Session reads. They demand what the session list and read routes demand,
+    # VIEW_SESSIONS, and each target session is checked again for its own right.
+    LIST_SESSIONS_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=LIST_SESSIONS_CALL_REF,
+        timeout_ms=SESSION_READ_DEFAULT_TIMEOUT_MS,
+        handler=handle_list_sessions,
+        elevated_permission=Permission.VIEW_SESSIONS,
+        needs_session_caller=True,
+        needs_sessions=True,
+    ),
+    READ_SESSION_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=READ_SESSION_CALL_REF,
+        timeout_ms=SESSION_READ_DEFAULT_TIMEOUT_MS,
+        handler=handle_read_session,
+        elevated_permission=Permission.VIEW_SESSIONS,
+        needs_session_caller=True,
+        needs_sessions=True,
+    ),
+    READ_SESSION_SPANS_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=READ_SESSION_SPANS_CALL_REF,
+        timeout_ms=SESSION_READ_DEFAULT_TIMEOUT_MS,
+        handler=handle_read_session_spans,
+        elevated_permission=Permission.VIEW_SESSIONS,
+        needs_session_caller=True,
+        needs_sessions=True,
+    ),
 }
 
 # Model-facing definitions (name, description, JSON schema, context bindings, read_only) for
@@ -2417,6 +3696,7 @@ async def dispatch_platform_tool_handler(
     organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
+    sessions_service: Optional[SessionsService] = None,
     gate_reader: Optional[GateReader] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
@@ -2447,6 +3727,8 @@ async def dispatch_platform_tool_handler(
             extra["session_caller"] = await session_caller_of(access)
         except _Refusal as e:
             return PlatformHandlerResult.failure(e.error)
+    if registration.needs_sessions:
+        extra["sessions_service"] = sessions_service
     if registration.needs_gate_reader:
         extra["gate_reader"] = gate_reader
     return await registration.handler(

@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
@@ -65,6 +66,9 @@ class SessionQuery(BaseModel):
     exclude_origins: Optional[List[SessionOrigin]] = None
     # Sessions created by these calling sessions or calling agents.
     calling_session: Optional[SessionCallingSessionQuery] = None
+    # Creation-time bounds (`created_at`), apart from the last-activity windowing.
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
 
 
 class SessionQueryLifecycle(BaseModel):
