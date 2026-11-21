@@ -25,6 +25,7 @@ export const ApprovalDock = ({
     bottomMost = true,
     readOnly = false,
     readOnlyNote,
+    privateSession = false,
 }: {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
@@ -38,11 +39,14 @@ export const ApprovalDock = ({
     readOnly?: boolean
     /** Shown in place of the actions while read-only (it names who can answer). */
     readOnlyNote?: string | null
+    /** The session is private to the reader (`isPrivateToViewer`). False while unknown. */
+    privateSession?: boolean
 }) => {
     const locked = readOnly || Boolean(readOnlyNote)
     const builderChat = useIsBuilderChat()
-    // In the builder chat, "Always auto-approve" stores the person's choice (design D32).
-    const {alwaysApprove} = useBuilderApprovalChoices(builderChat)
+    // In the builder chat, "Always auto-approve" stores the person's choice (design D32). The
+    // server applies it only in a session private to the person, so only such a session offers it.
+    const {alwaysApprove} = useBuilderApprovalChoices(builderChat && privateSession)
     const busy = actions.phase === "resuming"
     const answered = actions.phase === "answered" || actions.phase === "recoverable"
 

@@ -18,6 +18,8 @@ import {builderChatLinkVersionAtom} from "../builder/useBuilderChatList"
 import {BuilderChatContext} from "../chat/builderChat"
 import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
+import {isPrivateToViewer} from "../chat/privateSession"
+import {useSessionHeader} from "../chat/useSessionHeader"
 import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
@@ -73,6 +75,8 @@ export const BuilderPageChat = ({
     const bumpLinkVersion = useSetAtom(builderChatLinkVersionAtom)
     const liveness = useLivenessPoll(projectId)
     const liveStream = liveness.data?.find((stream) => stream.session_id === sessionId)
+    // The card offers "Always auto-approve" only in a session private to the reader.
+    const privateSession = isPrivateToViewer(useSessionHeader(projectId, sessionId).data)
 
     const [hasMessages, setHasMessages] = useState(false)
     const [pickedAgent, setPickedAgent] = useState<AgentRef | null>(null)
@@ -169,6 +173,7 @@ export const BuilderPageChat = ({
                         sessionTurnId={liveStream?.turn_id}
                         stoppingTurnId={liveStream?.stopping_turn_id}
                         sharedReader={Boolean(liveStream?.capabilities?.shared_reader)}
+                        privateSession={privateSession}
                         beforeSend={beforeSend}
                         inputRef={inputRef}
                         hideSlashCommands

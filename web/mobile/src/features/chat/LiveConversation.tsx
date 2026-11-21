@@ -148,6 +148,7 @@ export const LiveConversation = ({
     sessionTurnId,
     stoppingTurnId,
     sharedReader,
+    privateSession = false,
     agentId,
     readOnly = null,
     canSend = true,
@@ -178,6 +179,9 @@ export const LiveConversation = ({
     stoppingTurnId?: string | null
     /** Backend-advertised ability to receive display-only live frames from another sender. */
     sharedReader: boolean
+    /** The session is private to the reader (`isPrivateToViewer`): the builder's approval card
+     *  then offers "Always auto-approve". False while unknown. */
+    privateSession?: boolean
     /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
@@ -1146,6 +1150,7 @@ export const LiveConversation = ({
                                 bottomMost={false}
                                 readOnly={locked}
                                 readOnlyNote={readOnly?.approvalNote}
+                                privateSession={privateSession}
                             />
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
