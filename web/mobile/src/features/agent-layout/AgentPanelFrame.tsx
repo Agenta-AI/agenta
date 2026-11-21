@@ -58,14 +58,15 @@ export const AgentPanelFrame = ({
     const tControls = useT(uiControlsCatalog)
     const clamp = (value: number) =>
         resize ? Math.min(resize.max, Math.max(resize.min, value)) : value
-    // Beside the page the panel may draw narrower than `width` (the page keeps its column). A
-    // drag and the arrow keys start from the drawn width, so the edge moves with the pointer; the
-    // width the person lets go at is the one stored.
+    // Beside the page the panel may draw narrower than `width` (the page keeps its column), and
+    // over a narrow page it stops at the page's width. A drag and the arrow keys start from the
+    // drawn width, so the edge moves with the pointer; the width the person lets go at is the one
+    // stored.
     const frameRef = useRef<HTMLDivElement>(null)
     const [drawn, setDrawn] = useState<number | null>(null)
     useEffect(() => {
         const frame = frameRef.current
-        if (!frame || mode !== "push" || typeof ResizeObserver === "undefined") {
+        if (!frame || mode === "full" || typeof ResizeObserver === "undefined") {
             setDrawn(null)
             return undefined
         }
@@ -80,7 +81,7 @@ export const AgentPanelFrame = ({
         if (!resize) return
         requestAnimationFrame(() => {
             const frame = frameRef.current
-            const room = mode === "push" && frame ? Math.round(frame.offsetWidth) : value
+            const room = mode !== "full" && frame ? Math.round(frame.offsetWidth) : value
             const stored = clamp(Math.min(value, room))
             // The live width too: when the stored one does not change, nothing else resets it.
             resize.onLive(stored)
