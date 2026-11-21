@@ -109,11 +109,11 @@ afterEach(async () => {
 })
 
 describe("a tool with no rule of its own", () => {
-    it("says what it inherits, rather than showing a bare value", async () => {
+    it("says it follows the agent policy, rather than showing a bare value", async () => {
         // Without this the row reads as unrestricted, which is the opposite of the truth.
         await render({tool_permissions: {echo: "allow"}})
 
-        expect(selectFor("Permission for wipe")?.textContent).toContain("Inherits ask")
+        expect(selectFor("Permission for wipe")?.textContent).toContain("Follow agent policy")
     })
 
     it("says Ask for an unnamed tool even when the server permission is allow", async () => {
@@ -123,16 +123,16 @@ describe("a tool with no rule of its own", () => {
         // the label promises a tool will run unapproved when the run will stop and ask (D88).
         await render({tool_permissions: {echo: "allow"}, permission: "allow"})
 
-        expect(selectFor("Permission for wipe")?.textContent).toContain("Inherits ask")
-        expect(selectFor("Permission for wipe")?.textContent).not.toContain("Inherits allow")
+        expect(selectFor("Permission for wipe")?.textContent).toContain("Follow agent policy")
+        expect(selectFor("Permission for wipe")?.textContent).not.toContain("Allow")
     })
 
-    it("names the server permission while no table is declared", async () => {
-        // With nothing per-tool written, the whole-server permission really is what an unnamed
-        // tool gets, and the row has to say so rather than repeating the floor.
+    it("reads the same with a server permission and no table", async () => {
+        // With nothing per-tool written, the row names no value of its own, so it does not borrow
+        // the whole-server permission.
         await render({permission: "allow"})
 
-        expect(selectFor("Permission for echo")?.textContent).toContain("Inherits allow")
+        expect(selectFor("Permission for echo")?.textContent).toContain("Follow agent policy")
     })
 })
 

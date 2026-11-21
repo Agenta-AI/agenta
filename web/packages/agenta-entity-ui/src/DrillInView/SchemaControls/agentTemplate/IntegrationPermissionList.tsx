@@ -75,8 +75,6 @@ const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
 /** What one row's control shows, where the saved default is not the whole answer. */
 export interface PermissionRowValue {
     value: GatewayPermission
-    /** What the TRIGGER says, where the menu's name for that value is not the whole truth. */
-    triggerTitle?: string
 }
 
 /** One entry in the default-permission menu, before the drawer adds the glyph and the count. */
@@ -165,9 +163,8 @@ export interface PermissionDrawerSource {
     /**
      * What one row's control shows.
      *
-     * An MCP tool with no entry of its own carries no value at all: the row reads `inherit` and its
-     * trigger says what the run resolves that to, so a bare permission never appears without its
-     * provenance. Absent, a row shows the saved value, which is the Composio rule.
+     * An MCP tool with no entry of its own carries no value at all: the row reads `inherit`, which
+     * the menu names "Follow agent policy". Absent, a row shows the saved value, which is the Composio rule.
      */
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     /** Above the controls: the login-expired banner (D4). */
@@ -250,7 +247,6 @@ const ToolRow = memo(function ToolRow({
     disabled,
     options,
     lockedReason,
-    triggerTitle,
     readOnly,
     valuesAsText,
     staleLabel,
@@ -263,7 +259,6 @@ const ToolRow = memo(function ToolRow({
     disabled?: boolean
     options: PermissionPolicyOption[]
     lockedReason?: string | null
-    triggerTitle?: string
     readOnly?: boolean
     valuesAsText?: boolean
     staleLabel: string
@@ -323,9 +318,7 @@ const ToolRow = memo(function ToolRow({
                 </div>
                 {readOnly ? null : valuesAsText ? (
                     <span className="shrink-0 text-sm text-colorTextSecondary">
-                        {triggerTitle ??
-                            options.find((option) => option.value === permission)?.title ??
-                            permission}
+                        {options.find((option) => option.value === permission)?.title ?? permission}
                     </span>
                 ) : (
                     <PermissionPolicySelect
@@ -335,7 +328,6 @@ const ToolRow = memo(function ToolRow({
                         disabled={disabled || Boolean(lockedReason)}
                         size="sm"
                         canvas="chip"
-                        triggerTitle={triggerTitle}
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
                         // A compact 28px chip (radius 6, canvas F02 f6), so a long list reads as
                         // rows, not a column of fields. On a phone a full-width 44px field on its
@@ -469,7 +461,6 @@ function ToolGroup({
                                 disabled={disabled}
                                 options={options}
                                 lockedReason={lockedTool?.(tool.key)}
-                                triggerTitle={shownValue?.triggerTitle}
                                 readOnly={readOnly}
                                 valuesAsText={valuesAsText}
                                 staleLabel={staleLabel}
