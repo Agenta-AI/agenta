@@ -319,6 +319,9 @@ vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: calls.steerRespond}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
+// No child session waits here; the child cards have their own test.
+vi.mock("@/features/chat/useChildApprovals", () => ({useChildApprovals: () => []}))
+vi.mock("@/features/chat/ChildSessionApproval", () => ({ChildSessionApproval: () => null}))
 // The builder follow reads `@agenta/playground/state`; it has its own test.
 vi.mock("@/features/builder/useBuilderCommitChecks", () => ({
     useBuilderCommitChecks: () => undefined,
