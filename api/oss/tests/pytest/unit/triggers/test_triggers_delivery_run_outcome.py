@@ -73,6 +73,8 @@ def _service(*, deliveries, executions=None, with_executions=True):
         ("completed", "success"),
         ("failed", "failed"),
         ("stopped", "failed"),
+        # A Stop that lands as the run ends settles the execution as not_running.
+        ("not_running", "failed"),
         ("lost", "failed"),
     ],
 )

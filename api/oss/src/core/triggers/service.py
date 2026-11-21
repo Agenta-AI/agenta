@@ -344,11 +344,13 @@ def _resumed_meta(meta):
 
 
 # How a settled detached run reads on its delivery. "continued" is not here on purpose: the
-# run went on in a continuation, so the delivery is not finished yet.
+# run went on in a continuation, so the delivery is not finished yet. "not_running" is a Stop
+# that reached the runner after the run was gone; it reads like "stopped".
 _RUN_OUTCOME_STATUS: Dict[str, str] = {
     "completed": "success",
     "failed": "failed",
     "stopped": "failed",
+    "not_running": "failed",
     "lost": "failed",
 }
 
