@@ -3,6 +3,20 @@ title: "A new sign-in screen and cleaner annotations"
 slug: v0-128-14-sign-in-and-annotations
 date: 2026-11-18
 tags: [v0.128.14]
+improvements:
+  - area: Tracing
+    text: "Spans now carry turn ids, and a new index makes session queries faster"
+  - area: Agents
+    text: "The sandbox image now includes a newer pypdf"
+fixes:
+  - area: Tracing
+    text: "Span ingest keeps working when many live session streams are open"
+  - area: SDK
+    text: "Baggage that a caller sends now reaches the trace again"
+  - area: Agents
+    text: "Commands now stop cleanly at their time limit, including when you press Stop"
+  - area: Security
+    text: "Updated Next.js, vite, dnspython, filelock and litellm to current versions"
 description: "A redesigned sign-in screen with a preview of templates, clearer sign-in errors, and annotations that no longer disturb your sessions."
 ---
 
@@ -20,7 +34,7 @@ The sign-in screen now shows a live preview next to the form. It lists automatio
 
 Sign-in errors are also clearer.
 
-- A wrong password now says **Invalid email or password**. It used to say that Agenta could not be reached.
+- When Agenta rejects your password, the form now says **Invalid email or password**. Before, it could say that Agenta could not be reached.
 - If you lose your connection while you submit a code, you stay on the code step. You can try again without starting over.
 
 ## Annotations and sessions
