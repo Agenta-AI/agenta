@@ -264,6 +264,8 @@ export type InteractionRow = {
   token?: string;
   kind?: string;
   status?: string;
+  /** When the gate was raised. The rows come back in no set order. */
+  created_at?: string;
   data?: {
     request?: { tool?: string; args?: unknown };
     resolution?: InteractionResolutionShape;
@@ -366,6 +368,21 @@ export function decisionMapOf(
 }
 
 /**
+ * The rows in the order their gates were raised. Two identical calls share one FIFO key, and a
+ * cold replay raises their gates again in the original order, so each answer must queue in that
+ * order too or the replay hands one call the other's verdict. The query returns rows in no set
+ * order. A row without a time keeps its place after the timed ones.
+ */
+function inRaisedOrder(rows: readonly InteractionRow[]): InteractionRow[] {
+  const raisedAt = (row: InteractionRow): number => {
+    const time =
+      typeof row?.created_at === "string" ? Date.parse(row.created_at) : NaN;
+    return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+  };
+  return [...rows].sort((a, b) => raisedAt(a) - raisedAt(b));
+}
+
+/**
  * The answered rows this session holds, as decision-map entries.
  *
  * Session scope is a security boundary, not a convenience: a row from ANOTHER session is another
@@ -381,7 +398,7 @@ export function decisionsFromInteractionRows(
   rows: readonly InteractionRow[],
 ): SeededDecision[] {
   const seeded: SeededDecision[] = [];
-  for (const row of rows) {
+  for (const row of inRaisedOrder(rows)) {
     if (row?.kind !== "user_approval" || row?.status !== "responded") continue;
     const token = row.token;
     if (!token) continue;

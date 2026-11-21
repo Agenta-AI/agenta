@@ -58,6 +58,7 @@ export {ConnectionDock, type ConnectionDockProps} from "./ConnectionDock"
 export {ElicitationDock, type ElicitationDockProps} from "./ElicitationDock"
 export {ConnectionFocusProvider, type ConnectionFocusProviderProps} from "./ConnectionFocusProvider"
 export {default as QueuedMessagesDock, type QueuedMessagesDockProps} from "./QueuedMessagesDock"
+export {ChildUpdateNotice} from "./ChildUpdateNotice"
 export {
     default as ChatMarkdown,
     CHAT_MARKDOWN_STRUCTURAL_CLASS,

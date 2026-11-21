@@ -1,5 +1,6 @@
-import type {RefObject} from "react"
+import type {ReactNode, RefObject} from "react"
 
+import type {ChildUpdate} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import type {TurnViewModel} from "@agenta/chat/model"
 
@@ -19,6 +20,7 @@ export const TranscriptTurns = ({
     pending,
     onClientToolOutput,
     onRewind,
+    renderChildSession,
 }: {
     turns: TurnViewModel[]
     /** The element these turns scroll in; scrolling it up is what renders older turns. */
@@ -32,6 +34,8 @@ export const TranscriptTurns = ({
     pending: boolean
     onClientToolOutput?: ClientToolOutputHandler
     onRewind?: (turn: TurnViewModel) => void
+    /** Names and links the child session of a child update row. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
     const start = useTranscriptWindow(turns.length, scrollerRef, sessionId)
     return (
@@ -48,6 +52,7 @@ export const TranscriptTurns = ({
                     resuming={resuming}
                     runId={runIdFor(turns, start + offset)}
                     runStartedAt={runStartedAtFor(turns, start + offset)}
+                    renderChildSession={renderChildSession}
                 />
             ))}
             {pending ? (

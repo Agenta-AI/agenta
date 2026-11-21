@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.access.types import AccessDenied
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
     SessionCommandKind,
@@ -61,6 +62,7 @@ class _Commands:
             data=command.data,
             state=command.state,
             idempotency_key=command.idempotency_key,
+            run_envelope=command.run_envelope,
             created_at=datetime.now(timezone.utc),
         )
         return self.command
@@ -1782,11 +1784,17 @@ async def test_delivery_passes_the_session_turn_id_to_respond_many(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_an_in_band_answer_links_a_continuation_that_the_caller_runs():
+async def test_an_in_band_answer_links_a_continuation_that_the_caller_runs(
+    monkeypatch,
+):
     """An in-band answer (the agent service records it before its own run) continues
     the paused execution as an answer in the app does: the source settles `continued`
     and a continuation with the source as parent is stored. The server does not deliver
     it, because the caller's request runs it."""
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service",
+        lambda: _Access(allowed=True),
+    )
     project_id = uuid4()
     interaction_id = uuid4()
     interactions = _Interactions(
@@ -1836,3 +1844,227 @@ async def test_an_in_band_answer_links_a_continuation_that_the_caller_runs():
     assert executions.continuation.parent_execution_id == "source-1"
     assert executions.continuation.source_interaction_id == interaction_id
     assert executions.continuation.state == SessionExecutionState.pending_delivery
+
+
+def _approval_row(project_id, interaction_id, token, status, resolution=None):
+    return SessionInteraction(
+        run_envelope=make_envelope(),
+        id=interaction_id,
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="source-1",
+        token=token,
+        kind=SessionInteractionKind.user_approval,
+        status=status,
+        data=(
+            SessionInteractionData(resolution=resolution)
+            if resolution is not None
+            else None
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_replayed_consumed_answer_does_not_block_a_pending_answer(
+    monkeypatch,
+):
+    """A client resends every answer of the paused message. An answer that a run
+    already consumed (`resolved`) is a replay, and the fresh answer in the same batch
+    still commits and continues the turn."""
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service",
+        lambda: _Access(allowed=True),
+    )
+    project_id = uuid4()
+    first_id = uuid4()
+    second_id = uuid4()
+    denied = {"approved": False, "tool_call_id": "call-1"}
+    approved = {"approved": True, "tool_call_id": "call-2"}
+    interactions = _Interactions(
+        _approval_row(
+            project_id,
+            first_id,
+            "approval-1",
+            SessionInteractionStatus.resolved,
+            resolution=denied,
+        )
+    )
+    interactions.interactions.append(
+        _approval_row(
+            project_id, second_id, "approval-2", SessionInteractionStatus.pending
+        )
+    )
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(first_id, denied), (second_id, approved)],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert interactions.interactions[1].status == SessionInteractionStatus.responded
+    assert admission.command is not None
+    assert admission.command.data["interaction_ids"] == [str(second_id)]
+    assert executions.source.terminal_outcome == "continued"
+
+    # A different answer for the consumed row is still a conflict.
+    with pytest.raises(Exception) as error:
+        await service.respond_interactions(
+            project_id=project_id,
+            user_id=uuid4(),
+            interaction_answers=[(first_id, approved)],
+            expected_execution_id="source-1",
+            idempotency_key="other",
+            approved_by=any_approval(),
+        )
+    assert getattr(error.value, "code", None) == "execution_terminal"
+
+
+@pytest.mark.asyncio
+async def test_a_batch_of_consumed_answers_continues_nothing():
+    project_id = uuid4()
+    interaction_id = uuid4()
+    answer = {"approved": True, "tool_call_id": "call-1"}
+    interactions = _Interactions(
+        _approval_row(
+            project_id,
+            interaction_id,
+            "approval-1",
+            SessionInteractionStatus.resolved,
+            resolution=answer,
+        )
+    )
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    commands = _Commands()
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction_id, answer)],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert admission.command is None
+    assert commands.command is None
+    assert executions.source.terminal_outcome is None
+
+
+class _Access:
+    def __init__(self, *, allowed):
+        self.allowed = allowed
+        self.checked = []
+
+    async def require(self, *, envelope, action):
+        self.checked.append(envelope)
+        if not self.allowed:
+            raise AccessDenied(decision=SimpleNamespace(reason="no_role"))
+
+
+def _caller_service(project_id, interaction_id):
+    interactions = _Interactions(
+        _approval_row(
+            project_id, interaction_id, "approval-1", SessionInteractionStatus.pending
+        )
+    )
+    commands = _Commands()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+    return service, commands, executions
+
+
+@pytest.mark.asyncio
+async def test_a_caller_continuation_is_refused_when_the_run_lost_access(monkeypatch):
+    """The caller runs the continuation itself, so the paused run's access is rechecked
+    as delivery rechecks it. A refused continuation reaches the caller settled."""
+    project_id = uuid4()
+    interaction_id = uuid4()
+    service, commands, executions = _caller_service(project_id, interaction_id)
+    access = _Access(allowed=False)
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service", lambda: access
+    )
+    monkeypatch.setattr(
+        service, "_mirror_refused_turn_end", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.access_denied_error",
+        lambda **_kwargs: SimpleNamespace(
+            code="access_denied", model_dump=lambda **_k: {"code": "access_denied"}
+        ),
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction_id, {"approved": True})],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert len(access.checked) == 1
+    assert admission.command is not None
+    assert admission.command.state == SessionCommandState.obsolete
+    assert commands.command.state == SessionCommandState.obsolete
+    assert admission.execution_state == SessionExecutionState.terminal
+
+
+@pytest.mark.asyncio
+async def test_a_caller_continuation_with_access_stays_pending(monkeypatch):
+    project_id = uuid4()
+    interaction_id = uuid4()
+    service, commands, _executions = _caller_service(project_id, interaction_id)
+    access = _Access(allowed=True)
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service", lambda: access
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction_id, {"approved": True})],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert len(access.checked) == 1
+    assert admission.command.state == SessionCommandState.pending

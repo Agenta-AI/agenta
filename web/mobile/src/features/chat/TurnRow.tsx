@@ -1,6 +1,8 @@
-import {memo, useCallback, useContext, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {
+    type ChildUpdate,
+    getMessageChildUpdate,
     getMessageTraceId,
     getMessageUsage,
     isMessageRunErrorTransport,
@@ -12,6 +14,7 @@ import {
     ActivityTimeline,
     AttachmentStrip,
     type AttachmentStripFile,
+    ChildUpdateNotice,
     CollapsibleMessageBody,
     McpServerNoticeCard,
     TurnFooter,
@@ -86,6 +89,7 @@ const TurnRowInner = ({
     resuming = false,
     runId,
     runStartedAt,
+    renderChildSession,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -106,6 +110,8 @@ const TurnRowInner = ({
     runId?: string
     /** When the server saved the user message that started this run: the clock counts from it. */
     runStartedAt?: number
+    /** Names and links the child session of a child update row. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
     const t = useT(chatMobileTurnCatalog, builderPageCatalog)
     const builderChat = useIsBuilderChat()
@@ -434,6 +440,17 @@ const TurnRowInner = ({
     )
 
     if (turn.hidden) return null
+
+    // A turn a child update started: a notice, not the person's message. Only the server part on
+    // the stored record makes it one; its text is for the model and never shows here.
+    const childUpdate = turn.isUser ? getMessageChildUpdate(turn.message) : null
+    if (childUpdate) {
+        return (
+            <div className={`${mobileTurnRowClass} justify-start`} {...rowMarkers}>
+                <ChildUpdateNotice update={childUpdate} renderChildSession={renderChildSession} />
+            </div>
+        )
+    }
 
     return (
         <div

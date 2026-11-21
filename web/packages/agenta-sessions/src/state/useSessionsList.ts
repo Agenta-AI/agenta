@@ -15,6 +15,7 @@ import {
     selectedSessionListPolicy,
     sessionGroupRows,
     shouldLoadMoreForHiddenRows,
+    childSessionsFilter,
     type SessionListRequestPolicy,
 } from "./sessionListPolicy"
 import {
@@ -71,6 +72,11 @@ export interface UseSessionsListArgs {
     defaultPolicy: SessionListRequestPolicy
     automationPolicy: SessionListRequestPolicy
     /**
+     * Hide child sessions (origin `calling_session`) unless the "show child sessions" switch is
+     * on. Only the Sessions page has that switch, so only it opts in; other lists are unchanged.
+     */
+    hideChildSessions?: boolean
+    /**
      * Route-supplied agent scope (`/apps/[app_id]/sessions`). Overrides the agent filter rather
      * than writing to it, so the project page's filter is never left holding a value the user
      * did not choose.
@@ -102,6 +108,7 @@ export const useSessionsList = ({
     activityFloor,
     defaultPolicy,
     automationPolicy,
+    hideChildSessions = false,
 }: UseSessionsListArgs) => {
     const t = useT(sessionsStatusCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -113,9 +120,17 @@ export const useSessionsList = ({
     const includeArchived = useAtomValue(filters.showArchived)
     const archivedOnly = useAtomValue(filters.archivedOnly)
     const showTriggered = useAtomValue(filters.showTriggered)
+    const showChildSessions = useAtomValue(filters.showChildSessions)
     const projectFiltersActive = useAtomValue(filters.active)
     const scopedFiltersActive = useAtomValue(filters.activeExceptAgent)
-    const filtersActive = scopedAgentId ? scopedFiltersActive : projectFiltersActive
+    const childSessions = childSessionsFilter({
+        policy: selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy),
+        hideChildSessions,
+        showChildSessions,
+        automationMode: showTriggered,
+    })
+    const filtersActive =
+        (scopedAgentId ? scopedFiltersActive : projectFiltersActive) || childSessions.active
     const resetFilters = useSetAtom(filters.reset)
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
 
@@ -129,7 +144,7 @@ export const useSessionsList = ({
         [pendingBySession],
     )
 
-    const policy = selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy)
+    const policy = childSessions.policy
     const shared = {
         originPolicy: policy.origin,
         expansions: policy.expansions,
@@ -267,12 +282,14 @@ export const useSessionFilters = () => {
     const includeArchived = useAtomValue(filters.showArchived)
     const archivedOnly = useAtomValue(filters.archivedOnly)
     const mode = useAtomValue(filters.showTriggered)
+    const showChildSessions = useAtomValue(filters.showChildSessions)
     const setSearch = useSetAtom(filters.search)
     const setAgentId = useSetAtom(filters.agent)
     const setStatus = useSetAtom(filters.status)
     const setIncludeArchived = useSetAtom(filters.showArchived)
     const setArchivedOnly = useSetAtom(filters.archivedOnly)
     const setMode = useSetAtom(filters.showTriggered)
+    const setShowChildSessions = useSetAtom(filters.showChildSessions)
     const reset = useSetAtom(filters.reset)
     return {
         search,
@@ -282,12 +299,15 @@ export const useSessionFilters = () => {
         archivedOnly,
         /** True = the automations mode: the list shows trigger-started sessions INSTEAD. */
         mode,
+        /** True = the list also shows sessions that another session created. */
+        showChildSessions,
         setSearch,
         setAgentId,
         setStatus,
         setIncludeArchived,
         setArchivedOnly,
         setMode,
+        setShowChildSessions,
         reset,
     }
 }
