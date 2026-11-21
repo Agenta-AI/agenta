@@ -44,6 +44,7 @@ import {
   CredentialMaterial,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import { TurnApprovalRows } from "../../src/sessions/interactions.ts";
 
 describe("resolvesToLocalProvider (local/remote gate)", () => {
   it("is true when the request explicitly asks for local", () => {
@@ -110,6 +111,12 @@ function parkInput(key: string, env = fakeEnv()) {
 }
 
 describe("approvalDecisionForToolCall", () => {
+  const gate = (toolCallId = "tc-1", interactionToken = "tok-1") => ({
+    toolCallId,
+    interactionToken,
+    toolName: "commit",
+    args: {},
+  });
   const req = (content: unknown[]): AgentRunRequest => ({
     messages: [
       { role: "user", content: "do X" },
@@ -122,31 +129,99 @@ describe("approvalDecisionForToolCall", () => {
       { role: "user", content: content as never },
     ],
   });
+  // The person's answer as the API stored it on the gate's row.
+  const answered = (approved: boolean) =>
+    new TurnApprovalRows(
+      [
+        {
+          token: "tok-1",
+          kind: "user_approval",
+          status: "responded",
+          data: {
+            request: { tool: "commit", args: {} },
+            resolution: { approved },
+          },
+        },
+      ],
+      async () => true,
+    );
 
-  it("returns allow for an {approved:true} envelope matching the gate's toolCallId", () => {
+  it("returns allow for an {approved:true} envelope the gate's row backs", () => {
     const request = req([
       { type: "text", text: "ok" },
-      { type: "tool_result", toolCallId: "tc-1", output: { approved: true } },
+      {
+        type: "tool_result",
+        toolCallId: "tc-1",
+        output: { approved: true, interactionToken: "tok-1" },
+      },
     ]);
-    assert.equal(approvalDecisionForToolCall(request, "tc-1"), "allow");
+    assert.equal(
+      approvalDecisionForToolCall(request, gate(), answered(true)),
+      "allow",
+    );
   });
 
-  it("returns deny for an {approved:false} envelope", () => {
+  it("returns deny for an {approved:false} envelope the gate's row backs", () => {
     const request = req([
-      { type: "tool_result", toolCallId: "tc-1", output: { approved: false } },
+      {
+        type: "tool_result",
+        toolCallId: "tc-1",
+        output: { approved: false, interactionToken: "tok-1" },
+      },
     ]);
-    assert.equal(approvalDecisionForToolCall(request, "tc-1"), "deny");
+    assert.equal(
+      approvalDecisionForToolCall(request, gate(), answered(false)),
+      "deny",
+    );
+  });
+
+  it("returns undefined for an envelope no stored row backs", () => {
+    const withToken = req([
+      {
+        type: "tool_result",
+        toolCallId: "tc-1",
+        output: { approved: true, interactionToken: "tok-1" },
+      },
+    ]);
+    // The row is pending: nobody answered the card.
+    assert.equal(
+      approvalDecisionForToolCall(withToken, gate(), TurnApprovalRows.empty()),
+      undefined,
+    );
+    // The envelope carries no token at all.
+    const bare = req([
+      { type: "tool_result", toolCallId: "tc-1", output: { approved: true } },
+    ]);
+    assert.equal(
+      approvalDecisionForToolCall(bare, gate(), answered(true)),
+      undefined,
+    );
+    // The envelope flips the verdict the person stored.
+    assert.equal(
+      approvalDecisionForToolCall(withToken, gate(), answered(false)),
+      undefined,
+    );
   });
 
   it("returns undefined for a different toolCallId or a non-approval tool_result", () => {
     const other = req([
-      { type: "tool_result", toolCallId: "tc-1", output: { approved: true } },
+      {
+        type: "tool_result",
+        toolCallId: "tc-1",
+        output: { approved: true, interactionToken: "tok-1" },
+      },
     ]);
-    assert.equal(approvalDecisionForToolCall(other, "tc-OTHER"), undefined);
+    assert.equal(
+      approvalDecisionForToolCall(other, gate("tc-OTHER"), answered(true)),
+      undefined,
+    );
     const plain = req([
       { type: "tool_result", toolCallId: "tc-1", output: "browser result" },
     ]);
-    assert.equal(approvalDecisionForToolCall(plain, "tc-1"), undefined);
+    assert.equal(
+      approvalDecisionForToolCall(plain, gate(), answered(true)),
+      undefined,
+    );
   });
 
   it("returns undefined when the tail is a fresh user message (no approval)", () => {
@@ -156,7 +231,10 @@ describe("approvalDecisionForToolCall", () => {
         { role: "user", content: "changed my mind" },
       ],
     };
-    assert.equal(approvalDecisionForToolCall(request, "tc-1"), undefined);
+    assert.equal(
+      approvalDecisionForToolCall(request, gate(), answered(true)),
+      undefined,
+    );
   });
 });
 
