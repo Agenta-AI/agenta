@@ -50,7 +50,6 @@ from oss.src.core.sessions.streams.types import (
 from oss.src.dbs.postgres.sharing.dbes import SessionTraceTombstoneDBE
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope, Visibility
-from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -91,7 +90,7 @@ from oss.src.dbs.postgres.triggers.dbes import (
     TriggerSubscriptionDBE,
 )
 from oss.src.dbs.postgres.triggers.upsert_utils import (
-    build_trigger_delivery_conflict,
+    build_trigger_delivery_claim,
     build_trigger_delivery_values,
 )
 
@@ -285,10 +284,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             "status": claim_status.model_dump(mode="json", exclude_none=True),
             "data": {"session_id": session_id},
         }
-        # Normalize/filter columns to the real table and reuse the shared conflict
-        # target builder so all call sites stay in parity.
+        # Normalize/filter columns to the real table; the claim itself comes from the
+        # shared builder, so all claims keep one conflict target and one retry rule.
         delivery_values = build_trigger_delivery_values(delivery_values)
-        index_elements, index_where = build_trigger_delivery_conflict(by_schedule)
         parent_dbe = TriggerScheduleDBE if by_schedule else TriggerSubscriptionDBE
         active_flags = (
             {"is_active": True}
@@ -306,41 +304,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             .with_for_update()
             .cte("live_trigger_configuration")
         )
-        delivery_columns = list(delivery_values)
-        delivery_insert = insert(TriggerDeliveryDBE).from_select(
-            delivery_columns,
-            select(
-                *(
-                    literal(
-                        delivery_values[column],
-                        type_=TriggerDeliveryDBE.__table__.c[column].type,
-                    )
-                    for column in delivery_columns
-                )
-            ).select_from(live_parent),
-        )
         claimed_delivery = (
-            delivery_insert.on_conflict_do_update(
-                index_elements=index_elements,
-                index_where=index_where,
-                # Retry re-claim (P1-8): a delivery stuck in the one retryable
-                # terminal state (500 — the runner was unreachable, not a
-                # permanent rejection) can be re-claimed by a fresh attempt.
-                # Any other existing row (still claimed, or a terminal
-                # non-retryable status) fails this WHERE and the row is left
-                # untouched — the same outcome DO NOTHING gave for every case
-                # except this one. `dedup_seen` gates on the identical status
-                # check so a retry actually reaches this claim instead of
-                # short-circuiting before it.
-                where=TriggerDeliveryDBE.status["code"].astext
-                == TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
-                set_={
-                    "id": delivery_insert.excluded.id,
-                    "created_by_id": delivery_insert.excluded.created_by_id,
-                    "status": delivery_insert.excluded.status,
-                    "data": delivery_insert.excluded.data,
-                    "updated_at": datetime.now(timezone.utc),
-                },
+            build_trigger_delivery_claim(
+                delivery_values, by_schedule=by_schedule, live_parent=live_parent
             )
             .returning(TriggerDeliveryDBE.id)
             .cte("claimed_trigger_delivery")
@@ -425,16 +391,19 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         *,
         project_id: UUID,
         session_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionStream]:
         """Like `get_by_session_id`, but also returns a soft-archived row — the
         confirmation read for `archive`/`unarchive` (S7/F2, WP5)."""
-        async with self.engine.session() as session:
-            stmt = select(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
-            )
-            result = await session.execute(stmt)
-            dbe = result.scalar_one_or_none()
+        stmt = select(SessionStreamDBE).where(
+            SessionStreamDBE.project_id == project_id,
+            SessionStreamDBE.session_id == session_id,
+        )
+        if transaction is not None:
+            dbe = (await transaction.execute(stmt)).scalar_one_or_none()
+        else:
+            async with self.engine.session() as session:
+                dbe = (await session.execute(stmt)).scalar_one_or_none()
         if dbe is None:
             return None
         return map_stream_dbe_to_dto(stream_dbe=dbe)
