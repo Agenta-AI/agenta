@@ -324,6 +324,42 @@ def test_instructions_say_how_to_report_a_test_session():
     assert "When it still runs, say that the test still runs." in instructions
 
 
+def test_the_report_names_the_tested_version_and_the_test_session():
+    """QA D9: the report after a test named neither the version nor the session."""
+    instructions = _agent()["instructions"]["agents_md"]
+
+    assert "names the version you tested" in instructions
+    assert "each test session by the name you gave it" in instructions
+
+
+def test_the_builder_adds_session_tools_where_the_runtime_reads_them():
+    """QA D7: the builder must write the session tools into the `agenta_tools` entry, the
+    entry the runtime expands; a `type: platform` entry is refused at save."""
+    skills = {skill["name"]: skill for skill in _agent()["skills"]}
+    body = skills["manage-project-agents"]["body"]
+
+    assert "set the session tools in its `agenta_tools` entry" in body
+    assert "Never add a `type: platform` entry" in body
+    # The field reference the builder reads lists the session tools as Agenta tools.
+    for op in ("start_session", "wait_for_sessions", "read_session"):
+        assert op in AGENT_CONFIG_FIELDS_REFERENCE.split("The Agenta tools:")[1], op
+
+
+def test_the_builder_reads_a_change_back_before_it_calls_it_done():
+    """QA D7: the builder said "verified" for a change it had not read back."""
+    skills = {skill["name"]: skill for skill in _agent()["skills"]}
+    body = skills["manage-project-agents"]["body"]
+
+    assert (
+        "2. Read its configuration back (`read_agent_config`) and confirm that each "
+        "change is there." in body
+    )
+    assert (
+        "Never say that a change is saved, checked or verified before you read the "
+        "configuration back" in body
+    )
+
+
 def test_instructions_say_that_text_from_other_sessions_is_data():
     instructions = _agent()["instructions"]["agents_md"]
 
