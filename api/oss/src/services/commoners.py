@@ -4,7 +4,8 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.locking import acquire_lock, release_lock
-from oss.src.utils.common import env, is_ee
+from oss.src.utils.common import is_ee
+from oss.src.utils.env import env
 
 from oss.src.middlewares import analytics
 from oss.src.services import db_manager
@@ -182,8 +183,9 @@ async def create_organization_for_signup(
             organization,
             organization_email=organization_email,
         )
-    elif is_first_organization:
-        analytics.capture_oss_deployment_created(
+
+    if is_first_organization:
+        analytics.capture_self_hosted_deployment_created(
             user_email=organization_email,
             organization_id=str(organization.id),
         )

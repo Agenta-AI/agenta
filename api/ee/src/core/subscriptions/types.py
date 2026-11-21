@@ -34,7 +34,7 @@ def get_default_plan() -> str:
     Reads from `AGENTA_ACCESS_DEFAULT_PLAN` (canonical) or the legacy
     `AGENTA_DEFAULT_PLAN` env var (both surfaced via
     `env.agenta.access.default_plan`). If neither is set, defaults to:
-    - self_hosted_enterprise outside cloud
+    - self_hosted_community outside cloud (reads use the instance plan instead)
     - cloud_v0_hobby on cloud (`is_cloud()`)
     """
     raw = env.agenta.access.default_plan
@@ -44,4 +44,4 @@ def get_default_plan() -> str:
     if is_cloud():
         return DefaultPlan.CLOUD_V0_HOBBY.value
 
-    return DefaultPlan.SELF_HOSTED_ENTERPRISE.value
+    return DefaultPlan.SELF_HOSTED_COMMUNITY.value

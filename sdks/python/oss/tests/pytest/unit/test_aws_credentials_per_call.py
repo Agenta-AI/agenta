@@ -365,7 +365,12 @@ async def test_llm_v0_returns_the_credential_error(monkeypatch, agent_loop_litel
 
 @pytest.mark.parametrize(
     "license_, flag, dropped",
-    [("ee", None, True), ("oss", None, False), ("ee", "true", False)],
+    [
+        ("ee", "false", True),
+        ("oss", None, False),
+        ("ee", None, False),
+        ("ee", "true", False),
+    ],
 )
 def test_host_aws_credentials_leave_the_environment_only_in_hosted_mode(
     monkeypatch, license_, flag, dropped

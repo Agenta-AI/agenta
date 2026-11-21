@@ -63,15 +63,15 @@ def env_provider_keys_enabled() -> bool:
     """Whether the provider keys in this process's environment may serve a request.
 
     `OPENAI_API_KEY` and its siblings belong to whoever runs the process. A self-hosted
-    deployment may share them with its own users, which is what the OSS edition has always
-    done. The EE edition also runs hosted, where every project would then run on the
-    operator's keys, so it starts with them off. The flag overrides the default either way.
+    deployment shares them with its own users, so they are on by default. A hosted
+    deployment, where every project would then run on the operator's keys, sets the flag
+    to false.
     """
     value = (getenv(_ENV_PROVIDER_KEYS_FLAG) or "").strip().lower()
     if value:
         return value in TRUTHY
 
-    return (getenv("AGENTA_LICENSE") or "").strip().lower() != "ee"
+    return True
 
 
 # Provider credentials a deployment can set (`llm.*` in Helm, the compose env files, or by hand

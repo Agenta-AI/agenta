@@ -49,7 +49,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.types import RecipeUserId, AccountInfo
 
 
-from oss.src.utils.common import is_ee
+from oss.src.utils.common import is_cloud, is_ee
 from oss.src.utils.env import env
 from oss.src.utils.validators import is_input_email
 from oss.src.core.auth.helper import (
@@ -208,7 +208,7 @@ async def _create_account(email: str, uid: str) -> bool:
                 event="user_signed_up_v1",
                 properties={
                     "source": "auth",
-                    "is_ee": is_ee(),
+                    "is_cloud": is_cloud(),
                     "cloud_region": _get_signup_cloud_region(_get_signup_cloud_url()),
                     "cloud_url": _get_signup_cloud_url(),
                     "$set": {"email": auth_info.email},

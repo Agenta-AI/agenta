@@ -10,7 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
-_LICENSE = "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+# `AGENTA_LICENSE` only names the default database prefix, so an install keeps the
+# databases it was created with. It does not choose the code path or the plan.
+_DB_PREFIX_DEFAULT = (
+    "agenta_ee" if os.getenv("AGENTA_LICENSE") == "ee" else "agenta_oss"
+)
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 
 
@@ -861,8 +865,6 @@ class AuthCodeRateLimitConfig(BaseModel):
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
-    license: str = _LICENSE
-
     web_url: str = os.getenv("AGENTA_WEB_URL") or "http://localhost"
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
     api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
@@ -922,11 +924,13 @@ class AlembicConfig(BaseModel):
         or "true"
     ).lower() in _TRUTHY
 
-    cfg_path_core: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or (
-        f"/app/{_LICENSE}/databases/postgres/migrations/core/alembic.ini"
+    cfg_path_core: str = (
+        os.getenv("ALEMBIC_CFG_PATH_CORE")
+        or "/app/ee/databases/postgres/migrations/core/alembic.ini"
     )
-    cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or (
-        f"/app/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
+    cfg_path_tracing: str = (
+        os.getenv("ALEMBIC_CFG_PATH_TRACING")
+        or "/app/ee/databases/postgres/migrations/tracing/alembic.ini"
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -1590,7 +1594,7 @@ class IdentityConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# license — the self-hosted license key. `AGENTA_LICENSE` names the edition, not this.
+# license — the self-hosted license key. `AGENTA_LICENSE` is only the database prefix.
 # ---------------------------------------------------------------------------
 
 
@@ -1910,8 +1914,8 @@ class PostgresConfig(BaseModel):
 
     # Database-name resolution: explicit POSTGRES_URI_* wins; else compose from
     # POSTGRES_DB_PREFIX (e.g. an EE stack adopting an OSS database sets
-    # POSTGRES_DB_PREFIX=agenta_oss); else today's default, agenta_{license}.
-    db_prefix: str = os.getenv("POSTGRES_DB_PREFIX") or f"agenta_{_LICENSE}"
+    # POSTGRES_DB_PREFIX=agenta_oss); else agenta_{AGENTA_LICENSE}, agenta_oss when unset.
+    db_prefix: str = os.getenv("POSTGRES_DB_PREFIX") or _DB_PREFIX_DEFAULT
 
     user: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
@@ -1998,10 +2002,7 @@ class PostgresConfig(BaseModel):
             b"|".join(
                 (
                     (os.getenv("AGENTA_AUTH_KEY") or "replace-me").encode(),
-                    (
-                        os.getenv("POSTGRES_URI_CORE")
-                        or f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
-                    ).encode(),
+                    uri_core.encode(),
                 )
             ),
             digest_size=8,

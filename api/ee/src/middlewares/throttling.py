@@ -291,6 +291,10 @@ async def _plan_checks(
 
     entitlements = get_plan_entitlements(plan) if plan else None
 
+    # The free plan is a cloud plan. A self-hosted plan without throttles has none.
+    if not is_cloud() and not (entitlements or {}).get(Tracker.THROTTLES):
+        return [], Algorithm.GCRA
+
     # Unknown plan or plan without enforced throttles: fall back to the free
     # plan's throttle bucket so misconfigured / orphaned subscriptions still
     # get rate-limited instead of bypassing throttling entirely.

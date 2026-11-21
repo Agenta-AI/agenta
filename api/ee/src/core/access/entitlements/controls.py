@@ -319,7 +319,9 @@ def _resolve_default_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
     """Resolve the default plan slug for overlay targeting.
 
     Mirrors `subscriptions.types.get_default_plan()` without importing it (to
-    avoid pulling subscription/Stripe code into the access-controls layer).
+    avoid pulling subscription/Stripe code into the access-controls layer), except
+    outside cloud: there the overlay targets `self_hosted_enterprise`, the plan of a
+    paid key, and not `self_hosted_community`, the plan stored for new subscriptions.
     """
     raw = env.agenta.access.default_plan
     if raw:
