@@ -58,6 +58,9 @@ export const useChildApprovals = ({
         // the cards do not unmount (and lose a typed note) when another session starts waiting.
         placeholderData: keepPreviousData,
         staleTime: 30_000,
+        // /m turns focus refetch off app-wide; on, as the session list has it, so a read that
+        // failed every retry comes back when the person returns to the tab.
+        refetchOnWindowFocus: true,
     })
     const noneWaiting = waitingIds.length === 0
     return useMemo(
