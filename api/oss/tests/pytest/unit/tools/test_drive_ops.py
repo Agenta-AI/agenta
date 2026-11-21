@@ -1,7 +1,7 @@
 """The builder's drive reads, `list_agent_drives` and `read_drive` (design D26).
 
 The access decisions are real: an `AccessService` and a `SharingService` over in-memory
-rows decide the run authority's `VIEW_MOUNTS` on each drive and the D11 rule. The agent
+rows decide the run authority's `VIEW_MOUNTS` on each drive. The agent
 lookup and the drive files are stubbed, because other cells cover them.
 """
 
@@ -21,7 +21,7 @@ from oss.src.core.access.service import AccessService
 from oss.src.core.mounts.dtos import MountFile, MountFileContent, MountFileList
 from oss.src.core.mounts.service import validate_file_path
 from oss.src.core.mounts.types import MountFileNotFound, MountFileTooLarge
-from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 from oss.src.core.tools import platform_handlers
 from oss.src.core.tools.platform_handlers import (
     LIST_AGENT_DRIVES_CALL_REF,
@@ -270,11 +270,11 @@ async def test_a_private_drive_of_another_owner_is_not_listed(world):
     assert _slugs(content) == ["email-drafts", "ben-notes"]
 
 
-async def test_a_private_drive_is_left_out_of_a_project_visible_session(world):
-    """Ana's project-visible session: Ben reads it, so Ana's private drive stays out."""
+async def test_ana_lists_her_private_drive_from_a_project_visible_session(world):
+    """Ana's project-visible session: the list shows what Ana may see."""
     content = await _list(world, world.access_of(world.ana, session=world.ana_shared))
 
-    assert _slugs(content) == ["email-drafts"]
+    assert _slugs(content) == ["email-drafts", "ana-notes"]
 
 
 async def test_a_configuration_without_drives_lists_none(world):
@@ -484,24 +484,12 @@ async def test_a_drive_of_another_project_or_a_bad_id_answers_drive_not_found(wo
     assert content["code"] == "drive_not_found"
 
 
-async def test_a_private_drive_read_into_a_project_visible_session_would_widen(world):
+async def test_ana_reads_her_private_drive_into_a_project_visible_session(world):
     world.mounts.files[(world.ana_drive.id, "notes.md")] = "Ana's text"
     access = world.access_of(world.ana, session=world.ana_shared)
 
     content = await _read(world, access, world.ana_drive, "notes.md")
-    assert content["code"] == "sharing_would_widen"
-    assert content["next_step"] == (
-        "Ask the person to open the drive in a session that only they can see."
-    )
-    assert "text" not in content
-
-    own = await _read(
-        world,
-        world.access_of(world.ana, session=world.ana_private),
-        world.ana_drive,
-        "notes.md",
-    )
-    assert own["text"] == "Ana's text"
+    assert content["text"] == "Ana's text"
 
 
 # -- who may call -----------------------------------------------------------------------
@@ -527,43 +515,3 @@ async def test_a_call_without_a_run_credential_is_refused(world, call_ref, kind)
 
     content = await _call(world, call_ref, access, arguments)
     assert content["code"] == RUN_CREDENTIAL_REQUIRED
-
-
-# -- design D11 for a drive: the shared `is_wider` ------------------------------------
-
-
-def _wider(world, session, drive):
-    caller = SimpleNamespace(run_session_id=session.session_id)
-    return platform_handlers._drive_would_widen(
-        caller, project_id=world.project_id, mount_id=drive.id
-    )
-
-
-async def test_a_grant_or_a_channel_makes_a_private_session_wider(world):
-    session = world.world.add_session(policy=world.private(world.ana))
-
-    assert not await _wider(world, session, world.ana_drive)
-    world.world.add_grant(state=session, user_id=world.ben, role=SessionRole.VIEWER)
-    assert await _wider(world, session, world.ana_drive)
-
-    # A channel shows the text outside the project: wider than every private drive.
-    session = world.world.add_session(policy=world.private(world.ana), is_channel=True)
-    assert await _wider(world, session, world.ana_drive)
-    # A project drive is never narrower than a session of its project (`is_wider`), so
-    # a channel session reads it, as `read_session` reads a project-visible session.
-    assert not await _wider(world, session, world.shared_drive)
-
-
-@pytest.mark.parametrize("drive", ["shared_drive", "ana_drive"])
-async def test_a_session_with_no_row_is_wider_than_any_drive(world, drive):
-    session = SimpleNamespace(session_id=str(uuid4()))
-    assert await _wider(world, session, getattr(world, drive))
-
-
-async def test_a_drive_with_no_row_is_wider_than_any_session(world):
-    drive = SimpleNamespace(id=uuid4())
-    assert await _wider(world, world.ana_private, drive)
-
-
-async def test_a_project_drive_is_not_narrower_than_a_project_visible_session(world):
-    assert not await _wider(world, world.ana_shared, world.shared_drive)
