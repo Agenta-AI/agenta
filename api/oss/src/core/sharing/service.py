@@ -715,13 +715,27 @@ class SharingService(ResourcePolicyInterface):
             is_channel=bool(access.is_channel or access.channel_binding_id),
         )
 
+    async def session_policy(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[AccessPolicy]:
+        """The session's current policy, through the same cache as every access
+        decision. None when no row exists."""
+
+        access = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        return None if access is None else access.policy
+
     async def session_grants(
         self,
         *,
         project_id: UUID,
         session_id: str,
     ) -> List[SessionGrant]:
-        """The session's grants, through the same cache as `session_readers`."""
+        """The session's grants, through the same cache as `session_policy`."""
 
         access = await self._session_access(
             project_id=project_id, session_id=session_id

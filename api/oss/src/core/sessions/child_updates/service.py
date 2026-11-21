@@ -4,9 +4,7 @@ For each turn-ended signal it checks whether the execution is a turn that a call
 session sent into a child session, and if so it writes one `child_update` input into the
 calling session: the marked text of D33 plus the structured part `child_update`. When the
 turn ended, it also writes the result file of D8 into the calling session's working
-folder. When fewer people can read the child session than the calling session (D11),
-the update gives the status only and no result file is written. It works inside the
-signal's `project_id` only, and it takes the update's authority from server-owned rows
+folder. It works inside the signal's `project_id` only, and it takes the update's authority from server-owned rows
 only.
 """
 
@@ -31,7 +29,6 @@ from oss.src.core.sessions.child_updates.form import (
     child_update_message,
     cut_text,
     one_line,
-    withheld_child_update_message,
 )
 from oss.src.core.sessions.child_updates.result_file import (
     last_message,
@@ -51,7 +48,6 @@ from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.turns.dtos import SessionTurn
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.sharing.admission import QUEUED_DISPATCH_BOUNDARY
-from oss.src.core.sharing.widening import SharedItemReaders, is_wider
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.dbs.redis.sessions.contract import validate_session_id
 from oss.src.utils.logging import get_module_logger
@@ -121,8 +117,6 @@ AgentLookup = Callable[[UUID, UUID], Awaitable[Optional[ChildTurnAgent]]]
 # command.
 CancelCause = Callable[..., Awaitable[Optional[str]]]
 ScheduleDelete = Callable[[UUID, UUID], Awaitable[bool]]
-# `SharingService.session_readers`: who can read a session now. None when it has no row.
-SessionReaders = Callable[[UUID, str], Awaitable[Optional[SharedItemReaders]]]
 
 
 class SessionChildUpdatesService:
@@ -135,7 +129,6 @@ class SessionChildUpdatesService:
         turns_dao: SessionTurnsDAOInterface,
         records_service: RecordsService,
         starts_service: _StartsService,
-        session_readers: SessionReaders,
         result_files: Optional[_ResultFileWriter] = None,
         agent_lookup: Optional[AgentLookup] = None,
         delete_still_running_schedule: Optional[ScheduleDelete] = None,
@@ -148,7 +141,6 @@ class SessionChildUpdatesService:
         self._turns = turns_dao
         self._records = records_service
         self._starts = starts_service
-        self._session_readers = session_readers
         self._result_files = result_files
         self._agent_lookup = agent_lookup
         self._delete_still_running_schedule = delete_still_running_schedule
@@ -265,39 +257,22 @@ class SessionChildUpdatesService:
                 ),
             )
 
-        # 4. The child's text must not reach people who cannot read the child (D11): a
-        # child that fewer people can read than the calling session, for example one
-        # made private after the start, gives its status only, and no result file.
-        if await self._child_is_narrower(
-            project_id=project_id,
-            calling_session_id=calling_session_id,
-            child_session_id=session_id,
-        ):
-            log.info(
-                "[CHILD-UPDATES] fewer people can read the child than the calling "
-                "session; the update gives the status only",
-                **context,
+        message = child_update_message(
+            await self._full_result(
+                project_id=project_id,
+                user_id=user_id,
+                calling_session_id=calling_session_id,
+                session_id=session_id,
+                chain=chain,
+                status=status,
+                execution=execution,
+                execution_records=execution_records,
+                child_input=child_input,
+                context=context,
             )
-            message = withheld_child_update_message(
-                session_id=session_id, turn_id=chain[0], status=status
-            )
-        else:
-            message = child_update_message(
-                await self._full_result(
-                    project_id=project_id,
-                    user_id=user_id,
-                    calling_session_id=calling_session_id,
-                    session_id=session_id,
-                    chain=chain,
-                    status=status,
-                    execution=execution,
-                    execution_records=execution_records,
-                    child_input=child_input,
-                    context=context,
-                )
-            )
+        )
 
-        # 5. The update, through the one helper, with the calling turn's authority.
+        # 4. The update, through the one helper, with the calling turn's authority.
         update_envelope = RunEnvelope(
             authority=envelope.authority,
             sender=envelope.sender,
@@ -323,15 +298,6 @@ class SessionChildUpdatesService:
             run_envelope=update_envelope,
             dispatch_boundary=QUEUED_DISPATCH_BOUNDARY,
         )
-
-    async def _child_is_narrower(
-        self, *, project_id: UUID, calling_session_id: str, child_session_id: str
-    ) -> bool:
-        """`is_wider(calling session, child)`, from the current policies. A session with
-        no row has unknown readers, so it counts as wider."""
-        calling = await self._session_readers(project_id, calling_session_id)
-        child = await self._session_readers(project_id, child_session_id)
-        return calling is None or child is None or is_wider(calling, child)
 
     async def _full_result(
         self,

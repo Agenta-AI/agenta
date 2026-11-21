@@ -91,7 +91,6 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.sharing.service import get_sharing_service
-from oss.src.core.sharing.widening import is_wider
 from oss.src.core.tools.dtos import AgentError, PlatformHandlerResult
 from oss.src.core.tools.exceptions import PlatformToolHandlerRefused
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
@@ -106,8 +105,6 @@ from oss.src.core.tools.platform_handlers import (
     _not_found,
     _parse_arguments,
     _refuse_unknown_arguments,
-    _calling_readers,
-    _source_would_widen,
     caller_may,
 )
 from oss.src.core.triggers.dtos import TriggerScheduleSessionInput
@@ -251,25 +248,6 @@ async def check_session_depth(
         current = await services.streams_dao.get_by_session_id(
             project_id=project_id, session_id=current.calling_session.id
         )
-
-
-def _sharing_would_widen_wait(session_id: str) -> _Refusal:
-    return _refusal(
-        "sharing_would_widen",
-        f"Fewer people can read the child session '{session_id}' than this one, so "
-        "its text would reach people who cannot read it.",
-        "Leave that session out of `wait_for_sessions`.",
-        details={"session_id": session_id},
-    )
-
-
-def _sharing_would_widen_send() -> _Refusal:
-    return _refusal(
-        "sharing_would_widen",
-        "More people can read that child session than this one, so this text would "
-        "reach people who cannot read it.",
-        "Start a new child session; it copies the current sharing of this session.",
-    )
 
 
 def _calling_turn_not_found(message: str) -> _Refusal:
@@ -1329,7 +1307,7 @@ async def start_session(
             services=services, project_id=project_id, target=target
         )
         sharing = get_sharing_service()
-        readers = await sharing.session_readers(
+        policy = await sharing.session_policy(
             project_id=project_id, session_id=caller.run_session_id
         )
         # A private child copies the people named on its calling session, so as many
@@ -1339,12 +1317,11 @@ async def start_session(
             await sharing.session_grants(
                 project_id=project_id, session_id=caller.run_session_id
             )
-            if readers is not None and readers.policy.visibility == Visibility.PRIVATE
+            if policy is not None and policy.visibility == Visibility.PRIVATE
             else []
         )
-        if readers is None or not _authority_may_run(readers.policy, grants, caller):
+        if policy is None or not _authority_may_run(policy, grants, caller):
             raise _access_denied_private()
-        policy = readers.policy
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1552,19 +1529,6 @@ async def send_session_message(
                     (agent.slug if agent else None) or session_id,
                     await _allowed_agents(services, caller, project_id, entries),
                 )
-        sharing = get_sharing_service()
-        calling_readers = await sharing.session_readers(
-            project_id=project_id, session_id=caller.run_session_id
-        )
-        child_readers = await sharing.session_readers(
-            project_id=project_id, session_id=session_id
-        )
-        if (
-            calling_readers is None
-            or child_readers is None
-            or is_wider(child_readers, calling_readers)
-        ):
-            raise _sharing_would_widen_send()
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1703,13 +1667,6 @@ async def wait_for_sessions(
                 session_id=session_id,
                 action=Permission.VIEW_SESSIONS,
             )
-        # A child that fewer people can read than this session now (its owner made it
-        # private): its text would reach people who cannot read it.
-        narrower = await _narrower_child(
-            caller=caller, project_id=project_id, session_ids=session_ids
-        )
-        if narrower is not None:
-            raise _sharing_would_widen_wait(narrower)
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1753,10 +1710,10 @@ async def _status_block(
     session_id: str,
 ) -> str:
     """The current block of a child that gave no update in this wait. The access and
-    the sharing are read again without the request memo, which still holds the
-    policies from before the wait. A child that is gone, that this authority may no
-    longer see, or that fewer people can read now gives no details. A failed read
-    gives no details either, so the updates this wait already removed still return."""
+    access is read again without the request memo, which still holds the policies
+    from before the wait. A child that is gone, or that this authority may no longer
+    see, gives no details. A failed read gives no details either, so the updates this
+    wait already removed still return."""
     no_details = _running_block(
         session_id=session_id, agent=None, revision=None, turn_id=None
     )
@@ -1764,11 +1721,6 @@ async def _status_block(
         with fresh_request_memo():
             if not await caller_may(
                 caller, session_id=session_id, action=Permission.VIEW_SESSIONS
-            ) or (
-                await _narrower_child(
-                    caller=caller, project_id=project_id, session_ids=[session_id]
-                )
-                is not None
             ):
                 return no_details
             stream = await services.streams_dao.get_by_session_id(
@@ -1785,20 +1737,6 @@ async def _status_block(
             exc_info=True,
         )
         return no_details
-
-
-async def _narrower_child(
-    *, caller: SessionCaller, project_id: UUID, session_ids: Sequence[str]
-) -> Optional[str]:
-    """The first named child that fewer people can read than the calling session, as
-    the session reads decide it (`is_wider(calling session, child)`)."""
-    calling = await _calling_readers(caller=caller, project_id=project_id)
-    for session_id in session_ids:
-        if await _source_would_widen(
-            project_id=project_id, calling=calling, session_id=session_id
-        ):
-            return session_id
-    return None
 
 
 # -- cancel_session -----------------------------------------------------------------------

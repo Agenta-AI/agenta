@@ -27,9 +27,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.sessions.child_updates.dtos import ChildTurnResult, ChildTurnStatus
 from oss.src.core.sessions.child_updates.form import (
-    WITHHELD_NOTE,
     child_update_message,
-    withheld_child_update_message,
 )
 from oss.src.core.sessions.child_updates.service import still_running_schedule_id
 from oss.src.core.sessions.inputs.dtos import PendingInputKind, PendingInputState
@@ -38,7 +36,6 @@ from oss.src.core.sessions.types import SessionCallingSession, SessionReference
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY
 from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
 from oss.src.core.sharing.types import AdmissionDenied
-from oss.src.core.sharing.widening import is_wider
 from oss.src.core.tools import session_writes as writes
 from oss.src.core.tools.platform_handlers import (
     CANCEL_SESSION_CALL_REF,
@@ -481,21 +478,13 @@ class _World:
             turn_id=str(uuid4()),
         )
 
-    def update_row(
-        self, caller, child_session_id, *, status, turn_id=None, withheld=False
-    ):
-        message = (
-            withheld_child_update_message(
-                session_id=child_session_id, turn_id=turn_id, status=status
-            )
-            if withheld
-            else child_update_message(
-                ChildTurnResult(
-                    session_id=child_session_id,
-                    status=status,
-                    turn_id=turn_id,
-                    last_message=f"{status.value} answer",
-                )
+    def update_row(self, caller, child_session_id, *, status, turn_id=None):
+        message = child_update_message(
+            ChildTurnResult(
+                session_id=child_session_id,
+                status=status,
+                turn_id=turn_id,
+                last_message=f"{status.value} answer",
             )
         )
         row = SimpleNamespace(
@@ -1166,40 +1155,6 @@ async def test_the_short_wait_returns_the_child_update_and_removes_it(world):
 
 
 @pytest.mark.asyncio
-async def test_the_short_wait_returns_an_update_that_gives_the_status_only(world):
-    research = world.workflows.add("market-research")
-    caller, _ = world.calling(agent=research)
-    rows = {}
-
-    def arrive(now):
-        if now >= 3 and "done" not in rows:
-            child_id = next(
-                iter(s for s in world.store.streams if s.startswith("child-"))
-            )
-            rows["done"] = world.update_row(
-                caller,
-                child_id,
-                status=ChildTurnStatus.completed,
-                turn_id=str(UUID(int=len(child_id))),
-                withheld=True,
-            )
-
-    world.clock.on_sleep = arrive
-    result = await _call(
-        world,
-        "start_session",
-        caller,
-        agent="market-research",
-        text="Go",
-        tool_call_id="t",
-    )
-
-    assert _lines(result.content)["status"] == "completed"
-    assert WITHHELD_NOTE in result.content
-    assert rows["done"].state == PendingInputState.removed
-
-
-@pytest.mark.asyncio
 async def test_the_short_wait_times_out_with_a_running_block(world):
     research = world.workflows.add("market-research")
     caller, _ = world.calling(agent=research)
@@ -1387,7 +1342,7 @@ async def test_a_send_to_a_hidden_session_reads_as_unknown(world):
 
 
 @pytest.mark.asyncio
-async def test_a_send_to_a_wider_child_is_refused(world):
+async def test_a_send_to_a_child_that_more_people_can_read_goes_through(world):
     email = world.workflows.add("email-writer")
     # The calling session was made private after it started a project-visible child.
     caller, _ = world.calling(agent=None)
@@ -1404,10 +1359,8 @@ async def test_a_send_to_a_wider_child_is_refused(world):
         text="Hi",
         tool_call_id="t",
     )
-    error = _error(result)
-    assert error["code"] == "sharing_would_widen"
-    assert error["next_step"].startswith("Start a new child session")
-    assert world.starts.enqueued == []
+    assert result.ok, result.content
+    assert len(world.starts.enqueued) == 1
 
 
 @pytest.mark.asyncio
@@ -1739,16 +1692,6 @@ async def test_a_participant_starts_a_child_that_the_same_people_can_read(world)
     assert await _can_view(world, world.ben, child_id)
     assert await _can_view(world, world.ana, child_id)
     assert not await _can_view(world, cy, child_id)
-    # The same people read both sessions, so the child's updates keep their text.
-    service = world.sharing.service
-    calling = await service.session_readers(
-        project_id=world.project_id, session_id="s-calling"
-    )
-    child = await service.session_readers(
-        project_id=world.project_id, session_id=child_id
-    )
-    assert not is_wider(calling, child)
-    assert not is_wider(child, calling)
 
 
 @pytest.mark.asyncio
@@ -2002,21 +1945,23 @@ async def test_a_retried_send_at_the_queue_cap_is_not_counted_again(world):
 
 
 @pytest.mark.asyncio
-async def test_a_wait_on_a_child_that_fewer_people_can_read_is_refused(world):
+async def test_a_wait_on_a_child_that_fewer_people_can_read_returns_it(world):
     research = world.workflows.add("market-research")
-    # The calling session is project-visible; Ana made the child private.
+    # The calling session is project-visible; Ana made the child private. Ana sent the
+    # turn and may read the child.
     caller, _ = world.calling(
         agent=research,
         policy=AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=world.ana),
     )
     child = world.child(caller, agent=research)
+    world.update_row(
+        caller, child.session_id, status=ChildTurnStatus.completed, turn_id="t-1"
+    )
     result = await _call(
         world, "wait_for_sessions", caller, session_ids=[child.session_id]
     )
-    error = _error(result)
-    assert error["code"] == "sharing_would_widen"
-    assert error["details"] == {"session_id": child.session_id}
-    assert "wait_for_sessions" in error["next_step"]
+    assert result.ok, result.content
+    assert "completed answer" in result.content
 
 
 @pytest.mark.asyncio
