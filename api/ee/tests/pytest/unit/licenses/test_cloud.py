@@ -15,7 +15,7 @@ from ee.src.core.licenses.keys import parse_license_key
 from ee.src.core.licenses.service import LicensesService
 from ee.src.core.licenses.types import InvalidLicenseKey
 
-from .conftest import sign_key
+from .conftest import REGISTRATION, sign_key
 
 
 def _cloud_key(private_key, **fields) -> str:
@@ -58,6 +58,18 @@ def test_a_cloud_key_signed_by_another_key_pair_is_not_cloud(
     self_hosted, signing_key, monkeypatch
 ):
     monkeypatch.setattr(env.license, "key", _cloud_key(Ed25519PrivateKey.generate()))
+
+    assert is_cloud() is False
+
+
+def test_a_cloud_key_signed_by_the_registration_key_is_not_cloud(
+    self_hosted, registration_key, monkeypatch
+):
+    monkeypatch.setattr(
+        env.license,
+        "key",
+        _cloud_key(registration_key, signing_key_id=REGISTRATION),
+    )
 
     assert is_cloud() is False
 

@@ -20,6 +20,8 @@ class LicenseKey(BaseModel):
     """The signed payload of a license key. Unknown fields are ignored."""
 
     key_id: UUID
+    # Which of Agenta's key pairs signed the key (see `SIGNING_KEYS` in `keys.py`).
+    signing_key_id: str
     plan: str
     customer: str
     seats: Optional[int] = None
@@ -73,7 +75,8 @@ class LicenseError(Exception):
 
 
 class InvalidLicenseKey(LicenseError):
-    """Bad format, bad signature, refused `key_id`, unknown plan, or expired."""
+    """Bad format, unknown signing key, bad signature, a plan the signing key may not
+    sign, refused `key_id`, unknown plan, or expired."""
 
     def __init__(self, reason: str):
         super().__init__(reason)
