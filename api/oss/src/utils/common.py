@@ -6,7 +6,6 @@ from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
 
 
-
 class APIRouter(FastAPIRouter):
     """
     Extends the FastAPIRouter class to provide support for alternate paths ending with a forward slash.
