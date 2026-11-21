@@ -41,6 +41,17 @@ const builderAgentRevisionBaseQueryAtom = atomWithQuery<string | null>((get) => 
 })
 
 /**
+ * The builder's workflow id in this project, or null while it loads or when there is no builder.
+ * Lists that show the builder's sessions beside other agents' read this; it does not run the
+ * default-model commit that `builderAgentRevisionIdQueryAtom` runs.
+ */
+export const builderAgentWorkflowIdAtom = atom<string | null>((get) => {
+    const revisionId = get(builderAgentRevisionBaseQueryAtom).data ?? null
+    if (!revisionId) return null
+    return get(workflowQueryAtomFamily(revisionId)).data?.workflow_id ?? null
+})
+
+/**
  * The new-agent default model for a builder that has none, committed once in the background.
  *
  * It never holds up the builder: the model sources (connections, built-in models, subscription

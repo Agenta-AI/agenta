@@ -26,7 +26,7 @@ import {
     TooltipTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {ArrowLineRight, CaretRight, Plus} from "@phosphor-icons/react"
+import {CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
@@ -163,6 +163,9 @@ const linkClickHandler =
             onItemSelect(item.key, event)
             return
         }
+        // A modified click opens the page in another tab; the click work belongs to THIS tab
+        // only, as on a heading's "+".
+        if (isModifiedClick(event)) return
         item.onClick?.(event)
     }
 
@@ -342,7 +345,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     // Enter on the button is its own activation; the heading must not also toggle.
                     onKeyDown={(event) => event.stopPropagation()}
                 >
-                    <ArrowLineRight size={12} />
+                    {item.groupEnter.icon}
                 </button>
             ) : null}
         </div>

@@ -12,7 +12,7 @@ import {userAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {Button, SimpleTooltip, SplitPane} from "@agenta/ui/ui"
 import {ArrowsInSimple, ArrowsOutSimple, Plus, SidebarSimple} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 
@@ -39,6 +39,7 @@ import {
 } from "./builderLayout"
 import {BuilderPageChat} from "./BuilderPageChat"
 import {createBuilderSidebarScope} from "./builderSidebarScope"
+import {builderSidebarHiddenAtom} from "./builderSidebarState"
 import {BUILDER_TAB_ID, BUILDER_TAB_PANEL_ID} from "./BuilderTabButton"
 import {BuilderTabContent} from "./BuilderTabContent"
 import {builderTabKey, type BuilderTab} from "./builderTabs"
@@ -160,16 +161,21 @@ export const BuilderPage = ({
             return value
         })
 
-    const [builderSidebar, setBuilderSidebar] = useState(true)
-    // Another chat, or "Builder" in the main sidebar: the builder sidebar shows again.
-    useEffect(() => setBuilderSidebar(true), [sessionId])
+    const [builderSidebarHidden, setBuilderSidebarHidden] = useAtom(builderSidebarHiddenAtom)
+    // Another chat, or the page opening: the builder sidebar shows again. "Builder" in the main
+    // sidebar shows it too, also when the route stays the same. Reset on leaving as well, so the
+    // next visit does not paint the main sidebar for one frame.
+    useEffect(() => {
+        setBuilderSidebarHidden(false)
+        return () => setBuilderSidebarHidden(false)
+    }, [sessionId, setBuilderSidebarHidden])
     const scope = useMemo(
         () =>
             createBuilderSidebarScope(workspaceId, projectId, () => {
                 openMainSidebar()
-                setBuilderSidebar(false)
+                setBuilderSidebarHidden(true)
             }),
-        [projectId, workspaceId],
+        [projectId, workspaceId, setBuilderSidebarHidden],
     )
 
     // Dialog layer over the page, not the sidebar (B02); `contained` mode is non-modal and blurs.
@@ -216,7 +222,7 @@ export const BuilderPage = ({
                 <NavDrawer
                     workspaceId={workspaceId}
                     projectId={projectId}
-                    scope={builderSidebar ? scope : undefined}
+                    scope={builderSidebarHidden ? undefined : scope}
                 />
                 {routeChatId && routeChatId === sessionId ? (
                     <BuilderChatTitle
@@ -356,7 +362,7 @@ export const BuilderPage = ({
             <AppShell
                 workspaceId={workspaceId}
                 projectId={projectId}
-                scope={builderSidebar ? scope : undefined}
+                scope={builderSidebarHidden ? undefined : scope}
             >
                 <div className="relative h-full min-h-0" data-testid="builder-page">
                     {/* One tree for every layout: a change of layout never remounts the chat. */}
