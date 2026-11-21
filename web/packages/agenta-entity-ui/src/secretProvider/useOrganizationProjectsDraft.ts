@@ -8,10 +8,15 @@ import {
 } from "@agenta/entities/secret"
 import {createT} from "@agenta/i18n"
 import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
+import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useSetAtom} from "jotai"
+import {useSetAtom, useStore} from "jotai"
 
 const t = createT(organizationProjectsCatalog)
+
+// The newest write of each connection. Each write waits for the one before it, also across a
+// closed and reopened view, so a choice made during a save is never lost or overwritten.
+const writeQueues = new Map<string, Promise<boolean>>()
 
 /** The toast an organization save shows: who may use the connection now. */
 export const organizationSavedToast = (name: string, projects: OrganizationSecretProjects) => {
@@ -79,6 +84,7 @@ export const useOrganizationProjectsDraft = ({
     organizationName?: string
 }) => {
     const setProjects = useSetAtom(setOrganizationConnectionProjectsAtom)
+    const store = useStore()
     const saved = useMemo<OrganizationSecretProjects>(
         () => ({
             availability: connection?.availability ?? "all_projects",
@@ -95,9 +101,6 @@ export const useOrganizationProjectsDraft = ({
     const seededFor = useRef<string | null>(null)
     // The last choice sent: a refetch of `saved` can lag behind a write that already landed.
     const written = useRef<OrganizationSecretProjects | null>(null)
-    // Writes run in order and outlive the view, so a choice made during a save is never lost.
-    const writes = useRef<Promise<unknown>>(Promise.resolve())
-    const running = useRef(0)
     useEffect(() => {
         const identity = connection?.id ?? ""
         if (seededFor.current === identity) return
@@ -113,29 +116,39 @@ export const useOrganizationProjectsDraft = ({
             return Promise.resolve(true)
         }
         written.current = projects
-        running.current += 1
         setSaving(true)
-        setError(null)
-        const write = writes.current.then(async () => {
-            try {
-                await setProjects({connectionId: connection.id, projects})
-                message.success(organizationSavedToast(connection.name, projects))
-                return true
-            } catch (failure) {
-                if (written.current === projects) written.current = null
-                setError(
-                    organizationRefusal(failure, organizationName) ||
-                        t("entityUi.organizationProjects.couldNotSave", {name: connection.name}),
-                )
-                return false
-            } finally {
-                running.current -= 1
-                if (running.current === 0) setSaving(false)
-            }
-        })
-        writes.current = write
+        const id = connection.id
+        // The project is read now: the write may run after a switch to another one.
+        const scope = store.get(projectIdAtom) ?? undefined
+        const write: Promise<boolean> = (writeQueues.get(id) ?? Promise.resolve(true)).then(
+            async () => {
+                // A newer choice is queued behind this one, so this one is not sent.
+                if (writeQueues.get(id) !== write) return true
+                setError(null)
+                try {
+                    await setProjects({connectionId: id, projects, projectId: scope})
+                    message.success(organizationSavedToast(connection.name, projects))
+                    return true
+                } catch (failure) {
+                    if (written.current === projects) written.current = null
+                    setError(
+                        organizationRefusal(failure, organizationName) ||
+                            t("entityUi.organizationProjects.couldNotSave", {
+                                name: connection.name,
+                            }),
+                    )
+                    return false
+                } finally {
+                    if (writeQueues.get(id) === write) {
+                        writeQueues.delete(id)
+                        setSaving(false)
+                    }
+                }
+            },
+        )
+        writeQueues.set(id, write)
         return write
-    }, [connection, enabled, organizationName, projects, saved, setProjects])
+    }, [connection, enabled, organizationName, projects, saved, setProjects, store])
 
     /** An existing connection whose projects the admin changed: Save can write them alone. */
     const changed = enabled && !!connection && !sameProjects(written.current ?? saved, projects)

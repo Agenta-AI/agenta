@@ -44,6 +44,13 @@ const Probe = () => {
     return null
 }
 
+const open = async () => {
+    root = createRoot(host)
+    await act(async () => root.render(createElement(Probe)))
+}
+
+const close = () => act(() => root.unmount())
+
 const choose = async (projects: OrganizationSecretProjects) => {
     await act(async () => draft.setProjects(projects))
     let write: Promise<boolean> = Promise.resolve(true)
@@ -54,41 +61,56 @@ const choose = async (projects: OrganizationSecretProjects) => {
     return {write}
 }
 
+/** The next write waits until the returned function is called. */
+const holdNextWrite = () => {
+    let finish: () => void = () => undefined
+    setProjects.mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)))
+    return () => act(async () => finish())
+}
+
+const written = () =>
+    setProjects.mock.calls.map(
+        ([{projects}]) => (projects as OrganizationSecretProjects).projectIds,
+    )
+
 describe("useOrganizationProjectsDraft", () => {
     beforeEach(async () => {
         setProjects.mockReset()
+        setProjects.mockResolvedValue(undefined)
         host = document.createElement("div")
-        root = createRoot(host)
-        await act(async () => root.render(createElement(Probe)))
+        await open()
     })
 
-    afterEach(() => {
-        act(() => root.unmount())
-    })
+    afterEach(() => close())
 
     it("writes a choice made during a save after the view closes", async () => {
-        let finishFirst: () => void = () => undefined
-        setProjects.mockImplementationOnce(
-            () => new Promise<void>((resolve) => (finishFirst = resolve)),
-        )
-        setProjects.mockResolvedValue(undefined)
-
+        const finishFirst = holdNextWrite()
         await choose(only("p2"))
         const {write: second} = await choose(only())
-        expect(setProjects).toHaveBeenCalledTimes(1)
+        expect(written()).toEqual([["p2"]])
 
-        act(() => root.unmount())
-        finishFirst()
+        close()
+        await finishFirst()
         await expect(second).resolves.toBe(true)
-
-        expect(setProjects).toHaveBeenCalledTimes(2)
-        expect(setProjects).toHaveBeenLastCalledWith({connectionId: "org-1", projects: only()})
-        root = createRoot(host)
+        expect(written()).toEqual([["p2"], []])
+        await open()
     })
 
-    it("writes a return to the saved projects made during a save", async () => {
-        setProjects.mockResolvedValue(undefined)
+    it("lets a reopened view's choice win over one queued by the closed view", async () => {
+        const finishFirst = holdNextWrite()
+        await choose(only("p2"))
+        await choose(only())
+        close()
 
+        await open()
+        const {write: third} = await choose(only("p1"))
+        await finishFirst()
+        await third
+        // The closed view's queued choice is replaced by the newer one, never sent after it.
+        expect(written()).toEqual([["p2"], ["p1"]])
+    })
+
+    it("writes a return to the saved projects when the saved value is not refetched yet", async () => {
         await (
             await choose(only("p2"))
         ).write
@@ -96,11 +118,21 @@ describe("useOrganizationProjectsDraft", () => {
         await (
             await choose(only("p1", "p2"))
         ).write
+        expect(written()).toEqual([["p2"], ["p1", "p2"]])
+    })
 
-        expect(setProjects).toHaveBeenCalledTimes(2)
-        expect(setProjects).toHaveBeenLastCalledWith({
-            connectionId: "org-1",
-            projects: only("p1", "p2"),
-        })
+    it("clears the error of a failed save when the save queued behind it lands", async () => {
+        let fail: (error: Error) => void = () => undefined
+        setProjects.mockImplementationOnce(
+            () => new Promise<void>((_resolve, reject) => (fail = reject)),
+        )
+        const {write: first} = await choose(only("p2"))
+        const {write: second} = await choose(only())
+        await act(async () => fail(new Error("offline")))
+        await expect(first).resolves.toBe(false)
+        await expect(second).resolves.toBe(true)
+        await act(async () => undefined)
+        expect(draft.error).toBeNull()
+        expect(written()).toEqual([["p2"], []])
     })
 })
