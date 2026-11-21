@@ -14,6 +14,7 @@
  * an older API, a malformed answer) reads as `ask`, and the card shows as it does without this.
  */
 import type {
+  AgentEvent,
   ResolvedToolSpec,
   RunContext,
   ToolPermission,
@@ -45,6 +46,18 @@ export const APPROVAL_CHOICE_BASIS = "approval_choice";
  * toolName}`. The chat shows the call's card as approved automatically from it.
  */
 export const AUTO_APPROVED_DATA_NAME = "auto-approved";
+
+/** The mark of one call that the person's approval choice allowed. */
+export function autoApprovedEvent(
+  toolCallId: string,
+  toolName: string | undefined,
+): AgentEvent {
+  return {
+    type: "data",
+    name: AUTO_APPROVED_DATA_NAME,
+    data: { toolCallId, toolName },
+  };
+}
 
 /** The card waits at most this long for the answer, then shows. */
 export const GATE_ANSWER_TIMEOUT_MS = 5_000;

@@ -27,7 +27,7 @@ class ApprovalChoiceDBE(Base, ProjectScopeDBA, IdentifierDBA, LifecycleDBA):
 
     artifact_id = Column(UUID(as_uuid=True), nullable=False)
     user_id = Column(UUID(as_uuid=True), nullable=False)
-    tool_key = Column(String, nullable=False)
+    call_ref = Column(String, nullable=False)
 
     __table_args__ = (
         PrimaryKeyConstraint("id", name="pk_approval_choices"),
@@ -47,8 +47,8 @@ class ApprovalChoiceDBE(Base, ProjectScopeDBA, IdentifierDBA, LifecycleDBA):
             "project_id",
             "artifact_id",
             "user_id",
-            "tool_key",
-            name="uq_approval_choices_project_id_artifact_id_user_id_tool_key",
+            "call_ref",
+            name="uq_approval_choices_project_id_artifact_id_user_id_call_ref",
         ),
         Index("ix_approval_choices_user_id", "user_id"),
     )

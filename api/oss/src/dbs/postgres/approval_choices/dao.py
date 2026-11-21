@@ -10,6 +10,7 @@ from oss.src.core.approval_choices.dtos import (
     ApprovalChoiceQuery,
 )
 from oss.src.core.approval_choices.interfaces import ApprovalChoicesDAOInterface
+from oss.src.core.workflows.static_catalog import BUILDER_AGENT_ID
 from oss.src.dbs.postgres.approval_choices.dbes import ApprovalChoiceDBE
 from oss.src.dbs.postgres.approval_choices.mappings import (
     map_approval_choice_dbe_to_dto,
@@ -38,13 +39,13 @@ class ApprovalChoicesDAO(ApprovalChoicesDAOInterface):
             insert(ApprovalChoiceDBE)
             .values(
                 project_id=project_id,
-                artifact_id=choice.workflow_id,
+                artifact_id=BUILDER_AGENT_ID,
                 user_id=user_id,
-                tool_key=choice.tool_key,
+                call_ref=choice.call_ref,
                 created_by_id=user_id,
             )
             .on_conflict_do_nothing(
-                constraint="uq_approval_choices_project_id_artifact_id_user_id_tool_key"
+                constraint="uq_approval_choices_project_id_artifact_id_user_id_call_ref"
             )
         )
         async with self.engine.session() as session:
@@ -53,8 +54,8 @@ class ApprovalChoicesDAO(ApprovalChoicesDAOInterface):
         stored = await self.fetch_by_tool(
             project_id=project_id,
             user_id=user_id,
-            artifact_id=choice.workflow_id,
-            tool_key=choice.tool_key,
+            artifact_id=BUILDER_AGENT_ID,
+            call_ref=choice.call_ref,
         )
         if stored is None:
             raise RuntimeError("The approval choice was not stored.")
@@ -66,10 +67,8 @@ class ApprovalChoicesDAO(ApprovalChoicesDAOInterface):
         stmt = select(ApprovalChoiceDBE).where(
             *self._mine(project_id=project_id, user_id=user_id)
         )
-        if query.workflow_id is not None:
-            stmt = stmt.where(ApprovalChoiceDBE.artifact_id == query.workflow_id)
-        if query.tool_key is not None:
-            stmt = stmt.where(ApprovalChoiceDBE.tool_key == query.tool_key)
+        if query.call_ref is not None:
+            stmt = stmt.where(ApprovalChoiceDBE.call_ref == query.call_ref)
         async with self.engine.session() as session:
             result = await session.execute(stmt.order_by(ApprovalChoiceDBE.id))
             return [map_approval_choice_dbe_to_dto(dbe) for dbe in result.scalars()]
@@ -88,14 +87,14 @@ class ApprovalChoicesDAO(ApprovalChoicesDAOInterface):
             return (result.rowcount or 0) > 0
 
     async def fetch_by_tool(
-        self, *, project_id: UUID, user_id: UUID, artifact_id: UUID, tool_key: str
+        self, *, project_id: UUID, user_id: UUID, artifact_id: UUID, call_ref: str
     ) -> Optional[ApprovalChoice]:
         async with self.engine.session() as session:
             result = await session.execute(
                 select(ApprovalChoiceDBE).where(
                     *self._mine(project_id=project_id, user_id=user_id),
                     ApprovalChoiceDBE.artifact_id == artifact_id,
-                    ApprovalChoiceDBE.tool_key == tool_key,
+                    ApprovalChoiceDBE.call_ref == call_ref,
                 )
             )
             dbe = result.scalars().first()

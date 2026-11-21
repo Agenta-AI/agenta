@@ -6,7 +6,6 @@ import {
     deleteApprovalChoice,
     invalidateApprovalChoices,
 } from "@agenta/entities/approvalChoice"
-import {builderAgentRevisionIdQueryAtom, workflowQueryAtomFamily} from "@agenta/entities/workflow"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue} from "jotai"
@@ -15,21 +14,14 @@ import {atom, useAtomValue} from "jotai"
 const APPROVAL_CHOICE_TOOLS = ["start_session", "create_agent", "edit_agent_config"] as const
 
 /** The call ref a choice is stored under, `tools.agenta.<name>`. */
-const toolKeyOf = (toolName: string): string | null => {
+const callRefOf = (toolName: string): string | null => {
     const name = canonicalClientToolName(toolName)
     return (APPROVAL_CHOICE_TOOLS as readonly string[]).includes(name)
         ? `tools.agenta.${name}`
         : null
 }
 
-/** The builder's artifact id, the agent a choice names. */
-const builderWorkflowIdAtom = atom((get) => {
-    const revisionId = get(builderAgentRevisionIdQueryAtom).data ?? null
-    return revisionId ? (get(workflowQueryAtomFamily(revisionId)).data?.workflow_id ?? null) : null
-})
-
 const noChoicesAtom = atom<{data?: undefined}>({})
-const noWorkflowAtom = atom<string | null>(null)
 
 const run = (write: Promise<unknown>) => {
     // A failed write leaves the choice as it was; the rows read the choices again either way.
@@ -44,15 +36,14 @@ const run = (write: Promise<unknown>) => {
  */
 export const useBuilderApprovalChoices = (enabled: boolean) => {
     const projectId = useAtomValue(projectIdAtom)
-    const workflowId = useAtomValue(enabled ? builderWorkflowIdAtom : noWorkflowAtom)
     const choices = useAtomValue(enabled ? approvalChoicesQueryAtom : noChoicesAtom).data
     return useMemo(() => {
-        const mine = (choices ?? []).filter((choice) => choice.workflow_id === workflowId)
+        const mine = choices ?? []
         const choiceOf = (toolName: string) => {
-            const toolKey = toolKeyOf(toolName)
-            return toolKey ? mine.find((choice) => choice.tool_key === toolKey) : undefined
+            const callRef = callRefOf(toolName)
+            return callRef ? mine.find((choice) => choice.call_ref === callRef) : undefined
         }
-        const ready = Boolean(enabled && projectId && workflowId && choices)
+        const ready = Boolean(enabled && projectId && choices)
         return {
             alwaysApprove: ready
                 ? {
@@ -61,13 +52,12 @@ export const useBuilderApprovalChoices = (enabled: boolean) => {
                       ),
                       choose: (toolNames: string[]) => {
                           for (const toolName of toolNames) {
-                              const toolKey = toolKeyOf(toolName)
-                              if (!toolKey) continue
+                              const callRef = callRefOf(toolName)
+                              if (!callRef) continue
                               run(
                                   createApprovalChoice({
                                       projectId: projectId as string,
-                                      workflowId: workflowId as string,
-                                      toolKey,
+                                      callRef,
                                   }),
                               )
                           }
@@ -85,5 +75,5 @@ export const useBuilderApprovalChoices = (enabled: boolean) => {
                   }
                 : undefined,
         }
-    }, [enabled, choices, projectId, workflowId])
+    }, [enabled, choices, projectId])
 }

@@ -16,15 +16,13 @@ const projectScopedRequest = (projectId: string) => ({queryParams: {project_id: 
 
 export const createApprovalChoice = async ({
     projectId,
-    workflowId,
-    toolKey,
+    callRef,
 }: {
     projectId: string
-    workflowId: string
-    toolKey: string
+    callRef: string
 }): Promise<ApprovalChoice | null> => {
     const response = await getApprovalChoicesClient().createApprovalChoice(
-        {approval_choice: {workflow_id: workflowId, tool_key: toolKey}},
+        {approval_choice: {call_ref: callRef}},
         projectScopedRequest(projectId),
     )
     const data = safeParseWithLogging(

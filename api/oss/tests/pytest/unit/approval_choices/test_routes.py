@@ -12,7 +12,6 @@ from oss.src.apis.fastapi.approval_choices.router import ApprovalChoicesRouter
 from oss.src.core.access.context import reset_request_access, set_request_access
 from oss.src.core.approval_choices.dtos import ApprovalChoice
 from oss.src.core.approval_choices.service import ApprovalChoicesService
-from oss.src.core.workflows.static_catalog import BUILDER_AGENT_ID
 from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 
 
@@ -21,20 +20,18 @@ class _InMemoryDAO:
         self.rows = {}
 
     async def create(self, *, project_id, user_id, choice):
-        key = (project_id, user_id, choice.workflow_id, choice.tool_key)
+        key = (project_id, user_id, choice.call_ref)
         if key not in self.rows:
-            self.rows[key] = ApprovalChoice(
-                id=uuid4(), workflow_id=choice.workflow_id, tool_key=choice.tool_key
-            )
+            self.rows[key] = ApprovalChoice(id=uuid4(), call_ref=choice.call_ref)
         return self.rows[key]
 
     async def query(self, *, project_id, user_id, query):
         return [
             row
-            for (project, user, _, tool_key), row in self.rows.items()
+            for (project, user, call_ref), row in self.rows.items()
             if project == project_id
             and user == user_id
-            and (query.tool_key is None or tool_key == query.tool_key)
+            and (query.call_ref is None or call_ref == query.call_ref)
         ]
 
     async def delete(self, *, project_id, user_id, approval_choice_id):
@@ -95,23 +92,22 @@ def _client(state) -> TestClient:
     return TestClient(app, raise_server_exceptions=False)
 
 
-def _body(tool_key="tools.agenta.start_session", workflow_id=BUILDER_AGENT_ID):
-    return {"approval_choice": {"workflow_id": str(workflow_id), "tool_key": tool_key}}
+def _body(call_ref="tools.agenta.start_session"):
+    return {"approval_choice": {"call_ref": call_ref}}
 
 
 @pytest.mark.parametrize(
-    "tool_key",
+    "call_ref",
     [
         "tools.agenta.start_session",
         "tools.agenta.create_agent",
         "tools.agenta.edit_agent_config",
     ],
 )
-def test_the_person_sets_a_choice_for_a_builder_tool(state, tool_key):
-    response = _client(state).post("/", json=_body(tool_key))
+def test_the_person_sets_a_choice_for_a_builder_tool(state, call_ref):
+    response = _client(state).post("/", json=_body(call_ref))
     assert response.status_code == 200
-    assert response.json()["approval_choice"]["tool_key"] == tool_key
-    assert response.json()["approval_choice"]["workflow_id"] == str(BUILDER_AGENT_ID)
+    assert response.json()["approval_choice"]["call_ref"] == call_ref
 
 
 def test_the_same_choice_twice_is_one_row(state):
@@ -128,10 +124,9 @@ def test_the_same_choice_twice_is_one_row(state):
         _body("tools.agenta.commit_revision"),
         _body("tools.agenta.send_session_message"),
         _body("start_session"),
-        _body(workflow_id=uuid4()),
     ],
 )
-def test_another_tool_or_agent_is_refused(state, body):
+def test_another_tool_is_refused(state, body):
     response = _client(state).post("/", json=body)
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "approval_choice_not_supported"

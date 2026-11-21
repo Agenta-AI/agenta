@@ -33,7 +33,7 @@ def upgrade() -> None:
         sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("artifact_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("tool_key", sa.String(), nullable=False),
+        sa.Column("call_ref", sa.String(), nullable=False),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -62,8 +62,8 @@ def upgrade() -> None:
             "project_id",
             "artifact_id",
             "user_id",
-            "tool_key",
-            name="uq_approval_choices_project_id_artifact_id_user_id_tool_key",
+            "call_ref",
+            name="uq_approval_choices_project_id_artifact_id_user_id_call_ref",
         ),
         if_not_exists=True,
     )

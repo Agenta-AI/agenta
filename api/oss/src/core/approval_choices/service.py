@@ -9,7 +9,6 @@ from oss.src.core.approval_choices.dtos import (
 )
 from oss.src.core.approval_choices.exceptions import ApprovalChoiceNotSupported
 from oss.src.core.approval_choices.interfaces import ApprovalChoicesDAOInterface
-from oss.src.core.workflows.static_catalog import is_builder_agent
 
 
 class ApprovalChoicesService:
@@ -19,10 +18,7 @@ class ApprovalChoicesService:
     async def create(
         self, *, project_id: UUID, user_id: UUID, choice: ApprovalChoiceCreate
     ) -> ApprovalChoice:
-        if (
-            not is_builder_agent(choice.workflow_id)
-            or choice.tool_key not in APPROVAL_CHOICE_CALL_REFS
-        ):
+        if choice.call_ref not in APPROVAL_CHOICE_CALL_REFS:
             raise ApprovalChoiceNotSupported()
         return await self.approval_choices_dao.create(
             project_id=project_id, user_id=user_id, choice=choice

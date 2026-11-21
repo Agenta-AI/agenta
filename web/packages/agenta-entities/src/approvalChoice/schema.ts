@@ -7,8 +7,7 @@ import {z} from "zod"
 
 export const approvalChoiceSchema = z.object({
     id: z.string(),
-    workflow_id: z.string(),
-    tool_key: z.string(),
+    call_ref: z.string(),
     created_at: z.string().nullish(),
 })
 

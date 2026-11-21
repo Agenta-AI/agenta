@@ -29,6 +29,6 @@ class ApprovalChoicesDAOInterface:
         raise NotImplementedError
 
     async def fetch_by_tool(
-        self, *, project_id: UUID, user_id: UUID, artifact_id: UUID, tool_key: str
+        self, *, project_id: UUID, user_id: UUID, artifact_id: UUID, call_ref: str
     ) -> Optional[ApprovalChoice]:
         raise NotImplementedError

@@ -10,7 +10,8 @@ import {
 } from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
 import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
-import { AUTO_APPROVED_DATA_NAME } from "../../tools/gate-answer.ts";
+import { autoApprovedEvent } from "../../tools/gate-answer.ts";
+import type { AttachPermissionResponderInput } from "./acp-interactions.ts";
 import type {
   ExecutableToolGate,
   ExecutableToolGateRequest,
@@ -50,6 +51,12 @@ export interface BuildExecutableToolGateInput {
   executionGrants?: ApprovedExecutionGrants;
   /** The server preview of an agent write; it never fails the gate (see the fetcher). */
   resolveChangePreview?: AgentChangePreviewFetcher;
+  /**
+   * Resolves the call's `@ag.file` markers and mints their records, the step a card takes. A
+   * server `allow` with no harness gate before takes it here, or the commit check refuses the
+   * call with `authorization_missing`. A failure refuses the call.
+   */
+  resolveApprovedContent?: AttachPermissionResponderInput["onResolveApprovedContent"];
   log?: (message: string) => void;
 }
 
@@ -63,6 +70,7 @@ export function buildExecutableToolGate({
   permissionPlan,
   executionGrants,
   resolveChangePreview,
+  resolveApprovedContent,
   log = () => {},
 }: BuildExecutableToolGateInput): ExecutableToolGate {
   return {
@@ -98,19 +106,29 @@ export function buildExecutableToolGate({
         );
       }
       if (verdict.kind === "allow") {
-        // The person's approval choice allowed it here, with no harness gate before: mark the
-        // call as the harness gate does, under the id the chat's card attaches to.
-        if (verdict.autoApproved) {
-          run.emitEvent({
-            type: "data",
-            name: AUTO_APPROVED_DATA_NAME,
-            data: {
-              toolCallId:
-                toolCallIndex?.lookup(request.spec.name, request.input) ??
-                request.toolCallId,
-              toolName: request.spec.name,
-            },
+        if (!verdict.byGateAnswer) return { kind: "allow" };
+        // The server allowed it here, with no harness gate before: take the step a card takes,
+        // under the id the chat's card attaches to, and mark a call the person's approval
+        // choice allowed, as the harness gate does.
+        const toolCallId =
+          toolCallIndex?.lookup(request.spec.name, request.input) ??
+          request.toolCallId;
+        if (resolveApprovedContent) {
+          const outcome = await resolveApprovedContent({
+            toolName: request.spec.name,
+            toolCallId,
+            args: request.input,
           });
+          if (!outcome.ok) {
+            log(
+              `[executable-tool] approved-content resolution failed tool=${request.spec.name}: ` +
+                `${outcome.reason}; deny (fail closed)`,
+            );
+            return { kind: "deny", reason: outcome.reason };
+          }
+        }
+        if (verdict.autoApproved) {
+          run.emitEvent(autoApprovedEvent(toolCallId, request.spec.name));
         }
         return { kind: "allow" };
       }

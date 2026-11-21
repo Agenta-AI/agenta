@@ -25,21 +25,20 @@ APPROVAL_CHOICE_CALL_REFS = frozenset(
 
 class ApprovalChoice(BaseModel):
     id: UUID
-    workflow_id: UUID
-    tool_key: str
+    call_ref: str
     created_at: Optional[datetime] = None
 
 
 class ApprovalChoiceCreate(BaseModel):
+    """A choice names no agent: the builder is the only agent that accepts one."""
+
     model_config = ConfigDict(extra="forbid")
 
-    workflow_id: UUID
     # The tool's call ref, for example `tools.agenta.start_session`.
-    tool_key: str
+    call_ref: str
 
 
 class ApprovalChoiceQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    workflow_id: Optional[UUID] = None
-    tool_key: Optional[str] = None
+    call_ref: Optional[str] = None

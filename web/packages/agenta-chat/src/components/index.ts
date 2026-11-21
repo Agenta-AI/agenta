@@ -75,7 +75,6 @@ export {
 export {
     ChangeResultRow,
     ChangeResultRows,
-    AutoApprovedCallRow,
     type ChangeResultActions,
     type ChangeResultRowProps,
     type ChangeVersionRef,

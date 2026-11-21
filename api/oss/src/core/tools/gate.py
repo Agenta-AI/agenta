@@ -137,14 +137,14 @@ class GateReader:
         )
 
     async def has_approval_choice(
-        self, *, project_id: UUID, user_id: UUID, tool_key: str
+        self, *, project_id: UUID, user_id: UUID, call_ref: str
     ) -> bool:
         """Whether the person chose "always approve" for this builder tool."""
         choice = await self._approval_choices.fetch_by_tool(
             project_id=project_id,
             user_id=user_id,
             artifact_id=BUILDER_AGENT_ID,
-            tool_key=tool_key,
+            call_ref=call_ref,
         )
         return choice is not None
 
@@ -409,5 +409,5 @@ async def _approval_choice_applies(
     ):
         return False
     return await reader.has_approval_choice(
-        project_id=project_id, user_id=person, tool_key=request.call_ref
+        project_id=project_id, user_id=person, call_ref=request.call_ref
     )

@@ -20,7 +20,7 @@ import {
   type PiGateEnvelope,
 } from "./pi-gate-envelope.ts";
 import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
-import { AUTO_APPROVED_DATA_NAME } from "../../tools/gate-answer.ts";
+import { autoApprovedEvent } from "../../tools/gate-answer.ts";
 import { redactContextBoundArgs } from "../../tools/relay.ts";
 import { bareToolName } from "./client-tools.ts";
 import {
@@ -473,11 +473,7 @@ export function attachPermissionResponder({
       }
     }
     if (verdict.autoApproved && toolCallId) {
-      run.emitEvent({
-        type: "data",
-        name: AUTO_APPROVED_DATA_NAME,
-        data: { toolCallId, toolName: gate.toolName },
-      });
+      run.emitEvent(autoApprovedEvent(toolCallId, gate.toolName));
     }
     return true;
   };

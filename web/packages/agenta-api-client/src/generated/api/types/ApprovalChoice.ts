@@ -2,7 +2,6 @@
 
 export interface ApprovalChoice {
     id: string;
-    workflow_id: string;
-    tool_key: string;
+    call_ref: string;
     created_at?: (string | null) | undefined;
 }

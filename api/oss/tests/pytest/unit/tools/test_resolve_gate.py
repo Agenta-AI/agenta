@@ -133,8 +133,8 @@ class _ApprovalChoices:
     def __init__(self):
         self.rows = set()
 
-    async def fetch_by_tool(self, *, project_id, user_id, artifact_id, tool_key):
-        key = (project_id, user_id, artifact_id, tool_key)
+    async def fetch_by_tool(self, *, project_id, user_id, artifact_id, call_ref):
+        key = (project_id, user_id, artifact_id, call_ref)
         return SimpleNamespace(id=uuid4()) if key in self.rows else None
 
 
@@ -610,8 +610,8 @@ def builder(world):
     return world
 
 
-def _choose(world, tool_key, user_id=USER_ID):
-    world.choices.rows.add((PROJECT_ID, user_id, BUILDER_AGENT_ID, tool_key))
+def _choose(world, call_ref, user_id=USER_ID):
+    world.choices.rows.add((PROJECT_ID, user_id, BUILDER_AGENT_ID, call_ref))
 
 
 async def _builder_answer(world, call_ref, **overrides):

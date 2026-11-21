@@ -6,8 +6,7 @@ import type * as AgentaApi from "../../../../index.js";
  * @example
  *     {
  *         approval_choice: {
- *             workflow_id: "workflow_id",
- *             tool_key: "tool_key"
+ *             call_ref: "call_ref"
  *         }
  *     }
  */

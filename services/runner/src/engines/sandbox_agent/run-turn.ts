@@ -1500,6 +1500,7 @@ export async function runTurn(
             permissionPlan,
             executionGrants,
             resolveChangePreview: changePreview,
+            resolveApprovedContent: approvedContent.onResolveApprovedContent,
             log: logger,
           })
         : undefined;

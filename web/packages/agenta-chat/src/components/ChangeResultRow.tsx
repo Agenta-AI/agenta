@@ -287,7 +287,7 @@ const ResultRowFrame = ({
  * with no card: what the card would have asked (the tool and its readable arguments, such as the
  * agent and the first message), marked "Approved automatically".
  */
-export const AutoApprovedCallRow = ({
+const AutoApprovedCallRow = ({
     call,
     onTurnOff,
     touch = false,
