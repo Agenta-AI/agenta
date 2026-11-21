@@ -32,12 +32,10 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
-
-if TYPE_CHECKING:
-    from oss.src.core.access.service import AccessService
+from oss.src.core.access.service import AccessService, get_access_service
 from oss.src.core.access.dtos import RunApproval, RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import (
@@ -832,12 +830,7 @@ class SessionCommandsService:
                     SessionExecutionState.terminal,
                 ):
                     for interaction_id, answer in interaction_answers:
-                        interaction = by_id[interaction_id]
-                        if (
-                            interaction.status != SessionInteractionStatus.responded
-                            or interaction.data is None
-                            or interaction.data.resolution != answer
-                        ):
+                        if not _holds_answer(by_id[interaction_id], answer):
                             raise InteractionResponseConflict(
                                 code="execution_terminal",
                                 message="The source execution can no longer be continued.",
@@ -854,17 +847,23 @@ class SessionCommandsService:
                 transitioned: List[SessionInteraction] = []
                 for interaction_id, answer in interaction_answers:
                     interaction = by_id[interaction_id]
-                    if interaction.status == SessionInteractionStatus.responded:
-                        if (
-                            interaction.data is None
-                            or interaction.data.resolution != answer
-                        ):
+                    # A row that already holds an answer is a replay: a client resends
+                    # every answer of the paused message. A `resolved` row was consumed
+                    # by a run already and has nothing left to continue.
+                    if interaction.status in (
+                        SessionInteractionStatus.responded,
+                        SessionInteractionStatus.resolved,
+                    ):
+                        if not _holds_answer(interaction, answer):
                             raise InteractionResponseConflict(
                                 code="execution_terminal",
                                 message="The interaction was already answered differently.",
-                                details={"interaction_status": "responded"},
+                                details={
+                                    "interaction_status": interaction.status.value
+                                },
                             )
-                        transitioned.append(interaction)
+                        if interaction.status == SessionInteractionStatus.responded:
+                            transitioned.append(interaction)
                         continue
                     if interaction.status != SessionInteractionStatus.pending:
                         raise InteractionResponseConflict(
@@ -892,6 +891,13 @@ class SessionCommandsService:
                     by_id[interaction_id] = updated
                     transitioned.append(updated)
 
+                answered = [
+                    interaction
+                    for interaction in by_id.values()
+                    if interaction.status == SessionInteractionStatus.responded
+                    and interaction.data is not None
+                    and interaction.data.resolution is not None
+                ]
                 if any(
                     interaction.status == SessionInteractionStatus.pending
                     for interaction in by_id.values()
@@ -904,14 +910,17 @@ class SessionCommandsService:
                         interactions=transitioned,
                         waiting_for_interactions=True,
                     )
+                elif not answered:
+                    # A run consumed every answer of the turn already: nothing is left
+                    # to continue.
+                    admission = InteractionContinuationAdmission(
+                        interaction=by_id[anchor_id],
+                        command=None,
+                        execution_id=source_execution_id,
+                        execution_state=source.state,
+                        interactions=[by_id[item] for item in requested],
+                    )
                 else:
-                    answered = [
-                        interaction
-                        for interaction in by_id.values()
-                        if interaction.status == SessionInteractionStatus.responded
-                        and interaction.data is not None
-                        and interaction.data.resolution is not None
-                    ]
                     result = await self._executions.settle(
                         project_id=project_id,
                         session_id=anchor.session_id,
@@ -1000,6 +1009,12 @@ class SessionCommandsService:
                 error,
             )
         if (
+            not deliver
+            and admission.command is not None
+            and admission.command.state == SessionCommandState.pending
+        ):
+            await self._refuse_caller_continuation_without_access(admission)
+        if (
             deliver
             and admission.command is not None
             and admission.command.state == SessionCommandState.pending
@@ -1017,6 +1032,31 @@ class SessionCommandsService:
                 if await self._mark_continuation_recoverable(admission, receipt):
                     admission.execution_state = SessionExecutionState.recoverable
         return admission
+
+    async def _refuse_caller_continuation_without_access(
+        self, admission: InteractionContinuationAdmission
+    ) -> None:
+        """The caller runs this continuation itself, so it gets the recheck that
+        delivery makes (`deliverable_envelope`) here. A refused continuation is settled
+        as delivery settles it, and the caller receives it settled, so it does not run."""
+        command = admission.command
+        try:
+            await deliverable_envelope(access=get_access_service(), command=command)
+            return
+        except (MissingEnvelope, AccessDenied) as refusal:
+            receipt = await self._settle_refused_continuation(
+                command=command,
+                error=_refusal_error(refusal=refusal, command=command),
+            )
+        settled = (
+            await self._dao.fetch_command(
+                project_id=command.project_id, command_id=command.id
+            )
+            if receipt.status == "refused"
+            else None
+        )
+        admission.command = settled
+        admission.execution_state = SessionExecutionState.terminal
 
     async def _cancel_unresumable_interactions(
         self,
@@ -2630,9 +2670,20 @@ class SessionCommandsService:
         return settled
 
 
+def _holds_answer(interaction: SessionInteraction, answer: dict[str, Any]) -> bool:
+    """True when the row already holds this answer: `responded` (stored, not yet run)
+    or `resolved` (a run consumed it)."""
+    return (
+        interaction.status
+        in (SessionInteractionStatus.responded, SessionInteractionStatus.resolved)
+        and interaction.data is not None
+        and interaction.data.resolution == answer
+    )
+
+
 async def deliverable_envelope(
     *,
-    access: "AccessService",
+    access: AccessService,
     command: SessionCommand,
 ) -> RunEnvelope:
     """The envelope a continue_input / continue_interaction command runs under,

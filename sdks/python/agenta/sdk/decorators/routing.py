@@ -304,7 +304,7 @@ def _inband_approval_answers(
 async def record_inband_approval_answers(
     req: Request,
     request: WorkflowInvokeRequest,
-) -> None:
+) -> bool:
     """Record a person's in-band approval answer on its interaction row before the run,
     and run this request as the continuation of the paused turn.
 
@@ -321,17 +321,20 @@ async def record_inband_approval_answers(
     A refusal leaves the rows as they were, and the run starts anyway as a new turn (the
     card then shows again). Never raises.
 
+    Returns True when the API accepted an answer. The request then answers the paused
+    turn and is not new input, so the caller skips input admission (`on_busy`) for it.
+
     A delivery the API made itself (a continuation or a promoted input) is skipped: the API
     already stored the answer before it dispatched the run.
     """
     if request.session_id is None or request.data is None:
-        return
+        return False
     meta = request.meta if isinstance(request.meta, dict) else {}
     if meta.get("control_command_id") or meta.get("promoted_input_id"):
-        return
+        return False
     answers = _inband_approval_answers((request.data.inputs or {}).get("messages"))
     if not answers:
-        return
+        return False
 
     headers: Dict[str, str] = {"Content-Type": "application/json"}
     authorization = req.headers.get("authorization")
@@ -340,7 +343,7 @@ async def record_inband_approval_answers(
     access_token = req.cookies.get("sAccessToken")
     cookies = {"sAccessToken": access_token} if access_token else None
     if not authorization and not cookies:
-        return
+        return False
     otel = getattr(req.state, "otel", None) or {}
     project_id = (otel.get("baggage") or {}).get("project_id") or req.query_params.get(
         "project_id"
@@ -350,7 +353,8 @@ async def record_inband_approval_answers(
     connection = PlatformConnection()
     api_base = connection.base_url()
     if not api_base:
-        return
+        return False
+    accepted = False
     try:
         async with httpx.AsyncClient(
             timeout=connection.timeout, cookies=cookies
@@ -372,7 +376,7 @@ async def record_inband_approval_answers(
                     session_id=request.session_id,
                     status_code=response.status_code,
                 )
-                return
+                return False
             rows = {
                 row.get("token"): row
                 for row in (response.json().get("interactions") or [])
@@ -420,6 +424,7 @@ async def record_inband_approval_answers(
                     if response.status_code == 429:
                         break
                     continue
+                accepted = True
                 _run_as_continuation(request, response.json())
     except (httpx.HTTPError, ValueError) as error:
         log.warning(
@@ -427,21 +432,24 @@ async def record_inband_approval_answers(
             session_id=request.session_id,
             error=type(error).__name__,
         )
+    return accepted
 
 
 def _run_as_continuation(request: WorkflowInvokeRequest, admission: Any) -> None:
-    """Make this request the continuation that the respond route stored and left to it.
+    """Make this request the continuation that the respond route stored for its answers.
 
-    Only a continuation that nobody delivered yet (command `pending`) is taken. Without
-    one (another gate of the turn still waits, or the answer was already continued) the
-    request runs as before."""
+    A `pending` continuation is this request's to run. A continuation in any other state
+    is a replay of answers that already ran (or run now): the request still carries its
+    command id, so the runner's exactly-once admission refuses a second run instead of
+    starting the same conversation as a new turn. Without a continuation (another gate of
+    the turn still waits) the request runs as before."""
     if not isinstance(admission, dict) or (request.meta or {}).get(
         "control_command_id"
     ):
         return
     command = admission.get("command") or {}
     execution = admission.get("execution") or {}
-    if command.get("state") != "pending" or not command.get("id"):
+    if not command.get("id"):
         return
     if not execution.get("id"):
         return
@@ -959,12 +967,12 @@ class route:
             apply_invoke_prelude(req, request)
 
             try:
-                await record_inband_approval_answers(req, request)
-                admission_response = await admit_session_input(
-                    req, request, credentials
-                )
-                if admission_response is not None:
-                    return admission_response
+                if not await record_inband_approval_answers(req, request):
+                    admission_response = await admit_session_input(
+                        req, request, credentials
+                    )
+                    if admission_response is not None:
+                        return admission_response
                 with tracing_context_manager(_get_request_tracing_context(req)):
                     response = await wf.invoke(
                         request=request,

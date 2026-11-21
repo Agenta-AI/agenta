@@ -151,6 +151,15 @@ def _tokens(request):
 
 
 async def _record(req, request, responses=(), client_kwargs=None, rows=None):
+    captured, _accepted = await _record_with_result(
+        req, request, responses, client_kwargs, rows
+    )
+    return captured
+
+
+async def _record_with_result(
+    req, request, responses=(), client_kwargs=None, rows=None
+):
     captured = []
     if rows is None:
         rows = {token: "exec-1" for token in _tokens(request)}
@@ -170,8 +179,8 @@ async def _record(req, request, responses=(), client_kwargs=None, rows=None):
             side_effect=_client,
         ),
     ):
-        await record_inband_approval_answers(req, request)
-    return captured
+        accepted = await record_inband_approval_answers(req, request)
+    return captured, accepted
 
 
 def _responds(captured):
@@ -286,6 +295,117 @@ async def test_an_answer_that_leaves_another_gate_waiting_runs_as_before():
 
     assert len(_responds(captured)) == 1
     assert request.meta is None
+
+
+@pytest.mark.asyncio
+async def test_an_answer_that_leaves_another_gate_waiting_is_not_new_input():
+    # The answer was stored: the request answers the paused turn, so the invoke routes
+    # must not admit it as new input (with `on_busy: queue` it would queue a second run).
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
+    request.on_busy = "queue"
+    waiting = _Response(
+        202,
+        {
+            "interaction": {},
+            "command": None,
+            "execution": {"id": "exec-1", "state": "awaiting_interactions"},
+        },
+    )
+    _captured, accepted = await _record_with_result(
+        _request({"Authorization": "ApiKey person-key"}), request, responses=[waiting]
+    )
+
+    assert accepted is True
+
+
+@pytest.mark.asyncio
+async def test_a_refused_answer_is_still_admitted_as_input():
+    _captured, accepted = await _record_with_result(
+        _request({"Authorization": "Secret run-credential"}),
+        _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"})),
+        responses=[403],
+    )
+
+    assert accepted is False
+
+
+@pytest.mark.asyncio
+async def test_a_replayed_answer_carries_the_continuation_that_already_ran():
+    # The client lost the response and resends the same transcript. The respond route
+    # returns the continuation its answers already started. The request carries that
+    # command, so the runner refuses a second run instead of starting a new turn.
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
+    applied = _Response(
+        202,
+        {
+            "interaction": {},
+            "command": {"id": "cmd-exec-1", "state": "applied"},
+            "execution": {
+                "id": "cont-exec-1",
+                "state": "pending_delivery",
+                "session_turn_id": "turn-start",
+            },
+        },
+    )
+    await _record(
+        _request({"Authorization": "ApiKey person-key"}), request, responses=[applied]
+    )
+
+    assert request.meta == {
+        "run_id": "cont-exec-1",
+        "control_command_id": "cmd-exec-1",
+        "session_turn_id": "turn-start",
+    }
+
+
+@pytest.mark.asyncio
+async def test_the_invoke_route_skips_admission_for_a_recorded_answer():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from agenta.sdk.decorators.routing import route
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _fake_auth(request, call_next):
+        request.state.auth = {}
+        return await call_next(request)
+
+    async def handler(messages: list | None = None):
+        return "ran"
+
+    route("/", app=app)(handler)
+    admit = MagicMock()
+
+    async def _admit(*_args, **_kwargs):
+        admit()
+        return None
+
+    async def _recorded(*_args, **_kwargs):
+        return True
+
+    with (
+        patch(
+            "agenta.sdk.decorators.routing.record_inband_approval_answers",
+            side_effect=_recorded,
+        ),
+        patch(
+            "agenta.sdk.decorators.routing.admit_session_input",
+            side_effect=_admit,
+        ),
+    ):
+        # Only the admission matters here; the workflow's own run is out of scope.
+        TestClient(app).post(
+            "/invoke",
+            json={
+                "session_id": "session-1",
+                "on_busy": "queue",
+                "data": {"inputs": {"messages": []}},
+            },
+        )
+
+    admit.assert_not_called()
 
 
 @pytest.mark.asyncio
