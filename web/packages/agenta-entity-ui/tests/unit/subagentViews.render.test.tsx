@@ -403,6 +403,8 @@ describe("two legacy subagents with the same slug and different copied names", (
         await change(field, "Changed")
         await click(byText("Save"))
         expect(tools().map((tool) => tool.description)).toEqual(["First", "Changed"])
+        // The copied name stays, so both entries can still be opened after a save.
+        expect(tools().map((tool) => tool.name)).toEqual(["Support v1", "Support v2"])
     })
 
     it("remove the second one only", async () => {

@@ -100,11 +100,12 @@ export function setSubagentDescription(
 ): unknown[] {
     const index = findSubagentIndex(tools, ref)
     if (index < 0) return tools
+    const entry = tools[index] as Record<string, unknown>
+    const saved = normalizeSubagentReference({...entry, description})
+    // Entries that share a slug stay apart only by their copied names, so the name stays.
+    if (!uniqueSlugRef(entry, tools) && typeof entry.name === "string") saved.name = entry.name
     const next = [...tools]
-    next[index] = normalizeSubagentReference({
-        ...(tools[index] as Record<string, unknown>),
-        description,
-    })
+    next[index] = saved
     return next
 }
 
