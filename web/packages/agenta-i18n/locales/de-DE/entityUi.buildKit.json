@@ -88,5 +88,19 @@
     "agentaTools": "Agenta-Werkzeuge",
     "agentaToolsHint": "Werkzeuge, die Ihr Agent überall nutzen kann, wo er läuft: im Playground, in der API, in Slack, Telegram, WhatsApp und Automatisierungen. Mit dem Agent gespeichert.",
     "noAgentaTools": "Keine Agenta-Werkzeuge verfügbar.",
-    "couldNotLoadAgentaTools": "Die Agenta-Werkzeuge konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen."
+    "couldNotLoadAgentaTools": "Die Agenta-Werkzeuge konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen.",
+    "startSessionName": "Eine Sitzung eines Agenten starten",
+    "startSessionDescription": "Startet eine neue Sitzung eines Agenten mit einer ersten Nachricht. Die neue Sitzung läuft eigenständig.",
+    "sendSessionMessageName": "Eine Nachricht an eine Sitzung senden",
+    "sendSessionMessageDescription": "Sendet eine Nachricht an eine Sitzung, die dieser Agent gestartet hat.",
+    "waitForSessionsName": "Auf Sitzungen warten",
+    "waitForSessionsDescription": "Wartet, bis die Sitzungen, die dieser Agent gestartet hat, ihren Durchlauf beenden.",
+    "cancelSessionName": "Den Durchlauf einer Sitzung abbrechen",
+    "cancelSessionDescription": "Stoppt den laufenden Durchlauf einer Sitzung, die dieser Agent gestartet hat.",
+    "listSessionsName": "Sitzungen auflisten",
+    "listSessionsDescription": "Listet die Sitzungen dieses Projekts auf, die die Person öffnen kann.",
+    "readSessionName": "Eine Sitzung lesen",
+    "readSessionDescription": "Liest die Nachrichten und den Status einer Sitzung.",
+    "readSessionSpansName": "Die Schritte einer Sitzung lesen",
+    "readSessionSpansDescription": "Liest die Modellaufrufe und die Tool-Aufrufe eines Durchlaufs einer Sitzung."
 }

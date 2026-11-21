@@ -9,6 +9,7 @@ import type {ApprovalDescriber} from "../../skin/types"
 import {describeCreateAgent, describeEditAgentConfig} from "./describeAgentChanges"
 import {describeCommitRevision} from "./describeCommitRevision"
 import {describeRunTool} from "./describeRunTool"
+import {describeStartSession} from "./describeStartSession"
 
 export {describeCommitRevision, describeOperationItems} from "./describeCommitRevision"
 export {
@@ -17,7 +18,7 @@ export {
     describeEditAgentConfig,
     summarizeAgentCall,
 } from "./describeAgentChanges"
-export {describeRunTool}
+export {describeRunTool, describeStartSession}
 export {describeConfigChanges, parseChangePreview, type DescribedChanges} from "./describeChanges"
 export {parseApprovedContentManifest} from "./approvedContentManifest"
 export type {ApprovedContentManifestValue} from "./approvedContentManifest"
@@ -34,4 +35,5 @@ export const BUILTIN_APPROVAL_DESCRIBERS: Record<string, ApprovalDescriber> = {
     create_agent: describeCreateAgent,
     edit_agent_config: describeEditAgentConfig,
     run_tool: describeRunTool,
+    start_session: describeStartSession,
 }

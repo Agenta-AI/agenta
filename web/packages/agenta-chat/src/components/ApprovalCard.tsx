@@ -27,6 +27,7 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
+import {useAgentDisplayName} from "../hooks/useAgentDisplayName"
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
 import {useChangeVersions} from "../hooks/useChangeVersions"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
@@ -167,9 +168,14 @@ export const ApprovalCard = ({
     const sourceKey = base?.sourceKey ?? ""
     const {integration} = useToolIntegrationDetail(sourceKey)
     const appName = sourceKey ? integration?.name : undefined
+    // A call that names an agent by its slug or id: describe it again with the agent's name.
+    const agentName = useAgentDisplayName(base?.agentRef)
     const preview = useMemo(
-        () => (current && appName ? describeApproval(current, appName, homeSlug) : base),
-        [current?.approvalId, appName, homeSlug, base],
+        () =>
+            current && (appName || agentName)
+                ? describeApproval(current, appName, homeSlug, agentName)
+                : base,
+        [current?.approvalId, appName, agentName, homeSlug, base],
     )
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.
