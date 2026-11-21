@@ -150,6 +150,9 @@ export const AgentPanelFrame = ({
                           width,
                           minWidth:
                               mode === "push" ? Math.min(width, resize?.min ?? width) : undefined,
+                          // Over the page it never runs past the room the page leaves, so the
+                          // resize edge and the start of the content stay in view.
+                          maxWidth: mode === "overlay" ? "100%" : undefined,
                       }
             }
             onKeyDown={(event) => {

@@ -92,6 +92,8 @@ export const AgentLayoutBody = ({
         storedWidth: state.width,
         storeWidth: (next) => setState({width: next}),
     })
+    // The widen belongs to one session: another session opens at the stored width.
+    useEffect(() => setWide(false), [sessionId, setWide])
 
     // Files keeps its production open state and URL sync; the panel follows it.
     const filesScope = agentId ?? sessionId

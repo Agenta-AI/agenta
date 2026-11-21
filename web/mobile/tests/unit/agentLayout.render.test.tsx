@@ -307,6 +307,37 @@ describe("the session screen on the agent layout", () => {
         files.open = false
     })
 
+    it("opens another session at the stored width after a widen", async () => {
+        files.open = true
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 520, configTab: "agent"}),
+        )
+        const store = createStore()
+        const mount = (sessionId: string) =>
+            act(async () =>
+                root.render(
+                    <Provider store={store}>
+                        <SessionWorkspace
+                            entityId="rev-1"
+                            agentId="agent-1"
+                            sessionId={sessionId}
+                            workspaceId="ws-1"
+                            projectId="proj-1"
+                            chat={<div data-testid="chat-column" />}
+                        />
+                    </Provider>,
+                ),
+            )
+        await mount("session-1")
+        await act(async () => screen.getByRole("button", {name: "Expand"}).click())
+        const panel = q("agent-panel")[0]?.parentElement as HTMLElement
+        expect(panel.style.width).toBe("760px")
+        await mount("session-2")
+        expect(panel.style.width).toBe("520px")
+        files.open = false
+    })
+
     it("keeps Files editable on the desktop, with no phone header", async () => {
         files.open = true
         await render(createStore())
