@@ -231,6 +231,7 @@ const ModelPickerList = ({
                                 variant="outline"
                                 size="sm"
                                 disabled={disabled}
+                                className={PHONE_TOUCH_TARGET_CLASS}
                                 onClick={() => disabledGroupAction.onClick(group)}
                             >
                                 {disabledGroupAction.label}
@@ -248,7 +249,13 @@ const ModelPickerList = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className={clsx("shrink-0", popover ? "mx-0.5 mb-1 mt-0.5" : "px-4 pb-1.5")}>
+            {/* On a phone 6px above the field leave room for its 44px tap area. */}
+            <div
+                className={clsx(
+                    "shrink-0",
+                    popover ? "mx-0.5 mb-1 mt-0.5" : "px-4 pb-1.5 max-md:pt-1.5",
+                )}
+            >
                 <SearchInput
                     size="compact-search"
                     // The canvas field (`.find`): a quiet border and no focus ring, even with the

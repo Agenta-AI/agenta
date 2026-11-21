@@ -46,6 +46,7 @@ import {
     EmptyTitle,
     RadioGroup,
     RadioGroupItem,
+    PHONE_TOUCH_TARGET_CLASS,
     SearchInput,
     cn,
 } from "@agenta/ui/ui"
@@ -413,8 +414,9 @@ function ConnectedRow({
                             className={
                                 canvas
                                     ? // Zero width, not hidden, so Tab still reaches the menu button;
-                                      // -ml-2 takes back the row's gap while it is closed.
-                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none"
+                                      // -ml-2 takes back the row's gap while it is closed. Touch
+                                      // does not clip, so the button keeps its 44px tap area.
+                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none [@media(hover:none)]:overflow-visible"
                                     : "contents"
                             }
                         >
@@ -564,6 +566,7 @@ function CatalogRow({
                         name: integration.name,
                     })}
                     title={t("entityUi.integrationDrawer.connect")}
+                    className={canvas ? undefined : PHONE_TOUCH_TARGET_CLASS}
                     onClick={onConnect}
                 >
                     {canvas ? <Plus className="size-3.5 max-md:size-5" /> : <Plus size={16} />}
@@ -938,7 +941,9 @@ export function IntegrationCatalog({
                     ref={listRef}
                     className={
                         page
-                            ? "flex flex-col gap-8 pt-2"
+                            ? // 12px on a phone, so the pinned bar does not cover the first
+                              // heading's 44px tap area.
+                              "flex flex-col gap-8 pt-2 max-md:pt-3"
                             : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4"
                     }
                 >

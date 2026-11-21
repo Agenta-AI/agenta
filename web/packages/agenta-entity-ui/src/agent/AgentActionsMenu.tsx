@@ -7,6 +7,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
 import {
     Archive,
@@ -88,9 +89,11 @@ export const AgentActionsMenu = ({
                 <button
                     type="button"
                     aria-label={t("entityUi.agentActions.agentActions")}
-                    // ::after hit extender: 28px is under the touch guideline.
+                    // ::after hit extender: 28px is under the touch guideline. 40px on a desktop,
+                    // 44px on a phone.
                     className={cn(
-                        "relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText",
+                        "relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:content-[''] hover:bg-colorFillTertiary hover:text-colorText md:after:-inset-1.5",
+                        PHONE_TOUCH_TARGET_CLASS,
                         className,
                     )}
                 >

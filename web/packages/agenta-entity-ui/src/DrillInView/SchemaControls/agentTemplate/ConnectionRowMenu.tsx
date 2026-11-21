@@ -10,6 +10,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
 import {ArrowClockwise, DotsThreeVertical, Trash, XCircle} from "@phosphor-icons/react"
 
@@ -43,7 +44,7 @@ export function ConnectionRowMenu({
                     aria-label={t("entityUi.integrationDrawer.connectionActions")}
                     // Shown on row hover where there is hover; always on touch. The row already
                     // hovers to accent, so the button's own hover is a foreground wash.
-                    className="hover:bg-foreground/10 focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 dark:hover:bg-foreground/15 [@media(hover:hover)]:opacity-0"
+                    className={`hover:bg-foreground/10 focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 dark:hover:bg-foreground/15 [@media(hover:hover)]:opacity-0 ${PHONE_TOUCH_TARGET_CLASS}`}
                 >
                     <DotsThreeVertical aria-hidden weight="bold" />
                 </Button>

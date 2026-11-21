@@ -11,6 +11,7 @@
  */
 import type {ReactNode} from "react"
 
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {CaretRight, Plugs} from "@phosphor-icons/react"
 import Image from "next/image"
 
@@ -74,7 +75,7 @@ export function SubSectionHeader({
                     type="button"
                     onClick={onToggle}
                     aria-expanded={!collapsed}
-                    className="-mx-1 flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-inherit [font:inherit] hover:text-[var(--ag-colorText)]"
+                    className={`-mx-1 flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-inherit [font:inherit] hover:text-[var(--ag-colorText)] ${PHONE_TOUCH_TARGET_CLASS}`}
                 >
                     {text}
                     {/* A caret that turns shows where the rows went. */}

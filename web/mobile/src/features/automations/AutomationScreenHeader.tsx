@@ -31,7 +31,7 @@ export const AutomationScreenHeader = ({
     <div
         className={
             className ??
-            "mx-auto w-full max-w-[760px] shrink-0 px-8 pb-4 pt-3 lg:pb-2.5 lg:pt-[30px]"
+            "mx-auto w-full max-w-[760px] shrink-0 px-8 pb-4 pt-3 max-md:pb-3 lg:pb-2.5 lg:pt-[30px]"
         }
     >
         {/* -ml-1.5: the glyph sits 6px inside its button, and the column edge is the glyph's. */}

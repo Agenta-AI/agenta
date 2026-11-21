@@ -25,6 +25,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
+    PHONE_TOUCH_TARGET_CLASS,
     SimpleTooltip as Tooltip,
     Tabs,
     TabsList,
@@ -63,17 +64,17 @@ import {isCommentableKind, usePreviewCommentMode} from "./previewCommentMode"
 /** Row 2's text buttons: the kit's ghost sm, muted until hover. */
 const ROW_TEXT_BTN =
     "h-[26px] gap-1 rounded-[6px] px-2 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText"
-/** A phone's 36 px controls; a transparent ::after grows each hit area to 44 px. */
-const PHONE_HIT = "relative after:absolute after:-inset-1 after:content-['']"
-const PHONE_PILL = "h-9 rounded-[6px] p-0.5"
+/** `mr-1` leaves the last segment room for its tap area before the Sort button. */
+const PHONE_PILL = "mr-1 h-9 rounded-[6px] p-0.5"
 /**
- * Each segment is 34 px wide with its 1 px border, as drawn, and grows its own hit area to 44 x 44 px (one over the
+ * Each segment is 34 x 32 px with its 1 px border, as drawn, and grows its own hit area to 44 x 44 px (one over the
  * whole list would take the taps): up and down, and out at the pill's outer edge only, so a tap
- * near the edge between Grid and List picks the segment under it.
+ * near the edge between Grid and List picks the segment under it. Insets count from inside the
+ * border: 7 px reaches 6 px past the drawn edge, 11 px reaches 10 px.
  */
 const PHONE_PILL_TRIGGER =
-    "relative h-full rounded-[5px] px-[9px] py-0 after:absolute after:inset-x-0 after:-inset-y-1.5 first:after:-left-2.5 last:after:-right-2.5 after:content-['']"
-const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_HIT}`
+    "relative h-full rounded-[5px] px-[9px] py-0 after:absolute after:inset-x-0 after:-inset-y-[7px] first:after:-left-[11px] last:after:-right-[11px] after:content-['']"
+const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_TOUCH_TARGET_CLASS}`
 
 /**
  * A phone's one 52 px row: the crumb at the left, then the row's controls and its ⋯ menu.

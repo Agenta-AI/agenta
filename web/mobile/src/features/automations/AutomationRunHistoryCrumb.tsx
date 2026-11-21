@@ -12,7 +12,7 @@ import {
 } from "@agenta/ui/ui"
 import Link from "next/link"
 
-const CRUMB_LINK = `min-w-0 cursor-pointer truncate rounded-md border-0 bg-transparent px-1.5 py-[3px] text-[13px] leading-5 text-muted-foreground no-underline hover:bg-accent hover:text-foreground ${PHONE_TOUCH_TARGET_CLASS}`
+const CRUMB_LINK = `block min-w-0 cursor-pointer rounded-md border-0 bg-transparent px-1.5 py-[3px] text-[13px] leading-5 text-muted-foreground no-underline hover:bg-accent hover:text-foreground ${PHONE_TOUCH_TARGET_CLASS}`
 
 /**
  * "Automations › <name> › Run history": the run history page names where it sits, as the panel
@@ -34,7 +34,9 @@ export const AutomationRunHistoryCrumb = ({
                 <BreadcrumbItem className="shrink-0">
                     <BreadcrumbLink asChild>
                         <Link href={listHref} className={CRUMB_LINK}>
-                            {t("automations.screens.pageTitle")}
+                            <span className="block truncate">
+                                {t("automations.screens.pageTitle")}
+                            </span>
                         </Link>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
@@ -44,7 +46,7 @@ export const AutomationRunHistoryCrumb = ({
                 <BreadcrumbItem className="min-w-0">
                     <BreadcrumbLink asChild>
                         <button type="button" onClick={onAutomation} className={CRUMB_LINK}>
-                            {name}
+                            <span className="block truncate">{name}</span>
                         </button>
                     </BreadcrumbLink>
                 </BreadcrumbItem>

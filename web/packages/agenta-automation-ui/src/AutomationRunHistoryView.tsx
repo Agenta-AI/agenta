@@ -145,7 +145,14 @@ export const AutomationRunHistoryView = ({
             )}
         >
             {header}
-            <div className="flex min-h-0 w-full min-w-0 flex-1 overflow-hidden">
+            {/* On a phone page the clip starts 8px higher (into the header's own bottom padding),
+                so the filter in the first row keeps its 44px tap area. Nothing moves. */}
+            <div
+                className={cn(
+                    "flex min-h-0 w-full min-w-0 flex-1 overflow-hidden",
+                    phone && frame === "page" && "-mt-2 pt-2",
+                )}
+            >
                 {showList ? (
                     <div
                         className={cn(

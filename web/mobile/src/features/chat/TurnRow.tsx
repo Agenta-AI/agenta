@@ -58,6 +58,12 @@ import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
+/**
+ * An assistant turn clips its overflow. On a phone the clip starts 6px above the text, so the
+ * turn's first control ("Worked for") keeps its 44px tap area. Nothing moves.
+ */
+const ASSISTANT_CLIP_ROOM = "max-md:-mt-1.5 max-md:pt-1.5"
+
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {
     const size = (metadata as {agenta?: {size?: unknown}} | undefined)?.agenta?.size
@@ -453,8 +459,11 @@ const TurnRowInner = ({
                               // The canvas bubble: radius 12 with a 2 px corner, 10 / 14 padding (M01, X-8).
                               "rounded-[12px] rounded-br-[2px] bg-muted px-3.5 py-2.5 text-xs",
                           )
-                        : "min-w-0 max-w-full overflow-hidden text-xs",
-                    body: "min-w-0 max-w-full overflow-hidden",
+                        : cn("min-w-0 max-w-full overflow-hidden text-xs", ASSISTANT_CLIP_ROOM),
+                    body: cn(
+                        "min-w-0 max-w-full overflow-hidden",
+                        !turn.isUser && ASSISTANT_CLIP_ROOM,
+                    ),
                 }}
                 // A refused file-only send has no words to paint, but its failure still has to be
                 // said, or the cards sit there looking like an upload that worked.
