@@ -2282,8 +2282,8 @@ async def _drive_would_widen(
     """Design D11 for a drive read, `is_wider(calling session, drive)`: the drive's
     text would reach a reader of the calling session who cannot read the drive. A
     drive has no grants. A drive with no row is refused. Unlike a session read
-    (`_source_would_widen`), a calling session with no row is refused too, as the
-    drive read did before the shared rule, so it fails closed."""
+    (`_source_would_widen`), a calling session with no row is refused too: the read
+    fails closed."""
     from oss.src.core.sharing.service import get_sharing_service
 
     drive = await get_sharing_service().fetch_mount_policy(
