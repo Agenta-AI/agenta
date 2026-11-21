@@ -398,6 +398,8 @@ export function daytonaWithLifecycle(
       }
     },
     async pause(sandboxId: string): Promise<void> {
+      // A stop voids the preview token, and the next reconnect fetches the sandbox again.
+      forget(sandboxId);
       let sandbox: Sandbox;
       try {
         sandbox = await client.get(sandboxId);

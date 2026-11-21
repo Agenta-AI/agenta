@@ -265,6 +265,17 @@ describe("Daytona provider snapshot record (capability probe key)", () => {
 });
 
 describe("Daytona provider pause", () => {
+  it("forgets the preview token of the sandbox it stops", async () => {
+    const sandbox = fakeSandbox("sb-1", { stop: async () => {} });
+    const provider = daytonaWithLifecycle({}, { client: fakeClient(sandbox) as any });
+    await provider.getUrl("sb-1");
+    assert.ok(provider.previewToken("3000-sb-1.proxy.test"));
+
+    await provider.pause("sb-1");
+
+    assert.equal(provider.previewToken("3000-sb-1.proxy.test"), undefined);
+  });
+
   afterEach(() => vi.useRealTimers());
 
   it("stops a running sandbox", async () => {
