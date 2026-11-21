@@ -38,8 +38,9 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   amendment, 2026-07-31, moved from `on-request` to `untrusted` on 2026-11-20), so Agenta-tool
   calls, file patches and shell commands codex does not know to be safe raise codex-native ACP
   permission gates that park WARM on the keep-alive path, exactly like Claude's. The run's
-  permission policy answers each gate: `allow` approves it without a card, `allow_reads` and
-  `ask` show one. (`on-request` approved any patch inside the writable roots without asking.) The runner-side
+  permission policy answers each gate: `allow` approves it without a card. Under `allow_reads`, a
+  gate for a read-hinted tool is approved without a card, and any other gate shows one. Under
+  `ask`, every gate shows one. (`on-request` approved any patch inside the writable roots without asking.) The runner-side
   gate at the `agenta-tools` pause seam remains as second-line enforcement: an allowed gate records
   an execution grant the seam consumes, so one approval prompts once and an ungranted call fails
   closed. Authors can override the mode with the typed `harnessMode` wire field. **Managed auth is file-free** (D-002

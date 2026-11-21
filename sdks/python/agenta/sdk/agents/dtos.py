@@ -1548,7 +1548,8 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         ``agent-full-access`` (D-008). The runner image patches codex-acp's full-access preset from
         ``approvalPolicy: "never"`` to ``untrusted``, so Codex asks before every file patch and
         every shell command it does not know to be safe, and the run's ``permissions`` policy
-        answers each request (``allow`` approves it, ``allow_reads`` and ``ask`` park a card).
+        answers each request (``allow`` approves it, ``allow_reads`` approves a read-hinted request
+        and parks a card for any other, and ``ask`` parks a card for every request).
         ``read-only`` keeps ``on-request``. ``agent`` is codex-acp's "Auto review" preset, where a
         reviewer model inside Codex answers its own requests, so the run's policy does not see
         them. Codex's own bubblewrap sandbox fails to initialize in our containers, so shell under
