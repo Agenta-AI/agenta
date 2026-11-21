@@ -10,16 +10,18 @@ import pytest
 
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.access.context import reset_request_access, set_request_access
-from oss.src.core.access.dtos import RunContext, RunOrigin
+from oss.src.core.access.dtos import RunContext, RunOrigin, RunSender
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.inputs.dtos import PendingInputKind
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.sessions.types import SessionCallingSession, SessionReference
+from oss.src.core.sharing.dtos import SessionGrant, Visibility
 from oss.src.core.tools import gate as gate_module
 from oss.src.core.tools import platform_handlers
 from oss.src.core.tools.dtos import ToolCall, ToolCallData, ToolCallFunction
 from oss.src.core.tools.gate import GateReader, resolve_gate, target_slug
+from oss.src.core.workflows.static_catalog import BUILDER_AGENT_ID
 from oss.src.core.tools.platform_handlers import (
     PLATFORM_TOOL_HANDLERS,
     RESOLVE_GATE_CALL_REF,
@@ -119,6 +121,23 @@ class _Workflows:
         return None
 
 
+class _Sharing:
+    def __init__(self):
+        self.grants = {}
+
+    async def list_session_grants(self, *, project_id, stream_id):
+        return self.grants.get(stream_id, []) if project_id == PROJECT_ID else []
+
+
+class _ApprovalChoices:
+    def __init__(self):
+        self.rows = set()
+
+    async def fetch_by_tool(self, *, project_id, user_id, artifact_id, tool_key):
+        key = (project_id, user_id, artifact_id, tool_key)
+        return SimpleNamespace(id=uuid4()) if key in self.rows else None
+
+
 class _World:
     """'Chief of staff' runs in `CALLER_SESSION`; its current execution is `execution`."""
 
@@ -127,12 +146,16 @@ class _World:
         self.executions = _Executions()
         self.inputs = _Inputs()
         self.turns = _Turns()
+        self.sharing = _Sharing()
+        self.choices = _ApprovalChoices()
         self.reader = GateReader(
             streams_dao=self.streams,
             executions_dao=self.executions,
             inputs_dao=self.inputs,
             turns_dao=self.turns,
             workflows_service=_Workflows(),
+            sharing_dao=self.sharing,
+            approval_choices_dao=self.choices,
         )
         self.execution = str(uuid4())
         self.streams.add(CALLER_SESSION, turn_id=self.execution)
@@ -562,3 +585,175 @@ async def test_tools_call_with_the_run_credential_answers_the_wire_shape(
         world, _access(world, "run_credential", CALLER_SESSION), ask
     )
     assert json.loads(response.call.data.content) == ASK
+
+
+# --------------------------------------------------------------------------- #
+# Auto-approve for the builder (design D32, option A of open question 12)
+# --------------------------------------------------------------------------- #
+CREATE = "tools.agenta.create_agent"
+EDIT = "tools.agenta.edit_agent_config"
+CHOICE = {"permission": "allow", "basis": "approval_choice"}
+OTHER_USER_ID = uuid4()
+
+
+@pytest.fixture
+def builder(world):
+    """Sam chats with the builder in his private session; his turn is the current one."""
+    world.caller = SessionCaller(
+        envelope=make_envelope(project_id=PROJECT_ID, principal_id=USER_ID),
+        run_session_id=CALLER_SESSION,
+        run_agent_id=BUILDER_AGENT_ID,
+    )
+    world.streams.rows[CALLER_SESSION] = world.streams.rows[CALLER_SESSION].model_copy(
+        update={"visibility": Visibility.PRIVATE, "owner_user_id": USER_ID}
+    )
+    return world
+
+
+def _choose(world, tool_key, user_id=USER_ID):
+    world.choices.rows.add((PROJECT_ID, user_id, BUILDER_AGENT_ID, tool_key))
+
+
+async def _builder_answer(world, call_ref, **overrides):
+    arguments = {"agent": "email-writer", "message": "Draft it"}
+    configured = "ask" if call_ref == START else None
+    return await world.answer(call_ref, arguments, configured=configured, **overrides)
+
+
+@pytest.mark.parametrize("call_ref", [START, CREATE, EDIT])
+async def test_a_choice_allows_the_builder_tool_in_the_persons_own_turn(
+    builder, call_ref
+):
+    assert await _builder_answer(builder, call_ref) == ASK
+    _choose(builder, call_ref)
+    assert await _builder_answer(builder, call_ref) == CHOICE
+
+
+async def test_a_choice_covers_only_its_own_tool(builder):
+    _choose(builder, START)
+    assert await _builder_answer(builder, EDIT) == ASK
+
+
+async def test_another_persons_choice_never_applies(builder):
+    _choose(builder, START, user_id=OTHER_USER_ID)
+    assert await _builder_answer(builder, START) == ASK
+
+
+async def test_a_removed_choice_asks_again(builder):
+    _choose(builder, START)
+    assert await _builder_answer(builder, START) == CHOICE
+    builder.choices.rows.clear()
+    assert await _builder_answer(builder, START) == ASK
+
+
+@pytest.mark.parametrize(
+    "origin, kind",
+    [
+        (RunOrigin.SCHEDULE, None),
+        (RunOrigin.SUBSCRIPTION, None),
+        (RunOrigin.CALLING_SESSION, None),
+        (RunOrigin.WEB, PendingInputKind.child_update),
+    ],
+)
+async def test_a_choice_never_applies_in_a_turn_no_person_sent(builder, origin, kind):
+    _choose(builder, START)
+    builder.turn(builder.execution, origin, kind=kind)
+    assert await _builder_answer(builder, START) == ASK
+
+
+async def test_a_choice_never_applies_in_a_project_visible_session(builder):
+    _choose(builder, START)
+    row = builder.streams.rows[CALLER_SESSION]
+    builder.streams.rows[CALLER_SESSION] = row.model_copy(
+        update={"visibility": Visibility.PROJECT}
+    )
+    assert await _builder_answer(builder, START) == ASK
+
+
+async def test_a_choice_never_applies_with_another_participant(builder):
+    _choose(builder, START)
+    row = builder.streams.rows[CALLER_SESSION]
+    builder.sharing.grants[row.id] = [
+        SessionGrant(stream_id=row.id, user_id=OTHER_USER_ID, role="participant")
+    ]
+    assert await _builder_answer(builder, START) == ASK
+    # A viewer writes no turns.
+    builder.sharing.grants[row.id] = [
+        SessionGrant(stream_id=row.id, user_id=OTHER_USER_ID, role="viewer")
+    ]
+    assert await _builder_answer(builder, START) == CHOICE
+
+
+async def test_a_choice_never_applies_in_a_session_another_person_owns(builder):
+    _choose(builder, START)
+    row = builder.streams.rows[CALLER_SESSION]
+    builder.streams.rows[CALLER_SESSION] = row.model_copy(
+        update={"owner_user_id": OTHER_USER_ID}
+    )
+    assert await _builder_answer(builder, START) == ASK
+
+
+async def test_a_choice_never_applies_in_a_child_session(builder):
+    _choose(builder, START)
+    row = builder.streams.rows[CALLER_SESSION]
+    builder.streams.rows[CALLER_SESSION] = row.model_copy(
+        update={
+            "calling_session": SessionCallingSession(
+                id="parent-session",
+                turn_id=str(uuid4()),
+                agent_id=BUILDER_AGENT_ID,
+                revision_id=uuid4(),
+            )
+        }
+    )
+    assert await _builder_answer(builder, START) == ASK
+
+
+async def test_a_choice_never_applies_to_another_agent(builder):
+    _choose(builder, START)
+    builder.caller = SessionCaller(
+        envelope=builder.caller.envelope,
+        run_session_id=CALLER_SESSION,
+        run_agent_id=CALLER_AGENT_ID,
+    )
+    assert await _builder_answer(builder, START) == ASK
+
+
+async def test_a_choice_never_applies_to_an_older_execution(builder):
+    _choose(builder, START)
+    assert await _builder_answer(builder, START, execution=str(uuid4())) == ASK
+
+
+async def test_a_choice_follows_the_sender_not_the_authority(builder):
+    _choose(builder, START)
+    builder.caller = SessionCaller(
+        envelope=make_envelope(
+            project_id=PROJECT_ID,
+            principal_id=USER_ID,
+            sender=RunSender(user_id=OTHER_USER_ID),
+        ),
+        run_session_id=CALLER_SESSION,
+        run_agent_id=BUILDER_AGENT_ID,
+    )
+    assert await _builder_answer(builder, START) == ASK
+
+
+async def test_a_deny_target_wins_over_a_choice(builder):
+    _choose(builder, START)
+    answer = await builder.answer(
+        START,
+        {"agent": "email-writer"},
+        configured="ask",
+        targets={"email-writer": "deny"},
+    )
+    assert answer == DENY
+
+
+async def test_a_fault_reading_the_choice_gets_ask(builder):
+    _choose(builder, START)
+
+    async def _broken(**_kwargs):
+        raise RuntimeError("database is down")
+
+    builder.reader.has_approval_choice = _broken
+    assert await _builder_answer(builder, START) == ASK

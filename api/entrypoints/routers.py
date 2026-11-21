@@ -185,6 +185,10 @@ from oss.src.core.tools.gate import GateReader
 from oss.src.core.tools.session_writes import SessionWriteServices
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
+from oss.src.apis.fastapi.approval_choices.router import ApprovalChoicesRouter
+from oss.src.core.approval_choices.service import ApprovalChoicesService
+from oss.src.dbs.postgres.approval_choices.dao import ApprovalChoicesDAO
+from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.core.account_choices.lifecycle import AccountsLifecycle
 from oss.src.core.account_choices.service import get_account_choices_service
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
@@ -1321,6 +1325,8 @@ sessions_service = SessionsService(
     records_service=records_service,
 )
 
+approval_choices_dao = ApprovalChoicesDAO(engine=_transactions_engine)
+
 tools = ToolsRouter(
     tools_service=tools_service,
     run_admission=run_admission,
@@ -1334,6 +1340,8 @@ tools = ToolsRouter(
         inputs_dao=session_inputs_dao,
         turns_dao=session_turns_dao,
         workflows_service=workflows_service,
+        sharing_dao=SharingDAO(engine=_transactions_engine),
+        approval_choices_dao=approval_choices_dao,
     ),
 )
 
@@ -2171,6 +2179,18 @@ app.include_router(
     router=account_choices.router,
     prefix="/account-choices",
     tags=["Account Choices"],
+)
+
+approval_choices = ApprovalChoicesRouter(
+    approval_choices_service=ApprovalChoicesService(
+        approval_choices_dao=approval_choices_dao
+    ),
+)
+
+app.include_router(
+    router=approval_choices.router,
+    prefix="/approval-choices",
+    tags=["Approval Choices"],
 )
 
 app.include_router(
