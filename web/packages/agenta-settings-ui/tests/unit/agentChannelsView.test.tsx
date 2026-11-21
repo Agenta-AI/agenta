@@ -2,7 +2,7 @@
 /**
  * The Channels page of an agent (A07, A08): connected channels first, then the ones to add.
  * "Manage" and "Connect" open the production views in place under "Channels › <platform>", and
- * "Channels" in the breadcrumb returns to the list.
+ * "Channels" in the breadcrumb returns to the list. API and Embed open the same way.
  */
 import React, {act} from "react"
 
@@ -173,6 +173,50 @@ describe("AgentChannelsView", () => {
         })
         expect(document.querySelector('[data-testid="agent-channels-open-view-phone"]')).toBeNull()
         expect(groups()).toEqual(["Connected", "Add a channel"])
+    })
+
+    it("lists API and Embed after the channels to add, and opens each in place", async () => {
+        const embed = vi.fn(({connectionId}: {connectionId: string | null}) => (
+            <div data-testid="embed-view">{connectionId ?? "list"}</div>
+        ))
+        await render(EMPTY_CONNECTIONS, {api: <div data-testid="api-view" />, embed})
+        const rows = [...container.querySelectorAll("[data-testid^=agent-channels-]")].map((el) =>
+            el.getAttribute("data-testid"),
+        )
+        expect(rows.slice(-2)).toEqual(["agent-channels-api", "agent-channels-embed"])
+        expect(row("api").tagName).toBe("BUTTON")
+        expect(row("api").textContent).toContain("Always on for saved versions")
+        expect(row("embed").textContent).toContain("A chat on your website")
+
+        await act(async () => row("api").click())
+        let view = container.querySelector('[data-testid="agent-channels-open-view"]')!
+        expect(view.querySelector("nav")?.textContent).toContain("API")
+        expect(view.querySelector('[data-testid="api-view"]')).not.toBeNull()
+        const crumb = [...view.querySelectorAll("nav button")].find(
+            (button) => button.textContent === "Channels",
+        ) as HTMLButtonElement
+        await act(async () => crumb.click())
+
+        await act(async () => row("embed").click())
+        view = container.querySelector('[data-testid="agent-channels-open-view"]')!
+        expect(view.querySelector("nav")?.textContent).toContain("Embed")
+        expect(view.querySelector('[data-testid="embed-view"]')?.textContent).toBe("list")
+    })
+
+    it("lists neither API nor Embed when the host does not give them", async () => {
+        await render(EMPTY_CONNECTIONS)
+        expect(container.querySelector('[data-testid="agent-channels-api"]')).toBeNull()
+        expect(container.querySelector('[data-testid="agent-channels-embed"]')).toBeNull()
+    })
+
+    it("on a phone opens API over the screen", async () => {
+        phone.value = true
+        await render(EMPTY_CONNECTIONS, {api: <div data-testid="api-view" />})
+        await act(async () => row("api").click())
+        const layer = document.querySelector<HTMLElement>(
+            '[data-testid="agent-channels-open-view-phone"]',
+        )!
+        expect(layer.querySelector('[data-testid="api-view"]')).not.toBeNull()
     })
 
     it("shows skeleton rows while loading and Try again on a load error", async () => {

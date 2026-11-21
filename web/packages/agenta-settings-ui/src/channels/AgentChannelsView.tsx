@@ -2,11 +2,12 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentChannelsCatalog from "@agenta/i18n/catalogs/agentPages.channels"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
 import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
 import {Button, Sheet, SheetContent, SheetTitle, SkeletonBlock} from "@agenta/ui/ui"
-import {ArrowLeft, CaretRight} from "@phosphor-icons/react"
+import {ArrowLeft, CaretRight, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {
     CHANNEL_PLATFORMS,
@@ -34,13 +35,15 @@ export interface AgentChannelsViewProps extends Pick<
     | "loadError"
     | "actions"
     | "hostedHandle"
+    | "api"
+    | "embed"
 > {
     agentId: string
 }
 
 /**
  * The Channels page of an agent, and the Channels tab of the agent's right panel. The
- * connected channels first, then the ones to add. "Manage" and "Connect" open the production
+ * connected channels first, then the ones to add, then API and Embed when the host gives them. "Manage" and "Connect" open the production
  * manage view and connect steps in place, under the breadcrumb "Channels › Slack". Changes apply
  * at once.
  */
@@ -52,8 +55,10 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
         loadError = null,
         actions,
         hostedHandle,
+        api,
+        embed,
     } = props
-    const t = useT(agentChannelsCatalog, channelsPageCatalog, commonCatalog)
+    const t = useT(agentChannelsCatalog, channelsHubCatalog, channelsPageCatalog, commonCatalog)
     const agentName = props.agentName ?? t("channels.page.yourAgent")
     const [retrying, setRetrying] = useState(false)
     const phone = useIsPhone()
@@ -149,7 +154,9 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                                 return (
                                     <ChannelRow
                                         key={platform}
-                                        platform={platform}
+                                        testId={`agent-channels-${platform}`}
+                                        icon={platformLogo(platform, phone ? 22 : 32)}
+                                        label={platformLabel(platform)}
                                         sub={sub}
                                         subClass={
                                             broken ? broken.subClass : "text-muted-foreground"
@@ -176,7 +183,9 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                         {toAdd.map(({platform, summary}) => (
                             <ChannelRow
                                 key={platform}
-                                platform={platform}
+                                testId={`agent-channels-${platform}`}
+                                icon={platformLogo(platform, phone ? 22 : 32)}
+                                label={platformLabel(platform)}
                                 sub={summary.sub}
                                 subClass={
                                     summary.dotClass ? summary.subClass : "text-muted-foreground"
@@ -190,6 +199,31 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                                 onClick={() => open(platform)}
                             />
                         ))}
+                        {/* API and Embed, as the production Publish panel lists them. */}
+                        {api ? (
+                            <ChannelRow
+                                testId="agent-channels-api"
+                                icon={<PublishMark icon={<Code weight="bold" />} phone={phone} />}
+                                label="API"
+                                sub={t("channels.hub.apiAlwaysOn")}
+                                subClass="text-muted-foreground"
+                                opens
+                                phone={phone}
+                                onClick={() => openRoute({view: "api"})}
+                            />
+                        ) : null}
+                        {embed ? (
+                            <ChannelRow
+                                testId="agent-channels-embed"
+                                icon={<PublishMark icon={<ChatCircleText />} phone={phone} />}
+                                label={t("channels.hub.embed")}
+                                sub={t("channels.hub.embedDescription")}
+                                subClass="text-muted-foreground"
+                                opens
+                                phone={phone}
+                                onClick={() => openRoute({view: "embed", connectionId: null})}
+                            />
+                        ) : null}
                     </ChannelGroup>
                 </>
             )}
@@ -229,37 +263,54 @@ const ROW_DESKTOP =
 const ROW_PHONE =
     "box-border flex min-h-14 w-full items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer py-1.5 pl-4 pr-2 text-left text-[15px] leading-5"
 
+/** The mark of API and Embed: their production icon on a muted square, a platform logo's size. */
+const PublishMark = ({icon, phone}: {icon: React.ReactElement; phone: boolean}) => (
+    <span
+        className={`flex items-center justify-center bg-muted text-foreground ${phone ? "size-[22px] rounded text-[14px]" : "size-8 rounded-md text-base"}`}
+    >
+        {icon}
+    </span>
+)
+
 /**
  * One channel. A connected channel is one button that opens its manage view, with the action
- * and a caret at the right; a channel to add has a "Connect" button.
+ * and a caret at the right; a channel to add has a "Connect" button. API and Embed (`opens`) are
+ * one button with a caret, as in the production Publish panel.
  */
 const ChannelRow = ({
-    platform,
+    testId,
+    icon,
+    label,
     sub,
     subClass,
     tag,
     action,
     connected = false,
+    opens = false,
     phone,
     onClick,
 }: {
-    platform: ChannelPlatform
+    testId: string
+    icon: React.ReactNode
+    label: string
     sub: string
     subClass: string
     tag?: React.ReactNode
-    action: string
+    /** The action's words; a row that `opens` has none. */
+    action?: string
     connected?: boolean
+    opens?: boolean
     phone: boolean
     onClick: () => void
 }) => {
     const body = (
         <>
             <span className="flex flex-none items-center" aria-hidden>
-                {platformLogo(platform, phone ? 22 : 32)}
+                {icon}
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-center gap-1.5 font-medium text-foreground">
-                    {platformLabel(platform)}
+                    {label}
                     {tag}
                 </span>
                 <span className={`text-[12px] leading-4 ${phone ? "" : "truncate"} ${subClass}`}>
@@ -268,16 +319,16 @@ const ChannelRow = ({
             </span>
         </>
     )
-    if (connected) {
+    if (connected || opens) {
         return (
             <button
                 type="button"
                 className={`${phone ? ROW_PHONE : ROW_DESKTOP} cursor-pointer font-[inherit] hover:bg-muted/40`}
-                data-testid={`agent-channels-${platform}`}
+                data-testid={testId}
                 onClick={onClick}
             >
                 {body}
-                {phone ? (
+                {!action ? null : phone ? (
                     <span className="sr-only">{action}</span>
                 ) : (
                     <span className="flex-none text-[13px] text-muted-foreground">{action}</span>
@@ -292,7 +343,7 @@ const ChannelRow = ({
         )
     }
     return (
-        <div className={phone ? ROW_PHONE : ROW_DESKTOP} data-testid={`agent-channels-${platform}`}>
+        <div className={phone ? ROW_PHONE : ROW_DESKTOP} data-testid={testId}>
             {body}
             <Button
                 variant="outline"
