@@ -360,6 +360,7 @@ class SessionStartsService:
         envelope: RunEnvelope,
         kind: PendingInputKind,
         admitted_agent_id: Optional[UUID],
+        calling_turn_id: Optional[str] = None,
     ) -> tuple[PendingInput, bool]:
         """Write and promote the input for `execution_id`, then invoke it once. Call it
         under `_start_lock`, after the run was admitted.
@@ -376,6 +377,7 @@ class SessionStartsService:
             idempotency_key=idempotency_key,
             envelope=envelope,
             kind=kind,
+            calling_turn_id=calling_turn_id,
         )
         existing = await self._has_started(
             project_id=project_id,
@@ -455,6 +457,7 @@ class SessionStartsService:
         idempotency_key: str,
         run_envelope: RunEnvelope,
         dispatch_boundary: str,
+        calling_turn_id: Optional[str] = None,
     ) -> SessionInputEnqueueResult:
         """Put one input that server code writes into an existing session.
 
@@ -475,7 +478,11 @@ class SessionStartsService:
         `SessionInputCarriesApprovalAnswer` for content with an approval answer (no row
         is written),
         `AdmissionDenied` when the immediate dispatch is refused (no row is written), and
-        `SessionStartNotDurable` when the dispatch cannot be shown to have started."""
+        `SessionStartNotDurable` when the dispatch cannot be shown to have started.
+
+        `calling_turn_id` is the first execution id of the calling turn of a child
+        input. Only server code that sends a child input passes it; the row stores
+        it and no response returns it."""
         if run_envelope.authority.project_id != project_id:
             raise SessionInputEnvelopeMismatch()
         if not is_reserved_input_key(idempotency_key):
@@ -558,6 +565,7 @@ class SessionStartsService:
                     idempotency_key=idempotency_key,
                     envelope=run_envelope,
                     kind=kind,
+                    calling_turn_id=calling_turn_id,
                 )
                 return SessionInputEnqueueResult(
                     input_id=waiting.id,
@@ -574,6 +582,7 @@ class SessionStartsService:
                 idempotency_key=idempotency_key,
                 envelope=run_envelope,
                 kind=kind,
+                calling_turn_id=calling_turn_id,
             )
             if admission.action == "pending":
                 item = admission.input
@@ -608,6 +617,7 @@ class SessionStartsService:
                 envelope=run_envelope,
                 kind=kind,
                 admitted_agent_id=agent_artifact_id,
+                calling_turn_id=calling_turn_id,
             )
             return SessionInputEnqueueResult(
                 input_id=claimed.id,
@@ -628,6 +638,7 @@ class SessionStartsService:
         envelope: RunEnvelope,
         access: AccessPolicy | None = None,
         calling_session: SessionCallingSession | None = None,
+        calling_turn_id: str | None = None,
     ) -> SessionStartResult:
         """`access` is the first session's initial policy (the caller's requested
         visibility, through `initial_policy`). When given, the session row is created
@@ -637,7 +648,9 @@ class SessionStartsService:
         The row's origin comes from `envelope`'s run origin. `calling_session` is the
         record of the session whose agent starts this one; it needs an envelope with
         the run origin `calling_session` and an `access`, because only the row that
-        the start creates carries the record."""
+        the start creates carries the record. `calling_turn_id` is the first execution
+        id of the calling turn; the first input row stores it for the producer of
+        child updates."""
         if calling_session is not None and access is None:
             raise ValueError("a calling session record needs the initial policy")
         # The start runs as the request's principal; recheck before anything is
@@ -719,6 +732,7 @@ class SessionStartsService:
                 envelope=envelope,
                 kind=PendingInputKind.message,
                 admitted_agent_id=agent_artifact_id,
+                calling_turn_id=calling_turn_id,
             )
             return SessionStartResult(
                 session_id=session_id,
