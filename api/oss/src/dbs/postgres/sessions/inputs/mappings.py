@@ -4,6 +4,7 @@ from uuid import UUID
 from oss.src.core.sessions.inputs.dtos import (
     PendingInput,
     PendingInputCreate,
+    PendingInputKind,
     PendingInputState,
 )
 from oss.src.dbs.postgres.access.mappings import (
@@ -28,6 +29,7 @@ def to_pending_input(row: SessionInputDBE) -> PendingInput:
         position=row.position,
         state=PendingInputState(row.state),
         policy=row.policy,
+        kind=PendingInputKind(row.kind) if row.kind else PendingInputKind.message,
         idempotency_key=row.idempotency_key,
         request_fingerprint=row.request_fingerprint,
         promoted_execution_id=row.promoted_execution_id,
@@ -38,9 +40,10 @@ def to_pending_input(row: SessionInputDBE) -> PendingInput:
 def new_input_row(
     *, user_id: Optional[UUID], pending_input: PendingInputCreate, position: int
 ) -> SessionInputDBE:
-    values = pending_input.model_dump(mode="python", exclude={"run_envelope"})
+    values = pending_input.model_dump(mode="python", exclude={"run_envelope", "kind"})
     return SessionInputDBE(
         **values,
+        kind=pending_input.kind.value,
         run_envelope=map_envelope_to_column(envelope=pending_input.run_envelope),
         position=position,
         created_by_id=user_id,
