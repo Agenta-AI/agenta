@@ -82,7 +82,7 @@ The table:
 | Plan | Projects per organization | Organizations per instance |
 | --- | --- | --- |
 | `self_hosted_community` (no key, expired key, invalid key) | 1 | 1 |
-| `self_hosted_registered` (free key) | Question 1 on the decision page; spec uses no limit | 1 |
+| `self_hosted_registered` (free key) | no limit (decided 2026-11-21) | 1 |
 | any other plan (paid key) | no limit | no limit |
 | cloud (`is_cloud()`) | from `PROJECT_LIMITS` by Stripe plan, as today | no limit |
 
