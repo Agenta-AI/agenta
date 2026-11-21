@@ -826,26 +826,28 @@ class SessionStreamsRouter:
         # which this request has no right to stop.
         if session_was_missing(project_id=project_id, session_id=session_id):
             return
-        stream = await self._service.fetch(project_id=project_id, session_id=session_id)
-        if stream is None or not stream.flags.is_running or not stream.turn_id:
+        # Read from Redis, as the stop below does: the row's turn and start time are
+        # written later and by another clock, so a check against them can refuse a turn
+        # that the stop below then stops, and that turn gets no ending.
+        turn_id, started_at_ms = await self._service.running_turn_start(
+            project_id=project_id, session_id=session_id
+        )
+        if turn_id is None:
             return
         # The same two guards as the stop below, which cannot undo this command: a Stop
         # that names a turn stops only that turn, and an unnamed Stop never stops a turn
-        # that started after it arrived.
+        # that started after it arrived. An unknown start does not refuse, as below.
         if expected_execution_id is not None:
-            if expected_execution_id != stream.turn_id:
+            if expected_execution_id != turn_id:
                 return
-        elif (
-            stream.turn_started_at is not None
-            and stream.turn_started_at.timestamp() * 1000 > arrived_at_ms
-        ):
+        elif started_at_ms is not None and started_at_ms > arrived_at_ms:
             return
         try:
             await self._commands_service.request_cancel(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
-                expected_execution_id=str(stream.turn_id),
+                expected_execution_id=turn_id,
             )
         except ExecutionExpectationFailed:
             # The turn ended or another one runs now; the stop below gives the answer.

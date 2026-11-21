@@ -381,10 +381,13 @@ async def test_start_once_passes_the_calling_turn_id_to_the_first_input():
 
 
 class _StopStreamsService(_StreamsService):
-    def __init__(self, *, running, order, turn_started_at=None):
+    def __init__(self, *, running, order, turn_started_at=None, redis_started_ms=None):
         super().__init__(running=running)
         self.order = order
+        # The row's start, written by the API process clock after the turn took the lock.
         self.turn_started_at = turn_started_at
+        # The start Redis recorded as the turn took the lock: the value the stop compares.
+        self.redis_started_ms = redis_started_ms
 
     async def fetch(self, *, project_id, session_id):
         return SimpleNamespace(
@@ -392,6 +395,11 @@ class _StopStreamsService(_StreamsService):
             turn_started_at=self.turn_started_at,
             flags=SimpleNamespace(is_running=self.running),
         )
+
+    async def running_turn_start(self, *, project_id, session_id):
+        if not self.running:
+            return None, None
+        return EXECUTION_ID, self.redis_started_ms
 
     async def clock_ms(self):
         return 1_000_000
@@ -410,6 +418,7 @@ async def _stop_route(
     running: bool,
     expected_execution_id=None,
     turn_started_at=None,
+    redis_started_ms=None,
     session_missing: bool = False,
 ):
     from oss.src.apis.fastapi.sessions import router as router_module
@@ -419,7 +428,10 @@ async def _stop_route(
     commands = AsyncMock()
     commands.request_cancel.side_effect = lambda **_kwargs: order.append("command")
     streams = _StopStreamsService(
-        running=running, order=order, turn_started_at=turn_started_at
+        running=running,
+        order=order,
+        turn_started_at=turn_started_at,
+        redis_started_ms=redis_started_ms,
     )
     route = router_module.SessionStreamsRouter(
         service=streams,
@@ -540,14 +552,36 @@ async def test_a_stop_records_no_command_for_a_turn_that_started_after_it(monkey
     route, request, payload, commands, order = await _stop_route(
         monkeypatch,
         running=True,
-        # After the request arrived (the stub clock says 1_000_000 ms).
+        # After the request arrived (the stub clock says 1_000_000 ms), on both clocks.
         turn_started_at=datetime.fromtimestamp(2_000, tz=timezone.utc),
+        redis_started_ms=2_000_000,
     )
 
     await route.set_session_stream(request, payload=payload)
 
     assert order == ["stop"]
     commands.request_cancel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stop_records_the_command_when_only_the_row_start_is_after_it(
+    monkeypatch,
+):
+    # Redis started the turn before the Stop arrived, and the row got its later start
+    # from the API clock. The stop below accepts on the Redis start and clears the live
+    # flags, so a check on the row start left the turn with no command and no ending.
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch,
+        running=True,
+        turn_started_at=datetime.fromtimestamp(1_000.010, tz=timezone.utc),
+        redis_started_ms=999_995,
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["command", "stop"]
+    kwargs = commands.request_cancel.await_args.kwargs
+    assert kwargs["expected_execution_id"] == EXECUTION_ID
 
 
 @pytest.mark.asyncio
