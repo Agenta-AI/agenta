@@ -29,6 +29,21 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 export const isServerInput = (input: {kind?: string | null}): boolean =>
     Boolean(input.kind) && input.kind !== "message"
 
+/** The part's fields, or null when it names no child session. */
+const childUpdateOfPart = (value: unknown): ChildUpdate | null => {
+    const part = asRecord(value)
+    const sessionId = part?.session_id
+    if (typeof sessionId !== "string" || !sessionId) return null
+    const status = part?.status
+    return {
+        sessionId,
+        turnId: typeof part?.turn_id === "string" && part.turn_id ? part.turn_id : null,
+        status: CHILD_UPDATE_STATUSES.includes(status as ChildUpdateStatus)
+            ? (status as ChildUpdateStatus)
+            : null,
+    }
+}
+
 /**
  * The structured part `child_update {session_id, turn_id, status}` of a child update row.
  *
@@ -42,15 +57,27 @@ export const childUpdateOfInput = (input: PendingSessionInput): ChildUpdate | nu
     const data = asRecord(input.content.data)
     const inputs = asRecord(data?.inputs)
     const messages = Array.isArray(inputs?.messages) ? inputs.messages : []
-    const part = asRecord(asRecord(messages.at(-1))?.child_update)
-    const sessionId = part?.session_id
-    if (typeof sessionId !== "string" || !sessionId) return null
-    const status = part?.status
-    return {
-        sessionId,
-        turnId: typeof part?.turn_id === "string" && part.turn_id ? part.turn_id : null,
-        status: CHILD_UPDATE_STATUSES.includes(status as ChildUpdateStatus)
-            ? (status as ChildUpdateStatus)
-            : null,
-    }
+    return childUpdateOfPart(asRecord(messages.at(-1))?.child_update)
+}
+
+/**
+ * The same part on the stored user `message` record of the turn the update started
+ * (`attributes.child_update`). The records ingest writes it from the server row and drops a
+ * `child_update` key that any producer sends, so only the server can make a record carry it.
+ */
+export const childUpdateOfRecord = (record: {
+    sender?: string | null
+    session_update?: string | null
+    payload?: Record<string, unknown> | null
+}): ChildUpdate | null =>
+    record.sender === "user" && record.session_update === "message"
+        ? childUpdateOfPart(record.payload?.child_update)
+        : null
+
+/** The child update a transcript user message came from, as `transcriptToMessages` stamps it. */
+export const getMessageChildUpdate = (message: {metadata?: unknown}): ChildUpdate | null => {
+    const value = asRecord(asRecord(message.metadata)?.childUpdate)
+    return typeof value?.sessionId === "string" && value.sessionId
+        ? (value as unknown as ChildUpdate)
+        : null
 }

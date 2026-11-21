@@ -176,7 +176,7 @@ export const LiveConversation = ({
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
     // The approvals that the sessions this chat's agent created wait on.
     const childApprovals = useChildApprovals({sessionId, projectId})
-    // A child update row in the queue names its child session and links it.
+    // A child update, in the queue or the transcript, names its child session and links it.
     const renderChildSession = useCallback(
         (update: ChildUpdate) => (
             <ChildSessionLink
@@ -963,6 +963,7 @@ export const LiveConversation = ({
                     // answer a tool or re-run a turn (retry rides rewind) either.
                     onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
                     onRewind={locked ? undefined : handleRewind}
+                    renderChildSession={renderChildSession}
                 />
             </ContentRail>
         )

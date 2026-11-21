@@ -20,6 +20,8 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
+import {childUpdateOfRecord, type ChildUpdate} from "./childUpdate"
+
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
  *
@@ -114,6 +116,8 @@ interface DraftMessage {
     runErrorCode?: string
     /** The terminal `done` carried `stopReason:"cancelled"` — a user Stop, not a failure. */
     runStopped?: boolean
+    /** A user row whose turn a child update started: the server part its record carries. */
+    childUpdate?: ChildUpdate
 }
 
 interface TranscriptIndex {
@@ -847,6 +851,10 @@ export function transcriptToMessages(
             if (Number.isFinite(at)) current.createdAt = at
         }
         if (traceId && !current.traceId) current.traceId = traceId
+        if (role === "user") {
+            const childUpdate = childUpdateOfRecord(row)
+            if (childUpdate) current.childUpdate = childUpdate
+        }
         applyEvent(current, p, index, row.session_id, row.project_id)
         if (
             p.type === "error" &&
@@ -906,6 +914,7 @@ export function transcriptToMessages(
             // one here from records would change what `latestTurnId` reports.
             if (d.role === "user" && d.executionId) metadata.turnId = d.executionId
             if (d.role === "user" && d.createdAt !== undefined) metadata.createdAt = d.createdAt
+            if (d.role === "user" && d.childUpdate) metadata.childUpdate = d.childUpdate
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,
