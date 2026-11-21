@@ -31,6 +31,8 @@ const fx = vi.hoisted(() => ({
     started: 0,
     cancelled: [] as string[],
     tokens: [] as string[],
+    /** The vault refresh fails, so the connection stays as it was. */
+    refreshFails: false,
 }))
 
 vi.mock("@agenta/entities/secret", async (importOriginal) => {
@@ -104,6 +106,11 @@ vi.mock("@agenta/entities/secret", async (importOriginal) => {
             if (get(attemptState) === "succeeded") {
                 set(connections, ready("chatgpt")(get(connections)))
             }
+        }),
+        refreshSignedInAtom: atom(null, async (get, set) => {
+            if (fx.refreshFails || get(attemptState) !== "succeeded") return false
+            set(connections, ready("chatgpt")(get(connections)))
+            return true
         }),
         setSubscriptionTokenAtom: atom(null, async (get, set, {token}: {token: string}) => {
             fx.tokens.push(token)
@@ -202,6 +209,7 @@ beforeEach(() => {
     fx.started = 0
     fx.cancelled = []
     fx.tokens = []
+    fx.refreshFails = false
 })
 
 afterEach(async () => {
@@ -247,6 +255,17 @@ describe("ChatGPT device code view", {timeout: 30_000}, () => {
         await findByText("here:Model providers")
         expect(byText("ChatGPT", "li span")).toBeTruthy()
         expect(fx.polling.size).toBe(0)
+    })
+
+    it("stays on the view and says so when the vault refresh after the sign-in fails", async () => {
+        await openList()
+        await pick("ChatGPT")
+        await findByText("KXRT-9P4M")
+        fx.refreshFails = true
+
+        await act(async () => store.set(fx.atoms.attemptState, "succeeded"))
+        await findByText("Agenta lost track of that sign-in. Check ChatGPT, then sign in again.")
+        expect(byText("here:ChatGPT")).toBeTruthy()
     })
 
     it("Cancel ends the sign-in, stops the poll and returns to the list", async () => {

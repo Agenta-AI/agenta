@@ -537,7 +537,15 @@ export function SkillFormView({
                         onCancel={() => setUploading(false)}
                         onUpload={(upload, mode) => {
                             const result = applySkillUpload(skill, upload, mode)
-                            if ("error" in result) return t("skills.gallery.noSkillMdFound")
+                            if ("error" in result) {
+                                if (result.error === "duplicatePath")
+                                    return t("skills.gallery.duplicateUploadPath", {
+                                        path: result.path,
+                                    })
+                                return result.error === "manySkills"
+                                    ? t("skills.gallery.manySkillMdFound")
+                                    : t("skills.gallery.noSkillMdFound")
+                            }
                             onChange(result.skill)
                             setSkipped(upload.skipped)
                             setUploading(false)

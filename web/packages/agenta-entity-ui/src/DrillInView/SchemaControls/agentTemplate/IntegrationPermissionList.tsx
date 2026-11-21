@@ -845,10 +845,10 @@ export function IntegrationTitle({
     const tCommon = useT(commonCatalog)
     const phone = useIsPhone()
     const {integration} = useToolIntegrationDetail(target.integration)
-    const {connections, isLoading} = useToolConnectionsQuery()
+    const {connections, isLoading, error} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
-    // A saved shared connection that the project no longer has needs attention too.
-    const missing = Boolean(connectionSlug) && !isLoading && !connection
+    // A saved shared connection the project no longer has needs attention; a failed read says nothing.
+    const missing = Boolean(connectionSlug) && !isLoading && !error && !connection
     const displayName = integration?.name || target.integration
     const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
     // A healthy connection shows no tag.

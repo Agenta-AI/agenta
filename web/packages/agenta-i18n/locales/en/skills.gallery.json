@@ -3,6 +3,8 @@
     "filesParsed_one": "{{count}} file parsed",
     "filesParsed_other": "{{count}} files parsed",
     "noSkillMdFound": "No SKILL.md found in the upload.",
+    "manySkillMdFound": "The upload has more than one SKILL.md.",
+    "duplicateUploadPath": "Two files in the upload have the same path: {{path}}",
     "readUploadFailed": "Couldn't read the upload.",
     "createFailedDetail": "Create failed: {{error}}",
     "createFailed": "Create failed.",

@@ -2,6 +2,8 @@
     "newSkill": "新建 Skill",
     "filesParsed_other": "已解析 {{count}} 个文件",
     "noSkillMdFound": "上传的内容中没有找到 SKILL.md。",
+    "manySkillMdFound": "上传的内容中有多个 SKILL.md。",
+    "duplicateUploadPath": "上传的内容中有两个文件路径相同：{{path}}",
     "readUploadFailed": "无法读取上传的内容。",
     "createFailedDetail": "创建失败：{{error}}",
     "createFailed": "创建失败。",

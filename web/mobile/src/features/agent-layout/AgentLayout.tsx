@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {AgentLayoutBody, type AgentLayoutProps} from "./AgentLayoutBody"
-import {LeaveGuardProvider} from "./leaveGuard"
+import {LeaveGuardProvider} from "./LeaveGuardProvider"
 
 /** True when a route leaves the agent on screen (another agent, or a page that is not an agent's). */
 const leavesAgentFor = (agentId: string | null, sessionId: string) => (url: string) => {

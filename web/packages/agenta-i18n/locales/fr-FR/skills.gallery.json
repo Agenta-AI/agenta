@@ -4,6 +4,8 @@
     "filesParsed_many": "{{count}} fichiers analysés",
     "filesParsed_other": "{{count}} fichiers analysés",
     "noSkillMdFound": "Aucun SKILL.md trouvé dans le fichier téléversé.",
+    "manySkillMdFound": "Le fichier téléversé contient plus d’un SKILL.md.",
+    "duplicateUploadPath": "Deux fichiers téléversés ont le même chemin : {{path}}",
     "readUploadFailed": "Impossible de lire le fichier téléversé.",
     "createFailedDetail": "Échec de la création : {{error}}",
     "createFailed": "Échec de la création.",

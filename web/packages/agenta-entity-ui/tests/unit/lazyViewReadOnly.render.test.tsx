@@ -55,6 +55,20 @@ describe("lazyView read only", () => {
         expect(container.textContent).toBe("read only")
     })
 
+    it("gives the body a read-only editor with no editor around the stack", async () => {
+        await act(async () =>
+            root.render(
+                createElement(View, {
+                    params: {},
+                    target: {kind: "agent_draft", revisionId: "rev-4"},
+                    readOnly: true,
+                } as never),
+            ),
+        )
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+        expect(container.textContent).toBe("read only")
+    })
+
     it("keeps the editor when the host does not", async () => {
         await renderView(undefined)
         expect(container.textContent).toBe("editable")
