@@ -6,8 +6,12 @@
  */
 import {act} from "react"
 
+import {invalidateSessionListQueries} from "@agenta/entities/session"
 import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
+import {queryClient as hostQueryClient} from "@agenta/shared/api"
+import {QueryClientProvider} from "@tanstack/react-query"
+import {getDefaultStore, Provider} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -33,7 +37,8 @@ const OPEN = "open-session"
 
 let host: HTMLDivElement
 let root: Root
-let client: QueryClient
+const client = hostQueryClient
+const defaults = hostQueryClient.getDefaultOptions()
 let result: ChildApprovals[] = []
 
 const Probe = () => {
@@ -44,11 +49,17 @@ const Probe = () => {
 const flush = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 0))))
 
 const mount = async (retry: number | false = false) => {
-    client = new QueryClient({defaultOptions: {queries: {retry, retryDelay: 0}}})
+    // The app's one client, as the host contract asks, with this test's retry merged in.
+    client.setDefaultOptions({...defaults, queries: {...defaults.queries, retry, retryDelay: 0}})
+    // Package writes read the client from the default store.
+    const store = getDefaultStore()
+    store.set(queryClientAtom, client)
     await act(async () =>
         root.render(
             <QueryClientProvider client={client}>
-                <Probe />
+                <Provider store={store}>
+                    <Probe />
+                </Provider>
             </QueryClientProvider>,
         ),
     )
@@ -77,6 +88,8 @@ beforeEach(() => {
 afterEach(async () => {
     await act(async () => root.unmount())
     host.remove()
+    client.clear()
+    client.setDefaultOptions(defaults)
 })
 
 describe("useChildApprovals", () => {
@@ -153,11 +166,7 @@ describe("useChildApprovals", () => {
 
         // Archived: the list leaves it out, while its interaction still waits.
         api.querySessionsPage.mockResolvedValue({count: 0, sessions: []})
-        await act(async () => {
-            await client.invalidateQueries({
-                predicate: (query) => query.queryKey.includes("session-list"),
-            })
-        })
+        await act(async () => invalidateSessionListQueries())
         await flush()
 
         expect(result).toEqual([])
