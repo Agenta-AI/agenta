@@ -1,0 +1,15 @@
+{
+    "add": "Ajouter",
+    "addProviderOrSubscription": "Ajouter un fournisseur ou un abonnement",
+    "agenta": "Agenta",
+    "apiKeys": "Clés API",
+    "builtIn": "Intégré",
+    "formLeaveDescription": "Enregistrer vos modifications de cette connexion, ou les abandonner ?",
+    "loadFailed": "Agenta n’a pas pu charger les fournisseurs de modèles.",
+    "providedByAgenta": "Fournie par Agenta",
+    "saveConnection": "Enregistrer la connexion",
+    "signInNeeded": "Connexion requise",
+    "subscriptions": "Abonnements",
+    "useApiKey": "Utiliser une clé API",
+    "useSubscription": "Utiliser un abonnement"
+}

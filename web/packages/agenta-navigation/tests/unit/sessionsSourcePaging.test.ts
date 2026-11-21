@@ -28,6 +28,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     return {
         agentWorkflowsListQueryStateAtom: atom({data: [], isPending: false}),
+        builderAgentWorkflowIdAtom: atom(null),
         appWorkflowsListQueryAtom: atom({data: {refs: []}}),
         workflowMolecule: {selectors: {artifactName: () => atom(null)}},
     }

@@ -19,7 +19,6 @@ import {
 import {
     ArrowsIn,
     ArrowsOut,
-    CaretDoubleLeft,
     CaretDoubleRight,
     CaretLeft,
     CaretRight,
@@ -40,6 +39,40 @@ import {SelectedMark} from "./DriveMenuMark"
 /** The chrome's icon button: the kit's ghost icon-sm, muted until hover. */
 export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
 export const ROW_ICON_BTN_ON = "bg-accent text-colorText"
+
+export interface DriveHeaderProps {
+    selectedPath: string | null
+    isFolder: boolean
+    rootLabel: string
+    onNavigate: (path: string) => void
+    canGoBack: boolean
+    canGoForward: boolean
+    onBack: () => void
+    onForward: () => void
+    copyText: (text: string, successMessage?: string) => void
+    /** Raw ids for the inspector; empty when it is off. */
+    ids: DriveId[]
+    /** The drive mixes agent and session files, so "Show temporary files" applies. */
+    showOrigin: boolean
+    showTemporary: boolean
+    onToggleTemporary: () => void
+    showHidden: boolean
+    onToggleHidden: () => void
+    inGitScope: boolean
+    showGitignored: boolean
+    onToggleGitignored: () => void
+    treeVisible: boolean
+    onToggleTree: () => void
+    /** For hosts whose close lives in this row. */
+    onClose?: () => void
+    closeVariant?: "close" | "collapse"
+    expanded?: boolean
+    onToggleExpand?: () => void
+    expandPlacement?: "leading" | "before-options"
+    partialErrored?: boolean
+    onRetry?: () => void
+    retrying?: boolean
+}
 
 export const DriveHeader = ({
     selectedPath,
@@ -70,41 +103,7 @@ export const DriveHeader = ({
     partialErrored,
     onRetry,
     retrying,
-}: {
-    selectedPath: string | null
-    isFolder: boolean
-    rootLabel: string
-    onNavigate: (path: string) => void
-    canGoBack: boolean
-    canGoForward: boolean
-    onBack: () => void
-    onForward: () => void
-    copyText: (text: string, successMessage?: string) => void
-    /** Raw ids for the inspector; empty when it is off. */
-    ids: DriveId[]
-    /** The drive mixes agent and session files, so "Show temporary files" applies. */
-    showOrigin: boolean
-    showTemporary: boolean
-    onToggleTemporary: () => void
-    showHidden: boolean
-    onToggleHidden: () => void
-    inGitScope: boolean
-    showGitignored: boolean
-    onToggleGitignored: () => void
-    treeVisible: boolean
-    onToggleTree: () => void
-    /** For hosts whose close lives in this row. */
-    onClose?: () => void
-    /** `back` is the phone's: the pane has the whole screen, so its leave control sits where a
-     * back control does — first in the row, pointing back. */
-    closeVariant?: "close" | "collapse" | "back"
-    expanded?: boolean
-    onToggleExpand?: () => void
-    expandPlacement?: "leading" | "before-options"
-    partialErrored?: boolean
-    onRetry?: () => void
-    retrying?: boolean
-}) => {
+}: DriveHeaderProps) => {
     const t = useT(driveExplorerCatalog)
     const expandLabel =
         expandPlacement === "before-options"
@@ -143,18 +142,6 @@ export const DriveHeader = ({
                         <X size={15} />
                     </Button>
                 </Tooltip>
-            ) : null}
-            {onClose && closeVariant === "back" ? (
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-keyshortcuts={shortcutAria("panel.files")}
-                    aria-label={t("entityUi.driveExplorer.closeFilesPane")}
-                    onClick={onClose}
-                    className={ROW_ICON_BTN}
-                >
-                    <CaretDoubleLeft size={15} />
-                </Button>
             ) : null}
             {expandPlacement === "leading" ? expandButton : null}
             <Button
@@ -195,19 +182,11 @@ export const DriveHeader = ({
                     onNavigate={onNavigate}
                 />
             </div>
-            {/* One mount failed but the drive still browses: a compact warning + retry. */}
-            {partialErrored && onRetry ? (
-                <Tooltip title={t("entityUi.driveExplorer.someFilesFailed")}>
-                    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-                        <WarningCircle
-                            size={14}
-                            weight="fill"
-                            className="shrink-0 text-colorWarning"
-                        />
-                        <DriveRetryButton onRetry={onRetry} busy={retrying} />
-                    </span>
-                </Tooltip>
-            ) : null}
+            <DrivePartialError
+                partialErrored={partialErrored}
+                onRetry={onRetry}
+                retrying={retrying}
+            />
             {expandPlacement === "before-options" ? expandButton : null}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -222,69 +201,18 @@ export const DriveHeader = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[220px]">
-                    {/* Plain items with a right-side check; `preventDefault` keeps the menu open. */}
-                    {showOrigin ? (
-                        <DropdownMenuItem
-                            role="menuitemcheckbox"
-                            aria-checked={showTemporary}
-                            onSelect={(e) => {
-                                e.preventDefault()
-                                onToggleTemporary()
-                            }}
-                        >
-                            <ClockCountdown />
-                            {t("entityUi.driveExplorer.showTemporaryFiles")}
-                            <SelectedMark on={showTemporary} />
-                        </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem
-                        role="menuitemcheckbox"
-                        aria-checked={showHidden}
-                        onSelect={(e) => {
-                            e.preventDefault()
-                            onToggleHidden()
-                        }}
-                    >
-                        <EyeSlash />
-                        {t("entityUi.driveExplorer.showHiddenFiles")}
-                        <SelectedMark on={showHidden} />
-                    </DropdownMenuItem>
-                    {inGitScope ? (
-                        <DropdownMenuItem
-                            role="menuitemcheckbox"
-                            aria-checked={showGitignored}
-                            onSelect={(e) => {
-                                e.preventDefault()
-                                onToggleGitignored()
-                            }}
-                        >
-                            <GitBranch />
-                            {t("entityUi.driveExplorer.showGitignoredFiles")}
-                            <SelectedMark on={showGitignored} />
-                        </DropdownMenuItem>
-                    ) : null}
-                    {ids.length ? <DropdownMenuSeparator /> : null}
-                    {ids.map((id) => (
-                        <DropdownMenuItem
-                            key={id.key}
-                            onSelect={() =>
-                                copyText(
-                                    id.value,
-                                    t("entityUi.driveExplorer.labelCopied", {label: id.label}),
-                                )
-                            }
-                        >
-                            <Copy />
-                            <span className="flex flex-col gap-0.5 py-0.5">
-                                <span className="text-xs font-medium">
-                                    {t("entityUi.driveExplorer.copyLabel", {label: id.label})}
-                                </span>
-                                <span className="font-mono text-[12px] text-colorTextTertiary">
-                                    {id.value}
-                                </span>
-                            </span>
-                        </DropdownMenuItem>
-                    ))}
+                    <DriveViewOptionItems
+                        copyText={copyText}
+                        ids={ids}
+                        showOrigin={showOrigin}
+                        showTemporary={showTemporary}
+                        onToggleTemporary={onToggleTemporary}
+                        showHidden={showHidden}
+                        onToggleHidden={onToggleHidden}
+                        inGitScope={inGitScope}
+                        showGitignored={showGitignored}
+                        onToggleGitignored={onToggleGitignored}
+                    />
                 </DropdownMenuContent>
             </DropdownMenu>
             <Tooltip
@@ -329,5 +257,151 @@ export const DriveHeader = ({
                 </Tooltip>
             ) : null}
         </div>
+    )
+}
+
+type ViewOptionProps = Pick<
+    DriveHeaderProps,
+    | "copyText"
+    | "ids"
+    | "showOrigin"
+    | "showTemporary"
+    | "onToggleTemporary"
+    | "showHidden"
+    | "onToggleHidden"
+    | "inGitScope"
+    | "showGitignored"
+    | "onToggleGitignored"
+>
+
+/** The "View options" entries: file filters, then the inspector's raw ids. */
+const DriveViewOptionItems = ({
+    copyText,
+    ids,
+    showOrigin,
+    showTemporary,
+    onToggleTemporary,
+    showHidden,
+    onToggleHidden,
+    inGitScope,
+    showGitignored,
+    onToggleGitignored,
+}: ViewOptionProps) => {
+    const t = useT(driveExplorerCatalog)
+    return (
+        <>
+            {/* Plain items with a right-side check; `preventDefault` keeps the menu open. */}
+            {showOrigin ? (
+                <DropdownMenuItem
+                    role="menuitemcheckbox"
+                    aria-checked={showTemporary}
+                    onSelect={(e) => {
+                        e.preventDefault()
+                        onToggleTemporary()
+                    }}
+                >
+                    <ClockCountdown />
+                    {t("entityUi.driveExplorer.showTemporaryFiles")}
+                    <SelectedMark on={showTemporary} />
+                </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+                role="menuitemcheckbox"
+                aria-checked={showHidden}
+                onSelect={(e) => {
+                    e.preventDefault()
+                    onToggleHidden()
+                }}
+            >
+                <EyeSlash />
+                {t("entityUi.driveExplorer.showHiddenFiles")}
+                <SelectedMark on={showHidden} />
+            </DropdownMenuItem>
+            {inGitScope ? (
+                <DropdownMenuItem
+                    role="menuitemcheckbox"
+                    aria-checked={showGitignored}
+                    onSelect={(e) => {
+                        e.preventDefault()
+                        onToggleGitignored()
+                    }}
+                >
+                    <GitBranch />
+                    {t("entityUi.driveExplorer.showGitignoredFiles")}
+                    <SelectedMark on={showGitignored} />
+                </DropdownMenuItem>
+            ) : null}
+            {ids.length ? <DropdownMenuSeparator /> : null}
+            {ids.map((id) => (
+                <DropdownMenuItem
+                    key={id.key}
+                    onSelect={() =>
+                        copyText(
+                            id.value,
+                            t("entityUi.driveExplorer.labelCopied", {label: id.label}),
+                        )
+                    }
+                >
+                    <Copy />
+                    <span className="flex flex-col gap-0.5 py-0.5">
+                        <span className="text-xs font-medium">
+                            {t("entityUi.driveExplorer.copyLabel", {label: id.label})}
+                        </span>
+                        <span className="font-mono text-[12px] text-colorTextTertiary">
+                            {id.value}
+                        </span>
+                    </span>
+                </DropdownMenuItem>
+            ))}
+        </>
+    )
+}
+
+/**
+ * Row 1's controls as menu entries, for a phone: one row carries the crumb and the folder controls
+ * (as drawn), and Back, Forward, the view options and the file tree move into "More actions".
+ */
+export const DriveHeaderMenuItems = (props: DriveHeaderProps) => {
+    const t = useT(driveExplorerCatalog)
+    return (
+        <>
+            <DropdownMenuItem disabled={!props.canGoBack} onSelect={props.onBack}>
+                <CaretLeft />
+                {t("entityUi.driveExplorer.back")}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!props.canGoForward} onSelect={props.onForward}>
+                <CaretRight />
+                {t("entityUi.driveExplorer.forward")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+                role="menuitemcheckbox"
+                aria-checked={props.treeVisible}
+                onSelect={props.onToggleTree}
+            >
+                <Sidebar />
+                {t("entityUi.driveExplorer.showFileTree")}
+                <SelectedMark on={props.treeVisible} />
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DriveViewOptionItems {...props} />
+        </>
+    )
+}
+
+/** One mount failed but the drive still browses: a compact warning and Retry. */
+export const DrivePartialError = ({
+    partialErrored,
+    onRetry,
+    retrying,
+}: Pick<DriveHeaderProps, "partialErrored" | "onRetry" | "retrying">) => {
+    const t = useT(driveExplorerCatalog)
+    if (!partialErrored || !onRetry) return null
+    return (
+        <Tooltip title={t("entityUi.driveExplorer.someFilesFailed")}>
+            <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+                <WarningCircle size={14} weight="fill" className="shrink-0 text-colorWarning" />
+                <DriveRetryButton onRetry={onRetry} busy={retrying} />
+            </span>
+        </Tooltip>
     )
 }

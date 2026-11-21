@@ -258,12 +258,17 @@ class SecretsTokenStorage:
         await self.write_tokens(tokens)
 
     async def write_tokens(
-        self, tokens: OAuthToken, *, client_id: Optional[str] = None
+        self,
+        tokens: OAuthToken,
+        *,
+        client_id: Optional[str] = None,
+        account_name: Optional[str] = None,
     ) -> SecretResponseDTO:
         """Write this connection's tokens and return the persisted secret.
 
         `client_id` is the client the tokens were issued to, recorded so a renewal
-        presents that client and no other."""
+        presents that client and no other. `account_name` is the account the sign-in
+        was made as; a renewal passes the stored one on."""
         endpoint_id = self._require_endpoint_id()
         expires_at = (
             int(time.time()) + tokens.expires_in
@@ -285,6 +290,7 @@ class SecretsTokenStorage:
             # one rather than whatever registration the issuer holds by then.
             client_registration_slug=self.resolved_registration_slug,
             client_id=client_id,
+            account_name=account_name,
         )
         secret = SecretDTO(
             kind=SecretKind.OAUTH_GRANT,

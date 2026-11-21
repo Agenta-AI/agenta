@@ -507,6 +507,22 @@ class SecretsDAO(SecretsDAOInterface):
         except DBAPIError as error:
             raise _conflict_from(error) from None
 
+    async def has_personal_sign_ins(
+        self, *, organization_id: UUID, slugs: Sequence[str]
+    ) -> bool:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SecretsDBE.id)
+                .where(
+                    SecretsDBE.slug.in_(list(slugs)),
+                    SecretsDBE.kind.in_(sorted(SIGN_IN_SECRET_KINDS)),
+                    SecretsDBE.organization_id == organization_id,
+                    SecretsDBE.user_id.is_not(None),
+                )
+                .limit(1)
+            )
+            return result.first() is not None
+
     # -- the effective set (one statement) -----------------------------------------
 
     async def load_effective(self, *, project_id: UUID) -> CachedEffectiveSecrets:

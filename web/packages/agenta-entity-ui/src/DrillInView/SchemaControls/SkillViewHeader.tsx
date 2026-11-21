@@ -1,0 +1,160 @@
+/**
+ * The header of the skill view (F07 f9, f10): the skill name, one status line, and the "..."
+ * menu "Skill actions". The registry skill view (skills-ui) and the agent-only skill view
+ * (entity-ui) both use it.
+ */
+import {Fragment, useState, type ReactNode} from "react"
+
+import {useT} from "@agenta/i18n"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import {SkillMark} from "@agenta/ui/agent-icon"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {DotsThree, DownloadSimple} from "@phosphor-icons/react"
+
+import {downloadSkill, skillDownloadKind} from "./skillDownload"
+
+/** A row of the actions menu: icon, label, full width. */
+const SKILL_ACTION_ROW_SHAPE =
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-default disabled:opacity-50 max-md:min-h-11"
+export const SKILL_ACTION_ROW = `${SKILL_ACTION_ROW_SHAPE} text-colorText`
+/** A danger row (F07 f10: Archive in red). Its own color, not an override: two color classes on
+ *  one element resolve by stylesheet order. */
+const SKILL_DANGER_ROW = `${SKILL_ACTION_ROW_SHAPE} text-[var(--ag-danger-text)]`
+
+export interface SkillAction {
+    key: string
+    label: string
+    icon: ReactNode
+    onSelect: () => void
+    danger?: boolean
+    disabled?: boolean
+}
+
+/** "Download as .zip" (or "Download SKILL.md") for the "…" menu; none when there is nothing to download. */
+export const useSkillDownloadAction = (skill: Record<string, unknown>): SkillAction[] => {
+    const t = useT(skillFormCatalog)
+    const kind = skillDownloadKind(skill)
+    if (!kind) return []
+    return [
+        {
+            key: "download",
+            label:
+                kind === "zip"
+                    ? t("entityUi.skillForm.downloadZip")
+                    : t("entityUi.skillForm.downloadSkillMd"),
+            icon: <DownloadSimple size={14} className="text-muted-foreground" />,
+            onSelect: () => void downloadSkill(skill),
+        },
+    ]
+}
+
+export interface SkillViewHeaderProps {
+    name: string
+    /** One line under the name, for example "Only available to this agent". */
+    status?: ReactNode
+    /** Text after the name, for example "Used by 3 agents" on the Skills page. */
+    extra?: ReactNode
+    actions: SkillAction[]
+    /** Rows above the actions that need their own markup (the "Add to agent" flyout). */
+    menuTop?: ReactNode
+    /** The menu stays shut while something runs. */
+    busy?: boolean
+    /** An error under the header. */
+    error?: ReactNode
+    /** The open state of the menu, for a host whose rows open a flyout. */
+    menuOpen?: boolean
+    onMenuOpenChange?: (open: boolean) => void
+}
+
+export function SkillViewHeader({
+    name,
+    status,
+    extra,
+    actions,
+    menuTop,
+    busy,
+    error,
+    menuOpen,
+    onMenuOpenChange,
+}: SkillViewHeaderProps) {
+    const t = useT(skillsGalleryCatalog)
+    const [ownOpen, setOwnOpen] = useState(false)
+    const open = menuOpen ?? ownOpen
+    const setOpen = onMenuOpenChange ?? setOwnOpen
+    const hasMenu = actions.length > 0 || Boolean(menuTop)
+    // The menu renders inside the header, so a modal drawer around it keeps it scrollable.
+    const [headerRoot, setHeaderRoot] = useState<HTMLDivElement | null>(null)
+    return (
+        <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2">
+                <SkillMark size={28} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span
+                            title={name}
+                            className="min-w-0 truncate text-[13px] font-semibold leading-5 text-colorText"
+                        >
+                            {name}
+                        </span>
+                        {extra}
+                    </div>
+                    {status ? (
+                        <span className="text-[12px] leading-4 text-colorTextSecondary">
+                            {status}
+                        </span>
+                    ) : null}
+                </div>
+                {hasMenu ? (
+                    <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-compact"
+                                aria-label={t("skills.gallery.skillActions")}
+                                disabled={busy}
+                                className="shrink-0"
+                            >
+                                <DotsThree aria-hidden weight="bold" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                            align="end"
+                            sideOffset={6}
+                            container={headerRoot}
+                            className="flex w-[220px] flex-col p-1"
+                        >
+                            {menuTop}
+                            {actions.map((action, index) => (
+                                <Fragment key={action.key}>
+                                    {/* A line before the first danger action (F07 f10: before Archive). */}
+                                    {action.danger && index > 0 && !actions[index - 1].danger ? (
+                                        <span
+                                            role="separator"
+                                            className="mx-1 my-1 h-px shrink-0 bg-colorBorderSecondary"
+                                        />
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        disabled={action.disabled}
+                                        onClick={() => {
+                                            setOpen(false)
+                                            action.onSelect()
+                                        }}
+                                        className={
+                                            action.danger ? SKILL_DANGER_ROW : SKILL_ACTION_ROW
+                                        }
+                                    >
+                                        {action.icon}
+                                        <span className="flex-1">{action.label}</span>
+                                    </button>
+                                </Fragment>
+                            ))}
+                        </PopoverContent>
+                    </Popover>
+                ) : null}
+            </div>
+            {error ? <span className="text-xs text-[var(--ag-colorError)]">{error}</span> : null}
+        </div>
+    )
+}

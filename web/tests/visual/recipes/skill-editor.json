@@ -1,0 +1,127 @@
+[
+    {
+        "id": "skill-editor-f1-light",
+        "story": "builderlayout-f07-skill-editor--skill-md-open",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Only available to this agent"
+    },
+    {
+        "id": "skill-editor-f2-light",
+        "story": "builderlayout-f07-skill-editor--file-menu",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "[placeholder=\"Find a file\"]"
+    },
+    {
+        "id": "skill-editor-f3-light",
+        "story": "builderlayout-f07-skill-editor--search",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Enter opens the first one"
+    },
+    {
+        "id": "skill-editor-f4-light",
+        "story": "builderlayout-f07-skill-editor--code-file",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Mark executable"
+    },
+    {
+        "id": "skill-editor-f5-light",
+        "story": "builderlayout-f07-skill-editor--row-actions",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=2 edited"
+    },
+    {
+        "id": "skill-editor-f6-light",
+        "story": "builderlayout-f07-skill-editor--add-file",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Mark executable"
+    },
+    {
+        "id": "skill-editor-f6-duplicate-light",
+        "story": "builderlayout-f07-skill-editor--duplicate-path",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Another file of this skill has this path."
+    },
+    {
+        "id": "skill-editor-f7-light",
+        "story": "builderlayout-f07-skill-editor--upload",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add to this skill"
+    },
+    {
+        "id": "skill-editor-f8-light",
+        "story": "builderlayout-f07-skill-editor--advanced",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Hide from prompt"
+    },
+    {
+        "id": "skill-editor-f8b-light",
+        "story": "builderlayout-f07-skill-editor--expanded",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=SKILL.md"
+    },
+    {
+        "id": "skill-editor-f9-light",
+        "story": "builderlayout-f07-skill-editor--registry-menu",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Archive"
+    },
+    {
+        "id": "skill-editor-f10-light",
+        "story": "builderlayout-f07-skill-editor--agent-only-menu",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Publish to skill registry"
+    },
+    {
+        "id": "skill-editor-k01-light",
+        "story": "builderlayout-f07-skill-editor--registry-file-menu",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "[placeholder=\"Find a file\"]"
+    },
+    {
+        "id": "skill-editor-skills-page-light",
+        "story": "builderlayout-f07-skill-editor--skills-page",
+        "width": 1200,
+        "height": 900,
+        "theme": "light",
+        "ready": "text=Used by 3 agents"
+    }
+]

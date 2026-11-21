@@ -53,6 +53,11 @@ export interface FilterMenuSection<Value extends string = string> {
     /** A search field over the flyout's options, for lists of names too long to scan. */
     searchable?: boolean
     searchPlaceholder?: string
+    /**
+     * The row shows a value the reader cannot change (the Agent of a page locked to one agent):
+     * gray text, a lock glyph in place of the chevron, and no flyout.
+     */
+    locked?: boolean
 }
 
 /**
@@ -88,7 +93,7 @@ export interface FilterMenuTriggerProps {
     label?: ReactNode | null
     /** Replaces the default leading glyph. */
     icon?: ReactNode
-    size?: "sm" | "default" | "lg" | "icon" | "icon-sm"
+    size?: "sm" | "default" | "lg" | "icon" | "icon-sm" | "compact" | "icon-compact"
     variant?: "outline" | "ghost" | "default" | "secondary" | "dashed" | "link"
     triggerClassName?: string
     triggerAriaLabel?: string

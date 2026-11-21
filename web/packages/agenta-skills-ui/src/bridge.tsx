@@ -9,8 +9,9 @@ import {invalidateSkillsListCache, skillsListDataAtom} from "@agenta/skills/stat
 import type {SkillsBridge} from "@agenta/ui/drill-in"
 import {getDefaultStore, useAtomValue} from "jotai"
 
-import {SkillDetailHost} from "./SkillDetailHost"
-import {SkillPickerHost} from "./SkillPickerHost"
+import {AddSkillsBody} from "./AddSkillsBody"
+import {NewSkillBody} from "./NewSkillBody"
+import {RegistrySkillBody} from "./registrySkillView"
 
 const tNow = createT(skillsGalleryCatalog)
 
@@ -70,8 +71,9 @@ export function useSkillsBridge(): SkillsBridge {
     return useMemo(
         () => ({
             enabled: true,
-            PickerHost: SkillPickerHost,
-            DetailHost: SkillDetailHost,
+            AddSkillsBody,
+            NewSkillBody,
+            RegistrySkillBody,
             useHeadVersions,
             publishInlineSkill,
         }),

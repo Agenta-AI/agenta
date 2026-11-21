@@ -84,7 +84,8 @@ export interface SecretFormController {
     onSwitchToJson: () => void
     onSwitchToGrid: () => void
     setJsonText: (next: string) => void
-    submit: () => Promise<void>
+    /** Saves the secret. Resolves the saved row, or null when nothing was saved. */
+    submit: () => Promise<SavedSecret | null>
 }
 
 export function useSecretForm({
@@ -230,11 +231,11 @@ export function useSecretForm({
         setJsonView("grid")
     }
 
-    const submit = async () => {
+    const submit = async (): Promise<SavedSecret | null> => {
         const trimmedName = name.trim()
         if (!trimmedName) {
             message.error(t("entityUi.secretForm.nameRequired"))
-            return
+            return null
         }
         const result = buildSecretContent({
             format,
@@ -249,7 +250,7 @@ export function useSecretForm({
         if ("error" in result) {
             if (format === CustomSecretFormat.Json) setJsonError(result.error)
             message.error(result.error)
-            return
+            return null
         }
         const content = result.content
         // `undefined` means "keep the stored value" on a write-only secret; only a supplied
@@ -261,7 +262,7 @@ export function useSecretForm({
                 : !content || Object.keys(content).length === 0)
         ) {
             message.error(t("entityUi.secretForm.contentRequired"))
-            return
+            return null
         }
 
         try {
@@ -286,13 +287,15 @@ export function useSecretForm({
             setJsonText("{}")
             setReplacementSupplied(false)
             message.success(t("entityUi.secretForm.saved"))
-            onSaved?.({
+            const saved: SavedSecret = {
                 id: savedId,
                 name: trimmedName,
                 slug: isEditing ? (initialSecret?.slug ?? "") : createSlug,
                 format,
                 defaultEnvVar: savedDefaultEnvVar,
-            })
+            }
+            onSaved?.(saved)
+            return saved
         } catch (error) {
             const status = (error as {statusCode?: number})?.statusCode
             console.error("Secret save failed", {status})
@@ -303,6 +306,7 @@ export function useSecretForm({
                     ? extractApiErrorMessage(error)
                     : t("entityUi.secretForm.saveFailed"),
             )
+            return null
         } finally {
             setSaving(false)
         }

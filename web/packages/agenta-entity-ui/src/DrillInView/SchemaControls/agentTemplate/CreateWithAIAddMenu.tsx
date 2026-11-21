@@ -6,36 +6,58 @@
  * skill that …") in the chat composer, so the agent runs the setup conversation instead of the
  * user filling the form.
  */
-import {useCallback, useRef, type ReactNode} from "react"
+import {useCallback, useRef, type ReactElement, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {Sparkle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {SectionAddButton} from "./SectionAddButton"
 
+/** One manual row of the menu: an icon, a name, a hint. */
+export interface CreateWithAIMenuItem {
+    key: string
+    icon: ReactNode
+    title: string
+    hint: string
+    onSelect: () => void
+}
+
 export interface CreateWithAIAddMenuProps {
-    /** Accessible name of the "+" ("Add skill"). */
+    /** Accessible name of the "+" ("Add skill"). A `trigger` names itself. */
     label: string
     /** Text the composer receives. The caret lands after it, so it reads as an open sentence. */
     starterPrompt: string
     /** The section's existing add flow. */
-    onManual: () => void
+    onManual?: () => void
     /** Row copy for the manual add ("Add manually"). */
-    manualTitle: string
-    manualHint: string
-    manualIcon: ReactNode
+    manualTitle?: string
+    manualHint?: string
+    manualIcon?: ReactNode
+    /** Several manual rows in place of the one above (for example one per kind). */
+    manualItems?: CreateWithAIMenuItem[]
+    /** "Create with AI" goes after the manual rows instead of before them. */
+    aiLast?: boolean
+    /** The hint under "Create with AI", when the section has its own words for it. */
+    aiHint?: string
+    /**
+     * The element that opens the menu, in place of the section header's "+" (for example a
+     * bordered "Add automation" button). It must take a ref and spread its props (Radix `asChild`).
+     */
+    trigger?: ReactElement
+    /** Classes for the menu panel; the default is the section "+" menu's 256 px. */
+    contentClassName?: string
 }
 
-/** One row: an icon tile, a name, a one-line hint. Same shape as the header's Share menu. */
+/** One row (canvas F02 f3): a plain 14 px icon, a 13 px name, a 12 px hint that wraps. */
 function MenuRow({
     icon,
     title,
@@ -48,16 +70,16 @@ function MenuRow({
     onSelect: () => void
 }) {
     return (
-        <DropdownMenuItem onSelect={onSelect} className="gap-2.5 py-1.5">
+        <DropdownMenuItem onSelect={onSelect} className="items-start gap-2 p-2">
             <span
                 aria-hidden
-                className="box-border flex size-8 flex-none items-center justify-center rounded-lg border border-solid border-border text-colorText"
+                className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:!size-3.5"
             >
                 {icon}
             </span>
             <span className="flex min-w-0 flex-col">
-                <span className="text-sm text-colorText">{title}</span>
-                <span className="truncate text-xs text-colorTextTertiary">{hint}</span>
+                <span className="text-[13px] leading-5 text-colorText">{title}</span>
+                <span className="text-[12px] leading-4 text-colorTextTertiary">{hint}</span>
             </span>
         </DropdownMenuItem>
     )
@@ -70,6 +92,11 @@ export function CreateWithAIAddMenu({
     manualTitle,
     manualHint,
     manualIcon,
+    manualItems,
+    aiLast = false,
+    aiHint,
+    trigger,
+    contentClassName = "w-64",
 }: CreateWithAIAddMenuProps) {
     const t = useT(configItemsCatalog)
     const requestPrefill = useSetAtom(composerPrefillRequestAtom)
@@ -81,32 +108,53 @@ export function CreateWithAIAddMenu({
         requestPrefill({id: Date.now(), text: starterPrompt})
     }, [requestPrefill, starterPrompt])
 
+    const aiRow = (
+        <MenuRow
+            icon={<BuilderIcon size={14} />}
+            title={t("entityUi.configItems.createWithAi")}
+            hint={aiHint ?? t("entityUi.configItems.createWithAiHint")}
+            onSelect={createWithAI}
+        />
+    )
+    const manualRows: CreateWithAIMenuItem[] =
+        manualItems ??
+        (onManual
+            ? [
+                  {
+                      key: "manual",
+                      icon: manualIcon,
+                      title: manualTitle ?? "",
+                      hint: manualHint ?? "",
+                      onSelect: onManual,
+                  },
+              ]
+            : [])
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <SectionAddButton label={label} />
+                {trigger ?? <SectionAddButton label={label} />}
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align="end"
-                className="w-64"
+                className={contentClassName}
                 onCloseAutoFocus={(event) => {
                     if (!choseAIRef.current) return
                     choseAIRef.current = false
                     event.preventDefault()
                 }}
             >
-                <MenuRow
-                    icon={<Sparkle size={16} />}
-                    title={t("entityUi.configItems.createWithAi")}
-                    hint={t("entityUi.configItems.createWithAiHint")}
-                    onSelect={createWithAI}
-                />
-                <MenuRow
-                    icon={manualIcon}
-                    title={manualTitle}
-                    hint={manualHint}
-                    onSelect={onManual}
-                />
+                {aiLast ? null : aiRow}
+                {manualRows.map((item) => (
+                    <MenuRow
+                        key={item.key}
+                        icon={item.icon}
+                        title={item.title}
+                        hint={item.hint}
+                        onSelect={item.onSelect}
+                    />
+                ))}
+                {aiLast ? aiRow : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )
