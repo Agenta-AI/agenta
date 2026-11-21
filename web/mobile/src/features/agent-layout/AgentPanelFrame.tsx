@@ -14,7 +14,7 @@ import {cn} from "@agenta/ui/styles"
 
 /**
  * push = beside the page; overlay = over the page's right side (under 1100 px or widened);
- * full = it covers the whole screen (a phone, an expanded Files).
+ * full = it covers the whole screen (a phone).
  */
 export type PanelMode = "push" | "overlay" | "full"
 

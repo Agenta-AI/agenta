@@ -28,7 +28,7 @@ These notes belong to `spec.md` in this folder. They hold the words the requirem
 
 - The session screen is `web/mobile/src/features/chat/SessionWorkspace.tsx`. The configuration pane is on the LEFT of the conversation (`paneSide="start"`, line 417). The Files pane is on the right (`paneSide="end"`, line 445). Both can be open at the same time when the window is wide enough (`useCanPanesCoexist`, line 254; the rules at lines 256 to 273 close one when they cannot fit).
 - The configuration pane width is stored in browser storage under `agenta:agent-chat:right-panel-width`, default 460 px, limits 360 to 900 px (`web/packages/agenta-chat/src/state/panelLayout.ts:144-151`). It is per browser, not per user. The new key does not migrate it (design.md D9).
-- The Files pane width was stored under `agenta:agent-chat:files-pane-width`, default 620 px, limits 420 to 1600 px (`panelLayout.ts:155-157`). Since the QA of 21 November 2026 the session screen no longer reads it; Files uses the panel width.
+- The Files pane width was stored under `agenta:agent-chat:files-pane-width`, default 620 px, limits 420 to 1600 px (`panelLayout.ts:165-167`). Since the QA of 21 November 2026 the session screen no longer reads it; Files uses the panel width.
 - Open or closed for the configuration pane is stored under `agenta:chat:config-panel-collapsed` and a separate phone key (`panelLayout.ts:60-76`).
 - The Files pane scope is the agent, not the session (`SessionWorkspace.tsx:197`). On a wide screen the Files pane has no close control; the header icon closes it (`SessionWorkspace.tsx:484`).
 - The configuration pane stays mounted and hidden after first use, because unmounting the form cost about 100 ms (`SessionWorkspace.tsx:348-352`). Keep this for the new panel.
