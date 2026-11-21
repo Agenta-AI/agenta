@@ -77,15 +77,6 @@ ENV NODE_ENV=development \
 
 EXPOSE 8765
 
-# Name the offending key when Pi rejects a tool call for an unexpected property. Pi validates tool
-# arguments against the advertised schema before it dispatches, and typebox's stock message names
-# the OBJECT that has an extra property but never the property itself, so a model has to guess
-# which of the keys it sent is the extra one (seen in live QA on `workflow_revision`). The patch is
-# message formatting only: it changes no validation logic, and it exits non-zero if Pi's formatter
-# no longer matches, so a pi-ai bump breaks the build rather than silently restoring the
-# unactionable message. Retires when upstream Pi names the key itself.
-RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
-
 # Keep OpenRouter's billed cost. OpenRouter returns the real charge in `usage.cost`, and pi-ai's
 # OpenAI-completions client drops it and prices the tokens from Pi's own table instead. The patch
 # keeps the billed charge in `usage.cost.total` and marks it `source: "provider"`, which the tracer
