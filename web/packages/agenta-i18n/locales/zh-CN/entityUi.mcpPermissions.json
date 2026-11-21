@@ -10,7 +10,6 @@
     "remove": "移除",
     "removeFromAgent": "从 Agent 中移除",
     "thisServer": "此服务器",
-    "inheritsPermission": "继承 {{permission}}",
     "selectConnection": "选择一个连接，以设置此 Agent 可以用它做什么。",
     "couldNotReadTools": "无法读取此服务器的工具",
     "notConnectedYet": "{{name}} 尚未连接，因此无法列出其工具。",

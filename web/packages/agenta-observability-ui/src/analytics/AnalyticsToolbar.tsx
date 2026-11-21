@@ -10,6 +10,7 @@ import {
     rankKeys,
     sum,
     analyticsModelProvidersAtomFamily,
+    useAnalyticsViewAtoms,
     type AnalyticsCustomRange,
     type AnalyticsFilters,
     type AnalyticsGroup,
@@ -38,13 +39,13 @@ import {
     type DateRangeValue,
 } from "@agenta/ui/ui"
 import {
-    CalendarBlank,
     Cloud,
     Check,
+    ClockCounterClockwise,
+    ListBullets,
     LockSimple,
     Minus,
     Robot,
-    Rows,
     Sparkle,
     X,
 } from "@phosphor-icons/react"
@@ -105,6 +106,10 @@ export interface AnalyticsToolbarProps {
     agentName: (id: string) => string
     rangeOpen: boolean
     onRangeOpenChange: (open: boolean) => void
+    /** Shown on the page of one agent, where the Agent filter and grouping are not offered. */
+    lockedAgentChip?: ReactNode
+    /** What the charts read; the filter counts read it too, so they count this page's runs. */
+    queryFilters?: AnalyticsFilters
 }
 
 export const AnalyticsToolbar = ({
@@ -123,24 +128,35 @@ export const AnalyticsToolbar = ({
     agentName,
     rangeOpen,
     onRangeOpenChange,
+    lockedAgentChip,
+    queryFilters = filters,
 }: AnalyticsToolbarProps) => {
+    // The view decides, as on the page: the page of one agent made its own view with that agent.
+    const locked = Boolean(useAnalyticsViewAtoms().lockedAgentId)
     const t = useT(analyticsCatalog)
     const groupOptions: FilterMenuOption<AnalyticsGroup>[] = (
-        ["none", "agent", "model", "provider"] as const
+        locked
+            ? (["none", "model", "provider"] as const)
+            : (["none", "agent", "model", "provider"] as const)
     ).map((value) => ({value, label: t(GROUP_LABEL[value]), icon: GROUP_ICONS[value]}))
-    const active = DIMS.filter((d) => filters[d.key].length)
+    // The locked agent shows as its own chip, never as a removable filter.
+    const dims = locked ? DIMS.filter((d) => d.key !== "agent") : DIMS
+    // The agent's own Analytics page draws its toolbar on the canvas scale (A09).
+    const controlSize = locked ? "compact" : "sm"
+    const active = dims.filter((d) => filters[d.key].length)
     const label = (dim: FilterDim, key: string) => (dim === "agent" ? agentName(key) : key)
     const [customOpen, setCustomOpen] = useState(false)
     const openingCustom = useRef(false)
 
     return (
-        <div className="flex flex-wrap items-center gap-2">
+        // The toolbar buttons (range, Filter, Group) are 44 px high on a phone, the touch size.
+        <div className="flex flex-wrap items-center gap-2 max-md:[&>button]:h-11">
             <Popover open={customOpen} onOpenChange={setCustomOpen}>
                 <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>
                     <PopoverAnchor asChild>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm">
-                                <CalendarBlank data-icon="inline-start" />
+                            <Button variant="outline" size={controlSize}>
+                                <ClockCounterClockwise data-icon="inline-start" />
                                 {rangeLabel}
                             </Button>
                         </DropdownMenuTrigger>
@@ -233,6 +249,10 @@ export const AnalyticsToolbar = ({
                 onChange={onFiltersChange}
                 window={window}
                 label={label}
+                queryFilters={queryFilters}
+                dims={dims}
+                locked={locked}
+                size={controlSize}
             />
 
             <GroupMenu
@@ -244,8 +264,11 @@ export const AnalyticsToolbar = ({
                         ? t("observabilityUi.analytics.group")
                         : t("observabilityUi.analytics.groupWith", {group: t(GROUP_LABEL[group])})
                 }
-                icon={<Rows size={ICON} />}
+                icon={<ListBullets size={ICON} />}
+                size={controlSize}
             />
+
+            {locked ? lockedAgentChip : null}
 
             {active.map((dim) => {
                 const values = filters[dim.key].map((key) => label(dim.key, key))
@@ -266,7 +289,7 @@ export const AnalyticsToolbar = ({
                                 dim: t(dim.label),
                             })}
                             onClick={() => onFiltersChange({...filters, [dim.key]: []})}
-                            className="grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                            className="relative grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground max-md:after:absolute max-md:after:-inset-3 max-md:after:content-['']"
                         >
                             <X size={12} />
                         </button>
@@ -331,10 +354,24 @@ const CustomRangePanel = ({
     )
 }
 
-/** Counts per value, ignoring the dimension's own filter so every option stays pickable. */
-const useFilterCounts = (dim: FilterDim, filters: AnalyticsFilters, window: AnalyticsWindow) => {
+/**
+ * Counts per value, ignoring the dimension's own filter so every option stays pickable. A
+ * dimension the menu does not offer asks for nothing.
+ */
+const useFilterCounts = (
+    dim: FilterDim,
+    filters: AnalyticsFilters,
+    window: AnalyticsWindow,
+    offered = true,
+) => {
     const others = useMemo(() => ({...filters, [dim]: []}), [dim, filters])
-    const query = useAnalyticsBuckets(dim === "agent" ? "agents" : "models", window, others)
+    const query = useAnalyticsBuckets(
+        dim === "agent" ? "agents" : "models",
+        window,
+        others,
+        null,
+        offered,
+    )
     return useMemo(() => {
         const paths = dim === "agent" ? [PATH.agentApp, PATH.agentWorkflow] : [PATH.model]
         const series = keyedSeries(window, query.data ?? [], paths)
@@ -422,23 +459,35 @@ const AnalyticsFilterMenu = ({
     onChange,
     window,
     label,
+    queryFilters,
+    dims,
+    locked,
+    size,
 }: {
     filters: AnalyticsFilters
     onChange: (filters: AnalyticsFilters) => void
     window: AnalyticsWindow
     label: (dim: FilterDim, key: string) => string
+    /** Counts read these, so the page of one agent counts only its runs. */
+    queryFilters: AnalyticsFilters
+    /** The dimensions the menu offers. */
+    dims: readonly (typeof DIMS)[number][]
+    /** The page is locked to one agent: the list is narrowed, so the Filter dot shows (A09). */
+    locked: boolean
+    size: "compact" | "sm"
 }) => {
     const t = useT(analyticsCatalog)
     const [open, setOpen] = useState(false)
-    const agents = useFilterCounts("agent", filters, window)
-    const models = useFilterCounts("model", filters, window)
-    const providerOf = useModelProviders(window, filters, open)
+    const offersAgent = dims.some((d) => d.key === "agent")
+    const agents = useFilterCounts("agent", queryFilters, window, offersAgent)
+    const models = useFilterCounts("model", queryFilters, window)
+    const providerOf = useModelProviders(window, queryFilters, open)
     const optionAgentName = useAgentNames(Object.keys(agents.counts))
-    const anyActive = DIMS.some((d) => filters[d.key].length)
+    const anyActive = dims.some((d) => filters[d.key].length)
 
     const sections = useMemo<FilterMenuSection[]>(
         () =>
-            DIMS.map((d) => {
+            dims.map((d) => {
                 const {counts, pending} = d.key === "agent" ? agents : models
                 const name = (key: string) =>
                     d.key === "agent" ? optionAgentName(key) : label(d.key, key)
@@ -480,7 +529,7 @@ const AnalyticsFilterMenu = ({
                         }),
                 }
             }),
-        [agents, models, providerOf, optionAgentName, label, filters, onChange, t],
+        [agents, models, providerOf, optionAgentName, label, filters, onChange, dims, t],
     )
 
     return (
@@ -490,7 +539,8 @@ const AnalyticsFilterMenu = ({
             sections={sections}
             searchPlaceholder={t("observabilityUi.analytics.searchAgentsAndModels")}
             align="start"
-            active={anyActive}
+            active={anyActive || locked}
+            size={size}
             onReset={() => onChange({agent: [], model: []})}
             resetDisabled={!anyActive}
         />

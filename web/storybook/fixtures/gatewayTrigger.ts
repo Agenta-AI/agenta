@@ -21,10 +21,8 @@ import type {StoryScope} from "../.storybook/decorators/withAgentaData"
  * `triggerCatalogIntegrationsResponseSchema`), so a fixture cannot drift from the backend
  * contract without failing loudly here first.
  *
- * Ids come from the story's `StoryScope` (L1 isolation). NOTE: the three trigger LIST
- * queries are project-agnostic singleton keys (`["triggers","subscriptions"]` etc. — see
- * `gatewayTrigger/hooks/useTriggerSubscriptions.ts:13`), so they cannot be scoped; what IS
- * scoped is the agent the section filters against, which is what the section actually reads.
+ * Ids come from the story's `StoryScope` (L1 isolation). The three trigger LIST queries are
+ * keyed by the project id (`["triggers","subscriptions",projectId]` etc.).
  */
 
 const TIMESTAMPS = {created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z"}
@@ -155,7 +153,7 @@ export function triggerSectionQueries(
         [["workflows", "artifact", ids.workflowId, ids.projectId], triggerAgentArtifact(ids)],
         // triggerSubscriptionsQueryAtom         → gatewayTrigger/hooks/useTriggerSubscriptions.ts:13
         [
-            ["triggers", "subscriptions"],
+            ["triggers", "subscriptions", ids.projectId],
             triggerSubscriptionsResponseSchema.parse({
                 count: subscriptions.length,
                 subscriptions,
@@ -163,13 +161,13 @@ export function triggerSectionQueries(
         ],
         // triggerSchedulesQueryAtom             → gatewayTrigger/hooks/useTriggerSchedules.ts:12
         [
-            ["triggers", "schedules"],
+            ["triggers", "schedules", ids.projectId],
             triggerSchedulesResponseSchema.parse({count: schedules.length, schedules}),
         ],
-        // triggerConnectionsQueryAtom           → gatewayTrigger/hooks/useTriggerConnections.ts:14
+        // triggerConnectionsQueryAtom           → gatewayTrigger/hooks/useTriggerConnections.ts:15
         //   maps subscription.connection_id → the provider group (integration_key)
         [
-            ["triggers", "connections"],
+            ["triggers", "connections", ids.projectId],
             triggerConnectionsResponseSchema.parse({
                 count: 1,
                 connections: [

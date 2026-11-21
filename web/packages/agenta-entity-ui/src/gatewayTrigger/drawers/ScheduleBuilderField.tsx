@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 
 import {
     builderToCron,
     cronToBuilder,
+    describeSchedule,
     formatNextRun,
     summarizeSchedule,
     timesFormCleanGrid,
@@ -26,7 +27,7 @@ import {
     selectTriggerVariants,
     TimePicker,
 } from "@agenta/ui/ui"
-import {CalendarBlank, Clock, Plus, X} from "@phosphor-icons/react"
+import {CalendarBlank, Plus, X} from "@phosphor-icons/react"
 import {ChevronDown} from "lucide-react"
 
 import {scheduleTextNow} from "../scheduleText"
@@ -166,7 +167,13 @@ export function useScheduleBuilder(
     const validation = useMemo(() => validateSchedule(value), [value])
     // `textT` changes when the language or its catalog does; it only re-words these two lines.
     const textT = useT(scheduleTextCatalog)
-    const summary = validation.valid ? summarizeSchedule(builder, scheduleTextNow()) : value
+    // A raw expression the builder cannot show ("*/15 * * * *") is described the way the
+    // automation rows describe it ("Every 15 minutes (UTC)"), so the field and the row agree.
+    const summary = !validation.valid
+        ? value
+        : builder.cadence === "custom"
+          ? describeSchedule(value, scheduleTextNow())
+          : summarizeSchedule(builder, scheduleTextNow())
     const nextLine = useMemo(
         () => (validation.valid ? formatNextRun(value, scheduleTextNow(), builder) : ""),
         [validation.valid, value, builder, textT],
@@ -299,12 +306,7 @@ export function ScheduleBuilderPanel({
             )}
 
             {nextLine ? (
-                <div className="flex items-center gap-2 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-3">
-                    <Clock size={14} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
-                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                        {nextLine}
-                    </span>
-                </div>
+                <span className="text-xs text-[var(--ag-colorTextSecondary)]">{nextLine}</span>
             ) : null}
         </div>
     )
@@ -423,7 +425,9 @@ function TimesField({
                             aria-label={t("entityUi.scheduleBuilder.runTimeAria", {
                                 time: fmtTime(time),
                             })}
-                            className="w-[104px]"
+                            // The canvas time field: 34 px, mono 13 px, radius 6, no clock glyph
+                            // (the label above already says "Time (UTC)"). 44 px on a phone.
+                            className="h-[34px] w-[61px] justify-center rounded-[6px] px-2.5 font-mono text-[13px] max-md:h-11 [&>svg]:hidden"
                         />
                         {sorted.length > 1 && (
                             <Button
@@ -439,8 +443,8 @@ function TimesField({
                         )}
                     </span>
                 ))}
-                <Button variant="dashed" onClick={addTime}>
-                    <Plus size={13} />
+                <Button variant="outline" size="compact" onClick={addTime} className="max-md:h-11">
+                    <Plus className="size-3.5" />
                     {t("entityUi.scheduleBuilder.add")}
                 </Button>
             </div>
@@ -461,31 +465,40 @@ function Chip({
     onClick: () => void
     children: ReactNode
 }) {
-    // A chip is a Button widened to share the row — no bespoke geometry. Only the type size is
-    // pinned, to the 13px the rest of the popover uses.
+    // The canvas pill (F05): 26 px, 12 px text, ink when on. 44 px on a phone.
     return (
-        <Button
-            variant={active ? "default" : "outline"}
+        <button
+            type="button"
             aria-pressed={active}
             onClick={onClick}
-            className="flex-1 px-2 text-xs"
+            className={cn(
+                "flex h-[26px] cursor-pointer items-center justify-center rounded-full border border-solid px-2.5 py-0 font-[inherit] text-[12px] leading-4 outline-none transition-colors max-md:h-11 max-md:min-w-11",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                active
+                    ? "border-colorText bg-colorText text-colorBgContainer"
+                    : "border-colorBorderSecondary bg-colorBgContainer text-colorText hover:bg-colorFillQuaternary",
+            )}
         >
             {children}
-        </Button>
+        </button>
     )
 }
 
 function ChipRow({label, children}: {label: string; children: ReactNode}) {
     return (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
             <FieldLabel>{label}</FieldLabel>
-            <div className="flex gap-1">{children}</div>
+            <div className="flex flex-wrap gap-1">{children}</div>
         </div>
     )
 }
 
 function FieldLabel({children}: {children: ReactNode}) {
-    return <span className="text-xs text-[var(--ag-colorTextDescription)]">{children}</span>
+    return (
+        <span className="text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]">
+            {children}
+        </span>
+    )
 }
 
 // The chip set, widened to include a stored value the presets don't cover (e.g. a 5-hour step).

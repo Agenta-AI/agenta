@@ -7,6 +7,8 @@ import {cn} from "@/lib/utils"
 
 import {SESSIONS_PAGE_FRAME} from "../pageFrame"
 
+import {PageHeaderSkeleton} from "./PageHeaderSkeleton"
+
 /** Cycled so the column reads as a list of titles rather than a stack of identical pills. */
 const TITLE_WIDTHS = ["w-4/5", "w-3/5", "w-11/12"]
 
@@ -24,19 +26,7 @@ const TITLE_WIDTHS = ["w-4/5", "w-3/5", "w-11/12"]
 export const SessionsPageSkeleton = () => {
     const t = useT(sessionsMobileListCatalog)
     return (
-        <ScreenScaffold
-            header={
-                <div
-                    className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
-                    aria-hidden
-                >
-                    <div className="flex min-w-0 items-center gap-2">
-                        <SkeletonBlock active className="size-7 shrink-0 rounded-md" />
-                        <SkeletonBlock active className="h-6 w-32" />
-                    </div>
-                </div>
-            }
-        >
+        <ScreenScaffold header={<PageHeaderSkeleton />}>
             <div
                 className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}
                 aria-busy="true"

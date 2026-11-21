@@ -84,6 +84,7 @@ export type {CronValidationResult} from "./core/cron"
 export {
     builderToCron,
     cronToBuilder,
+    describeSchedule,
     defaultBuilderState,
     describeCadence,
     formatNextRun,
@@ -174,18 +175,13 @@ export {
     triggerScheduleDrawerAtom,
     triggerSelectedCatalogEventAtom,
     triggerSubscriptionDrawerAtom,
-    triggerDeliveriesPaginatedStore,
-    triggerDeliveriesOwnerAtom,
 } from "./state"
 export type {
     DeliveriesDrawerState,
-    DeliveriesOwner,
     ExactDeliveryDrawerState,
     EventsDrawerState,
-    OwnerDeliveriesDrawerState,
     ScheduleDrawerState,
     SubscriptionDrawerState,
-    TriggerDeliveryRow,
 } from "./state"
 
 // ---------------------------------------------------------------------------
@@ -199,7 +195,10 @@ export {
     triggerConnectionSubscriptionsAtomFamily,
     triggerDeliveryQueryAtomFamily,
     triggerDeliveriesAtomFamily,
+    triggerDeliveryPagesAtomFamily,
     triggerRecentDeliveriesAtomFamily,
+    nextDeliveriesWindowing,
+    TRIGGER_DELIVERIES_PAGE_SIZE,
     RECENT_TRIGGER_DELIVERIES_LIMIT,
     triggerEventDetailQueryFamily,
     triggerEventsSearchAtom,
@@ -215,6 +214,7 @@ export {
     useTriggerConnectionSubscriptions,
     useTriggerDelivery,
     useTriggerDeliveries,
+    useTriggerDeliveryPages,
     useTriggerEvent,
     useTriggerIntegrationConnections,
     useTriggerSchedule,

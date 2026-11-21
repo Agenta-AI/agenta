@@ -15,8 +15,6 @@
     "chatgpt": "ChatGPT-Abonnement",
     "chatgptHint": "Lassen Sie Agents mit Ihrem Plus- oder Pro-Tarif laufen.",
     "chatgptReadyHint": "Agents können mit Ihrem ChatGPT-Tarif laufen.",
-    "chatgptDialogTitle": "ChatGPT verbinden",
-    "chatgptDialogBody": "Melden Sie sich mit Ihrem ChatGPT-Abonnement an. Ihr Agent läuft darüber mit dem Codex-Harness.",
     "chatgptConnected": "ChatGPT verbunden. Ihr Agent läuft darüber.",
     "claude": "Claude-Abonnement",
     "claudeHint": "Lassen Sie Agents mit Ihrem Pro- oder Max-Tarif laufen.",

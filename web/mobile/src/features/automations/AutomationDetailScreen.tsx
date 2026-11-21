@@ -9,6 +9,7 @@ import {
 } from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
+import {useIsPhone} from "@agenta/ui/phone"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -20,8 +21,8 @@ import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
+import {AutomationRunNowButton} from "./AutomationRunNowButton"
 import {AutomationScreenHeader} from "./AutomationScreenHeader"
-import {AutomationTestRunButton} from "./AutomationTestRunButton"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
 /**
@@ -50,6 +51,7 @@ export const AutomationDetailScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const t = useT(automationsScreensCatalog)
+    const phone = useIsPhone()
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -57,7 +59,6 @@ export const AutomationDetailScreen = ({
         automation,
         preview,
         agentName,
-        runHistoryCaption,
         failureReason,
         missing,
         loading,
@@ -97,7 +98,12 @@ export const AutomationDetailScreen = ({
         applied.current = true
         if (router.query.view === "runs") setShowRuns(true)
     }, [router.isReady, router.query.view])
-    const openRuns = useCallback(() => setShowRuns(true), [])
+    // "Last run" opens the history on that run; "See all runs" on the newest.
+    const [openRunId, setOpenRunId] = useState<string | undefined>(undefined)
+    const openRuns = useCallback((runId?: string) => {
+        setOpenRunId(runId)
+        setShowRuns(true)
+    }, [])
     const closeRuns = useCallback(() => setShowRuns(false), [])
 
     const renderConversation = useCallback(
@@ -145,24 +151,36 @@ export const AutomationDetailScreen = ({
                                         automation?.name ||
                                         t("automations.screens.detailFallbackTitle")
                                     }
-                                    onBack={closeRuns}
-                                    backLabel={
-                                        automation?.name ||
-                                        t("automations.screens.detailFallbackTitle")
-                                    }
+                                    runHistory={{
+                                        listHref: `${base}/automations`,
+                                        name:
+                                            automation?.name ||
+                                            t("automations.screens.detailFallbackTitle"),
+                                        onAutomation: closeRuns,
+                                    }}
                                     // The view's own 30px grid, so the arrow lines up with
                                     // "Run history" below it.
                                     className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-3 lg:pt-5"
                                 />
                             }
                             renderConversation={renderConversation}
+                            initialRunId={openRunId}
+                            phone={phone}
+                            runNow={
+                                automation ? (
+                                    <AutomationRunNowButton
+                                        automation={automation}
+                                        base={base}
+                                        dirty={dirty}
+                                    />
+                                ) : null
+                            }
                         />
                     ) : automation && preview ? (
                         <AutomationDetailBody
                             automation={automation}
                             preview={preview}
                             agentName={agentName}
-                            runHistoryCaption={runHistoryCaption}
                             onOpenRunHistory={openRuns}
                             failureReason={failureReason}
                             dirty={dirty}
@@ -175,8 +193,8 @@ export const AutomationDetailScreen = ({
                             includeEvent={draft.includeEvent}
                             onChangeIncludeEvent={setIncludeEvent}
                             onToggle={onToggle}
-                            testRun={
-                                <AutomationTestRunButton
+                            runNow={
+                                <AutomationRunNowButton
                                     automation={automation}
                                     base={base}
                                     dirty={dirty}

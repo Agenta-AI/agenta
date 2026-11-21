@@ -27,4 +27,5 @@ export interface SessionTurn {
     sender?: (AgentaApi.RunSender | null) | undefined;
     context?: (AgentaApi.RunContext | null) | undefined;
     approved_by?: (AgentaApi.RunApproval | null) | undefined;
+    usage?: (AgentaApi.SessionTurnStoredUsage | null) | undefined;
 }

@@ -28,7 +28,8 @@ export function normalizeRepoFilters(
 
     let next = values
     for (const [key, property] of Object.entries(properties)) {
-        const value = values[key]
+        // A repo named only by digits can reach here as a number.
+        const value = typeof values[key] === "number" ? String(values[key]) : values[key]
         if (typeof value !== "string" || !wantsOwnerRepo(property)) continue
         const repo = value.trim()
         if (!repo || repo.includes("/")) continue

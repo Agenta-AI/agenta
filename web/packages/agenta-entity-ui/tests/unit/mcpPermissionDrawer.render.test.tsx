@@ -27,7 +27,9 @@ vi.mock("jotai", async (importOriginal) => ({
     useAtomValue: () => "project-1",
 }))
 
-import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
+import McpPermissionDrawer, {
+    useMcpPermissionSource,
+} from "../../src/mcpEndpoint/McpPermissionDrawer"
 import {
     getMcpConnectionStatus,
     McpProtocolError,
@@ -190,14 +192,13 @@ describe("D1 — the drawer at its default", () => {
         expect(text()).toContain("Connected")
     })
 
-    it("leads the header with the generic server tile, since an MCP endpoint has no branding", async () => {
-        // One server glyph on the neutral tile for every server (decision 3). A per-server logo would
-        // have to be guessed from a URL, and a header with nothing in that slot reads as a row
-        // that failed to load an icon.
+    it("leads the header with the server tile, colored by the connection name", async () => {
+        // One server glyph for every server (decision 3); the canvas colors the tile (F03), and
+        // the name picks the color, so a server keeps it across the app.
         await render()
 
         const tile = document.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-tone")).toBe("neutral")
+        expect(tile?.getAttribute("data-tone")).toBe("solid")
         expect(tile?.getAttribute("data-size")).toBe("24")
         expect(tile?.querySelector("svg")).not.toBeNull()
     })
@@ -309,13 +310,10 @@ describe("a server just added to an agent", () => {
         expect(labelled("Default permission")?.textContent).not.toContain("Custom")
     })
 
-    it("says every row follows the agent policy, with no provenance to add", async () => {
-        // There is no governing value to name here, so the row says which value it holds rather
-        // than "Inherits" something the policy does not state.
+    it("says every row follows the agent policy", async () => {
         await render({policy: justAdded})
 
         expect(labelled("Permission for get_issue")?.textContent).toContain("Follow agent policy")
-        expect(labelled("Permission for get_issue")?.textContent).not.toContain("Inherits")
     })
 
     it("summarises both groups as following the agent policy", async () => {
@@ -482,7 +480,7 @@ describe("a policy whose per-tool table arrives under the runner's field names",
             "delete_issue",
         ]) {
             const row = labelled(`Permission for ${tool}`)
-            expect(row?.textContent).toContain("Inherits ask")
+            expect(row?.textContent).toContain("Follow agent policy")
             expect(row?.textContent).not.toContain("Allow")
         }
     })
@@ -503,55 +501,6 @@ describe("a policy whose per-tool table arrives under the runner's field names",
         expect(text()).toContain("asks first")
         expect(text()).not.toContain("runs automatically")
         expect(text()).not.toContain("mixed")
-    })
-})
-
-describe("the preset that follows the agent's policy names it", () => {
-    // Its whole meaning is "the agent's own permission policy decides", and the drawer already
-    // carries the sentence that says which policy that is. The MCP drawer's `agentPolicy` prop was
-    // removed alongside decision 45, so a person picked the preset and was sent to a different row
-    // to find out whether the ladder asks, allows or denies. The sentence is the Integrations one,
-    // pointed at this source's own preset.
-    it("says which policy it follows when the agent is not on its default", async () => {
-        await render({policy: {}, agentPolicy: "deny"})
-
-        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
-        expect(text()).toContain(
-            "This agent's permission policy is set to deny all, so these tools follow it.",
-        )
-    })
-
-    it("says nothing when the agent is on its default, which the sentence has no news about", async () => {
-        await render({policy: {}, agentPolicy: "allow_reads"})
-
-        expect(text()).not.toContain("This agent's permission policy is set to")
-    })
-
-    it("does not qualify the preset that writes what it says", async () => {
-        // "Ask for write and delete" no longer leans on the ladder, so naming the ladder under it
-        // would describe something that does not decide anything here (decision 45).
-        await render({
-            policy: {
-                permission: "ask",
-                tool_permissions: {
-                    get_current_user: "allow",
-                    get_issue: "allow",
-                    list_issues: "allow",
-                    list_comments: "allow",
-                },
-                new_tool_permission: "ask",
-            } as McpServerPolicy,
-            agentPolicy: "deny",
-        })
-
-        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
-        expect(text()).not.toContain("This agent's permission policy is set to")
-    })
-
-    it("says nothing on a preset that decides for itself", async () => {
-        await render({policy: {permission: "allow"}, agentPolicy: "deny"})
-
-        expect(text()).not.toContain("This agent's permission policy is set to")
     })
 })
 
@@ -622,7 +571,7 @@ describe("Ask for write and delete — the preset that writes what it says", () 
 
     it("shows the grant on the rows it just named, not an inherited value", async () => {
         // The preset's whole claim is per tool, so the rows have to carry it: a read-only row
-        // still reading "Inherits ask" after the pick would say the opposite of what was picked.
+        // still reading "Follow agent policy" after the pick would say the opposite of what was picked.
         const onChange = await render({policy: {permission: "allow"}})
 
         await choose(labelled("Default permission"), "Ask for write and delete")
@@ -630,7 +579,9 @@ describe("Ask for write and delete — the preset that writes what it says", () 
 
         for (const tool of ["get_current_user", "get_issue", "list_issues", "list_comments"]) {
             expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Allow")
-            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain("Inherits")
+            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain(
+                "Follow agent policy",
+            )
         }
     })
 
@@ -641,7 +592,7 @@ describe("Ask for write and delete — the preset that writes what it says", () 
         await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
 
         for (const tool of ["create_issue", "delete_issue"]) {
-            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Inherits ask")
+            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Follow agent policy")
         }
     })
 
@@ -1008,8 +959,8 @@ describe("a saved per-tool value the drawer cannot draw", () => {
         const control = labelled("Permission for get_issue")
         expect(control?.textContent).toBeTruthy()
         // `Allow` is not a decision, so `get_issue` falls to the declared table's floor, and
-        // the row says so the way every inheriting row does.
-        expect(control?.textContent).toContain("Inherits ask")
+        // the row reads like every other row with no rule of its own.
+        expect(control?.textContent).toContain("Follow agent policy")
     })
 
     it("does not let the server permission govern a table that was declared", async () => {
@@ -1050,5 +1001,72 @@ describe("a reader who may not edit the agent", () => {
 
         expect(button("Connect")).toBeUndefined()
         logged.mockRestore()
+    })
+})
+
+describe("the tool list read", () => {
+    /** Shows the catalog state of one server, read with the given sign-in. */
+    const Probe = ({
+        accountSource = "agent",
+        listTools = true,
+    }: {
+        accountSource?: "agent" | "user"
+        listTools?: boolean
+    }) => {
+        const mcp = useMcpPermissionSource({
+            slug: "linear",
+            policy: {permission: "allow"} as McpServerPolicy,
+            onChange: () => undefined,
+            accountSource,
+            listTools,
+        })
+        const catalog = mcp.source.catalog
+        const askWrites = mcp.source.presets?.options.find(
+            (option) => option.value === "ask_writes",
+        )
+        return createElement(
+            "div",
+            {"data-testid": "probe"},
+            `${catalog.status}:${catalog.tools.map((tool) => tool.name).join(",")}:` +
+                (askWrites?.disabled ? "askWritesOff" : "askWritesOn"),
+        )
+    }
+
+    const probe = () => document.querySelector('[data-testid="probe"]')?.textContent
+
+    it("keeps the newer read when an older read with the other sign-in ends after it", async () => {
+        let failOlder: (error: Error) => void = () => undefined
+        listMcpTools.mockImplementationOnce(
+            () =>
+                new Promise((_, reject) => {
+                    failOlder = reject
+                }),
+        )
+        listMcpTools.mockResolvedValueOnce([{name: "list_issues"}])
+
+        await act(async () => root.render(createElement(Probe, {accountSource: "agent"})))
+        await act(async () => root.render(createElement(Probe, {accountSource: "user"})))
+        expect(listMcpTools.mock.calls.map((call) => call[2])).toEqual([
+            {accountSource: "agent"},
+            {accountSource: "user"},
+        ])
+        expect(probe()).toContain("ready")
+
+        await act(async () => failOlder(new McpProtocolError("Sign in again.", "auth_required")))
+        expect(probe()).toMatch(/^ready:.*list_issues/)
+    })
+
+    it("drops the list when no sign-in can read it any more", async () => {
+        listMcpTools.mockResolvedValueOnce([
+            {name: "list_issues", annotations: {readOnlyHint: true}},
+        ])
+        await act(async () => root.render(createElement(Probe, {accountSource: "user"})))
+        expect(probe()).toBe("ready:list_issues:askWritesOn")
+
+        // The viewer signed out: the view stops reading the list.
+        await act(async () =>
+            root.render(createElement(Probe, {accountSource: "user", listTools: false})),
+        )
+        expect(probe()).toMatch(/:askWritesOff$/)
     })
 })
