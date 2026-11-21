@@ -19,6 +19,7 @@ import type { PermissionPlan } from "../../src/permission-plan.ts";
 import {
   declinedByUserText,
   deniedByPolicyText,
+  targetNotAllowedText,
 } from "../../src/tools/denial-text.ts";
 
 const input = { document: "release-notes" };
@@ -338,6 +339,89 @@ describe("buildExecutableToolGate with a harness-gate execution grant", () => {
       true,
       "the grant is untouched because the policy allow decided the call",
     );
+  });
+});
+
+describe("buildExecutableToolGate with a server answer at the gate", () => {
+  function serverSeam(
+    permission: "allow" | "ask" | "deny",
+    executionGrants?: ApprovedExecutionGrants,
+    opts: { recordCard?: boolean } = {},
+  ) {
+    let pauses = 0;
+    let asked = 0;
+    const permissionPlan: PermissionPlan = {
+      default: "allow_reads",
+      rules: [],
+    };
+    const responder = new ApprovalResponder(
+      permissionPlan,
+      new ConversationDecisions(new Map()),
+      () => {},
+      () => {
+        asked += 1;
+        return Promise.resolve(
+          permission === "ask"
+            ? { permission }
+            : { permission, basis: "configured_permission" },
+        );
+      },
+    );
+    const gate = buildExecutableToolGate({
+      responder,
+      run: { emitEvent: () => {}, wasForceSettled: () => false },
+      pause: {
+        markPausedToolCall: () => {},
+        pause: () => {
+          pauses += 1;
+        },
+      },
+      recordPendingInteraction: () => {
+        if (!opts.recordCard) throw new Error("no card may be recorded");
+      },
+      permissionPlan,
+      executionGrants,
+    });
+    return { gate, pauses: () => pauses, asked: () => asked };
+  }
+
+  it("runs the call with no card on allow", async () => {
+    const { gate, pauses } = serverSeam("allow");
+    assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
+    assert.equal(pauses(), 0);
+  });
+
+  it("spends the grant that the harness gate left and does not ask the server again", async () => {
+    // The harness gate asked the server and left a grant; the seam's second answer would deny.
+    const grants = new ApprovedExecutionGrants();
+    grants.grant("publish", input);
+    const { gate, asked } = serverSeam("deny", grants);
+    assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
+    assert.equal(asked(), 0);
+    assert.equal(
+      grants.consume("publish", input),
+      false,
+      "no grant is left to answer a later call with the same arguments",
+    );
+  });
+
+  it("shows the card when there is no grant and the server answers ask", async () => {
+    const { gate, pauses } = serverSeam("ask", new ApprovedExecutionGrants(), {
+      recordCard: true,
+    });
+    assert.deepEqual(await gate.onExecutableTool(request), {
+      kind: "pendingApproval",
+    });
+    assert.equal(pauses(), 0, "the seam parks; the run pauses later");
+  });
+
+  it("words a server deny as a refused target, not a tool-wide refusal or a decline", async () => {
+    const { gate, pauses } = serverSeam("deny");
+    assert.deepEqual(await gate.onExecutableTool(request), {
+      kind: "deny",
+      reason: targetNotAllowedText("publish"),
+    });
+    assert.equal(pauses(), 0);
   });
 });
 
