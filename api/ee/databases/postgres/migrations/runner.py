@@ -5,6 +5,7 @@ import click
 
 from entrypoints.memberships_check import run_materialize
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.utils.env import env
 
 from ee.databases.postgres.migrations.utils import (
     LEGACY_ALIGN_REVISION,
@@ -83,9 +84,22 @@ def main() -> None:
     # An open source database reads membership from the organization row. The
     # EE code reads project rows, so write them before core_ee runs. Because
     # core_ee runs after, an interrupted start repeats this step, which is safe.
-    if asyncio.run(is_open_source_database()):
-        asyncio.run(_materialize_memberships())
-    migrate_core_ee()
+    # The membership step needs the core_oss head, so with automatic migrations
+    # off the database stays open source until a start with them on.
+    open_source = asyncio.run(is_open_source_database())
+    if open_source and not env.alembic.auto_migrations:
+        click.echo(
+            click.style(
+                "\nOpen source database: auto-migrations disabled, skipping"
+                " the membership step and the alembic_version_ee chain.",
+                fg="yellow",
+            ),
+            color=True,
+        )
+    else:
+        if open_source:
+            asyncio.run(_materialize_memberships())
+        migrate_core_ee()
     migrate_tracing()
     migrate_tracing_oss()
     migrate_tracing_ee()

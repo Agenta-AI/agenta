@@ -6,7 +6,7 @@ can open, runs `ee.databases.postgres.migrations.runner` from this checkout, and
 checks the version tables and the member access again.
 
 Cases: a fresh database; open source databases built by v0.104.0 and v0.129.0;
-an EE database built by v0.129.0; an open source start interrupted during the
+a v0.104.0 open source database started with automatic migrations off; an EE database built by v0.129.0; an open source start interrupted during the
 membership step; and a database below `park00000000`, which the runner must
 refuse without a change.
 
@@ -268,7 +268,7 @@ class Replay:
             )
 
     def runner(
-        self, edition: str, module: str, code: str = None
+        self, edition: str, module: str, code: str = None, extra_env: dict = None
     ) -> subprocess.CompletedProcess:
         env = {
             key: value
@@ -278,6 +278,7 @@ class Replay:
         env.update(self.uris(f"agenta_{edition}"))
         # An unchanged env file of that edition: AGENTA_LICENSE names the databases.
         env["AGENTA_LICENSE"] = edition
+        env.update(extra_env or {})
         args = ["-c", code] if code else ["-m", module]
         result = subprocess.run(
             [sys.executable, *args],
@@ -443,6 +444,55 @@ class Replay:
             f"oss {OSS_VERSIONS[-1]} interrupted", OSS_VERSIONS[-1], interrupt=True
         )
 
+    def case_auto_migrations_off(self) -> None:
+        version = OSS_VERSIONS[0]
+        case = f"oss {version} with automatic migrations off"
+        print(f"\n== {case}")
+        self.reset()
+        self.old_migrations(version, "oss")
+        core = "agenta_oss_core"
+        self.psql(core, _seed_sql("oss"))
+        before = self.access(core, "organization_wide")
+        rows_sql = "SELECT id || ' ' || coalesce(role, '') FROM project_members;"
+        rows_before = set(self.psql(core, rows_sql))
+
+        result = self.runner(
+            "oss",
+            "ee.databases.postgres.migrations.runner",
+            extra_env={"ALEMBIC_AUTO_MIGRATIONS": "false"},
+        )
+        self.check(
+            case, result.returncode == 0, f"runner exit code {result.returncode}"
+        )
+        self.check(
+            case,
+            "Project memberships written" not in result.stdout,
+            "the membership step did not run",
+        )
+        self.check(
+            case,
+            self.heads(core)["alembic_version_ee"] is None,
+            "core_ee did not run",
+        )
+        self.check(
+            case,
+            set(self.psql(core, rows_sql)) == rows_before,
+            "no project row added or changed",
+        )
+
+        result = self.runner("oss", "ee.databases.postgres.migrations.runner")
+        self.check(
+            case,
+            result.returncode == 0 and "Project memberships written" in result.stdout,
+            f"a later run with automatic migrations adopts (exit {result.returncode})",
+        )
+        self.check_heads(case, "agenta_oss")
+        self.check(
+            case,
+            self.access(core, "project_rows") == before,
+            f"same access, same roles ({len(before)} pairs)",
+        )
+
     def case_enterprise(self, ee_tree: Path) -> None:
         case = f"ee {EE_VERSION}"
         print(f"\n== {case}")
@@ -583,6 +633,7 @@ def main() -> int:
         replay.case_fresh()
         for version in OSS_VERSIONS:
             replay.case_open_source(version)
+        replay.case_auto_migrations_off()
         replay.case_enterprise(ee_tree)
         replay.case_interrupted()
         replay.case_refused()
