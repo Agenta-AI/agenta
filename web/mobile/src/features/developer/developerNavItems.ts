@@ -11,9 +11,23 @@ import {
     type Icon,
 } from "@phosphor-icons/react"
 
+import {tNow, type NavTranslate} from "../nav/observabilityNavItems"
+
 import type {DeveloperNavSection, DeveloperView} from "./developerViews"
 
-const SECTION_TITLES: Record<DeveloperNavSection, string> = {developer: "Developer"}
+const SECTION_TITLES: Record<DeveloperNavSection, NavKey> = {
+    developer: "navigation.items.developer",
+}
+
+type NavKey = Parameters<NavTranslate>[0]
+
+/** The rail label of the views the navigation catalog names; any other view shows its `label`. */
+const VIEW_TITLES: Partial<Record<string, NavKey>> = {
+    prompts: "navigation.items.prompts",
+    testsets: "navigation.items.testSets",
+    evaluators: "navigation.items.evaluators",
+    "annotation-queues": "navigation.items.annotationQueues",
+}
 
 /** The rail key of a developer view's row. The Prompts row's key is also read by the selection. */
 export const developerRowKey = (viewId: string) => `developer-view-${viewId}`
@@ -27,6 +41,7 @@ export const developerRowKey = (viewId: string) => `developer-view-${viewId}`
 export const developerNavItems = (
     projectURL: string,
     views: readonly DeveloperView[],
+    t: NavTranslate = tNow,
 ): SidebarConfig[] =>
     (Object.keys(SECTION_TITLES) as DeveloperNavSection[]).flatMap((section) => {
         const rows = views.flatMap(({id, label, routes, nav}) =>
@@ -36,17 +51,20 @@ export const developerNavItems = (
         return [
             {
                 key: `developer-section-${section}`,
-                title: SECTION_TITLES[section],
+                title: t(SECTION_TITLES[section]),
                 icon: createElement(CodeIcon, {size: 16}),
                 // A section, not a fold: no caret, and no persisted open state to start closed.
                 alwaysOpen: true,
-                submenu: rows.map(({id, label, path, nav}) => ({
-                    key: developerRowKey(id),
-                    title: label,
-                    icon: createElement(nav.icon, {size: 16}),
-                    link: `${projectURL}${path}`,
-                    prefetch: false,
-                })),
+                submenu: rows.map(({id, label, path, nav}) => {
+                    const titleKey = VIEW_TITLES[id]
+                    return {
+                        key: developerRowKey(id),
+                        title: titleKey ? t(titleKey) : label,
+                        icon: createElement(nav.icon, {size: 16}),
+                        link: `${projectURL}${path}`,
+                        prefetch: false,
+                    }
+                }),
             },
         ]
     })
@@ -56,20 +74,40 @@ type DeveloperRailPlacement = "lead" | "evaluation"
 
 interface DeveloperRailRow {
     viewId: string
-    title: string
+    title: NavKey
     icon: Icon
     placement: DeveloperRailPlacement
 }
 
 /** The old app's developer rows, labels and icons; no Endpoints or Archived apps row (D7). */
 const DEVELOPER_RAIL_ROWS: readonly DeveloperRailRow[] = [
-    {viewId: "prompts", title: "Prompts", icon: SquaresFourIcon, placement: "lead"},
-    {viewId: "testsets", title: "Test sets", icon: DatabaseIcon, placement: "evaluation"},
-    {viewId: "evaluators", title: "Evaluators", icon: GavelIcon, placement: "evaluation"},
-    {viewId: "evaluations", title: "Evaluation runs", icon: FlaskIcon, placement: "evaluation"},
+    {
+        viewId: "prompts",
+        title: "navigation.items.prompts",
+        icon: SquaresFourIcon,
+        placement: "lead",
+    },
+    {
+        viewId: "testsets",
+        title: "navigation.items.testSets",
+        icon: DatabaseIcon,
+        placement: "evaluation",
+    },
+    {
+        viewId: "evaluators",
+        title: "navigation.items.evaluators",
+        icon: GavelIcon,
+        placement: "evaluation",
+    },
+    {
+        viewId: "evaluations",
+        title: "navigation.items.evaluationRuns",
+        icon: FlaskIcon,
+        placement: "evaluation",
+    },
     {
         viewId: "annotation-queues",
-        title: "Annotation queues",
+        title: "navigation.items.annotationQueues",
         icon: ListChecksIcon,
         placement: "evaluation",
     },
@@ -86,6 +124,7 @@ export interface DeveloperRail {
 export const developerRailItems = (
     projectURL: string,
     views: readonly DeveloperView[],
+    t: NavTranslate = tNow,
 ): DeveloperRail => {
     const rowsAt = (placement: DeveloperRailPlacement): SidebarConfig[] =>
         DEVELOPER_RAIL_ROWS.flatMap((row) => {
@@ -94,7 +133,7 @@ export const developerRailItems = (
             return [
                 {
                     key: developerRowKey(row.viewId),
-                    title: row.title,
+                    title: t(row.title),
                     icon: createElement(row.icon, {size: 16}),
                     link: `${projectURL}${view.routes[0]}`,
                     prefetch: false,
@@ -109,7 +148,7 @@ export const developerRailItems = (
             ? [
                   {
                       key: "developer-evaluation",
-                      title: "Evaluation",
+                      title: t("navigation.items.evaluation"),
                       icon: createElement(FlaskIcon, {size: 16}),
                       submenu: evaluationRows,
                   },
