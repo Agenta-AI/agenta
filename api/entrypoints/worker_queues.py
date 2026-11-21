@@ -76,6 +76,7 @@ from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import SimpleTestsetsService, TestsetsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.mounts.service import MountsService
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
@@ -351,6 +352,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     )
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
         watch_publisher=SessionsWatchPublisher(),
     )
     _install_mount_lookup(workflows_service)
@@ -438,7 +440,10 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=EnvironmentVariantDBE,
         RevisionDBE=EnvironmentRevisionDBE,
     )
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
     _install_mount_lookup(workflows_service)
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
@@ -577,6 +582,7 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
     )
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
         watch_publisher=SessionsWatchPublisher(),
     )
     _install_mount_lookup(workflows_service)
@@ -658,6 +664,7 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
     SimpleTestsetsService(testsets_service=testsets_service)
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
         watch_publisher=SessionsWatchPublisher(),
     )
     _install_mount_lookup(workflows_service)
