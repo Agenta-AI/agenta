@@ -48,9 +48,10 @@ class SigningKey:
 # release key stays offline and signs any plan, cloud keys included. The registration
 # key lives in the website worker and signs only free registration keys. To rotate,
 # add a key under a new id and keep the old one, so keys already issued stay valid.
-# PLACEHOLDER: release-1 stays empty until the release key pair exists.
 SIGNING_KEYS: dict[str, SigningKey] = {
-    "release-1": SigningKey(public_key=""),
+    "release-1": SigningKey(
+        public_key="MCowBQYDK2VwAyEAeMTx0bvyF5f6F7nB2n8a4mqNHLgiNTPabkZuF4/6J+Q="
+    ),
     "registration-1": SigningKey(
         public_key="MCowBQYDK2VwAyEAzXPuf3JckGXFWkBnQdDetvuKX5kSNeI8OVisae3zUPc=",
         plans=frozenset({DefaultPlan.SELF_HOSTED_REGISTERED.value}),
