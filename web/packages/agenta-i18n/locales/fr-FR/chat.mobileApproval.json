@@ -1,4 +1,5 @@
 {
+    "childSessionAsks": "Demandé par la session <link>nom de la session</link>",
     "failed": "L’approbation a échoué.",
     "failedStatus": "L’approbation a échoué (HTTP {{status}}).",
     "noLongerPending": "Cette approbation n’est plus en attente : actualisez et réessayez.",

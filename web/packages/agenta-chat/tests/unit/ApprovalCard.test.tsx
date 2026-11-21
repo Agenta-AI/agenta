@@ -421,6 +421,18 @@ describe("keyboard shortcuts", () => {
 
         cleanup()
     })
+
+    // Another session's card shares the screen with the chat's own card: one Cmd+Enter must not
+    // approve the tool call of another agent.
+    it("binds no keys when shortcuts are off", () => {
+        const responses: unknown[] = []
+        const {cleanup} = mount({shortcuts: false, onRespond: () => responses.push(1)})
+
+        press({key: "Enter", metaKey: true})
+        press({key: "Escape"})
+        expect(responses).toEqual([])
+        cleanup()
+    })
 })
 
 describe("the read-only card (a person who can view but not send)", () => {

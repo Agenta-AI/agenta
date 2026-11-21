@@ -80,6 +80,7 @@ import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
+import {ChildSessionApproval} from "./ChildSessionApproval"
 import {ChildSessionLink} from "./ChildSessionLink"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
@@ -99,6 +100,7 @@ import {mobileTurnRowClass} from "./turnRowClass"
 import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
+import {useChildApprovals} from "./useChildApprovals"
 import {useOpenModelSetup} from "./useOpenModelSetup"
 import {usePersonalSetupStep} from "./usePersonalSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
@@ -172,6 +174,8 @@ export const LiveConversation = ({
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    // The approvals that the sessions this chat's agent created wait on.
+    const childApprovals = useChildApprovals({sessionId, projectId})
     // A child update row in the queue names its child session and links it.
     const renderChildSession = useCallback(
         (update: ChildUpdate) => (
@@ -1016,6 +1020,24 @@ export const LiveConversation = ({
                                 readOnlyNote={readOnly?.approvalNote}
                             />
                         ) : null}
+                        {/* A child session's approval, one card per child, each answered in the
+                        child. Its own access rule decides the buttons, not this chat's. */}
+                        {childApprovals.length > 0 ? (
+                            // Bounded, so many waiting children never push the composer off
+                            // the screen.
+                            <div className="ag-scroll-quiet max-h-[40dvh] min-h-0 overflow-y-auto">
+                                {childApprovals.map((child) => (
+                                    <ChildSessionApproval
+                                        key={child.sessionId}
+                                        sessionId={child.sessionId}
+                                        approvals={child.approvals}
+                                        projectId={projectId}
+                                        workspaceId={workspaceId}
+                                        bottomMost={false}
+                                    />
+                                ))}
+                            </div>
+                        ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
                         {secrets.front ? (
@@ -1089,6 +1111,7 @@ export const LiveConversation = ({
                                         hidden={modelBlocked || setupBlocked}
                                         dockOpen={
                                             approvalsOpen ||
+                                            childApprovals.length > 0 ||
                                             Boolean(secrets.front) ||
                                             elicits.open ||
                                             connects.open ||
