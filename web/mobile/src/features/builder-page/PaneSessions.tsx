@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import type {SessionStream} from "@agenta/entities/session"
-import {sessionListQueryOptions} from "@agenta/entities/session"
+import {isSessionFresh, sessionListQueryOptions} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {livePollInterval} from "@agenta/navigation"
@@ -42,24 +42,36 @@ export const usePaneSessions = (projectId: string, agentId: string) =>
 
 /**
  * The session the Sessions tab shows: the first latest one, then the pick; kept on refresh.
- * "New session" shows a blank session; the list takes it in after its first message.
+ * "New session" shows a blank session. The picker lists it first until the server list has it
+ * (after its first message), so a switch away does not lose it or its draft.
  */
 export const usePaneSessionPick = (projectId: string, agentId: string) => {
     const query = usePaneSessions(projectId, agentId)
     const rows = query.data?.sessions ?? []
     const [picked, setPicked] = useState<SessionStream | null>(null)
-    if (!picked && rows[0]) setPicked(rows[0])
-    const session = rows.find((row) => row.session_id === picked?.session_id) ?? picked
+    const [blanks, setBlanks] = useState<SessionStream[]>([])
+    const sessions = [
+        ...blanks.filter((blank) => !rows.some((row) => row.session_id === blank.session_id)),
+        ...rows,
+    ]
+    if (!picked && sessions[0]) setPicked(sessions[0])
+    const session = sessions.find((row) => row.session_id === picked?.session_id) ?? picked
     const pick = (sessionId: string) => {
-        const row = rows.find((entry) => entry.session_id === sessionId)
+        const row = sessions.find((entry) => entry.session_id === sessionId)
         if (row) setPicked(row)
     }
-    const startNew = () => setPicked({project_id: projectId, session_id: mintBlankSession()})
-    return {query, session, pick, startNew}
+    const startNew = () => {
+        // A blank session with no message yet is already the new session (a double tap too).
+        if (session && isSessionFresh(session.session_id)) return
+        const blank = {project_id: projectId, session_id: mintBlankSession()}
+        setBlanks((current) => [blank, ...current])
+        setPicked(blank)
+    }
+    return {query, sessions, session, pick, startNew}
 }
 export type PaneSessionPick = ReturnType<typeof usePaneSessionPick>
 
-/** The Sessions pane tab (B04): the session the switcher picked. */
+/** The Sessions pane tab (B04, B07): the session the picker shows. */
 export const PaneSessions = ({
     pick,
     agentId,

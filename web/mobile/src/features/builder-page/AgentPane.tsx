@@ -213,10 +213,10 @@ export const AgentPane = ({
                 lastPointerDown.current = Date.now()
             }}
         >
-            {/* The tab row holds only the tabs (B07); they scroll in a narrow pane. */}
+            {/* The tab row holds only the tabs (B07, B08); they scroll in a narrow pane. */}
             <div
                 role="tablist"
-                className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-colorBorderSecondary px-4"
+                className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-colorBorderSecondary px-4 max-md:gap-[9px] max-md:px-3"
             >
                 {PANE_TABS.map((key) => (
                     <button
@@ -226,7 +226,7 @@ export const AgentPane = ({
                         aria-selected={tab === key}
                         onClick={() => void openTab(key)}
                         className={cn(
-                            "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-[13px]",
+                            "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-[13px] max-md:text-[14px]",
                             tab === key
                                 ? "border-colorText font-medium text-colorText"
                                 : "border-transparent text-colorTextSecondary hover:text-colorText",

@@ -68,7 +68,7 @@ export const PaneSessionBar = ({pick}: {pick: PaneSessionPick}) => {
                         aria-label={t("builder.page.sessions")}
                         className="flex max-h-[360px] w-[var(--radix-popover-trigger-width)] min-w-[280px] flex-col overflow-y-auto p-1"
                     >
-                        {(pick.query.data?.sessions ?? []).map((row) => (
+                        {pick.sessions.map((row) => (
                             <button
                                 key={row.session_id}
                                 type="button"
@@ -88,16 +88,14 @@ export const PaneSessionBar = ({pick}: {pick: PaneSessionPick}) => {
                         ))}
                     </PopoverContent>
                 </Popover>
-            ) : (
-                <span className="flex-1" />
-            )}
+            ) : null}
             <Button
                 variant="outline"
                 size="compact"
                 data-testid="pane-new-session"
                 aria-label={t("agentSidebar.newSession")}
                 onClick={pick.startNew}
-                className={phoneControl}
+                className={cn("ml-auto", phoneControl)}
             >
                 <Plus aria-hidden data-icon="inline-start" size={14} />
                 <span className="max-md:hidden">{t("agentSidebar.newSession")}</span>
