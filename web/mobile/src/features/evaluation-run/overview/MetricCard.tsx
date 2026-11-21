@@ -22,7 +22,7 @@ export const MetricCard = ({metric, runId}: {metric: OverviewMetric; runId: stri
                 <span className="truncate text-xs text-muted-foreground">
                     {metric.evaluatorName ?? "--"}
                 </span>
-                <h3 className="m-0 truncate text-sm font-semibold capitalize text-foreground">
+                <h3 className="m-0 truncate text-sm font-semibold text-foreground">
                     {metric.label}
                 </h3>
             </header>

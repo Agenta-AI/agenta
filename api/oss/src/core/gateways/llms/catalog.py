@@ -41,7 +41,10 @@ AGENTA_PROVIDER = "agenta"
 AGENTA_MODELS = (
     "google/gemini-3.8-flash",
     "google/gemini-3.7-flash",
+    "google/gemini-4-hydrogen",
     "google/gemini-4-argon",
+    "google/gemini-4-carbon",
+    "google/gemini-4-neon",
 )
 
 # The connection the retired starter-credits program seeded ("Agenta", slug

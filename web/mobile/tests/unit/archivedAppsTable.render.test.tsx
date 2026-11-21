@@ -194,13 +194,13 @@ describe("ArchivedAppsTable", () => {
                 ),
             )
         })
-        expect(text()).toContain("No archived apps")
+        expect(text()).toContain("No archived prompts")
     })
 
     it("A search with no match offers Clear search", async () => {
         server = []
         await mount()
-        expect(text()).toContain("No archived apps match “zzz”")
+        expect(text()).toContain("No archived prompts match “zzz”")
         const clear = [...host.querySelectorAll("button")].find(
             (button) => button.textContent === "Clear search",
         )

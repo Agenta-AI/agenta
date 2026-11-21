@@ -197,7 +197,6 @@ export {
     type AvatarProps,
     type AvatarBoxProps,
     type AvatarSize,
-    type AvatarShape,
 } from "./avatar"
 export {
     Empty,

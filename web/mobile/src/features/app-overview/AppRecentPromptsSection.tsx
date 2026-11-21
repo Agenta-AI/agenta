@@ -45,8 +45,8 @@ const DeleteRevisionDialog = dynamic(
 export const RECENT_PROMPTS_COUNT = 5
 
 /**
- * The five newest revisions of the app. A row opens the revision drawer. Beta developer mode adds
- * what /w has: the Playground button, Open in Playground and Delete in the row menu, and the
+ * The five newest revisions of the app. A row opens the revision drawer. Developer Mode adds
+ * the Playground button, Open in playground and Delete in the row menu, and the
  * editable drawer. An evaluator is not deployed and has no Registry, so it gets neither Deploy
  * nor the Registry link.
  */
@@ -85,11 +85,13 @@ export const AppRecentPromptsSection = ({
     const newest = useMemo(() => revisions.rows.slice(0, RECENT_PROMPTS_COUNT), [revisions.rows])
     const groups = useMemo(() => toRevisionGroups(newest, "revisions"), [newest])
     const shownRow = useShownRevisionRow({revisionId, appId: app.id, rows: revisions.rows})
+    // An evaluator's revisions are not prompts.
+    const sectionTitle = evaluator ? "Recent revisions" : "Recent prompts"
 
     return (
-        <section aria-label="Recent Prompts">
+        <section aria-label={sectionTitle}>
             <SectionTitle
-                title="Recent Prompts"
+                title={sectionTitle}
                 action={
                     <div className="flex shrink-0 items-center gap-3">
                         {variantsEnabled ? (
@@ -130,6 +132,8 @@ export const AppRecentPromptsSection = ({
                     onDeploy={setDeployRow}
                     onDelete={beta ? setDeleteRow : undefined}
                     detailed={beta}
+                    // One section of the Overview: a stuck header would cover the next sections.
+                    stickyHeader={false}
                     empty={<VariantsEmpty />}
                 />
             )}

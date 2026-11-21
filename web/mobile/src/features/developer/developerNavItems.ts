@@ -69,7 +69,7 @@ const DEVELOPER_RAIL_ROWS: readonly DeveloperRailRow[] = [
     {viewId: "evaluations", title: "Evaluation runs", icon: FlaskIcon, placement: "evaluation"},
     {
         viewId: "annotation-queues",
-        title: "Annotation Queues",
+        title: "Annotation queues",
         icon: ListChecksIcon,
         placement: "evaluation",
     },

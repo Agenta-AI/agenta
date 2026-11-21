@@ -8,10 +8,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {developerNavItems} from "@/features/developer/developerNavItems"
-import {
-    developerViewPreviewAtomFamily,
-    isDeveloperViewEnabled,
-} from "@/features/developer/developerViewAccess"
+import {DEVELOPER_VIEWS_ENV} from "@/features/developer/developerViewAccess"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
 import type {DeveloperView} from "@/features/developer/developerViews"
 import PlaygroundPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground"
@@ -24,7 +21,7 @@ vi.mock("@/features/developer/developerViews", async () => ({
 
 vi.mock("next/router", () => ({
     useRouter: () => ({
-        asPath: "/w/ws/p/pr/lab-hidden",
+        asPath: "/w/ws/p/pr/lab-one",
         back: vi.fn(),
         query: {workspace_id: "ws", project_id: "pr", app_id: "app-1"},
     }),
@@ -91,7 +88,7 @@ describe("developer views", () => {
     afterEach(() => {
         act(() => root.unmount())
         host.remove()
-        localStorage.clear()
+        vi.unstubAllEnvs()
     })
 
     describe("nav section", () => {
@@ -102,17 +99,17 @@ describe("developer views", () => {
         })
 
         it("renders a Developer section whose links turn off prefetch", () => {
-            const [, , on] = TEST_DEVELOPER_VIEWS
+            const [one] = TEST_DEVELOPER_VIEWS
             render(
                 <NavMenu
-                    items={developerNavItems(PROJECT, [on])}
+                    items={developerNavItems(PROJECT, [one])}
                     collapsed={false}
                     mode="inline"
                 />,
             )
             expect(host.textContent).toContain("Developer")
             const links = Array.from(host.querySelectorAll("a"))
-            expect(links.map((link) => link.getAttribute("href"))).toEqual([`${PROJECT}/lab-on`])
+            expect(links.map((link) => link.getAttribute("href"))).toEqual([`${PROJECT}/lab-one`])
             expect(links.map((link) => link.dataset.prefetch)).toEqual(["false"])
         })
     })
@@ -122,64 +119,51 @@ describe("developer views", () => {
 
         it("renders nothing until the signed-in user is known", () => {
             store.set(activeUserIdAtom, null)
-            render(<DeveloperViewGate viewId="lab-on">{view}</DeveloperViewGate>)
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-one")
+            render(<DeveloperViewGate viewId="lab-one">{view}</DeveloperViewGate>)
             expect(host.innerHTML).toBe("")
         })
 
-        it("renders the view when it is on", () => {
-            render(<DeveloperViewGate viewId="lab-on">{view}</DeveloperViewGate>)
+        it("renders the view when the deployment forces it on", () => {
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-one")
+            render(<DeveloperViewGate viewId="lab-one">{view}</DeveloperViewGate>)
             expect(host.querySelector("[data-testid=view]")).not.toBeNull()
         })
 
-        it("renders not found for a hidden view, and for an unknown id", () => {
-            render(<DeveloperViewGate viewId="lab-hidden">{view}</DeveloperViewGate>)
+        it("renders not found for a view that is off, and for an unknown id", () => {
+            render(<DeveloperViewGate viewId="lab-one">{view}</DeveloperViewGate>)
             expect(host.querySelector("[data-testid=view]")).toBeNull()
             expect(host.querySelector("[data-testid=not-found]")?.textContent).toBe(
-                `${PROJECT}/lab-hidden`,
+                `${PROJECT}/lab-one`,
             )
             render(<DeveloperViewGate viewId="nope">{view}</DeveloperViewGate>)
             expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         })
-
-        it("renders a preview view only after the user switches it on", () => {
-            render(<DeveloperViewGate viewId="lab-preview">{view}</DeveloperViewGate>)
-            expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
-            act(() => store.set(developerViewPreviewAtomFamily("lab-preview"), true))
-            expect(host.querySelector("[data-testid=view]")).not.toBeNull()
-        })
     })
 
     describe("endpoints view", () => {
-        it("Endpoints route shows not found until the user turns the view on", async () => {
+        it("Endpoints is a page at /endpoints", async () => {
             const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
                 "@/features/developer/developerViews",
             )
             const endpoints = actual.DEVELOPER_VIEWS.find((view) => view.id === "endpoints")
             expect(endpoints).toBeDefined()
-            expect(endpoints!.stage).toBe("preview")
             expect(endpoints!.routes?.[0]).toBe("/endpoints")
-            expect(
-                isDeveloperViewEnabled(endpoints!, {previewOptedIn: false, forcedIds: new Set()}),
-            ).toBe(false)
         })
     })
 
     describe("playground view", () => {
-        it("Playground route shows not found while the view is hidden", async () => {
+        it("Playground is a page with no nav link", async () => {
             const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
                 "@/features/developer/developerViews",
             )
             const playground = actual.DEVELOPER_VIEWS.find((view) => view.id === "playground")
             expect(playground).toBeDefined()
-            expect(playground!.stage).toBe("hidden")
             expect(playground!.nav).toBeUndefined()
             expect(playground!.routes?.[0]).toBe("/apps/[app_id]/playground")
-            expect(
-                isDeveloperViewEnabled(playground!, {previewOptedIn: false, forcedIds: new Set()}),
-            ).toBe(false)
         })
 
-        it("A hidden playground view loads no screen code", () => {
+        it("A playground view that is off loads no screen code", () => {
             render(<PlaygroundPage />)
             expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
             expect(host.querySelector("[data-testid=playground-screen]")).toBeNull()
@@ -188,39 +172,27 @@ describe("developer views", () => {
     })
 
     describe("evaluations view", () => {
-        it("Evaluations stay off without beta developer mode or a forced view, even for a preview opt-in", async () => {
+        it("Evaluations cover the runs list and the results page", async () => {
             const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
                 "@/features/developer/developerViews",
             )
             const evaluations = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluations")
             expect(evaluations).toBeDefined()
-            // Hidden: the nav item, the runs list, the results page and the new evaluation
-            // sheet behind them show only with beta developer mode or a forced view.
-            expect(evaluations!.stage).toBe("hidden")
             expect(evaluations!.routes).toEqual([
                 "/evaluations",
                 "/evaluations/results/[evaluation_id]",
             ])
-            for (const previewOptedIn of [false, true]) {
-                expect(
-                    isDeveloperViewEnabled(evaluations!, {previewOptedIn, forcedIds: new Set()}),
-                ).toBe(false)
-            }
         })
     })
 
     describe("evaluators view", () => {
-        it("Evaluators routes show not found until the user turns the view on", async () => {
+        it("Evaluators cover the list and the archived list", async () => {
             const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
                 "@/features/developer/developerViews",
             )
             const evaluators = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluators")
             expect(evaluators).toBeDefined()
-            expect(evaluators!.stage).toBe("preview")
             expect(evaluators!.routes).toEqual(["/evaluators", "/evaluators/archived"])
-            expect(
-                isDeveloperViewEnabled(evaluators!, {previewOptedIn: false, forcedIds: new Set()}),
-            ).toBe(false)
         })
     })
 })

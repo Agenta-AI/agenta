@@ -49,7 +49,7 @@ export const QueueListScreen = ({
 
     return (
         <>
-            <PageTitle title="Annotation Queues" />
+            <PageTitle title="Annotation queues" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -67,7 +67,7 @@ export const QueueListScreen = ({
                                         onClick={openCreate}
                                     >
                                         <Plus aria-hidden />
-                                        New Queue
+                                        New queue
                                     </Button>
                                 ) : null}
                             </div>
