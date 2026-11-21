@@ -2349,13 +2349,14 @@ call `wait_for_sessions`, do other work, or end your turn. When the child's turn
 pauses later, a child update starts your next turn. `update_after_minutes` (1 to 360,
 default 30) sends you one update that says the child still runs, if it still runs then."""
 
-_START_SESSION_DESCRIPTION = f"""Start a new child session: another session, of your own agent or of one of your
-Subagent agents, with `text` as its first message. It runs on its own, with its own
-sandbox, and the person can open it and reply in it.
+_START_SESSION_DESCRIPTION = f"""Start a new child session: another session, of an agent that you may start, with
+`text` as its first message. It runs on its own, with its own sandbox, and the person can
+open it and reply in it.
 
-`agent` is the slug or id of the agent (your own agent, or an agent your configuration
-names as a Subagent). `name` names the new session. A child session cannot start
-sessions of its own.
+`agent` is the slug or id of the agent. An agent may start its own agent and the agents
+that its configuration names as Subagents. The Builder may start any agent that the
+person can run (find it with `list_agents`), but not itself. `name` names the new session.
+A child session cannot start sessions of its own.
 
 {_CHILD_TIMING_NOTE}
 
