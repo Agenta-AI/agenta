@@ -6,15 +6,18 @@ import {
 import {
   declinedByUserText,
   deniedByPolicyText,
+  targetNotAllowedText,
 } from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
+import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
 import type {
   ExecutableToolGate,
   ExecutableToolGateRequest,
 } from "../../tools/executable-tool-gate.ts";
 import type { ToolCallCorrelationIndex } from "./client-tools.ts";
 import {
-  raiseApproval,
+  claimApprovalCall,
+  emitApproval,
   type ParkRun,
   type PauseLike,
   type RecordPendingInteraction,
@@ -45,6 +48,10 @@ export interface BuildExecutableToolGateInput {
    * seam decides from scratch and an unapproved `ask` still parks — the check is fail closed.
    */
   executionGrants?: ApprovedExecutionGrants;
+  /** The server preview of an agent write; it never fails the gate (see the fetcher). */
+  resolveChangePreview?: AgentChangePreviewFetcher;
+  /** Resolves when the turn pauses; a pending preview fetch stops waiting then. */
+  pauseSignal?: Promise<unknown>;
   log?: (message: string) => void;
 }
 
@@ -57,6 +64,8 @@ export function buildExecutableToolGate({
   onNonParkablePause,
   permissionPlan,
   executionGrants,
+  resolveChangePreview,
+  pauseSignal,
   log = () => {},
 }: BuildExecutableToolGateInput): ExecutableToolGate {
   return {
@@ -68,17 +77,22 @@ export function buildExecutableToolGate({
         readOnlyHint: request.spec.readOnly,
         args: request.input,
       };
+      let preApproved = false;
       const verdict = await responder.onPermission({
         id: request.id,
         availableReplies: ["once", "reject"],
         gate,
         raw: { spec: request.spec },
+        // Only a call the seam would otherwise park looks for a grant, so a policy allow or deny
+        // still wins outright and grants are spent only where they change the outcome. A grant
+        // also stands for a server allow at the harness gate, so the server is not asked twice.
+        takeGrant: () => {
+          preApproved = Boolean(
+            executionGrants?.consume(request.spec.name, request.input),
+          );
+          return preApproved;
+        },
       });
-      // Only a call the seam would otherwise park looks for a grant, so a policy allow or deny
-      // still wins outright and grants are spent only where they change the outcome.
-      const preApproved =
-        verdict.kind === "pendingApproval" &&
-        Boolean(executionGrants?.consume(request.spec.name, request.input));
       if (process.env.AGENTA_RUNNER_DEBUG_TOOLS) {
         log(
           `[executable-tool] ${request.toolName} id=${request.toolCallId} ` +
@@ -86,9 +100,16 @@ export function buildExecutableToolGate({
             (preApproved ? " grant=consumed" : ""),
         );
       }
-      if (preApproved) return { kind: "allow" };
       if (verdict.kind === "allow") return { kind: "allow" };
       if (verdict.kind === "deny") {
+        // A server deny at the gate refuses one target (D34), not the tool and not a person's
+        // answer, so the model may still pick another target.
+        if (verdict.byGateAnswer) {
+          return {
+            kind: "deny",
+            reason: targetNotAllowedText(request.toolName),
+          };
+        }
         const byPolicy =
           !permissionPlan ||
           effectivePermission(gate, permissionPlan) === "deny";
@@ -100,17 +121,41 @@ export function buildExecutableToolGate({
         };
       }
 
-      const raised = raiseApproval({
+      // Claim the call (mark it paused) before the preview fetch, so a sibling call that pauses
+      // the turn meanwhile does not close this one as not executed. The fetch then races the
+      // pause: once the turn pauses, the card opens without the preview.
+      const toolCallId = claimApprovalCall({
         run,
         pause,
-        recordPendingInteraction,
         toolCallIndex,
-        id: request.id,
         toolCallId: request.toolCallId,
         toolName: request.toolName,
         args: request.input,
       });
-      if (!raised) onNonParkablePause?.();
+      if (toolCallId === undefined) {
+        onNonParkablePause?.();
+        return { kind: "pendingApproval" };
+      }
+      const pending = resolveChangePreview?.({
+        toolName: request.spec.name,
+        toolCallId: request.toolCallId,
+        args: request.input,
+      });
+      const preview = pending
+        ? await Promise.race([
+            pending,
+            ...(pauseSignal ? [pauseSignal.then(() => undefined)] : []),
+          ])
+        : undefined;
+      emitApproval({
+        run,
+        recordPendingInteraction,
+        id: request.id,
+        toolCallId,
+        toolName: request.toolName,
+        args: request.input,
+        ...(preview === undefined ? {} : { payloadExtras: { preview } }),
+      });
       return { kind: "pendingApproval" };
     },
     onPause: () => pause.pause(),

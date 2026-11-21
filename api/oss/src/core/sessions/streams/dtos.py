@@ -15,7 +15,12 @@ from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
-from oss.src.core.sharing.dtos import AccessPolicy, Visibility, SessionSharingState
+from oss.src.core.sharing.dtos import (
+    AccessPolicy,
+    SessionGrant,
+    SessionSharingState,
+    Visibility,
+)
 from oss.src.core.sessions.types import (
     SessionCallingSession,
     SessionCallingSessionQuery,
@@ -108,9 +113,17 @@ class SessionStream(Identifier, Header, Lifecycle):
     # in the insert statement). Never serialized. None: not known.
     _has_channel_thread: Optional[bool] = PrivateAttr(default=None)
 
+    # Set by the row insert only: the grants it gave the row in its transaction (a
+    # child's copy of its calling session's grants). Never serialized.
+    _created_grants: List[SessionGrant] = PrivateAttr(default_factory=list)
+
     @property
     def has_channel_thread(self) -> Optional[bool]:
         return self._has_channel_thread
+
+    @property
+    def created_grants(self) -> List[SessionGrant]:
+        return self._created_grants
 
 
 class SessionStreamReadOptions(BaseModel):
@@ -237,6 +250,8 @@ class SessionStreamQuery(BaseModel):
     origins: Optional[list[SessionOrigin]] = None
     exclude_origins: Optional[list[SessionOrigin]] = None
     calling_session: Optional[SessionCallingSessionQuery] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
 
 
 class CommandMode(str, Enum):

@@ -104,6 +104,7 @@ import { normalizeDesiredState } from "./desired-state.ts";
 import { formatPlan, type ReconcilePlan } from "./reconcile-plan.ts";
 import { normalizeRequestModel } from "../engines/sandbox_agent/model.ts";
 import { runCredential } from "../engines/sandbox_agent/runtime-policy.ts";
+import { TurnApprovalRows } from "../sessions/interactions.ts";
 
 export function klog(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
@@ -218,6 +219,7 @@ export interface KeepaliveEngine {
     presignedMount?: MountCredentials | null,
     clientGone?: () => boolean,
     credentialLease?: PlatformCredentialSource,
+    approvalRows?: TurnApprovalRows,
   ): Promise<AgentRunResult>;
 }
 
@@ -229,6 +231,11 @@ export interface KeepaliveContext {
   clientGone?: () => boolean;
   /** The alive watchdog's credential lease. */
   credentialLease?: PlatformCredentialSource;
+  /**
+   * The session's answered approval rows, read once for this turn. The only source of an
+   * approval decision; absent means none (a resume then shows its card again).
+   */
+  approvalRows?: TurnApprovalRows;
   /**
    * Called once with this run's project scope, as soon as it is known.
    *
@@ -279,9 +286,15 @@ export async function runWithKeepalive(
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
   const { engine, pool, config, clientGone, credentialLease, credentialWait } = ctx;
+  const approvalRows = ctx.approvalRows ?? TurnApprovalRows.empty();
   // Before the fingerprint, the live model change and the env all read it (see the helper).
   normalizeRequestModel(request);
-  const turnCredential = credentialLease ? { credentialLease } : {};
+  // Every engine call of this turn carries the same rows, so a claim made on one path (the warm
+  // resume) is seen by the next (the cold fallback) instead of being asked for again.
+  const turnCredential = {
+    ...(credentialLease ? { credentialLease } : {}),
+    approvalRows,
+  };
   const sessionId = request.sessionId?.trim();
   // Every execution carries an id. The SDK sends one on every session run; a direct runner
   // caller that omits it gets one minted here, so ledger and interaction rows always have one.
@@ -312,6 +325,7 @@ export async function runWithKeepalive(
       undefined,
       clientGone,
       credentialLease,
+      approvalRows,
     );
   }
 
@@ -335,6 +349,7 @@ export async function runWithKeepalive(
       signed,
       clientGone,
       credentialLease,
+      approvalRows,
     );
   }
   const key = scope.key;
@@ -1308,6 +1323,9 @@ export async function runWithKeepalive(
     // gates stay pending in the same process and are carried into the next approval park.
     const parked = existing.environment.parkedApproval;
     const parkedList = [...existing.environment.parkedApprovals.values()];
+    // Answered gates, with the verdict the session's row holds. Each becomes a resume decision
+    // only after this turn claims its row (below), so a decision is never used twice.
+    const answered: { gate: ParkedApproval; decision: "allow" | "deny" }[] = [];
     const resumeDecisions: ResumeApprovalInput[] = [];
     const carriedForward: ParkedApproval[] = [];
     const freshUserTail = tailIsFreshUserMessage(request);
@@ -1326,20 +1344,16 @@ export async function runWithKeepalive(
           mismatch = "unrecognized-gate-type";
           break;
         }
-        const decision = approvalDecisionForToolCall(request, gate.toolCallId);
+        const decision = approvalDecisionForToolCall(
+          request,
+          gate,
+          approvalRows,
+        );
         if (!decision) {
           carriedForward.push(gate);
           continue;
         }
-        resumeDecisions.push({
-          permissionId: gate.permissionId,
-          reply: decision === "allow" ? "once" : "reject",
-          toolCallId: gate.toolCallId,
-          toolName: gate.toolName,
-          args: gate.args,
-          interactionToken: gate.interactionToken,
-          promptPromise: gate.promptPromise,
-        });
+        answered.push({ gate, decision });
       }
     }
     const incomingPrior = priorConversation(request);
@@ -1397,10 +1411,36 @@ export async function runWithKeepalive(
     // holds credentials for a drive the agent lost.
     if (await drivesRevoked(existing.environment)) mismatch = "drive-revoked";
 
-    if (!mismatch && resumeDecisions.length > 0) {
+    if (!mismatch && answered.length > 0) {
       const turnLog = await confirmTurnLogCurrent(existing);
       if (turnLog === "moved") mismatch = "turn-log";
       else if (turnLog !== "current") return turnLog;
+    }
+
+    // Claim each answered row before the live gate gets its decision. A lost claim (another
+    // delivery already took the row) leaves that gate unanswered, as if no answer had arrived.
+    if (!mismatch) {
+      for (const { gate, decision } of answered) {
+        if (!(await approvalRows.claim(gate.interactionToken))) {
+          klog(
+            `approval claim lost key=${key} token=${gate.interactionToken}; gate stays unanswered`,
+          );
+          carriedForward.push(gate);
+          continue;
+        }
+        resumeDecisions.push({
+          permissionId: gate.permissionId,
+          reply: decision === "allow" ? "once" : "reject",
+          toolCallId: gate.toolCallId,
+          toolName: gate.toolName,
+          args: gate.args,
+          interactionToken: gate.interactionToken,
+          promptPromise: gate.promptPromise,
+        });
+      }
+      if (freshUserTail && carriedForward.length > 0) {
+        mismatch = "fresh-prompt-unanswered-gate";
+      }
     }
 
     if (mismatch || resumeDecisions.length === 0) {
@@ -1468,6 +1508,10 @@ export async function runWithKeepalive(
                   resume: { decisions: resumeDecisions, carriedForward },
                 }),
             ...turnCredential,
+            // The answers this resume uses are the claimed rows in `resumeDecisions`. Seed no
+            // other row: a carried gate's answer belongs to its own resume, and a row used here
+            // must not also allow a later call with the same tool and arguments.
+            seededDecisions: [],
           },
         );
       } catch (err) {

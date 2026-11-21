@@ -1,0 +1,213 @@
+import type {Meta, StoryObj} from "@storybook/nextjs"
+
+// Imported from source: the DrillInView barrel does not re-export the catalog.
+import {IntegrationCatalog} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
+import {buildIntegrationRows} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils"
+import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
+import {
+    GITHUB_PERSONAL,
+    GITHUB_WORK,
+    integrationQueries,
+    LINEAR_BROKEN,
+    LOWERCASE_CATEGORIES,
+    SLACK_OPS,
+} from "../../fixtures/gatewayIntegration"
+
+/**
+ * **Data-connected story.** Adding an integration to the agent: the body of the "Add integration" view. It leads with the
+ * apps already connected in the workspace, because that is the one-click case, and puts the whole
+ * catalog behind it for apps that still need connecting.
+ *
+ * Adding is integration-level: one entry per provider and integration, carrying every tool the app
+ * has. There is no per-action add here — that was the pre-rework shape, and a row still holding it
+ * says so rather than offering a second, conflicting way in.
+ */
+const meta = {
+    title: "@agenta/entity-ui/DrillIn/IntegrationCatalog",
+    component: IntegrationCatalog,
+    parameters: {
+        layout: "padded",
+        docs: {
+            description: {
+                component:
+                    "The Add integration view body: a category select, a search box, the workspace's " +
+                    "connected apps as one-click adds, and the full catalog with a Connect leaf " +
+                    "for apps with no connection yet.",
+            },
+        },
+    },
+} satisfies Meta<typeof IntegrationCatalog>
+
+export default meta
+type Story = StoryObj
+
+const noop = () => undefined
+
+const entry = (integration: string, slug: string) => ({
+    type: "gateway_connection",
+    connection: {provider: "composio", integration, slug},
+    policy: {permissions: {default: "allow", tools: {}}},
+})
+
+const legacyEntry = (integration: string, action: string, connection: string) => ({
+    type: "function",
+    function: {name: `tools__composio__${integration}__${action}__${connection}`},
+})
+
+function DrawerHost({tools = [] as unknown[]}) {
+    return (
+        <div className="flex h-[560px] w-[440px] flex-col">
+            <IntegrationCatalog
+                adding={{
+                    integrationRows: buildIntegrationRows(tools),
+                    onAddIntegration: noop,
+                    onAddPersonalIntegration: noop,
+                }}
+                onConnect={noop}
+            />
+        </div>
+    )
+}
+
+/**
+ * Nothing added yet: every connected app offers Add, and the apps with no connection sit under
+ * "All apps" with a Connect leaf.
+ */
+export const Default: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
+        },
+    },
+    render: () => <DrawerHost />,
+}
+
+// Added on `github-work`, with `github-personal` also connected so the swap the row offers has
+// somewhere to go. A swap REPLACES the one entry the format allows; it never appends a second.
+export const AlreadyAdded: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, GITHUB_PERSONAL, SLACK_OPS],
+                }),
+        },
+    },
+    render: () => <DrawerHost tools={[entry("github", GITHUB_WORK.slug ?? "")]} />,
+}
+
+/**
+ * Two connections for one app. There is no unambiguous one-click add, so the row opens a chooser
+ * and the author names the connection the agent runs under.
+ */
+export const MultipleConnections: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, GITHUB_PERSONAL, SLACK_OPS],
+                }),
+        },
+    },
+    render: () => <DrawerHost />,
+}
+
+/**
+ * A connection the project reports as invalid. The connect flow treats the provider popup closing
+ * as success, so an abandoned authorization can leave a connection that exists but does not work —
+ * the row stays with its reconnect hint rather than offering an Add that would fail at run time.
+ */
+export const InvalidConnection: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, LINEAR_BROKEN]}),
+        },
+    },
+    render: () => <DrawerHost />,
+}
+
+/**
+ * The categories as the provider actually sends them: lowercase, and many of them. The category
+ * dropdown beside the search must show them in sentence case with their acronyms ("AI web
+ * scraping", "CRM"), and its list must scroll inside the drawer.
+ *
+ * GitHub and Slack are connected AND still listed under "All apps" — connecting again is the only
+ * way to add a second account, so the catalog never subtracts what is already connected.
+ */
+export const LowercaseCategories: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, SLACK_OPS],
+                    categories: LOWERCASE_CATEGORIES,
+                }),
+        },
+    },
+    render: () => <DrawerHost />,
+}
+
+/**
+ * Two accounts for one app, shown by NAME. The slug is an identifier that happens to be unique;
+ * it tells an author nothing about which account they are picking.
+ */
+export const NamedConnections: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, GITHUB_PERSONAL, SLACK_OPS],
+                    categories: LOWERCASE_CATEGORIES,
+                }),
+        },
+    },
+    render: () => <DrawerHost tools={[entry("github", GITHUB_WORK.slug ?? "")]} />,
+}
+
+/**
+ * An integration still held in the pre-rework per-action format. It is not offered as an add: the
+ * row says it is already there in the old format, and migrating it happens where its permissions
+ * are edited, not here.
+ */
+export const OldFormatRow: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
+        },
+    },
+    render: () => (
+        <DrawerHost
+            tools={[
+                legacyEntry("github", "CREATE_ISSUE", GITHUB_WORK.slug ?? ""),
+                legacyEntry("github", "GET_ISSUE", GITHUB_WORK.slug ?? ""),
+            ]}
+        />
+    ),
+}
+
+/**
+ * The same list as the Settings › Integrations page mounts it: the page scrolls, the search sticks
+ * to its top, categories are chips, rows sit in two columns, and a project row opens to Run.
+ */
+export const SettingsPage: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS, LINEAR_BROKEN]}),
+        },
+    },
+    render: () => (
+        <div className="w-[960px]">
+            <IntegrationCatalog
+                layout="page"
+                searchPlaceholder="Search integrations"
+                projectHeading="Default project"
+                run={{label: "Run action", onRun: noop}}
+                onConnect={noop}
+            />
+        </div>
+    ),
+}

@@ -5,6 +5,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 
 import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
+import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 
 /**
  * The "Load more" row under a {@link ListTable}. Draw it while the list has another page.
@@ -47,6 +48,7 @@ export const ListTableLoadMore = ({
                 variant="outline"
                 size="sm"
                 disabled={loading}
+                className={PHONE_TOUCH_TARGET_CLASS}
                 onClick={onLoadMore}
             >
                 {loading ? <Spinner aria-hidden className="animate-spin" /> : null}

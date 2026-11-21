@@ -3,12 +3,14 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} f
 import {createT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
 
 import {stageWords} from "../../assets/startupPhases"
+import {useAgentDisplayName} from "../../hooks/useAgentDisplayName"
 import {useHeldFor} from "../../hooks/useHeldFor"
 import {useRevealed} from "../../hooks/useRevealed"
 import {useStageWord} from "../../hooks/useStageWord"
@@ -259,13 +261,20 @@ const stageWordText = (word: string): string =>
         ? tNow(STAGE_WORD_KEYS[word as keyof typeof STAGE_WORD_KEYS])
         : word
 
-const liveStep = (step: ActivityStep): LiveLine => {
-    if (step.kind === "thought") return {text: tNow("chat.activity.thinking"), format: "thinking"}
-    // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
-    const display = resolveToolDisplay(
+const stepDisplay = (step: ActivityStep & {part: ToolUIPart}, agentName?: string) =>
+    resolveToolDisplay(
         partToolName(step.part),
         (step.part as {input?: unknown}).input,
+        undefined,
+        undefined,
+        agentName,
     )
+
+/** `agentName` names the agent the step's call names by its slug or id, once looked up. */
+const liveStep = (step: ActivityStep, agentName?: string): LiveLine => {
+    if (step.kind === "thought") return {text: tNow("chat.activity.thinking"), format: "thinking"}
+    // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
+    const display = stepDisplay(step, agentName)
     return {text: display.activity.running, format: ICON_FORMAT[display.icon] ?? "tool"}
 }
 
@@ -387,6 +396,9 @@ export const ActivityTimeline = ({
     // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
     const verbStep = current ?? lastAgentStep(steps)
+    const verbAgentName = useAgentDisplayName(
+        verbStep && verbStep.kind !== "thought" ? stepDisplay(verbStep).agentRef : undefined,
+    )
     // Stage words belong only to the wait before the first step or answer.
     const beforeFirstStep = live && !awaiting && steps.length === 0 && !resuming && !answerStarted
     const stageWord = useStageWord(stageWords(stage), beforeFirstStep, stageSince)
@@ -436,7 +448,7 @@ export const ActivityTimeline = ({
                 ? {text: tNow("chat.activity.answering"), format: "writing"}
                 : idle || !verbStep
                   ? {text: tNow("chat.activity.working"), format: "working"}
-                  : liveStep(verbStep)
+                  : liveStep(verbStep, verbAgentName)
     if (line) {
         title = <SwapLabel shimmer suffix={clock} text={line.text} />
     } else if (failed && !count) {
@@ -466,7 +478,7 @@ export const ActivityTimeline = ({
                 // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
                 disabled={!nodes}
                 aria-expanded={nodes ? open : undefined}
-                className="-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
+                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary max-md:leading-5 group/row ${PHONE_TOUCH_TARGET_CLASS}`}
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
@@ -488,7 +500,7 @@ export const ActivityTimeline = ({
                     <CaretRight
                         size={10}
                         weight="bold"
-                        className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
+                        className={`shrink-0 text-colorTextSecondary transition-transform ${
                             open ? "rotate-90" : ""
                         }`}
                     />

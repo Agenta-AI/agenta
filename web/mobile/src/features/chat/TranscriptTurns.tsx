@@ -37,7 +37,7 @@ export const TranscriptTurns = ({
     /** Names and links the child session of a child update row. */
     renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
-    const start = useTranscriptWindow(turns.length, scrollerRef)
+    const start = useTranscriptWindow(turns.length, scrollerRef, sessionId)
     return (
         <>
             {turns.slice(start).map((turn, offset) => (

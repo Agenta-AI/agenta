@@ -109,6 +109,8 @@ export const AgentRowCells = ({
                 <AgentActionsMenu
                     agent={{id: row.id, name: row.name}}
                     align="end"
+                    // The row's 24 px kebab (canvas A03), as the sessions table draws it.
+                    className="md:size-6"
                     onOpen={() => onOpen(row)}
                     onRename={startFromMenu}
                     onCloseAutoFocus={handleCloseAutoFocus}

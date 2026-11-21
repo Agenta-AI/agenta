@@ -85,6 +85,8 @@ export interface DrawerBreakdownProps {
     unit: string
     onDim: (dim: AnalyticsDimension) => void
     onDrill: (focus: AnalyticsFocus, dim: AnalyticsDimension) => void
+    /** The breakdowns offered; all three by default. */
+    dims?: readonly AnalyticsDimension[]
 }
 
 export const DrawerBreakdown = (props: DrawerBreakdownProps) => {
@@ -93,7 +95,7 @@ export const DrawerBreakdown = (props: DrawerBreakdownProps) => {
         {value: "agent", label: t("observabilityUi.analytics.dimAgent")},
         {value: "model", label: t("observabilityUi.analytics.dimModel")},
         {value: "tool", label: t("observabilityUi.analytics.dimTool")},
-    ]
+    ].filter((option) => !props.dims || props.dims.includes(option.value as AnalyticsDimension))
     return (
         <section className="rounded-xl bg-muted px-4 py-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

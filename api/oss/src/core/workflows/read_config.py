@@ -50,9 +50,7 @@ _NEXT_STEPS = {
     Reason.TARGET_TYPE_MISMATCH: (
         "That segment is a scalar, so it has no fields. Read its parent instead."
     ),
-    Reason.ITEM_NOT_FOUND: (
-        "Read the list itself to see the keys it holds, then retry with one of them."
-    ),
+    Reason.ITEM_NOT_FOUND: "Retry with one of the keys in `details.children`.",
     Reason.DUPLICATE_ITEM_KEY: (
         "Two entries share that key, so it does not address one entry. Read the whole "
         "list instead."
@@ -83,6 +81,7 @@ class ReadConfigError(Exception):
         path: Optional[Target] = None,
         children: Optional[Sequence[str]] = None,
         status_code: int = 422,
+        next_step: Optional[str] = None,
         **context: Any,
     ) -> None:
         super().__init__(message)
@@ -91,6 +90,9 @@ class ReadConfigError(Exception):
         self.path = list(path) if path is not None else None
         self.children = list(children) if children is not None else None
         self.status_code = status_code
+        # A refusal whose way forward depends on what the list holds cannot come from the
+        # table, so a raise site may carry its own sentence.
+        self.explicit_next_step = next_step
         self.context = context
 
     def to_detail(self) -> Dict[str, Any]:
@@ -106,7 +108,7 @@ class ReadConfigError(Exception):
             "message": self.message,
             "retryable": False,
         }
-        next_step = _NEXT_STEPS.get(self.reason)
+        next_step = self.explicit_next_step or _NEXT_STEPS.get(self.reason)
         if next_step:
             detail["next_step"] = next_step
 
@@ -275,11 +277,22 @@ def _resolve(data: Dict[str, Any], path: Sequence[Segment]) -> Any:
                     match_count=len(matches),
                 )
             if not matches:
+                children = _list_children(list_name, entries)
                 raise ReadConfigError(
                     Reason.ITEM_NOT_FOUND,
                     f"'{list_name}' has no entry named {key!r}",
                     path=walked,
-                    children=_list_children(list_name, entries),
+                    children=children,
+                    # `children` lists only the keys there are. When an entry has none, or
+                    # the list is empty, "retry with one of them" sends the agent in a circle.
+                    next_step=(
+                        None
+                        if children and len(children) == len(entries)
+                        else (
+                            f"Read '{list_name}' without a selector. An entry without "
+                            "a key cannot be selected: to change it, set the whole list."
+                        )
+                    ),
                 )
             node = matches[0]
     return node

@@ -8,6 +8,18 @@
 
 export {default as CatalogDrawer} from "./drawers/CatalogDrawer"
 export {default as ConnectDrawer} from "./drawers/ConnectDrawer"
+export {
+    integrationConnectView,
+    type IntegrationConnectViewParams,
+} from "../DrillInView/SchemaControls/agentTemplate/views/integrationConnectView"
+// The one integration list: the "Add integration" view body, and the Settings page.
+export {
+    IntegrationCatalog,
+    type IntegrationCatalogProps,
+    type IntegrationCatalogRun,
+    type IntegrationCatalogYours,
+} from "../DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
+export type {ConnectionAction} from "../DrillInView/SchemaControls/agentTemplate/ConnectionActionConfirm"
 export {default as ConnectionManagerDrawer} from "./drawers/ConnectionManagerDrawer"
 export {default as ToolExecutionDrawer} from "./drawers/ToolExecutionDrawer"
 
