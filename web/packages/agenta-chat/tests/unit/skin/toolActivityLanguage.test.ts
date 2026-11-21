@@ -137,6 +137,21 @@ describe("tool activity in German", () => {
         )
     })
 
+    it("says a running find with a query as a search", () => {
+        const found = resolveToolDisplay("find_traces", {query: "timeout"})
+        expect(found.activity.running).toBe("Sucht nach timeout")
+        expect(found.activity.done).toBe("für timeout gefunden")
+    })
+
+    it("uses the plain form of tools after a direct verb and the dative after a search verb", () => {
+        expect(
+            resolveToolDisplay("search_tools", {}, undefined, {
+                results: [{integration: "github", tool: "x"}],
+            }).activity.running,
+        ).toBe("Sucht Werkzeuge")
+        expect(resolveToolDisplay("discover_tools").activity.running).toBe("Sucht nach Werkzeugen")
+    })
+
     it("frames a builtin search's detail the same way", () => {
         const grep = resolveToolDisplay("Grep", {pattern: "TODO"})
         expect(grep.frame?.running.split("{{object}}")).toEqual(["Sucht nach ", ""])

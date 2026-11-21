@@ -479,7 +479,7 @@ function ChipRow({label, children}: {label: string; children: ReactNode}) {
     return (
         <div className="flex flex-col gap-1.5">
             <FieldLabel>{label}</FieldLabel>
-            <div className="flex gap-1">{children}</div>
+            <div className="flex flex-wrap gap-1">{children}</div>
         </div>
     )
 }

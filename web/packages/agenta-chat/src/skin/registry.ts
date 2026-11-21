@@ -494,10 +494,12 @@ const PLATFORM_TERMS = {
 } as const
 
 /** The glossary term for an object word, or undefined. The word is data, so own keys only. */
-const platformTerm = (word: string): string | undefined =>
-    Object.hasOwn(PLATFORM_TERMS, word)
-        ? tNow(PLATFORM_TERMS[word as keyof typeof PLATFORM_TERMS])
-        : undefined
+const platformTerm = (word: string, afterSearchVerb: boolean): string | undefined => {
+    if (!Object.hasOwn(PLATFORM_TERMS, word)) return undefined
+    // German puts the term in the dative after "nach"; a direct object takes the plain form.
+    if (afterSearchVerb && word === "tools") return tNow("chat.toolActivity.termToolsSearch")
+    return tNow(PLATFORM_TERMS[word as keyof typeof PLATFORM_TERMS])
+}
 
 /** "a issue" → "an issue": English picks the article by the first word's vowel sound, near
  * enough for a one-word object. Other languages show the noun alone. */
@@ -631,8 +633,20 @@ const conjugate = (
                 verbId === "search"
                 ? tNow("chat.toolActivity.forSearchQuery", {query: asked})
                 : tNow("chat.toolActivity.forQuery", {query: asked})
+        // A running find searches "nach" the query in German, and a done find has found it "für"
+        // the query, so the two tenses take different phrases.
+        const activity =
+            verbId === "find" && !appName && !lent
+                ? {
+                      running: withObject(
+                          verbId,
+                          tNow("chat.toolActivity.forSearchQuery", {query: asked}),
+                      ).running,
+                      done: withObject(verbId, phrase).done,
+                  }
+                : withObject(verbId, phrase)
         return {
-            activity: withObject(verbId, phrase),
+            activity,
             namedApp: Boolean(appName),
             ...verbParts(verbId),
         }
@@ -646,7 +660,7 @@ const conjugate = (
               }
     }
     // A glossary term brings its own article and never takes an app name: it is ours.
-    const term = ours ? platformTerm(object.toLowerCase()) : undefined
+    const term = ours ? platformTerm(object.toLowerCase(), SEARCH_VERBS.has(split.verb)) : undefined
     if (term) return {activity: say(term), namedApp: false, ...parts}
     // An article the action name already carries ("Create an issue") has to come off before the app
     // goes in front of the noun, or it lands mid-phrase ("Created GitHub an issue").

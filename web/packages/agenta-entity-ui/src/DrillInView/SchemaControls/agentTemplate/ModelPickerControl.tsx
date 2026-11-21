@@ -21,7 +21,7 @@ import {
     invalidateAgentRequirements,
     loadAgentModelCandidates,
 } from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n"
+import {textVersionAtom, useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
@@ -93,6 +93,8 @@ const ModelPickerControl = ({
     fallback,
 }: ModelPickerControlProps) => {
     const t = useT(configItemsCatalog)
+    // The row text is built in the active language, so the rows are built again when it changes.
+    const textVersion = useAtomValue(textVersionAtom)
     const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
     const candidateState = useAtomValue(candidateAtom)
     const connections = candidateState.connections
@@ -117,7 +119,7 @@ const ModelPickerControl = ({
                 // know them too, or it speaks for a subscription this agent cannot drive.
                 harnessIds,
             }),
-        [candidates, connections, capabilities, harnessIds],
+        [candidates, connections, capabilities, harnessIds, textVersion],
     )
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every

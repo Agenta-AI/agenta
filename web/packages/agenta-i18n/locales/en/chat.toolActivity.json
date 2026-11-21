@@ -144,6 +144,7 @@
     "termSchedules": "schedules",
     "termTool": "a tool",
     "termTools": "tools",
+    "termToolsSearch": "tools",
     "termTriggers": "triggers",
     "termConnections": "connections",
     "termDeliveries": "deliveries",

@@ -212,7 +212,10 @@ const ProviderConnectionCard = ({
     const [credential, setCredential] = useState<CredentialValues>(storedCredential)
     const [name, setName] = useState(connection?.name ?? "")
     const [probe, setProbe] = useState<ProbeProviderResponse | null>(null)
-    const [probeFailure, setProbeFailure] = useState<string | null>(null)
+    // Kept as data and turned into words while rendering, so a language change updates the line.
+    const [probeFailure, setProbeFailure] = useState<
+        {kind: "error"; error: unknown} | {kind: "unread"} | null
+    >(null)
     const [saveError, setSaveError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [manualModels, setManualModels] = useState<string[]>([])
@@ -417,15 +420,12 @@ const ProviderConnectionCard = ({
                 ...(readsOrganizationSecret ? {secretScope: "organization" as const} : {}),
             })
             setProbe(result)
-            if (!result)
-                setProbeFailure(
-                    tNow("entityUi.providerConnection.couldNotRead", {provider: displayTitle}),
-                )
+            if (!result) setProbeFailure({kind: "unread"})
         } catch (error) {
             setProbe(null)
-            setProbeFailure(probeFailureText(error, displayTitle))
+            setProbeFailure({kind: "error", error})
         }
-    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, displayTitle])
+    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -517,7 +517,12 @@ const ProviderConnectionCard = ({
         onSaveStateChange?.({canSave: done.enabled, saving, error: saveError, submit})
     }, [onSaveStateChange, done.enabled, saving, saveError, submit])
 
-    const credentialMessage = probeFailure ?? probe?.credential.message ?? null
+    const probeFailureLine = probeFailure
+        ? probeFailure.kind === "error"
+            ? probeFailureText(probeFailure.error, displayTitle)
+            : tNow("entityUi.providerConnection.couldNotRead", {provider: displayTitle})
+        : null
+    const credentialMessage = probeFailureLine ?? probe?.credential.message ?? null
     const credentialFailed = credentialStatus === "invalid" || !!probeFailure
 
     // The provider's own verdict plus what the same call fetched. Required-ness is carried by
